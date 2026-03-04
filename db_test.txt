@@ -1,0 +1,1 @@
+getaddrinfo ENOTFOUND db.gbhbgmjravrkwqfgitwn.supabase.co

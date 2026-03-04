@@ -1,0 +1,251 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id             Int             @id @default(autoincrement())
+  email          String          @unique
+  passwordHash   String          @map("password_hash")
+  fullName       String          @map("full_name")
+  code           String          @unique
+  role           UserRole        @default(STUDENT)
+  department     String?
+  phone          String?
+  avatarUrl      String?         @map("avatar_url")
+  isActive       Boolean         @default(true) @map("is_active")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+  councilMembers CouncilMember[]
+  evaluations    Evaluation[]    @relation("Evaluator")
+  studentEvals   Evaluation[]    @relation("StudentEval")
+  groupMembers   GroupMember[]
+  ledGroups      Group[]         @relation("GroupLeader")
+  notifications  Notification[]
+  submissions    Submission[]
+  mentoredTopics Topic[]         @relation("MentoredBy")
+  proposedTopics Topic[]         @relation("ProposedBy")
+
+  @@map("users")
+}
+
+model Semester {
+  id                   Int            @id @default(autoincrement())
+  name                 String
+  startDate            DateTime       @map("start_date")
+  endDate              DateTime       @map("end_date")
+  registrationDeadline DateTime?      @map("registration_deadline")
+  defenseDate          DateTime?      @map("defense_date")
+  status               SemesterStatus @default(UPCOMING)
+  createdAt            DateTime       @default(now()) @map("created_at")
+  updatedAt            DateTime       @updatedAt @map("updated_at")
+  councils             Council[]
+  groups               Group[]
+  topics               Topic[]
+
+  @@map("semesters")
+}
+
+model Topic {
+  id           Int         @id @default(autoincrement())
+  semesterId   Int         @map("semester_id")
+  title        String
+  description  String?
+  proposedById Int         @map("proposed_by_id")
+  mentorId     Int         @map("mentor_id")
+  maxGroups    Int         @default(1) @map("max_groups")
+  status       TopicStatus @default(PENDING)
+  rejectReason String?     @map("reject_reason")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+  groups       Group[]
+  mentor       User        @relation("MentoredBy", fields: [mentorId], references: [id])
+  proposedBy   User        @relation("ProposedBy", fields: [proposedById], references: [id])
+  semester     Semester    @relation(fields: [semesterId], references: [id])
+
+  @@map("topics")
+}
+
+model Group {
+  id          Int           @id @default(autoincrement())
+  semesterId  Int           @map("semester_id")
+  topicId     Int?          @map("topic_id")
+  groupName   String        @map("group_name")
+  leaderId    Int           @map("leader_id")
+  councilId   Int?          @map("council_id")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  evaluations Evaluation[]
+  members     GroupMember[]
+  council     Council?      @relation(fields: [councilId], references: [id])
+  leader      User          @relation("GroupLeader", fields: [leaderId], references: [id])
+  semester    Semester      @relation(fields: [semesterId], references: [id])
+  topic       Topic?        @relation(fields: [topicId], references: [id])
+  tasks       Task[]
+
+  @@map("groups")
+}
+
+model GroupMember {
+  id        Int               @id @default(autoincrement())
+  groupId   Int               @map("group_id")
+  studentId Int               @map("student_id")
+  status    GroupMemberStatus @default(INVITED)
+  joinedAt  DateTime?         @map("joined_at")
+  createdAt DateTime          @default(now()) @map("created_at")
+  group     Group             @relation(fields: [groupId], references: [id])
+  student   User              @relation(fields: [studentId], references: [id])
+
+  @@unique([groupId, studentId])
+  @@map("group_members")
+}
+
+model Task {
+  id          Int          @id @default(autoincrement())
+  groupId     Int          @map("group_id")
+  title       String
+  content     String?
+  dueDate     DateTime?    @map("due_date")
+  status      TaskStatus   @default(OPEN)
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  submissions Submission[]
+  group       Group        @relation(fields: [groupId], references: [id])
+
+  @@map("tasks")
+}
+
+model Submission {
+  id          Int       @id @default(autoincrement())
+  taskId      Int       @map("task_id")
+  submittedBy Int       @map("submitted_by")
+  content     String?
+  fileUrl     String?   @map("file_url")
+  fileName    String?   @map("file_name")
+  submittedAt DateTime  @default(now()) @map("submitted_at")
+  feedback    String?
+  feedbackAt  DateTime? @map("feedback_at")
+  student     User      @relation(fields: [submittedBy], references: [id])
+  task        Task      @relation(fields: [taskId], references: [id])
+
+  @@map("submissions")
+}
+
+model Council {
+  id          Int             @id @default(autoincrement())
+  semesterId  Int             @map("semester_id")
+  name        String
+  location    String?
+  defenseDate DateTime?       @map("defense_date")
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+  members     CouncilMember[]
+  semester    Semester        @relation(fields: [semesterId], references: [id])
+  groups      Group[]
+
+  @@map("councils")
+}
+
+model CouncilMember {
+  id            Int         @id @default(autoincrement())
+  councilId     Int         @map("council_id")
+  lecturerId    Int         @map("lecturer_id")
+  roleInCouncil CouncilRole @map("role_in_council")
+  council       Council     @relation(fields: [councilId], references: [id])
+  lecturer      User        @relation(fields: [lecturerId], references: [id])
+
+  @@unique([councilId, lecturerId])
+  @@map("council_members")
+}
+
+model Evaluation {
+  id             Int            @id @default(autoincrement())
+  groupId        Int            @map("group_id")
+  studentId      Int            @map("student_id")
+  evaluatorId    Int            @map("evaluator_id")
+  evaluationType EvaluationType @map("evaluation_type")
+  score          Float
+  comments       String?
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+  evaluator      User           @relation("Evaluator", fields: [evaluatorId], references: [id])
+  group          Group          @relation(fields: [groupId], references: [id])
+  student        User           @relation("StudentEval", fields: [studentId], references: [id])
+
+  @@unique([groupId, studentId, evaluatorId, evaluationType])
+  @@map("evaluations")
+}
+
+model Notification {
+  id           Int              @id @default(autoincrement())
+  userId       Int              @map("user_id")
+  title        String
+  content      String
+  type         NotificationType @default(SYSTEM)
+  referenceUrl String?          @map("reference_url")
+  isRead       Boolean          @default(false) @map("is_read")
+  createdAt    DateTime         @default(now()) @map("created_at")
+  user         User             @relation(fields: [userId], references: [id])
+
+  @@map("notifications")
+}
+
+enum UserRole {
+  ADMIN
+  LECTURER
+  STUDENT
+}
+
+enum SemesterStatus {
+  UPCOMING
+  REGISTRATION
+  ONGOING
+  DEFENSE
+  COMPLETED
+}
+
+enum TopicStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum GroupMemberStatus {
+  INVITED
+  ACCEPTED
+  REJECTED
+}
+
+enum TaskStatus {
+  OPEN
+  IN_PROGRESS
+  SUBMITTED
+  COMPLETED
+  OVERDUE
+}
+
+enum CouncilRole {
+  CHAIRMAN
+  SECRETARY
+  REVIEWER
+  MEMBER
+}
+
+enum EvaluationType {
+  MENTOR_SCORE
+  REVIEWER_SCORE
+  COUNCIL_SCORE
+}
+
+enum NotificationType {
+  SYSTEM
+  TASK_REMINDER
+  APPROVAL
+  INVITATION
+  SUBMISSION
+  EVALUATION
+}

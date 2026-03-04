@@ -1,0 +1,56 @@
+D:\DACN
+├── backend
+|  ├── package-lock.json
+|  ├── package.json
+|  ├── prisma
+|  |  ├── schema.prisma
+|  |  └── seed.js
+|  ├── prisma.config.ts
+|  └── src
+|     ├── app.js
+|     ├── config
+|     |  ├── cloudinary.js
+|     |  └── database.js
+|     ├── controllers
+|     |  └── authController.js
+|     ├── middlewares
+|     |  ├── auth.js
+|     |  └── errorHandler.js
+|     ├── routes
+|     |  ├── authRoutes.js
+|     |  └── index.js
+|     ├── services
+|     └── utils
+└── frontend
+   ├── eslint.config.js
+   ├── index.html
+   ├── package-lock.json
+   ├── package.json
+   ├── public
+   |  └── vite.svg
+   ├── README.md
+   ├── src
+   |  ├── App.css
+   |  ├── App.jsx
+   |  ├── assets
+   |  |  └── react.svg
+   |  ├── components
+   |  |  ├── common
+   |  |  └── layout
+   |  ├── index.css
+   |  ├── main.jsx
+   |  ├── pages
+   |  |  ├── auth
+   |  |  └── dashboard
+   |  ├── services
+   |  |  ├── api.js
+   |  |  └── authService.js
+   |  ├── stores
+   |  |  └── authStore.js
+   |  ├── styles
+   |  └── utils
+   └── vite.config.js
+
+directory: 1011 file: 2540
+
+ignored: directory (9)

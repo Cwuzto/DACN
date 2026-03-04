@@ -1,0 +1,7 @@
+{
+  "protocol": "postgresql:",
+  "username": "postgres.gbhbgmjravrkwqfgitwn",
+  "password": "Tagiabao123",
+  "host": "aws-0-ap-southeast-1.pooler.supabase.com:5432",
+  "pathname": "/postgres"
+}
