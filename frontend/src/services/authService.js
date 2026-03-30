@@ -1,39 +1,40 @@
 import api from './api';
 
-// ============================
-// AUTH SERVICE
-// Tất cả API liên quan đến Đăng nhập/Xác thực
-// ============================
+const wrapServiceError = (error, fallbackMessage) => {
+    if (error?.success === false) return error;
+    return { success: false, message: fallbackMessage };
+};
 
 export const authService = {
-    /**
-     * Đăng nhập
-     * @param {string} email
-     * @param {string} password
-     * @returns {Promise} { token, user }
-     */
-    login: (email, password) => {
-        return api.post('/auth/login', { email, password });
+    login: async (email, password) => {
+        try {
+            return await api.post('/auth/login', { email, password });
+        } catch (error) {
+            throw wrapServiceError(error, 'Dang nhap khong thanh cong');
+        }
     },
 
-    /**
-     * Lấy thông tin user hiện tại
-     */
-    getMe: () => {
-        return api.get('/auth/me');
+    getMe: async () => {
+        try {
+            return await api.get('/auth/me');
+        } catch (error) {
+            throw wrapServiceError(error, 'Khong the tai thong tin nguoi dung');
+        }
     },
 
-    /**
-     * Đổi mật khẩu
-     */
-    changePassword: (currentPassword, newPassword) => {
-        return api.put('/auth/change-password', { currentPassword, newPassword });
+    changePassword: async (currentPassword, newPassword) => {
+        try {
+            return await api.put('/auth/change-password', { currentPassword, newPassword });
+        } catch (error) {
+            throw wrapServiceError(error, 'Khong the doi mat khau');
+        }
     },
 
-    /**
-     * Cập nhật thông tin cá nhân
-     */
-    updateProfile: (data) => {
-        return api.put('/auth/profile', data);
+    updateProfile: async (data) => {
+        try {
+            return await api.put('/auth/profile', data);
+        } catch (error) {
+            throw wrapServiceError(error, 'Khong the cap nhat thong tin');
+        }
     },
 };

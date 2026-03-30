@@ -1,18 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Card, Row, Col, Statistic, Typography, Flex, Button, Tag, Progress, Timeline, Avatar, Spin, Empty, message } from 'antd';
-import {
-    BookOutlined, TeamOutlined, ClockCircleOutlined, CheckCircleOutlined,
-    ArrowRightOutlined, CalendarOutlined, FilePdfOutlined, CloudUploadOutlined,
-    InfoCircleOutlined
-} from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../../stores/authStore';
 import dashboardService from '../../services/dashboardService';
 import dayjs from 'dayjs';
-
-const { Title, Text } = Typography;
-
-const colors = ['#13C2C2', '#1677FF', '#722ed1', '#fa8c16', '#eb2f96'];
 
 function StudentDashboardPage() {
     const { user } = useAuthStore();
@@ -30,7 +20,7 @@ function StudentDashboardPage() {
                     setData(res.data);
                 }
             } catch (error) {
-                message.error(error.message || 'Lỗi tải dữ liệu dashboard.');
+                console.error(error);
             } finally {
                 setLoading(false);
             }
@@ -40,197 +30,265 @@ function StudentDashboardPage() {
     }, []);
 
     if (loading) {
-        return <Flex justify="center" align="center" style={{ minHeight: '60vh' }}><Spin size="large" /></Flex>;
+        return (
+            <div className="flex justify-center items-center min-h-[60vh]">
+                <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div>
+            </div>
+        );
     }
 
-    const { hasGroup, stats, groupDetails, taskStatus, upcomingDeadlines } = data || {};
+    const { hasRegistration, registrationDetails, taskStatus, upcomingDeadlines } = data || {};
+    const hasActiveRegistration = hasRegistration ?? false;
+    const currentRegistration = registrationDetails ?? null;
     const nearestDeadline = upcomingDeadlines && upcomingDeadlines.length > 0 ? upcomingDeadlines[0] : null;
 
     return (
-        <div>
-            {/* Greeting */}
-            <Flex justify="space-between" align="center" wrap="wrap" gap={16} style={{ marginBottom: 24 }}>
-                <div>
-                    <Title level={3} style={{ margin: 0 }}>Xin chào, {user?.fullName}</Title>
-                    <Text type="secondary">MSSV: {user?.code}</Text>
+        <div className="space-y-6">
+            {/* Quick Stats Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+                    <span className="text-xs font-semibold text-slate-500 uppercase">Tên đề tài</span>
+                    <p className="mt-2 text-slate-900 dark:text-white font-bold text-lg leading-snug line-clamp-2">
+                        {hasActiveRegistration && currentRegistration?.topic ? currentRegistration.topic.title : 'Chưa đăng ký đề tài'}
+                    </p>
                 </div>
-                <Button type="primary" icon={<CloudUploadOutlined />} style={{ background: '#13C2C2', borderColor: '#13C2C2' }} onClick={() => navigate('/student/submissions')}>
-                    Nộp báo cáo
-                </Button>
-            </Flex>
+                <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+                    <span className="text-xs font-semibold text-slate-500 uppercase">Giảng viên hướng dẫn</span>
+                    <div className="flex items-center gap-2 mt-2">
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                            <span className="material-symbols-outlined text-[18px]">person</span>
+                        </div>
+                        <p className="text-slate-900 dark:text-white font-bold text-lg">
+                            {hasActiveRegistration && currentRegistration?.topic ? currentRegistration.topic.mentorName : 'Chưa có'}
+                        </p>
+                    </div>
+                </div>
+                <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+                    <span className="text-xs font-semibold text-slate-500 uppercase">Tiến độ thực hiện</span>
+                    <p className="mt-2 text-slate-900 dark:text-white font-bold text-lg line-clamp-1">
+                        {hasActiveRegistration ? `${taskStatus?.progressPercent || 0}% Hoàn thành` : '0%'}
+                    </p>
+                    {hasActiveRegistration && (
+                        <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 mt-2 overflow-hidden">
+                            <div className="bg-primary h-1.5 rounded-full" style={{ width: `${taskStatus?.progressPercent || 0}%` }}></div>
+                        </div>
+                    )}
+                </div>
+                <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+                    <span className="text-xs font-semibold text-slate-500 uppercase">Trạng thái đăng ký</span>
+                    <div className="mt-2 flex items-center gap-2">
+                        {hasActiveRegistration ? (
+                            <>
+                                <span className="relative flex h-3 w-3">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                                </span>
+                                <span className="bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider border border-emerald-100 dark:border-emerald-800">Đã đăng ký</span>
+                            </>
+                        ) : (
+                            <>
+                                <span className="relative flex h-3 w-3">
+                                    <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                                </span>
+                                <span className="bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider border border-red-100 dark:border-red-800">Chưa đăng ký</span>
+                            </>
+                        )}
+                    </div>
+                </div>
+            </div>
 
-            {/* Stats */}
-            <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-                <Col xs={24} sm={8}>
-                    <Card hoverable style={{ borderRadius: 10 }}>
-                        <Statistic
-                            title="Đề tài đang thực hiện"
-                            value={stats?.hasTopic || 0}
-                            prefix={<BookOutlined style={{ color: '#1677FF' }} />}
-                        />
-                    </Card>
-                </Col>
-                <Col xs={24} sm={8}>
-                    <Card hoverable style={{ borderRadius: 10 }}>
-                        <Statistic
-                            title="Nhóm của tôi"
-                            value={hasGroup ? stats?.groupName : 'Chưa có nhóm'}
-                            prefix={<TeamOutlined style={{ color: '#13C2C2' }} />}
-                            valueStyle={{ fontSize: hasGroup ? 20 : 16 }}
-                        />
-                    </Card>
-                </Col>
-                <Col xs={24} sm={8}>
-                    <Card hoverable style={{ borderRadius: 10, borderColor: '#ffd591' }}>
-                        <Statistic
-                            title={<Text style={{ color: '#fa8c16' }}><ClockCircleOutlined /> Hạn sắp tới</Text>}
-                            value={nearestDeadline ? dayjs(nearestDeadline.date).format('DD/MM/YYYY') : 'Không có'}
-                            valueStyle={{ color: '#ff4d4f', fontSize: 18 }}
-                        />
-                    </Card>
-                </Col>
-            </Row>
+            {/* Emergency Banner (if deadline is near) */}
+            {nearestDeadline && (
+                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 flex items-center justify-between shadow-sm">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-amber-100 dark:bg-amber-800 rounded-full p-2 text-amber-600 dark:text-amber-400">
+                            <span className="material-symbols-outlined">warning</span>
+                        </div>
+                        <div>
+                            <p className="text-amber-900 dark:text-amber-100 font-bold text-sm md:text-base">Hạn nộp sắp tới</p>
+                            <p className="text-amber-700 dark:text-amber-300 text-sm">{nearestDeadline.title} - Phải nộp vào lúc {dayjs(nearestDeadline.date).format('DD/MM/YYYY - HH:mm')}.</p>
+                        </div>
+                    </div>
+                    <button onClick={() => navigate('/student/submissions')} className="hidden md:block bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                        Nộp ngay
+                    </button>
+                </div>
+            )}
 
             {
-                !hasGroup && (
-                    <Card style={{ borderRadius: 10, textAlign: 'center', padding: '40px 0' }}>
-                        <Empty
-                            image={Empty.PRESENTED_IMAGE_SIMPLE}
-                            description={<Text type="secondary">Bạn chưa tham gia nhóm nào. Hãy tạo hoặc tham gia một nhóm để bắt đầu đồ án.</Text>}
-                        >
-                            <Button type="primary" onClick={() => navigate('/student/group')}>Đến Quản lý Nhóm</Button>
-                        </Empty>
-                    </Card>
+                !hasActiveRegistration && (
+                     <div className="bg-white dark:bg-slate-900 p-12 rounded-xl border border-slate-200 dark:border-slate-800 text-center flex flex-col items-center justify-center">
+                        <div className="size-16 bg-primary/10 text-primary rounded-full flex justify-center items-center mb-4">
+                            <span className="material-symbols-outlined text-3xl">diversity_3</span>
+                        </div>
+                        <h3 className="text-xl font-bold mb-2">Bạn chưa đăng ký đề tài</h3>
+                        <p className="text-slate-500 max-w-md mx-auto mb-6">Hãy chọn và đăng ký một đề tài để bắt đầu thực hiện đồ án môn học.</p>
+                        <button onClick={() => navigate('/student/topics')} className="bg-primary hover:bg-primary/90 text-white px-6 py-2.5 rounded-lg font-semibold transition-colors">
+                            Đi đến Danh sách đề tài
+                        </button>
+                    </div>
                 )
             }
 
             {
-                hasGroup && (
-                    <Row gutter={[24, 24]}>
-                        {/* Current Topic */}
-                        <Col xs={24} lg={14}>
-                            <Card style={{ borderRadius: 10, marginBottom: 16 }}>
-                                {!groupDetails?.topic ? (
-                                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Nhóm chưa đăng ký đề tài">
-                                        <Button type="dashed" onClick={() => navigate('/student/topics')}>Đăng ký đề tài</Button>
-                                    </Empty>
-                                ) : (
-                                    <>
-                                        <Tag color="processing" style={{ marginBottom: 8 }}>Đang thực hiện</Tag>
-                                        <Title level={5} style={{ margin: '4px 0' }}>
-                                            {groupDetails.topic.title}
-                                        </Title>
-                                        <Text type="secondary">GVHD: {groupDetails.topic.mentorName} • Mã: {groupDetails.topic.topicCode}</Text>
-
-                                        <div style={{ margin: '16px 0' }}>
-                                            <Text type="secondary" style={{ fontSize: 12 }}>Tiến độ tổng thể</Text>
-                                            <Progress percent={taskStatus.progressPercent} strokeColor="#13C2C2" />
+                hasActiveRegistration && (
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        {/* Current Topic & Timeline (combined) */}
+                        <div className="lg:col-span-2 space-y-6">
+                            {/* Progress Timeline Block */}
+                            <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                                <h3 className="text-base font-bold text-slate-900 dark:text-white mb-8 flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-primary">analytics</span>
+                                    Lộ trình thực hiện
+                                </h3>
+                                <div className="relative">
+                                    <div className="absolute top-5 left-0 w-full h-1 bg-slate-100 dark:bg-slate-800"></div>
+                                    <div className="absolute top-5 left-0 h-1 bg-primary border-r-4 border-white transition-all duration-500" style={{ width: `${taskStatus?.progressPercent || 0}%` }}></div>
+                                    
+                                    <div className="relative z-10 flex justify-between items-start text-center">
+                                        <div className="flex flex-col items-center group">
+                                            <div className="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center border-4 border-white dark:border-slate-900 mb-3 transition-transform hover:scale-110">
+                                                <span className="material-symbols-outlined text-[20px]">check</span>
+                                            </div>
+                                            <span className="text-sm font-bold text-slate-900 dark:text-white">Đăng ký</span>
+                                            <span className="text-[10px] text-emerald-600 font-semibold uppercase mt-1">Hoàn thành</span>
+                                        </div>
+                                        
+                                        <div className="flex flex-col items-center group">
+                                            <div className="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center border-4 border-white dark:border-slate-900 bg-primary/20 active-dot mb-3 transition-transform hover:scale-110">
+                                                <span className="material-symbols-outlined text-[20px]">edit_note</span>
+                                            </div>
+                                            <span className="text-sm font-bold text-primary">Thực hiện</span>
+                                            <span className="text-[10px] bg-primary text-white px-2 rounded-full font-semibold uppercase mt-1">Hiện tại</span>
                                         </div>
 
-                                        <Flex gap={16} wrap="wrap">
-                                            <Card size="small" style={{ flex: 1, minWidth: 150, background: '#f6ffed', borderColor: '#b7eb8f' }}>
-                                                <Flex align="center" gap={8}>
-                                                    <CheckCircleOutlined style={{ color: '#52c41a', fontSize: 18 }} />
-                                                    <div>
-                                                        <Text type="secondary" style={{ fontSize: 11 }}>Đã nộp</Text>
-                                                        <div><Text strong>{taskStatus.submitted}/{taskStatus.total}</Text> báo cáo</div>
-                                                    </div>
-                                                </Flex>
-                                            </Card>
-                                            <Card size="small" style={{ flex: 1, minWidth: 150, background: '#fff7e6', borderColor: '#ffd591' }}>
-                                                <Flex align="center" gap={8}>
-                                                    <ClockCircleOutlined style={{ color: '#fa8c16', fontSize: 18 }} />
-                                                    <div>
-                                                        <Text type="secondary" style={{ fontSize: 11 }}>Còn lại</Text>
-                                                        <div><Text strong>{taskStatus.remaining}</Text> bài nộp</div>
-                                                    </div>
-                                                </Flex>
-                                            </Card>
-                                        </Flex>
-
-                                        <Flex justify="flex-end" style={{ marginTop: 16 }}>
-                                            <Button type="primary" onClick={() => navigate('/student/submissions')} style={{ background: '#13C2C2', borderColor: '#13C2C2' }}>
-                                                Xem chi tiết <ArrowRightOutlined />
-                                            </Button>
-                                        </Flex>
-                                    </>
-                                )}
-                            </Card>
-
-                            {/* Team members */}
-                            <Card title="Thành viên nhóm" style={{ borderRadius: 10 }}>
-                                <Flex vertical gap={12}>
-                                    {groupDetails?.members?.map((m, i) => (
-                                        <Flex key={i} align="center" gap={12}>
-                                            <Avatar style={{ background: colors[i % colors.length] }}>{m.fullName[0]}</Avatar>
-                                            <div>
-                                                <Text strong>{m.fullName} {m.id === user.id && '(Tôi)'}</Text>
-                                                <br />
-                                                <Tag size="small" color={m.role === 'Nhóm trưởng' ? 'green' : 'default'}>{m.role}</Tag>
-                                                <Text type="secondary" style={{ fontSize: 12, marginLeft: 8 }}>{m.code}</Text>
+                                        <div className="flex flex-col items-center group">
+                                            <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600 flex items-center justify-center border-4 border-white dark:border-slate-900 mb-3 transition-transform hover:scale-110">
+                                                <span className="material-symbols-outlined text-[20px]">upload_file</span>
                                             </div>
-                                        </Flex>
-                                    ))}
-                                </Flex>
-                            </Card>
-                        </Col>
+                                            <span className="text-sm font-medium text-slate-500">Nộp sản phẩm</span>
+                                            <span className="text-[10px] text-slate-400 font-semibold uppercase mt-1">Sắp tới</span>
+                                        </div>
 
-                        {/* Timeline */}
-                        <Col xs={24} lg={10}>
-                            <Title level={5} style={{ marginBottom: 16 }}>
-                                <CalendarOutlined style={{ color: '#13C2C2', marginRight: 8 }} />
-                                Hạn nộp sắp tới
-                            </Title>
-                            <Card style={{ borderRadius: 10 }}>
-                                {upcomingDeadlines?.length > 0 ? (
-                                    <Timeline
-                                        items={upcomingDeadlines.map((d) => ({
-                                            color: d.color,
-                                            children: (
-                                                <div>
-                                                    <Text strong style={{
-                                                        fontSize: 11, textTransform: 'uppercase',
-                                                        color: d.color === 'red' ? '#ff4d4f' : d.color === 'gray' ? '#8c8c8c' : '#13C2C2',
-                                                    }}>
-                                                        {dayjs(d.date).format('DD/MM/YYYY - HH:mm')}
-                                                    </Text>
-                                                    <div><Text strong>{d.title}</Text></div>
-                                                    <Text type="secondary" style={{ fontSize: 13 }}>{d.desc}</Text>
-                                                </div>
-                                            ),
-                                        }))}
-                                    />
-                                ) : (
-                                    <Empty description={<Text type="secondary">Không có hạn nộp nào sắp tới</Text>} />
-                                )}
-                            </Card>
-
-                            {/* Quick Action */}
-                            {nearestDeadline && (
-                                <Card
-                                    style={{
-                                        marginTop: 16, borderRadius: 10,
-                                        background: 'linear-gradient(135deg, #13C2C2, #006d75)',
-                                        border: 'none',
-                                    }}
-                                >
-                                    <FilePdfOutlined style={{ color: '#fff', fontSize: 28, marginBottom: 8 }} />
-                                    <Title level={5} style={{ color: '#fff', margin: '4px 0' }}>Sắp đến hạn</Title>
-                                    <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13 }}>
-                                        <Text strong style={{ color: '#fff' }}>{nearestDeadline.title}</Text> sẽ cần nộp vào ngày {dayjs(nearestDeadline.date).format('DD/MM/YYYY')}.
-                                    </Text>
-                                    <div style={{ marginTop: 12 }}>
-                                        <Button ghost size="small" style={{ color: '#fff', borderColor: '#fff' }} onClick={() => navigate('/student/submissions')}>
-                                            Nộp ngay →
-                                        </Button>
+                                        <div className="flex flex-col items-center group">
+                                            <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600 flex items-center justify-center border-4 border-white dark:border-slate-900 mb-3 transition-transform hover:scale-110">
+                                                <span className="material-symbols-outlined text-[20px]">school</span>
+                                            </div>
+                                            <span className="text-sm font-medium text-slate-500">Bảo vệ</span>
+                                            <span className="text-[10px] text-slate-400 font-semibold uppercase mt-1">Kết thúc</span>
+                                        </div>
                                     </div>
-                                </Card>
-                            )}
-                        </Col>
-                    </Row>
+                                </div>
+                            </div>
+                            
+                            {/* Submission List Table view (simplified for Dashboard) */}
+                            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+                                <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                                    <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-primary">history</span>
+                                        Sự kiện nộp bài & báo cáo
+                                    </h3>
+                                    <button onClick={() => navigate('/student/submissions')} className="text-primary hover:text-primary/80 text-sm font-semibold flex items-center gap-1 transition-colors">
+                                        Chi tiết <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+                                    </button>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    {upcomingDeadlines?.length > 0 ? (
+                                        <table className="w-full text-left">
+                                            <thead className="bg-slate-50 dark:bg-slate-800/50">
+                                                <tr>
+                                                    <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Tên sự kiện</th>
+                                                    <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Hạn nộp</th>
+                                                    <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Trạng thái</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                                {upcomingDeadlines.slice(0, 4).map((d, index) => (
+                                                    <tr key={index} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                                                        <td className="px-6 py-4 flex flex-col gap-0.5">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="material-symbols-outlined text-slate-400 text-[18px]">description</span>
+                                                                <span className="text-sm font-bold text-slate-900 dark:text-slate-100">{d.title}</span>
+                                                            </div>
+                                                            <span className="text-xs text-slate-500 ml-6">{d.desc}</span>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-sm text-slate-500 whitespace-nowrap">{dayjs(d.date).format('DD/MM/YYYY')}</td>
+                                                        <td className="px-6 py-4">
+                                                            {d.color === 'red' ? (
+                                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-200">
+                                                                    <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span> Tới hạn nộp
+                                                                </span>
+                                                            ) : (
+                                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-50 border border-slate-200 text-slate-600">
+                                                                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span> Chưa bắt đầu
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    ) : (
+                                        <div className="p-6 text-center text-slate-500 text-sm">Chưa có thông tin sự kiện</div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Actions Sidebar */}
+                        <div className="space-y-4">
+                            <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                                <h3 className="text-base font-bold text-slate-900 dark:text-white mb-4">Thao tác nhanh</h3>
+                                <div className="space-y-3">
+                                    <button onClick={() => navigate('/student/submissions')} className="w-full bg-primary hover:bg-primary/90 text-white py-3 rounded-lg font-semibold flex items-center justify-center gap-2 transition-all shadow-md shadow-primary/20">
+                                        <span className="material-symbols-outlined">upload</span>
+                                        Nộp báo cáo giai đoạn
+                                    </button>
+                                    <button onClick={() => navigate('/student/grades')} className="w-full border shadow-sm border-slate-200 dark:border-slate-800 hover:border-primary/30 hover:bg-slate-50 dark:hover:bg-slate-800/50 py-3 rounded-lg font-semibold flex items-center justify-center gap-2 transition-all text-slate-700 dark:text-slate-300">
+                                        <span className="material-symbols-outlined">visibility</span>
+                                        Xem điểm đồ án
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                                <h3 className="text-base font-bold text-slate-900 dark:text-white mb-4">Thông tin sinh viên ({currentRegistration?.members?.length || 0})</h3>
+                                <div className="flex flex-col gap-3">
+                                    {currentRegistration?.members?.map((m, i) => (
+                                        <div key={i} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                                            <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold">
+                                                {m.fullName[0]}
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-semibold text-slate-900 dark:text-white leading-none mb-1">
+                                                    {m.fullName} {m.id === user.id && '(Tôi)'}
+                                                </p>
+                                                <div className="flex gap-2 items-center text-xs">
+                                                    <span className={`px-1.5 py-0.5 rounded font-medium ${m.role === 'Nhóm trưởng' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{m.role}</span>
+                                                    <span className="text-slate-500">{m.code}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="bg-primary/5 p-6 rounded-xl border border-primary/20">
+                                <h4 className="text-primary font-bold mb-2 flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-[20px]">support_agent</span>
+                                    Hỗ trợ kỹ thuật
+                                </h4>
+                                <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed mb-4">Nếu gặp trục trặc trong hệ thống nộp bài, hãy gửi email báo cho IT.</p>
+                                <a className="inline-flex items-center justify-center w-full gap-2 bg-white dark:bg-slate-800 px-4 py-2.5 rounded-lg text-primary font-bold text-sm shadow-sm border border-slate-200 dark:border-slate-700 hover:border-primary/50 transition-colors" href="mailto:support@itc.edu.vn">
+                                    <span className="material-symbols-outlined text-[18px]">mail</span>
+                                    support@itc.edu.vn
+                                </a>
+                            </div>
+                        </div>
+                    </div>
                 )
             }
-        </div >
+        </div>
     );
 }
 

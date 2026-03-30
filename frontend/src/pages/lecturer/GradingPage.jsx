@@ -1,214 +1,264 @@
 import { useState, useEffect } from 'react';
-import { Card, Button, Typography, Flex, Tag, Input, InputNumber, Avatar, Row, Col, Space, Divider, message, Spin, Empty } from 'antd';
-import {
-    DownloadOutlined, FilterOutlined, CheckCircleOutlined,
-    TeamOutlined, CalendarOutlined, SafetyCertificateOutlined, SaveOutlined
-} from '@ant-design/icons';
+import { message, Upload, Button, Tooltip } from 'antd';
+import { UploadOutlined, EyeOutlined } from '@ant-design/icons';
 import evaluationService from '../../services/evaluationService';
 
-const { Title, Text } = Typography;
-const { TextArea } = Input;
-
-// Removed mockGradingGroups
-
-function GradingCard({ group, onRefresh }) {
-    const [students, setStudents] = useState(group.students || []);
+function GradingCard({ registration, onRefresh }) {
+    const [score, setScore] = useState(registration.finalScore ?? '');
+    const [comment, setComment] = useState(registration.defenseResult?.comments || '');
+    const [scoresheetUrl, setScoresheetUrl] = useState(registration.defenseResult?.scoresheetUrl || '');
     const [saving, setSaving] = useState(false);
 
     useEffect(() => {
-        setStudents(group.students || []);
-    }, [group.students]);
+        setScore(registration.finalScore ?? '');
+        setComment(registration.defenseResult?.comments || '');
+        setScoresheetUrl(registration.defenseResult?.scoresheetUrl || '');
+    }, [registration]);
 
-    const handleScoreChange = (index, value) => {
-        const newStudents = [...students];
-        newStudents[index] = { ...newStudents[index], score: value };
-        setStudents(newStudents);
-    };
-
-    const handleCommentChange = (index, value) => {
-        const newStudents = [...students];
-        newStudents[index] = { ...newStudents[index], comment: value };
-        setStudents(newStudents);
-    };
-
-    const handleSave = async (isDraft = false) => {
+    const handleSave = async () => {
+        if (score === '' || score === null) {
+            return message.warning('Vui lòng nhập điểm số hợp lệ.');
+        }
+        
         try {
             setSaving(true);
-            const evaluationsParams = students.map(s => ({
-                studentId: s.id,
-                score: s.score,
-                comments: s.comment
-            }));
+            const data = {
+                registrationId: registration.id,
+                finalScore: parseFloat(score),
+                comments: comment,
+                scoresheetUrl: scoresheetUrl
+            };
 
-            const res = await evaluationService.submitEvaluations(group.id, 'MENTOR_SCORE', evaluationsParams);
+            const res = await evaluationService.submitDefenseResult(data);
             if (res.success) {
-                message.success(isDraft ? 'Đã lưu nháp thành công!' : 'Đã xác nhận điểm thành công!');
+                message.success('Đã xác nhận điểm bảo vệ thành công!');
                 if (onRefresh) onRefresh();
             }
         } catch (error) {
-            message.error(error.message || 'Lỗi khi lưu điểm');
+            message.error(error.message || 'Lỗi khi lưu điểm bảo vệ');
         } finally {
             setSaving(false);
         }
     };
 
-    const allScored = students.length > 0 && students.every(s => s.score !== null && s.score !== undefined && s.score !== '');
+    // Placeholder mock for file upload
+    const customUpload = async ({ file, onSuccess }) => {
+        setTimeout(() => {
+            setScoresheetUrl(URL.createObjectURL(file));
+            onSuccess("ok");
+            message.success(`${file.name} uploaded successfully.`);
+        }, 1000);
+    };
+
+    const hasScore = score !== null && score !== undefined && score !== '';
+    const student = registration.student;
+
+    const statusColors = {
+        'Chưa chấm': 'bg-amber-100 text-amber-700',
+        'Đã chấm': 'bg-emerald-100 text-emerald-700',
+    };
+
+    const initials = (student?.fullName || 'S').split(' ').map(w => w[0]).join('').slice(-2).toUpperCase();
+    const scoreColor = score >= 8 ? 'text-emerald-600' : score >= 5 ? 'text-amber-600' : score !== '' ? 'text-red-600' : 'text-slate-400';
 
     return (
-        <Card style={{ borderRadius: 10, marginBottom: 16 }}>
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-6">
             {/* Header */}
-            <Flex justify="space-between" align="center" wrap="wrap" gap={8} style={{ marginBottom: 16 }}>
-                <div>
-                    <Flex gap={8} style={{ marginBottom: 4 }}>
-                        <Tag color="blue">{group.groupName}</Tag>
-                        <Tag color={group.roleColor}>{group.roleTag}</Tag>
-                    </Flex>
-                    <Title level={5} style={{ margin: 0 }}>{group.topic}</Title>
+            <div className="p-6 border-b border-slate-100">
+                <div className="flex flex-wrap justify-between items-start gap-4 mb-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-primary/10 text-primary">
+                            Đề tài: {registration.topic?.title?.substring(0, 50)}...
+                        </span>
+                        {registration.council ? (
+                            <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-700">
+                                {registration.council.name}
+                            </span>
+                        ) : (
+                            <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700">
+                                GVHD
+                            </span>
+                        )}
+                    </div>
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${statusColors[registration.gradingStatus] || 'bg-slate-100 text-slate-600'}`}>
+                        <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
+                        {registration.gradingStatus}
+                    </span>
                 </div>
-                <Tag color={group.statusColor}>{group.status}</Tag>
-            </Flex>
-
-            <Divider style={{ margin: '12px 0' }} />
+                <h4 className="text-lg font-bold text-slate-900">{registration.topic?.title}</h4>
+            </div>
 
             {/* Student Grading */}
-            {students.map((student, index) => (
-                <div key={student.id} style={{ marginBottom: index < students.length - 1 ? 16 : 0 }}>
-                    <Flex gap={16} wrap="wrap" align="flex-start">
-                        <Flex align="center" gap={12} style={{ minWidth: 200 }}>
-                            <Avatar style={{ background: '#1677FF' }}>{student.name ? student.name[0] : 'S'}</Avatar>
-                            <div>
-                                <Text strong>{student.name}</Text>
-                                <br />
-                                <Text type="secondary" style={{ fontSize: 12, fontFamily: 'monospace' }}>{student.code}</Text>
-                            </div>
-                        </Flex>
-                        <InputNumber
-                            min={0}
-                            max={10}
-                            step={0.1}
-                            value={student.score}
-                            onChange={(val) => handleScoreChange(index, val)}
-                            placeholder="0.0"
-                            style={{ width: 100 }}
-                            size="large"
-                        />
-                        <TextArea
-                            rows={2}
-                            value={student.comment}
-                            onChange={(e) => handleCommentChange(index, e.target.value)}
-                            placeholder="Nhập nhận xét về thái độ, đóng góp..."
-                            style={{ flex: 1, minWidth: 250 }}
-                        />
-                    </Flex>
-                    {index < students.length - 1 && <Divider dashed style={{ margin: '12px 0' }} />}
-                </div>
-            ))}
+            <div className="p-6">
+                <div className="flex flex-col lg:flex-row gap-6 items-start">
+                    {/* Student Info */}
+                    <div className="flex items-center gap-3 w-full lg:w-1/4 shrink-0">
+                        <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-lg">
+                            {initials}
+                        </div>
+                        <div>
+                            <p className="text-sm font-bold text-slate-900">{student?.fullName}</p>
+                            <p className="text-xs text-slate-500 font-mono">{student?.code}</p>
+                        </div>
+                    </div>
 
-            <Divider style={{ margin: '16px 0 12px' }} />
+                    {/* Score Input */}
+                    <div className="relative w-full lg:w-32 shrink-0">
+                        <input
+                            type="number"
+                            min="0"
+                            max="10"
+                            step="0.1"
+                            value={score}
+                            onChange={(e) => setScore(e.target.value)}
+                            placeholder="0.0"
+                            className={`w-full h-14 rounded-lg border border-slate-200 bg-slate-50 text-2xl font-black ${scoreColor} text-center focus:ring-2 focus:ring-primary focus:border-primary transition-all`}
+                        />
+                        <div className="absolute right-3 top-4 text-slate-400 text-sm font-bold">/ 10</div>
+                    </div>
+
+                    {/* Comment Area */}
+                    <div className="w-full lg:flex-1 space-y-3">
+                        <textarea
+                            rows={3}
+                            value={comment}
+                            onChange={(e) => setComment(e.target.value)}
+                            placeholder="Nhập nhận xét về hội đồng bảo vệ, tiến độ thực hiện..."
+                            className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm focus:ring-2 focus:ring-primary focus:border-primary transition-all resize-none"
+                        />
+                        <div className="flex items-center gap-3">
+                            <Upload customRequest={customUpload} showUploadList={false} accept="image/*,.pdf">
+                                <Button icon={<UploadOutlined />}>Tải lên Bảng điểm</Button>
+                            </Upload>
+                            {scoresheetUrl && (
+                                <Tooltip title="Xem bảng điểm">
+                                    <Button type="link" icon={<EyeOutlined />} onClick={() => window.open(scoresheetUrl, '_blank')}>
+                                        Xem ảnh
+                                    </Button>
+                                </Tooltip>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             {/* Footer */}
-            <Flex justify="flex-end" gap={12}>
-                <Button icon={<SaveOutlined />} onClick={() => handleSave(true)} loading={saving}>
-                    Lưu nháp
-                </Button>
-                <Button
-                    type="primary"
-                    icon={<CheckCircleOutlined />}
-                    disabled={!allScored}
-                    loading={saving}
-                    onClick={() => handleSave(false)}
-                    style={allScored ? { background: '#722ed1', borderColor: '#722ed1' } : {}}
+            <div className="px-6 pb-6 flex justify-end gap-3 mt-4 border-t border-slate-100 pt-4">
+                <button
+                    onClick={handleSave}
+                    disabled={!hasScore || saving}
+                    className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                        hasScore
+                            ? 'bg-primary text-white hover:bg-primary/90 hover:-translate-y-0.5'
+                            : 'bg-slate-200 text-slate-400'
+                    }`}
                 >
-                    Xác nhận điểm
-                </Button>
-            </Flex>
-        </Card>
+                    <span className="material-symbols-outlined text-[18px]">verified</span>
+                    Xác nhận Điểm Bảo Vệ
+                </button>
+            </div>
+        </div>
     );
 }
 
 function GradingPage() {
-    const [groups, setGroups] = useState([]);
+    const [registrations, setRegistrations] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    const fetchGradingGroups = async () => {
+    const fetchGradingStudents = async () => {
         try {
             setLoading(true);
-            const res = await evaluationService.getGradingGroups();
+            const res = await evaluationService.getGradingStudents();
             if (res.success) {
-                setGroups(res.data);
+                setRegistrations(res.data);
             }
         } catch (error) {
-            message.error(error.message || 'Lỗi khi tải danh sách nhóm chấm điểm');
+            message.error(error.message || 'Lỗi khi tải danh sách sinh viên chấm điểm');
         } finally {
             setLoading(false);
         }
     };
 
     useEffect(() => {
-        fetchGradingGroups();
+        fetchGradingStudents();
     }, []);
 
-    return (
-        <div>
-            {/* Header */}
-            <Flex justify="space-between" align="flex-start" wrap="wrap" gap={16} style={{ marginBottom: 24 }}>
-                <div>
-                    <Text type="secondary">Học kỳ 2023-2024 / Đánh giá</Text>
-                    <Title level={3} style={{ margin: 0 }}>Chấm điểm Đồ án Tốt nghiệp</Title>
-                </div>
-                <Space>
-                    <Button icon={<FilterOutlined />}>Lọc</Button>
-                    <Button type="primary" icon={<DownloadOutlined />}>Xuất Excel</Button>
-                </Space>
-            </Flex>
+    // Compute stats
+    const totalStudents = registrations.length;
+    const scoredStudents = registrations.filter(r => r.gradingStatus === 'Đã chấm').length;
 
-            {/* Info Cards */}
-            <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-                <Col xs={24} md={8}>
-                    <Card size="small">
-                        <Flex align="center" gap={12}>
-                            <TeamOutlined style={{ fontSize: 20, color: '#1677FF' }} />
-                            <div>
-                                <Text type="secondary" style={{ fontSize: 11 }}>HỘI ĐỒNG</Text>
-                                <div><Text strong>K17 - CNTT - Đợt 1</Text></div>
-                            </div>
-                        </Flex>
-                    </Card>
-                </Col>
-                <Col xs={24} md={8}>
-                    <Card size="small">
-                        <Flex align="center" gap={12}>
-                            <SafetyCertificateOutlined style={{ fontSize: 20, color: '#fa8c16' }} />
-                            <div>
-                                <Text type="secondary" style={{ fontSize: 11 }}>VAI TRÒ CHẤM</Text>
-                                <div><Tag color="orange">Giảng viên Hướng dẫn</Tag></div>
-                            </div>
-                        </Flex>
-                    </Card>
-                </Col>
-                <Col xs={24} md={8}>
-                    <Card size="small">
-                        <Flex align="center" gap={12}>
-                            <CalendarOutlined style={{ fontSize: 20, color: '#52c41a' }} />
-                            <div>
-                                <Text type="secondary" style={{ fontSize: 11 }}>NGÀY BẢO VỆ</Text>
-                                <div><Text strong>15/06/2024</Text></div>
-                            </div>
-                        </Flex>
-                    </Card>
-                </Col>
-            </Row>
+    return (
+        <div className="py-2">
+            {/* Header */}
+            <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-8">
+                <div>
+                    <div className="flex items-center gap-2 text-primary/70 text-sm font-medium mb-1">
+                        <span>Học thuật</span>
+                        <span className="material-symbols-outlined text-xs">chevron_right</span>
+                        <span>Đánh giá Bảo vệ</span>
+                    </div>
+                    <h1 className="text-3xl font-extrabold text-primary tracking-tight">Chấm điểm Đồ án</h1>
+                    <p className="text-slate-500 mt-1">Quản lý kết quả bảo vệ đồ án của sinh viên</p>
+                </div>
+                <div className="flex gap-3">
+                    <button className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white rounded-lg text-sm font-bold hover:bg-slate-50 transition-all">
+                        <span className="material-symbols-outlined text-[18px]">filter_list</span>
+                        Lọc
+                    </button>
+                    <button className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-bold shadow-sm hover:bg-primary/90 transition-all">
+                        <span className="material-symbols-outlined text-[18px]">download</span>
+                        Xuất bảng điểm
+                    </button>
+                </div>
+            </div>
+
+            {/* Stats */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center">
+                        <span className="material-symbols-outlined text-emerald-600">task_alt</span>
+                    </div>
+                    <div>
+                        <p className="text-xs font-bold text-slate-500 uppercase">Đã chấm</p>
+                        <p className="text-2xl font-bold text-slate-900">{scoredStudents} <span className="text-sm font-medium text-slate-400">/ {totalStudents}</span></p>
+                    </div>
+                </div>
+                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
+                        <span className="material-symbols-outlined text-blue-600">group</span>
+                    </div>
+                    <div>
+                        <p className="text-xs font-bold text-slate-500 uppercase">Tổng sinh viên</p>
+                        <p className="text-2xl font-bold text-slate-900">{totalStudents}</p>
+                    </div>
+                </div>
+                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                        <span className="material-symbols-outlined text-purple-600">assignment_ind</span>
+                    </div>
+                    <div>
+                        <p className="text-xs font-bold text-slate-500 uppercase">Vai trò</p>
+                        <p className="text-lg font-bold text-slate-900">Giám khảo / GVHD</p>
+                    </div>
+                </div>
+            </div>
 
             {/* Grading Cards */}
-            <Spin spinning={loading}>
-                {groups.length === 0 && !loading ? (
-                    <Empty description="Không có nhóm nào cần chấm điểm" style={{ marginTop: 40 }} />
-                ) : (
-                    groups.map((group) => (
-                        <GradingCard key={group.id} group={group} onRefresh={fetchGradingGroups} />
-                    ))
-                )}
-            </Spin>
+            {loading ? (
+                <div className="flex justify-center items-center min-h-[40vh]">
+                    <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div>
+                </div>
+            ) : registrations.length === 0 ? (
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-12 text-center">
+                    <span className="material-symbols-outlined text-5xl text-slate-300 mb-4 block">assignment_turned_in</span>
+                    <h3 className="text-xl font-bold text-slate-700 mb-2">Chưa có sinh viên cần chấm điểm</h3>
+                    <p className="text-slate-500">Chưa có sinh viên nào đủ điều kiện bảo vệ để chấm điểm.</p>
+                </div>
+            ) : (
+                registrations.map((registration) => (
+                    <GradingCard key={registration.id} registration={registration} onRefresh={fetchGradingStudents} />
+                ))
+            )}
         </div>
     );
 }

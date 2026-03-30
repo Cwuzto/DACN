@@ -1,75 +1,66 @@
 import api from './api';
 
+const wrapServiceError = (error, fallbackMessage) => {
+    if (error?.success === false) return error;
+    return { success: false, message: fallbackMessage };
+};
+
 const councilService = {
-    // Lấy danh sách hội đồng
     getCouncils: async (params = {}) => {
         try {
-            const response = await api.get('/councils', { params });
-            return response.data;
+            return await api.get('/councils', { params });
         } catch (error) {
-            throw error.response?.data || { success: false, message: 'Lỗi khi tải danh sách hội đồng.' };
+            throw wrapServiceError(error, 'Loi khi tai danh sach hoi dong');
         }
     },
 
-    // Lấy chi tiết một hội đồng
     getCouncilById: async (id) => {
         try {
-            const response = await api.get(`/councils/${id}`);
-            return response.data;
+            return await api.get(`/councils/${id}`);
         } catch (error) {
-            throw error.response?.data || { success: false, message: 'Lỗi khi tải chi tiết hội đồng.' };
+            throw wrapServiceError(error, 'Loi khi tai chi tiet hoi dong');
         }
     },
 
-    // Tạo hội đồng mới
     createCouncil: async (data) => {
         try {
-            const response = await api.post('/councils', data);
-            return response.data;
+            return await api.post('/councils', data);
         } catch (error) {
-            throw error.response?.data || { success: false, message: 'Lỗi khi tạo hội đồng.' };
+            throw wrapServiceError(error, 'Loi khi tao hoi dong');
         }
     },
 
-    // Cập nhật hội đồng
     updateCouncil: async (id, data) => {
         try {
-            const response = await api.put(`/councils/${id}`, data);
-            return response.data;
+            return await api.put(`/councils/${id}`, data);
         } catch (error) {
-            throw error.response?.data || { success: false, message: 'Lỗi khi cập nhật hội đồng.' };
+            throw wrapServiceError(error, 'Loi khi cap nhat hoi dong');
         }
     },
 
-    // Xóa hội đồng
     deleteCouncil: async (id) => {
         try {
-            const response = await api.delete(`/councils/${id}`);
-            return response.data;
+            return await api.delete(`/councils/${id}`);
         } catch (error) {
-            throw error.response?.data || { success: false, message: 'Lỗi khi xóa hội đồng.' };
+            throw wrapServiceError(error, 'Loi khi xoa hoi dong');
         }
     },
 
-    // Phân công nhóm vào hội đồng
-    assignGroups: async (id, groupIds) => {
+    assignRegistrations: async (id, registrationIds) => {
         try {
-            const response = await api.post(`/councils/${id}/assign`, { groupIds });
-            return response.data;
+            return await api.post(`/councils/${id}/assign`, { registrationIds });
         } catch (error) {
-            throw error.response?.data || { success: false, message: 'Lỗi khi phân công nhóm.' };
+            throw wrapServiceError(error, 'Loi khi phan cong sinh vien');
         }
     },
 
-    // Gỡ nhóm khỏi hội đồng
-    removeGroup: async (id, groupId) => {
+    removeRegistration: async (id, registrationId) => {
         try {
-            const response = await api.post(`/councils/${id}/remove-group`, { groupId });
-            return response.data;
+            return await api.post(`/councils/${id}/remove-registration`, { registrationId });
         } catch (error) {
-            throw error.response?.data || { success: false, message: 'Lỗi khi gỡ nhóm khỏi hội đồng.' };
+            throw wrapServiceError(error, 'Loi khi go sinh vien khoi hoi dong');
         }
-    }
+    },
 };
 
 export default councilService;

@@ -3,16 +3,15 @@ const router = express.Router();
 const evaluationController = require('../controllers/evaluationController');
 const { authenticate, authorize } = require('../middlewares/auth');
 
-// Tất cả endpoints đều cần xác thực
 router.use(authenticate);
 
-// Giảng viên lấy danh sách nhóm đang hướng dẫn để chấm điểm
-router.get('/grading-groups', authorize('LECTURER', 'ADMIN'), evaluationController.getGradingGroups);
-
-// Giảng viên/Hội đồng lưu điểm đánh giá
-router.post('/', authorize('LECTURER', 'ADMIN'), evaluationController.submitEvaluations);
-
-// Sinh viên xem điểm của mình
+// SV xem điểm bảo vệ
 router.get('/my-grades', authorize('STUDENT'), evaluationController.getMyGrades);
+
+// GV/Admin xem danh sách SV cần chấm điểm
+router.get('/grading-students', authorize('LECTURER', 'ADMIN'), evaluationController.getGradingStudents);
+
+// GV/Admin nhập điểm bảo vệ + ảnh bảng chấm
+router.post('/defense-result', authorize('LECTURER', 'ADMIN'), evaluationController.submitDefenseResult);
 
 module.exports = router;

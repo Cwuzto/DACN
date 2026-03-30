@@ -1,59 +1,58 @@
 import api from './api';
 
+const wrapServiceError = (error, fallbackMessage) => {
+    if (error?.success === false) return error;
+    return { success: false, message: fallbackMessage };
+};
+
 const dashboardService = {
     getStats: async () => {
         try {
-            const response = await api.get('/dashboard/stats');
-            return response.data;
+            return await api.get('/dashboard/stats');
         } catch (error) {
-            throw error.response?.data || { success: false, message: 'Lỗi tải thống kê tổng quan' };
+            throw wrapServiceError(error, 'Loi tai thong ke tong quan');
         }
     },
 
     getSemesterStats: async () => {
         try {
-            const response = await api.get('/dashboard/semesters');
-            return response.data;
+            return await api.get('/dashboard/semesters');
         } catch (error) {
-            throw error.response?.data || { success: false, message: 'Lỗi tải biểu đồ học kỳ' };
+            throw wrapServiceError(error, 'Loi tai bieu do hoc ky');
         }
     },
 
     getScores: async () => {
         try {
-            const response = await api.get('/dashboard/scores');
-            return response.data;
+            return await api.get('/dashboard/scores');
         } catch (error) {
-            throw error.response?.data || { success: false, message: 'Lỗi tải phân bổ điểm' };
+            throw wrapServiceError(error, 'Loi tai phan bo diem');
         }
     },
 
     getActivities: async () => {
         try {
-            const response = await api.get('/dashboard/activities');
-            return response.data;
+            return await api.get('/dashboard/activities');
         } catch (error) {
-            throw error.response?.data || { success: false, message: 'Lỗi tải hoạt động gần đây' };
+            throw wrapServiceError(error, 'Loi tai hoat dong gan day');
         }
     },
 
     getLecturerStats: async () => {
         try {
-            const response = await api.get('/dashboard/lecturer');
-            return response.data;
+            return await api.get('/dashboard/lecturer');
         } catch (error) {
-            throw error.response?.data || { success: false, message: 'Lỗi tải thống kê giảng viên' };
+            throw wrapServiceError(error, 'Loi tai thong ke giang vien');
         }
     },
 
     getStudentStats: async () => {
         try {
-            const response = await api.get('/dashboard/student');
-            return response.data;
+            return await api.get('/dashboard/student');
         } catch (error) {
-            throw error.response?.data || { success: false, message: 'Lỗi tải thống kê sinh viên' };
+            throw wrapServiceError(error, 'Loi tai thong ke sinh vien');
         }
-    }
+    },
 };
 
 export default dashboardService;

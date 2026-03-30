@@ -7,27 +7,26 @@ datasource db {
 }
 
 model User {
-  id             Int             @id @default(autoincrement())
-  email          String          @unique
-  passwordHash   String          @map("password_hash")
-  fullName       String          @map("full_name")
-  code           String          @unique
-  role           UserRole        @default(STUDENT)
+  id             Int                @id @default(autoincrement())
+  email          String             @unique
+  passwordHash   String             @map("password_hash")
+  fullName       String             @map("full_name")
+  code           String             @unique
+  role           UserRole           @default(STUDENT)
   department     String?
   phone          String?
-  avatarUrl      String?         @map("avatar_url")
-  isActive       Boolean         @default(true) @map("is_active")
-  createdAt      DateTime        @default(now()) @map("created_at")
-  updatedAt      DateTime        @updatedAt @map("updated_at")
+  avatarUrl      String?            @map("avatar_url")
+  academicTitle  AcademicTitle?     @map("academic_title")
+  isActive       Boolean            @default(true) @map("is_active")
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
   councilMembers CouncilMember[]
-  evaluations    Evaluation[]    @relation("Evaluator")
-  studentEvals   Evaluation[]    @relation("StudentEval")
-  groupMembers   GroupMember[]
-  ledGroups      Group[]         @relation("GroupLeader")
+  defenseResults DefenseResult[]    @relation("DefenseEvaluator")
   notifications  Notification[]
   submissions    Submission[]
-  mentoredTopics Topic[]         @relation("MentoredBy")
-  proposedTopics Topic[]         @relation("ProposedBy")
+  mentoredTopics Topic[]            @relation("MentoredBy")
+  proposedTopics Topic[]            @relation("ProposedBy")
+  registrations  TopicRegistration[]
 
   @@map("users")
 }
@@ -43,108 +42,113 @@ model Semester {
   createdAt            DateTime       @default(now()) @map("created_at")
   updatedAt            DateTime       @updatedAt @map("updated_at")
   councils             Council[]
-  groups               Group[]
   topics               Topic[]
 
   @@map("semesters")
 }
 
 model Topic {
-  id           Int         @id @default(autoincrement())
-  semesterId   Int         @map("semester_id")
-  title        String
-  description  String?
-  proposedById Int         @map("proposed_by_id")
-  mentorId     Int         @map("mentor_id")
-  maxGroups    Int         @default(1) @map("max_groups")
-  status       TopicStatus @default(PENDING)
-  rejectReason String?     @map("reject_reason")
-  createdAt    DateTime    @default(now()) @map("created_at")
-  updatedAt    DateTime    @updatedAt @map("updated_at")
-  groups       Group[]
-  mentor       User        @relation("MentoredBy", fields: [mentorId], references: [id])
-  proposedBy   User        @relation("ProposedBy", fields: [proposedById], references: [id])
-  semester     Semester    @relation(fields: [semesterId], references: [id])
+  id             Int                 @id @default(autoincrement())
+  semesterId     Int                 @map("semester_id")
+  title          String
+  description    String?
+  proposedById   Int                 @map("proposed_by_id")
+  mentorId       Int                 @map("mentor_id")
+  maxStudents    Int                 @default(1) @map("max_students")
+  status         TopicStatus         @default(PENDING)
+  rejectReason   String?             @map("reject_reason")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+  mentor         User                @relation("MentoredBy", fields: [mentorId], references: [id])
+  proposedBy     User                @relation("ProposedBy", fields: [proposedById], references: [id])
+  semester       Semester            @relation(fields: [semesterId], references: [id])
+  registrations  TopicRegistration[]
 
   @@map("topics")
 }
 
-model Group {
-  id          Int           @id @default(autoincrement())
-  semesterId  Int           @map("semester_id")
-  topicId     Int?          @map("topic_id")
-  groupName   String        @map("group_name")
-  leaderId    Int           @map("leader_id")
-  councilId   Int?          @map("council_id")
-  createdAt   DateTime      @default(now()) @map("created_at")
-  updatedAt   DateTime      @updatedAt @map("updated_at")
-  evaluations Evaluation[]
-  members     GroupMember[]
-  council     Council?      @relation(fields: [councilId], references: [id])
-  leader      User          @relation("GroupLeader", fields: [leaderId], references: [id])
-  semester    Semester      @relation(fields: [semesterId], references: [id])
-  topic       Topic?        @relation(fields: [topicId], references: [id])
+// Bảng đăng ký đề tài: 1 sinh viên - 1 đề tài (thay thế Group)
+model TopicRegistration {
+  id          Int                    @id @default(autoincrement())
+  topicId     Int                    @map("topic_id")
+  studentId   Int                    @map("student_id")
+  semesterId  Int                    @map("semester_id")
+  status      RegistrationStatus     @default(PENDING)
+  rejectReason String?               @map("reject_reason")
+  councilId   Int?                   @map("council_id")
+  createdAt   DateTime               @default(now()) @map("created_at")
+  updatedAt   DateTime               @updatedAt @map("updated_at")
+  topic       Topic                  @relation(fields: [topicId], references: [id])
+  student     User                   @relation(fields: [studentId], references: [id])
+  council     Council?               @relation(fields: [councilId], references: [id])
+  submissions Submission[]
   tasks       Task[]
+  milestones  Milestone[]
+  defenseResult DefenseResult?
 
-  @@map("groups")
+  @@unique([studentId, semesterId])
+  @@map("topic_registrations")
 }
 
-model GroupMember {
-  id        Int               @id @default(autoincrement())
-  groupId   Int               @map("group_id")
-  studentId Int               @map("student_id")
-  status    GroupMemberStatus @default(INVITED)
-  joinedAt  DateTime?         @map("joined_at")
-  createdAt DateTime          @default(now()) @map("created_at")
-  group     Group             @relation(fields: [groupId], references: [id])
-  student   User              @relation(fields: [studentId], references: [id])
+// Giai đoạn báo cáo (checkpoints) cho mỗi sinh viên
+model Milestone {
+  id              Int               @id @default(autoincrement())
+  registrationId  Int               @map("registration_id")
+  title           String
+  dueDate         DateTime?         @map("due_date")
+  status          MilestoneStatus   @default(PENDING)
+  feedback        String?
+  completedAt     DateTime?         @map("completed_at")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  registration    TopicRegistration @relation(fields: [registrationId], references: [id])
 
-  @@unique([groupId, studentId])
-  @@map("group_members")
+  @@map("milestones")
 }
 
 model Task {
-  id          Int          @id @default(autoincrement())
-  groupId     Int          @map("group_id")
-  title       String
-  content     String?
-  dueDate     DateTime?    @map("due_date")
-  status      TaskStatus   @default(OPEN)
-  createdAt   DateTime     @default(now()) @map("created_at")
-  updatedAt   DateTime     @updatedAt @map("updated_at")
-  submissions Submission[]
-  group       Group        @relation(fields: [groupId], references: [id])
+  id              Int               @id @default(autoincrement())
+  registrationId  Int               @map("registration_id")
+  title           String
+  content         String?
+  dueDate         DateTime?         @map("due_date")
+  status          TaskStatus        @default(OPEN)
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  submissions     Submission[]
+  registration    TopicRegistration @relation(fields: [registrationId], references: [id])
 
   @@map("tasks")
 }
 
 model Submission {
-  id          Int       @id @default(autoincrement())
-  taskId      Int       @map("task_id")
-  submittedBy Int       @map("submitted_by")
-  content     String?
-  fileUrl     String?   @map("file_url")
-  fileName    String?   @map("file_name")
-  submittedAt DateTime  @default(now()) @map("submitted_at")
-  feedback    String?
-  feedbackAt  DateTime? @map("feedback_at")
-  student     User      @relation(fields: [submittedBy], references: [id])
-  task        Task      @relation(fields: [taskId], references: [id])
+  id              Int               @id @default(autoincrement())
+  taskId          Int               @map("task_id")
+  registrationId  Int               @map("registration_id")
+  submittedBy     Int               @map("submitted_by")
+  content         String?
+  fileUrl         String?           @map("file_url")
+  fileName        String?           @map("file_name")
+  submittedAt     DateTime          @default(now()) @map("submitted_at")
+  feedback        String?
+  feedbackAt      DateTime?         @map("feedback_at")
+  student         User              @relation(fields: [submittedBy], references: [id])
+  task            Task              @relation(fields: [taskId], references: [id])
+  registration    TopicRegistration @relation(fields: [registrationId], references: [id])
 
   @@map("submissions")
 }
 
 model Council {
-  id          Int             @id @default(autoincrement())
-  semesterId  Int             @map("semester_id")
-  name        String
-  location    String?
-  defenseDate DateTime?       @map("defense_date")
-  createdAt   DateTime        @default(now()) @map("created_at")
-  updatedAt   DateTime        @updatedAt @map("updated_at")
-  members     CouncilMember[]
-  semester    Semester        @relation(fields: [semesterId], references: [id])
-  groups      Group[]
+  id              Int                 @id @default(autoincrement())
+  semesterId      Int                 @map("semester_id")
+  name            String
+  location        String?
+  defenseDate     DateTime?           @map("defense_date")
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+  members         CouncilMember[]
+  semester        Semester            @relation(fields: [semesterId], references: [id])
+  registrations   TopicRegistration[]
 
   @@map("councils")
 }
@@ -161,22 +165,20 @@ model CouncilMember {
   @@map("council_members")
 }
 
-model Evaluation {
-  id             Int            @id @default(autoincrement())
-  groupId        Int            @map("group_id")
-  studentId      Int            @map("student_id")
-  evaluatorId    Int            @map("evaluator_id")
-  evaluationType EvaluationType @map("evaluation_type")
-  score          Float
-  comments       String?
-  createdAt      DateTime       @default(now()) @map("created_at")
-  updatedAt      DateTime       @updatedAt @map("updated_at")
-  evaluator      User           @relation("Evaluator", fields: [evaluatorId], references: [id])
-  group          Group          @relation(fields: [groupId], references: [id])
-  student        User           @relation("StudentEval", fields: [studentId], references: [id])
+// Kết quả bảo vệ: điểm cuối + ảnh bảng chấm điểm
+model DefenseResult {
+  id              Int               @id @default(autoincrement())
+  registrationId  Int               @unique @map("registration_id")
+  finalScore      Float?            @map("final_score")
+  comments        String?
+  scoresheetUrl   String?           @map("scoresheet_url")
+  evaluatorId     Int               @map("evaluator_id")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  registration    TopicRegistration @relation(fields: [registrationId], references: [id])
+  evaluator       User              @relation("DefenseEvaluator", fields: [evaluatorId], references: [id])
 
-  @@unique([groupId, studentId, evaluatorId, evaluationType])
-  @@map("evaluations")
+  @@map("defense_results")
 }
 
 model Notification {
@@ -199,6 +201,13 @@ enum UserRole {
   STUDENT
 }
 
+// Học vị giảng viên - quyết định số SV tối đa (ThS:10, TS:15, PGS:20)
+enum AcademicTitle {
+  THAC_SI    // ThS - 10 SV
+  TIEN_SI    // TS - 15 SV
+  PHO_GIAO_SU // PGS - 20 SV
+}
+
 enum SemesterStatus {
   UPCOMING
   REGISTRATION
@@ -214,10 +223,21 @@ enum TopicStatus {
   REJECTED
 }
 
-enum GroupMemberStatus {
-  INVITED
-  ACCEPTED
-  REJECTED
+// Trạng thái đăng ký đề tài của sinh viên
+enum RegistrationStatus {
+  PENDING     // Sinh viên đã gửi, chờ GV duyệt
+  APPROVED    // GV đã duyệt
+  REJECTED    // GV từ chối
+  IN_PROGRESS // Đang thực hiện (sau hạn đăng ký)
+  SUBMITTED   // Đã nộp sản phẩm
+  DEFENDED    // Đã bảo vệ
+  COMPLETED   // Hoàn thành
+}
+
+enum MilestoneStatus {
+  PENDING
+  PASSED
+  FAILED
 }
 
 enum TaskStatus {
@@ -235,17 +255,11 @@ enum CouncilRole {
   MEMBER
 }
 
-enum EvaluationType {
-  MENTOR_SCORE
-  REVIEWER_SCORE
-  COUNCIL_SCORE
-}
-
 enum NotificationType {
   SYSTEM
   TASK_REMINDER
   APPROVAL
-  INVITATION
+  REGISTRATION
   SUBMISSION
-  EVALUATION
+  DEFENSE
 }

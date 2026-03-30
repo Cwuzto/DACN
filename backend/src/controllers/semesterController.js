@@ -6,20 +6,21 @@ const prisma = require('../config/database');
 const calculateStatus = (semester) => {
     const now = new Date();
     const start = new Date(semester.startDate);
-    const reg = semester.registrationDeadline ? new Date(semester.registrationDeadline) : null;
-    const def = semester.defenseDate ? new Date(semester.defenseDate) : null;
+    const registrationDeadline = semester.registrationDeadline ? new Date(semester.registrationDeadline) : null;
+    const defenseDate = semester.defenseDate ? new Date(semester.defenseDate) : null;
     const end = new Date(semester.endDate);
 
     if (now < start) return 'UPCOMING';
-    if (reg && now >= start && now < reg) return 'REGISTRATION';
-    if (def) {
-        if (now >= (reg || start) && now < def) return 'ONGOING';
-        if (now >= def && now < end) return 'DEFENSE';
-    } else {
-        if (now >= (reg || start) && now < end) return 'ONGOING';
-    }
-    if (now >= end) return 'COMPLETED';
+    if (registrationDeadline && now >= start && now < registrationDeadline) return 'REGISTRATION';
 
+    if (defenseDate) {
+        if (now >= (registrationDeadline || start) && now < defenseDate) return 'ONGOING';
+        if (now >= defenseDate && now < end) return 'DEFENSE';
+    } else if (now >= (registrationDeadline || start) && now < end) {
+        return 'ONGOING';
+    }
+
+    if (now >= end) return 'COMPLETED';
     return 'UPCOMING';
 };
 
@@ -32,14 +33,12 @@ const getAllSemesters = async (req, res, next) => {
             orderBy: { startDate: 'desc' },
         });
 
-        const semestersWithDynamicStatus = semesters.map(sem => ({
-            ...sem,
-            status: calculateStatus(sem)
-        }));
-
         res.json({
             success: true,
-            data: semestersWithDynamicStatus,
+            data: semesters.map((semester) => ({
+                ...semester,
+                status: calculateStatus(semester),
+            })),
         });
     } catch (error) {
         next(error);
@@ -51,9 +50,9 @@ const getAllSemesters = async (req, res, next) => {
  */
 const getSemesterById = async (req, res, next) => {
     try {
-        const { id } = req.params;
+        const semesterId = parseInt(req.params.id);
         const semester = await prisma.semester.findUnique({
-            where: { id: parseInt(id) },
+            where: { id: semesterId },
         });
 
         if (!semester) {
@@ -67,7 +66,7 @@ const getSemesterById = async (req, res, next) => {
             success: true,
             data: {
                 ...semester,
-                status: calculateStatus(semester)
+                status: calculateStatus(semester),
             },
         });
     } catch (error) {
@@ -76,13 +75,12 @@ const getSemesterById = async (req, res, next) => {
 };
 
 /**
- * Tạo mới đợt đồ án (Chỉ Admin)
+ * Tạo mới đợt đồ án
  */
 const createSemester = async (req, res, next) => {
     try {
         const { name, startDate, endDate, registrationDeadline, defenseDate } = req.body;
 
-        // Validation cơ bản
         if (!name || !startDate || !registrationDeadline || !endDate) {
             return res.status(400).json({
                 success: false,
@@ -90,9 +88,12 @@ const createSemester = async (req, res, next) => {
             });
         }
 
-        // Tính toán status ban đầu để lưu vào DB (dù sau này có tính lại)
-        const dummySemester = { startDate, endDate, registrationDeadline, defenseDate };
-        const calculatedStatus = calculateStatus(dummySemester);
+        const calculatedStatus = calculateStatus({
+            startDate,
+            endDate,
+            registrationDeadline,
+            defenseDate,
+        });
 
         const newSemester = await prisma.semester.create({
             data: {
@@ -110,7 +111,7 @@ const createSemester = async (req, res, next) => {
             message: 'Tạo đợt đồ án thành công.',
             data: {
                 ...newSemester,
-                status: calculatedStatus
+                status: calculatedStatus,
             },
         });
     } catch (error) {
@@ -119,15 +120,15 @@ const createSemester = async (req, res, next) => {
 };
 
 /**
- * Cập nhật đợt đồ án (Chỉ Admin)
+ * Cập nhật đợt đồ án
  */
 const updateSemester = async (req, res, next) => {
     try {
-        const { id } = req.params;
+        const semesterId = parseInt(req.params.id);
         const { name, startDate, endDate, registrationDeadline, defenseDate } = req.body;
 
         const semester = await prisma.semester.findUnique({
-            where: { id: parseInt(id) }
+            where: { id: semesterId },
         });
 
         if (!semester) {
@@ -137,27 +138,30 @@ const updateSemester = async (req, res, next) => {
             });
         }
 
-        const newStartDate = startDate ? new Date(startDate) : semester.startDate;
-        const newEndDate = endDate ? new Date(endDate) : semester.endDate;
-        const newRegistrationDeadline = registrationDeadline ? new Date(registrationDeadline) : semester.registrationDeadline;
-        const newDefenseDate = defenseDate !== undefined ? (defenseDate ? new Date(defenseDate) : null) : semester.defenseDate;
+        const nextStartDate = startDate ? new Date(startDate) : semester.startDate;
+        const nextEndDate = endDate ? new Date(endDate) : semester.endDate;
+        const nextRegistrationDeadline = registrationDeadline
+            ? new Date(registrationDeadline)
+            : semester.registrationDeadline;
+        const nextDefenseDate = defenseDate !== undefined
+            ? (defenseDate ? new Date(defenseDate) : null)
+            : semester.defenseDate;
 
-        const dummySemester = {
-            startDate: newStartDate,
-            endDate: newEndDate,
-            registrationDeadline: newRegistrationDeadline,
-            defenseDate: newDefenseDate
-        };
-        const calculatedStatus = calculateStatus(dummySemester);
+        const calculatedStatus = calculateStatus({
+            startDate: nextStartDate,
+            endDate: nextEndDate,
+            registrationDeadline: nextRegistrationDeadline,
+            defenseDate: nextDefenseDate,
+        });
 
         const updatedSemester = await prisma.semester.update({
-            where: { id: parseInt(id) },
+            where: { id: semesterId },
             data: {
                 name: name !== undefined ? name : semester.name,
-                startDate: newStartDate,
-                endDate: newEndDate,
-                registrationDeadline: newRegistrationDeadline,
-                defenseDate: newDefenseDate,
+                startDate: nextStartDate,
+                endDate: nextEndDate,
+                registrationDeadline: nextRegistrationDeadline,
+                defenseDate: nextDefenseDate,
                 status: calculatedStatus,
             },
         });
@@ -167,7 +171,7 @@ const updateSemester = async (req, res, next) => {
             message: 'Cập nhật đợt đồ án thành công.',
             data: {
                 ...updatedSemester,
-                status: calculatedStatus
+                status: calculatedStatus,
             },
         });
     } catch (error) {
@@ -176,25 +180,27 @@ const updateSemester = async (req, res, next) => {
 };
 
 /**
- * Xóa đợt đồ án (Chỉ Admin)
+ * Xóa đợt đồ án
  */
 const deleteSemester = async (req, res, next) => {
     try {
-        const { id } = req.params;
+        const semesterId = parseInt(req.params.id);
 
-        // Kiểm tra xem có topic hay group nào liên quan không, nếu có thì ko cho xóa
-        const relatedTopics = await prisma.topic.count({ where: { semesterId: parseInt(id) } });
-        const relatedGroups = await prisma.group.count({ where: { semesterId: parseInt(id) } });
+        const [relatedTopics, relatedRegistrations, relatedCouncils] = await Promise.all([
+            prisma.topic.count({ where: { semesterId } }),
+            prisma.topicRegistration.count({ where: { semesterId } }),
+            prisma.council.count({ where: { semesterId } }),
+        ]);
 
-        if (relatedTopics > 0 || relatedGroups > 0) {
+        if (relatedTopics > 0 || relatedRegistrations > 0 || relatedCouncils > 0) {
             return res.status(400).json({
                 success: false,
-                message: 'Không thể xóa đợt đồ án đã có đề tài hoặc nhóm sinh viên tham gia.',
+                message: 'Không thể xóa đợt đồ án đã có đề tài, đăng ký hoặc hội đồng liên quan.',
             });
         }
 
         await prisma.semester.delete({
-            where: { id: parseInt(id) },
+            where: { id: semesterId },
         });
 
         res.json({

@@ -1,16 +1,34 @@
 const prisma = require('../config/database');
 
+const ACTIVE_REGISTRATION_STATUSES = ['APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'DEFENDED', 'COMPLETED'];
+
+const getDeadlineColor = (dueDate) => {
+    if (!dueDate) return '#13C2C2';
+
+    const hoursLeft = (new Date(dueDate) - new Date()) / (1000 * 60 * 60);
+    if (hoursLeft < 24) return 'red';
+    if (hoursLeft < 72) return '#fa8c16';
+    return '#13C2C2';
+};
+
 /**
  * GET /api/dashboard/stats
- * Thống kê tổng quan (Admin)
+ * Thống kê tổng quan cho Admin
  */
 const getGeneralStats = async (req, res, next) => {
     try {
-        const [totalStudents, ongoingTopics, unassignedGroups, upcomingDefenses] = await Promise.all([
+        const [totalStudents, ongoingTopics, unassignedRegistrations, upcomingDefenses] = await Promise.all([
             prisma.user.count({ where: { role: 'STUDENT', isActive: true } }),
             prisma.topic.count({ where: { status: 'APPROVED' } }),
-            prisma.group.count({ where: { topicId: { not: null }, councilId: null } }),
-            prisma.council.count({ where: { defenseDate: { gte: new Date() } } })
+            prisma.topicRegistration.count({
+                where: {
+                    status: { in: ACTIVE_REGISTRATION_STATUSES },
+                    councilId: null,
+                },
+            }),
+            prisma.council.count({
+                where: { defenseDate: { gte: new Date() } },
+            }),
         ]);
 
         res.json({
@@ -18,9 +36,9 @@ const getGeneralStats = async (req, res, next) => {
             data: {
                 totalStudents,
                 ongoingTopics,
-                unassignedGroups,
-                upcomingDefenses
-            }
+                unassignedRegistrations,
+                upcomingDefenses,
+            },
         });
     } catch (error) {
         next(error);
@@ -29,42 +47,42 @@ const getGeneralStats = async (req, res, next) => {
 
 /**
  * GET /api/dashboard/semesters
- * Biểu đồ cột: Số lượng đề tài đăng ký vs hoàn thành theo từng học kỳ
+ * Biểu đồ số lượng đăng ký và hoàn thành theo học kỳ
  */
 const getSemesterStats = async (req, res, next) => {
     try {
-        // Lấy 5 học kỳ gần nhất hoặc đang active
         const semesters = await prisma.semester.findMany({
             orderBy: { id: 'desc' },
-            take: 5
+            take: 5,
         });
 
-        const chartData = await Promise.all(semesters.reverse().map(async (sem) => {
-            // Dem nhom da dang ky de tai trong HK
-            const registeredGroups = await prisma.group.count({
-                where: { semesterId: sem.id, topicId: { not: null } }
-            });
+        const chartData = await Promise.all(
+            semesters.reverse().map(async (semester) => {
+                const [registered, completed] = await Promise.all([
+                    prisma.topicRegistration.count({
+                        where: {
+                            semesterId: semester.id,
+                            status: { not: 'REJECTED' },
+                        },
+                    }),
+                    prisma.defenseResult.count({
+                        where: {
+                            registration: { semesterId: semester.id },
+                        },
+                    }),
+                ]);
 
-            // Dem nhom co điểm hội đồng (coi như hoàn thành)
-            // Lấy unique groups có chứa điểm đánh giá loại COUNCIL_SCORE
-            const evalG = await prisma.evaluation.groupBy({
-                by: ['groupId'],
-                where: {
-                    group: { semesterId: sem.id },
-                    evaluationType: 'COUNCIL_SCORE'
-                }
-            });
-
-            return {
-                label: sem.name,
-                registered: registeredGroups,
-                completed: evalG.length // so nhom co diem hd
-            };
-        }));
+                return {
+                    label: semester.name,
+                    registered,
+                    completed,
+                };
+            })
+        );
 
         res.json({
             success: true,
-            data: chartData
+            data: chartData,
         });
     } catch (error) {
         next(error);
@@ -73,29 +91,29 @@ const getSemesterStats = async (req, res, next) => {
 
 /**
  * GET /api/dashboard/scores
- * Biểu đồ tròn: Phân bổ điểm
+ * Phân bố điểm cuối cùng
  */
 const getScoreDistribution = async (req, res, next) => {
     try {
-        const evaluations = await prisma.evaluation.findMany({
-            where: { evaluationType: 'COUNCIL_SCORE' },
-            select: { score: true }
+        const results = await prisma.defenseResult.findMany({
+            where: { finalScore: { not: null } },
+            select: { finalScore: true },
         });
 
-        // Initialize counters
-        let excellent = 0; // >= 9.0
-        let good = 0;      // 8.0 - < 9.0
-        let fair = 0;      // 7.0 - < 8.0
-        let average = 0;   // < 7.0
+        let excellent = 0;
+        let good = 0;
+        let fair = 0;
+        let average = 0;
 
-        evaluations.forEach(e => {
-            if (e.score >= 9.0) excellent++;
-            else if (e.score >= 8.0) good++;
-            else if (e.score >= 7.0) fair++;
+        results.forEach((result) => {
+            const score = result.finalScore || 0;
+            if (score >= 9.0) excellent++;
+            else if (score >= 8.0) good++;
+            else if (score >= 7.0) fair++;
             else average++;
         });
 
-        const total = evaluations.length || 1; // tránh chia cho 0
+        const total = results.length || 1;
 
         res.json({
             success: true,
@@ -103,9 +121,9 @@ const getScoreDistribution = async (req, res, next) => {
                 { label: 'Xuất sắc', percent: Math.round((excellent / total) * 100) || 0, color: '#1677FF' },
                 { label: 'Giỏi', percent: Math.round((good / total) * 100) || 0, color: '#13C2C2' },
                 { label: 'Khá', percent: Math.round((fair / total) * 100) || 0, color: '#52C41A' },
-                { label: 'Trung bình', percent: Math.round((average / total) * 100) || 0, color: '#FAAD14' }
+                { label: 'Trung bình', percent: Math.round((average / total) * 100) || 0, color: '#FAAD14' },
             ],
-            total: evaluations.length
+            total: results.length,
         });
     } catch (error) {
         next(error);
@@ -114,7 +132,7 @@ const getScoreDistribution = async (req, res, next) => {
 
 /**
  * GET /api/dashboard/activities
- * Bảng: Hoạt động gần đây (Tạm lấy từ Notifications mapping với User)
+ * Hoạt động gần đây
  */
 const getRecentActivities = async (req, res, next) => {
     try {
@@ -122,29 +140,29 @@ const getRecentActivities = async (req, res, next) => {
             orderBy: { createdAt: 'desc' },
             take: 10,
             include: {
-                user: { select: { fullName: true } }
-            }
+                user: { select: { fullName: true } },
+            },
         });
 
-        const recentActivities = notifications.map(n => {
+        const recentActivities = notifications.map((notification) => {
             let status = 'updated';
-            if (n.type === 'APPROVAL') status = 'done';
-            if (n.type === 'SUBMISSION') status = 'submitted';
-            if (n.type === 'INVITATION') status = 'new';
+            if (notification.type === 'APPROVAL') status = 'done';
+            if (notification.type === 'SUBMISSION') status = 'submitted';
+            if (notification.type === 'REGISTRATION') status = 'new';
 
             return {
-                id: n.id,
-                time: n.createdAt,
-                user: n.user?.fullName || 'Hệ thống',
-                action: n.title,
-                detail: n.content,
-                status
-            }
+                id: notification.id,
+                time: notification.createdAt,
+                user: notification.user?.fullName || 'Hệ thống',
+                action: notification.title,
+                detail: notification.content,
+                status,
+            };
         });
 
         res.json({
             success: true,
-            data: recentActivities
+            data: recentActivities,
         });
     } catch (error) {
         next(error);
@@ -153,76 +171,82 @@ const getRecentActivities = async (req, res, next) => {
 
 /**
  * GET /api/dashboard/lecturer
- * Thống kê dành cho Giảng viên hướng dẫn
+ * Dashboard cho giảng viên
  */
 const getLecturerDashboard = async (req, res, next) => {
     try {
         const mentorId = req.user.id;
 
-        // 1. Số lượng đề tài đang hướng dẫn (trừ bị từ chối)
-        const activeTopics = await prisma.topic.count({
-            where: {
-                mentorId,
-                status: { not: 'REJECTED' }
-            }
-        });
+        const [activeTopics, activeRegistrations, pendingFeedbackSubmissions, upcomingTasks] = await Promise.all([
+            prisma.topic.count({
+                where: {
+                    mentorId,
+                    status: { not: 'REJECTED' },
+                },
+            }),
+            prisma.topicRegistration.count({
+                where: {
+                    topic: { mentorId },
+                    status: { in: ACTIVE_REGISTRATION_STATUSES },
+                },
+            }),
+            prisma.submission.findMany({
+                where: {
+                    feedback: null,
+                    registration: {
+                        topic: { mentorId },
+                    },
+                },
+                include: {
+                    task: { select: { title: true } },
+                    student: { select: { fullName: true, code: true } },
+                    registration: {
+                        select: {
+                            id: true,
+                            topic: { select: { title: true } },
+                        },
+                    },
+                },
+                orderBy: { submittedAt: 'desc' },
+                take: 5,
+            }),
+            prisma.task.findMany({
+                where: {
+                    dueDate: { gt: new Date() },
+                    registration: {
+                        topic: { mentorId },
+                        status: { in: ACTIVE_REGISTRATION_STATUSES },
+                    },
+                },
+                include: {
+                    registration: {
+                        select: {
+                            student: { select: { fullName: true, code: true } },
+                        },
+                    },
+                },
+                orderBy: { dueDate: 'asc' },
+                take: 5,
+            }),
+        ]);
 
-        // 2. Số nhóm sinh viên đang hướng dẫn
-        const studentGroups = await prisma.group.count({
-            where: {
-                topic: { mentorId }
-            }
-        });
-
-        // 3. Nhóm có bài nộp chờ phản hồi (Submission chưa có feedback và thuộc task của nhóm được HD)
-        const pendingFeedbackSubmissions = await prisma.submission.findMany({
-            where: {
-                feedback: null,
-                task: {
-                    group: {
-                        topic: { mentorId }
-                    }
-                }
-            },
-            include: {
-                task: { include: { group: { include: { topic: true } } } },
-                student: { select: { fullName: true } }
-            },
-            orderBy: { submittedAt: 'desc' }
-        });
-
-        // Số lượng đơn submission chờ phản hồi
-        const pendingFeedbackCount = pendingFeedbackSubmissions.length;
-
-        // Top 5 bài nộp gần đây để hiển thị lên UI Dashboard "Nhóm cần phản hồi"
-        const recentSubmissions = pendingFeedbackSubmissions.slice(0, 5).map(sub => ({
-            id: sub.id,
-            groupName: sub.task.group.groupName,
-            topicTitle: sub.task.group.topic?.title || 'Chưa đăng ký',
-            taskTitle: sub.task.title,
-            studentName: sub.student.fullName,
-            fileName: sub.fileName,
-            fileUrl: sub.fileUrl,
-            submittedAt: sub.submittedAt
+        const recentSubmissions = pendingFeedbackSubmissions.map((submission) => ({
+            id: submission.id,
+            groupName: submission.student?.code || `SV-${submission.registration.id}`,
+            topicTitle: submission.registration?.topic?.title || 'Chưa đăng ký',
+            taskTitle: submission.task?.title || 'Nhiệm vụ',
+            studentName: submission.student?.fullName || 'Sinh viên',
+            fileName: submission.fileName,
+            fileUrl: submission.fileUrl,
+            submittedAt: submission.submittedAt,
         }));
 
-        // 4. Lịch sắp tới: Task có hạn nộp sắp tới của các nhóm được hướng dẫn
-        const upcomingTasks = await prisma.task.findMany({
-            where: {
-                group: { topic: { mentorId } },
-                dueDate: { gt: new Date() } // Hạn nộp trong tương lai
-            },
-            orderBy: { dueDate: 'asc' },
-            take: 5,
-            include: { group: true }
-        });
-
-        const timelineEvents = upcomingTasks.map(t => ({
-            id: t.id,
-            title: `Hạn nộp: ${t.title}`,
-            desc: `Nhóm ${t.group.groupName} cần nộp bài.`,
-            date: t.dueDate,
-            color: 'red'
+        const timelineEvents = upcomingTasks.map((task) => ({
+            id: task.id,
+            title: `Hạn nộp: ${task.title}`,
+            desc: `${task.registration?.student?.fullName || 'Sinh viên'} cần nộp bài.`,
+            date: task.dueDate,
+            color: 'red',
         }));
 
         res.json({
@@ -230,12 +254,12 @@ const getLecturerDashboard = async (req, res, next) => {
             data: {
                 stats: {
                     activeTopics,
-                    studentGroups,
-                    pendingFeedback: pendingFeedbackCount
+                    studentGroups: activeRegistrations,
+                    pendingFeedback: pendingFeedbackSubmissions.length,
                 },
                 recentSubmissions,
-                timelineEvents
-            }
+                timelineEvents,
+            },
         });
     } catch (error) {
         next(error);
@@ -244,105 +268,100 @@ const getLecturerDashboard = async (req, res, next) => {
 
 /**
  * GET /api/dashboard/student
- * Thống kê dành cho Sinh viên
+ * Dashboard cho sinh viên
  */
 const getStudentDashboard = async (req, res, next) => {
     try {
         const studentId = req.user.id;
 
-        // Tìm thành viên nhóm (nếu có, lấy group trong kỳ hiện tại hoặc membership đang active)
-        const membership = await prisma.groupMember.findFirst({
-            where: { studentId },
+        const registration = await prisma.topicRegistration.findFirst({
+            where: {
+                studentId,
+                status: { not: 'REJECTED' },
+            },
             include: {
-                group: {
+                student: { select: { id: true, fullName: true, code: true } },
+                topic: {
                     include: {
-                        topic: { include: { mentor: { select: { fullName: true } } } },
-                        members: {
-                            include: { student: { select: { id: true, fullName: true, code: true } } },
-                            where: { status: 'ACCEPTED' } // Chỉ lấy thành viên chính thức
+                        mentor: { select: { fullName: true } },
+                    },
+                },
+                tasks: {
+                    include: {
+                        submissions: {
+                            where: { submittedBy: studentId },
                         },
-                        tasks: true
-                    }
-                }
-            }
+                    },
+                    orderBy: { dueDate: 'asc' },
+                },
+                defenseResult: true,
+            },
+            orderBy: { createdAt: 'desc' },
         });
 
-        if (!membership || !membership.group) {
+        if (!registration) {
             return res.json({
                 success: true,
                 data: {
-                    hasGroup: false,
-                    stats: null,
-                    groupDetails: null
-                }
+                    hasRegistration: false,
+                    registrationDetails: null,
+                    taskStatus: null,
+                    upcomingDeadlines: [],
+                },
             });
         }
 
-        const group = membership.group;
-        const tasks = group.tasks || [];
-
-        // Tính toán Task Progress
+        const tasks = registration.tasks || [];
         const totalTasks = tasks.length;
-        const submittedTasksCount = tasks.filter(t => t.status === 'SUBMITTED' || t.status === 'COMPLETED').length;
+        const submittedTasksCount = tasks.filter(
+            (task) => task.status === 'SUBMITTED' || task.status === 'COMPLETED'
+        ).length;
         const remainingTasks = totalTasks - submittedTasksCount;
         const progressPercent = totalTasks > 0 ? Math.round((submittedTasksCount / totalTasks) * 100) : 0;
 
-        // Lấy danh sách hạn nộp sắp tới
-        const now = new Date();
         const upcomingDeadlines = tasks
-            .filter(t => t.dueDate && new Date(t.dueDate) > now)
-            .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
+            .filter((task) => task.dueDate && new Date(task.dueDate) > new Date())
+            .sort((firstTask, secondTask) => new Date(firstTask.dueDate) - new Date(secondTask.dueDate))
             .slice(0, 3)
-            .map(t => {
-                // Determine color
-                const hoursLeft = (new Date(t.dueDate) - now) / (1000 * 60 * 60);
-                let color = '#13C2C2';
-                if (hoursLeft < 24) color = 'red';
-                else if (hoursLeft < 72) color = '#fa8c16';
-
-                return {
-                    id: t.id,
-                    title: `Nộp phần việc: ${t.title}`,
-                    color,
-                    date: t.dueDate,
-                    desc: t.description || 'Hoàn thành công việc được giao trên hệ thống'
-                };
-            });
-
-        // Structure response
-        const data = {
-            hasGroup: true,
-            stats: {
-                hasTopic: group.topic ? 1 : 0,
-                groupName: group.groupName,
-            },
-            groupDetails: {
-                groupName: group.groupName,
-                leaderId: group.leaderId,
-                topic: group.topic ? {
-                    title: group.topic.title,
-                    mentorName: group.topic.mentor?.fullName || 'Chưa rõ',
-                    topicCode: `DT-${String(group.topic.id).padStart(3, '0')}`
-                } : null,
-                members: group.members.map(m => ({
-                    id: m.student.id,
-                    fullName: m.student.fullName,
-                    code: m.student.code,
-                    role: m.student.id === group.leaderId ? 'Nhóm trưởng' : 'Thành viên'
-                }))
-            },
-            taskStatus: {
-                total: totalTasks,
-                submitted: submittedTasksCount,
-                remaining: remainingTasks,
-                progressPercent
-            },
-            upcomingDeadlines
-        };
+            .map((task) => ({
+                id: task.id,
+                title: `Nộp phần việc: ${task.title}`,
+                color: getDeadlineColor(task.dueDate),
+                date: task.dueDate,
+                desc: task.content || 'Hoàn thành công việc được giao trên hệ thống',
+            }));
 
         res.json({
             success: true,
-            data
+            data: {
+                hasRegistration: true,
+                registrationDetails: {
+                    registrationId: registration.id,
+                    status: registration.status,
+                    topic: registration.topic
+                        ? {
+                            title: registration.topic.title,
+                            mentorName: registration.topic.mentor?.fullName || 'Chưa rõ',
+                            topicCode: `DT-${String(registration.topic.id).padStart(3, '0')}`,
+                        }
+                        : null,
+                    members: [
+                        {
+                            id: registration.student.id,
+                            fullName: registration.student.fullName,
+                            code: registration.student.code,
+                            role: 'Sinh viên',
+                        },
+                    ],
+                },
+                taskStatus: {
+                    total: totalTasks,
+                    submitted: submittedTasksCount,
+                    remaining: remainingTasks,
+                    progressPercent,
+                },
+                upcomingDeadlines,
+            },
         });
     } catch (error) {
         next(error);
@@ -355,5 +374,5 @@ module.exports = {
     getScoreDistribution,
     getRecentActivities,
     getLecturerDashboard,
-    getStudentDashboard
+    getStudentDashboard,
 };

@@ -87,6 +87,7 @@ const getAllUsers = async (req, res, next) => {
                     code: true,
                     role: true,
                     department: true,
+                    academicTitle: true,
                     phone: true,
                     avatarUrl: true,
                     isActive: true,
@@ -120,7 +121,7 @@ const getAllUsers = async (req, res, next) => {
  */
 const createUser = async (req, res, next) => {
     try {
-        const { email, fullName, role, department, phone } = req.body;
+        const { email, fullName, role, department, phone, academicTitle } = req.body;
 
         if (!email || !fullName || !role) {
             return res.status(400).json({
@@ -150,6 +151,7 @@ const createUser = async (req, res, next) => {
                 code,
                 role,
                 department: department || null,
+                academicTitle: role === 'LECTURER' ? academicTitle : null,
                 phone: phone || null,
                 passwordHash: hashedPassword,
             },
@@ -160,6 +162,7 @@ const createUser = async (req, res, next) => {
                 code: true,
                 role: true,
                 department: true,
+                academicTitle: true,
                 phone: true,
                 isActive: true,
                 createdAt: true,
@@ -183,7 +186,7 @@ const createUser = async (req, res, next) => {
 const updateUser = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { fullName, email, code, role, department, phone } = req.body;
+        const { fullName, email, code, role, department, phone, academicTitle } = req.body;
 
         const existing = await prisma.user.findUnique({ where: { id: parseInt(id) } });
         if (!existing) {
@@ -213,13 +216,15 @@ const updateUser = async (req, res, next) => {
         if (role) updateData.role = role;
         if (department !== undefined) updateData.department = department;
         if (phone !== undefined) updateData.phone = phone;
+        if (role === 'LECTURER' && academicTitle !== undefined) updateData.academicTitle = academicTitle;
+        if (role !== 'LECTURER') updateData.academicTitle = null;
 
         const user = await prisma.user.update({
             where: { id: parseInt(id) },
             data: updateData,
             select: {
                 id: true, email: true, fullName: true, code: true,
-                role: true, department: true, phone: true, isActive: true, createdAt: true,
+                role: true, department: true, academicTitle: true, phone: true, isActive: true, createdAt: true,
             },
         });
 

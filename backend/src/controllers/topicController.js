@@ -1,21 +1,17 @@
 const prisma = require('../config/database');
+const { getMentorMaxSlots } = require('../constants/mentorCapacity');
 
-// ============================
-// TOPIC CONTROLLER
-// CRUD + Duyệt/Từ chối đề tài
-// ============================
+// Giới hạn SV theo học vị giảng viên
 
 /**
  * GET /api/topics
  * Lấy danh sách đề tài (phân quyền theo role)
- * Query params: ?status=APPROVED&semesterId=1&mentorId=2&search=keyword
  */
 const getAllTopics = async (req, res, next) => {
     try {
         const { role, id: userId } = req.user;
         const { status, semesterId, mentorId, search } = req.query;
 
-        // Xây dựng điều kiện where
         const conditions = [];
 
         // Student chỉ thấy đề tài APPROVED
@@ -23,16 +19,14 @@ const getAllTopics = async (req, res, next) => {
             conditions.push({ status: 'APPROVED' });
         }
 
-        // Giảng viên không thấy DRAFT của người khác
+        // Giảng viên: thấy tất cả trừ DRAFT của người khác
         if (role === 'LECTURER') {
             if (status) {
                 conditions.push({ status });
-                // Nếu lọc DRAFT, chỉ thấy DRAFT của chính mình
                 if (status === 'DRAFT') {
                     conditions.push({ proposedById: userId });
                 }
             } else {
-                // Không có filter: thấy tất cả trừ DRAFT của người khác
                 conditions.push({
                     OR: [
                         { status: { not: 'DRAFT' } },
@@ -42,7 +36,7 @@ const getAllTopics = async (req, res, next) => {
             }
         }
 
-        // Admin: lọc theo status, nếu DRAFT chỉ thấy của chính mình
+        // Admin: tương tự Lecturer
         if (role === 'ADMIN') {
             if (status) {
                 conditions.push({ status });
@@ -50,7 +44,6 @@ const getAllTopics = async (req, res, next) => {
                     conditions.push({ proposedById: userId });
                 }
             } else {
-                // Không có filter: thấy tất cả trừ DRAFT của người khác
                 conditions.push({
                     OR: [
                         { status: { not: 'DRAFT' } },
@@ -60,46 +53,24 @@ const getAllTopics = async (req, res, next) => {
             }
         }
 
-        // Lọc theo học kỳ
-        if (semesterId) {
-            conditions.push({ semesterId: parseInt(semesterId) });
-        }
-
-        // Lọc theo giảng viên hướng dẫn
-        if (mentorId) {
-            conditions.push({ mentorId: parseInt(mentorId) });
-        }
-
-        // Tìm kiếm theo tên đề tài
-        if (search) {
-            conditions.push({ title: { contains: search, mode: 'insensitive' } });
-        }
+        if (semesterId) conditions.push({ semesterId: parseInt(semesterId) });
+        if (mentorId) conditions.push({ mentorId: parseInt(mentorId) });
+        if (search) conditions.push({ title: { contains: search, mode: 'insensitive' } });
 
         const where = conditions.length > 0 ? { AND: conditions } : {};
 
         const topics = await prisma.topic.findMany({
             where,
             include: {
-                proposedBy: {
-                    select: { id: true, fullName: true, code: true, email: true },
-                },
-                mentor: {
-                    select: { id: true, fullName: true, code: true, email: true },
-                },
-                semester: {
-                    select: { id: true, name: true },
-                },
-                _count: {
-                    select: { groups: true },
-                },
+                proposedBy: { select: { id: true, fullName: true, code: true, email: true, role: true } },
+                mentor: { select: { id: true, fullName: true, code: true, email: true, academicTitle: true } },
+                semester: { select: { id: true, name: true } },
+                _count: { select: { registrations: true } },
             },
             orderBy: { createdAt: 'desc' },
         });
 
-        res.json({
-            success: true,
-            data: topics,
-        });
+        res.json({ success: true, data: topics });
     } catch (error) {
         next(error);
     }
@@ -107,7 +78,6 @@ const getAllTopics = async (req, res, next) => {
 
 /**
  * GET /api/topics/:id
- * Xem chi tiết 1 đề tài
  */
 const getTopicById = async (req, res, next) => {
     try {
@@ -116,55 +86,30 @@ const getTopicById = async (req, res, next) => {
         const topic = await prisma.topic.findUnique({
             where: { id: parseInt(id) },
             include: {
-                proposedBy: {
-                    select: { id: true, fullName: true, code: true, email: true },
-                },
-                mentor: {
-                    select: { id: true, fullName: true, code: true, email: true },
-                },
-                semester: {
-                    select: { id: true, name: true },
-                },
-                groups: {
+                proposedBy: { select: { id: true, fullName: true, code: true, email: true, role: true } },
+                mentor: { select: { id: true, fullName: true, code: true, email: true, academicTitle: true, department: true } },
+                semester: { select: { id: true, name: true } },
+                registrations: {
                     include: {
-                        leader: { select: { id: true, fullName: true, code: true } },
-                        members: {
-                            include: {
-                                student: { select: { id: true, fullName: true, code: true } },
-                            },
-                        },
+                        student: { select: { id: true, fullName: true, code: true, email: true } },
                     },
                 },
             },
         });
 
         if (!topic) {
-            return res.status(404).json({
-                success: false,
-                message: 'Không tìm thấy đề tài.',
-            });
+            return res.status(404).json({ success: false, message: 'Không tìm thấy đề tài.' });
         }
 
-        // Student không được xem đề tài chưa duyệt
         if (req.user.role === 'STUDENT' && topic.status !== 'APPROVED') {
-            return res.status(403).json({
-                success: false,
-                message: 'Bạn không có quyền xem đề tài này.',
-            });
+            return res.status(403).json({ success: false, message: 'Bạn không có quyền xem đề tài này.' });
         }
 
-        // Lecturer không được xem DRAFT của người khác
         if (req.user.role === 'LECTURER' && topic.status === 'DRAFT' && topic.proposedById !== req.user.id) {
-            return res.status(403).json({
-                success: false,
-                message: 'Bạn không có quyền xem đề tài nháp của người khác.',
-            });
+            return res.status(403).json({ success: false, message: 'Bạn không có quyền xem đề tài nháp của người khác.' });
         }
 
-        res.json({
-            success: true,
-            data: topic,
-        });
+        res.json({ success: true, data: topic });
     } catch (error) {
         next(error);
     }
@@ -172,37 +117,38 @@ const getTopicById = async (req, res, next) => {
 
 /**
  * POST /api/topics
- * Tạo đề tài mới
- * - Admin tạo: status = APPROVED (hoặc tuỳ chọn)
- * - Lecturer tạo: status = DRAFT hoặc PENDING (tuỳ body.status)
+ * Tạo đề tài:
+ * - Lecturer tạo (đăng tải đề tài sẵn): status=APPROVED, mentorId=chính mình
+ * - Student đề xuất: status=PENDING, mentorId=GV được chọn, cần GV duyệt
+ * - Admin: status tuỳ chọn
  */
 const createTopic = async (req, res, next) => {
     try {
-        const { title, description, semesterId, mentorId, maxGroups, status } = req.body;
+        const { title, description, semesterId, mentorId, maxStudents, status } = req.body;
         const { role, id: userId } = req.user;
 
-        // Validate bắt buộc
         if (!title || !semesterId) {
-            return res.status(400).json({
-                success: false,
-                message: 'Vui lòng nhập tên đề tài và chọn đợt đồ án.',
-            });
+            return res.status(400).json({ success: false, message: 'Vui lòng nhập tên đề tài và chọn đợt đồ án.' });
         }
 
-        // Xác định status
-        let topicStatus;
-        if (role === 'ADMIN') {
-            topicStatus = status || 'APPROVED';
-        } else if (role === 'LECTURER') {
-            // Lecturer: chỉ được DRAFT hoặc PENDING
-            topicStatus = (status === 'DRAFT') ? 'DRAFT' : 'PENDING';
-        } else {
-            // Student: bắt buộc PENDING
+        let topicStatus, finalMentorId;
+
+        if (role === 'LECTURER') {
+            // GV đăng tải đề tài → trạng thái APPROVED (hoặc DRAFT)
+            topicStatus = (status === 'DRAFT') ? 'DRAFT' : 'APPROVED';
+            finalMentorId = userId; // GV tự là mentor
+        } else if (role === 'STUDENT') {
+            // SV đề xuất → cần chọn GV, trạng thái PENDING
+            if (!mentorId) {
+                return res.status(400).json({ success: false, message: 'Vui lòng chọn giảng viên hướng dẫn.' });
+            }
             topicStatus = 'PENDING';
+            finalMentorId = parseInt(mentorId);
+        } else {
+            // Admin
+            topicStatus = status || 'APPROVED';
+            finalMentorId = mentorId ? parseInt(mentorId) : userId;
         }
-
-        // Xác định mentorId: Admin có thể chỉ định, Lecturer mặc định là chính mình
-        const finalMentorId = (role === 'ADMIN' && mentorId) ? parseInt(mentorId) : userId;
 
         const topic = await prisma.topic.create({
             data: {
@@ -211,25 +157,21 @@ const createTopic = async (req, res, next) => {
                 semesterId: parseInt(semesterId),
                 proposedById: userId,
                 mentorId: finalMentorId,
-                maxGroups: maxGroups ? parseInt(maxGroups) : 1,
+                maxStudents: maxStudents ? parseInt(maxStudents) : 1,
                 status: topicStatus,
             },
             include: {
-                proposedBy: {
-                    select: { id: true, fullName: true, code: true },
-                },
-                mentor: {
-                    select: { id: true, fullName: true, code: true },
-                },
-                semester: {
-                    select: { id: true, name: true },
-                },
+                proposedBy: { select: { id: true, fullName: true, code: true } },
+                mentor: { select: { id: true, fullName: true, code: true } },
+                semester: { select: { id: true, name: true } },
             },
         });
 
         res.status(201).json({
             success: true,
-            message: topicStatus === 'DRAFT' ? 'Đã lưu bản nháp đề tài.' : 'Tạo đề tài thành công.',
+            message: topicStatus === 'DRAFT' ? 'Đã lưu bản nháp.' :
+                     topicStatus === 'PENDING' ? 'Đã gửi đề xuất, chờ giảng viên duyệt.' :
+                     'Tạo đề tài thành công.',
             data: topic,
         });
     } catch (error) {
@@ -239,82 +181,45 @@ const createTopic = async (req, res, next) => {
 
 /**
  * PUT /api/topics/:id
- * Cập nhật đề tài
- * - Admin: sửa được mọi đề tài
- * - Lecturer: chỉ sửa được đề tài DRAFT/PENDING/REJECTED của mình
  */
 const updateTopic = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { title, description, mentorId, maxGroups, status } = req.body;
+        const { title, description, mentorId, maxStudents, status } = req.body;
         const { role, id: userId } = req.user;
 
-        const existing = await prisma.topic.findUnique({
-            where: { id: parseInt(id) },
-        });
+        const existing = await prisma.topic.findUnique({ where: { id: parseInt(id) } });
 
         if (!existing) {
-            return res.status(404).json({
-                success: false,
-                message: 'Không tìm thấy đề tài.',
-            });
+            return res.status(404).json({ success: false, message: 'Không tìm thấy đề tài.' });
         }
 
-        // Admin chỉ được sửa DRAFT của chính mình
-        if (role === 'ADMIN') {
-            if (existing.status !== 'DRAFT' || existing.proposedById !== userId) {
-                return res.status(403).json({
-                    success: false,
-                    message: 'Quản trị viên chỉ có thể sửa bản nháp do mình tạo.',
-                });
-            }
-        }
-
-        // Lecturer chỉ sửa đề tài do mình đề xuất và chưa được duyệt
+        // Kiểm tra quyền
         if (role === 'LECTURER') {
             if (existing.proposedById !== userId) {
-                return res.status(403).json({
-                    success: false,
-                    message: 'Bạn chỉ có thể sửa đề tài do mình đề xuất.',
-                });
+                return res.status(403).json({ success: false, message: 'Bạn chỉ có thể sửa đề tài do mình tạo.' });
             }
             if (existing.status === 'APPROVED') {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Không thể sửa đề tài đã được duyệt.',
-                });
+                // Cho phép sửa nếu chưa có SV đăng ký
+                const regCount = await prisma.topicRegistration.count({ where: { topicId: existing.id } });
+                if (regCount > 0) {
+                    return res.status(400).json({ success: false, message: 'Không thể sửa đề tài đã có sinh viên đăng ký.' });
+                }
             }
         }
 
-        // Xây dựng data update
         const updateData = {};
         if (title) updateData.title = title;
         if (description !== undefined) updateData.description = description;
-        if (maxGroups) updateData.maxGroups = parseInt(maxGroups);
+        if (maxStudents) updateData.maxStudents = parseInt(maxStudents);
+        if (role === 'ADMIN' && mentorId) updateData.mentorId = parseInt(mentorId);
 
-        // Admin có thể đổi mentor
-        if (role === 'ADMIN' && mentorId) {
-            updateData.mentorId = parseInt(mentorId);
-        }
-
-        // Admin gửi duyệt DRAFT -> APPROVED hoặc lưu DRAFT
-        if (role === 'ADMIN' && status) {
-            if (status === 'APPROVED' && existing.status === 'DRAFT') {
-                updateData.status = 'APPROVED';
-            } else if (status === 'PENDING' && existing.status === 'DRAFT') {
-                updateData.status = 'PENDING';
-            } else if (status === 'DRAFT') {
-                updateData.status = 'DRAFT';
-            }
-        }
-
-        // Lecturer gửi duyệt (DRAFT -> PENDING) hoặc lưu lại DRAFT
-        if (role === 'LECTURER' && status) {
-            if (status === 'PENDING' && (existing.status === 'DRAFT' || existing.status === 'REJECTED')) {
-                updateData.status = 'PENDING';
-                updateData.rejectReason = null; // Xóa lý do từ chối cũ
-            } else if (status === 'DRAFT') {
-                updateData.status = 'DRAFT';
+        if (status) {
+            if (role === 'LECTURER') {
+                if (status === 'APPROVED' && (existing.status === 'DRAFT')) updateData.status = 'APPROVED';
+                else if (status === 'DRAFT') updateData.status = 'DRAFT';
+            } else if (role === 'ADMIN') {
+                updateData.status = status;
             }
         }
 
@@ -322,23 +227,13 @@ const updateTopic = async (req, res, next) => {
             where: { id: parseInt(id) },
             data: updateData,
             include: {
-                proposedBy: {
-                    select: { id: true, fullName: true, code: true },
-                },
-                mentor: {
-                    select: { id: true, fullName: true, code: true },
-                },
-                semester: {
-                    select: { id: true, name: true },
-                },
+                proposedBy: { select: { id: true, fullName: true, code: true } },
+                mentor: { select: { id: true, fullName: true, code: true } },
+                semester: { select: { id: true, name: true } },
             },
         });
 
-        res.json({
-            success: true,
-            message: 'Cập nhật đề tài thành công.',
-            data: topic,
-        });
+        res.json({ success: true, message: 'Cập nhật đề tài thành công.', data: topic });
     } catch (error) {
         next(error);
     }
@@ -346,9 +241,6 @@ const updateTopic = async (req, res, next) => {
 
 /**
  * DELETE /api/topics/:id
- * Xóa đề tài
- * - Admin: xóa mọi đề tài (trừ đề tài đã có nhóm đăng ký)
- * - Lecturer: chỉ xóa DRAFT của mình
  */
 const deleteTopic = async (req, res, next) => {
     try {
@@ -357,42 +249,24 @@ const deleteTopic = async (req, res, next) => {
 
         const existing = await prisma.topic.findUnique({
             where: { id: parseInt(id) },
-            include: { _count: { select: { groups: true } } },
+            include: { _count: { select: { registrations: true } } },
         });
 
         if (!existing) {
-            return res.status(404).json({
-                success: false,
-                message: 'Không tìm thấy đề tài.',
-            });
+            return res.status(404).json({ success: false, message: 'Không tìm thấy đề tài.' });
         }
 
-        // Kiểm tra đã có nhóm đăng ký
-        if (existing._count.groups > 0) {
-            return res.status(400).json({
-                success: false,
-                message: 'Không thể xóa đề tài đã có nhóm đăng ký.',
-            });
+        if (existing._count.registrations > 0) {
+            return res.status(400).json({ success: false, message: 'Không thể xóa đề tài đã có sinh viên đăng ký.' });
         }
 
-        // Admin và Lecturer chỉ xóa DRAFT của mình
-        if (role === 'ADMIN' || role === 'LECTURER') {
-            if (existing.proposedById !== userId || existing.status !== 'DRAFT') {
-                return res.status(403).json({
-                    success: false,
-                    message: 'Bạn chỉ có thể xóa bản nháp đề tài do mình tạo.',
-                });
-            }
+        if (role !== 'ADMIN' && existing.proposedById !== userId) {
+            return res.status(403).json({ success: false, message: 'Bạn chỉ có thể xóa đề tài do mình tạo.' });
         }
 
-        await prisma.topic.delete({
-            where: { id: parseInt(id) },
-        });
+        await prisma.topic.delete({ where: { id: parseInt(id) } });
 
-        res.json({
-            success: true,
-            message: 'Xóa đề tài thành công.',
-        });
+        res.json({ success: true, message: 'Xóa đề tài thành công.' });
     } catch (error) {
         next(error);
     }
@@ -400,8 +274,7 @@ const deleteTopic = async (req, res, next) => {
 
 /**
  * PATCH /api/topics/:id/status
- * Duyệt hoặc Từ chối đề tài (Chỉ Admin)
- * Body: { status: 'APPROVED' | 'REJECTED', rejectReason?: '...' }
+ * Duyệt/Từ chối đề tài do SV đề xuất (Giảng viên duyệt, không phải Admin)
  */
 const changeTopicStatus = async (req, res, next) => {
     try {
@@ -409,86 +282,72 @@ const changeTopicStatus = async (req, res, next) => {
         const { status, rejectReason } = req.body;
 
         if (!['APPROVED', 'REJECTED'].includes(status)) {
-            return res.status(400).json({
-                success: false,
-                message: 'Trạng thái chỉ có thể là APPROVED hoặc REJECTED.',
-            });
+            return res.status(400).json({ success: false, message: 'Trạng thái phải là APPROVED hoặc REJECTED.' });
         }
 
         if (status === 'REJECTED' && !rejectReason) {
-            return res.status(400).json({
-                success: false,
-                message: 'Vui lòng nhập lý do từ chối.',
-            });
+            return res.status(400).json({ success: false, message: 'Vui lòng nhập lý do từ chối.' });
         }
 
-        const existing = await prisma.topic.findUnique({
-            where: { id: parseInt(id) },
-        });
+        const existing = await prisma.topic.findUnique({ where: { id: parseInt(id) } });
 
         if (!existing) {
-            return res.status(404).json({
-                success: false,
-                message: 'Không tìm thấy đề tài.',
-            });
+            return res.status(404).json({ success: false, message: 'Không tìm thấy đề tài.' });
         }
 
         if (existing.status !== 'PENDING') {
-            return res.status(400).json({
-                success: false,
-                message: `Chỉ có thể duyệt/từ chối đề tài đang ở trạng thái "Chờ duyệt". Đề tài này đang ở trạng thái: ${existing.status}.`,
-            });
+            return res.status(400).json({ success: false, message: `Chỉ duyệt/từ chối đề tài ở trạng thái "Chờ duyệt". Hiện: ${existing.status}.` });
         }
 
-        // LECTURER chỉ được duyệt đề tài mình hướng dẫn
+        // GV chỉ được duyệt đề tài mình hướng dẫn
         if (req.user.role === 'LECTURER' && existing.mentorId !== req.user.id) {
-            return res.status(403).json({
-                success: false,
-                message: 'Bạn chỉ có quyền duyệt đề tài do mình hướng dẫn.',
-            });
+            return res.status(403).json({ success: false, message: 'Bạn chỉ có quyền duyệt đề tài do mình hướng dẫn.' });
         }
 
-        // Nếu duyệt đề tài (APPROVED) cho sinh viên đề xuất, tìm nhóm của sinh viên đó để gán topicId
-        let groupIdToAssign = null;
+        // Nếu duyệt: kiểm tra quota GV
         if (status === 'APPROVED') {
-            const studentGroup = await prisma.group.findFirst({
-                where: {
-                    leaderId: existing.proposedById,
-                    semesterId: existing.semesterId,
-                }
+            const mentor = await prisma.user.findUnique({ where: { id: existing.mentorId } });
+            const maxSlots = getMentorMaxSlots(mentor?.academicTitle);
+            const currentCount = await prisma.topicRegistration.count({
+                where: { topic: { mentorId: existing.mentorId, semesterId: existing.semesterId }, status: { in: ['APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'DEFENDED', 'COMPLETED'] } }
             });
-            if (studentGroup) {
-                groupIdToAssign = studentGroup.id;
+            if (currentCount >= maxSlots) {
+                return res.status(400).json({ success: false, message: `Giảng viên đã đạt giới hạn ${maxSlots} sinh viên hướng dẫn.` });
             }
         }
 
-        const topic = await prisma.$transaction(async (tx) => {
-            const updatedTopic = await tx.topic.update({
-                where: { id: parseInt(id) },
-                data: {
-                    status,
-                    rejectReason: status === 'REJECTED' ? rejectReason : null,
-                },
-                include: {
-                    proposedBy: { select: { id: true, fullName: true, code: true } },
-                    mentor: { select: { id: true, fullName: true, code: true } },
-                    semester: { select: { id: true, name: true } },
-                },
-            });
+        const topic = await prisma.topic.update({
+            where: { id: parseInt(id) },
+            data: {
+                status,
+                rejectReason: status === 'REJECTED' ? rejectReason : null,
+            },
+            include: {
+                proposedBy: { select: { id: true, fullName: true, code: true } },
+                mentor: { select: { id: true, fullName: true, code: true } },
+            },
+        });
 
-            // Gán đề tài cho nhóm sinh viên đề xuất
-            if (groupIdToAssign) {
-                // Kiểm tra xem nhóm đã có đề tài chưa
-                const group = await tx.group.findUnique({ where: { id: groupIdToAssign } });
-                if (group && !group.topicId) {
-                    await tx.group.update({
-                        where: { id: groupIdToAssign },
-                        data: { topicId: updatedTopic.id }
+        // Nếu duyệt đề tài SV đề xuất → tự động tạo TopicRegistration
+        if (status === 'APPROVED') {
+            const proposer = await prisma.user.findUnique({ where: { id: existing.proposedById } });
+            if (proposer?.role === 'STUDENT') {
+                // Kiểm tra SV chưa có registration trong kỳ này
+                const hasReg = await prisma.topicRegistration.findUnique({
+                    where: { studentId_semesterId: { studentId: proposer.id, semesterId: existing.semesterId } }
+                });
+                if (!hasReg) {
+                    await prisma.topicRegistration.create({
+                        data: {
+                            topicId: existing.id,
+                            studentId: proposer.id,
+                            semesterId: existing.semesterId,
+                            status: 'APPROVED',
+                        }
                     });
                 }
             }
-            return updatedTopic;
-        });
+        }
 
         res.json({
             success: true,
@@ -502,8 +361,7 @@ const changeTopicStatus = async (req, res, next) => {
 
 /**
  * GET /api/topics/approvals
- * Lấy danh sách đề tài sinh viên đề xuất đang chờ duyệt (hoặc đã duyệt/từ chối)
- * dành cho Giảng viên (và Admin)
+ * Danh sách đề tài SV đề xuất chờ duyệt (GV / Admin)
  */
 const getTopicApprovals = async (req, res, next) => {
     try {
@@ -511,54 +369,69 @@ const getTopicApprovals = async (req, res, next) => {
         const { status } = req.query;
 
         const where = {
-            proposedBy: { role: 'STUDENT' } // Chỉ lấy đề tài do sinh viên đề xuất
+            proposedBy: { role: 'STUDENT' },
         };
 
-        if (role === 'LECTURER') {
-            where.mentorId = userId; // Giảng viên chỉ xem đề tài mình HD
-        }
-
-        if (status) {
-            where.status = status;
-        } else {
-            where.status = { not: 'DRAFT' }; // Không xem đề tài nháp
-        }
+        if (role === 'LECTURER') where.mentorId = userId;
+        if (status) where.status = status;
+        else where.status = { not: 'DRAFT' };
 
         const topics = await prisma.topic.findMany({
             where,
             include: {
-                proposedBy: { select: { id: true, fullName: true, code: true } },
+                proposedBy: { select: { id: true, fullName: true, code: true, email: true } },
                 mentor: { select: { id: true, fullName: true, code: true } },
                 semester: { select: { id: true, name: true } },
             },
-            orderBy: { createdAt: 'desc' }
+            orderBy: { createdAt: 'desc' },
         });
 
-        // Với mỗi đề tài do sinh viên đề xuất, lấy thông tin nhóm của sinh viên đó
-        const dataWithGroups = await Promise.all(topics.map(async (topic) => {
-            const group = await prisma.group.findFirst({
-                where: {
-                    leaderId: topic.proposedById,
-                    semesterId: topic.semesterId
-                },
-                include: {
-                    members: {
-                        include: { student: { select: { id: true, fullName: true, code: true } } }
-                    }
-                }
-            });
+        res.json({ success: true, data: topics });
+    } catch (error) {
+        next(error);
+    }
+};
 
-            return {
-                ...topic,
-                studentGroup: group
-            };
-        }));
+/**
+ * GET /api/topics/mentor-capacity/:mentorId
+ * Kiểm tra capacity của 1 GV (SV gọi khi chọn GV)
+ */
+const getMentorCapacity = async (req, res, next) => {
+    try {
+        const { mentorId } = req.params;
+        const { semesterId } = req.query;
+
+        const mentor = await prisma.user.findUnique({
+            where: { id: parseInt(mentorId) },
+            select: { id: true, fullName: true, academicTitle: true },
+        });
+
+        if (!mentor) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy giảng viên.' });
+        }
+
+        const maxSlots = getMentorMaxSlots(mentor.academicTitle);
+
+        // Đếm SV hiện tại đang được GV hướng dẫn trong kỳ này
+        const whereClause = {
+            topic: { mentorId: parseInt(mentorId) },
+            status: { in: ['APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'DEFENDED', 'COMPLETED'] },
+        };
+        if (semesterId) whereClause.semesterId = parseInt(semesterId);
+
+        const currentCount = await prisma.topicRegistration.count({ where: whereClause });
 
         res.json({
             success: true,
-            data: dataWithGroups
+            data: {
+                mentorId: mentor.id,
+                fullName: mentor.fullName,
+                academicTitle: mentor.academicTitle,
+                maxSlots,
+                currentCount,
+                available: maxSlots - currentCount,
+            },
         });
-
     } catch (error) {
         next(error);
     }
@@ -572,4 +445,5 @@ module.exports = {
     deleteTopic,
     changeTopicStatus,
     getTopicApprovals,
+    getMentorCapacity,
 };

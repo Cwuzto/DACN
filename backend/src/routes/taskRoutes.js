@@ -9,8 +9,8 @@ router.use(authenticate);
 // Giảng viên tạo task cho nhóm
 router.post('/', authorize('LECTURER', 'ADMIN'), taskController.createTask);
 
-// Lấy danh sách task của một nhóm cụ thể (cho cả GV và SV xem)
-router.get('/group/:id', taskController.getTasksByGroup);
+// Lấy danh sách nhiệm vụ của một sinh viên (cho cả GV và SV xem)
+router.get('/registration/:id', taskController.getTasksByRegistration);
 
 // Sinh viên nộp báo cáo cho một task
 router.post('/:id/submit', authorize('STUDENT'), taskController.submitTask);

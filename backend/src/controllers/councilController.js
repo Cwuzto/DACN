@@ -23,7 +23,7 @@ const getAllCouncils = async (req, res, next) => {
                     }
                 },
                 _count: {
-                    select: { groups: true }
+                    select: { evaluations: true }
                 }
             },
             orderBy: { id: 'desc' }
@@ -54,10 +54,14 @@ const getCouncilById = async (req, res, next) => {
                         lecturer: { select: { id: true, fullName: true, avatarUrl: true, code: true } }
                     }
                 },
-                groups: {
+                evaluations: {
                     include: {
-                        topic: { select: { title: true } },
-                        leader: { select: { fullName: true } }
+                        registration: {
+                            include: {
+                                topic: { select: { title: true } },
+                                student: { select: { fullName: true, code: true } }
+                            }
+                        }
                     }
                 }
             }
@@ -92,6 +96,7 @@ const createCouncil = async (req, res, next) => {
                     semesterId: parseInt(semesterId),
                     name,
                     location,
+                    // If defenseDate is provided, convert; otherwise keep null
                     defenseDate: defenseDate ? new Date(defenseDate) : null,
                 }
             });
@@ -167,15 +172,15 @@ const updateCouncil = async (req, res, next) => {
 
 /**
  * POST /api/councils/:id/assign
- * Phân công danh sách nhóm vào hội đồng
+ * Phân công danh sách đăng ký vào hội đồng
  */
-const assignGroupsToCouncil = async (req, res, next) => {
+const assignRegistrationsToCouncil = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { groupIds } = req.body;
+        const { registrationIds } = req.body;
 
-        if (!Array.isArray(groupIds)) {
-            return res.status(400).json({ success: false, message: 'Danh sách nhóm (groupIds) không hợp lệ.' });
+        if (!Array.isArray(registrationIds)) {
+            return res.status(400).json({ success: false, message: 'Danh sách đăng ký (registrationIds) không hợp lệ.' });
         }
 
         const existing = await prisma.council.findUnique({ where: { id: parseInt(id) } });
@@ -183,42 +188,46 @@ const assignGroupsToCouncil = async (req, res, next) => {
             return res.status(404).json({ success: false, message: 'Không tìm thấy hội đồng.' });
         }
 
-        // Cập nhật councilId cho các nhóm
-        await prisma.group.updateMany({
-            where: {
-                id: { in: groupIds }
-            },
-            data: {
-                councilId: parseInt(id)
+        // Với mỗi registrationId, upsert DefenseResult với councilId
+        await prisma.$transaction(async (tx) => {
+            for (const regId of registrationIds) {
+                await tx.defenseResult.upsert({
+                    where: { registrationId: parseInt(regId) },
+                    create: {
+                        registrationId: parseInt(regId),
+                        councilId: parseInt(id)
+                    },
+                    update: {
+                        councilId: parseInt(id)
+                    }
+                });
             }
         });
 
-        res.json({ success: true, message: `Đã phân công ${groupIds.length} nhóm vào hội đồng.` });
+        res.json({ success: true, message: `Đã phân công ${registrationIds.length} sinh viên vào hội đồng.` });
     } catch (error) {
         next(error);
     }
 };
 
 /**
- * POST /api/councils/:id/remove-group
- * Xóa một nhóm khỏi hội đồng
+ * POST /api/councils/:id/remove-registration
+ * Xóa một sinh viên khỏi hội đồng
  */
-const removeGroupFromCouncil = async (req, res, next) => {
+const removeRegistrationFromCouncil = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { groupId } = req.body;
+        const { registrationId } = req.body;
 
-        const group = await prisma.group.findUnique({ where: { id: parseInt(groupId) } });
-        if (!group || group.councilId !== parseInt(id)) {
-            return res.status(404).json({ success: false, message: 'Nhóm không tồn tại hoặc không thuộc hội đồng này.' });
-        }
-
-        await prisma.group.update({
-            where: { id: parseInt(groupId) },
+        await prisma.defenseResult.updateMany({
+            where: {
+                registrationId: parseInt(registrationId),
+                councilId: parseInt(id)
+            },
             data: { councilId: null }
         });
 
-        res.json({ success: true, message: 'Đã gỡ nhóm khỏi hội đồng.' });
+        res.json({ success: true, message: 'Đã gỡ sinh viên khỏi hội đồng.' });
     } catch (error) {
         next(error);
     }
@@ -234,15 +243,15 @@ const deleteCouncil = async (req, res, next) => {
 
         const existing = await prisma.council.findUnique({
             where: { id: parseInt(id) },
-            include: { _count: { select: { groups: true } } }
+            include: { _count: { select: { evaluations: true } } }
         });
 
         if (!existing) {
             return res.status(404).json({ success: false, message: 'Không tìm thấy hội đồng.' });
         }
 
-        if (existing._count.groups > 0) {
-            return res.status(400).json({ success: false, message: 'Không thể xóa hội đồng đã có nhóm được phân công.' });
+        if (existing._count.evaluations > 0) {
+            return res.status(400).json({ success: false, message: 'Không thể xóa hội đồng đã có sinh viên được phân công.' });
         }
 
         await prisma.$transaction(async (tx) => {
@@ -263,7 +272,7 @@ module.exports = {
     getCouncilById,
     createCouncil,
     updateCouncil,
-    assignGroupsToCouncil,
-    removeGroupFromCouncil,
+    assignRegistrationsToCouncil,
+    removeRegistrationFromCouncil,
     deleteCouncil
 };

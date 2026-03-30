@@ -50,10 +50,10 @@ function TopicManagementPage() {
     const openFormModal = (topic = null) => {
         setEditingTopic(topic);
         if (topic) {
-            form.setFieldsValue({ title: topic.title, description: topic.description, maxGroups: topic.maxGroups, semesterId: topic.semesterId });
+            form.setFieldsValue({ title: topic.title, description: topic.description, maxStudents: topic.maxStudents, semesterId: topic.semesterId });
         } else {
             form.resetFields();
-            form.setFieldsValue({ maxGroups: 1, semesterId: 1 });
+            form.setFieldsValue({ maxStudents: 1, semesterId: 1 });
         }
         setFormModalOpen(true);
     };
@@ -132,8 +132,8 @@ function TopicManagementPage() {
             ),
         },
         {
-            title: 'Nhóm đăng ký', key: 'groups', align: 'center', width: 120,
-            render: (_, record) => <Tag>{record._count?.groups || 0}/{record.maxGroups}</Tag>,
+            title: 'Sinh viên đăng ký', key: 'registrations', align: 'center', width: 120,
+            render: (_, record) => <Tag>{record._count?.registrations || 0}/{record.maxStudents}</Tag>,
         },
         {
             title: 'Trạng thái', dataIndex: 'status', key: 'status', width: 130,
@@ -255,8 +255,8 @@ function TopicManagementPage() {
                         <Form.Item name="semesterId" label="Đợt đồ án" style={{ flex: 1 }} rules={[{ required: true }]}>
                             <Select placeholder="Chọn đợt" options={[{ value: 1, label: 'Đồ án CN - HK1 2026-2027' }]} />
                         </Form.Item>
-                        <Form.Item name="maxGroups" label="Số nhóm tối đa" style={{ flex: 1 }}>
-                            <Select options={[{ value: 1, label: '1 nhóm' }, { value: 2, label: '2 nhóm' }, { value: 3, label: '3 nhóm' }]} />
+                        <Form.Item name="maxStudents" label="Số sinh viên tối đa" style={{ flex: 1 }}>
+                            <Select options={[{ value: 1, label: '1 sinh viên' }, { value: 2, label: '2 sinh viên' }, { value: 3, label: '3 sinh viên' }]} />
                         </Form.Item>
                     </Flex>
                 </Form>

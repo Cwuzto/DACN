@@ -16,7 +16,7 @@ router.put('/:id', councilController.updateCouncil);
 router.delete('/:id', councilController.deleteCouncil);
 
 // Phân công Nhóm
-router.post('/:id/assign', councilController.assignGroupsToCouncil);
-router.post('/:id/remove-group', councilController.removeGroupFromCouncil);
+router.post('/:id/assign', councilController.assignRegistrationsToCouncil);
+router.post('/:id/remove-registration', councilController.removeRegistrationFromCouncil);
 
 module.exports = router;

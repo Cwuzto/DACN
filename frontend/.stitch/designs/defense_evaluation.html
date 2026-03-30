@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+
+<html class="light" lang="vi"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Hệ thống Quản lý Đào tạo - Chấm điểm bảo vệ</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#003366",
+                        "background-light": "#f5f7f8",
+                        "background-dark": "#0f1923",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 antialiased">
+<div class="relative flex h-auto min-h-screen w-full flex-col overflow-x-hidden">
+<div class="layout-container flex h-full grow flex-col">
+<!-- Top Navigation Bar -->
+<header class="flex items-center justify-between whitespace-nowrap border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-10 py-3 sticky top-0 z-50">
+<div class="flex items-center gap-4 text-primary dark:text-slate-100">
+<div class="size-8 bg-primary rounded-lg flex items-center justify-center text-white">
+<span class="material-symbols-outlined">school</span>
+</div>
+<h2 class="text-lg font-bold leading-tight tracking-tight">Hệ thống quản lý đào tạo</h2>
+</div>
+<div class="flex flex-1 justify-end gap-8">
+<nav class="flex items-center gap-8">
+<a class="text-slate-600 dark:text-slate-400 text-sm font-medium hover:text-primary transition-colors" href="#">Trang chủ</a>
+<a class="text-primary dark:text-primary text-sm font-bold" href="#">Lịch bảo vệ</a>
+<a class="text-slate-600 dark:text-slate-400 text-sm font-medium hover:text-primary transition-colors" href="#">Quản lý điểm</a>
+</nav>
+<div class="flex items-center gap-4 border-l border-slate-200 dark:border-slate-800 pl-8">
+<button class="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-white text-sm font-bold transition-all hover:bg-primary/90">
+<span class="material-symbols-outlined text-sm">download</span>
+<span class="truncate">Xuất bảng điểm tổng hợp</span>
+</button>
+<div class="size-10 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden border border-slate-200" data-alt="Avatar of the committee member profile">
+<img alt="Profile" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBSm7GNnnVQRTPh7F40ZPeI01MrjAxMxegN_UPmi9LK2a-Wc3vykebASgX-Krwb7i7YirIcIHzAsgZSuYyz15x1_LvkFZMVvF9v_hlTEarPqv8z5jX8j25d-GT7luh0n0_0F8bhxMhR37hFGoUTosj7hM5KLtfOqz7tkVVa7db4OEXXKNRwmECOH6D8wEOAxekUEK8X7r3qNkl97xEG5_-3jbwudF7GBqZ3eNyKrHMXV4YQuAnikahtpSD9MTUa_T3kCH2MeiwItiBm"/>
+</div>
+</div>
+</div>
+</header>
+<main class="flex-1 px-10 py-8 max-w-[1400px] mx-auto w-full">
+<!-- Page Title Area -->
+<div class="mb-8 flex flex-col gap-2">
+<div class="flex items-center gap-2 text-primary/70 dark:text-slate-400 text-sm font-medium">
+<span>Khoa Công nghệ thông tin</span>
+<span class="material-symbols-outlined text-xs">chevron_right</span>
+<span>Đồ án tốt nghiệp</span>
+</div>
+<h1 class="text-3xl font-extrabold text-primary dark:text-slate-100">Hội đồng bảo vệ đồ án - Hội đồng số 05</h1>
+<p class="text-slate-500 dark:text-slate-400">Danh sách sinh viên bảo vệ khóa luận tốt nghiệp - Học kỳ II, 2023-2024</p>
+</div>
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
+<!-- Left: Student List Table -->
+<div class="xl:col-span-2 space-y-6">
+<div class="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+<div class="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+<h3 class="font-bold text-slate-800 dark:text-slate-100">Danh sách sinh viên</h3>
+<span class="bg-primary/10 text-primary px-2.5 py-0.5 rounded-full text-xs font-bold">5 Sinh viên</span>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead>
+<tr class="bg-slate-50 dark:bg-slate-800/50">
+<th class="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">MSSV</th>
+<th class="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Họ và tên</th>
+<th class="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Tên đề tài</th>
+<th class="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Trạng thái</th>
+<th class="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Thao tác</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+<td class="px-6 py-4 text-sm font-medium text-primary">20210001</td>
+<td class="px-6 py-4 text-sm font-semibold">Nguyễn Văn A</td>
+<td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400 max-w-[200px] truncate">Ứng dụng AI trong chẩn đoán hình ảnh y tế</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
+<span class="material-symbols-outlined text-xs">check_circle</span>
+                                                    Đã chấm
+                                                </span>
+</td>
+<td class="px-6 py-4">
+<button class="text-primary text-sm font-bold hover:underline">Sửa điểm</button>
+</td>
+</tr>
+<tr class="bg-primary/5 border-l-4 border-primary dark:border-primary">
+<td class="px-6 py-4 text-sm font-medium text-primary">20210002</td>
+<td class="px-6 py-4 text-sm font-semibold">Trần Thị B</td>
+<td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">Hệ thống quản lý kho thông minh tích hợp IoT</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700">
+<span class="material-symbols-outlined text-xs">timer</span>
+                                                    Sẵn sàng
+                                                </span>
+</td>
+<td class="px-6 py-4">
+<button class="bg-primary text-white px-4 py-1.5 rounded-lg text-sm font-bold shadow-md shadow-primary/20 transition-all hover:scale-105 active:scale-95">Chấm điểm</button>
+</td>
+</tr>
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+<td class="px-6 py-4 text-sm font-medium text-primary">20210003</td>
+<td class="px-6 py-4 text-sm font-semibold">Lê Văn C</td>
+<td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400 max-w-[200px] truncate">Xây dựng nền tảng TMĐT phi tập trung</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+<span class="material-symbols-outlined text-xs">pending</span>
+                                                    Chờ bảo vệ
+                                                </span>
+</td>
+<td class="px-6 py-4">
+<button class="text-slate-400 text-sm font-bold cursor-not-allowed">Chấm điểm</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Statistics Card -->
+<div class="grid grid-cols-3 gap-4">
+<div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+<p class="text-xs font-bold text-slate-500 uppercase">Hoàn thành</p>
+<p class="text-2xl font-bold text-primary">1/5</p>
+</div>
+<div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+<p class="text-xs font-bold text-slate-500 uppercase">Điểm trung bình</p>
+<p class="text-2xl font-bold text-primary">8.5</p>
+</div>
+<div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+<p class="text-xs font-bold text-slate-500 uppercase">Thời gian còn lại</p>
+<p class="text-2xl font-bold text-primary">1h 45m</p>
+</div>
+</div>
+</div>
+<!-- Right: Grading Panel (Mockup Modal Content) -->
+<div class="xl:col-span-1">
+<div class="bg-white dark:bg-slate-900 rounded-xl border border-primary/20 shadow-xl shadow-primary/5 flex flex-col h-full overflow-hidden">
+<div class="bg-primary p-6 text-white">
+<div class="flex justify-between items-start mb-4">
+<h3 class="text-xl font-bold">Phiếu chấm điểm</h3>
+<span class="material-symbols-outlined">edit_document</span>
+</div>
+<div class="space-y-1">
+<p class="text-sm opacity-80 uppercase font-medium">Đang chấm cho:</p>
+<p class="text-lg font-bold">Trần Thị B (20210002)</p>
+<p class="text-xs opacity-80 italic line-clamp-1">Hệ thống quản lý kho thông minh...</p>
+</div>
+</div>
+<div class="p-6 flex flex-col gap-6">
+<!-- Score Input -->
+<div>
+<label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Điểm tổng kết (Thang 10)</label>
+<div class="relative">
+<input class="w-full h-12 rounded-lg border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xl font-bold text-primary focus:ring-primary focus:border-primary transition-all" max="10" min="0" placeholder="0.0" step="0.1" type="number"/>
+<div class="absolute right-3 top-3 text-slate-400 font-medium">/ 10</div>
+</div>
+</div>
+<!-- Upload Area -->
+<div>
+<label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Minh chứng bảng điểm giấy</label>
+<div class="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl p-4 flex flex-col items-center justify-center gap-3 bg-slate-50/50 dark:bg-slate-800/50 hover:border-primary/50 transition-colors cursor-pointer group">
+<div class="size-12 rounded-full bg-white dark:bg-slate-700 flex items-center justify-center text-primary shadow-sm group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined">photo_camera</span>
+</div>
+<div class="text-center">
+<p class="text-xs font-bold text-primary uppercase">Chụp / Upload ảnh</p>
+<p class="text-[10px] text-slate-500 mt-1">Hỗ trợ định dạng JPG, PNG (Tối đa 5MB)</p>
+</div>
+<!-- Mini Preview Placeholder -->
+<div class="mt-2 w-full h-24 rounded bg-slate-200 dark:bg-slate-700 overflow-hidden relative" data-alt="Placeholder for uploaded document preview">
+<div class="absolute inset-0 flex items-center justify-center">
+<span class="material-symbols-outlined text-slate-400">image</span>
+</div>
+<div class="absolute bottom-0 inset-x-0 bg-black/50 text-[10px] text-white p-1 text-center">Chưa có ảnh</div>
+</div>
+</div>
+</div>
+<!-- Comments -->
+<div>
+<label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Nhận xét chung</label>
+<textarea class="w-full rounded-lg border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-primary focus:border-primary" placeholder="Nhập nhận xét về kỹ năng trình bày, nội dung đồ án, thái độ..." rows="4"></textarea>
+</div>
+<!-- Buttons -->
+<div class="flex gap-3 pt-2">
+<button class="flex-1 bg-primary text-white h-12 rounded-lg font-bold shadow-lg shadow-primary/25 transition-all hover:bg-primary/90 active:scale-95 flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-xl">save</span>
+                                        Lưu điểm
+                                    </button>
+<button class="px-4 border border-slate-200 dark:border-slate-700 h-12 rounded-lg font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                                        Hủy
+                                    </button>
+</div>
+<p class="text-[10px] text-center text-slate-400 italic">Dữ liệu sẽ được tự động đồng bộ hóa với hệ thống điểm tổng của Khoa</p>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="mt-auto px-10 py-6 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex justify-between items-center">
+<p class="text-xs text-slate-500 font-medium">© 2024 Hệ thống Quản lý Đào tạo. Tất cả quyền được bảo lưu.</p>
+<div class="flex gap-6">
+<a class="text-xs text-slate-400 hover:text-primary transition-colors font-medium" href="#">Hướng dẫn sử dụng</a>
+<a class="text-xs text-slate-400 hover:text-primary transition-colors font-medium" href="#">Hỗ trợ kỹ thuật</a>
+</div>
+</footer>
+</div>
+</div>
+</body></html>

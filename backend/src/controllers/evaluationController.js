@@ -1,194 +1,151 @@
 const prisma = require('../config/database');
 
-// GET /api/evaluations/grading-groups
-// Lấy danh sách các nhóm mà giảng viên đang hướng dẫn (chấm điểm GVHD)
-const getGradingGroups = async (req, res, next) => {
-    try {
-        const mentorId = req.user.id;
-
-        // Lấy tất cả các nhóm thỏa mãn điều kiện:
-        // 1. Phải có đề tài đăng ký
-        // 2. Đề tài đó do giảng viên này hướng dẫn (topic.mentorId === mentorId)
-        const groups = await prisma.group.findMany({
-            where: {
-                topic: { mentorId: mentorId }
-            },
-            include: {
-                topic: { select: { title: true } },
-                members: {
-                    where: { status: 'ACCEPTED' },
-                    include: {
-                        student: { select: { id: true, fullName: true, code: true } } // Thông tin sinh viên
-                    }
-                }
-            },
-            orderBy: { id: 'desc' }
-        });
-
-        // Với mỗi sinh viên trong nhóm, lấy điểm Evaluation hiện tại (nếu có) do GVHD này chấm
-        const enhancedGroups = await Promise.all(groups.map(async (group) => {
-            const studentsWithEvaluation = await Promise.all(group.members.map(async (member) => {
-                const evalRecord = await prisma.evaluation.findFirst({
-                    where: {
-                        groupId: group.id,
-                        studentId: member.studentId,
-                        evaluatorId: mentorId,
-                        evaluationType: 'MENTOR_SCORE'
-                    }
-                });
-
-                return {
-                    id: member.student.id,
-                    name: member.student.fullName,
-                    code: member.student.code,
-                    score: evalRecord ? evalRecord.score : null,
-                    comments: evalRecord ? evalRecord.comments : ''
-                };
-            }));
-
-            // Xác định trạng thái của nhóm: "Chưa xác nhận" hoặc "Đã lưu nháp" hoặc "Hoàn thành"
-            // Giả định đơn giản: nếu tất cả đều có score thì là "Hoàn thành" / "Đã lưu", nếu không là "Chưa xác nhận"
-            const allScored = studentsWithEvaluation.length > 0 && studentsWithEvaluation.every(s => s.score !== null);
-            const status = allScored ? 'Đã lưu điểm' : 'Chưa xác nhận';
-            const statusColor = allScored ? 'success' : 'warning';
-
-            return {
-                id: group.id,
-                groupName: group.groupName,
-                topic: group.topic?.title || 'Chưa đăng ký',
-                students: studentsWithEvaluation,
-                status: status,
-                statusColor: statusColor,
-                roleTag: 'Điểm GVHD',
-                roleColor: 'purple'
-            };
-        }));
-
-        res.json({ success: true, data: enhancedGroups });
-    } catch (error) {
-        next(error);
-    }
-};
-
-// POST /api/evaluations
-// Upsert (Cập nhật hoặc Thêm mới) điểm đánh giá cho một danh sách sinh viên
-const submitEvaluations = async (req, res, next) => {
-    try {
-        const { groupId, evaluationType, evaluations } = req.body;
-        const evaluatorId = req.user.id; // LECTURER or ADMIN
-
-        if (!groupId || !evaluationType || !Array.isArray(evaluations)) {
-            return res.status(400).json({ success: false, message: 'Dữ liệu đầu vào không hợp lệ.' });
-        }
-
-        // Với mỗi phần tử trong mảng evaluations { studentId, score, comments }, thực hiện upsert
-        const results = await Promise.all(evaluations.map(async (evalData) => {
-            if (evalData.score === null || evalData.score === undefined) {
-                return null; // Bỏ qua những sinh viên chưa chấm điểm
-            }
-
-            // Tìm evaluation dựa trên composite unique key hoặc manual lookup
-            const existingEval = await prisma.evaluation.findFirst({
-                where: {
-                    groupId: parseInt(groupId),
-                    studentId: parseInt(evalData.studentId),
-                    evaluatorId: evaluatorId,
-                    evaluationType: evaluationType
-                }
-            });
-
-            if (existingEval) {
-                // Update
-                return await prisma.evaluation.update({
-                    where: { id: existingEval.id },
-                    data: {
-                        score: parseFloat(evalData.score),
-                        comments: evalData.comments || ''
-                    }
-                });
-            } else {
-                // Create
-                return await prisma.evaluation.create({
-                    data: {
-                        groupId: parseInt(groupId),
-                        studentId: parseInt(evalData.studentId),
-                        evaluatorId: evaluatorId,
-                        evaluationType: evaluationType,
-                        score: parseFloat(evalData.score),
-                        comments: evalData.comments || ''
-                    }
-                });
-            }
-        }));
-
-        res.json({ success: true, message: 'Đã lưu điểm và nhận xét thành công.', data: results.filter(r => r !== null) });
-    } catch (error) {
-        next(error);
-    }
-};
-
-// GET /api/evaluations/my-grades
-// Lấy điểm của sinh viên đang truy cập
+/**
+ * GET /api/evaluations/my-grades
+ * SV xem điểm bảo vệ của mình
+ */
 const getMyGrades = async (req, res, next) => {
     try {
         const studentId = req.user.id;
 
-        // Tìm nhóm của sinh viên trong kỳ hiện tại (giả sử sinh viên chỉ có 1 nhóm đang active)
-        const membership = await prisma.groupMember.findFirst({
-            where: { studentId, status: 'ACCEPTED' },
+        // Tìm tất cả các đăng ký đề tài của SV
+        const registrations = await prisma.topicRegistration.findMany({
+            where: { studentId },
             include: {
-                group: {
-                    include: {
-                        topic: {
-                            include: { mentor: { select: { fullName: true } } }
-                        }
-                    }
-                }
+                topic: {
+                    include: { mentor: { select: { fullName: true } } },
+                },
+                defenseResult: {
+                    include: { evaluator: { select: { fullName: true, role: true } } },
+                },
             },
-            orderBy: { createdAt: 'desc' }
+            orderBy: { createdAt: 'desc' },
         });
 
-        if (!membership || !membership.group) {
-            return res.json({ success: true, data: { group: null, grades: [] } });
+        res.json({ success: true, data: registrations });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * GET /api/evaluations/grading-students
+ * GV/Admin xem danh sách SV cần chấm điểm bảo vệ
+ */
+const getGradingStudents = async (req, res, next) => {
+    try {
+        const { role, id: userId } = req.user;
+        const { semesterId } = req.query;
+
+        const where = {
+            status: { in: ['DEFENDED', 'COMPLETED', 'SUBMITTED'] },
+        };
+
+        if (role === 'LECTURER') {
+            where.topic = { mentorId: userId };
         }
 
-        const groupId = membership.group.id;
+        if (semesterId) where.semesterId = parseInt(semesterId);
 
-        // Lấy tất cả các điểm của sinh viên này trong nhóm này
-        const evaluations = await prisma.evaluation.findMany({
-            where: {
-                groupId,
-                studentId
-            },
+        const registrations = await prisma.topicRegistration.findMany({
+            where,
             include: {
-                evaluator: { select: { fullName: true, role: true } }
-            }
+                student: { select: { id: true, fullName: true, code: true } },
+                topic: { select: { id: true, title: true } },
+                defenseResult: true,
+                council: { select: { name: true, defenseDate: true } },
+            },
+            orderBy: { createdAt: 'desc' },
         });
 
-        res.json({
-            success: true,
-            data: {
-                group: {
-                    id: groupId,
-                    groupName: membership.group.groupName,
-                    topicTitle: membership.group.topic?.title || 'Chưa đăng ký',
-                    mentorName: membership.group.topic?.mentor?.fullName || 'Chưa có',
-                },
-                grades: evaluations.map(e => ({
-                    evaluationType: e.evaluationType,
-                    score: e.score,
-                    comments: e.comments,
-                    evaluatorName: e.evaluator?.fullName || 'Hội đồng'
-                }))
-            }
+        // Phân loại trạng thái chấm điểm
+        const enhanced = registrations.map(reg => ({
+            ...reg,
+            gradingStatus: reg.defenseResult ? 'Đã chấm' : 'Chưa chấm',
+            finalScore: reg.defenseResult?.finalScore || null,
+        }));
+
+        res.json({ success: true, data: enhanced });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * POST /api/evaluations/defense-result
+ * Nhập điểm cuối cùng + upload ảnh bảng chấm điểm
+ * Body: { registrationId, finalScore, comments, scoresheetUrl }
+ */
+const submitDefenseResult = async (req, res, next) => {
+    try {
+        const { registrationId, finalScore, comments, scoresheetUrl } = req.body;
+        const evaluatorId = req.user.id;
+
+        if (!registrationId || finalScore === undefined || finalScore === null) {
+            return res.status(400).json({ success: false, message: 'Vui lòng nhập đầy đủ thông tin.' });
+        }
+
+        const registration = await prisma.topicRegistration.findUnique({
+            where: { id: parseInt(registrationId) },
+            include: { topic: true, student: { select: { id: true, fullName: true } } },
         });
+
+        if (!registration) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy đăng ký đề tài.' });
+        }
+
+        // Upsert: tạo mới hoặc cập nhật
+        const existing = await prisma.defenseResult.findUnique({
+            where: { registrationId: parseInt(registrationId) },
+        });
+
+        let result;
+        if (existing) {
+            result = await prisma.defenseResult.update({
+                where: { registrationId: parseInt(registrationId) },
+                data: {
+                    finalScore: parseFloat(finalScore),
+                    comments: comments || '',
+                    scoresheetUrl: scoresheetUrl || existing.scoresheetUrl,
+                    evaluatorId,
+                },
+            });
+        } else {
+            result = await prisma.defenseResult.create({
+                data: {
+                    registrationId: parseInt(registrationId),
+                    finalScore: parseFloat(finalScore),
+                    comments: comments || '',
+                    scoresheetUrl: scoresheetUrl || null,
+                    evaluatorId,
+                },
+            });
+        }
+
+        // Cập nhật trạng thái registration → COMPLETED
+        await prisma.topicRegistration.update({
+            where: { id: parseInt(registrationId) },
+            data: { status: 'COMPLETED' },
+        });
+
+        // Notify SV
+        await prisma.notification.create({
+            data: {
+                userId: registration.studentId,
+                title: 'Điểm bảo vệ đồ án',
+                content: `Điểm bảo vệ đề tài "${registration.topic.title}" đã được cập nhật: ${finalScore} điểm.`,
+                type: 'DEFENSE',
+            },
+        });
+
+        res.json({ success: true, message: 'Đã lưu điểm bảo vệ.', data: result });
     } catch (error) {
         next(error);
     }
 };
 
 module.exports = {
-    getGradingGroups,
-    submitEvaluations,
-    getMyGrades
+    getMyGrades,
+    getGradingStudents,
+    submitDefenseResult,
 };

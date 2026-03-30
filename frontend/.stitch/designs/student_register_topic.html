@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+
+<html lang="vi"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#003366",
+                        "background-light": "#f5f7f8",
+                        "background-dark": "#0f1923",
+                    },
+                    fontFamily: {
+                        "display": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen">
+<!-- Top Navigation Bar -->
+<header class="sticky top-0 z-50 w-full border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-background-dark/80 backdrop-blur-md">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+<div class="flex justify-between h-16 items-center">
+<div class="flex items-center gap-3">
+<div class="bg-primary p-1.5 rounded-lg">
+<span class="material-symbols-outlined text-white text-2xl">school</span>
+</div>
+<h2 class="text-xl font-bold tracking-tight text-primary">Cổng thông tin sinh viên</h2>
+</div>
+<nav class="hidden md:flex items-center gap-8">
+<a class="text-sm font-semibold text-slate-600 hover:text-primary transition-colors" href="#">Trang chủ</a>
+<a class="text-sm font-semibold text-primary border-b-2 border-primary pb-1" href="#">Đăng ký đề tài</a>
+<a class="text-sm font-semibold text-slate-600 hover:text-primary transition-colors" href="#">Kết quả học tập</a>
+<a class="text-sm font-semibold text-slate-600 hover:text-primary transition-colors" href="#">Lịch thi</a>
+</nav>
+<div class="flex items-center gap-4">
+<div class="text-right hidden sm:block">
+<p class="text-sm font-bold leading-none">Nguyễn Văn A</p>
+<p class="text-xs text-slate-500 mt-1">20120456 • CNTT</p>
+</div>
+<div class="size-10 rounded-full bg-slate-200 border-2 border-white shadow-sm overflow-hidden" data-alt="Student profile avatar placeholder">
+<img alt="User avatar" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDNaN0ACgxt9ybRqwNDBeN1tpxX6iYMx6bchRcOE-f0UVDj_ME1ozCACMm7Qr6MVjd9-D88uNfS2gQwQz6Wvha6OQvMoInbjYPYdjYo8hyY4WZ1LU0DxWK2I2ETl7buAKjQ7ji_h4w2ImxN9J4-b9j9sGKjZ5ZgZ0YxMlEwqE-OJYquK3KOJVUlM5qW0h-VWq37KdxnROngtfc-fJ-E2PnLaqPSTvu6USwQc7CTeQF4-EQ7jMRtKPuHrUOmmUngKHBdORvJxVhlhtJM"/>
+</div>
+</div>
+</div>
+</div>
+</header>
+<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+<!-- Hero Section -->
+<div class="mb-8">
+<h1 class="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">Đăng ký đề tài nghiên cứu</h1>
+<p class="mt-2 text-slate-600 dark:text-slate-400">Học kỳ 1 • Năm học 2023 - 2024</p>
+</div>
+<!-- Main Content Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+<!-- Left Column: Tabs & Forms -->
+<div class="lg:col-span-8 space-y-6">
+<!-- Tab Navigation -->
+<div class="bg-white dark:bg-slate-900 p-1 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 flex w-full">
+<button class="flex-1 py-2.5 px-4 text-sm font-bold rounded-lg bg-primary text-white shadow-sm">
+                        Chọn đề tài có sẵn
+                    </button>
+<button class="flex-1 py-2.5 px-4 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-all">
+                        Đề xuất đề tài mới
+                    </button>
+</div>
+<!-- Search and Filter Bar -->
+<div class="flex flex-col sm:flex-row gap-3">
+<div class="relative flex-1">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+<input class="w-full pl-10 pr-4 py-2.5 rounded-xl border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-primary focus:border-primary" placeholder="Tìm kiếm đề tài, giảng viên hoặc lĩnh vực..." type="text"/>
+</div>
+<button class="flex items-center justify-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl font-medium text-sm text-slate-700 dark:text-slate-300">
+<span class="material-symbols-outlined text-lg">filter_list</span>
+                        Lọc nâng cao
+                    </button>
+</div>
+<!-- Topics Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<!-- Topic Card 1 -->
+<div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm hover:shadow-md transition-shadow">
+<div class="flex justify-between items-start mb-3">
+<span class="px-2 py-1 bg-primary/10 text-primary text-[10px] font-bold uppercase rounded">AI &amp; Machine Learning</span>
+<span class="text-xs font-medium text-slate-500">Mã: DT0122</span>
+</div>
+<h3 class="font-bold text-slate-900 dark:text-white leading-snug min-h-[3rem]">Ứng dụng Deep Learning trong nhận diện khuôn mặt thời gian thực</h3>
+<div class="mt-4 flex items-center gap-3">
+<div class="size-8 rounded-full bg-slate-100 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-xl">account_circle</span>
+</div>
+<div>
+<p class="text-sm font-semibold">PGS.TS Nguyễn Văn X</p>
+<p class="text-xs text-slate-500">Bộ môn Khoa học Máy tính</p>
+</div>
+</div>
+<div class="mt-5 space-y-2">
+<div class="flex justify-between text-xs font-medium">
+<span class="text-slate-600">Số lượng sinh viên</span>
+<span class="text-primary">3/10 sinh viên</span>
+</div>
+<div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
+<div class="bg-primary h-full rounded-full" style="width: 30%"></div>
+</div>
+</div>
+<button class="mt-6 w-full py-2.5 bg-primary hover:bg-primary/90 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2">
+                            Đăng ký
+                        </button>
+</div>
+<!-- Topic Card 2 -->
+<div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm hover:shadow-md transition-shadow">
+<div class="flex justify-between items-start mb-3">
+<span class="px-2 py-1 bg-green-100 text-green-700 text-[10px] font-bold uppercase rounded">Blockchain</span>
+<span class="text-xs font-medium text-slate-500">Mã: DT0145</span>
+</div>
+<h3 class="font-bold text-slate-900 dark:text-white leading-snug min-h-[3rem]">Xây dựng hệ thống bầu cử trực tuyến dựa trên công nghệ Blockchain</h3>
+<div class="mt-4 flex items-center gap-3">
+<div class="size-8 rounded-full bg-slate-100 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-xl">account_circle</span>
+</div>
+<div>
+<p class="text-sm font-semibold">TS. Trần Thị Y</p>
+<p class="text-xs text-slate-500">Bộ môn An toàn Thông tin</p>
+</div>
+</div>
+<div class="mt-5 space-y-2">
+<div class="flex justify-between text-xs font-medium">
+<span class="text-slate-600">Số lượng sinh viên</span>
+<span class="text-primary">8/10 sinh viên</span>
+</div>
+<div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
+<div class="bg-primary h-full rounded-full" style="width: 80%"></div>
+</div>
+</div>
+<button class="mt-6 w-full py-2.5 bg-primary hover:bg-primary/90 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2">
+                            Đăng ký
+                        </button>
+</div>
+<!-- Topic Card 3 -->
+<div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm hover:shadow-md transition-shadow">
+<div class="flex justify-between items-start mb-3">
+<span class="px-2 py-1 bg-amber-100 text-amber-700 text-[10px] font-bold uppercase rounded">IoT</span>
+<span class="text-xs font-medium text-slate-500">Mã: DT0198</span>
+</div>
+<h3 class="font-bold text-slate-900 dark:text-white leading-snug min-h-[3rem]">Thiết kế hệ thống tưới tiêu tự động cho nhà kính thông minh</h3>
+<div class="mt-4 flex items-center gap-3">
+<div class="size-8 rounded-full bg-slate-100 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-xl">account_circle</span>
+</div>
+<div>
+<p class="text-sm font-semibold">ThS. Lê Văn Z</p>
+<p class="text-xs text-slate-500">Bộ môn Kỹ thuật Máy tính</p>
+</div>
+</div>
+<div class="mt-5 space-y-2">
+<div class="flex justify-between text-xs font-medium">
+<span class="text-slate-600">Số lượng sinh viên</span>
+<span class="text-primary">10/10 sinh viên</span>
+</div>
+<div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
+<div class="bg-slate-400 h-full rounded-full" style="width: 100%"></div>
+</div>
+</div>
+<button class="mt-6 w-full py-2.5 bg-slate-200 dark:bg-slate-800 text-slate-500 font-bold rounded-lg cursor-not-allowed" disabled="">
+                            Đã hết chỗ
+                        </button>
+</div>
+<!-- Add Empty Proposal Card -->
+<div class="bg-primary/5 rounded-xl border-2 border-dashed border-primary/20 p-5 flex flex-col items-center justify-center text-center group cursor-pointer hover:bg-primary/10 transition-all">
+<div class="size-12 rounded-full bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center mb-3 text-primary">
+<span class="material-symbols-outlined text-3xl">add</span>
+</div>
+<h3 class="font-bold text-primary">Không tìm thấy đề tài ưng ý?</h3>
+<p class="text-sm text-slate-600 dark:text-slate-400 mt-1">Bạn có thể tự đề xuất đề tài mới cho giảng viên hướng dẫn của mình.</p>
+<button class="mt-4 text-sm font-bold text-primary hover:underline">Đề xuất ngay</button>
+</div>
+</div>
+</div>
+<!-- Right Column: Registration History -->
+<div class="lg:col-span-4 space-y-6">
+<div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+<div class="p-5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">history</span>
+<h2 class="text-lg font-bold">Lịch sử đăng ký</h2>
+</div>
+</div>
+<div class="p-5 space-y-5">
+<!-- History Item 1 -->
+<div class="relative pl-4 border-l-2 border-primary/20">
+<div class="flex justify-between items-start mb-1">
+<h4 class="text-sm font-bold text-slate-900 dark:text-white leading-tight">Phát triển ứng dụng di động quản lý chi tiêu cá nhân</h4>
+<span class="flex-shrink-0 ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700">Chờ duyệt</span>
+</div>
+<p class="text-xs text-slate-500">Giảng viên: TS. Trần Thị Y</p>
+<p class="text-[10px] text-slate-400 mt-2">Ngày đăng ký: 12/10/2023</p>
+</div>
+<!-- History Item 2 -->
+<div class="relative pl-4 border-l-2 border-red-500/20">
+<div class="flex justify-between items-start mb-1">
+<h4 class="text-sm font-bold text-slate-900 dark:text-white leading-tight line-through opacity-60">Xây dựng chatbot AI hỗ trợ sinh viên</h4>
+<span class="flex-shrink-0 ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700">Bị từ chối</span>
+</div>
+<p class="text-xs text-slate-500">Giảng viên: PGS.TS Nguyễn Văn X</p>
+<div class="mt-3 p-2 rounded bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/20">
+<p class="text-[11px] text-red-600 dark:text-red-400"><strong>Lý do:</strong> Đề tài quá rộng, cần thu hẹp phạm vi nghiên cứu.</p>
+</div>
+<button class="mt-3 flex items-center gap-1.5 text-xs font-bold text-primary hover:underline">
+<span class="material-symbols-outlined text-sm">refresh</span>
+                                Đăng ký lại
+                            </button>
+</div>
+<!-- History Item 3 -->
+<div class="relative pl-4 border-l-2 border-green-500/20">
+<div class="flex justify-between items-start mb-1">
+<h4 class="text-sm font-bold text-slate-900 dark:text-white leading-tight">An toàn thông tin trong hệ thống E-learning</h4>
+<span class="flex-shrink-0 ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-700">Được duyệt</span>
+</div>
+<p class="text-xs text-slate-500">Giảng viên: ThS. Lê Văn Z</p>
+<p class="text-[10px] text-slate-400 mt-2">Ngày đăng ký: 05/10/2023</p>
+</div>
+</div>
+</div>
+<!-- Info Box -->
+<div class="bg-primary rounded-2xl p-6 text-white shadow-lg shadow-primary/20">
+<div class="size-10 rounded-lg bg-white/20 flex items-center justify-center mb-4">
+<span class="material-symbols-outlined">info</span>
+</div>
+<h3 class="font-bold mb-2">Quy định đăng ký</h3>
+<ul class="text-xs space-y-2 opacity-90 list-disc pl-4">
+<li>Mỗi sinh viên chỉ được đăng ký tối đa 1 đề tài chính thức.</li>
+<li>Đề tài đề xuất mới cần được giảng viên chấp thuận trước khi bắt đầu.</li>
+<li>Hạn cuối đăng ký: 30/11/2023.</li>
+</ul>
+</div>
+</div>
+</div>
+<!-- Section 2: Propose New Topic (Hidden by default in UX, but visible for this preview) -->
+<div class="mt-12 pt-8 border-t border-slate-200 dark:border-slate-800">
+<div class="max-w-3xl mx-auto">
+<div class="text-center mb-8">
+<h2 class="text-2xl font-bold">Đề xuất đề tài mới</h2>
+<p class="text-slate-600 mt-1">Điền thông tin chi tiết về ý tưởng nghiên cứu của bạn</p>
+</div>
+<form class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-8 shadow-sm space-y-6">
+<div>
+<label class="block text-sm font-bold mb-2">Tên đề tài đề xuất</label>
+<input class="w-full px-4 py-3 rounded-xl border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 focus:ring-2 focus:ring-primary" placeholder="Ví dụ: Nghiên cứu ứng dụng AR trong giáo dục..." type="text"/>
+</div>
+<div>
+<label class="block text-sm font-bold mb-2">Giảng viên hướng dẫn mong muốn</label>
+<select class="w-full px-4 py-3 rounded-xl border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 focus:ring-2 focus:ring-primary appearance-none">
+<option>Chọn giảng viên...</option>
+<option>PGS.TS Nguyễn Văn X</option>
+<option>TS. Trần Thị Y</option>
+<option>ThS. Lê Văn Z</option>
+</select>
+</div>
+<div>
+<label class="block text-sm font-bold mb-2">Mô tả ý tưởng &amp; Mục tiêu</label>
+<textarea class="w-full px-4 py-3 rounded-xl border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 focus:ring-2 focus:ring-primary" placeholder="Mô tả ngắn gọn về bài toán, công nghệ sử dụng và kết quả dự kiến..." rows="5"></textarea>
+</div>
+<div class="flex items-center gap-3 p-4 bg-primary/5 rounded-xl border border-primary/10">
+<span class="material-symbols-outlined text-primary">warning</span>
+<p class="text-xs text-primary/80 leading-relaxed font-medium">
+                            Lưu ý: Đề xuất này sẽ được gửi trực tiếp đến giảng viên. Bạn nên trao đổi sơ bộ với giảng viên trước khi gửi đề xuất chính thức.
+                        </p>
+</div>
+<div class="flex gap-4 pt-4">
+<button class="flex-1 py-3.5 bg-primary hover:bg-primary/90 text-white font-bold rounded-xl transition-all" type="submit">
+                            Gửi đề xuất
+                        </button>
+<button class="px-8 py-3.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all" type="button">
+                            Hủy bỏ
+                        </button>
+</div>
+</form>
+</div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="mt-20 border-t border-slate-200 dark:border-slate-800 py-12 bg-white dark:bg-background-dark">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-6">
+<div class="flex items-center gap-3 opacity-50">
+<div class="bg-primary p-1 rounded">
+<span class="material-symbols-outlined text-white text-sm">school</span>
+</div>
+<span class="text-xs font-bold tracking-tight text-primary uppercase">Student Portal</span>
+</div>
+<p class="text-xs text-slate-500">© 2023 Phòng Đào tạo &amp; Công tác Sinh viên. Tất cả quyền được bảo lưu.</p>
+<div class="flex gap-6">
+<a class="text-xs text-slate-400 hover:text-primary transition-colors" href="#">Trợ giúp</a>
+<a class="text-xs text-slate-400 hover:text-primary transition-colors" href="#">Điều khoản</a>
+<a class="text-xs text-slate-400 hover:text-primary transition-colors" href="#">Liên hệ</a>
+</div>
+</div>
+</footer>
+</body></html>

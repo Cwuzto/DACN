@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-    Table, Card, Button, Input, Select, Tag, Space, Modal, Form,
-    Avatar, Flex, Typography, Popconfirm, message, Tooltip, Badge,
-    Row, Col, Spin,
+    Table, Button, Input, Select, Modal, Form,
+    Popconfirm, message, Tooltip,
 } from 'antd';
 import {
     PlusOutlined, SearchOutlined, EditOutlined, DeleteOutlined,
@@ -10,49 +9,63 @@ import {
 } from '@ant-design/icons';
 import userService from '../../services/userService';
 
-const { Title, Text } = Typography;
-
 const roleMap = {
-    ADMIN: { label: 'Admin', color: 'red' },
-    LECTURER: { label: 'Giảng viên', color: 'blue' },
-    STUDENT: { label: 'Sinh viên', color: 'green' },
+    ADMIN: { label: 'Quản trị viên', tw: 'bg-red-100 text-red-700' },
+    LECTURER: { label: 'Giảng viên', tw: 'bg-blue-100 text-blue-700' },
+    STUDENT: { label: 'Sinh viên', tw: 'bg-green-100 text-green-700' },
 };
 
-const statusMap = {
-    true: { label: 'Hoạt động', badgeStatus: 'success' },
-    false: { label: 'Bị khóa', badgeStatus: 'error' },
-};
+const roleSections = [
+    { role: 'LECTURER', label: 'Giảng viên' },
+    { role: 'ADMIN', label: 'Quản trị viên' },
+    { role: 'STUDENT', label: 'Sinh viên' },
+];
 
 function UserManagementPage() {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(false);
     const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 });
     const [searchText, setSearchText] = useState('');
-    const [roleFilter, setRoleFilter] = useState(null);
+    const [activeRole, setActiveRole] = useState('LECTURER');
     const [statusFilter, setStatusFilter] = useState(null);
+    const [roleCounts, setRoleCounts] = useState({ ADMIN: 0, LECTURER: 0, STUDENT: 0 });
 
-    // Modal state
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingUser, setEditingUser] = useState(null); // null = create, object = edit
+    const [editingUser, setEditingUser] = useState(null);
     const [submitting, setSubmitting] = useState(false);
     const [form] = Form.useForm();
+    const selectedRole = Form.useWatch('role', form);
 
-    // Fetch users
+    const fetchRoleCounts = useCallback(async () => {
+        try {
+            const responses = await Promise.all(
+                roleSections.map((section) => userService.getUsers({ role: section.role, page: 1, limit: 1 }))
+            );
+            const nextCounts = { ADMIN: 0, LECTURER: 0, STUDENT: 0 };
+            responses.forEach((response, index) => {
+                const role = roleSections[index].role;
+                nextCounts[role] = response?.pagination?.total || 0;
+            });
+            setRoleCounts(nextCounts);
+        } catch {
+            // Keep UI usable if counting requests fail
+        }
+    }, []);
+
     const fetchUsers = useCallback(async (page = 1, limit = 10) => {
         setLoading(true);
         try {
-            const params = { page, limit };
+            const params = { page, limit, role: activeRole };
             if (searchText) params.search = searchText;
-            if (roleFilter) params.role = roleFilter;
             if (statusFilter) params.status = statusFilter;
 
-            const res = await userService.getUsers(params);
-            if (res.success) {
-                setUsers(res.data);
+            const response = await userService.getUsers(params);
+            if (response.success) {
+                setUsers(response.data);
                 setPagination({
-                    current: res.pagination.page,
-                    pageSize: res.pagination.limit,
-                    total: res.pagination.total,
+                    current: response.pagination.page,
+                    pageSize: response.pagination.limit,
+                    total: response.pagination.total,
                 });
             }
         } catch (error) {
@@ -60,25 +73,19 @@ function UserManagementPage() {
         } finally {
             setLoading(false);
         }
-    }, [searchText, roleFilter, statusFilter]);
+    }, [searchText, activeRole, statusFilter]);
 
-    useEffect(() => {
-        fetchUsers();
-    }, [fetchUsers]);
+    useEffect(() => { fetchUsers(); }, [fetchUsers]);
+    useEffect(() => { fetchRoleCounts(); }, [fetchRoleCounts]);
 
-    // Search with debounce effect
-    const handleSearch = (value) => {
-        setSearchText(value);
-    };
+    const handleSearch = (value) => setSearchText(value);
 
-    // Open create modal
     const handleAdd = () => {
         setEditingUser(null);
         form.resetFields();
         setIsModalOpen(true);
     };
 
-    // Open edit modal
     const handleEdit = (record) => {
         setEditingUser(record);
         form.setFieldsValue({
@@ -88,31 +95,30 @@ function UserManagementPage() {
             role: record.role,
             department: record.department,
             phone: record.phone,
+            academicTitle: record.academicTitle,
         });
         setIsModalOpen(true);
     };
 
-    // Submit form (create or update)
     const handleModalOk = async () => {
         try {
             const values = await form.validateFields();
             setSubmitting(true);
-
             if (editingUser) {
-                // Update
-                const res = await userService.updateUser(editingUser.id, values);
-                if (res.success) {
-                    message.success(res.message);
+                const response = await userService.updateUser(editingUser.id, values);
+                if (response.success) {
+                    message.success(response.message);
                     setIsModalOpen(false);
                     fetchUsers(pagination.current, pagination.pageSize);
+                    fetchRoleCounts();
                 }
             } else {
-                // Create
-                const res = await userService.createUser(values);
-                if (res.success) {
-                    message.success(res.message);
+                const response = await userService.createUser(values);
+                if (response.success) {
+                    message.success(response.message);
                     setIsModalOpen(false);
                     fetchUsers(1, pagination.pageSize);
+                    fetchRoleCounts();
                 }
             }
         } catch (error) {
@@ -122,233 +128,167 @@ function UserManagementPage() {
         }
     };
 
-    // Delete user
     const handleDelete = async (record) => {
         try {
-            const res = await userService.deleteUser(record.id);
-            if (res.success) {
-                message.success(res.message);
+            const response = await userService.deleteUser(record.id);
+            if (response.success) {
+                message.success(response.message);
                 fetchUsers(pagination.current, pagination.pageSize);
+                fetchRoleCounts();
             }
         } catch (error) {
             message.error(error.message);
         }
     };
 
-    // Toggle lock/unlock
     const handleToggleLock = async (record) => {
         try {
-            const res = await userService.toggleActive(record.id);
-            if (res.success) {
-                message.success(res.message);
+            const response = await userService.toggleActive(record.id);
+            if (response.success) {
+                message.success(response.message);
                 fetchUsers(pagination.current, pagination.pageSize);
+                fetchRoleCounts();
             }
         } catch (error) {
             message.error(error.message);
         }
     };
 
-    // Reset password
     const handleResetPassword = async (record) => {
         try {
-            const res = await userService.resetPassword(record.id);
-            if (res.success) {
-                message.success(res.message);
-            }
+            const response = await userService.resetPassword(record.id);
+            if (response.success) message.success(response.message);
         } catch (error) {
             message.error(error.message);
         }
     };
 
-    // Table pagination change
-    const handleTableChange = (pag) => {
-        fetchUsers(pag.current, pag.pageSize);
-    };
+    const handleTableChange = (nextPagination) => fetchUsers(nextPagination.current, nextPagination.pageSize);
 
     const columns = [
         {
-            title: 'STT',
-            key: 'index',
-            width: 60,
-            render: (_, __, idx) => (
-                <Text type="secondary">
-                    {(pagination.current - 1) * pagination.pageSize + idx + 1}
-                </Text>
-            ),
+            title: 'STT', key: 'index', width: 60,
+            render: (_, __, index) => <span className="text-slate-400 text-sm">{(pagination.current - 1) * pagination.pageSize + index + 1}</span>,
         },
         {
-            title: 'Họ và tên',
-            dataIndex: 'fullName',
-            key: 'fullName',
+            title: 'Họ và tên', dataIndex: 'fullName', key: 'fullName',
             render: (name, record) => (
-                <Flex align="center" gap={12}>
-                    <Avatar
-                        size={36}
-                        src={record.avatarUrl}
-                        style={{
-                            background:
-                                record.role === 'ADMIN' ? '#ff4d4f'
-                                    : record.role === 'LECTURER' ? '#1677FF'
-                                        : '#52C41A',
-                            flexShrink: 0,
-                        }}
-                    >
+                <div className="flex items-center gap-3">
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0 ${record.role === 'ADMIN' ? 'bg-red-500' : record.role === 'LECTURER' ? 'bg-primary' : 'bg-green-500'}`}>
                         {name?.split(' ').pop()?.[0]?.toUpperCase()}
-                    </Avatar>
-                    <div>
-                        <Text strong style={{ display: 'block', fontSize: 14 }}>{name}</Text>
-                        <Text type="secondary" style={{ fontSize: 12 }}>{record.department || '—'}</Text>
                     </div>
-                </Flex>
+                    <div>
+                        <p className="text-sm font-bold text-slate-900 leading-tight">{name}</p>
+                        <p className="text-xs text-slate-400">{record.department || '—'}</p>
+                    </div>
+                </div>
+            ),
+        },
+        { title: 'Mã số', dataIndex: 'code', key: 'code', width: 130, render: (code) => <code className="text-xs bg-slate-100 px-2 py-0.5 rounded">{code}</code> },
+        { title: 'Email', dataIndex: 'email', key: 'email', render: (email) => <span className="text-sm text-slate-600">{email}</span> },
+        {
+            title: 'Vai trò', dataIndex: 'role', key: 'role', width: 130,
+            render: (role) => {
+                const currentRole = roleMap[role];
+                return <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold ${currentRole?.tw || 'bg-slate-100 text-slate-600'}`}>{currentRole?.label || role}</span>;
+            },
+        },
+        {
+            title: 'Trạng thái', dataIndex: 'isActive', key: 'isActive', width: 120,
+            render: (isActive) => (
+                <div className="flex items-center gap-1.5">
+                    <span className={`w-2 h-2 rounded-full ${isActive ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                    <span className={`text-xs font-medium ${isActive ? 'text-green-600' : 'text-red-500'}`}>{isActive ? 'Hoạt động' : 'Bị khóa'}</span>
+                </div>
             ),
         },
         {
-            title: 'Mã số',
-            dataIndex: 'code',
-            key: 'code',
-            width: 130,
-            render: (code) => <Text code>{code}</Text>,
-        },
-        {
-            title: 'Email',
-            dataIndex: 'email',
-            key: 'email',
-        },
-        {
-            title: 'Vai trò',
-            dataIndex: 'role',
-            key: 'role',
-            width: 120,
-            render: (role) => {
-                const r = roleMap[role] || { label: role, color: 'default' };
-                return <Tag color={r.color}>{r.label}</Tag>;
-            },
-        },
-        {
-            title: 'Trạng thái',
-            dataIndex: 'isActive',
-            key: 'isActive',
-            width: 120,
-            render: (isActive) => {
-                const s = statusMap[isActive];
-                return <Badge status={s.badgeStatus} text={s.label} />;
-            },
-        },
-        {
-            title: 'Hành động',
-            key: 'actions',
-            width: 180,
-            align: 'right',
+            title: 'Hành động', key: 'actions', width: 180, align: 'right',
             render: (_, record) => (
-                <Space size={4}>
-                    <Tooltip title="Chỉnh sửa">
-                        <Button
-                            type="text" size="small"
-                            icon={<EditOutlined />}
-                            style={{ color: '#1677FF' }}
-                            onClick={() => handleEdit(record)}
-                        />
-                    </Tooltip>
+                <div className="flex items-center justify-end gap-1">
+                    <Tooltip title="Chỉnh sửa"><Button type="text" size="small" icon={<EditOutlined />} style={{ color: '#003366' }} onClick={() => handleEdit(record)} /></Tooltip>
                     <Tooltip title={record.isActive ? 'Khóa tài khoản' : 'Mở khóa'}>
-                        <Popconfirm
-                            title={record.isActive ? 'Khóa tài khoản?' : 'Mở khóa tài khoản?'}
-                            description={`${record.isActive ? 'Khóa' : 'Mở khóa'} tài khoản "${record.fullName}"?`}
-                            okText="Đồng ý"
-                            cancelText="Hủy"
-                            onConfirm={() => handleToggleLock(record)}
-                        >
-                            <Button
-                                type="text" size="small"
-                                icon={record.isActive ? <LockOutlined /> : <UnlockOutlined />}
-                                style={{ color: '#FA8C16' }}
-                            />
+                        <Popconfirm title={record.isActive ? 'Khóa tài khoản?' : 'Mở khóa?'} description={`${record.isActive ? 'Khóa' : 'Mở khóa'} "${record.fullName}"?`} okText="Đồng ý" cancelText="Hủy" onConfirm={() => handleToggleLock(record)}>
+                            <Button type="text" size="small" icon={record.isActive ? <LockOutlined /> : <UnlockOutlined />} style={{ color: '#FA8C16' }} />
                         </Popconfirm>
                     </Tooltip>
                     <Tooltip title="Reset mật khẩu">
-                        <Popconfirm
-                            title="Reset mật khẩu?"
-                            description={`Mật khẩu sẽ được đặt lại về mã số: ${record.code}`}
-                            okText="Reset"
-                            cancelText="Hủy"
-                            onConfirm={() => handleResetPassword(record)}
-                        >
+                        <Popconfirm title="Reset mật khẩu?" description={`Mật khẩu gán lại: ${record.code}`} okText="Reset" cancelText="Hủy" onConfirm={() => handleResetPassword(record)}>
                             <Button type="text" size="small" icon={<KeyOutlined />} style={{ color: '#722ed1' }} />
                         </Popconfirm>
                     </Tooltip>
-                    <Popconfirm
-                        title="Xóa người dùng"
-                        description={`Bạn có chắc muốn xóa "${record.fullName}"?`}
-                        okText="Xóa"
-                        cancelText="Hủy"
-                        okButtonProps={{ danger: true }}
-                        onConfirm={() => handleDelete(record)}
-                    >
-                        <Tooltip title="Xóa">
-                            <Button type="text" size="small" icon={<DeleteOutlined />} danger />
-                        </Tooltip>
+                    <Popconfirm title="Xóa người dùng" description={`Xóa "${record.fullName}"?`} okText="Xóa" cancelText="Hủy" okButtonProps={{ danger: true }} onConfirm={() => handleDelete(record)}>
+                        <Tooltip title="Xóa"><Button type="text" size="small" icon={<DeleteOutlined />} danger /></Tooltip>
                     </Popconfirm>
-                </Space>
+                </div>
             ),
         },
     ];
 
     return (
-        <div>
-            {/* Page Header */}
-            <Flex justify="space-between" align="center" style={{ marginBottom: 24 }}>
-                <Title level={3} style={{ margin: 0 }}>Quản lý Người dùng</Title>
-            </Flex>
+        <div className="py-2">
+            <div className="flex items-center justify-between mb-6">
+                <div>
+                    <h2 className="text-2xl font-black text-slate-900">Quản lý Người dùng</h2>
+                    <p className="text-sm text-slate-500 mt-1">Tách theo từng nhóm vai trò và quản lý danh sách chi tiết</p>
+                </div>
+                <div className="flex items-center gap-3">
+                    <Button icon={<span className="material-symbols-outlined text-[16px]">upload_file</span>}>Import Excel</Button>
+                    <Button icon={<span className="material-symbols-outlined text-[16px]">download</span>}>Export</Button>
+                    <button onClick={handleAdd} className="inline-flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-lg font-bold text-sm hover:bg-primary-800 transition-colors">
+                        <span className="material-symbols-outlined text-[18px]">person_add</span>
+                        Thêm người dùng
+                    </button>
+                </div>
+            </div>
 
-            {/* Action Bar */}
-            <Card style={{ marginBottom: 16, borderRadius: 10 }} styles={{ body: { padding: '16px 20px' } }}>
-                <Flex justify="space-between" align="center" wrap="wrap" gap={12}>
-                    <Flex gap={12} align="center" wrap="wrap" flex={1}>
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                    {roleSections.map((section) => (
+                        <button
+                            key={section.role}
+                            onClick={() => setActiveRole(section.role)}
+                            className={`text-left border rounded-xl px-4 py-3 transition-all ${
+                                activeRole === section.role
+                                    ? 'border-primary bg-primary/5 shadow-sm'
+                                    : 'border-slate-200 bg-white hover:border-slate-300'
+                            }`}
+                        >
+                            <p className="text-xs text-slate-500 font-medium mb-1">{section.label}</p>
+                            <p className="text-2xl font-black text-slate-900">{roleCounts[section.role] || 0}</p>
+                        </button>
+                    ))}
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-3 flex-1">
                         <Input
                             placeholder="Tìm theo tên, email, mã số..."
                             prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
                             style={{ maxWidth: 360, minWidth: 240 }}
                             value={searchText}
-                            onChange={(e) => handleSearch(e.target.value)}
+                            onChange={(event) => handleSearch(event.target.value)}
                             allowClear
                         />
                         <Select
-                            placeholder="Vai trò: Tất cả"
-                            style={{ minWidth: 160 }}
-                            allowClear
-                            value={roleFilter}
-                            onChange={(val) => setRoleFilter(val || null)}
-                            options={[
-                                { label: 'Admin', value: 'ADMIN' },
-                                { label: 'Giảng viên', value: 'LECTURER' },
-                                { label: 'Sinh viên', value: 'STUDENT' },
-                            ]}
-                        />
-                        <Select
-                            placeholder="Trạng thái: Tất cả"
-                            style={{ minWidth: 170 }}
+                            placeholder="Trạng thái"
+                            style={{ minWidth: 150 }}
                             allowClear
                             value={statusFilter}
-                            onChange={(val) => setStatusFilter(val || null)}
-                            options={[
-                                { label: 'Hoạt động', value: 'active' },
-                                { label: 'Bị khóa', value: 'locked' },
-                            ]}
+                            onChange={(value) => setStatusFilter(value || null)}
+                            options={[{ label: 'Hoạt động', value: 'active' }, { label: 'Bị khóa', value: 'locked' }]}
                         />
-                    </Flex>
+                    </div>
+                    <Tooltip title="Làm mới">
+                        <Button icon={<ReloadOutlined />} onClick={() => { fetchUsers(pagination.current, pagination.pageSize); fetchRoleCounts(); }} />
+                    </Tooltip>
+                </div>
+            </div>
 
-                    <Flex gap={8}>
-                        <Tooltip title="Làm mới">
-                            <Button icon={<ReloadOutlined />} onClick={() => fetchUsers(pagination.current, pagination.pageSize)} />
-                        </Tooltip>
-                        <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
-                            Thêm người dùng
-                        </Button>
-                    </Flex>
-                </Flex>
-            </Card>
-
-            {/* Data Table */}
-            <Card style={{ borderRadius: 10 }} styles={{ body: { padding: 0 } }}>
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="px-4 py-3 border-b border-slate-100 text-sm font-semibold text-slate-700">
+                    Danh sách: {roleMap[activeRole]?.label}
+                </div>
                 <Table
                     dataSource={users}
                     rowKey="id"
@@ -356,16 +296,14 @@ function UserManagementPage() {
                     loading={loading}
                     pagination={{
                         ...pagination,
-                        showTotal: (total, range) =>
-                            `Hiển thị ${range[0]}-${range[1]} trong ${total} người dùng`,
+                        showTotal: (total, range) => `${range[0]}-${range[1]} / ${total} người dùng`,
                         showSizeChanger: true,
                     }}
                     onChange={handleTableChange}
                     size="middle"
                 />
-            </Card>
+            </div>
 
-            {/* Create / Edit User Modal */}
             <Modal
                 title={editingUser ? `Chỉnh sửa: ${editingUser.fullName}` : 'Thêm người dùng mới'}
                 open={isModalOpen}
@@ -378,76 +316,72 @@ function UserManagementPage() {
                 destroyOnClose
             >
                 <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-                    <Row gutter={16}>
-                        <Col span={12}>
-                            <Form.Item
-                                label="Họ và tên"
-                                name="fullName"
-                                rules={[{ required: true, message: 'Vui lòng nhập họ tên!' }]}
-                            >
-                                <Input placeholder="Nhập họ tên" />
-                            </Form.Item>
-                        </Col>
+                    <div className="grid grid-cols-2 gap-4">
+                        <Form.Item label="Họ và tên" name="fullName" rules={[{ required: true, message: 'Vui lòng nhập họ tên!' }]}>
+                            <Input placeholder="Nhập họ tên" />
+                        </Form.Item>
                         {editingUser && (
-                            <Col span={12}>
-                                <Form.Item
-                                    label="Mã số"
-                                    name="code"
-                                    rules={[{ required: true, message: 'Vui lòng nhập mã số!' }]}
-                                >
-                                    <Input placeholder="VD: SV20201234" disabled />
-                                </Form.Item>
-                            </Col>
+                            <Form.Item label="Mã số" name="code" rules={[{ required: true, message: 'Nhập mã số!' }]}>
+                                <Input placeholder="VD: SV20201234" disabled />
+                            </Form.Item>
                         )}
-                    </Row>
-
-                    <Form.Item
-                        label="Email"
-                        name="email"
-                        rules={[
-                            { required: true, message: 'Vui lòng nhập email!' },
-                            { type: 'email', message: 'Email không hợp lệ!' },
-                        ]}
-                    >
+                    </div>
+                    <Form.Item label="Email" name="email" rules={[{ required: true, message: 'Nhập email!' }, { type: 'email', message: 'Email không hợp lệ!' }]}>
                         <Input placeholder="example@university.edu.vn" />
                     </Form.Item>
-
-                    <Row gutter={16}>
-                        <Col span={12}>
-                            <Form.Item
-                                label="Vai trò"
-                                name="role"
-                                rules={[{ required: true, message: 'Vui lòng chọn vai trò!' }]}
-                            >
-                                <Select placeholder="Chọn vai trò">
-                                    <Select.Option value="STUDENT">Sinh viên</Select.Option>
-                                    <Select.Option value="LECTURER">Giảng viên</Select.Option>
-                                    <Select.Option value="ADMIN">Quản trị viên</Select.Option>
+                    <div className="grid grid-cols-2 gap-4">
+                        <Form.Item label="Vai trò" name="role" rules={[{ required: true, message: 'Chọn vai trò!' }]}>
+                            <Select placeholder="Chọn vai trò">
+                                <Select.Option value="STUDENT">Sinh viên</Select.Option>
+                                <Select.Option value="LECTURER">Giảng viên</Select.Option>
+                                <Select.Option value="ADMIN">Quản trị viên</Select.Option>
+                            </Select>
+                        </Form.Item>
+                        <Form.Item label="Bộ môn / Khoa" name="department">
+                            <Select placeholder="Chọn Bộ môn / Khoa" allowClear>
+                                <Select.Option value="Viện Công nghệ Số">Viện Công nghệ Số</Select.Option>
+                                <Select.Option value="Bộ môn Công nghệ Phần mềm">Bộ môn CNPM</Select.Option>
+                                <Select.Option value="Bộ môn Hệ thống Thông tin">Bộ môn HTTT</Select.Option>
+                                <Select.Option value="Bộ môn Mạng Máy tính">Bộ môn MMT</Select.Option>
+                                <Select.Option value="Bộ môn Khoa học Máy tính">Bộ môn KHMT</Select.Option>
+                            </Select>
+                        </Form.Item>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <Form.Item label="Số điện thoại" name="phone">
+                            <Input placeholder="Nhập số điện thoại" />
+                        </Form.Item>
+                        {selectedRole === 'LECTURER' && (
+                            <Form.Item label="Học vị" name="academicTitle" rules={[{ required: true, message: 'Chọn học vị!' }]}>
+                                <Select
+                                    placeholder="Chọn học vị"
+                                    allowClear
+                                    onChange={(value) => {
+                                        let maxStudents = 10;
+                                        if (value === 'TIEN_SI') maxStudents = 15;
+                                        if (value === 'PHO_GIAO_SU') maxStudents = 20;
+                                        form.setFieldValue('maxStudents', maxStudents);
+                                    }}
+                                >
+                                    <Select.Option value="THAC_SI">Thạc sĩ</Select.Option>
+                                    <Select.Option value="TIEN_SI">Tiến sĩ</Select.Option>
+                                    <Select.Option value="PHO_GIAO_SU">Phó Giáo sư</Select.Option>
                                 </Select>
                             </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                            <Form.Item label="Bộ môn / Khoa" name="department">
-                                <Select placeholder="Chọn Bộ môn / Khoa" allowClear>
-                                    <Select.Option value="Viện Công nghệ Số">Viện Công nghệ Số</Select.Option>
-                                    <Select.Option value="Bộ môn Công nghệ Phần mềm">Bộ môn Công nghệ Phần mềm</Select.Option>
-                                    <Select.Option value="Bộ môn Hệ thống Thông tin">Bộ môn Hệ thống Thông tin</Select.Option>
-                                    <Select.Option value="Bộ môn Mạng Máy tính">Bộ môn Mạng Máy tính</Select.Option>
-                                    <Select.Option value="Bộ môn Khoa học Máy tính">Bộ môn Khoa học Máy tính</Select.Option>
-                                    <Select.Option value="Bộ môn Toán - Lý">Bộ môn Toán - Lý</Select.Option>
-                                </Select>
+                        )}
+                    </div>
+                    {selectedRole === 'LECTURER' && (
+                        <div className="grid grid-cols-2 gap-4">
+                            <Form.Item label="SV Tối đa (Quota)" name="maxStudents" tooltip="Mặc định theo học vị: ThS 10, TS 15, PGS 20.">
+                                <Input type="number" placeholder="VD: 10" />
                             </Form.Item>
-                        </Col>
-                    </Row>
-
-                    <Form.Item label="Số điện thoại" name="phone">
-                        <Input placeholder="Nhập số điện thoại" />
-                    </Form.Item>
-
+                            <Form.Item label="Avatar (Chỉ Admin mới có quyền cập nhật)" name="avatar">
+                                <Button icon={<PlusOutlined />} className="w-full">Tải ảnh lên</Button>
+                            </Form.Item>
+                        </div>
+                    )}
                     {!editingUser && (
-                        <Text type="secondary" style={{ fontSize: 12 }}>
-                            💡 Mật khẩu mặc định sẽ là <Text code>mã số</Text> của người dùng.
-                        </Text>
+                        <p className="text-xs text-slate-500 mt-2">💡 Mật khẩu mặc định sẽ là <code className="bg-slate-100 px-1 rounded">mã số</code> của người dùng.</p>
                     )}
                 </Form>
             </Modal>

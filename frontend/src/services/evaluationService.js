@@ -1,39 +1,34 @@
 import api from './api';
 
+const wrapServiceError = (error, fallbackMessage) => {
+    if (error?.success === false) return error;
+    return { success: false, message: fallbackMessage };
+};
+
 const evaluationService = {
-    // Lấy danh sách nhóm do GVHD này hướng dẫn để chấm điểm
-    getGradingGroups: async () => {
+    getGradingStudents: async (params = {}) => {
         try {
-            const response = await api.get('/evaluations/grading-groups');
-            return response.data;
+            return await api.get('/evaluations/grading-students', { params });
         } catch (error) {
-            throw error.response?.data || { success: false, message: 'Đã xảy ra lỗi khi lấy danh sách chấm điểm.' };
+            throw wrapServiceError(error, 'Da xay ra loi khi lay danh sach cham diem');
         }
     },
 
-    // Thêm / Cập nhật điểm cho sinh viên
-    submitEvaluations: async (groupId, evaluationType, evaluations) => {
+    submitDefenseResult: async (data) => {
         try {
-            const response = await api.post('/evaluations', {
-                groupId,
-                evaluationType,
-                evaluations
-            });
-            return response.data;
+            return await api.post('/evaluations/defense-result', data);
         } catch (error) {
-            throw error.response?.data || { success: false, message: 'Đã xảy ra lỗi khi lưu điểm.' };
+            throw wrapServiceError(error, 'Da xay ra loi khi luu ket qua bao ve');
         }
     },
 
-    // Lấy điểm của sinh viên hiện tại
     getMyGrades: async () => {
         try {
-            const response = await api.get('/evaluations/my-grades');
-            return response.data;
+            return await api.get('/evaluations/my-grades');
         } catch (error) {
-            throw error.response?.data || { success: false, message: 'Đã xảy ra lỗi khi lấy điểm.' };
+            throw wrapServiceError(error, 'Da xay ra loi khi lay diem');
         }
-    }
+    },
 };
 
 export default evaluationService;

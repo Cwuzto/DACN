@@ -1,19 +1,13 @@
-import { Card, Row, Col, Statistic, Typography, Flex, Button, Tag, Avatar, Timeline, theme, Spin, Empty, message } from 'antd';
-import {
-    BookOutlined, TeamOutlined, WarningOutlined, PlusOutlined,
-    ArrowRightOutlined, FilePdfOutlined, FileTextOutlined,
-    CalendarOutlined,
-} from '@ant-design/icons';
 import { useState, useEffect } from 'react';
+import { message } from 'antd';
+import { useNavigate } from 'react-router-dom';
 import dashboardService from '../../services/dashboardService';
 import useAuthStore from '../../stores/authStore';
 import dayjs from 'dayjs';
 
-const { Title, Text } = Typography;
-
 function LecturerDashboardPage() {
-    const { token } = theme.useToken();
     const user = useAuthStore((s) => s.user);
+    const navigate = useNavigate();
 
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState({
@@ -45,147 +39,211 @@ function LecturerDashboardPage() {
     }, []);
 
     if (loading) {
-        return <Flex justify="center" align="center" style={{ minHeight: '60vh' }}><Spin size="large" /></Flex>;
+        return (
+            <div className="flex justify-center items-center min-h-[60vh]">
+                <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div>
+            </div>
+        );
     }
 
+    const statCards = [
+        { label: 'Đang hướng dẫn', value: stats.activeTopics, icon: 'group', bgColor: 'bg-blue-50', iconColor: 'text-blue-600' },
+        { label: 'Sinh viên đang hướng dẫn', value: stats.studentGroups, icon: 'person_add', bgColor: 'bg-green-50', iconColor: 'text-green-600', valueColor: 'text-green-600' },
+        { label: 'Đồ án hoàn thành', value: 0, icon: 'verified', bgColor: 'bg-purple-50', iconColor: 'text-purple-600' },
+        { label: 'Phản hồi chờ xử lý', value: stats.pendingFeedback, icon: 'chat_bubble', bgColor: 'bg-orange-50', iconColor: 'text-orange-600', valueColor: 'text-orange-600' },
+    ];
+
     return (
-        <div>
-            {/* Greeting */}
-            <Flex justify="space-between" align="center" wrap="wrap" gap={16} style={{ marginBottom: 24 }}>
+        <div className="py-2">
+            {/* Title & Actions */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
                 <div>
-                    <Title level={3} style={{ margin: 0 }}>Xin chào, {user?.fullName || 'Giảng viên'}</Title>
-                    <Text type="secondary">Năm học 2023-2024</Text>
+                    <h2 className="text-2xl font-black text-slate-900 tracking-tight">Bảng điều khiển Giảng viên</h2>
+                    <p className="text-slate-500 text-sm mt-1">Xin chào, {user?.fullName || 'Giảng viên'}</p>
                 </div>
-                <Button type="primary" icon={<PlusOutlined />} style={{ background: '#722ed1', borderColor: '#722ed1' }}>
-                    Tạo đề tài mới
-                </Button>
-            </Flex>
-
-            {/* Stats */}
-            <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-                <Col xs={24} sm={8}>
-                    <Card hoverable style={{ borderRadius: 10 }}>
-                        <Statistic
-                            title="Đề tài đang hướng dẫn"
-                            value={stats.activeTopics}
-                            prefix={<BookOutlined style={{ color: '#1677FF' }} />}
-                        />
-                    </Card>
-                </Col>
-                <Col xs={24} sm={8}>
-                    <Card hoverable style={{ borderRadius: 10 }}>
-                        <Statistic
-                            title="Nhóm sinh viên"
-                            value={stats.studentGroups}
-                            prefix={<TeamOutlined style={{ color: '#722ed1' }} />}
-                        />
-                    </Card>
-                </Col>
-                <Col xs={24} sm={8}>
-                    <Card hoverable style={{ borderRadius: 10, borderColor: '#ffd591' }}>
-                        <Statistic
-                            title={<Text style={{ color: '#fa8c16' }}><WarningOutlined /> Chờ phản hồi</Text>}
-                            value={stats.pendingFeedback}
-                            valueStyle={{ color: '#fa8c16' }}
-                        />
-                    </Card>
-                </Col>
-            </Row>
-
-            {/* Two Column */}
-            <Row gutter={[24, 24]}>
-                <Col xs={24} lg={14}>
-                    <Flex justify="space-between" align="center" style={{ marginBottom: 16 }}>
-                        <Title level={5} style={{ margin: 0 }}>Nhóm cần phản hồi</Title>
-                        <a>Xem tất cả</a>
-                    </Flex>
-                    <Flex vertical gap={16}>
-                        {recentSubmissions.length === 0 ? (
-                            <Empty description="Không có bài nộp nào đang chờ phản hồi" />
-                        ) : (
-                            recentSubmissions.map((item) => (
-                                <Card key={item.id} hoverable style={{ borderRadius: 10 }}>
-                                    <Flex justify="space-between" align="flex-start" style={{ marginBottom: 8 }}>
-                                        <Flex gap={8}>
-                                            <Tag color="blue">{item.groupName}</Tag>
-                                            <Tag color="orange">Mới nộp</Tag>
-                                        </Flex>
-                                        <Text type="secondary" style={{ fontSize: 12 }}>{dayjs(item.submittedAt).format('DD/MM/YYYY HH:mm')}</Text>
-                                    </Flex>
-                                    <Title level={5} style={{ margin: '4px 0' }}>{item.taskTitle}</Title>
-                                    <Text type="secondary" style={{ fontSize: 13 }}>SV: {item.studentName} • Đề tài: {item.topicTitle}</Text>
-                                    <Card
-                                        size="small"
-                                        style={{ marginTop: 12, background: '#fafafa', borderRadius: 8 }}
-                                        styles={{ body: { padding: '8px 12px' } }}
-                                    >
-                                        <Flex align="center" gap={12}>
-                                            <FilePdfOutlined style={{ color: '#ff4d4f', fontSize: 24 }} />
-                                            <div>
-                                                <Text strong style={{ fontSize: 13 }}>{item.fileName || 'Không có file đính kèm'}</Text>
-                                                {item.fileUrl && (
-                                                    <div>
-                                                        <a href={item.fileUrl} target="_blank" rel="noreferrer">Tải xuống</a>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </Flex>
-                                    </Card>
-                                    <Flex justify="flex-end" style={{ marginTop: 12 }}>
-                                        <Button type="primary" style={{ background: '#722ed1', borderColor: '#722ed1' }}>
-                                            Xem & Nhận xét <ArrowRightOutlined />
-                                        </Button>
-                                    </Flex>
-                                </Card>
-                            ))
-                        )}
-                    </Flex>
-                </Col>
-
-                <Col xs={24} lg={10}>
-                    <Title level={5} style={{ marginBottom: 16 }}>
-                        <CalendarOutlined style={{ color: '#722ed1', marginRight: 8 }} />
-                        Lịch sắp tới
-                    </Title>
-                    <Card style={{ borderRadius: 10 }}>
-                        {timelineEvents.length === 0 ? (
-                            <Empty description="Không có mốc thời gian sắp tới" />
-                        ) : (
-                            <Timeline
-                                items={timelineEvents.map((evt) => ({
-                                    color: evt.color,
-                                    children: (
-                                        <div>
-                                            <Text strong style={{ fontSize: 11, textTransform: 'uppercase', color: evt.color === 'red' ? '#ff4d4f' : evt.color === 'gray' ? '#8c8c8c' : '#722ed1' }}>
-                                                {dayjs(evt.date).format('DD/MM/YYYY HH:mm')}
-                                            </Text>
-                                            <div><Text strong>{evt.title}</Text></div>
-                                            <Text type="secondary" style={{ fontSize: 13 }}>{evt.desc}</Text>
-                                        </div>
-                                    ),
-                                }))}
-                            />
-                        )}
-                        <Button block type="default" style={{ marginTop: 8 }}>Xem lịch đầy đủ</Button>
-                    </Card>
-
-                    <Card
-                        style={{
-                            marginTop: 16, borderRadius: 10,
-                            background: 'linear-gradient(135deg, #722ed1, #531dab)',
-                            border: 'none',
-                        }}
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => navigate('/lecturer/topics')}
+                        className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-bold shadow-sm hover:bg-primary/90 transition-all"
                     >
-                        <Title level={5} style={{ color: '#fff', margin: 0 }}>Quy chế Đồ án mới</Title>
-                        <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13 }}>
-                            Cập nhật các quy định mới về chấm điểm và tổ chức hội đồng năm học 2023-2024.
-                        </Text>
-                        <div style={{ marginTop: 12 }}>
-                            <a style={{ color: '#fff', fontWeight: 600 }}>Đọc ngay →</a>
+                        <span className="material-symbols-outlined text-[20px]">add</span>
+                        <span>Tạo đồ án mới</span>
+                    </button>
+                    <button
+                        onClick={() => navigate('/lecturer/grading')}
+                        className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white rounded-lg text-sm font-bold shadow-sm hover:bg-slate-50 transition-all relative"
+                    >
+                        <span>Phê duyệt đăng ký</span>
+                        {stats.pendingFeedback > 0 && (
+                            <span className="flex items-center justify-center bg-red-500 text-white text-[10px] w-5 h-5 rounded-full absolute -top-2 -right-2 border-2 border-white">
+                                {stats.pendingFeedback}
+                            </span>
+                        )}
+                    </button>
+                </div>
+            </div>
+
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                {statCards.map((card, index) => (
+                    <div key={index} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between hover:shadow-md transition-shadow">
+                        <div>
+                            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1">{card.label}</p>
+                            <p className={`text-3xl font-black ${card.valueColor || 'text-slate-900'}`}>
+                                {String(card.value).padStart(2, '0')}
+                            </p>
                         </div>
-                    </Card>
-                </Col>
-            </Row>
+                        <div className={`w-12 h-12 ${card.bgColor} rounded-lg flex items-center justify-center ${card.iconColor}`}>
+                            <span className="material-symbols-outlined text-[28px]">{card.icon}</span>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Main Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-10 gap-8">
+                {/* Table Section (70%) */}
+                <div className="lg:col-span-7 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+                        <h3 className="font-bold text-slate-900">Bài nộp cần phản hồi gần đây</h3>
+                        <button className="text-primary text-xs font-bold hover:underline" onClick={() => navigate('/lecturer/grading')}>
+                            Xem tất cả
+                        </button>
+                    </div>
+
+                    {recentSubmissions.length === 0 ? (
+                        <div className="p-12 text-center">
+                            <span className="material-symbols-outlined text-4xl text-slate-300 mb-4 block">inbox</span>
+                            <p className="text-slate-500 font-medium">Không có bài nộp nào đang chờ phản hồi</p>
+                        </div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                                <thead className="bg-slate-50 text-slate-500 text-[11px] font-bold uppercase tracking-wider">
+                                    <tr>
+                                        <th className="px-6 py-4">Sinh viên</th>
+                                        <th className="px-6 py-4">Đề tài đồ án</th>
+                                        <th className="px-6 py-4 text-center">Giai đoạn</th>
+                                        <th className="px-6 py-4">Trạng thái</th>
+                                        <th className="px-6 py-4 text-right">Hành động</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {recentSubmissions.map((item, index) => {
+                                        const colors = ['bg-blue-100 text-blue-700', 'bg-orange-100 text-orange-700', 'bg-pink-100 text-pink-700', 'bg-emerald-100 text-emerald-700'];
+                                        const initials = (item.studentName || 'SV').split(' ').map(w => w[0]).join('').slice(-2).toUpperCase();
+                                        return (
+                                            <tr key={item.id || index} className="hover:bg-slate-50 transition-colors">
+                                                <td className="px-6 py-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`w-8 h-8 rounded-full ${colors[index % colors.length]} flex items-center justify-center font-bold text-xs`}>
+                                                            {initials}
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-sm font-bold">{item.studentName}</p>
+                                                            <p className="text-[11px] text-slate-500">Mã SV: {item.groupName}</p>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <p className="text-sm text-slate-700 max-w-xs truncate">{item.topicTitle}</p>
+                                                </td>
+                                                <td className="px-6 py-4 text-center">
+                                                    <span className="text-xs font-bold px-2 py-1 bg-slate-100 rounded">{item.taskTitle || 'N/A'}</span>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className="inline-flex items-center gap-1.5 py-0.5 px-2 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-orange-600"></span>
+                                                        Mới nộp
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-right">
+                                                    <button className="p-1 hover:bg-slate-100 rounded transition-colors">
+                                                        <span className="material-symbols-outlined text-[18px] text-slate-400">edit</span>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+
+                {/* Right Sidebar Section (30%) */}
+                <div className="lg:col-span-3 space-y-8">
+                    {/* Deadlines */}
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div className="p-6 border-b border-slate-100">
+                            <h3 className="font-bold text-slate-900 flex items-center gap-2">
+                                <span className="material-symbols-outlined text-red-500">notification_important</span>
+                                Sắp tới hạn
+                            </h3>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            {timelineEvents.length === 0 ? (
+                                <p className="text-slate-500 text-sm text-center py-4">Không có mốc thời gian sắp tới</p>
+                            ) : (
+                                timelineEvents.slice(0, 3).map((evt, index) => {
+                                    const isUrgent = evt.color === 'red';
+                                    const borderColor = isUrgent ? 'border-red-500' : 'border-orange-500';
+                                    const bgColor = isUrgent ? 'bg-red-50' : 'bg-orange-50';
+                                    const textColor = isUrgent ? 'text-red-700' : 'text-orange-700';
+                                    const labelColor = isUrgent ? 'text-red-600' : 'text-orange-600';
+                                    const labelBg = isUrgent ? 'border-red-100' : 'border-orange-100';
+
+                                    return (
+                                        <div key={index} className={`p-3 ${bgColor} border-l-4 ${borderColor} rounded-r-lg`}>
+                                            <div className="flex justify-between items-start mb-1">
+                                                <p className={`text-xs font-bold ${textColor} uppercase`}>{evt.title}</p>
+                                                <span className={`text-[10px] ${labelColor} font-bold bg-white px-1.5 py-0.5 rounded border ${labelBg}`}>
+                                                    {dayjs(evt.date).format('DD/MM')}
+                                                </span>
+                                            </div>
+                                            <p className="text-xs text-slate-500 mt-1 italic">{evt.desc}</p>
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Stats/Progress */}
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden p-6">
+                        <h3 className="font-bold text-slate-900 mb-6">Thống kê hướng dẫn</h3>
+                        <div className="space-y-4">
+                            <div>
+                                <div className="flex justify-between text-xs mb-1.5">
+                                    <span className="text-slate-500 font-medium">Tỷ lệ hoàn thành</span>
+                                    <span className="text-primary font-bold">75%</span>
+                                </div>
+                                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                                    <div className="bg-primary h-full rounded-full" style={{ width: '75%' }}></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div className="flex justify-between text-xs mb-1.5">
+                                    <span className="text-slate-500 font-medium">Tiến độ Giai đoạn 1</span>
+                                    <span className="text-green-600 font-bold">90%</span>
+                                </div>
+                                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                                    <div className="bg-green-500 h-full rounded-full" style={{ width: '90%' }}></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div className="flex justify-between text-xs mb-1.5">
+                                    <span className="text-slate-500 font-medium">Mức độ hài lòng SV</span>
+                                    <span className="text-purple-600 font-bold">4.8/5</span>
+                                </div>
+                                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                                    <div className="bg-purple-500 h-full rounded-full" style={{ width: '96%' }}></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }

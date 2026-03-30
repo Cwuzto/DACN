@@ -1,45 +1,42 @@
 import api from './api';
 
+const wrapServiceError = (error, fallbackMessage) => {
+    if (error?.success === false) return error;
+    return { success: false, message: fallbackMessage };
+};
+
 const taskService = {
-    // Lấy danh sách nhiệm vụ của một nhóm
-    getTasksByGroup: async (groupId) => {
+    getTasksByRegistration: async (registrationId) => {
         try {
-            const response = await api.get(`/tasks/group/${groupId}`);
-            return response.data;
+            return await api.get(`/tasks/registration/${registrationId}`);
         } catch (error) {
-            throw error.response?.data || { success: false, message: 'Đã xảy ra lỗi khi lấy danh sách Task.' };
+            throw wrapServiceError(error, 'Da xay ra loi khi lay danh sach task');
         }
     },
 
-    // Giảng viên tạo task mới
     createTask: async (taskData) => {
         try {
-            const response = await api.post('/tasks', taskData);
-            return response.data;
+            return await api.post('/tasks', taskData);
         } catch (error) {
-            throw error.response?.data || { success: false, message: 'Đã xảy ra lỗi khi tạo task.' };
+            throw wrapServiceError(error, 'Da xay ra loi khi tao task');
         }
     },
 
-    // Sinh viên nộp báo cáo
     submitTask: async (taskId, submissionData) => {
         try {
-            const response = await api.post(`/tasks/${taskId}/submit`, submissionData);
-            return response.data;
+            return await api.post(`/tasks/${taskId}/submit`, submissionData);
         } catch (error) {
-            throw error.response?.data || { success: false, message: 'Đã xảy ra lỗi khi nộp bài.' };
+            throw wrapServiceError(error, 'Da xay ra loi khi nop bai');
         }
     },
 
-    // Giảng viên nhận xét và chấm điểm
     gradeSubmission: async (submissionId, gradeData) => {
         try {
-            const response = await api.post(`/tasks/submission/${submissionId}/grade`, gradeData);
-            return response.data;
+            return await api.post(`/tasks/submission/${submissionId}/grade`, gradeData);
         } catch (error) {
-            throw error.response?.data || { success: false, message: 'Đã xảy ra lỗi khi chấm điểm.' };
+            throw wrapServiceError(error, 'Da xay ra loi khi cham diem');
         }
-    }
+    },
 };
 
 export default taskService;

@@ -1,63 +1,56 @@
 import api from './api';
 
+const wrapServiceError = (error, fallbackMessage) => {
+    if (error?.success === false) return error;
+    return { success: false, message: fallbackMessage };
+};
+
 const userService = {
-    // Lấy danh sách người dùng (Admin)
     getUsers: async (params = {}) => {
         try {
-            const response = await api.get('/users', { params });
-            return response.data;
+            return await api.get('/users', { params });
         } catch (error) {
-            throw error.response?.data || { success: false, message: 'Lỗi khi tải danh sách người dùng.' };
+            throw wrapServiceError(error, 'Loi khi tai danh sach nguoi dung');
         }
     },
 
-    // Tạo người dùng mới
     createUser: async (userData) => {
         try {
-            const response = await api.post('/users', userData);
-            return response.data;
+            return await api.post('/users', userData);
         } catch (error) {
-            throw error.response?.data || { success: false, message: 'Lỗi khi tạo người dùng.' };
+            throw wrapServiceError(error, 'Loi khi tao nguoi dung');
         }
     },
 
-    // Cập nhật người dùng
     updateUser: async (id, userData) => {
         try {
-            const response = await api.put(`/users/${id}`, userData);
-            return response.data;
+            return await api.put(`/users/${id}`, userData);
         } catch (error) {
-            throw error.response?.data || { success: false, message: 'Lỗi khi cập nhật người dùng.' };
+            throw wrapServiceError(error, 'Loi khi cap nhat nguoi dung');
         }
     },
 
-    // Xóa người dùng
     deleteUser: async (id) => {
         try {
-            const response = await api.delete(`/users/${id}`);
-            return response.data;
+            return await api.delete(`/users/${id}`);
         } catch (error) {
-            throw error.response?.data || { success: false, message: 'Lỗi khi xóa người dùng.' };
+            throw wrapServiceError(error, 'Loi khi xoa nguoi dung');
         }
     },
 
-    // Khóa / Mở khóa
     toggleActive: async (id) => {
         try {
-            const response = await api.patch(`/users/${id}/toggle-active`);
-            return response.data;
+            return await api.patch(`/users/${id}/toggle-active`);
         } catch (error) {
-            throw error.response?.data || { success: false, message: 'Lỗi khi thay đổi trạng thái.' };
+            throw wrapServiceError(error, 'Loi khi thay doi trang thai');
         }
     },
 
-    // Reset mật khẩu
     resetPassword: async (id) => {
         try {
-            const response = await api.post(`/users/${id}/reset-password`);
-            return response.data;
+            return await api.post(`/users/${id}/reset-password`);
         } catch (error) {
-            throw error.response?.data || { success: false, message: 'Lỗi khi reset mật khẩu.' };
+            throw wrapServiceError(error, 'Loi khi reset mat khau');
         }
     },
 };

@@ -64,7 +64,7 @@ function ProfilePage() {
         } catch (error) {
             console.error(error);
             onError(error);
-            message.error(error.response?.data?.message || 'Tải ảnh lên thất bại!');
+            message.error(error?.message || 'Tải ảnh lên thất bại!');
         } finally {
             setUploading(false);
         }
@@ -82,7 +82,7 @@ function ProfilePage() {
             setEditing(false);
             message.success('Cập nhật thông tin thành công!');
         } catch (error) {
-            message.error(error.response?.data?.message || 'Cập nhật thất bại.');
+            message.error(error?.message || 'Cập nhật thất bại.');
         } finally {
             setLoading(false);
         }
@@ -114,7 +114,7 @@ function ProfilePage() {
             message.success('Đổi mật khẩu thành công!');
             setPasswords({ currentPassword: '', newPassword: '', confirmPassword: '' });
         } catch (error) {
-            message.error(error.response?.data?.message || 'Đổi mật khẩu thất bại.');
+            message.error(error?.message || 'Đổi mật khẩu thất bại.');
         } finally {
             setLoading(false);
         }

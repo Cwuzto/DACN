@@ -1,30 +1,30 @@
 const prisma = require('../config/database');
 
 // POST /api/tasks
-// LECTURER báo cáo tiến độ/giao task cho nhóm
+// LECTURER báo cáo tiến độ/giao task cho sinh viên
 const createTask = async (req, res, next) => {
     try {
-        const { groupId, title, content, dueDate } = req.body;
+        const { registrationId, title, content, dueDate } = req.body;
         const mentorId = req.user.id;
 
-        if (!groupId || !title) {
-            return res.status(400).json({ success: false, message: 'Thiếu groupId hoặc title.' });
+        if (!registrationId || !title) {
+            return res.status(400).json({ success: false, message: 'Thiếu registrationId hoặc title.' });
         }
 
-        // Kiểm tra group và quyền của giảng viên
-        const group = await prisma.group.findUnique({
-            where: { id: parseInt(groupId) },
-            include: { topic: true, members: { select: { studentId: true } } }
+        // Kiểm tra registration và quyền của giảng viên
+        const registration = await prisma.topicRegistration.findUnique({
+            where: { id: parseInt(registrationId) },
+            include: { topic: true, student: true }
         });
 
-        if (!group) return res.status(404).json({ success: false, message: 'Nhóm không tồn tại.' });
-        if (!group.topic || group.topic.mentorId !== mentorId) {
-            return res.status(403).json({ success: false, message: 'Bạn không phải giảng viên hướng dẫn của nhóm này.' });
+        if (!registration) return res.status(404).json({ success: false, message: 'Đăng ký không tồn tại.' });
+        if (!registration.topic || registration.topic.mentorId !== mentorId) {
+            return res.status(403).json({ success: false, message: 'Bạn không phải giảng viên hướng dẫn của sinh viên này.' });
         }
 
         const newTask = await prisma.task.create({
             data: {
-                groupId: group.id,
+                registrationId: parseInt(registrationId),
                 title,
                 content,
                 dueDate: dueDate ? new Date(dueDate) : null,
@@ -32,30 +32,31 @@ const createTask = async (req, res, next) => {
             }
         });
 
-        // Gắn thông báo cho tất cả thành viên trong nhóm
-        const notifications = group.members.map(member => ({
-            userId: member.studentId,
-            title: 'Task mới',
-            content: `Giảng viên vừa giao task mới: ${title}`,
-            type: 'TASK_REMINDER'
-        }));
-        await prisma.notification.createMany({ data: notifications });
+        // Thông báo cho sinh viên
+        await prisma.notification.create({ 
+            data: {
+                userId: registration.studentId,
+                title: 'Nhiệm vụ mới',
+                content: `Giảng viên vừa giao nhiệm vụ mới: ${title}`,
+                type: 'TASK_REMINDER'
+            }
+        });
 
-        res.status(201).json({ success: true, message: 'Tạo task thành công.', data: newTask });
+        res.status(201).json({ success: true, message: 'Tạo nhiệm vụ thành công.', data: newTask });
     } catch (error) {
         next(error);
     }
 };
 
-// GET /api/tasks/group/:id
-// Lấy danh sách task của 1 nhóm (từ phía sinh viên hoặc giảng viên nhìn vào)
-const getTasksByGroup = async (req, res, next) => {
+// GET /api/tasks/registration/:id
+// Lấy danh sách nhiệm vụ của 1 sinh viên (từ phía sinh viên hoặc giảng viên nhìn vào)
+const getTasksByRegistration = async (req, res, next) => {
     try {
-        const groupId = parseInt(req.params.id);
+        const registrationId = parseInt(req.params.id);
 
         // Lấy tasks kèm các báo cáo đã nộp
         const tasks = await prisma.task.findMany({
-            where: { groupId },
+            where: { registrationId },
             include: {
                 submissions: {
                     include: {
@@ -82,20 +83,19 @@ const submitTask = async (req, res, next) => {
 
         const task = await prisma.task.findUnique({
             where: { id: taskId },
-            include: { group: { include: { members: true } } }
+            include: { registration: true }
         });
 
-        if (!task) return res.status(404).json({ success: false, message: 'Task không tồn tại.' });
+        if (!task) return res.status(404).json({ success: false, message: 'Nhiệm vụ không tồn tại.' });
 
-        // Kiểm tra xem sinh viên có trong nhóm của task này không
-        const isMember = task.group.members.some(m => m.studentId === studentId && m.status === 'ACCEPTED');
-        if (!isMember) {
-            return res.status(403).json({ success: false, message: 'Bạn không nằm trong nhóm này.' });
+        if (task.registration.studentId !== studentId) {
+            return res.status(403).json({ success: false, message: 'Bạn không có quyền nộp báo cáo cho nhiệm vụ này.' });
         }
 
         const newSubmission = await prisma.submission.create({
             data: {
                 taskId,
+                registrationId: task.registrationId,
                 submittedBy: studentId,
                 content,
                 fileUrl,
@@ -116,7 +116,7 @@ const submitTask = async (req, res, next) => {
 };
 
 // POST /api/tasks/submission/:id/grade
-// LECTURER chấm điểm báo cáo
+// LECTURER nhận xét báo cáo
 const gradeSubmission = async (req, res, next) => {
     try {
         const submissionId = parseInt(req.params.id);
@@ -125,12 +125,12 @@ const gradeSubmission = async (req, res, next) => {
 
         const submission = await prisma.submission.findUnique({
             where: { id: submissionId },
-            include: { task: { include: { group: { include: { topic: true } } } }, student: true }
+            include: { task: { include: { registration: { include: { topic: true } } } }, student: true }
         });
 
         if (!submission) return res.status(404).json({ success: false, message: 'Báo cáo không tồn tại.' });
 
-        const mentor = submission.task.group.topic.mentorId;
+        const mentor = submission.task.registration.topic.mentorId;
         if (mentor !== mentorId) {
             return res.status(403).json({ success: false, message: 'Chỉ giảng viên hướng dẫn mới được nhận xét.' });
         }
@@ -151,9 +151,9 @@ const gradeSubmission = async (req, res, next) => {
         // Báo cho sinh viên
         await prisma.notification.create({
             data: {
-                userId: submission.studentId,
+                userId: submission.submittedBy,
                 title: 'Giảng viên đã nhận xét',
-                content: `Giảng viên đã nhận xét báo cáo cho task: ${submission.task.title}`,
+                content: `Giảng viên đã nhận xét báo cáo cho nhiệm vụ: ${submission.task.title}`,
                 type: 'EVALUATION'
             }
         });
@@ -166,7 +166,7 @@ const gradeSubmission = async (req, res, next) => {
 
 module.exports = {
     createTask,
-    getTasksByGroup,
+    getTasksByRegistration,
     submitTask,
     gradeSubmission
 };

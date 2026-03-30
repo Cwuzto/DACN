@@ -1,61 +1,64 @@
 import api from './api';
 
-// ============================
-// TOPIC SERVICE
-// Tất cả API liên quan đến Quản lý Đề tài
-// ============================
+const wrapServiceError = (error, fallbackMessage) => {
+    if (error?.success === false) return error;
+    return { success: false, message: fallbackMessage };
+};
 
 export const topicService = {
-    /**
-     * Lấy danh sách đề tài
-     * @param {Object} params - { status, semesterId, mentorId, search }
-     */
-    getAll: (params = {}) => {
-        return api.get('/topics', { params });
+    getAll: async (params = {}) => {
+        try {
+            return await api.get('/topics', { params });
+        } catch (error) {
+            throw wrapServiceError(error, 'Da xay ra loi khi tai danh sach de tai');
+        }
     },
 
-    /**
-     * Xem chi tiết 1 đề tài
-     */
-    getById: (id) => {
-        return api.get(`/topics/${id}`);
+    getById: async (id) => {
+        try {
+            return await api.get(`/topics/${id}`);
+        } catch (error) {
+            throw wrapServiceError(error, 'Da xay ra loi khi tai chi tiet de tai');
+        }
     },
 
-    /**
-     * Tạo đề tài mới
-     * @param {Object} data - { title, description, semesterId, mentorId, maxGroups, status }
-     */
-    create: (data) => {
-        return api.post('/topics', data);
+    create: async (data) => {
+        try {
+            return await api.post('/topics', data);
+        } catch (error) {
+            throw wrapServiceError(error, 'Da xay ra loi khi tao de tai');
+        }
     },
 
-    /**
-     * Cập nhật đề tài
-     */
-    update: (id, data) => {
-        return api.put(`/topics/${id}`, data);
+    update: async (id, data) => {
+        try {
+            return await api.put(`/topics/${id}`, data);
+        } catch (error) {
+            throw wrapServiceError(error, 'Da xay ra loi khi cap nhat de tai');
+        }
     },
 
-    /**
-     * Xóa đề tài
-     */
-    delete: (id) => {
-        return api.delete(`/topics/${id}`);
+    delete: async (id) => {
+        try {
+            return await api.delete(`/topics/${id}`);
+        } catch (error) {
+            throw wrapServiceError(error, 'Da xay ra loi khi xoa de tai');
+        }
     },
 
-    /**
-     * Lấy danh sách đề tài sinh viên đề xuất chờ duyệt (Lecturer / Admin)
-     */
-    getApprovals: (params = {}) => {
-        return api.get('/topics/approvals', { params });
+    getApprovals: async (params = {}) => {
+        try {
+            return await api.get('/topics/approvals', { params });
+        } catch (error) {
+            throw wrapServiceError(error, 'Da xay ra loi khi tai de tai cho duyet');
+        }
     },
 
-    /**
-     * Duyệt / Từ chối đề tài (Admin/Lecturer)
-     * @param {number} id
-     * @param {Object} data - { status: 'APPROVED'|'REJECTED', rejectReason?: string }
-     */
-    changeStatus: (id, data) => {
-        return api.patch(`/topics/${id}/status`, data);
+    changeStatus: async (id, data) => {
+        try {
+            return await api.patch(`/topics/${id}/status`, data);
+        } catch (error) {
+            throw wrapServiceError(error, 'Da xay ra loi khi cap nhat trang thai de tai');
+        }
     },
 };

@@ -1,94 +1,89 @@
-import { useState, useEffect } from 'react';
-import { Card, Table, Tag, Button, Typography, Flex, Progress, Avatar, Select, Input, Row, Col, Statistic, theme, Drawer, List, message, Empty, Spin, Modal, Form, DatePicker } from 'antd';
+import { useMemo, useState, useEffect } from 'react';
+import { Card, Table, Tag, Button, Typography, Flex, Progress, Select, Input, Row, Col, Statistic, Drawer, List, message, Spin, Modal, Form, DatePicker } from 'antd';
 import {
-    SearchOutlined, TeamOutlined, CheckCircleOutlined, ClockCircleOutlined,
-    WarningOutlined, EyeOutlined, DownloadOutlined, FilePdfOutlined, PlusOutlined
+    SearchOutlined, CheckCircleOutlined, ClockCircleOutlined,
+    WarningOutlined, EyeOutlined, DownloadOutlined, FilePdfOutlined, PlusOutlined, UserOutlined
 } from '@ant-design/icons';
-import dayjs from 'dayjs';
-import api from '../../services/api';
+import registrationService from '../../services/registrationService';
 import taskService from '../../services/taskService';
 
 const { Title, Text } = Typography;
 
-const statusConfig = {
-    onTrack: { label: 'Đúng tiến độ', color: 'success' },
-    atRisk: { label: 'Có rủi ro', color: 'warning' },
-    delayed: { label: 'Trễ tiến độ', color: 'error' },
+const registrationStatusConfig = {
+    PENDING: { label: 'Chờ duyệt', color: 'gold' },
+    APPROVED: { label: 'Đã duyệt', color: 'green' },
+    IN_PROGRESS: { label: 'Đang thực hiện', color: 'blue' },
+    SUBMITTED: { label: 'Đã nộp', color: 'cyan' },
+    DEFENDED: { label: 'Đã bảo vệ', color: 'purple' },
+    COMPLETED: { label: 'Hoàn thành', color: 'success' },
+    REJECTED: { label: 'Từ chối', color: 'error' },
 };
-
-const columns = [
-    {
-        title: 'Nhóm', dataIndex: 'groupName', key: 'groupName', width: 100,
-        render: (text) => <Tag icon={<TeamOutlined />}>{text}</Tag>,
-    },
-    {
-        title: 'Đề tài', dataIndex: ['topic', 'title'], key: 'topic',
-        render: (text) => <Text strong style={{ fontSize: 13 }}>{text || 'Chưa đăng ký'}</Text>,
-    },
-    {
-        title: 'SV', dataIndex: 'members', key: 'members', width: 60, align: 'center',
-        render: (members) => <Text>{members?.filter(m => m.status === 'ACCEPTED').length || 0}</Text>,
-    },
-    {
-        title: 'Tiến độ', dataIndex: 'progress', key: 'progress', width: 180,
-        render: (val) => <Progress percent={val || 0} size="small" status={val === 100 ? 'success' : 'active'} />,
-    },
-    {
-        title: 'Cập nhật', dataIndex: 'updatedAt', key: 'updatedAt',
-        render: (text) => <Text type="secondary" style={{ fontSize: 12 }}>{new Date(text).toLocaleDateString('vi-VN')}</Text>,
-    }
-];
 
 function ProgressTrackingPage() {
     const [loading, setLoading] = useState(true);
-    const [groups, setGroups] = useState([]);
+    const [registrations, setRegistrations] = useState([]);
+    const [searchText, setSearchText] = useState('');
+    const [statusFilter, setStatusFilter] = useState('all');
     const [viewerOpen, setViewerOpen] = useState(false);
-    const [selectedGroup, setSelectedGroup] = useState(null);
+    const [selectedRegistration, setSelectedRegistration] = useState(null);
     const [selectedTasks, setSelectedTasks] = useState([]);
     const [taskLoading, setTaskLoading] = useState(false);
 
+    const [taskModalOpen, setTaskModalOpen] = useState(false);
+    const [taskSubmitting, setTaskSubmitting] = useState(false);
+    const [taskForm] = Form.useForm();
+
     useEffect(() => {
-        fetchGroups();
+        fetchRegistrations();
     }, []);
 
-    const fetchGroups = async () => {
+    const fetchRegistrations = async () => {
         try {
             setLoading(true);
-            const res = await api.get('/groups');
-            setGroups(res.data?.data || []);
+            const res = await registrationService.getAllRegistrations();
+            if (res.success) {
+                setRegistrations(res.data || []);
+            }
         } catch (error) {
-            console.error('Error fetching groups:', error);
-            message.error(error?.response?.data?.message || 'Lỗi khi tải danh sách nhóm');
+            message.error(error?.message || 'Lỗi khi tải danh sách sinh viên đăng ký');
         } finally {
             setLoading(false);
         }
     };
 
-    const handleViewGroup = async (record) => {
-        setSelectedGroup(record);
+    const filteredRegistrations = useMemo(() => {
+        return registrations.filter((registration) => {
+            if (statusFilter !== 'all' && registration.status !== statusFilter) return false;
+
+            if (!searchText.trim()) return true;
+            const search = searchText.toLowerCase();
+            const studentName = registration.student?.fullName?.toLowerCase() || '';
+            const studentCode = registration.student?.code?.toLowerCase() || '';
+            const topicTitle = registration.topic?.title?.toLowerCase() || '';
+            return studentName.includes(search) || studentCode.includes(search) || topicTitle.includes(search);
+        });
+    }, [registrations, searchText, statusFilter]);
+
+    const handleViewRegistration = async (record) => {
+        setSelectedRegistration(record);
         setViewerOpen(true);
         setTaskLoading(true);
         try {
-            const res = await taskService.getTasksByGroup(record.id);
+            const res = await taskService.getTasksByRegistration(record.id);
             if (res.success) {
-                setSelectedTasks(res.data);
+                setSelectedTasks(res.data || []);
             }
-        } catch (error) {
-            message.error('Lỗi khi tải báo cáo của nhóm');
+        } catch {
+            message.error('Lỗi khi tải danh sách bài nộp');
         } finally {
             setTaskLoading(false);
         }
     };
 
-    // Task Assignment Logic
-    const [taskModalOpen, setTaskModalOpen] = useState(false);
-    const [taskSubmitting, setTaskSubmitting] = useState(false);
-    const [taskForm] = Form.useForm();
-
-    const openTaskModal = (group = null) => {
+    const openTaskModal = (registration = null) => {
         taskForm.resetFields();
-        if (group) {
-            taskForm.setFieldsValue({ groupId: group.id });
+        if (registration) {
+            taskForm.setFieldsValue({ registrationId: registration.id });
         }
         setTaskModalOpen(true);
     };
@@ -97,47 +92,70 @@ function ProgressTrackingPage() {
         try {
             setTaskSubmitting(true);
             const payload = {
-                groupId: values.groupId,
+                registrationId: values.registrationId,
                 title: values.title,
                 content: values.content,
-                dueDate: values.dueDate ? values.dueDate.toISOString() : null
+                dueDate: values.dueDate ? values.dueDate.toISOString() : null,
             };
             const res = await taskService.createTask(payload);
             if (res.success) {
-                message.success('Giao việc thành công!');
+                message.success('Giao việc thành công');
                 setTaskModalOpen(false);
-                fetchGroups(); // Refresh tiến độ
+                fetchRegistrations();
+                if (selectedRegistration?.id === values.registrationId) {
+                    handleViewRegistration(selectedRegistration);
+                }
             }
         } catch (error) {
-            message.error(error.message || 'Lỗi khi giao việc');
+            message.error(error?.message || 'Lỗi khi giao việc');
         } finally {
             setTaskSubmitting(false);
         }
     };
 
-    const extColumns = [
-        ...columns,
+    const columns = [
         {
-            title: 'Trạng thái', dataIndex: 'trackingStatus', key: 'trackingStatus', width: 120,
+            title: 'Sinh viên', dataIndex: 'student', key: 'student', width: 220,
+            render: (student) => (
+                <Flex gap={8} align="center">
+                    <Tag icon={<UserOutlined />}>{student?.code || 'N/A'}</Tag>
+                    <Text strong>{student?.fullName || 'Sinh viên'}</Text>
+                </Flex>
+            ),
+        },
+        {
+            title: 'Đề tài', dataIndex: ['topic', 'title'], key: 'topic',
+            render: (text) => <Text style={{ fontSize: 13 }}>{text || 'Chưa đăng ký'}</Text>,
+        },
+        {
+            title: 'Trạng thái', dataIndex: 'status', key: 'status', width: 130,
             render: (status) => {
-                const conf = statusConfig[status] || statusConfig.onTrack;
+                const conf = registrationStatusConfig[status] || { label: status, color: 'default' };
                 return <Tag color={conf.color}>{conf.label}</Tag>;
-            }
+            },
+        },
+        {
+            title: 'Tiến độ', dataIndex: 'progress', key: 'progress', width: 180,
+            render: (value) => <Progress percent={value || 0} size="small" status={value === 100 ? 'success' : 'active'} />,
+        },
+        {
+            title: 'Cập nhật', dataIndex: 'updatedAt', key: 'updatedAt', width: 120,
+            render: (text) => <Text type="secondary" style={{ fontSize: 12 }}>{new Date(text).toLocaleDateString('vi-VN')}</Text>,
         },
         {
             title: '', key: 'action', width: 100, align: 'center',
             render: (_, record) => (
                 <Flex gap={8} justify="center">
-                    <Button type="text" size="small" icon={<EyeOutlined />} onClick={() => handleViewGroup(record)} title="Xem báo cáo" />
+                    <Button type="text" size="small" icon={<EyeOutlined />} onClick={() => handleViewRegistration(record)} title="Xem bài nộp" />
                     <Button type="text" size="small" icon={<PlusOutlined />} onClick={() => openTaskModal(record)} title="Giao việc" style={{ color: '#1677ff' }} />
                 </Flex>
             ),
-        }
+        },
     ];
 
-    const onTrack = groups.filter(g => g.trackingStatus === 'onTrack').length || 0;
-    const atRisk = groups.filter(g => g.trackingStatus === 'atRisk').length || 0;
-    const delayed = groups.filter(g => g.trackingStatus === 'delayed').length || 0;
+    const onTrack = filteredRegistrations.filter((registration) => (registration.progress || 0) >= 70).length;
+    const atRisk = filteredRegistrations.filter((registration) => (registration.progress || 0) >= 30 && (registration.progress || 0) < 70).length;
+    const delayed = filteredRegistrations.filter((registration) => (registration.progress || 0) < 30).length;
 
     if (loading) {
         return <Flex justify="center" align="center" style={{ minHeight: '60vh' }}><Spin size="large" /></Flex>;
@@ -148,21 +166,11 @@ function ProgressTrackingPage() {
             <Flex justify="space-between" align="center" style={{ marginBottom: 24 }} wrap="wrap" gap={16}>
                 <div>
                     <Title level={3} style={{ margin: 0 }}>Theo dõi Tiến độ</Title>
-                    <Text type="secondary">Tổng quan tiến độ các nhóm đang hướng dẫn</Text>
+                    <Text type="secondary">Tổng quan tiến độ sinh viên đang được bạn hướng dẫn</Text>
                 </div>
-                <Flex gap={12}>
-                    <Select
-                        defaultValue="2023-2024-1"
-                        style={{ width: 180 }}
-                        options={[
-                            { value: '2023-2024-1', label: 'HK1 - 2023-2024' },
-                            { value: '2023-2024-2', label: 'HK2 - 2023-2024' },
-                        ]}
-                    />
-                    <Button type="primary" icon={<PlusOutlined />} onClick={() => openTaskModal()}>
-                        Giao việc
-                    </Button>
-                </Flex>
+                <Button type="primary" icon={<PlusOutlined />} onClick={() => openTaskModal()}>
+                    Giao việc
+                </Button>
             </Flex>
 
             <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
@@ -199,44 +207,68 @@ function ProgressTrackingPage() {
             </Row>
 
             <Card
-                title="Danh sách nhóm"
-                extra={<Input placeholder="Tìm kiếm..." prefix={<SearchOutlined />} style={{ width: 250 }} />}
+                title="Danh sách sinh viên đăng ký"
+                extra={(
+                    <Flex gap={8}>
+                        <Select
+                            value={statusFilter}
+                            onChange={setStatusFilter}
+                            style={{ width: 150 }}
+                            options={[
+                                { value: 'all', label: 'Tất cả' },
+                                { value: 'PENDING', label: 'Chờ duyệt' },
+                                { value: 'APPROVED', label: 'Đã duyệt' },
+                                { value: 'IN_PROGRESS', label: 'Đang thực hiện' },
+                                { value: 'SUBMITTED', label: 'Đã nộp' },
+                                { value: 'COMPLETED', label: 'Hoàn thành' },
+                            ]}
+                        />
+                        <Input
+                            placeholder="Tìm kiếm..."
+                            prefix={<SearchOutlined />}
+                            style={{ width: 260 }}
+                            value={searchText}
+                            onChange={(event) => setSearchText(event.target.value)}
+                            allowClear
+                        />
+                    </Flex>
+                )}
                 style={{ borderRadius: 10 }}
                 styles={{ body: { padding: 0 } }}
             >
                 <Table
-                    dataSource={groups}
+                    dataSource={filteredRegistrations}
                     rowKey="id"
-                    columns={extColumns}
+                    columns={columns}
                     pagination={{ pageSize: 10 }}
                     size="middle"
                 />
             </Card>
 
-            {/* Chi tiết Bài nộp của Nhóm */}
             <Drawer
-                title={`Bài nộp - ${selectedGroup?.groupName} (${selectedGroup?.topic?.title || 'Chưa ĐK'})`}
-                width={500}
+                title={`Bài nộp - ${selectedRegistration?.student?.fullName || 'Sinh viên'} (${selectedRegistration?.topic?.title || 'Chưa đăng ký'})`}
+                width={560}
                 onClose={() => setViewerOpen(false)}
                 open={viewerOpen}
             >
-                <Title level={5}>Danh sách báo cáo</Title>
+                <Title level={5}>Danh sách nhiệm vụ & bài nộp</Title>
                 <Spin spinning={taskLoading}>
                     <List
                         dataSource={selectedTasks}
-                        renderItem={task => {
+                        locale={{ emptyText: 'Chưa có nhiệm vụ nào' }}
+                        renderItem={(task) => {
                             const submissions = task.submissions || [];
-                            const latestSub = submissions.length > 0 ? submissions[submissions.length - 1] : null;
+                            const latestSubmission = submissions.length > 0 ? submissions[submissions.length - 1] : null;
 
                             return (
                                 <List.Item
                                     actions={[
-                                        latestSub && latestSub.fileUrl ? (
+                                        latestSubmission?.fileUrl ? (
                                             <Button
                                                 key="download"
                                                 type="link"
                                                 icon={<DownloadOutlined />}
-                                                href={latestSub.fileUrl}
+                                                href={latestSubmission.fileUrl}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                             >
@@ -244,19 +276,18 @@ function ProgressTrackingPage() {
                                             </Button>
                                         ) : (
                                             <Text type="secondary" key="no-file">Chưa nộp</Text>
-                                        )
+                                        ),
                                     ]}
                                 >
                                     <List.Item.Meta
-                                        avatar={<Avatar icon={<FilePdfOutlined />} style={{ backgroundColor: latestSub ? '#ff4d4f' : '#d9d9d9' }} />}
+                                        avatar={<FilePdfOutlined style={{ color: latestSubmission ? '#ff4d4f' : '#d9d9d9' }} />}
                                         title={task.title}
                                         description={
-                                            latestSub
-                                                ? `File: ${latestSub.fileName} - Nộp: ${new Date(latestSub.submittedAt).toLocaleDateString('vi-VN')}`
+                                            latestSubmission
+                                                ? `File: ${latestSubmission.fileName} • Nộp: ${new Date(latestSubmission.submittedAt).toLocaleDateString('vi-VN')}`
                                                 : `Hạn: ${task.dueDate ? new Date(task.dueDate).toLocaleDateString('vi-VN') : 'Không'}`
                                         }
                                     />
-                                    {latestSub && latestSub.score && <Tag color="blue">Điểm: {latestSub.score}</Tag>}
                                 </List.Item>
                             );
                         }}
@@ -264,9 +295,8 @@ function ProgressTrackingPage() {
                 </Spin>
             </Drawer>
 
-            {/* Modal Giao Việc */}
             <Modal
-                title="Giao việc cho nhóm"
+                title="Giao việc cho sinh viên"
                 open={taskModalOpen}
                 onCancel={() => setTaskModalOpen(false)}
                 footer={null}
@@ -279,13 +309,18 @@ function ProgressTrackingPage() {
                     style={{ marginTop: 16 }}
                 >
                     <Form.Item
-                        name="groupId"
-                        label="Nhóm thực hiện"
-                        rules={[{ required: true, message: 'Vui lòng chọn nhóm' }]}
+                        name="registrationId"
+                        label="Sinh viên thực hiện"
+                        rules={[{ required: true, message: 'Vui lòng chọn sinh viên' }]}
                     >
                         <Select
-                            placeholder="Chọn nhóm"
-                            options={groups.map(g => ({ value: g.id, label: `${g.groupName} - ${g.topic?.title || 'Chưa ĐK'}` }))}
+                            placeholder="Chọn sinh viên"
+                            options={registrations.map((registration) => ({
+                                value: registration.id,
+                                label: `${registration.student?.fullName || 'Sinh viên'} (${registration.student?.code || 'N/A'}) - ${registration.topic?.title || 'Chưa đăng ký'}`,
+                            }))}
+                            showSearch
+                            optionFilterProp="label"
                         />
                     </Form.Item>
                     <Form.Item
@@ -296,7 +331,7 @@ function ProgressTrackingPage() {
                         <Input placeholder="Ví dụ: Nộp báo cáo tuần 1" />
                     </Form.Item>
                     <Form.Item name="content" label="Nội dung chi tiết (Tùy chọn)">
-                        <Input.TextArea rows={4} placeholder="Mô tả cụ thể những gì nhóm cần hoàn thành..." />
+                        <Input.TextArea rows={4} placeholder="Mô tả cụ thể những gì sinh viên cần hoàn thành..." />
                     </Form.Item>
                     <Form.Item name="dueDate" label="Hạn nộp (Tùy chọn)">
                         <DatePicker showTime format="DD/MM/YYYY HH:mm" style={{ width: '100%' }} placeholder="Chọn hạn nộp" />

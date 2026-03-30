@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from './pages/auth/LoginPage';
+import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 
 // Layouts
 import AdminLayout from './components/layout/AdminLayout';
@@ -13,6 +14,9 @@ import UserManagementPage from './pages/admin/UserManagementPage';
 import ProjectPeriodPage from './pages/admin/ProjectPeriodPage';
 import AdminTopicManagementPage from './pages/admin/TopicManagementPage';
 import CouncilAssignmentPage from './pages/admin/CouncilAssignmentPage';
+import ProjectOversightPage from './pages/admin/ProjectOversightPage';
+import GradingDefensePage from './pages/admin/GradingDefensePage';
+import NotificationCenterPage from './pages/admin/NotificationCenterPage';
 
 // Lecturer Pages
 import LecturerDashboardPage from './pages/lecturer/LecturerDashboardPage';
@@ -24,7 +28,6 @@ import GradingPage from './pages/lecturer/GradingPage';
 // Student Pages
 import StudentDashboardPage from './pages/student/StudentDashboardPage';
 import TopicListPage from './pages/student/TopicListPage';
-import GroupManagementPage from './pages/student/GroupManagementPage';
 import SubmissionPage from './pages/student/SubmissionPage';
 import GradeViewPage from './pages/student/GradeViewPage';
 
@@ -36,8 +39,9 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Trang Login */}
+        {/* Trang Login & Auth */}
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
         {/* ===== Admin Routes ===== */}
         <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
@@ -47,8 +51,10 @@ function App() {
             <Route path="users" element={<UserManagementPage />} />
             <Route path="project-periods" element={<ProjectPeriodPage />} />
             <Route path="topics" element={<AdminTopicManagementPage />} />
+            <Route path="oversight" element={<ProjectOversightPage />} />
+            <Route path="grading" element={<GradingDefensePage />} />
             <Route path="councils" element={<CouncilAssignmentPage />} />
-            <Route path="notifications" element={<NotificationsPage />} />
+            <Route path="notifications" element={<NotificationCenterPage />} />
             <Route path="profile" element={<ProfilePage />} />
           </Route>
         </Route>
@@ -73,7 +79,6 @@ function App() {
             <Route index element={<Navigate to="dashboard" replace />} />
             <Route path="dashboard" element={<StudentDashboardPage />} />
             <Route path="topics" element={<TopicListPage />} />
-            <Route path="group" element={<GroupManagementPage />} />
             <Route path="submissions" element={<SubmissionPage />} />
             <Route path="grades" element={<GradeViewPage />} />
             <Route path="notifications" element={<NotificationsPage />} />

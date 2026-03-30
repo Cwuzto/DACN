@@ -1,103 +1,43 @@
-import { useState, useEffect } from 'react';
-import { Row, Col, Card, Statistic, Table, Tag, Typography, Flex, theme, message, Spin } from 'antd';
+import { useEffect, useMemo, useState } from 'react';
+import { Alert, Progress, Spin, message } from 'antd';
 import {
+    ReadOutlined,
+    SafetyCertificateOutlined,
+    TeamOutlined,
     UserOutlined,
-    FileTextOutlined,
-    WarningOutlined,
-    ClockCircleOutlined,
-    ArrowUpOutlined,
-    ExclamationCircleOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
+
 import dashboardService from '../../services/dashboardService';
-
-const { Title, Text } = Typography;
-
-const statusMap = {
-    new: { label: 'Mới', color: 'blue' },
-    submitted: { label: 'Đã nộp', color: 'green' },
-    done: { label: 'Hoàn tất', color: 'purple' },
-    updated: { label: 'Cập nhật', color: 'default' },
-};
-
-const columns = [
-    {
-        title: 'Thời gian',
-        dataIndex: 'time',
-        key: 'time',
-        width: 160,
-        render: (time) => dayjs(time).format('HH:mm DD/MM/YYYY')
-    },
-    {
-        title: 'Người dùng',
-        dataIndex: 'user',
-        key: 'user',
-        render: (text) => <Text strong>{text}</Text>,
-    },
-    {
-        title: 'Hành động',
-        dataIndex: 'action',
-        key: 'action',
-    },
-    {
-        title: 'Chi tiết',
-        dataIndex: 'detail',
-        key: 'detail',
-        ellipsis: true,
-    },
-    {
-        title: 'Trạng thái',
-        dataIndex: 'status',
-        key: 'status',
-        width: 120,
-        render: (status) => {
-            const s = statusMap[status] || statusMap['updated'];
-            return <Tag color={s.color}>{s.label}</Tag>;
-        },
-    },
-];
+import { semesterService } from '../../services/semesterService';
 
 function DashboardPage() {
-    const { token } = theme.useToken();
-
     const [loading, setLoading] = useState(true);
-    const [stats, setStats] = useState({
-        totalStudents: 0,
-        ongoingTopics: 0,
-        unassignedGroups: 0,
-        upcomingDefenses: 0
-    });
-    const [chartData, setChartData] = useState([]);
-    const [scoreDistribution, setScoreDistribution] = useState([
-        { label: 'Xuất sắc', percent: 0, color: '#1677FF' },
-        { label: 'Giỏi', percent: 0, color: '#13C2C2' },
-        { label: 'Khá', percent: 0, color: '#52C41A' },
-        { label: 'Trung bình', percent: 0, color: '#FAAD14' }
-    ]);
-    const [scoreTotal, setScoreTotal] = useState(0);
-    const [recentActivities, setRecentActivities] = useState([]);
+    const [stats, setStats] = useState(null);
+    const [semesterChart, setSemesterChart] = useState([]);
+    const [scoreDistribution, setScoreDistribution] = useState([]);
+    const [activities, setActivities] = useState([]);
+    const [semesters, setSemesters] = useState([]);
 
     useEffect(() => {
         const fetchDashboardData = async () => {
+            setLoading(true);
             try {
-                setLoading(true);
-                const [statsRes, semestersRes, scoresRes, activitiesRes] = await Promise.all([
+                const [statsRes, semesterRes, scoreRes, activityRes, allSemesterRes] = await Promise.all([
                     dashboardService.getStats(),
                     dashboardService.getSemesterStats(),
                     dashboardService.getScores(),
-                    dashboardService.getActivities()
+                    dashboardService.getActivities(),
+                    semesterService.getAll(),
                 ]);
 
                 if (statsRes.success) setStats(statsRes.data);
-                if (semestersRes.success) setChartData(semestersRes.data);
-                if (scoresRes.success) {
-                    setScoreDistribution(scoresRes.data);
-                    setScoreTotal(scoresRes.total);
-                }
-                if (activitiesRes.success) setRecentActivities(activitiesRes.data);
-
+                if (semesterRes.success) setSemesterChart(semesterRes.data || []);
+                if (scoreRes.success) setScoreDistribution(scoreRes.data || []);
+                if (activityRes.success) setActivities(activityRes.data || []);
+                if (allSemesterRes.success) setSemesters(allSemesterRes.data || []);
             } catch (error) {
-                message.error('Lỗi khi tải dữ liệu trang tổng quan.');
+                message.error(error?.message || 'Khong the tai du lieu dashboard');
             } finally {
                 setLoading(false);
             }
@@ -106,246 +46,216 @@ function DashboardPage() {
         fetchDashboardData();
     }, []);
 
-    const statCards = [
-        {
-            title: 'Tổng Sinh viên',
-            value: stats.totalStudents,
-            icon: <UserOutlined style={{ fontSize: 24, color: '#1677FF' }} />,
-            bgColor: '#E6F4FF',
-            suffix: (
-                <Text style={{ fontSize: 12, color: '#52C41A' }}>
-                    Trên toàn hệ thống
-                </Text>
-            ),
-        },
-        {
-            title: 'Đề tài đang thực hiện',
-            value: stats.ongoingTopics,
-            icon: <FileTextOutlined style={{ fontSize: 24, color: '#13C2C2' }} />,
-            bgColor: '#E6FFFB',
-            suffix: <Text style={{ fontSize: 12, color: '#8c8c8c' }}>Đã được duyệt</Text>,
-        },
-        {
-            title: 'Nhóm chưa phân HD',
-            value: stats.unassignedGroups,
-            icon: <WarningOutlined style={{ fontSize: 24, color: '#FA8C16' }} />,
-            bgColor: '#FFF7E6',
-            suffix: (
-                <Text style={{ fontSize: 12, color: stats.unassignedGroups > 0 ? '#FF4D4F' : '#52C41A' }}>
-                    {stats.unassignedGroups > 0 ? <><ExclamationCircleOutlined /> Cần xử lý sớm</> : 'Đã phân công hết'}
-                </Text>
-            ),
-        },
-        {
-            title: 'Hội đồng sắp bảo vệ',
-            value: stats.upcomingDefenses,
-            icon: <ClockCircleOutlined style={{ fontSize: 24, color: '#FF4D4F' }} />,
-            bgColor: '#FFF1F0',
-            suffix: <Text style={{ fontSize: 12, color: '#8c8c8c' }}>Tính từ hôm nay</Text>,
-        },
-    ];
+    const statCards = useMemo(
+        () => [
+            {
+                title: 'Sinh vien hoat dong',
+                value: stats?.totalStudents ?? 0,
+                icon: <UserOutlined />,
+                color: 'bg-blue-100 text-blue-600',
+            },
+            {
+                title: 'De tai da duyet',
+                value: stats?.ongoingTopics ?? 0,
+                icon: <ReadOutlined />,
+                color: 'bg-indigo-100 text-indigo-600',
+            },
+            {
+                title: 'Chua gan hoi dong',
+                value: stats?.unassignedRegistrations ?? 0,
+                icon: <TeamOutlined />,
+                color: 'bg-orange-100 text-orange-600',
+            },
+            {
+                title: 'Hoi dong sap bao ve',
+                value: stats?.upcomingDefenses ?? 0,
+                icon: <SafetyCertificateOutlined />,
+                color: 'bg-teal-100 text-teal-600',
+            },
+        ],
+        [stats]
+    );
 
-    if (loading) {
+    const alerts = useMemo(() => {
+        const result = [];
+        if ((stats?.unassignedRegistrations || 0) > 0) {
+            result.push({
+                id: 'unassigned',
+                type: 'warning',
+                message: `${stats.unassignedRegistrations} sinh vien chua duoc phan hoi dong`,
+                description: 'Nen uu tien phan cong hoi dong de tranh sat han bao ve.',
+            });
+        }
+        if ((stats?.upcomingDefenses || 0) === 0) {
+            result.push({
+                id: 'defense',
+                type: 'info',
+                message: 'Chua co hoi dong nao sap toi lich bao ve',
+                description: 'Kiem tra lai lich bao ve trong cac dot dang dien ra.',
+            });
+        }
+        return result;
+    }, [stats]);
+
+    const currentPeriod = useMemo(() => {
+        if (!semesters.length) return null;
         return (
-            <Flex justify="center" align="center" style={{ minHeight: '60vh' }}>
-                <Spin size="large" tip="Đang tải dữ liệu..." />
-            </Flex>
+            semesters.find((item) => ['REGISTRATION', 'ONGOING', 'DEFENSE'].includes(item.status)) ||
+            semesters[0]
         );
-    }
+    }, [semesters]);
+
+    const progressPercent = useMemo(() => {
+        if (!currentPeriod?.startDate || !currentPeriod?.endDate) return 0;
+        const start = dayjs(currentPeriod.startDate);
+        const end = dayjs(currentPeriod.endDate);
+        const totalDays = Math.max(end.diff(start, 'day'), 1);
+        const passedDays = dayjs().diff(start, 'day');
+        return Math.max(0, Math.min(100, Math.round((passedDays / totalDays) * 100)));
+    }, [currentPeriod]);
+
+    const semesterSummary = useMemo(() => {
+        if (!semesterChart.length) {
+            return [
+                { label: 'Dang ky', value: 0, color: 'text-blue-500' },
+                { label: 'Hoan thanh', value: 0, color: 'text-green-500' },
+            ];
+        }
+
+        const totalRegistered = semesterChart.reduce((sum, item) => sum + (item.registered || 0), 0);
+        const totalCompleted = semesterChart.reduce((sum, item) => sum + (item.completed || 0), 0);
+        return [
+            { label: 'Dang ky', value: totalRegistered, color: 'text-blue-500' },
+            { label: 'Hoan thanh', value: totalCompleted, color: 'text-green-500' },
+        ];
+    }, [semesterChart]);
+
+    const scores = scoreDistribution.length
+        ? scoreDistribution
+        : [
+            { label: 'Xuat sac', percent: 0, color: '#1677FF' },
+            { label: 'Gioi', percent: 0, color: '#13C2C2' },
+            { label: 'Kha', percent: 0, color: '#52C41A' },
+            { label: 'Trung binh', percent: 0, color: '#FAAD14' },
+        ];
 
     return (
-        <div>
-            {/* ===== Statistic Cards ===== */}
-            <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-                {statCards.map((card, idx) => (
-                    <Col xs={24} sm={12} lg={6} key={idx}>
-                        <Card
-                            hoverable
-                            styles={{ body: { padding: 20 } }}
-                            style={{ borderRadius: 10 }}
-                        >
-                            <Flex justify="space-between" align="flex-start">
-                                <Statistic title={card.title} value={card.value} />
-                                <div
-                                    style={{
-                                        width: 48,
-                                        height: 48,
-                                        borderRadius: '50%',
-                                        background: card.bgColor,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                    }}
-                                >
-                                    {card.icon}
-                                </div>
-                            </Flex>
-                            <div style={{ marginTop: 8 }}>{card.suffix}</div>
-                        </Card>
-                    </Col>
-                ))}
-            </Row>
+        <div className="py-2 space-y-6">
+            <div className="flex justify-between items-center">
+                <div>
+                    <h2 className="text-2xl font-black text-slate-900">Dashboard</h2>
+                    <p className="text-sm text-slate-500 mt-1">Tong quan tinh hinh he thong</p>
+                </div>
+            </div>
 
-            {/* ===== Charts Row ===== */}
-            <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-                {/* Bar Chart */}
-                <Col xs={24} lg={14}>
-                    <Card
-                        title="Thống kê Đồ án theo Học kỳ"
-                        extra={
-                            <Flex gap={12}>
-                                <Flex align="center" gap={6}>
-                                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#1677FF' }} />
-                                    <Text style={{ fontSize: 12 }}>Đăng ký</Text>
-                                </Flex>
-                                <Flex align="center" gap={6}>
-                                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#52C41A' }} />
-                                    <Text style={{ fontSize: 12 }}>Đã chấm điểm</Text>
-                                </Flex>
-                            </Flex>
-                        }
-                        style={{ borderRadius: 10, height: '100%' }}
+            {loading && (
+                <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
+                    <Spin />
+                </div>
+            )}
+
+            {!loading && alerts.length > 0 && (
+                <div className="space-y-3">
+                    {alerts.map((alert) => (
+                        <Alert
+                            key={alert.id}
+                            type={alert.type}
+                            showIcon
+                            message={<span className="font-bold">{alert.message}</span>}
+                            description={alert.description}
+                            className="rounded-lg shadow-sm border"
+                        />
+                    ))}
+                </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {statCards.map((stat, idx) => (
+                    <div
+                        key={idx}
+                        className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between hover:shadow-md transition"
                     >
-                        {chartData.length > 0 ? (
-                            <Flex align="flex-end" justify="space-around" gap={16} style={{ height: 220, padding: '0 8px' }}>
-                                {chartData.map((item, idx) => {
-                                    // Tìm mức tối đa để scale chiều cao phần trăm
-                                    const maxVal = Math.max(...chartData.map(d => d.registered), 10);
-                                    const regHeight = Math.max((item.registered / maxVal) * 100, 2);
-                                    const compHeight = Math.max((item.completed / maxVal) * 100, 2);
+                        <div>
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">{stat.title}</p>
+                            <p className="text-3xl font-black text-slate-900 mt-1">{stat.value}</p>
+                        </div>
+                        <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl ${stat.color}`}>
+                            {stat.icon}
+                        </div>
+                    </div>
+                ))}
+            </div>
 
-                                    return (
-                                        <Flex key={idx} vertical align="center" gap={8} style={{ flex: 1 }}>
-                                            <Flex align="flex-end" gap={3} style={{ height: 180 }}>
-                                                <div
-                                                    style={{
-                                                        width: 18,
-                                                        height: `${regHeight}%`,
-                                                        background: '#1677FF',
-                                                        borderRadius: '3px 3px 0 0',
-                                                        transition: 'height 0.3s',
-                                                    }}
-                                                />
-                                                <div
-                                                    style={{
-                                                        width: 18,
-                                                        height: `${compHeight}%`,
-                                                        background: item.completed > 0 ? '#52C41A' : '#f0f0f0',
-                                                        borderRadius: '3px 3px 0 0',
-                                                        transition: 'height 0.3s',
-                                                    }}
-                                                />
-                                            </Flex>
-                                            <Text
-                                                style={{
-                                                    fontSize: 11,
-                                                    fontWeight: idx === chartData.length - 1 ? 600 : 400,
-                                                    color: idx === chartData.length - 1 ? '#1677FF' : '#8c8c8c',
-                                                    textAlign: 'center'
-                                                }}
-                                            >
-                                                {item.label}
-                                            </Text>
-                                        </Flex>
-                                    );
-                                })}
-                            </Flex>
-                        ) : (
-                            <Flex justify="center" align="center" style={{ height: 220 }}>
-                                <Text type="secondary">Chưa có dữ liệu học kỳ</Text>
-                            </Flex>
-                        )}
-                    </Card>
-                </Col>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                    <h3 className="font-bold text-slate-900 mb-4">Thong ke hoc ky</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                        {semesterSummary.map((item, idx) => (
+                            <div key={idx} className="p-4 bg-slate-50 rounded-lg text-center border">
+                                <p className="text-xs font-medium text-slate-500 mb-1">{item.label}</p>
+                                <p className={`text-2xl font-black ${item.color}`}>{item.value}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
 
-                {/* Donut Chart */}
-                <Col xs={24} lg={10}>
-                    <Card title="Phân bổ Đánh giá Hội đồng" style={{ borderRadius: 10, height: '100%' }}>
-                        <Flex vertical align="center" gap={20}>
-                            {/* CSS Donut */}
-                            {scoreTotal > 0 ? (
+                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm lg:col-span-2 flex flex-col justify-center">
+                    <h3 className="font-bold text-slate-900 mb-2">
+                        Tien do dot hien tai: {currentPeriod?.name || 'Chua co du lieu'}
+                    </h3>
+                    {currentPeriod && (
+                        <div className="flex justify-between text-xs text-slate-500 mb-2 mt-4">
+                            <span>Bat dau: {dayjs(currentPeriod.startDate).format('DD/MM/YYYY')}</span>
+                            <span>Ket thuc: {dayjs(currentPeriod.endDate).format('DD/MM/YYYY')}</span>
+                        </div>
+                    )}
+                    <Progress
+                        percent={progressPercent}
+                        status="active"
+                        strokeColor={{ '0%': '#108ee9', '100%': '#87d068' }}
+                        strokeWidth={14}
+                    />
+                    <p className="text-center text-sm text-slate-600 mt-4">
+                        Da troi qua <span className="font-bold">{progressPercent}%</span> thoi gian cua dot do an.
+                    </p>
+                </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                <h3 className="font-bold text-slate-900 mb-6">Phan bo diem bao ve</h3>
+                <div className="space-y-6">
+                    {scores.map((item, idx) => (
+                        <div key={idx}>
+                            <div className="flex justify-between text-sm mb-1">
+                                <span className="font-medium text-slate-700">{item.label}</span>
+                                <span className="font-bold text-slate-900">{item.percent}%</span>
+                            </div>
+                            <div className="w-full bg-slate-100 rounded-full h-2.5">
                                 <div
-                                    style={{
-                                        width: 180,
-                                        height: 180,
-                                        borderRadius: '50%',
-                                        background: `conic-gradient(
-                        ${scoreDistribution[0].color} 0% ${scoreDistribution[0].percent}%,
-                        ${scoreDistribution[1].color} ${scoreDistribution[0].percent}% ${scoreDistribution[0].percent + scoreDistribution[1].percent}%,
-                        ${scoreDistribution[2].color} ${scoreDistribution[0].percent + scoreDistribution[1].percent}% ${scoreDistribution[0].percent + scoreDistribution[1].percent + scoreDistribution[2].percent}%,
-                        ${scoreDistribution[3].color} ${scoreDistribution[0].percent + scoreDistribution[1].percent + scoreDistribution[2].percent}% 100%
-                      )`,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        position: 'relative',
-                                    }}
-                                >
-                                    <div
-                                        style={{
-                                            width: 120,
-                                            height: 120,
-                                            borderRadius: '50%',
-                                            background: '#fff',
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                        }}
-                                    >
-                                        <Text type="secondary" style={{ fontSize: 13 }}>Tổng số</Text>
-                                        <Text strong style={{ fontSize: 26 }}>{scoreTotal}</Text>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div style={{ width: 180, height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f5f5', borderRadius: '50%' }}>
-                                    <div style={{ width: 120, height: 120, background: '#fff', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                        <Text type="secondary">0</Text>
-                                    </div>
-                                </div>
-                            )}
+                                    className="h-2.5 rounded-full"
+                                    style={{ width: `${item.percent}%`, backgroundColor: item.color }}
+                                />
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
 
-                            {/* Legend */}
-                            <Row gutter={[16, 8]} style={{ width: '100%' }}>
-                                {scoreDistribution.map((item, idx) => (
-                                    <Col span={12} key={idx}>
-                                        <Flex align="center" gap={8}>
-                                            <div
-                                                style={{
-                                                    width: 12,
-                                                    height: 12,
-                                                    borderRadius: '50%',
-                                                    background: item.color,
-                                                    flexShrink: 0,
-                                                }}
-                                            />
-                                            <Text style={{ fontSize: 13 }}>
-                                                {item.label} ({item.percent}%)
-                                            </Text>
-                                        </Flex>
-                                    </Col>
-                                ))}
-                            </Row>
-                        </Flex>
-                    </Card>
-                </Col>
-            </Row>
-
-            {/* ===== Recent Activity Table ===== */}
-            <Card
-                title="Hoạt động gần đây"
-                style={{ borderRadius: 10 }}
-                styles={{ body: { padding: 0 } }}
-            >
-                <Table
-                    dataSource={recentActivities}
-                    columns={columns}
-                    pagination={false}
-                    size="middle"
-                    rowKey="id"
-                    locale={{ emptyText: 'Chưa có hoạt động nào trong hệ thống' }}
-                />
-            </Card>
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                <h3 className="font-bold text-slate-900 mb-4">Hoat dong gan day</h3>
+                <div className="space-y-3">
+                    {(activities || []).slice(0, 5).map((item) => (
+                        <div key={item.id} className="border border-slate-100 rounded-lg p-3">
+                            <p className="text-sm font-bold text-slate-800">{item.action}</p>
+                            <p className="text-xs text-slate-500 mt-1">{item.detail}</p>
+                            <p className="text-xs text-slate-400 mt-1">
+                                {item.user} - {dayjs(item.time).format('HH:mm DD/MM/YYYY')}
+                            </p>
+                        </div>
+                    ))}
+                    {!activities?.length && <p className="text-sm text-slate-400">Chua co hoat dong nao.</p>}
+                </div>
+            </div>
         </div>
     );
 }
