@@ -157,10 +157,7 @@ const getAllRegistrations = async (req, res, next) => {
         if (status) where.status = status;
 
         if (unassignedCouncilOnly === 'true') {
-            where.OR = [
-                { defenseResult: null },
-                { defenseResult: { councilId: null } }
-            ];
+            where.councilId = null;
             // Chỉ xếp hội đồng cho sinh viên hợp lệ (ví dụ: đã duyệt)
             where.status = { notIn: ['PENDING', 'REJECTED'] };
         }

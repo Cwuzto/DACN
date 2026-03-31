@@ -10,7 +10,7 @@ const dashboardService = {
         try {
             return await api.get('/dashboard/stats');
         } catch (error) {
-            throw wrapServiceError(error, 'Loi tai thong ke tong quan');
+            throw wrapServiceError(error, 'Lỗi tải thống kê tổng quan');
         }
     },
 
@@ -18,7 +18,7 @@ const dashboardService = {
         try {
             return await api.get('/dashboard/semesters');
         } catch (error) {
-            throw wrapServiceError(error, 'Loi tai bieu do hoc ky');
+            throw wrapServiceError(error, 'Lỗi tải biểu đồ học kỳ');
         }
     },
 
@@ -26,7 +26,7 @@ const dashboardService = {
         try {
             return await api.get('/dashboard/scores');
         } catch (error) {
-            throw wrapServiceError(error, 'Loi tai phan bo diem');
+            throw wrapServiceError(error, 'Lỗi tải phân bổ điểm');
         }
     },
 
@@ -34,7 +34,7 @@ const dashboardService = {
         try {
             return await api.get('/dashboard/activities');
         } catch (error) {
-            throw wrapServiceError(error, 'Loi tai hoat dong gan day');
+            throw wrapServiceError(error, 'Lỗi tải hoạt động gần đây');
         }
     },
 
@@ -42,7 +42,7 @@ const dashboardService = {
         try {
             return await api.get('/dashboard/lecturer');
         } catch (error) {
-            throw wrapServiceError(error, 'Loi tai thong ke giang vien');
+            throw wrapServiceError(error, 'Lỗi tải thống kê giảng viên');
         }
     },
 
@@ -50,9 +50,11 @@ const dashboardService = {
         try {
             return await api.get('/dashboard/student');
         } catch (error) {
-            throw wrapServiceError(error, 'Loi tai thong ke sinh vien');
+            throw wrapServiceError(error, 'Lỗi tải thống kê sinh viên');
         }
     },
 };
 
 export default dashboardService;
+
+

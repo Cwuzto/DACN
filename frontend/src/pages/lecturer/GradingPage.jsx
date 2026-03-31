@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { message, Upload, Button, Tooltip } from 'antd';
 import { UploadOutlined, EyeOutlined } from '@ant-design/icons';
 import evaluationService from '../../services/evaluationService';
+import uploadService from '../../services/uploadService';
 
 function GradingCard({ registration, onRefresh }) {
     const [score, setScore] = useState(registration.finalScore ?? '');
@@ -41,13 +42,20 @@ function GradingCard({ registration, onRefresh }) {
         }
     };
 
-    // Placeholder mock for file upload
-    const customUpload = async ({ file, onSuccess }) => {
-        setTimeout(() => {
-            setScoresheetUrl(URL.createObjectURL(file));
-            onSuccess("ok");
-            message.success(`${file.name} uploaded successfully.`);
-        }, 1000);
+    const customUpload = async ({ file, onSuccess, onError }) => {
+        try {
+            const res = await uploadService.uploadFile(file, 'scoresheets');
+            if (res.success) {
+                setScoresheetUrl(res.data.url);
+                onSuccess('ok');
+                message.success(`${file.name} uploaded successfully.`);
+                return;
+            }
+            throw new Error(res.message || 'Upload failed');
+        } catch (error) {
+            onError(error);
+            message.error(error.message || 'Upload failed');
+        }
     };
 
     const hasScore = score !== null && score !== undefined && score !== '';

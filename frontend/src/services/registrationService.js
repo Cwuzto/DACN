@@ -1,4 +1,4 @@
-import api from './api';
+﻿import api from './api';
 
 const wrapServiceError = (error, fallbackMessage) => {
     if (error?.success === false) return error;
@@ -10,7 +10,7 @@ const registrationService = {
         try {
             return await api.get('/registrations/my');
         } catch (error) {
-            throw wrapServiceError(error, 'Da xay ra loi khi tai thong tin dang ky');
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi tải thông tin đăng ký');
         }
     },
 
@@ -18,7 +18,7 @@ const registrationService = {
         try {
             return await api.get('/registrations', { params });
         } catch (error) {
-            throw wrapServiceError(error, 'Da xay ra loi khi tai danh sach dang ky');
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi tải danh sách đăng ký');
         }
     },
 
@@ -26,7 +26,7 @@ const registrationService = {
         try {
             return await api.post('/registrations', { topicId, semesterId });
         } catch (error) {
-            throw wrapServiceError(error, 'Da xay ra loi khi dang ky de tai');
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi đăng ký đề tài');
         }
     },
 
@@ -34,7 +34,7 @@ const registrationService = {
         try {
             return await api.patch(`/registrations/${id}/approve`, { action, rejectReason });
         } catch (error) {
-            throw wrapServiceError(error, 'Da xay ra loi khi xu ly dang ky');
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi xử lý đăng ký');
         }
     },
 
@@ -42,7 +42,7 @@ const registrationService = {
         try {
             return await api.delete(`/registrations/${id}`);
         } catch (error) {
-            throw wrapServiceError(error, 'Da xay ra loi khi huy dang ky');
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi hủy đăng ký');
         }
     },
 };

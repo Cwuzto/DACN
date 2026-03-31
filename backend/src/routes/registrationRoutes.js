@@ -1,23 +1,70 @@
 const express = require('express');
-const router = express.Router();
+const { body, param, query } = require('express-validator');
 const registrationController = require('../controllers/registrationController');
 const { authenticate, authorize } = require('../middlewares/auth');
+const { validateRequest } = require('../middlewares/validate');
+
+const router = express.Router();
 
 router.use(authenticate);
 
-// SV xem đăng ký hiện tại
 router.get('/my', authorize('STUDENT'), registrationController.getMyRegistration);
 
-// Admin/GV xem danh sách đăng ký
-router.get('/', authorize('ADMIN', 'LECTURER'), registrationController.getAllRegistrations);
+router.get(
+    '/',
+    [
+        authorize('ADMIN', 'LECTURER'),
+        query('semesterId').optional().isInt({ min: 1 }).withMessage('semesterId phải là số nguyên dương.'),
+        query('status')
+            .optional()
+            .isIn(['PENDING', 'APPROVED', 'REJECTED', 'IN_PROGRESS', 'SUBMITTED', 'DEFENDED', 'COMPLETED'])
+            .withMessage('status không hợp lệ.'),
+        query('unassignedCouncilOnly')
+            .optional()
+            .isIn(['true', 'false'])
+            .withMessage('unassignedCouncilOnly chỉ nhận true/false.'),
+        validateRequest,
+    ],
+    registrationController.getAllRegistrations
+);
 
-// SV đăng ký đề tài
-router.post('/', authorize('STUDENT'), registrationController.registerTopic);
+router.post(
+    '/',
+    [
+        authorize('STUDENT'),
+        body('topicId').isInt({ min: 1 }).withMessage('topicId phải là số nguyên dương.'),
+        body('semesterId').isInt({ min: 1 }).withMessage('semesterId phải là số nguyên dương.'),
+        validateRequest,
+    ],
+    registrationController.registerTopic
+);
 
-// GV duyệt/từ chối đăng ký
-router.patch('/:id/approve', authorize('ADMIN', 'LECTURER'), registrationController.handleRegistration);
+router.patch(
+    '/:id/approve',
+    [
+        authorize('ADMIN', 'LECTURER'),
+        param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
+        body('action').isIn(['APPROVE', 'REJECT']).withMessage('action phải là APPROVE hoặc REJECT.'),
+        body('rejectReason')
+            .optional({ nullable: true })
+            .isString()
+            .trim()
+            .isLength({ min: 1 })
+            .withMessage('rejectReason phải là chuỗi không rỗng nếu được gửi.'),
+        validateRequest,
+    ],
+    registrationController.handleRegistration
+);
 
-// SV hủy đăng ký (chỉ khi PENDING)
-router.delete('/:id', authorize('STUDENT'), registrationController.cancelRegistration);
+router.delete(
+    '/:id',
+    [
+        authorize('STUDENT'),
+        param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
+        validateRequest,
+    ],
+    registrationController.cancelRegistration
+);
 
 module.exports = router;
+

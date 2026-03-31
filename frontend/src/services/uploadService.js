@@ -18,7 +18,7 @@ const uploadService = {
                 },
             });
         } catch (error) {
-            throw wrapServiceError(error, 'Da xay ra loi khi tai tep len');
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi tải tệp lên');
         }
     },
 };

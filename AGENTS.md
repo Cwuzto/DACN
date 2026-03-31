@@ -101,3 +101,15 @@ Khi kết thúc một phiên làm việc có thay đổi đáng kể, nên cập
 - `DECISIONS.md`: nếu có quyết định kỹ thuật/kiến trúc mới
 
 Nếu cần đồng bộ sang NotebookLM, chỉ upload các file tổng hợp thay vì upload mọi thay đổi nhỏ.
+
+---
+
+## Rule bo sung (2026-03-31)
+
+1. **Bat buoc kiem tra UTF-8 truoc khi chot batch**
+   - Truoc khi ket thuc batch, phai chay gate co check UTF-8 (`node scripts/check-utf8.js` hoac `node scripts/regression-check.js`).
+   - Neu fail encoding thi uu tien sua encoding truoc khi merge/chot.
+
+2. **Canh bao som khi ngu canh chat sap day**
+   - Khi phien lam viec da dai va ngu canh sap day, agent phai canh bao de nguoi dung chu dong mo cua so chat moi.
+   - Muc tieu: tranh dot token/quota va giam rui ro mat ngu canh quan trong.

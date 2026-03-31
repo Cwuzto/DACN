@@ -10,7 +10,7 @@ export const authService = {
         try {
             return await api.post('/auth/login', { email, password });
         } catch (error) {
-            throw wrapServiceError(error, 'Dang nhap khong thanh cong');
+            throw wrapServiceError(error, 'Đăng nhập không thành công');
         }
     },
 
@@ -18,7 +18,7 @@ export const authService = {
         try {
             return await api.get('/auth/me');
         } catch (error) {
-            throw wrapServiceError(error, 'Khong the tai thong tin nguoi dung');
+            throw wrapServiceError(error, 'Không thể tải thông tin người dùng');
         }
     },
 
@@ -26,7 +26,7 @@ export const authService = {
         try {
             return await api.put('/auth/change-password', { currentPassword, newPassword });
         } catch (error) {
-            throw wrapServiceError(error, 'Khong the doi mat khau');
+            throw wrapServiceError(error, 'Không thể đổi mật khẩu');
         }
     },
 
@@ -34,7 +34,9 @@ export const authService = {
         try {
             return await api.put('/auth/profile', data);
         } catch (error) {
-            throw wrapServiceError(error, 'Khong the cap nhat thong tin');
+            throw wrapServiceError(error, 'Không thể cập nhật thông tin');
         }
     },
 };
+
+

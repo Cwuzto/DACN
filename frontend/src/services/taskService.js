@@ -10,7 +10,7 @@ const taskService = {
         try {
             return await api.get(`/tasks/registration/${registrationId}`);
         } catch (error) {
-            throw wrapServiceError(error, 'Da xay ra loi khi lay danh sach task');
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi lấy danh sách task');
         }
     },
 
@@ -18,7 +18,7 @@ const taskService = {
         try {
             return await api.post('/tasks', taskData);
         } catch (error) {
-            throw wrapServiceError(error, 'Da xay ra loi khi tao task');
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi tạo task');
         }
     },
 
@@ -26,7 +26,7 @@ const taskService = {
         try {
             return await api.post(`/tasks/${taskId}/submit`, submissionData);
         } catch (error) {
-            throw wrapServiceError(error, 'Da xay ra loi khi nop bai');
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi nộp bài');
         }
     },
 
@@ -34,9 +34,10 @@ const taskService = {
         try {
             return await api.post(`/tasks/submission/${submissionId}/grade`, gradeData);
         } catch (error) {
-            throw wrapServiceError(error, 'Da xay ra loi khi cham diem');
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi chấm điểm');
         }
     },
 };
 
 export default taskService;
+

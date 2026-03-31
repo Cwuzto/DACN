@@ -37,7 +37,7 @@ function DashboardPage() {
                 if (activityRes.success) setActivities(activityRes.data || []);
                 if (allSemesterRes.success) setSemesters(allSemesterRes.data || []);
             } catch (error) {
-                message.error(error?.message || 'Khong the tai du lieu dashboard');
+                message.error(error?.message || 'Không thể tải dữ liệu dashboard');
             } finally {
                 setLoading(false);
             }
@@ -49,25 +49,25 @@ function DashboardPage() {
     const statCards = useMemo(
         () => [
             {
-                title: 'Sinh vien hoat dong',
+                title: 'Sinh viên hoạt động',
                 value: stats?.totalStudents ?? 0,
                 icon: <UserOutlined />,
                 color: 'bg-blue-100 text-blue-600',
             },
             {
-                title: 'De tai da duyet',
+                title: 'Đề tài đã duyệt',
                 value: stats?.ongoingTopics ?? 0,
                 icon: <ReadOutlined />,
                 color: 'bg-indigo-100 text-indigo-600',
             },
             {
-                title: 'Chua gan hoi dong',
+                title: 'Chưa gắn hội đồng',
                 value: stats?.unassignedRegistrations ?? 0,
                 icon: <TeamOutlined />,
                 color: 'bg-orange-100 text-orange-600',
             },
             {
-                title: 'Hoi dong sap bao ve',
+                title: 'Hội đồng sắp bảo vệ',
                 value: stats?.upcomingDefenses ?? 0,
                 icon: <SafetyCertificateOutlined />,
                 color: 'bg-teal-100 text-teal-600',
@@ -82,16 +82,16 @@ function DashboardPage() {
             result.push({
                 id: 'unassigned',
                 type: 'warning',
-                message: `${stats.unassignedRegistrations} sinh vien chua duoc phan hoi dong`,
-                description: 'Nen uu tien phan cong hoi dong de tranh sat han bao ve.',
+                message: `${stats.unassignedRegistrations} sinh viên chưa được phân hội đồng`,
+                description: 'Nên ưu tiên phân công hội đồng để tránh sát hạn bảo vệ.',
             });
         }
         if ((stats?.upcomingDefenses || 0) === 0) {
             result.push({
                 id: 'defense',
                 type: 'info',
-                message: 'Chua co hoi dong nao sap toi lich bao ve',
-                description: 'Kiem tra lai lich bao ve trong cac dot dang dien ra.',
+                message: 'Chưa có hội đồng nào sắp tới lịch bảo vệ',
+                description: 'Kiểm tra lại lịch bảo vệ trong các đợt đang diễn ra.',
             });
         }
         return result;
@@ -117,26 +117,26 @@ function DashboardPage() {
     const semesterSummary = useMemo(() => {
         if (!semesterChart.length) {
             return [
-                { label: 'Dang ky', value: 0, color: 'text-blue-500' },
-                { label: 'Hoan thanh', value: 0, color: 'text-green-500' },
+                { label: 'Đăng ký', value: 0, color: 'text-blue-500' },
+                { label: 'Hoàn thành', value: 0, color: 'text-green-500' },
             ];
         }
 
         const totalRegistered = semesterChart.reduce((sum, item) => sum + (item.registered || 0), 0);
         const totalCompleted = semesterChart.reduce((sum, item) => sum + (item.completed || 0), 0);
         return [
-            { label: 'Dang ky', value: totalRegistered, color: 'text-blue-500' },
-            { label: 'Hoan thanh', value: totalCompleted, color: 'text-green-500' },
+            { label: 'Đăng ký', value: totalRegistered, color: 'text-blue-500' },
+            { label: 'Hoàn thành', value: totalCompleted, color: 'text-green-500' },
         ];
     }, [semesterChart]);
 
     const scores = scoreDistribution.length
         ? scoreDistribution
         : [
-            { label: 'Xuat sac', percent: 0, color: '#1677FF' },
-            { label: 'Gioi', percent: 0, color: '#13C2C2' },
-            { label: 'Kha', percent: 0, color: '#52C41A' },
-            { label: 'Trung binh', percent: 0, color: '#FAAD14' },
+            { label: 'Xuất sắc', percent: 0, color: '#1677FF' },
+            { label: 'Giỏi', percent: 0, color: '#13C2C2' },
+            { label: 'Khá', percent: 0, color: '#52C41A' },
+            { label: 'Trung bình', percent: 0, color: '#FAAD14' },
         ];
 
     return (
@@ -144,7 +144,7 @@ function DashboardPage() {
             <div className="flex justify-between items-center">
                 <div>
                     <h2 className="text-2xl font-black text-slate-900">Dashboard</h2>
-                    <p className="text-sm text-slate-500 mt-1">Tong quan tinh hinh he thong</p>
+                    <p className="text-sm text-slate-500 mt-1">Tổng quan tình hình hệ thống</p>
                 </div>
             </div>
 
@@ -188,7 +188,7 @@ function DashboardPage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                    <h3 className="font-bold text-slate-900 mb-4">Thong ke hoc ky</h3>
+                    <h3 className="font-bold text-slate-900 mb-4">Thống kê học kỳ</h3>
                     <div className="grid grid-cols-2 gap-4">
                         {semesterSummary.map((item, idx) => (
                             <div key={idx} className="p-4 bg-slate-50 rounded-lg text-center border">
@@ -201,12 +201,12 @@ function DashboardPage() {
 
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm lg:col-span-2 flex flex-col justify-center">
                     <h3 className="font-bold text-slate-900 mb-2">
-                        Tien do dot hien tai: {currentPeriod?.name || 'Chua co du lieu'}
+                        Tiến độ đợt hiện tại: {currentPeriod?.name || 'Chưa có dữ liệu'}
                     </h3>
                     {currentPeriod && (
                         <div className="flex justify-between text-xs text-slate-500 mb-2 mt-4">
-                            <span>Bat dau: {dayjs(currentPeriod.startDate).format('DD/MM/YYYY')}</span>
-                            <span>Ket thuc: {dayjs(currentPeriod.endDate).format('DD/MM/YYYY')}</span>
+                            <span>Bắt đầu: {dayjs(currentPeriod.startDate).format('DD/MM/YYYY')}</span>
+                            <span>Kết thúc: {dayjs(currentPeriod.endDate).format('DD/MM/YYYY')}</span>
                         </div>
                     )}
                     <Progress
@@ -216,13 +216,13 @@ function DashboardPage() {
                         strokeWidth={14}
                     />
                     <p className="text-center text-sm text-slate-600 mt-4">
-                        Da troi qua <span className="font-bold">{progressPercent}%</span> thoi gian cua dot do an.
+                        Đã trôi qua <span className="font-bold">{progressPercent}%</span> thời gian của đợt đồ án.
                     </p>
                 </div>
             </div>
 
             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                <h3 className="font-bold text-slate-900 mb-6">Phan bo diem bao ve</h3>
+                <h3 className="font-bold text-slate-900 mb-6">Phân bổ điểm bảo vệ</h3>
                 <div className="space-y-6">
                     {scores.map((item, idx) => (
                         <div key={idx}>
@@ -242,7 +242,7 @@ function DashboardPage() {
             </div>
 
             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                <h3 className="font-bold text-slate-900 mb-4">Hoat dong gan day</h3>
+                <h3 className="font-bold text-slate-900 mb-4">Hoạt động gần đây</h3>
                 <div className="space-y-3">
                     {(activities || []).slice(0, 5).map((item) => (
                         <div key={item.id} className="border border-slate-100 rounded-lg p-3">
@@ -253,7 +253,7 @@ function DashboardPage() {
                             </p>
                         </div>
                     ))}
-                    {!activities?.length && <p className="text-sm text-slate-400">Chua co hoat dong nao.</p>}
+                    {!activities?.length && <p className="text-sm text-slate-400">Chưa có hoạt động nào.</p>}
                 </div>
             </div>
         </div>
@@ -261,3 +261,5 @@ function DashboardPage() {
 }
 
 export default DashboardPage;
+
+

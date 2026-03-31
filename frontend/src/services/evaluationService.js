@@ -10,7 +10,7 @@ const evaluationService = {
         try {
             return await api.get('/evaluations/grading-students', { params });
         } catch (error) {
-            throw wrapServiceError(error, 'Da xay ra loi khi lay danh sach cham diem');
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi lấy danh sách chấm điểm');
         }
     },
 
@@ -18,7 +18,7 @@ const evaluationService = {
         try {
             return await api.post('/evaluations/defense-result', data);
         } catch (error) {
-            throw wrapServiceError(error, 'Da xay ra loi khi luu ket qua bao ve');
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi lưu kết quả bảo vệ');
         }
     },
 
@@ -26,9 +26,10 @@ const evaluationService = {
         try {
             return await api.get('/evaluations/my-grades');
         } catch (error) {
-            throw wrapServiceError(error, 'Da xay ra loi khi lay diem');
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi lấy điểm');
         }
     },
 };
 
 export default evaluationService;
+

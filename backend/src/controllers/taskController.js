@@ -154,7 +154,7 @@ const gradeSubmission = async (req, res, next) => {
                 userId: submission.submittedBy,
                 title: 'Giảng viên đã nhận xét',
                 content: `Giảng viên đã nhận xét báo cáo cho nhiệm vụ: ${submission.task.title}`,
-                type: 'EVALUATION'
+                type: 'SUBMISSION'
             }
         });
 

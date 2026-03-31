@@ -1,8 +1,5 @@
 const prisma = require('../config/database');
 
-/**
- * Hàm hỗ trợ tính toán trạng thái đợt đồ án dựa trên thời gian
- */
 const calculateStatus = (semester) => {
     const now = new Date();
     const start = new Date(semester.startDate);
@@ -24,10 +21,7 @@ const calculateStatus = (semester) => {
     return 'UPCOMING';
 };
 
-/**
- * Lấy danh sách tất cả đợt đồ án
- */
-const getAllSemesters = async (req, res, next) => {
+const getAllSemesters = async (_req, res, next) => {
     try {
         const semesters = await prisma.semester.findMany({
             orderBy: { startDate: 'desc' },
@@ -45,12 +39,13 @@ const getAllSemesters = async (req, res, next) => {
     }
 };
 
-/**
- * Lấy chi tiết một đợt đồ án theo ID
- */
 const getSemesterById = async (req, res, next) => {
     try {
-        const semesterId = parseInt(req.params.id);
+        const semesterId = parseInt(req.params.id, 10);
+        if (!Number.isInteger(semesterId)) {
+            return res.status(400).json({ success: false, message: 'ID học kỳ không hợp lệ.' });
+        }
+
         const semester = await prisma.semester.findUnique({
             where: { id: semesterId },
         });
@@ -74,12 +69,16 @@ const getSemesterById = async (req, res, next) => {
     }
 };
 
-/**
- * Tạo mới đợt đồ án
- */
 const createSemester = async (req, res, next) => {
     try {
-        const { name, startDate, endDate, registrationDeadline, defenseDate } = req.body;
+        const {
+            name,
+            startDate,
+            endDate,
+            registrationDeadline,
+            defenseDate,
+            registrationOpen,
+        } = req.body;
 
         if (!name || !startDate || !registrationDeadline || !endDate) {
             return res.status(400).json({
@@ -102,6 +101,8 @@ const createSemester = async (req, res, next) => {
                 endDate: new Date(endDate),
                 registrationDeadline: new Date(registrationDeadline),
                 defenseDate: defenseDate ? new Date(defenseDate) : null,
+                registrationOpen:
+                    typeof registrationOpen === 'boolean' ? registrationOpen : true,
                 status: calculatedStatus,
             },
         });
@@ -119,13 +120,21 @@ const createSemester = async (req, res, next) => {
     }
 };
 
-/**
- * Cập nhật đợt đồ án
- */
 const updateSemester = async (req, res, next) => {
     try {
-        const semesterId = parseInt(req.params.id);
-        const { name, startDate, endDate, registrationDeadline, defenseDate } = req.body;
+        const semesterId = parseInt(req.params.id, 10);
+        if (!Number.isInteger(semesterId)) {
+            return res.status(400).json({ success: false, message: 'ID học kỳ không hợp lệ.' });
+        }
+
+        const {
+            name,
+            startDate,
+            endDate,
+            registrationDeadline,
+            defenseDate,
+            registrationOpen,
+        } = req.body;
 
         const semester = await prisma.semester.findUnique({
             where: { id: semesterId },
@@ -143,9 +152,8 @@ const updateSemester = async (req, res, next) => {
         const nextRegistrationDeadline = registrationDeadline
             ? new Date(registrationDeadline)
             : semester.registrationDeadline;
-        const nextDefenseDate = defenseDate !== undefined
-            ? (defenseDate ? new Date(defenseDate) : null)
-            : semester.defenseDate;
+        const nextDefenseDate =
+            defenseDate !== undefined ? (defenseDate ? new Date(defenseDate) : null) : semester.defenseDate;
 
         const calculatedStatus = calculateStatus({
             startDate: nextStartDate,
@@ -162,6 +170,10 @@ const updateSemester = async (req, res, next) => {
                 endDate: nextEndDate,
                 registrationDeadline: nextRegistrationDeadline,
                 defenseDate: nextDefenseDate,
+                registrationOpen:
+                    typeof registrationOpen === 'boolean'
+                        ? registrationOpen
+                        : semester.registrationOpen,
                 status: calculatedStatus,
             },
         });
@@ -179,12 +191,56 @@ const updateSemester = async (req, res, next) => {
     }
 };
 
-/**
- * Xóa đợt đồ án
- */
+const toggleSemesterRegistration = async (req, res, next) => {
+    try {
+        const semesterId = parseInt(req.params.id, 10);
+        const { registrationOpen } = req.body;
+
+        if (!Number.isInteger(semesterId)) {
+            return res.status(400).json({ success: false, message: 'ID học kỳ không hợp lệ.' });
+        }
+
+        if (typeof registrationOpen !== 'boolean') {
+            return res.status(400).json({
+                success: false,
+                message: 'registrationOpen phải là kiểu boolean.',
+            });
+        }
+
+        const semester = await prisma.semester.findUnique({ where: { id: semesterId } });
+        if (!semester) {
+            return res.status(404).json({
+                success: false,
+                message: 'Không tìm thấy đợt đồ án.',
+            });
+        }
+
+        const updated = await prisma.semester.update({
+            where: { id: semesterId },
+            data: { registrationOpen },
+        });
+
+        return res.json({
+            success: true,
+            message: registrationOpen
+                ? 'Đã mở đăng ký đề tài cho học kỳ.'
+                : 'Đã đóng đăng ký đề tài cho học kỳ.',
+            data: {
+                ...updated,
+                status: calculateStatus(updated),
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 const deleteSemester = async (req, res, next) => {
     try {
-        const semesterId = parseInt(req.params.id);
+        const semesterId = parseInt(req.params.id, 10);
+        if (!Number.isInteger(semesterId)) {
+            return res.status(400).json({ success: false, message: 'ID học kỳ không hợp lệ.' });
+        }
 
         const [relatedTopics, relatedRegistrations, relatedCouncils] = await Promise.all([
             prisma.topic.count({ where: { semesterId } }),
@@ -195,7 +251,8 @@ const deleteSemester = async (req, res, next) => {
         if (relatedTopics > 0 || relatedRegistrations > 0 || relatedCouncils > 0) {
             return res.status(400).json({
                 success: false,
-                message: 'Không thể xóa đợt đồ án đã có đề tài, đăng ký hoặc hội đồng liên quan.',
+                message:
+                    'Không thể xóa đợt đồ án đã có đề tài, đăng ký hoặc hội đồng liên quan.',
             });
         }
 
@@ -217,5 +274,6 @@ module.exports = {
     getSemesterById,
     createSemester,
     updateSemester,
+    toggleSemesterRegistration,
     deleteSemester,
 };

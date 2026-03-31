@@ -10,7 +10,7 @@ const councilService = {
         try {
             return await api.get('/councils', { params });
         } catch (error) {
-            throw wrapServiceError(error, 'Loi khi tai danh sach hoi dong');
+            throw wrapServiceError(error, 'Lỗi khi tải danh sách hội đồng');
         }
     },
 
@@ -18,7 +18,7 @@ const councilService = {
         try {
             return await api.get(`/councils/${id}`);
         } catch (error) {
-            throw wrapServiceError(error, 'Loi khi tai chi tiet hoi dong');
+            throw wrapServiceError(error, 'Lỗi khi tải chi tiết hội đồng');
         }
     },
 
@@ -26,7 +26,7 @@ const councilService = {
         try {
             return await api.post('/councils', data);
         } catch (error) {
-            throw wrapServiceError(error, 'Loi khi tao hoi dong');
+            throw wrapServiceError(error, 'Lỗi khi tạo hội đồng');
         }
     },
 
@@ -34,7 +34,7 @@ const councilService = {
         try {
             return await api.put(`/councils/${id}`, data);
         } catch (error) {
-            throw wrapServiceError(error, 'Loi khi cap nhat hoi dong');
+            throw wrapServiceError(error, 'Lỗi khi cập nhật hội đồng');
         }
     },
 
@@ -42,7 +42,7 @@ const councilService = {
         try {
             return await api.delete(`/councils/${id}`);
         } catch (error) {
-            throw wrapServiceError(error, 'Loi khi xoa hoi dong');
+            throw wrapServiceError(error, 'Lỗi khi xóa hội đồng');
         }
     },
 
@@ -50,7 +50,7 @@ const councilService = {
         try {
             return await api.post(`/councils/${id}/assign`, { registrationIds });
         } catch (error) {
-            throw wrapServiceError(error, 'Loi khi phan cong sinh vien');
+            throw wrapServiceError(error, 'Lỗi khi phân công sinh viên');
         }
     },
 
@@ -58,9 +58,11 @@ const councilService = {
         try {
             return await api.post(`/councils/${id}/remove-registration`, { registrationId });
         } catch (error) {
-            throw wrapServiceError(error, 'Loi khi go sinh vien khoi hoi dong');
+            throw wrapServiceError(error, 'Lỗi khi gỡ sinh viên khỏi hội đồng');
         }
     },
 };
 
 export default councilService;
+
+

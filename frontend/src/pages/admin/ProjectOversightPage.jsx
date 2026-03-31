@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import {
     Button,
     Dropdown,
@@ -22,13 +22,14 @@ import dayjs from 'dayjs';
 
 import { topicService } from '../../services/topicService';
 import registrationService from '../../services/registrationService';
+import { semesterService } from '../../services/semesterService';
 import userService from '../../services/userService';
 
 const statusConfig = {
-    APPROVED: { label: 'Da duyet', tw: 'bg-green-100 text-green-700' },
-    PENDING: { label: 'Cho duyet', tw: 'bg-orange-100 text-orange-700' },
-    REJECTED: { label: 'Da tu choi', tw: 'bg-red-100 text-red-700' },
-    DRAFT: { label: 'Ban nhap', tw: 'bg-slate-100 text-slate-600' },
+    APPROVED: { label: 'Đã duyệt', tw: 'bg-green-100 text-green-700' },
+    PENDING: { label: 'Chờ duyệt', tw: 'bg-orange-100 text-orange-700' },
+    REJECTED: { label: 'Đã từ chối', tw: 'bg-red-100 text-red-700' },
+    DRAFT: { label: 'Bản nháp', tw: 'bg-slate-100 text-slate-600' },
 };
 
 function ProjectOversightPage() {
@@ -36,8 +37,10 @@ function ProjectOversightPage() {
     const [topics, setTopics] = useState([]);
     const [registrations, setRegistrations] = useState([]);
     const [lecturers, setLecturers] = useState([]);
+    const [semesters, setSemesters] = useState([]);
     const [searchText, setSearchText] = useState('');
     const [statusFilter, setStatusFilter] = useState(null);
+    const [semesterFilter, setSemesterFilter] = useState(null);
 
     const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
     const [auditTopic, setAuditTopic] = useState(null);
@@ -49,17 +52,19 @@ function ProjectOversightPage() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [topicsRes, regRes, lecturerRes] = await Promise.all([
+            const [topicsRes, regRes, lecturerRes, semesterRes] = await Promise.all([
                 topicService.getAll(),
                 registrationService.getAllRegistrations(),
                 userService.getUsers({ role: 'LECTURER', status: 'active', limit: 1000 }),
+                semesterService.getAll(),
             ]);
 
             if (topicsRes.success) setTopics(topicsRes.data || []);
             if (regRes.success) setRegistrations(regRes.data || []);
             if (lecturerRes.success) setLecturers(lecturerRes.data || []);
+            if (semesterRes.success) setSemesters(semesterRes.data || []);
         } catch (error) {
-            message.error(error?.message || 'Khong the tai du lieu giam sat');
+            message.error(error?.message || 'Không thể tải dữ liệu giám sát');
         } finally {
             setLoading(false);
         }
@@ -69,47 +74,51 @@ function ProjectOversightPage() {
         fetchData();
     }, []);
 
-    const registrationMap = useMemo(() => {
-        return registrations.reduce((acc, item) => {
-            if (!acc[item.topic?.id]) acc[item.topic?.id] = [];
-            acc[item.topic?.id].push(item);
-            return acc;
-        }, {});
-    }, [registrations]);
+    const registrationMap = useMemo(
+        () =>
+            registrations.reduce((acc, item) => {
+                if (!acc[item.topic?.id]) acc[item.topic?.id] = [];
+                acc[item.topic?.id].push(item);
+                return acc;
+            }, {}),
+        [registrations]
+    );
 
-    const tableData = useMemo(() => {
-        return topics.map((topic) => {
-            const topicRegistrations = registrationMap[topic.id] || [];
-            return {
-                ...topic,
-                code: `DT-${String(topic.id).padStart(3, '0')}`,
-                students: topicRegistrations
-                    .filter((item) => item.student)
-                    .map((item) => item.student.fullName),
-                registrationEvents: topicRegistrations,
-            };
-        });
-    }, [topics, registrationMap]);
+    const tableData = useMemo(
+        () =>
+            topics.map((topic) => {
+                const topicRegistrations = registrationMap[topic.id] || [];
+                return {
+                    ...topic,
+                    code: `DT-${String(topic.id).padStart(3, '0')}`,
+                    students: topicRegistrations.filter((item) => item.student).map((item) => item.student.fullName),
+                    registrationEvents: topicRegistrations,
+                };
+            }),
+        [topics, registrationMap]
+    );
 
     const filteredTopics = useMemo(() => {
         return tableData.filter((item) => {
             const keyword = searchText.trim().toLowerCase();
-            const matchSearch = !keyword ||
+            const matchSearch =
+                !keyword ||
                 item.title?.toLowerCase().includes(keyword) ||
                 item.code.toLowerCase().includes(keyword) ||
                 item.mentor?.fullName?.toLowerCase().includes(keyword);
             const matchStatus = statusFilter ? item.status === statusFilter : true;
-            return matchSearch && matchStatus;
+            const matchSemester = semesterFilter ? item.semesterId === semesterFilter : true;
+            return matchSearch && matchStatus && matchSemester;
         });
-    }, [tableData, searchText, statusFilter]);
+    }, [tableData, searchText, statusFilter, semesterFilter]);
 
     const handleReject = (record) => {
         Modal.confirm({
-            title: 'Tu choi de tai',
+            title: 'Từ chối đề tài',
             icon: <ExclamationCircleOutlined style={{ color: 'red' }} />,
-            content: `Ban chac chan muon tu choi de tai "${record.title}"?`,
-            okText: 'Tu choi',
-            cancelText: 'Huy',
+            content: `Bạn chắc chắn muốn từ chối đề tài "${record.title}"?`,
+            okText: 'Từ chối',
+            cancelText: 'Hủy',
             okButtonProps: { danger: true },
             onOk: async () => {
                 try {
@@ -121,10 +130,10 @@ function ProjectOversightPage() {
                     } else {
                         await topicService.update(record.id, { status: 'REJECTED' });
                     }
-                    message.success(`Da cap nhat trang thai de tai ${record.code}`);
+                    message.success(`Đã cập nhật trạng thái đề tài ${record.code}`);
                     fetchData();
                 } catch (error) {
-                    message.error(error?.message || 'Khong the cap nhat trang thai de tai');
+                    message.error(error?.message || 'Không thể cập nhật trạng thái đề tài');
                 }
             },
         });
@@ -137,10 +146,10 @@ function ProjectOversightPage() {
             } else {
                 await topicService.update(record.id, { status: 'APPROVED' });
             }
-            message.success(`Da duyet de tai ${record.code}`);
+            message.success(`Đã duyệt đề tài ${record.code}`);
             fetchData();
         } catch (error) {
-            message.error(error?.message || 'Khong the duyet de tai');
+            message.error(error?.message || 'Không thể duyệt đề tài');
         }
     };
 
@@ -152,22 +161,22 @@ function ProjectOversightPage() {
 
     const handleTransfer = async () => {
         if (!transferTopic || !transferLecturerId) {
-            message.warning('Vui long chon giang vien huong dan moi');
+            message.warning('Vui lòng chọn giảng viên hướng dẫn mới');
             return;
         }
         try {
             await topicService.update(transferTopic.id, { mentorId: transferLecturerId });
-            message.success(`Da dieu chuyen de tai ${transferTopic.code}`);
+            message.success(`Đã điều chuyển đề tài ${transferTopic.code}`);
             setIsTransferModalOpen(false);
             fetchData();
         } catch (error) {
-            message.error(error?.message || 'Khong the dieu chuyen de tai');
+            message.error(error?.message || 'Không thể điều chuyển đề tài');
         }
     };
 
     const columns = [
         {
-            title: 'Ma & De tai',
+            title: 'Mã & Đề tài',
             dataIndex: 'title',
             key: 'title',
             width: 360,
@@ -179,19 +188,17 @@ function ProjectOversightPage() {
             ),
         },
         {
-            title: 'GV Huong dan',
+            title: 'GV Hướng dẫn',
             key: 'lecturer',
             render: (_, record) => (
-                <span className="text-sm font-medium text-slate-700">
-                    {record.mentor?.fullName || 'Chua gan'}
-                </span>
+                <span className="text-sm font-medium text-slate-700">{record.mentor?.fullName || 'Chưa gắn'}</span>
             ),
         },
         {
-            title: 'Sinh vien',
+            title: 'Sinh viên',
             dataIndex: 'students',
             key: 'students',
-            render: (students) => (
+            render: (students) =>
                 students.length > 0 ? (
                     <div className="flex flex-col gap-1">
                         {students.map((name, idx) => (
@@ -203,25 +210,22 @@ function ProjectOversightPage() {
                             </span>
                         ))}
                     </div>
-                ) : <span className="text-xs text-slate-400 italic">Chua co SV dang ky</span>
-            ),
+                ) : (
+                    <span className="text-xs text-slate-400 italic">Chưa có SV đăng ký</span>
+                ),
         },
         {
-            title: 'Trang thai',
+            title: 'Trạng thái',
             dataIndex: 'status',
             key: 'status',
             width: 120,
             render: (status) => {
                 const config = statusConfig[status] || { label: status, tw: 'bg-slate-100 text-slate-600' };
-                return (
-                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold ${config.tw}`}>
-                        {config.label}
-                    </span>
-                );
+                return <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold ${config.tw}`}>{config.label}</span>;
             },
         },
         {
-            title: 'Can thiep (Admin)',
+            title: 'Can thiệp (Admin)',
             key: 'actions',
             width: 160,
             align: 'right',
@@ -232,7 +236,7 @@ function ProjectOversightPage() {
                     menuItems.push({
                         key: 'APPROVE',
                         icon: <CheckCircleOutlined style={{ color: 'green' }} />,
-                        label: 'Duyet de tai',
+                        label: 'Duyệt đề tài',
                     });
                 }
 
@@ -241,7 +245,7 @@ function ProjectOversightPage() {
                         key: 'REJECT',
                         danger: true,
                         icon: <StopOutlined />,
-                        label: 'Tu choi de tai',
+                        label: 'Từ chối đề tài',
                     });
                 }
 
@@ -249,20 +253,20 @@ function ProjectOversightPage() {
                     menuItems.push({
                         key: 'ACTIVATE',
                         icon: <CheckCircleOutlined style={{ color: 'green' }} />,
-                        label: 'Mo lai de tai',
+                        label: 'Mở lại đề tài',
                     });
                 }
 
                 menuItems.push({
                     key: 'TRANSFER',
                     icon: <SwapOutlined style={{ color: '#FAAD14' }} />,
-                    label: 'Doi GV huong dan',
+                    label: 'Đổi GV hướng dẫn',
                 });
                 menuItems.push({ type: 'divider' });
                 menuItems.push({
                     key: 'AUDIT',
                     icon: <HistoryOutlined style={{ color: 'blue' }} />,
-                    label: 'Xem thay doi',
+                    label: 'Xem thay đổi',
                 });
 
                 const onAction = ({ key }) => {
@@ -276,11 +280,7 @@ function ProjectOversightPage() {
                 };
 
                 return (
-                    <Dropdown
-                        menu={{ items: menuItems, onClick: onAction }}
-                        trigger={['click']}
-                        placement="bottomRight"
-                    >
+                    <Dropdown menu={{ items: menuItems, onClick: onAction }} trigger={['click']} placement="bottomRight">
                         <Button type="text" icon={<MoreOutlined />} />
                     </Dropdown>
                 );
@@ -293,6 +293,11 @@ function ProjectOversightPage() {
         label: `${lecturer.fullName} (${lecturer.code})`,
     }));
 
+    const semesterOptions = semesters.map((semester) => ({
+        value: semester.id,
+        label: semester.name,
+    }));
+
     const auditItems = useMemo(() => {
         if (!auditTopic) return [];
 
@@ -301,10 +306,8 @@ function ProjectOversightPage() {
                 color: 'gray',
                 children: (
                     <>
-                        <p className="text-xs text-slate-400">
-                            {dayjs(auditTopic.createdAt).format('DD/MM/YYYY HH:mm')}
-                        </p>
-                        <p className="text-sm font-medium">Khoi tao de tai</p>
+                        <p className="text-xs text-slate-400">{dayjs(auditTopic.createdAt).format('DD/MM/YYYY HH:mm')}</p>
+                        <p className="text-sm font-medium">Khởi tạo đề tài</p>
                     </>
                 ),
             },
@@ -312,10 +315,8 @@ function ProjectOversightPage() {
                 color: 'blue',
                 children: (
                     <>
-                        <p className="text-xs text-slate-400">
-                            {dayjs(auditTopic.updatedAt).format('DD/MM/YYYY HH:mm')}
-                        </p>
-                        <p className="text-sm font-medium">Cap nhat lan cuoi: {auditTopic.status}</p>
+                        <p className="text-xs text-slate-400">{dayjs(auditTopic.updatedAt).format('DD/MM/YYYY HH:mm')}</p>
+                        <p className="text-sm font-medium">Cập nhật lần cuối: {auditTopic.status}</p>
                     </>
                 ),
             },
@@ -328,7 +329,7 @@ function ProjectOversightPage() {
                     <>
                         <p className="text-xs text-slate-400">{dayjs(event.createdAt).format('DD/MM/YYYY HH:mm')}</p>
                         <p className="text-sm font-medium">
-                            {event.student?.fullName || 'Sinh vien'} dang ky ({event.status})
+                            {event.student?.fullName || 'Sinh viên'} đăng ký ({event.status})
                         </p>
                     </>
                 ),
@@ -342,9 +343,9 @@ function ProjectOversightPage() {
         <div className="py-2">
             <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
                 <div>
-                    <h2 className="text-2xl font-black text-slate-900">Giam sat & Can thiep</h2>
+                    <h2 className="text-2xl font-black text-slate-900">Giám sát & Can thiệp</h2>
                     <p className="text-sm text-slate-500 mt-1">
-                        Theo doi toan bo de tai va xu ly nhanh cac truong hop can can thiep.
+                        Theo dõi toàn bộ đề tài và xử lý nhanh các trường hợp cần can thiệp.
                     </p>
                 </div>
             </div>
@@ -353,7 +354,7 @@ function ProjectOversightPage() {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex flex-wrap items-center gap-3 flex-1">
                         <Input
-                            placeholder="Tim ma, ten de tai, hoac giang vien..."
+                            placeholder="Tìm mã, tên đề tài, hoặc giảng viên..."
                             prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
                             style={{ maxWidth: 360, minWidth: 240 }}
                             value={searchText}
@@ -361,7 +362,7 @@ function ProjectOversightPage() {
                             allowClear
                         />
                         <Select
-                            placeholder="Trang thai de tai"
+                            placeholder="Trạng thái đề tài"
                             style={{ minWidth: 180 }}
                             allowClear
                             value={statusFilter}
@@ -370,6 +371,14 @@ function ProjectOversightPage() {
                                 label: statusConfig[key].label,
                                 value: key,
                             }))}
+                        />
+                        <Select
+                            placeholder="Học kỳ"
+                            style={{ minWidth: 220 }}
+                            allowClear
+                            value={semesterFilter}
+                            onChange={(value) => setSemesterFilter(value || null)}
+                            options={semesterOptions}
                         />
                     </div>
                 </div>
@@ -387,29 +396,29 @@ function ProjectOversightPage() {
             </div>
 
             <Modal
-                title="Dieu chuyen De tai"
+                title="Điều chuyển Đề tài"
                 open={isTransferModalOpen}
                 onCancel={() => setIsTransferModalOpen(false)}
                 onOk={handleTransfer}
-                okText="Luu thay doi"
-                cancelText="Huy"
+                okText="Lưu thay đổi"
+                cancelText="Hủy"
             >
                 {transferTopic && (
                     <div className="space-y-4 pt-4">
                         <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
-                            <p className="text-orange-800 text-sm font-medium">De tai dang chon:</p>
+                            <p className="text-orange-800 text-sm font-medium">Đề tài đang chọn:</p>
                             <p className="font-bold text-slate-900 mt-1">{transferTopic.title}</p>
                             <p className="text-xs text-orange-600 mt-1">
-                                GV hien tai: {transferTopic.mentor?.fullName || 'Chua gan'}
+                                GV hiện tại: {transferTopic.mentor?.fullName || 'Chưa gắn'}
                             </p>
                         </div>
                         <div>
                             <p className="text-sm font-bold text-slate-700 mb-2">
-                                Chon GV huong dan moi <span className="text-red-500">*</span>
+                                Chọn GV hướng dẫn mới <span className="text-red-500">*</span>
                             </p>
                             <Select
                                 showSearch
-                                placeholder="Nhap ten giang vien"
+                                placeholder="Nhập tên giảng viên"
                                 className="w-full"
                                 value={transferLecturerId}
                                 onChange={setTransferLecturerId}
@@ -422,7 +431,7 @@ function ProjectOversightPage() {
             </Modal>
 
             <Modal
-                title={`Lich su thay doi: ${auditTopic?.code || ''}`}
+                title={`Lịch sử thay đổi: ${auditTopic?.code || ''}`}
                 open={isAuditModalOpen}
                 onCancel={() => setIsAuditModalOpen(false)}
                 footer={null}

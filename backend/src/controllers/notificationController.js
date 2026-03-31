@@ -1,4 +1,5 @@
-const prisma = require('../config/database');
+﻿const prisma = require('../config/database');
+const notificationTemplateService = require('../services/notificationTemplateService');
 
 const AUDIENCE = {
     ALL_USERS: 'ALL_USERS',
@@ -25,6 +26,90 @@ const deriveAudience = (roles) => {
     }
 
     return 'CUSTOM';
+};
+
+const getMyNotifications = async (req, res, next) => {
+    try {
+        const userId = req.user.id;
+        const { unreadOnly } = req.query;
+
+        const where = { userId };
+        if (unreadOnly === 'true') where.isRead = false;
+
+        const notifications = await prisma.notification.findMany({
+            where,
+            orderBy: { createdAt: 'desc' },
+            take: 100,
+        });
+
+        res.json({
+            success: true,
+            data: notifications,
+            unreadCount: notifications.filter((item) => !item.isRead).length,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+const markNotificationRead = async (req, res, next) => {
+    try {
+        const userId = req.user.id;
+        const id = parseInt(req.params.id, 10);
+
+        const existing = await prisma.notification.findUnique({ where: { id } });
+        if (!existing) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy thông báo.' });
+        }
+        if (existing.userId !== userId) {
+            return res.status(403).json({ success: false, message: 'Bạn không có quyền cập nhật thông báo này.' });
+        }
+
+        const updated = await prisma.notification.update({
+            where: { id },
+            data: { isRead: true },
+        });
+
+        res.json({ success: true, message: 'Đã đánh dấu đã đọc.', data: updated });
+    } catch (error) {
+        next(error);
+    }
+};
+
+const markAllNotificationsRead = async (req, res, next) => {
+    try {
+        const userId = req.user.id;
+
+        await prisma.notification.updateMany({
+            where: { userId, isRead: false },
+            data: { isRead: true },
+        });
+
+        res.json({ success: true, message: 'Đã đánh dấu tất cả thông báo là đã đọc.' });
+    } catch (error) {
+        next(error);
+    }
+};
+
+const deleteMyNotification = async (req, res, next) => {
+    try {
+        const userId = req.user.id;
+        const id = parseInt(req.params.id, 10);
+
+        const existing = await prisma.notification.findUnique({ where: { id } });
+        if (!existing) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy thông báo.' });
+        }
+        if (existing.userId !== userId) {
+            return res.status(403).json({ success: false, message: 'Bạn không có quyền xóa thông báo này.' });
+        }
+
+        await prisma.notification.delete({ where: { id } });
+
+        res.json({ success: true, message: 'Đã xóa thông báo.' });
+    } catch (error) {
+        next(error);
+    }
 };
 
 const getNotificationHistory = async (req, res, next) => {
@@ -110,7 +195,8 @@ const sendBroadcastNotification = async (req, res, next) => {
         if (!Object.values(AUDIENCE).includes(audience)) {
             return res.status(400).json({
                 success: false,
-                message: 'Audience không hợp lệ.',
+                message: 'Thiếu thông tin bắt buộc: title, content, audience.',
+                detail: 'Audience không hợp lệ.',
             });
         }
 
@@ -183,7 +269,47 @@ const sendBroadcastNotification = async (req, res, next) => {
     }
 };
 
+const getNotificationTemplates = async (_req, res, next) => {
+    try {
+        const templates = notificationTemplateService.listTemplates();
+        return res.json({
+            success: true,
+            data: templates,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+const updateNotificationTemplate = async (req, res, next) => {
+    try {
+        const templateKey = req.params.key;
+        const updated = notificationTemplateService.updateTemplate(templateKey, req.body);
+
+        if (!updated) {
+            return res.status(404).json({
+                success: false,
+                message: 'Không tìm thấy template thông báo.',
+            });
+        }
+
+        return res.json({
+            success: true,
+            message: 'Đã cập nhật template thông báo.',
+            data: updated,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
+    getMyNotifications,
+    markNotificationRead,
+    markAllNotificationsRead,
+    deleteMyNotification,
     getNotificationHistory,
     sendBroadcastNotification,
+    getNotificationTemplates,
+    updateNotificationTemplate,
 };

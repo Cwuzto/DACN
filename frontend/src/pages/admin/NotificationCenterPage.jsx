@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import {
     Tabs,
     Table,
@@ -19,32 +19,20 @@ import dayjs from 'dayjs';
 import notificationService from '../../services/notificationService';
 import councilService from '../../services/councilService';
 
-const templateSeed = [
-    {
-        id: 'tpl1',
-        name: 'Nhac nho nop bao cao giua ky',
-        title: '[Quan trong] Nhac nho nop bao cao giua ky',
-        content: 'Han cuoi nop bao cao giua ky la {DEADLINE}. Vui long nop dung han qua he thong.',
-        autoTrigger: '7_DAYS_BEFORE_MIDTERM',
-    },
-    {
-        id: 'tpl2',
-        name: 'Thong bao ket qua duyet de tai',
-        title: 'Ket qua duyet de tai do an',
-        content: 'De tai {TOPIC_NAME} cua ban da duoc {STATUS}.',
-        autoTrigger: 'ON_TOPIC_APPROVED',
-    },
-];
-
 function NotificationCenterPage() {
     const [history, setHistory] = useState([]);
-    const [templates] = useState(templateSeed);
+    const [templates, setTemplates] = useState([]);
     const [councils, setCouncils] = useState([]);
     const [loadingHistory, setLoadingHistory] = useState(true);
+    const [loadingTemplates, setLoadingTemplates] = useState(true);
     const [sending, setSending] = useState(false);
+    const [savingTemplate, setSavingTemplate] = useState(false);
     const [isSendModalOpen, setIsSendModalOpen] = useState(false);
+    const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+    const [editingTemplate, setEditingTemplate] = useState(null);
     const [activeTab, setActiveTab] = useState('history');
     const [form] = Form.useForm();
+    const [templateForm] = Form.useForm();
 
     const fetchHistory = async () => {
         setLoadingHistory(true);
@@ -55,6 +43,18 @@ function NotificationCenterPage() {
             message.error(error?.message || 'Khong the tai lich su thong bao');
         } finally {
             setLoadingHistory(false);
+        }
+    };
+
+    const fetchTemplates = async () => {
+        setLoadingTemplates(true);
+        try {
+            const response = await notificationService.getTemplates();
+            if (response.success) setTemplates(response.data || []);
+        } catch (error) {
+            message.error(error?.message || 'Khong the tai template thong bao');
+        } finally {
+            setLoadingTemplates(false);
         }
     };
 
@@ -69,6 +69,7 @@ function NotificationCenterPage() {
 
     useEffect(() => {
         fetchHistory();
+        fetchTemplates();
         fetchCouncils();
     }, []);
 
@@ -98,6 +99,37 @@ function NotificationCenterPage() {
             message.error(error?.message || 'Khong the gui thong bao');
         } finally {
             setSending(false);
+        }
+    };
+
+    const handleEditTemplate = (template) => {
+        setEditingTemplate(template);
+        templateForm.setFieldsValue({
+            name: template.name,
+            title: template.title,
+            content: template.content,
+            autoTrigger: template.autoTrigger,
+            isActive: !!template.isActive,
+        });
+        setIsTemplateModalOpen(true);
+    };
+
+    const handleSaveTemplate = async () => {
+        if (!editingTemplate) return;
+        try {
+            const values = await templateForm.validateFields();
+            setSavingTemplate(true);
+            const response = await notificationService.updateTemplate(editingTemplate.key, values);
+            if (response.success) {
+                message.success('Da cap nhat template');
+                setIsTemplateModalOpen(false);
+                setEditingTemplate(null);
+                fetchTemplates();
+            }
+        } catch (error) {
+            message.error(error?.message || 'Khong the cap nhat template');
+        } finally {
+            setSavingTemplate(false);
         }
     };
 
@@ -164,16 +196,15 @@ function NotificationCenterPage() {
                     <h2 className="text-2xl font-black text-slate-900">Quan ly Thong bao</h2>
                     <p className="text-sm text-slate-500 mt-1">Dieu phoi luong thong tin va gui canh bao den nguoi dung he thong.</p>
                 </div>
-                <button
+                <Button
+                    type="primary"
                     onClick={() => {
                         setIsSendModalOpen(true);
                         form.resetFields();
                     }}
-                    className="inline-flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-lg font-bold text-sm hover:bg-primary-800 transition-colors"
                 >
-                    <span className="material-symbols-outlined text-[18px]">send</span>
-                    Soan Thong bao Moi
-                </button>
+                    Soan thong bao moi
+                </Button>
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border border-slate-200">
@@ -204,21 +235,33 @@ function NotificationCenterPage() {
                             key: 'templates',
                             label: <span><FormOutlined /> Cau hinh Template</span>,
                             children: (
-                                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    {templates.map((template) => (
-                                        <div key={template.id} className="border border-slate-200 p-5 rounded-xl hover:shadow-md transition bg-slate-50">
-                                            <div className="flex justify-between items-start mb-3">
-                                                <h3 className="font-bold text-slate-900">{template.name}</h3>
-                                                <Button type="text" icon={<EditOutlined style={{ color: '#1890ff' }} />} />
-                                            </div>
-                                            <Tag color="cyan" className="mb-3">{template.autoTrigger}</Tag>
-                                            <div className="bg-white p-3 rounded border text-sm text-slate-600 whitespace-pre-wrap">
-                                                <span className="font-bold block mb-1">Tieu de: {template.title}</span>
-                                                <hr className="my-2" />
-                                                {template.content}
-                                            </div>
+                                <div className="mt-4 border border-slate-200 rounded-lg p-4">
+                                    {loadingTemplates ? (
+                                        <div className="p-8 text-center"><Spin /></div>
+                                    ) : (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            {templates.map((template) => (
+                                                <div key={template.key} className="border border-slate-200 p-5 rounded-xl hover:shadow-md transition bg-slate-50">
+                                                    <div className="flex justify-between items-start mb-3 gap-2">
+                                                        <div>
+                                                            <h3 className="font-bold text-slate-900">{template.name}</h3>
+                                                            <code className="text-[11px] text-slate-500">{template.key}</code>
+                                                        </div>
+                                                        <Button type="text" icon={<EditOutlined style={{ color: '#1890ff' }} />} onClick={() => handleEditTemplate(template)} />
+                                                    </div>
+                                                    <div className="mb-3 flex items-center gap-2">
+                                                        <Tag color="cyan">{template.autoTrigger}</Tag>
+                                                        <Tag color={template.isActive ? 'green' : 'default'}>{template.isActive ? 'Active' : 'Inactive'}</Tag>
+                                                    </div>
+                                                    <div className="bg-white p-3 rounded border text-sm text-slate-600 whitespace-pre-wrap">
+                                                        <span className="font-bold block mb-1">Tieu de: {template.title}</span>
+                                                        <hr className="my-2" />
+                                                        {template.content}
+                                                    </div>
+                                                </div>
+                                            ))}
                                         </div>
-                                    ))}
+                                    )}
                                 </div>
                             ),
                         },
@@ -227,11 +270,11 @@ function NotificationCenterPage() {
             </div>
 
             <Modal
-                title="Gui Thong bao Moi"
+                title="Gui thong bao moi"
                 open={isSendModalOpen}
                 onCancel={() => setIsSendModalOpen(false)}
                 onOk={handleSendNotification}
-                okText="Gui Thong bao"
+                okText="Gui thong bao"
                 cancelText="Huy"
                 width={700}
                 confirmLoading={sending}
@@ -273,19 +316,50 @@ function NotificationCenterPage() {
                     <Form.Item
                         name="title"
                         label="Tieu de"
-                        rules={[{ required: true, message: 'Nhap tieu de thong bao' }]}
+                        rules={[{ required: true, message: 'Vui long nhap tieu de thong bao' }]}
                     >
                         <Input placeholder="Vi du: Lich bao tri he thong" />
                     </Form.Item>
                     <Form.Item
                         name="content"
                         label="Noi dung thong bao"
-                        rules={[{ required: true, message: 'Nhap noi dung thong bao' }]}
+                        rules={[{ required: true, message: 'Vui long nhap noi dung thong bao' }]}
                     >
                         <Input.TextArea rows={6} placeholder="Nhap noi dung muon gui den nguoi dung..." />
                     </Form.Item>
                     <Form.Item name="isEmail" valuePropName="checked" className="mb-0">
                         <Checkbox>Dong thoi gui Email thong bao (du kien, backend chua xu ly email)</Checkbox>
+                    </Form.Item>
+                </Form>
+            </Modal>
+
+            <Modal
+                title="Cap nhat template thong bao"
+                open={isTemplateModalOpen}
+                onCancel={() => {
+                    setIsTemplateModalOpen(false);
+                    setEditingTemplate(null);
+                }}
+                onOk={handleSaveTemplate}
+                okText="Luu"
+                cancelText="Huy"
+                confirmLoading={savingTemplate}
+            >
+                <Form form={templateForm} layout="vertical" className="mt-4">
+                    <Form.Item name="name" label="Ten template" rules={[{ required: true, message: 'Nhap ten template' }]}>
+                        <Input />
+                    </Form.Item>
+                    <Form.Item name="title" label="Tieu de" rules={[{ required: true, message: 'Nhap tieu de' }]}>
+                        <Input />
+                    </Form.Item>
+                    <Form.Item name="content" label="Noi dung" rules={[{ required: true, message: 'Nhap noi dung' }]}>
+                        <Input.TextArea rows={4} />
+                    </Form.Item>
+                    <Form.Item name="autoTrigger" label="Auto trigger" rules={[{ required: true, message: 'Nhap auto trigger' }]}>
+                        <Input />
+                    </Form.Item>
+                    <Form.Item name="isActive" valuePropName="checked" className="mb-0">
+                        <Checkbox>Template dang hoat dong</Checkbox>
                     </Form.Item>
                 </Form>
             </Modal>

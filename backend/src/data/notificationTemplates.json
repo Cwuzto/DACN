@@ -1,0 +1,18 @@
+[
+  {
+    "key": "MIDTERM_REMINDER",
+    "name": "Nhac nho nop bao cao giua ky",
+    "title": "[Quan trong] Nhac nho nop bao cao giua ky",
+    "content": "Han cuoi nop bao cao giua ky la {DEADLINE}. Vui long nop dung han qua he thong.",
+    "autoTrigger": "7_DAYS_BEFORE_MIDTERM",
+    "isActive": true
+  },
+  {
+    "key": "TOPIC_APPROVAL_RESULT",
+    "name": "Thong bao ket qua duyet de tai",
+    "title": "Ket qua duyet de tai",
+    "content": "De tai {TOPIC_NAME} cua ban da duoc {STATUS}.",
+    "autoTrigger": "ON_TOPIC_APPROVED",
+    "isActive": true
+  }
+]

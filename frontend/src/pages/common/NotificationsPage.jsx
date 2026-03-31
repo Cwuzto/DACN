@@ -1,73 +1,107 @@
-import { useState } from 'react';
-import { Card, Typography, Flex, Button, Badge, Empty, Tabs, Space, Avatar } from 'antd';
+import { useEffect, useMemo, useState } from 'react';
+import { Avatar, Badge, Button, Card, Empty, Flex, Space, Tabs, Typography, message } from 'antd';
 import {
-    BellOutlined, CheckOutlined, DeleteOutlined, SettingOutlined,
-    InfoCircleOutlined, WarningOutlined, FileTextOutlined, TeamOutlined,
+    BellOutlined,
+    CheckOutlined,
+    DeleteOutlined,
+    FileTextOutlined,
+    InfoCircleOutlined,
+    SettingOutlined,
+    TeamOutlined,
+    WarningOutlined,
 } from '@ant-design/icons';
+import dayjs from 'dayjs';
+
+import notificationService from '../../services/notificationService';
 
 const { Title, Text } = Typography;
 
-const initialNotifications = [
-    {
-        key: '1', type: 'submission', read: false, time: '5 phút trước',
-        title: 'Nhóm 04 đã nộp báo cáo tiến độ Tuần 5',
-        desc: 'Trần Minh Hiếu đã nộp file "BaoCao_Tuan5.pdf" (2.4 MB)',
-        icon: <FileTextOutlined style={{ color: '#1677FF' }} />,
-    },
-    {
-        key: '2', type: 'approval', read: false, time: '2 giờ trước',
-        title: 'Yêu cầu duyệt đề tài mới',
-        desc: 'Nhóm 08 đăng ký đề tài "Xây dựng hệ thống quản lý thư viện số dựa trên AI"',
-        icon: <InfoCircleOutlined style={{ color: '#722ed1' }} />,
-    },
-    {
-        key: '3', type: 'deadline', read: false, time: '5 giờ trước',
-        title: 'Nhắc nhở: Hạn nộp báo cáo tiến độ',
-        desc: 'Hạn cuối nộp báo cáo tiến độ Tuần 5 là 23:59 hôm nay.',
-        icon: <WarningOutlined style={{ color: '#fa8c16' }} />,
-    },
-    {
-        key: '4', type: 'council', read: true, time: 'Hôm qua',
-        title: 'Lịch họp hội đồng bảo vệ',
-        desc: 'Bạn được phân công vào Hội đồng K17-CNTT-Đ1. Ngày bảo vệ: 15/06/2024.',
-        icon: <TeamOutlined style={{ color: '#13C2C2' }} />,
-    },
-    {
-        key: '5', type: 'system', read: true, time: '2 ngày trước',
-        title: 'Cập nhật hệ thống',
-        desc: 'Hệ thống đã được cập nhật phiên bản mới với các cải tiến về hiệu suất.',
-        icon: <SettingOutlined style={{ color: '#8c8c8c' }} />,
-    },
-];
+const typeIconMap = {
+    SYSTEM: <SettingOutlined style={{ color: '#8c8c8c' }} />,
+    APPROVAL: <InfoCircleOutlined style={{ color: '#722ed1' }} />,
+    TASK_REMINDER: <WarningOutlined style={{ color: '#fa8c16' }} />,
+    REGISTRATION: <TeamOutlined style={{ color: '#13C2C2' }} />,
+    SUBMISSION: <FileTextOutlined style={{ color: '#1677FF' }} />,
+    DEFENSE: <FileTextOutlined style={{ color: '#1677FF' }} />,
+};
 
 function NotificationsPage() {
-    const [notifications, setNotifications] = useState(initialNotifications);
+    const [notifications, setNotifications] = useState([]);
     const [activeTab, setActiveTab] = useState('all');
+    const [loading, setLoading] = useState(true);
 
-    const unreadCount = notifications.filter(n => !n.read).length;
-
-    const markAsRead = (key) => {
-        setNotifications(prev => prev.map(n => n.key === key ? { ...n, read: true } : n));
+    const fetchNotifications = async () => {
+        try {
+            setLoading(true);
+            const response = await notificationService.getMyNotifications();
+            if (response.success) setNotifications(response.data || []);
+        } catch (error) {
+            message.error(error?.message || 'Không thể tải thông báo');
+        } finally {
+            setLoading(false);
+        }
     };
 
-    const markAllRead = () => {
-        setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    useEffect(() => {
+        fetchNotifications();
+    }, []);
+
+    const unreadCount = useMemo(
+        () => notifications.filter((notification) => !notification.isRead).length,
+        [notifications]
+    );
+
+    const markAsRead = async (id) => {
+        const target = notifications.find((item) => item.id === id);
+        if (!target || target.isRead) return;
+        try {
+            await notificationService.markRead(id);
+            setNotifications((prev) =>
+                prev.map((item) => (item.id === id ? { ...item, isRead: true } : item))
+            );
+        } catch (error) {
+            message.error(error?.message || 'Không thể đánh dấu đã đọc');
+        }
     };
 
-    const deleteNotif = (key) => {
-        setNotifications(prev => prev.filter(n => n.key !== key));
+    const markAllRead = async () => {
+        try {
+            await notificationService.markAllRead();
+            setNotifications((prev) => prev.map((item) => ({ ...item, isRead: true })));
+            message.success('Đã đánh dấu tất cả thông báo là đã đọc');
+        } catch (error) {
+            message.error(error?.message || 'Không thể đánh dấu tất cả đã đọc');
+        }
     };
 
-    const filteredNotifs = activeTab === 'all'
-        ? notifications
-        : activeTab === 'unread'
-            ? notifications.filter(n => !n.read)
-            : notifications.filter(n => n.read);
+    const deleteNotification = async (id) => {
+        try {
+            await notificationService.deleteNotification(id);
+            setNotifications((prev) => prev.filter((item) => item.id !== id));
+        } catch (error) {
+            message.error(error?.message || 'Không thể xóa thông báo');
+        }
+    };
+
+    const filteredNotifications = useMemo(() => {
+        if (activeTab === 'unread') return notifications.filter((item) => !item.isRead);
+        if (activeTab === 'read') return notifications.filter((item) => item.isRead);
+        return notifications;
+    }, [activeTab, notifications]);
 
     const tabItems = [
-        { key: 'all', label: <Badge count={notifications.length} size="small" offset={[10, 0]}>Tất cả</Badge> },
-        { key: 'unread', label: <Badge count={unreadCount} size="small" offset={[10, 0]}>Chưa đọc</Badge> },
-        { key: 'read', label: 'Đã đọc' },
+        {
+            key: 'all',
+            label: <Badge count={notifications.length} size="small" offset={[10, 0]}>ất cả</Badge>,
+        },
+        {
+            key: 'unread',
+            label: <Badge count={unreadCount} size="small" offset={[10, 0]}>Chưa đọc</Badge>,
+        },
+        {
+            key: 'read',
+            label: 'Đã đọc',
+        },
     ];
 
     return (
@@ -81,7 +115,9 @@ function NotificationsPage() {
                     <Text type="secondary">{unreadCount} thông báo chưa đọc</Text>
                 </div>
                 <Space>
-                    <Button icon={<CheckOutlined />} onClick={markAllRead}>Đánh dấu tất cả đã đọc</Button>
+                    <Button icon={<CheckOutlined />} onClick={markAllRead}>
+                        Đánh dấu tất cả đã đọc
+                    </Button>
                 </Space>
             </Flex>
 
@@ -95,48 +131,60 @@ function NotificationsPage() {
                 />
 
                 <div style={{ padding: '8px 0' }}>
-                    {filteredNotifs.length === 0 ? (
+                    {!loading && filteredNotifications.length === 0 ? (
                         <Empty description="Không có thông báo" style={{ padding: '40px 0' }} />
                     ) : (
-                        filteredNotifs.map((notif) => (
+                        filteredNotifications.map((notification) => (
                             <div
-                                key={notif.key}
+                                key={notification.id}
                                 style={{
                                     padding: '16px 24px',
                                     borderBottom: '1px solid #f0f0f0',
-                                    background: notif.read ? 'transparent' : '#f0f5ff',
+                                    background: notification.isRead ? 'transparent' : '#f0f5ff',
                                     cursor: 'pointer',
                                     transition: 'background 0.2s',
                                 }}
-                                onClick={() => markAsRead(notif.key)}
+                                onClick={() => markAsRead(notification.id)}
                             >
                                 <Flex gap={16} align="flex-start">
                                     <Avatar
                                         size={40}
-                                        icon={notif.icon}
+                                        icon={typeIconMap[notification.type] || <InfoCircleOutlined />}
                                         style={{
-                                            background: notif.read ? '#f5f5f5' : '#e6f4ff',
+                                            background: notification.isRead ? '#f5f5f5' : '#e6f4ff',
                                             flexShrink: 0,
                                         }}
                                     />
                                     <div style={{ flex: 1 }}>
                                         <Flex justify="space-between" align="flex-start">
-                                            <Text strong={!notif.read} style={{ fontSize: 14 }}>{notif.title}</Text>
+                                            <Text strong={!notification.isRead} style={{ fontSize: 14 }}>
+                                                {notification.title}
+                                            </Text>
                                             <Flex gap={8} align="center">
-                                                <Text type="secondary" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{notif.time}</Text>
+                                                <Text type="secondary" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
+                                                    {dayjs(notification.createdAt).format('HH:mm DD/MM/YYYY')}
+                                                </Text>
                                                 <Button
                                                     type="text"
                                                     size="small"
                                                     danger
                                                     icon={<DeleteOutlined />}
-                                                    onClick={(e) => { e.stopPropagation(); deleteNotif(notif.key); }}
+                                                    onClick={(event) => {
+                                                        event.stopPropagation();
+                                                        deleteNotification(notification.id);
+                                                    }}
                                                 />
                                             </Flex>
                                         </Flex>
-                                        <Text type="secondary" style={{ fontSize: 13 }}>{notif.desc}</Text>
-                                        {!notif.read && (
+                                        <Text type="secondary" style={{ fontSize: 13 }}>
+                                            {notification.content}
+                                        </Text>
+                                        {!notification.isRead && (
                                             <div style={{ marginTop: 4 }}>
-                                                <Badge status="processing" text={<Text type="secondary" style={{ fontSize: 11 }}>Mới</Text>} />
+                                                <Badge
+                                                    status="processing"
+                                                    text={<Text type="secondary" style={{ fontSize: 11 }}>Moi</Text>}
+                                                />
                                             </div>
                                         )}
                                     </div>
@@ -151,3 +199,5 @@ function NotificationsPage() {
 }
 
 export default NotificationsPage;
+
+

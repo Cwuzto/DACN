@@ -38,6 +38,7 @@ model Semester {
   endDate              DateTime       @map("end_date")
   registrationDeadline DateTime?      @map("registration_deadline")
   defenseDate          DateTime?      @map("defense_date")
+  registrationOpen     Boolean        @default(true) @map("registration_open")
   status               SemesterStatus @default(UPCOMING)
   createdAt            DateTime       @default(now()) @map("created_at")
   updatedAt            DateTime       @updatedAt @map("updated_at")

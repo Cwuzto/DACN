@@ -10,7 +10,7 @@ export const semesterService = {
         try {
             return await api.get('/semesters');
         } catch (error) {
-            throw wrapServiceError(error, 'Da xay ra loi khi tai danh sach hoc ky');
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi tải danh sách học kỳ');
         }
     },
 
@@ -18,7 +18,7 @@ export const semesterService = {
         try {
             return await api.get(`/semesters/${id}`);
         } catch (error) {
-            throw wrapServiceError(error, 'Da xay ra loi khi tai chi tiet hoc ky');
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi tải chi tiết học kỳ');
         }
     },
 
@@ -26,7 +26,7 @@ export const semesterService = {
         try {
             return await api.post('/semesters', data);
         } catch (error) {
-            throw wrapServiceError(error, 'Da xay ra loi khi tao hoc ky');
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi tạo học kỳ');
         }
     },
 
@@ -34,7 +34,15 @@ export const semesterService = {
         try {
             return await api.put(`/semesters/${id}`, data);
         } catch (error) {
-            throw wrapServiceError(error, 'Da xay ra loi khi cap nhat hoc ky');
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi cập nhật học kỳ');
+        }
+    },
+
+    toggleRegistration: async (id, registrationOpen) => {
+        try {
+            return await api.patch(`/semesters/${id}/registration-toggle`, { registrationOpen });
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi cập nhật trạng thái đăng ký');
         }
     },
 
@@ -42,7 +50,7 @@ export const semesterService = {
         try {
             return await api.delete(`/semesters/${id}`);
         } catch (error) {
-            throw wrapServiceError(error, 'Da xay ra loi khi xoa hoc ky');
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi xóa học kỳ');
         }
     },
 };

@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+﻿import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from './pages/auth/LoginPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 
@@ -7,6 +7,9 @@ import AdminLayout from './components/layout/AdminLayout';
 import LecturerLayout from './components/layout/LecturerLayout';
 import StudentLayout from './components/layout/StudentLayout';
 import ProtectedRoute from './components/common/ProtectedRoute';
+import PublicOnlyRoute from './components/common/PublicOnlyRoute';
+import RoleDashboardRedirect from './components/common/RoleDashboardRedirect';
+import RouteFallbackHandler from './components/common/RouteFallbackHandler';
 
 // Admin Pages
 import DashboardPage from './pages/admin/DashboardPage';
@@ -36,63 +39,60 @@ import NotificationsPage from './pages/common/NotificationsPage';
 import ProfilePage from './pages/common/ProfilePage';
 
 function App() {
-  return (
-    <BrowserRouter>
-      <Routes>
-        {/* Trang Login & Auth */}
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+    return (
+        <BrowserRouter>
+            <Routes>
+                <Route element={<PublicOnlyRoute />}>
+                    <Route path="/login" element={<LoginPage />} />
+                    <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                </Route>
 
-        {/* ===== Admin Routes ===== */}
-        <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
-          <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={<Navigate to="dashboard" replace />} />
-            <Route path="dashboard" element={<DashboardPage />} />
-            <Route path="users" element={<UserManagementPage />} />
-            <Route path="project-periods" element={<ProjectPeriodPage />} />
-            <Route path="topics" element={<AdminTopicManagementPage />} />
-            <Route path="oversight" element={<ProjectOversightPage />} />
-            <Route path="grading" element={<GradingDefensePage />} />
-            <Route path="councils" element={<CouncilAssignmentPage />} />
-            <Route path="notifications" element={<NotificationCenterPage />} />
-            <Route path="profile" element={<ProfilePage />} />
-          </Route>
-        </Route>
+                <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
+                    <Route path="/admin" element={<AdminLayout />}>
+                        <Route index element={<Navigate to="dashboard" replace />} />
+                        <Route path="dashboard" element={<DashboardPage />} />
+                        <Route path="users" element={<UserManagementPage />} />
+                        <Route path="project-periods" element={<ProjectPeriodPage />} />
+                        <Route path="topics" element={<AdminTopicManagementPage />} />
+                        <Route path="oversight" element={<ProjectOversightPage />} />
+                        <Route path="grading" element={<GradingDefensePage />} />
+                        <Route path="councils" element={<CouncilAssignmentPage />} />
+                        <Route path="notifications" element={<NotificationCenterPage />} />
+                        <Route path="profile" element={<ProfilePage />} />
+                    </Route>
+                </Route>
 
-        {/* ===== Lecturer Routes ===== */}
-        <Route element={<ProtectedRoute allowedRoles={['LECTURER']} />}>
-          <Route path="/lecturer" element={<LecturerLayout />}>
-            <Route index element={<Navigate to="dashboard" replace />} />
-            <Route path="dashboard" element={<LecturerDashboardPage />} />
-            <Route path="topics" element={<LecturerTopicManagementPage />} />
-            <Route path="approvals" element={<TopicApprovalPage />} />
-            <Route path="progress" element={<ProgressTrackingPage />} />
-            <Route path="grading" element={<GradingPage />} />
-            <Route path="notifications" element={<NotificationsPage />} />
-            <Route path="profile" element={<ProfilePage />} />
-          </Route>
-        </Route>
+                <Route element={<ProtectedRoute allowedRoles={['LECTURER']} />}>
+                    <Route path="/lecturer" element={<LecturerLayout />}>
+                        <Route index element={<Navigate to="dashboard" replace />} />
+                        <Route path="dashboard" element={<LecturerDashboardPage />} />
+                        <Route path="topics" element={<LecturerTopicManagementPage />} />
+                        <Route path="approvals" element={<TopicApprovalPage />} />
+                        <Route path="progress" element={<ProgressTrackingPage />} />
+                        <Route path="grading" element={<GradingPage />} />
+                        <Route path="notifications" element={<NotificationsPage />} />
+                        <Route path="profile" element={<ProfilePage />} />
+                    </Route>
+                </Route>
 
-        {/* ===== Student Routes ===== */}
-        <Route element={<ProtectedRoute allowedRoles={['STUDENT']} />}>
-          <Route path="/student" element={<StudentLayout />}>
-            <Route index element={<Navigate to="dashboard" replace />} />
-            <Route path="dashboard" element={<StudentDashboardPage />} />
-            <Route path="topics" element={<TopicListPage />} />
-            <Route path="submissions" element={<SubmissionPage />} />
-            <Route path="grades" element={<GradeViewPage />} />
-            <Route path="notifications" element={<NotificationsPage />} />
-            <Route path="profile" element={<ProfilePage />} />
-          </Route>
-        </Route>
+                <Route element={<ProtectedRoute allowedRoles={['STUDENT']} />}>
+                    <Route path="/student" element={<StudentLayout />}>
+                        <Route index element={<Navigate to="dashboard" replace />} />
+                        <Route path="dashboard" element={<StudentDashboardPage />} />
+                        <Route path="topics" element={<TopicListPage />} />
+                        <Route path="submissions" element={<SubmissionPage />} />
+                        <Route path="grades" element={<GradeViewPage />} />
+                        <Route path="notifications" element={<NotificationsPage />} />
+                        <Route path="profile" element={<ProfilePage />} />
+                    </Route>
+                </Route>
 
-        {/* Redirect mặc định dùng ProtectedRoute không role để tự động đưa về đúng Dashboard */}
-        <Route path="/dashboard" element={<ProtectedRoute />} />
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
-    </BrowserRouter>
-  );
+                <Route path="/dashboard" element={<RoleDashboardRedirect />} />
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="*" element={<RouteFallbackHandler />} />
+            </Routes>
+        </BrowserRouter>
+    );
 }
 
 export default App;
