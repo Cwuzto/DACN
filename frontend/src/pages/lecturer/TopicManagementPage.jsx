@@ -7,6 +7,7 @@ import {
     PlusOutlined, SearchOutlined, EyeOutlined, EditOutlined, DeleteOutlined, SendOutlined,
 } from '@ant-design/icons';
 import { topicService } from '../../services/topicService';
+import { semesterService } from '../../services/semesterService';
 import useAuthStore from '../../stores/authStore';
 
 const { Title, Text } = Typography;
@@ -23,6 +24,7 @@ function TopicManagementPage() {
     const user = useAuthStore((s) => s.user);
     const [topics, setTopics] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [semesterOptions, setSemesterOptions] = useState([]);
     const [searchText, setSearchText] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
     const [formModalOpen, setFormModalOpen] = useState(false);
@@ -47,13 +49,31 @@ function TopicManagementPage() {
 
     useEffect(() => { fetchTopics(); }, [fetchTopics]);
 
+    useEffect(() => {
+        const fetchSemesters = async () => {
+            try {
+                const res = await semesterService.getAll();
+                if (!res.success) return;
+                const options = (res.data || []).map((semester) => ({
+                    value: semester.id,
+                    label: semester.name,
+                }));
+                setSemesterOptions(options);
+            } catch {
+                message.error('Không thể tải danh sách học kỳ.');
+            }
+        };
+
+        fetchSemesters();
+    }, []);
+
     const openFormModal = (topic = null) => {
         setEditingTopic(topic);
         if (topic) {
             form.setFieldsValue({ title: topic.title, description: topic.description, maxStudents: topic.maxStudents, semesterId: topic.semesterId });
         } else {
             form.resetFields();
-            form.setFieldsValue({ maxStudents: 1, semesterId: 1 });
+            form.setFieldsValue({ maxStudents: 1, semesterId: semesterOptions[0]?.value });
         }
         setFormModalOpen(true);
     };
@@ -253,7 +273,7 @@ function TopicManagementPage() {
                     </Form.Item>
                     <Flex gap={16}>
                         <Form.Item name="semesterId" label="Đợt đồ án" style={{ flex: 1 }} rules={[{ required: true }]}>
-                            <Select placeholder="Chọn đợt" options={[{ value: 1, label: 'Đồ án CN - HK1 2026-2027' }]} />
+                            <Select placeholder="Chọn đợt" options={semesterOptions} />
                         </Form.Item>
                         <Form.Item name="maxStudents" label="Số sinh viên tối đa" style={{ flex: 1 }}>
                             <Select options={[{ value: 1, label: '1 sinh viên' }, { value: 2, label: '2 sinh viên' }, { value: 3, label: '3 sinh viên' }]} />

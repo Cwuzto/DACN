@@ -92,7 +92,7 @@ function NotificationsPage() {
     const tabItems = [
         {
             key: 'all',
-            label: <Badge count={notifications.length} size="small" offset={[10, 0]}>ất cả</Badge>,
+            label: <Badge count={notifications.length} size="small" offset={[10, 0]}>Tất cả</Badge>,
         },
         {
             key: 'unread',

@@ -1,4 +1,5 @@
 const prisma = require('../config/database');
+const REGISTRATION_TOGGLE_WARNING_WINDOW_DAYS = 14;
 
 const calculateStatus = (semester) => {
     const now = new Date();
@@ -19,6 +20,30 @@ const calculateStatus = (semester) => {
 
     if (now >= end) return 'COMPLETED';
     return 'UPCOMING';
+};
+
+const getToggleWindowWarning = (semester) => {
+    if (!semester?.startDate || !semester?.registrationDeadline) {
+        return 'Hoc ky chua du moc thoi gian de doi chieu cua so canh bao, he thong van cho phep override.';
+    }
+
+    const now = Date.now();
+    const startTime = new Date(semester.startDate).getTime();
+    const deadlineTime = new Date(semester.registrationDeadline).getTime();
+
+    if (Number.isNaN(startTime) || Number.isNaN(deadlineTime)) {
+        return 'Khong the xac dinh cua so canh bao do du lieu ngay khong hop le, he thong van cho phep override.';
+    }
+
+    const offsetMs = REGISTRATION_TOGGLE_WARNING_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+    const windowStart = startTime - offsetMs;
+    const windowEnd = deadlineTime + offsetMs;
+
+    if (now < windowStart || now > windowEnd) {
+        return 'Dang thay doi toggle dang ky ngoai cua so goi y (startDate - 14 ngay den registrationDeadline + 14 ngay).';
+    }
+
+    return null;
 };
 
 const getAllSemesters = async (_req, res, next) => {
@@ -76,6 +101,7 @@ const createSemester = async (req, res, next) => {
             startDate,
             endDate,
             registrationDeadline,
+            midtermReportDate,
             defenseDate,
             registrationOpen,
         } = req.body;
@@ -100,6 +126,7 @@ const createSemester = async (req, res, next) => {
                 startDate: new Date(startDate),
                 endDate: new Date(endDate),
                 registrationDeadline: new Date(registrationDeadline),
+                midtermReportDate: midtermReportDate ? new Date(midtermReportDate) : null,
                 defenseDate: defenseDate ? new Date(defenseDate) : null,
                 registrationOpen:
                     typeof registrationOpen === 'boolean' ? registrationOpen : true,
@@ -132,6 +159,7 @@ const updateSemester = async (req, res, next) => {
             startDate,
             endDate,
             registrationDeadline,
+            midtermReportDate,
             defenseDate,
             registrationOpen,
         } = req.body;
@@ -152,6 +180,10 @@ const updateSemester = async (req, res, next) => {
         const nextRegistrationDeadline = registrationDeadline
             ? new Date(registrationDeadline)
             : semester.registrationDeadline;
+        const nextMidtermReportDate =
+            midtermReportDate !== undefined
+                ? (midtermReportDate ? new Date(midtermReportDate) : null)
+                : semester.midtermReportDate;
         const nextDefenseDate =
             defenseDate !== undefined ? (defenseDate ? new Date(defenseDate) : null) : semester.defenseDate;
 
@@ -169,6 +201,7 @@ const updateSemester = async (req, res, next) => {
                 startDate: nextStartDate,
                 endDate: nextEndDate,
                 registrationDeadline: nextRegistrationDeadline,
+                midtermReportDate: nextMidtermReportDate,
                 defenseDate: nextDefenseDate,
                 registrationOpen:
                     typeof registrationOpen === 'boolean'
@@ -215,6 +248,8 @@ const toggleSemesterRegistration = async (req, res, next) => {
             });
         }
 
+        const warning = getToggleWindowWarning(semester);
+
         const updated = await prisma.semester.update({
             where: { id: semesterId },
             data: { registrationOpen },
@@ -225,6 +260,7 @@ const toggleSemesterRegistration = async (req, res, next) => {
             message: registrationOpen
                 ? 'Đã mở đăng ký đề tài cho học kỳ.'
                 : 'Đã đóng đăng ký đề tài cho học kỳ.',
+            warning,
             data: {
                 ...updated,
                 status: calculateStatus(updated),

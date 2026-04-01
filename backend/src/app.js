@@ -51,10 +51,12 @@ app.use(errorHandler);
 // ============================
 // KHỞI ĐỘNG SERVER
 // ============================
-app.listen(PORT, () => {
-    console.log(`\n🚀 Server is running on http://localhost:${PORT}`);
-    console.log(`📋 API Health: http://localhost:${PORT}/api/health`);
-    console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}\n`);
-});
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`\n🚀 Server is running on http://localhost:${PORT}`);
+        console.log(`📋 API Health: http://localhost:${PORT}/api/health`);
+        console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}\n`);
+    });
+}
 
 module.exports = app;

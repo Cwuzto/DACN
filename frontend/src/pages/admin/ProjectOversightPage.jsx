@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
     Button,
     Dropdown,
@@ -343,7 +343,7 @@ function ProjectOversightPage() {
         <div className="py-2">
             <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
                 <div>
-                    <h2 className="text-2xl font-black text-slate-900">Giám sát & Can thiệp</h2>
+                    <h2 className="text-2xl font-black text-slate-900">Giám sát</h2>
                     <p className="text-sm text-slate-500 mt-1">
                         Theo dõi toàn bộ đề tài và xử lý nhanh các trường hợp cần can thiệp.
                     </p>

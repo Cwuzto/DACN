@@ -13,6 +13,7 @@ function LecturerDashboardPage() {
     const [stats, setStats] = useState({
         activeTopics: 0,
         studentGroups: 0,
+        completedRegistrations: 0,
         pendingFeedback: 0
     });
     const [recentSubmissions, setRecentSubmissions] = useState([]);
@@ -46,10 +47,22 @@ function LecturerDashboardPage() {
         );
     }
 
+    const completionPercent = stats.studentGroups > 0
+        ? Math.round((stats.completedRegistrations / stats.studentGroups) * 100)
+        : 0;
+
+    const feedbackHandledPercent = stats.studentGroups > 0
+        ? Math.max(0, Math.min(100, Math.round(((stats.studentGroups - stats.pendingFeedback) / stats.studentGroups) * 100)))
+        : 0;
+
+    const upcomingDeadlinePercent = stats.studentGroups > 0
+        ? Math.max(0, Math.min(100, Math.round((timelineEvents.length / stats.studentGroups) * 100)))
+        : 0;
+
     const statCards = [
         { label: 'Đang hướng dẫn', value: stats.activeTopics, icon: 'group', bgColor: 'bg-blue-50', iconColor: 'text-blue-600' },
         { label: 'Sinh viên đang hướng dẫn', value: stats.studentGroups, icon: 'person_add', bgColor: 'bg-green-50', iconColor: 'text-green-600', valueColor: 'text-green-600' },
-        { label: 'Đồ án hoàn thành', value: 0, icon: 'verified', bgColor: 'bg-purple-50', iconColor: 'text-purple-600' },
+        { label: 'Đồ án hoàn thành', value: stats.completedRegistrations, icon: 'verified', bgColor: 'bg-purple-50', iconColor: 'text-purple-600' },
         { label: 'Phản hồi chờ xử lý', value: stats.pendingFeedback, icon: 'chat_bubble', bgColor: 'bg-orange-50', iconColor: 'text-orange-600', valueColor: 'text-orange-600' },
     ];
 
@@ -70,7 +83,7 @@ function LecturerDashboardPage() {
                         <span>Tạo đồ án mới</span>
                     </button>
                     <button
-                        onClick={() => navigate('/lecturer/grading')}
+                        onClick={() => navigate('/lecturer/approvals')}
                         className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white rounded-lg text-sm font-bold shadow-sm hover:bg-slate-50 transition-all relative"
                     >
                         <span>Phê duyệt đăng ký</span>
@@ -106,7 +119,7 @@ function LecturerDashboardPage() {
                 <div className="lg:col-span-7 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                     <div className="p-6 border-b border-slate-100 flex items-center justify-between">
                         <h3 className="font-bold text-slate-900">Bài nộp cần phản hồi gần đây</h3>
-                        <button className="text-primary text-xs font-bold hover:underline" onClick={() => navigate('/lecturer/grading')}>
+                        <button className="text-primary text-xs font-bold hover:underline" onClick={() => navigate('/lecturer/progress')}>
                             Xem tất cả
                         </button>
                     </div>
@@ -158,7 +171,10 @@ function LecturerDashboardPage() {
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4 text-right">
-                                                    <button className="p-1 hover:bg-slate-100 rounded transition-colors">
+                                                    <button
+                                                        className="p-1 hover:bg-slate-100 rounded transition-colors"
+                                                        onClick={() => navigate('/lecturer/progress')}
+                                                    >
                                                         <span className="material-symbols-outlined text-[18px] text-slate-400">edit</span>
                                                     </button>
                                                 </td>
@@ -215,29 +231,29 @@ function LecturerDashboardPage() {
                         <div className="space-y-4">
                             <div>
                                 <div className="flex justify-between text-xs mb-1.5">
-                                    <span className="text-slate-500 font-medium">Tỷ lệ hoàn thành</span>
-                                    <span className="text-primary font-bold">75%</span>
+                                    <span className="text-slate-500 font-medium">Tỷ lệ hoàn thành đồ án</span>
+                                    <span className="text-primary font-bold">{completionPercent}%</span>
                                 </div>
                                 <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                                    <div className="bg-primary h-full rounded-full" style={{ width: '75%' }}></div>
+                                    <div className="bg-primary h-full rounded-full" style={{ width: `${completionPercent}%` }}></div>
                                 </div>
                             </div>
                             <div>
                                 <div className="flex justify-between text-xs mb-1.5">
-                                    <span className="text-slate-500 font-medium">Tiến độ Giai đoạn 1</span>
-                                    <span className="text-green-600 font-bold">90%</span>
+                                    <span className="text-slate-500 font-medium">Tỷ lệ đã phản hồi bài nộp</span>
+                                    <span className="text-green-600 font-bold">{feedbackHandledPercent}%</span>
                                 </div>
                                 <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                                    <div className="bg-green-500 h-full rounded-full" style={{ width: '90%' }}></div>
+                                    <div className="bg-green-500 h-full rounded-full" style={{ width: `${feedbackHandledPercent}%` }}></div>
                                 </div>
                             </div>
                             <div>
                                 <div className="flex justify-between text-xs mb-1.5">
-                                    <span className="text-slate-500 font-medium">Mức độ hài lòng SV</span>
-                                    <span className="text-purple-600 font-bold">4.8/5</span>
+                                    <span className="text-slate-500 font-medium">Mức độ deadline sắp tới</span>
+                                    <span className="text-purple-600 font-bold">{upcomingDeadlinePercent}%</span>
                                 </div>
                                 <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                                    <div className="bg-purple-500 h-full rounded-full" style={{ width: '96%' }}></div>
+                                    <div className="bg-purple-500 h-full rounded-full" style={{ width: `${upcomingDeadlinePercent}%` }}></div>
                                 </div>
                             </div>
                         </div>

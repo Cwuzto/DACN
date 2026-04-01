@@ -1,75 +1,53 @@
-# TOMORROW_PLAN.md
+﻿# TOMORROW_PLAN.md
 
 ## Mục tiêu buổi tiếp theo
 
-Dọn encoding tiếng Việt dứt điểm (dedicated session), sau đó kết nối Switch đăng ký với backend.
+Xác nhận bộ dữ liệu thật mới hoạt động ổn định trên các màn trọng tâm và khóa chất lượng trước khi mở batch mới.
 
 ---
 
-## Thứ tự nên làm
+## Kế hoạch thực thi
 
-### Batch 1 — Encoding Cleanup (30 phút)
+### Batch 1 - UAT nhanh theo role (ưu tiên cao)
 
-1. Sửa 8 chuỗi mất dấu trong `notificationService.js`.
-2. Sửa 2 chuỗi mất dấu trong `registrationService.js`.
-3. Sửa 1 chuỗi mất dấu trong `topicService.js`.
-4. Sửa 1 chuỗi mất dấu trong `notificationController.js`.
-5. Sửa 2 chuỗi mất dấu + 1 typo trong `ProjectPeriodPage.jsx`.
-6. Chạy `node scripts/regression-check.js` và `node scripts/check-utf8.js`.
+1. Admin:
+   - `ProjectOversightPage`
+   - `GradingDefensePage`
+2. Student:
+   - `TopicListPage`
 
-### Batch 2 — Switch "Cho phép đăng ký" (1-2 giờ)
+Tiêu chí pass:
 
-1. Quyết định: thêm field `registrationOpen` vào `Semester` hay tạo bảng `SystemConfig`.
-2. Tạo migration Prisma.
-3. Thêm API endpoint `PATCH /api/semesters/settings/registration-toggle`.
-4. Kết nối Switch UI trong `ProjectPeriodPage` với API.
-5. Test toggle persist qua page refresh.
+- Dữ liệu hiển thị logic theo học kỳ active.
+- Trạng thái đăng ký/chấm điểm phản ánh đúng dữ liệu backend.
+- Text tiếng Việt hiển thị đúng UTF-8 có dấu.
 
-### Batch 3 — UX Improvements (tùy thời gian)
+### Batch 2 - Test mở rộng (ưu tiên cao)
 
-1. `ProjectPeriodPage`: thêm field chọn status khi tạo/edit semester.
-2. `ProjectOversightPage`: thêm dropdown filter theo semester.
-3. Chạy regression gate.
+1. Bổ sung/hoàn thiện integration test cho:
+   - `GET /api/topics/mentors`
 
-### Batch 4 — Cập nhật tài liệu
+### Batch 3 - Ổn định chất lượng hiển thị (ưu tiên trung bình)
 
-1. Cập nhật `PROJECT_STATE.md`, `NEXT_STEPS.md`.
-2. Bổ sung hướng dẫn `.env` và deploy vào `README.md`.
+1. Rà soát thêm các trang admin về tiếng Việt/UTF-8 để phát hiện sớm mojibake.
 
 ---
 
-## Điểm vào nhanh nhất
+## Gate trước khi chốt
 
-- `frontend/src/services/notificationService.js` (encoding fix)
-- `frontend/src/pages/admin/ProjectPeriodPage.jsx` (switch + encoding)
-- `backend/src/controllers/notificationController.js` (encoding fix)
-- `scripts/regression-check.js` (verify)
-
----
-
-## Ghi nhớ quan trọng
-
-- Encoding cleanup phải là batch riêng, không trộn với feature.
-- Chỉnh backend contract trước, sau đó mới polish UI.
-- Không quay lại `group/groupMember/evaluation` architecture.
-- Chạy regression gate trước khi kết thúc batch.
+```bash
+node scripts/check-utf8.js
+node scripts/regression-check.js
+```
 
 ---
 
-## Progress note 2026-04-01
+## Ghi nhớ
 
-- Batch 1 (encoding) da xong va regression pass.
-- Batch 3 da lam truoc 2 muc nho:
-  - them status field cho ProjectPeriod form
-  - them semester filter cho ProjectOversight
-- Batch tiep theo con lai: switch registration toggle can quyet dinh mo hinh du lieu truoc khi code.
-
----
-
-## Hotfix note 2026-04-01
-
-- Da gap loi runtime toggle: `Unknown argument registrationOpen`.
-- Da khac phuc bang:
-  - `npx prisma generate`
-  - `npx prisma migrate deploy`
-- Batch tiep theo van giu uu tien: test + release checklist cho Prisma changes.
+- Sau thay đổi Prisma schema: migrate -> generate -> restart backend.
+- Không quay lại kiến trúc `group/groupMember/evaluation`.
+- Cập nhật lại 4 file trạng thái sau khi UAT xong:
+  - `PROJECT_STATE.md`
+  - `NEXT_STEPS.md`
+  - `DECISIONS.md`
+  - `TOMORROW_PLAN.md`

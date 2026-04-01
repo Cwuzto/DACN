@@ -36,6 +36,32 @@ const statusConfig = {
     DEFENSE: { label: 'Bảo vệ', color: 'purple', tw: 'bg-purple-100 text-purple-700' },
     COMPLETED: { label: 'Hoàn thành', color: 'default', tw: 'bg-slate-100 text-slate-600' },
 };
+const REGISTRATION_TOGGLE_WARNING_WINDOW_DAYS = 14;
+
+const getToggleWindowWarning = (period) => {
+    const startDate = period?.rawData?.startDate;
+    const registrationDeadline = period?.rawData?.registrationDeadline;
+
+    if (!startDate || !registrationDeadline) {
+        return 'Hoc ky chua du moc thoi gian de doi chieu cua so khuyen nghi, he thong van cho phep thay doi.';
+    }
+
+    const start = dayjs(startDate);
+    const deadline = dayjs(registrationDeadline);
+    if (!start.isValid() || !deadline.isValid()) {
+        return 'Du lieu ngay khong hop le, he thong van cho phep thay doi trang thai dang ky.';
+    }
+
+    const now = dayjs();
+    const windowStart = start.subtract(REGISTRATION_TOGGLE_WARNING_WINDOW_DAYS, 'day');
+    const windowEnd = deadline.add(REGISTRATION_TOGGLE_WARNING_WINDOW_DAYS, 'day');
+
+    if (now.isBefore(windowStart) || now.isAfter(windowEnd)) {
+        return `Ban dang thay doi ngoai cua so khuyen nghi (${windowStart.format('DD/MM/YYYY')} - ${windowEnd.format('DD/MM/YYYY')}).`;
+    }
+
+    return null;
+};
 
 function PeriodTimeline({ milestones, status }) {
     let currentStep = -1;
@@ -266,6 +292,11 @@ function ProjectPeriodPage() {
             return;
         }
 
+        const localWarning = getToggleWindowWarning(selectedPeriod);
+        if (localWarning) {
+            message.warning(localWarning, 4);
+        }
+
         try {
             setUpdatingToggle(true);
             const response = await semesterService.toggleRegistration(selectedPeriod.id, checked);
@@ -280,6 +311,9 @@ function ProjectPeriodPage() {
                             : period
                     )
                 );
+                if (response.warning) {
+                    message.warning(response.warning, 4);
+                }
             }
         } catch (error) {
             message.error(error?.message || 'Không thể cập nhật trạng thái đăng ký.');

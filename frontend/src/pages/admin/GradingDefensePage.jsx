@@ -52,7 +52,7 @@ function GradingDefensePage() {
             const response = await evaluationService.getGradingStudents();
             if (response.success) setRegistrations(response.data || []);
         } catch (error) {
-            message.error(error?.message || 'Khong the tai danh sach cham diem');
+            message.error(error?.message || 'Không thể tải danh sách chấm điểm');
         } finally {
             setLoading(false);
         }
@@ -78,14 +78,14 @@ function GradingDefensePage() {
             const response = await uploadService.uploadFile(file, 'scoresheets');
             if (response.success) {
                 setUploadedScoresheetUrl(response.data.url);
-                message.success('Da tai len bang diem');
+                message.success('Đã tải lên bảng điểm');
                 onSuccess('ok');
                 return;
             }
             onError(new Error(response.message || 'Upload failed'));
         } catch (error) {
             onError(error);
-            message.error(error?.message || 'Khong the tai len bang diem');
+            message.error(error?.message || 'Không thể tải lên bảng điểm');
         } finally {
             setUploading(false);
         }
@@ -105,12 +105,12 @@ function GradingDefensePage() {
             });
 
             if (response.success) {
-                message.success('Da cap nhat diem bao ve thanh cong');
+                message.success('Đã cập nhật điểm bảo vệ thành công');
                 setIsEditModalOpen(false);
                 fetchGradingStudents();
             }
         } catch (error) {
-            message.error(error?.message || 'Khong the cap nhat diem');
+            message.error(error?.message || 'Không thể cập nhật điểm');
         } finally {
             setSubmitting(false);
         }
@@ -120,10 +120,10 @@ function GradingDefensePage() {
         () =>
             registrations.map((item) => ({
                 id: item.id,
-                student: item.student?.fullName || 'Sinh vien',
+                student: item.student?.fullName || 'Sinh viên',
                 code: item.student?.code || '',
                 topic: item.topic?.title || '',
-                council: item.council?.name || 'Chua phan hoi dong',
+                council: item.council?.name || 'Chưa phân hội đồng',
                 finalScore: item.finalScore,
                 gradingStatus: item.gradingStatus,
                 defenseResult: item.defenseResult,
@@ -143,7 +143,7 @@ function GradingDefensePage() {
     }, [searchText, tableData]);
 
     const handleExportExcel = () => {
-        const headers = ['Sinh vien', 'Ma so', 'De tai', 'Hoi dong', 'Trang thai cham', 'Diem tong ket'];
+        const headers = ['Sinh viên', 'Mã số', 'Đề tài', 'Hội đồng', 'Trạng thái chấm', 'Điểm tổng kết'];
         const rows = filteredData.map((item) => [
             item.student,
             item.code,
@@ -163,13 +163,13 @@ function GradingDefensePage() {
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
-        message.success('Da xuat file Excel (CSV UTF-8)');
+        message.success('Đã xuất file Excel (CSV UTF-8)');
     };
 
     const handleExportPdf = () => {
         const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=1200,height=800');
         if (!printWindow) {
-            message.error('Khong mo duoc cua so in PDF');
+            message.error('Không mở được cửa sổ in PDF');
             return;
         }
 
@@ -191,7 +191,7 @@ function GradingDefensePage() {
         printWindow.document.write(`
             <html>
                 <head>
-                    <title>Bang diem bao ve</title>
+                    <title>Bảng điểm bảo vệ</title>
                     <style>
                         body { font-family: Arial, sans-serif; padding: 24px; }
                         h1 { margin: 0 0 8px; font-size: 20px; }
@@ -202,17 +202,17 @@ function GradingDefensePage() {
                     </style>
                 </head>
                 <body>
-                    <h1>Bang diem bao ve</h1>
-                    <p>Ngay xuat: ${new Date().toLocaleString()}</p>
+                    <h1>Bảng điểm bảo vệ</h1>
+                    <p>Ngày xuất: ${new Date().toLocaleString()}</p>
                     <table>
                         <thead>
                             <tr>
-                                <th>Sinh vien</th>
-                                <th>Ma so</th>
-                                <th>De tai</th>
-                                <th>Hoi dong</th>
-                                <th>Trang thai cham</th>
-                                <th>Diem tong ket</th>
+                                <th>Sinh viên</th>
+                                <th>Mã số</th>
+                                <th>Đề tài</th>
+                                <th>Hội đồng</th>
+                                <th>Trạng thái chấm</th>
+                                <th>Điểm tổng kết</th>
                             </tr>
                         </thead>
                         <tbody>${rowsHtml}</tbody>
@@ -223,12 +223,12 @@ function GradingDefensePage() {
         printWindow.document.close();
         printWindow.focus();
         printWindow.print();
-        message.success('Da mo che do in, chon Save as PDF de luu');
+        message.success('Đã mở chế độ in, chọn Save as PDF để lưu');
     };
 
     const columns = [
         {
-            title: 'Sinh vien',
+            title: 'Sinh viên',
             dataIndex: 'student',
             key: 'student',
             render: (text, record) => (
@@ -239,36 +239,36 @@ function GradingDefensePage() {
             ),
         },
         {
-            title: 'De tai',
+            title: 'Đề tài',
             dataIndex: 'topic',
             key: 'topic',
             width: 340,
             render: (text) => <span className="text-sm text-slate-600 line-clamp-2">{text}</span>,
         },
         {
-            title: 'Hoi dong',
+            title: 'Hội đồng',
             dataIndex: 'council',
             key: 'council',
             width: 180,
         },
         {
-            title: 'Trang thai cham',
+            title: 'Trạng thái chấm',
             dataIndex: 'gradingStatus',
             key: 'gradingStatus',
             width: 140,
             render: (value) =>
                 normalizeText(value).includes('da cham') ? (
                     <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-700">
-                        Da cham
+                        Đã chấm
                     </span>
                 ) : (
                     <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-orange-100 text-orange-700">
-                        Chua cham
+                        Chưa chấm
                     </span>
                 ),
         },
         {
-            title: 'Diem tong ket',
+            title: 'Điểm tổng kết',
             dataIndex: 'finalScore',
             key: 'finalScore',
             align: 'center',
@@ -281,12 +281,12 @@ function GradingDefensePage() {
                 ),
         },
         {
-            title: 'Hanh dong',
+            title: 'Hành động',
             key: 'actions',
             align: 'right',
             width: 120,
             render: (_, record) => (
-                <Tooltip title="Cap nhat diem / bien ban">
+                <Tooltip title="Cập nhật điểm / biên bản">
                     <Button
                         type="text"
                         icon={<EditOutlined />}
@@ -301,12 +301,12 @@ function GradingDefensePage() {
     const tabItems = [
         {
             key: 'grades',
-            label: 'Bang diem toan vien',
+            label: 'Bảng điểm toàn viện',
             children: (
                 <div className="pt-4">
                     <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
                         <Input
-                            placeholder="Tim sinh vien, ma so, de tai..."
+                            placeholder="Tìm sinh viên, mã số, đề tài..."
                             prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
                             style={{ maxWidth: 320 }}
                             value={searchText}
@@ -314,10 +314,10 @@ function GradingDefensePage() {
                         />
                         <Space>
                             <Button icon={<FileExcelOutlined style={{ color: 'green' }} />} onClick={handleExportExcel}>
-                                Xuat Excel
+                                Xuất Excel
                             </Button>
                             <Button icon={<FilePdfOutlined style={{ color: 'red' }} />} onClick={handleExportPdf}>
-                                Xuat PDF
+                                Xuất PDF
                             </Button>
                         </Space>
                     </div>
@@ -337,7 +337,7 @@ function GradingDefensePage() {
         },
         {
             key: 'councils',
-            label: 'Quan ly hoi dong',
+            label: 'Quản lý hội đồng',
             children: (
                 <div className="pt-4 border-t border-slate-100 mt-2">
                     <CouncilAssignmentPage />
@@ -349,9 +349,9 @@ function GradingDefensePage() {
     return (
         <div className="py-2">
             <div className="mb-6">
-                <h2 className="text-2xl font-black text-slate-900">Quan ly diem va bao ve</h2>
+                <h2 className="text-2xl font-black text-slate-900">Quản lý điểm và bảo vệ</h2>
                 <p className="text-sm text-slate-500 mt-1">
-                    Tong hop diem so, cap nhat ket qua bao ve va phan cong hoi dong.
+                    Tổng hợp điểm số, cập nhật kết quả bảo vệ và phân công hội đồng.
                 </p>
             </div>
 
@@ -360,12 +360,12 @@ function GradingDefensePage() {
             </div>
 
             <Modal
-                title="Cap nhat diem bao ve"
+                title="Cập nhật điểm bảo vệ"
                 open={isEditModalOpen}
                 onCancel={() => setIsEditModalOpen(false)}
                 onOk={handleSaveScore}
-                okText="Luu thay doi"
-                cancelText="Huy"
+                okText="Lưu thay đổi"
+                cancelText="Hủy"
                 confirmLoading={submitting}
             >
                 {editingRecord && (
@@ -375,15 +375,15 @@ function GradingDefensePage() {
                                 SV: {editingRecord.student} ({editingRecord.code})
                             </p>
                             <p className="text-sm text-orange-800 mt-1">
-                                Diem hien tai: <span className="font-bold">{editingRecord.finalScore ?? '-'}</span>
+                                Điểm hiện tại: <span className="font-bold">{editingRecord.finalScore ?? '-'}</span>
                             </p>
                         </div>
 
                         <Form.Item
                             name="finalScore"
-                            label="Diem moi"
+                            label="Điểm mới"
                             rules={[
-                                { required: true, message: 'Nhap diem moi' },
+                                { required: true, message: 'Nhập điểm mới' },
                                 {
                                     validator: (_, value) => {
                                         if (value === undefined || value === null || value === '') {
@@ -391,7 +391,7 @@ function GradingDefensePage() {
                                         }
                                         const n = Number(value);
                                         if (Number.isNaN(n) || n < 0 || n > 10) {
-                                            return Promise.reject(new Error('Diem phai trong khoang 0-10'));
+                                            return Promise.reject(new Error('Điểm phải trong khoảng 0-10'));
                                         }
                                         return Promise.resolve();
                                     },
@@ -401,11 +401,11 @@ function GradingDefensePage() {
                             <Input type="number" step="0.1" max="10" min="0" />
                         </Form.Item>
 
-                        <Form.Item name="comments" label="Nhan xet">
-                            <Input.TextArea rows={3} placeholder="Nhap nhan xet cua hoi dong..." />
+                        <Form.Item name="comments" label="Nhận xét">
+                            <Input.TextArea rows={3} placeholder="Nhập nhận xét của hội đồng..." />
                         </Form.Item>
 
-                        <Form.Item label="Bang diem/Minh chung">
+                        <Form.Item label="Bảng điểm/Minh chứng">
                             <Upload
                                 customRequest={handleUploadScoresheet}
                                 maxCount={1}
@@ -413,7 +413,7 @@ function GradingDefensePage() {
                                 accept="image/*,.pdf"
                             >
                                 <Button icon={<UploadOutlined />} loading={uploading}>
-                                    Tai len bang diem
+                                    Tải lên bảng điểm
                                 </Button>
                             </Upload>
                             {uploadedScoresheetUrl && (
@@ -423,7 +423,7 @@ function GradingDefensePage() {
                                     target="_blank"
                                     rel="noreferrer"
                                 >
-                                    Xem file da tai len
+                                    Xem file đã tải lên
                                 </a>
                             )}
                         </Form.Item>

@@ -3,6 +3,15 @@ const { getMentorMaxSlots } = require('../constants/mentorCapacity');
 
 // Giới hạn SV theo học vị
 
+const getActiveSemester = async () => prisma.semester.findFirst({
+    where: {
+        startDate: { lte: new Date() },
+        endDate: { gte: new Date() },
+    },
+    orderBy: { startDate: 'desc' },
+    select: { id: true },
+});
+
 /**
  * POST /api/registrations
  * Sinh viên đăng ký 1 đề tài (cá nhân, không nhóm)
@@ -12,14 +21,55 @@ const registerTopic = async (req, res, next) => {
     try {
         const studentId = req.user.id;
         const { topicId, semesterId } = req.body;
+        const semesterIdInt = parseInt(semesterId, 10);
 
         if (!topicId || !semesterId) {
             return res.status(400).json({ success: false, message: 'Vui lòng chọn đề tài và đợt đồ án.' });
         }
+        if (!Number.isInteger(semesterIdInt)) {
+            return res.status(400).json({ success: false, message: 'Đợt đồ án không hợp lệ.' });
+        }
+
+        // 0. Kiểm tra đợt đồ án có mở đăng ký và còn trong thời hạn không
+        const semester = await prisma.semester.findUnique({
+            where: { id: semesterIdInt },
+            select: {
+                id: true,
+                startDate: true,
+                registrationDeadline: true,
+                registrationOpen: true,
+            },
+        });
+
+        if (!semester) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy đợt đồ án.' });
+        }
+
+        if (!semester.registrationOpen) {
+            return res.status(400).json({
+                success: false,
+                message: 'Đợt đồ án hiện đang đóng đăng ký. Vui lòng liên hệ quản trị viên.',
+            });
+        }
+
+        const now = new Date();
+        if (semester.startDate && now < new Date(semester.startDate)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Đợt đồ án chưa đến thời gian mở đăng ký.',
+            });
+        }
+
+        if (semester.registrationDeadline && now > new Date(semester.registrationDeadline)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Đợt đồ án đã quá hạn đăng ký.',
+            });
+        }
 
         // 1. Kiểm tra SV đã đăng ký trong kỳ này chưa
         const existingReg = await prisma.topicRegistration.findUnique({
-            where: { studentId_semesterId: { studentId, semesterId: parseInt(semesterId) } },
+            where: { studentId_semesterId: { studentId, semesterId: semesterIdInt } },
         });
 
         if (existingReg) {
@@ -47,7 +97,7 @@ const registerTopic = async (req, res, next) => {
             return res.status(400).json({ success: false, message: 'Đề tài không tồn tại hoặc chưa được duyệt.' });
         }
 
-        if (topic.semesterId !== parseInt(semesterId)) {
+        if (topic.semesterId !== semesterIdInt) {
             return res.status(400).json({ success: false, message: 'Đề tài không thuộc đợt đăng ký hiện tại.' });
         }
 
@@ -60,7 +110,7 @@ const registerTopic = async (req, res, next) => {
         const maxSlots = getMentorMaxSlots(topic.mentor?.academicTitle);
         const mentorStudentCount = await prisma.topicRegistration.count({
             where: {
-                topic: { mentorId: topic.mentorId, semesterId: parseInt(semesterId) },
+                topic: { mentorId: topic.mentorId, semesterId: semesterIdInt },
                 status: { in: ['PENDING', 'APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'DEFENDED', 'COMPLETED'] },
             },
         });
@@ -74,7 +124,7 @@ const registerTopic = async (req, res, next) => {
             data: {
                 topicId: parseInt(topicId),
                 studentId,
-                semesterId: parseInt(semesterId),
+                semesterId: semesterIdInt,
                 status: 'PENDING',
             },
             include: {
@@ -109,9 +159,21 @@ const registerTopic = async (req, res, next) => {
 const getMyRegistration = async (req, res, next) => {
     try {
         const studentId = req.user.id;
+        const activeSemester = await getActiveSemester();
+
+        if (!activeSemester) {
+            return res.json({
+                success: true,
+                data: null,
+                message: 'Hiện chưa có đợt đồ án đang hoạt động.',
+            });
+        }
 
         const registration = await prisma.topicRegistration.findFirst({
-            where: { studentId },
+            where: {
+                studentId,
+                semesterId: activeSemester.id,
+            },
             include: {
                 topic: {
                     include: {
@@ -153,7 +215,15 @@ const getAllRegistrations = async (req, res, next) => {
             where.topic = { mentorId: userId };
         }
 
-        if (semesterId) where.semesterId = parseInt(semesterId);
+        if (semesterId) {
+            where.semesterId = parseInt(semesterId);
+        } else if (role === 'LECTURER') {
+            const activeSemester = await getActiveSemester();
+            if (!activeSemester) {
+                return res.json({ success: true, data: [] });
+            }
+            where.semesterId = activeSemester.id;
+        }
         if (status) where.status = status;
 
         if (unassignedCouncilOnly === 'true') {

@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect, useMemo } from 'react';
 import {
     Card, Typography, Flex, Button, Input, Avatar, Row, Col, Divider,
-    Upload, Tag, Space, message
+    Upload, Tag, Space, message,
 } from 'antd';
 import {
     UserOutlined, MailOutlined, PhoneOutlined, IdcardOutlined,
     EditOutlined, SaveOutlined, CameraOutlined, BankOutlined,
-    LockOutlined, KeyOutlined, LoadingOutlined
+    LockOutlined, KeyOutlined, LoadingOutlined,
 } from '@ant-design/icons';
 import useAuthStore from '../../stores/authStore';
 import { authService } from '../../services/authService';
@@ -18,17 +18,15 @@ function ProfilePage() {
     const { user, updateUser } = useAuthStore();
 
     const [editing, setEditing] = useState(false);
-    const [loading, setLoading] = useState(false);
+    const [savingProfile, setSavingProfile] = useState(false);
     const [uploading, setUploading] = useState(false);
+    const [changingPassword, setChangingPassword] = useState(false);
 
-    // Form state for profile
     const [tempProfile, setTempProfile] = useState({});
-
-    // Form state for password
     const [passwords, setPasswords] = useState({
         currentPassword: '',
         newPassword: '',
-        confirmPassword: ''
+        confirmPassword: '',
     });
 
     useEffect(() => {
@@ -40,17 +38,29 @@ function ProfilePage() {
                 employeeId: user.code || '',
                 department: user.department || '',
                 role: user.role || '',
-                avatarUrl: user.avatarUrl || ''
+                avatarUrl: user.avatarUrl || '',
             });
         }
     }, [user]);
 
+    const isProfileBusy = savingProfile || uploading;
+    const isPasswordBusy = changingPassword;
+
+    const hasProfileChanges = useMemo(() => {
+        if (!user) return false;
+        return (
+            (tempProfile.avatarUrl || '') !== (user.avatarUrl || '') ||
+            (tempProfile.phone || '') !== (user.phone || '') ||
+            (tempProfile.department || '') !== (user.department || '')
+        );
+    }, [tempProfile, user]);
+
     const handleChange = (field, value) => {
-        setTempProfile(prev => ({ ...prev, [field]: value }));
+        setTempProfile((prev) => ({ ...prev, [field]: value }));
     };
 
     const handlePasswordChange = (field, value) => {
-        setPasswords(prev => ({ ...prev, [field]: value }));
+        setPasswords((prev) => ({ ...prev, [field]: value }));
     };
 
     const handleUploadAvatar = async (options) => {
@@ -60,11 +70,10 @@ function ProfilePage() {
             const data = await uploadService.uploadFile(file, 'avatars');
             handleChange('avatarUrl', data.data.url);
             onSuccess(data);
-            message.success('Tải ảnh lên thành công. Vui lòng bấm "Lưu thay đổi" để cập nhật!');
+            message.success('Tai anh len thanh cong. Bam Luu thay doi de cap nhat.');
         } catch (error) {
-            console.error(error);
             onError(error);
-            message.error(error?.message || 'Tải ảnh lên thất bại!');
+            message.error(error?.message || 'Tai anh len that bai.');
         } finally {
             setUploading(false);
         }
@@ -72,19 +81,19 @@ function ProfilePage() {
 
     const handleSave = async () => {
         try {
-            setLoading(true);
+            setSavingProfile(true);
             const res = await authService.updateProfile({
                 avatarUrl: tempProfile.avatarUrl,
                 phone: tempProfile.phone,
-                department: tempProfile.department // Chỉ cho user cập nhật các trường được phép
+                department: tempProfile.department,
             });
-            updateUser({ ...user, ...res.data.data }); // update global store
+            updateUser({ ...user, ...res.data.data });
             setEditing(false);
-            message.success('Cập nhật thông tin thành công!');
+            message.success('Cap nhat thong tin thanh cong.');
         } catch (error) {
-            message.error(error?.message || 'Cập nhật thất bại.');
+            message.error(error?.message || 'Cap nhat that bai.');
         } finally {
-            setLoading(false);
+            setSavingProfile(false);
         }
     };
 
@@ -96,7 +105,7 @@ function ProfilePage() {
             employeeId: user.code || '',
             department: user.department || '',
             role: user.role || '',
-            avatarUrl: user.avatarUrl || ''
+            avatarUrl: user.avatarUrl || '',
         });
         setEditing(false);
     };
@@ -104,43 +113,52 @@ function ProfilePage() {
     const handleUpdatePassword = async () => {
         try {
             if (!passwords.currentPassword || !passwords.newPassword || !passwords.confirmPassword) {
-                return message.warning('Vui lòng nhập đủ các trường mật khẩu!');
+                message.warning('Vui long nhap du cac truong mat khau.');
+                return;
             }
             if (passwords.newPassword !== passwords.confirmPassword) {
-                return message.error('Mật khẩu xác nhận không khớp!');
+                message.error('Mat khau xac nhan khong khop.');
+                return;
             }
-            setLoading(true);
+            setChangingPassword(true);
             await authService.changePassword(passwords.currentPassword, passwords.newPassword);
-            message.success('Đổi mật khẩu thành công!');
+            message.success('Doi mat khau thanh cong.');
             setPasswords({ currentPassword: '', newPassword: '', confirmPassword: '' });
         } catch (error) {
-            message.error(error?.message || 'Đổi mật khẩu thất bại.');
+            message.error(error?.message || 'Doi mat khau that bai.');
         } finally {
-            setLoading(false);
+            setChangingPassword(false);
         }
     };
 
-    if (!user) return <div style={{ padding: 24 }}>Đang tải thông tin...</div>;
+    if (!user) return <div style={{ padding: 24 }}>Dang tai thong tin...</div>;
 
-    const roleName = user.role === 'ADMIN' ? 'Quản trị viên' : user.role === 'LECTURER' ? 'Giảng viên' : 'Sinh viên';
+    const roleName = user.role === 'ADMIN' ? 'Quan tri vien' : user.role === 'LECTURER' ? 'Giang vien' : 'Sinh vien';
     const roleColor = user.role === 'ADMIN' ? 'red' : user.role === 'LECTURER' ? 'blue' : 'green';
 
     return (
         <div>
             <Flex justify="space-between" align="center" style={{ marginBottom: 24 }}>
-                <Title level={3} style={{ margin: 0 }}>Hồ sơ Cá nhân</Title>
+                <Title level={3} style={{ margin: 0 }}>Ho so ca nhan</Title>
                 {!editing ? (
-                    <Button icon={<EditOutlined />} onClick={() => setEditing(true)}>Chỉnh sửa</Button>
+                    <Button icon={<EditOutlined />} onClick={() => setEditing(true)} disabled={isProfileBusy}>Chinh sua</Button>
                 ) : (
                     <Space>
-                        <Button onClick={handleCancel} disabled={loading}>Hủy</Button>
-                        <Button type="primary" icon={<SaveOutlined />} onClick={handleSave} loading={loading}>Lưu thay đổi</Button>
+                        <Button onClick={handleCancel} disabled={isProfileBusy}>Huy</Button>
+                        <Button
+                            type="primary"
+                            icon={<SaveOutlined />}
+                            onClick={handleSave}
+                            loading={savingProfile}
+                            disabled={!hasProfileChanges || isProfileBusy}
+                        >
+                            Luu thay doi
+                        </Button>
                     </Space>
                 )}
             </Flex>
 
             <Row gutter={[24, 24]}>
-                {/* Left: Avatar + Quick Info */}
                 <Col xs={24} md={8}>
                     <Card style={{ borderRadius: 10, textAlign: 'center' }}>
                         <div style={{ position: 'relative', display: 'inline-block', marginBottom: 16 }}>
@@ -151,21 +169,13 @@ function ProfilePage() {
                                 style={{ background: '#1677FF', border: '2px solid #fff', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}
                             />
                             {editing && (
-                                <Upload
-                                    customRequest={handleUploadAvatar}
-                                    showUploadList={false}
-                                    accept="image/*"
-                                >
+                                <Upload customRequest={handleUploadAvatar} showUploadList={false} accept="image/*">
                                     <Button
                                         type="primary"
                                         shape="circle"
                                         size="middle"
                                         icon={uploading ? <LoadingOutlined /> : <CameraOutlined />}
-                                        style={{
-                                            position: 'absolute',
-                                            bottom: 0,
-                                            right: 0,
-                                        }}
+                                        style={{ position: 'absolute', bottom: 0, right: 0 }}
                                         disabled={uploading}
                                     />
                                 </Upload>
@@ -175,99 +185,66 @@ function ProfilePage() {
                         <Tag color={roleColor}>{roleName}</Tag>
                         <Divider />
                         <Flex vertical gap={12} align="flex-start">
-                            <Flex gap={8} align="center">
-                                <MailOutlined style={{ color: '#8c8c8c' }} />
-                                <Text style={{ fontSize: 13 }}>{tempProfile.email}</Text>
-                            </Flex>
-                            <Flex gap={8} align="center">
-                                <PhoneOutlined style={{ color: '#8c8c8c' }} />
-                                <Text style={{ fontSize: 13 }}>{tempProfile.phone || 'Chưa cập nhật'}</Text>
-                            </Flex>
-                            <Flex gap={8} align="center">
-                                <IdcardOutlined style={{ color: '#8c8c8c' }} />
-                                <Text style={{ fontSize: 13 }}>{tempProfile.employeeId}</Text>
-                            </Flex>
+                            <Flex gap={8} align="center"><MailOutlined style={{ color: '#8c8c8c' }} /><Text style={{ fontSize: 13 }}>{tempProfile.email}</Text></Flex>
+                            <Flex gap={8} align="center"><PhoneOutlined style={{ color: '#8c8c8c' }} /><Text style={{ fontSize: 13 }}>{tempProfile.phone || 'Chua cap nhat'}</Text></Flex>
+                            <Flex gap={8} align="center"><IdcardOutlined style={{ color: '#8c8c8c' }} /><Text style={{ fontSize: 13 }}>{tempProfile.employeeId}</Text></Flex>
                         </Flex>
                     </Card>
                 </Col>
 
-                {/* Right: Detail Info */}
                 <Col xs={24} md={16}>
-                    <Card title="Thông tin chi tiết" style={{ borderRadius: 10, marginBottom: 16 }}>
+                    <Card title="Thong tin chi tiet" style={{ borderRadius: 10, marginBottom: 16 }}>
                         <Row gutter={[16, 16]}>
                             <Col xs={24} md={12}>
-                                <Text type="secondary" style={{ fontSize: 12 }}>Họ và tên <Text type="danger">*</Text></Text>
+                                <Text type="secondary" style={{ fontSize: 12 }}>Ho va ten <Text type="danger">*</Text></Text>
                                 <div><Text strong>{tempProfile.name}</Text></div>
-                                <Text type="secondary" style={{ fontSize: 11 }}>Chỉ Admin mới có thể sửa Tên.</Text>
+                                <Text type="secondary" style={{ fontSize: 11 }}>Chi Admin moi co the sua ten.</Text>
                             </Col>
                             <Col xs={24} md={12}>
                                 <Text type="secondary" style={{ fontSize: 12 }}>Email</Text>
                                 <div><Text strong>{tempProfile.email}</Text></div>
                             </Col>
                             <Col xs={24} md={12}>
-                                <Text type="secondary" style={{ fontSize: 12 }}>Số điện thoại</Text>
+                                <Text type="secondary" style={{ fontSize: 12 }}>So dien thoai</Text>
                                 {editing ? (
-                                    <Input value={tempProfile.phone} onChange={(e) => handleChange('phone', e.target.value)} placeholder="0901234567" />
+                                    <Input value={tempProfile.phone} onChange={(e) => handleChange('phone', e.target.value)} placeholder="0901234567" disabled={isProfileBusy} />
                                 ) : (
                                     <div><Text strong>{tempProfile.phone || '---'}</Text></div>
                                 )}
                             </Col>
                             <Col xs={24} md={12}>
-                                <Text type="secondary" style={{ fontSize: 12 }}>Mã nhân viên / MSSV</Text>
+                                <Text type="secondary" style={{ fontSize: 12 }}>Ma nhan vien / MSSV</Text>
                                 <div><Text strong>{tempProfile.employeeId}</Text></div>
                             </Col>
                             <Col xs={24} md={12}>
-                                <Text type="secondary" style={{ fontSize: 12 }}>Đơn vị / Khoa</Text>
+                                <Text type="secondary" style={{ fontSize: 12 }}>Don vi / Khoa</Text>
                                 {editing ? (
-                                    <Input value={tempProfile.department} onChange={(e) => handleChange('department', e.target.value)} placeholder="Khoa CNTT" />
+                                    <Input value={tempProfile.department} onChange={(e) => handleChange('department', e.target.value)} placeholder="Khoa CNTT" disabled={isProfileBusy} />
                                 ) : (
-                                    <div>
-                                        <Flex align="center" gap={6}>
-                                            <BankOutlined style={{ color: '#8c8c8c' }} />
-                                            <Text strong>{tempProfile.department || '---'}</Text>
-                                        </Flex>
-                                    </div>
+                                    <div><Flex align="center" gap={6}><BankOutlined style={{ color: '#8c8c8c' }} /><Text strong>{tempProfile.department || '---'}</Text></Flex></div>
                                 )}
                             </Col>
                         </Row>
                     </Card>
 
-                    {/* Password Change */}
-                    <Card title={<><LockOutlined /> Đổi mật khẩu</>} style={{ borderRadius: 10 }}>
+                    <Card title={<><LockOutlined /> Doi mat khau</>} style={{ borderRadius: 10 }}>
                         <Row gutter={[16, 16]}>
                             <Col xs={24} md={8}>
-                                <Text type="secondary" style={{ fontSize: 12 }}>Mật khẩu hiện tại</Text>
-                                <Input.Password
-                                    placeholder="Nhập mật khẩu cũ"
-                                    value={passwords.currentPassword}
-                                    onChange={(e) => handlePasswordChange('currentPassword', e.target.value)}
-                                />
+                                <Text type="secondary" style={{ fontSize: 12 }}>Mat khau hien tai</Text>
+                                <Input.Password placeholder="Nhap mat khau cu" value={passwords.currentPassword} onChange={(e) => handlePasswordChange('currentPassword', e.target.value)} disabled={isPasswordBusy} />
                             </Col>
                             <Col xs={24} md={8}>
-                                <Text type="secondary" style={{ fontSize: 12 }}>Mật khẩu mới</Text>
-                                <Input.Password
-                                    placeholder="Nhập mật khẩu mới"
-                                    value={passwords.newPassword}
-                                    onChange={(e) => handlePasswordChange('newPassword', e.target.value)}
-                                />
+                                <Text type="secondary" style={{ fontSize: 12 }}>Mat khau moi</Text>
+                                <Input.Password placeholder="Nhap mat khau moi" value={passwords.newPassword} onChange={(e) => handlePasswordChange('newPassword', e.target.value)} disabled={isPasswordBusy} />
                             </Col>
                             <Col xs={24} md={8}>
-                                <Text type="secondary" style={{ fontSize: 12 }}>Xác nhận mật khẩu</Text>
-                                <Input.Password
-                                    placeholder="Nhập lại mật khẩu mới"
-                                    value={passwords.confirmPassword}
-                                    onChange={(e) => handlePasswordChange('confirmPassword', e.target.value)}
-                                />
+                                <Text type="secondary" style={{ fontSize: 12 }}>Xac nhan mat khau</Text>
+                                <Input.Password placeholder="Nhap lai mat khau moi" value={passwords.confirmPassword} onChange={(e) => handlePasswordChange('confirmPassword', e.target.value)} disabled={isPasswordBusy} />
                             </Col>
                         </Row>
                         <Flex justify="flex-end" style={{ marginTop: 16 }}>
-                            <Button
-                                type="primary"
-                                icon={<KeyOutlined />}
-                                onClick={handleUpdatePassword}
-                                loading={loading && passwords.currentPassword}
-                            >
-                                Cập nhật mật khẩu
+                            <Button type="primary" icon={<KeyOutlined />} onClick={handleUpdatePassword} loading={changingPassword} disabled={isPasswordBusy}>
+                                Cap nhat mat khau
                             </Button>
                         </Flex>
                     </Card>

@@ -2,6 +2,21 @@ const prisma = require('../config/database');
 
 const ACTIVE_REGISTRATION_STATUSES = ['APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'DEFENDED', 'COMPLETED'];
 
+const getActiveSemester = async () => prisma.semester.findFirst({
+    where: {
+        startDate: { lte: new Date() },
+        endDate: { gte: new Date() },
+    },
+    orderBy: { startDate: 'desc' },
+    select: {
+        id: true,
+        name: true,
+        startDate: true,
+        registrationDeadline: true,
+        endDate: true,
+    },
+});
+
 const getDeadlineColor = (dueDate) => {
     if (!dueDate) return '#13C2C2';
 
@@ -176,24 +191,52 @@ const getRecentActivities = async (req, res, next) => {
 const getLecturerDashboard = async (req, res, next) => {
     try {
         const mentorId = req.user.id;
+        const activeSemester = await getActiveSemester();
 
-        const [activeTopics, activeRegistrations, pendingFeedbackSubmissions, upcomingTasks] = await Promise.all([
+        if (!activeSemester) {
+            return res.json({
+                success: true,
+                data: {
+                    activeSemester: null,
+                    stats: {
+                        activeTopics: 0,
+                        studentGroups: 0,
+                        completedRegistrations: 0,
+                        pendingFeedback: 0,
+                    },
+                    recentSubmissions: [],
+                    timelineEvents: [],
+                },
+            });
+        }
+
+        const [activeTopics, activeRegistrations, completedRegistrations, pendingFeedbackSubmissions, upcomingTasks] = await Promise.all([
             prisma.topic.count({
                 where: {
                     mentorId,
+                    semesterId: activeSemester.id,
                     status: { not: 'REJECTED' },
                 },
             }),
             prisma.topicRegistration.count({
                 where: {
+                    semesterId: activeSemester.id,
                     topic: { mentorId },
                     status: { in: ACTIVE_REGISTRATION_STATUSES },
+                },
+            }),
+            prisma.topicRegistration.count({
+                where: {
+                    semesterId: activeSemester.id,
+                    topic: { mentorId },
+                    status: { in: ['DEFENDED', 'COMPLETED'] },
                 },
             }),
             prisma.submission.findMany({
                 where: {
                     feedback: null,
                     registration: {
+                        semesterId: activeSemester.id,
                         topic: { mentorId },
                     },
                 },
@@ -214,6 +257,7 @@ const getLecturerDashboard = async (req, res, next) => {
                 where: {
                     dueDate: { gt: new Date() },
                     registration: {
+                        semesterId: activeSemester.id,
                         topic: { mentorId },
                         status: { in: ACTIVE_REGISTRATION_STATUSES },
                     },
@@ -252,9 +296,11 @@ const getLecturerDashboard = async (req, res, next) => {
         res.json({
             success: true,
             data: {
+                activeSemester,
                 stats: {
                     activeTopics,
                     studentGroups: activeRegistrations,
+                    completedRegistrations,
                     pendingFeedback: pendingFeedbackSubmissions.length,
                 },
                 recentSubmissions,
@@ -273,10 +319,25 @@ const getLecturerDashboard = async (req, res, next) => {
 const getStudentDashboard = async (req, res, next) => {
     try {
         const studentId = req.user.id;
+        const activeSemester = await getActiveSemester();
+
+        if (!activeSemester) {
+            return res.json({
+                success: true,
+                data: {
+                    hasRegistration: false,
+                    activeSemester: null,
+                    registrationDetails: null,
+                    taskStatus: null,
+                    upcomingDeadlines: [],
+                },
+            });
+        }
 
         const registration = await prisma.topicRegistration.findFirst({
             where: {
                 studentId,
+                semesterId: activeSemester.id,
                 status: { not: 'REJECTED' },
             },
             include: {
@@ -304,6 +365,7 @@ const getStudentDashboard = async (req, res, next) => {
                 success: true,
                 data: {
                     hasRegistration: false,
+                    activeSemester,
                     registrationDetails: null,
                     taskStatus: null,
                     upcomingDeadlines: [],
@@ -335,6 +397,7 @@ const getStudentDashboard = async (req, res, next) => {
             success: true,
             data: {
                 hasRegistration: true,
+                activeSemester,
                 registrationDetails: {
                     registrationId: registration.id,
                     status: registration.status,

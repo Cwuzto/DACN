@@ -40,7 +40,7 @@ function NotificationCenterPage() {
             const response = await notificationService.getHistory();
             if (response.success) setHistory(response.data || []);
         } catch (error) {
-            message.error(error?.message || 'Khong the tai lich su thong bao');
+            message.error(error?.message || 'Không thể tải lịch sử thông báo');
         } finally {
             setLoadingHistory(false);
         }
@@ -52,7 +52,7 @@ function NotificationCenterPage() {
             const response = await notificationService.getTemplates();
             if (response.success) setTemplates(response.data || []);
         } catch (error) {
-            message.error(error?.message || 'Khong the tai template thong bao');
+            message.error(error?.message || 'Không thể tải template thông báo');
         } finally {
             setLoadingTemplates(false);
         }
@@ -63,7 +63,7 @@ function NotificationCenterPage() {
             const response = await councilService.getCouncils();
             if (response.success) setCouncils(response.data || []);
         } catch (error) {
-            message.error(error?.message || 'Khong the tai danh sach hoi dong');
+            message.error(error?.message || 'Không thể tải danh sách hội đồng');
         }
     };
 
@@ -96,7 +96,7 @@ function NotificationCenterPage() {
                 fetchHistory();
             }
         } catch (error) {
-            message.error(error?.message || 'Khong the gui thong bao');
+            message.error(error?.message || 'Không thể gửi thông báo');
         } finally {
             setSending(false);
         }
@@ -127,7 +127,7 @@ function NotificationCenterPage() {
                 fetchTemplates();
             }
         } catch (error) {
-            message.error(error?.message || 'Khong the cap nhat template');
+            message.error(error?.message || 'Không thể cập nhật template');
         } finally {
             setSavingTemplate(false);
         }

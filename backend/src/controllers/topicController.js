@@ -1,5 +1,6 @@
 const prisma = require('../config/database');
 const { getMentorMaxSlots } = require('../constants/mentorCapacity');
+const TOPIC_STATUS_VALUES = ['DRAFT', 'PENDING', 'APPROVED', 'REJECTED'];
 
 // Giới hạn SV theo học vị giảng viên
 
@@ -126,38 +127,71 @@ const createTopic = async (req, res, next) => {
     try {
         const { title, description, semesterId, mentorId, maxStudents, status } = req.body;
         const { role, id: userId } = req.user;
+        const semesterIdInt = parseInt(semesterId, 10);
 
         if (!title || !semesterId) {
-            return res.status(400).json({ success: false, message: 'Vui lòng nhập tên đề tài và chọn đợt đồ án.' });
+            return res.status(400).json({ success: false, message: 'Vui long nhap ten de tai va chon dot do an.' });
+        }
+        if (!Number.isInteger(semesterIdInt)) {
+            return res.status(400).json({ success: false, message: 'Dot do an khong hop le.' });
         }
 
-        let topicStatus, finalMentorId;
+        const semester = await prisma.semester.findUnique({
+            where: { id: semesterIdInt },
+            select: { id: true },
+        });
+        if (!semester) {
+            return res.status(404).json({ success: false, message: 'Khong tim thay dot do an.' });
+        }
+
+        let topicStatus;
+        let finalMentorId;
 
         if (role === 'LECTURER') {
-            // GV đăng tải đề tài → trạng thái APPROVED (hoặc DRAFT)
-            topicStatus = (status === 'DRAFT') ? 'DRAFT' : 'APPROVED';
-            finalMentorId = userId; // GV tự là mentor
+            topicStatus = status === 'DRAFT' ? 'DRAFT' : 'APPROVED';
+            finalMentorId = userId;
         } else if (role === 'STUDENT') {
-            // SV đề xuất → cần chọn GV, trạng thái PENDING
             if (!mentorId) {
-                return res.status(400).json({ success: false, message: 'Vui lòng chọn giảng viên hướng dẫn.' });
+                return res.status(400).json({ success: false, message: 'Vui long chon giang vien huong dan.' });
             }
             topicStatus = 'PENDING';
-            finalMentorId = parseInt(mentorId);
+            finalMentorId = parseInt(mentorId, 10);
         } else {
-            // Admin
+            if (!mentorId) {
+                return res.status(400).json({ success: false, message: 'Admin bat buoc chon giang vien huong dan.' });
+            }
+            if (status && !TOPIC_STATUS_VALUES.includes(status)) {
+                return res.status(400).json({ success: false, message: 'Trang thai de tai khong hop le.' });
+            }
             topicStatus = status || 'APPROVED';
-            finalMentorId = mentorId ? parseInt(mentorId) : userId;
+            finalMentorId = parseInt(mentorId, 10);
+        }
+
+        if (!Number.isInteger(finalMentorId)) {
+            return res.status(400).json({ success: false, message: 'Giang vien huong dan khong hop le.' });
+        }
+
+        if (role !== 'LECTURER') {
+            const mentor = await prisma.user.findUnique({
+                where: { id: finalMentorId },
+                select: { id: true, role: true, isActive: true },
+            });
+            if (!mentor || mentor.role !== 'LECTURER' || !mentor.isActive) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'GVHD phai la giang vien dang hoat dong.',
+                });
+            }
         }
 
         const topic = await prisma.topic.create({
             data: {
                 title,
                 description: description || null,
-                semesterId: parseInt(semesterId),
+                semesterId: semesterIdInt,
                 proposedById: userId,
                 mentorId: finalMentorId,
-                maxStudents: maxStudents ? parseInt(maxStudents) : 1,
+                maxStudents: maxStudents ? parseInt(maxStudents, 10) : 1,
                 status: topicStatus,
             },
             include: {
@@ -169,9 +203,9 @@ const createTopic = async (req, res, next) => {
 
         res.status(201).json({
             success: true,
-            message: topicStatus === 'DRAFT' ? 'Đã lưu bản nháp.' :
-                     topicStatus === 'PENDING' ? 'Đã gửi đề xuất, chờ giảng viên duyệt.' :
-                     'Tạo đề tài thành công.',
+            message: topicStatus === 'DRAFT' ? 'Da luu ban nhap.'
+                : topicStatus === 'PENDING' ? 'Da gui de xuat, cho giang vien duyet.'
+                : 'Tao de tai thanh cong.',
             data: topic,
         });
     } catch (error) {
@@ -211,8 +245,24 @@ const updateTopic = async (req, res, next) => {
         const updateData = {};
         if (title) updateData.title = title;
         if (description !== undefined) updateData.description = description;
-        if (maxStudents) updateData.maxStudents = parseInt(maxStudents);
-        if (role === 'ADMIN' && mentorId) updateData.mentorId = parseInt(mentorId);
+        if (maxStudents) updateData.maxStudents = parseInt(maxStudents, 10);
+        if (role === 'ADMIN' && mentorId) {
+            const mentorIdInt = parseInt(mentorId, 10);
+            if (!Number.isInteger(mentorIdInt)) {
+                return res.status(400).json({ success: false, message: 'GVHD khong hop le.' });
+            }
+            const mentor = await prisma.user.findUnique({
+                where: { id: mentorIdInt },
+                select: { id: true, role: true, isActive: true },
+            });
+            if (!mentor || mentor.role !== 'LECTURER' || !mentor.isActive) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'GVHD phai la giang vien dang hoat dong.',
+                });
+            }
+            updateData.mentorId = mentorIdInt;
+        }
 
         if (status) {
             if (role === 'LECTURER') {
@@ -437,6 +487,32 @@ const getMentorCapacity = async (req, res, next) => {
     }
 };
 
+const getAvailableMentors = async (_req, res, next) => {
+    try {
+        const mentors = await prisma.user.findMany({
+            where: {
+                role: 'LECTURER',
+                isActive: true,
+            },
+            select: {
+                id: true,
+                fullName: true,
+                code: true,
+                academicTitle: true,
+                department: true,
+            },
+            orderBy: { fullName: 'asc' },
+        });
+
+        res.json({
+            success: true,
+            data: mentors,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     getAllTopics,
     getTopicById,
@@ -446,4 +522,5 @@ module.exports = {
     changeTopicStatus,
     getTopicApprovals,
     getMentorCapacity,
+    getAvailableMentors,
 };
