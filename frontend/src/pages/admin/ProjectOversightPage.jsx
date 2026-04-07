@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import {
+    Alert,
     Button,
     Dropdown,
     Input,
     message,
     Modal,
     Select,
+    Space,
     Table,
     Timeline,
 } from 'antd';
@@ -112,6 +114,42 @@ function ProjectOversightPage() {
         });
     }, [tableData, searchText, statusFilter, semesterFilter]);
 
+    const scopedRegistrations = useMemo(
+        () => (semesterFilter ? registrations.filter((item) => item.semesterId === semesterFilter) : registrations),
+        [registrations, semesterFilter]
+    );
+
+    const warningStats = useMemo(() => {
+        const pendingRegistrations = scopedRegistrations.filter((item) => item.status === 'PENDING').length;
+        const unassignedCouncil = scopedRegistrations.filter(
+            (item) => !['PENDING', 'REJECTED'].includes(item.status) && !item.councilId
+        ).length;
+        const overdueTaskRegistrations = scopedRegistrations.filter((item) => item.hasOverdueTask).length;
+
+        const now = dayjs();
+        const closingSoonSemesters = semesters.filter((semester) => {
+            if (!semester.registrationOpen || !semester.registrationDeadline) return false;
+            const deadline = dayjs(semester.registrationDeadline);
+            if (!deadline.isValid()) return false;
+            const daysLeft = deadline.diff(now, 'day');
+            return daysLeft >= 0 && daysLeft <= 7;
+        });
+
+        const registrationStillOpenButExpired = semesters.filter((semester) => {
+            if (!semester.registrationOpen || !semester.registrationDeadline) return false;
+            const deadline = dayjs(semester.registrationDeadline);
+            return deadline.isValid() && deadline.isBefore(now);
+        });
+
+        return {
+            pendingRegistrations,
+            unassignedCouncil,
+            overdueTaskRegistrations,
+            closingSoonSemesters,
+            registrationStillOpenButExpired,
+        };
+    }, [scopedRegistrations, semesters]);
+
     const handleReject = (record) => {
         Modal.confirm({
             title: 'Từ chối đề tài',
@@ -188,10 +226,10 @@ function ProjectOversightPage() {
             ),
         },
         {
-            title: 'GV Hướng dẫn',
+            title: 'GV hướng dẫn',
             key: 'lecturer',
             render: (_, record) => (
-                <span className="text-sm font-medium text-slate-700">{record.mentor?.fullName || 'Chưa gắn'}</span>
+                <span className="text-sm font-medium text-slate-700">{record.mentor?.fullName || 'Chưa gán'}</span>
             ),
         },
         {
@@ -350,6 +388,72 @@ function ProjectOversightPage() {
                 </div>
             </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-4">
+                <div className="bg-white rounded-xl border border-slate-200 p-4">
+                    <p className="text-xs text-slate-500">Đăng ký chờ duyệt</p>
+                    <p className="text-2xl font-black text-amber-600">{warningStats.pendingRegistrations}</p>
+                </div>
+                <div className="bg-white rounded-xl border border-slate-200 p-4">
+                    <p className="text-xs text-slate-500">Chưa phân hội đồng</p>
+                    <p className="text-2xl font-black text-orange-600">{warningStats.unassignedCouncil}</p>
+                </div>
+                <div className="bg-white rounded-xl border border-slate-200 p-4">
+                    <p className="text-xs text-slate-500">SV có nhiệm vụ quá hạn</p>
+                    <p className="text-2xl font-black text-red-600">{warningStats.overdueTaskRegistrations}</p>
+                </div>
+                <div className="bg-white rounded-xl border border-slate-200 p-4">
+                    <p className="text-xs text-slate-500">Kỳ sắp đóng đăng ký (7 ngày)</p>
+                    <p className="text-2xl font-black text-blue-600">{warningStats.closingSoonSemesters.length}</p>
+                </div>
+            </div>
+
+            <div className="space-y-3 mb-4">
+                {warningStats.pendingRegistrations > 0 && (
+                    <Alert
+                        showIcon
+                        type="warning"
+                        message={`Có ${warningStats.pendingRegistrations} đăng ký đang chờ duyệt`}
+                        description="Nên xử lý sớm để tránh nghẽn tiến độ giao nhiệm vụ cho sinh viên."
+                    />
+                )}
+                {warningStats.unassignedCouncil > 0 && (
+                    <Alert
+                        showIcon
+                        type="warning"
+                        message={`Có ${warningStats.unassignedCouncil} đăng ký chưa phân hội đồng`}
+                        description="Ưu tiên phân hội đồng cho các nhóm đủ điều kiện để tránh trễ lịch bảo vệ."
+                    />
+                )}
+                {warningStats.overdueTaskRegistrations > 0 && (
+                    <Alert
+                        showIcon
+                        type="error"
+                        message={`Có ${warningStats.overdueTaskRegistrations} sinh viên đang có nhiệm vụ quá hạn`}
+                        description="Nên phối hợp giảng viên xử lý quá hạn hoặc cập nhật lại mốc nhiệm vụ."
+                    />
+                )}
+                {warningStats.closingSoonSemesters.length > 0 && (
+                    <Alert
+                        showIcon
+                        type="info"
+                        message="Có học kỳ sắp đến hạn đóng đăng ký"
+                        description={warningStats.closingSoonSemesters
+                            .map((item) => `${item.name} (${dayjs(item.registrationDeadline).format('DD/MM/YYYY')})`)
+                            .join(' • ')}
+                    />
+                )}
+                {warningStats.registrationStillOpenButExpired.length > 0 && (
+                    <Alert
+                        showIcon
+                        type="error"
+                        message="Phát hiện học kỳ quá hạn nhưng vẫn mở đăng ký"
+                        description={warningStats.registrationStillOpenButExpired
+                            .map((item) => `${item.name} (hạn: ${dayjs(item.registrationDeadline).format('DD/MM/YYYY')})`)
+                            .join(' • ')}
+                    />
+                )}
+            </div>
+
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex flex-wrap items-center gap-3 flex-1">
@@ -381,6 +485,9 @@ function ProjectOversightPage() {
                             options={semesterOptions}
                         />
                     </div>
+                    <Space>
+                        <Button onClick={fetchData}>Làm mới</Button>
+                    </Space>
                 </div>
             </div>
 
@@ -396,7 +503,7 @@ function ProjectOversightPage() {
             </div>
 
             <Modal
-                title="Điều chuyển Đề tài"
+                title="Điều chuyển đề tài"
                 open={isTransferModalOpen}
                 onCancel={() => setIsTransferModalOpen(false)}
                 onOk={handleTransfer}

@@ -18,4 +18,7 @@ router.post('/:id/submit', authorize('STUDENT'), taskController.submitTask);
 // Giảng viên nhận xét và chấm điểm báo cáo
 router.post('/submission/:id/grade', authorize('LECTURER', 'ADMIN'), taskController.gradeSubmission);
 
+// Giảng viên/Admin cập nhật trạng thái task
+router.patch('/:id/status', authorize('LECTURER', 'ADMIN'), taskController.updateTaskStatus);
+
 module.exports = router;

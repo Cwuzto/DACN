@@ -27,10 +27,33 @@ function TopicListPage() {
     const [myRegistration, setMyRegistration] = useState(null);
     const [registering, setRegistering] = useState(false);
     const [currentSemesterId, setCurrentSemesterId] = useState(null);
+    const [currentSemester, setCurrentSemester] = useState(null);
     const [mentors, setMentors] = useState([]);
 
     const [proposeForm, setProposeForm] = useState({ title: '', mentorId: '', description: '' });
     const [submittingPropose, setSubmittingPropose] = useState(false);
+
+    const getRegistrationWindowState = useCallback(() => {
+        if (!currentSemester) {
+            return { canRegister: false, reason: 'Chưa có học kỳ để đăng ký.' };
+        }
+
+        if (!currentSemester.registrationOpen) {
+            return { canRegister: false, reason: 'Học kỳ này đang đóng đăng ký.' };
+        }
+
+        const now = new Date();
+
+        if (currentSemester.startDate && now < new Date(currentSemester.startDate)) {
+            return { canRegister: false, reason: 'Chưa đến thời gian mở đăng ký.' };
+        }
+
+        if (currentSemester.registrationDeadline && now > new Date(currentSemester.registrationDeadline)) {
+            return { canRegister: false, reason: 'Học kỳ đã quá hạn đăng ký.' };
+        }
+
+        return { canRegister: true, reason: '' };
+    }, [currentSemester]);
 
     const fetchContextData = useCallback(async () => {
         try {
@@ -41,8 +64,14 @@ function TopicListPage() {
 
             if (semesterRes.success) {
                 const semesters = semesterRes.data || [];
-                const activeSemester = semesters.find((semester) => ACTIVE_STATUSES.includes(semester.status));
-                setCurrentSemesterId(activeSemester?.id || semesters?.[0]?.id || null);
+                const preferredSemester =
+                    semesters.find((semester) => semester.registrationOpen && ACTIVE_STATUSES.includes(semester.status)) ||
+                    semesters.find((semester) => ACTIVE_STATUSES.includes(semester.status)) ||
+                    semesters?.[0] ||
+                    null;
+
+                setCurrentSemester(preferredSemester);
+                setCurrentSemesterId(preferredSemester?.id || null);
             }
 
             if (mentorRes.success) {
@@ -56,6 +85,7 @@ function TopicListPage() {
     const fetchTopicsAndRegistration = useCallback(async () => {
         if (!currentSemesterId) {
             setTopics([]);
+            setMyRegistration(null);
             return;
         }
 
@@ -66,7 +96,7 @@ function TopicListPage() {
 
             const [topicRes, regRes] = await Promise.all([
                 topicService.getAll(params),
-                registrationService.getMyRegistration(),
+                registrationService.getMyRegistration({ semesterId: currentSemesterId }),
             ]);
 
             if (topicRes.success) {
@@ -122,10 +152,17 @@ function TopicListPage() {
     };
 
     const hasExistingRegistration = Boolean(myRegistration && myRegistration.status !== 'REJECTED');
+    const registrationWindow = getRegistrationWindowState();
+    const isRegistrationBlocked = !registrationWindow.canRegister;
 
     const confirmRegister = (topic) => {
         if (!currentSemesterId) {
             message.warning('Chưa có đợt đồ án hoạt động để đăng ký.');
+            return;
+        }
+
+        if (isRegistrationBlocked) {
+            message.warning(registrationWindow.reason || 'Đăng ký đang tạm đóng.');
             return;
         }
 
@@ -163,6 +200,11 @@ function TopicListPage() {
             return;
         }
 
+        if (isRegistrationBlocked) {
+            message.warning(registrationWindow.reason || 'Đăng ký đang tạm đóng.');
+            return;
+        }
+
         if (!proposeForm.title || !proposeForm.mentorId || !proposeForm.description) {
             message.warning('Vui lòng điền đầy đủ thông tin đề xuất.');
             return;
@@ -188,6 +230,17 @@ function TopicListPage() {
         } finally {
             setSubmittingPropose(false);
         }
+    };
+
+    const renderRegistrationStatusLabel = (status) => {
+        if (status === 'PENDING') return 'Chờ duyệt';
+        if (status === 'REJECTED') return 'Từ chối';
+        if (status === 'APPROVED') return 'Đã duyệt';
+        if (status === 'IN_PROGRESS') return 'Đang thực hiện';
+        if (status === 'SUBMITTED') return 'Đã nộp';
+        if (status === 'DEFENDED') return 'Đã bảo vệ';
+        if (status === 'COMPLETED') return 'Hoàn thành';
+        return status;
     };
 
     return (
@@ -231,6 +284,12 @@ function TopicListPage() {
                                     Tìm kiếm
                                 </button>
                             </form>
+
+                            {isRegistrationBlocked && (
+                                <div className="p-4 rounded-xl border border-amber-200 bg-amber-50 text-amber-700 text-sm font-medium">
+                                    {registrationWindow.reason}
+                                </div>
+                            )}
 
                             {loading ? (
                                 <div className="flex justify-center items-center py-20">
@@ -313,9 +372,13 @@ function TopicListPage() {
                                                     <button
                                                         onClick={() => confirmRegister(topic)}
                                                         className="mt-6 w-full py-2.5 bg-primary hover:bg-primary/90 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2 disabled:bg-slate-300 disabled:text-slate-600 disabled:cursor-not-allowed"
-                                                        disabled={hasExistingRegistration}
+                                                        disabled={hasExistingRegistration || isRegistrationBlocked}
                                                     >
-                                                        {hasExistingRegistration ? 'Bạn đã có đề tài' : 'Đăng ký đề tài'}
+                                                        {hasExistingRegistration
+                                                            ? 'Bạn đã có đề tài'
+                                                            : isRegistrationBlocked
+                                                                ? 'Đăng ký đang đóng'
+                                                                : 'Đăng ký đề tài'}
                                                     </button>
                                                 )}
                                             </div>
@@ -335,6 +398,10 @@ function TopicListPage() {
                             {hasExistingRegistration ? (
                                 <div className="p-4 bg-emerald-50 text-emerald-700 rounded-lg text-center font-medium">
                                     Bạn đã đăng ký một đề tài. Không thể đề xuất thêm.
+                                </div>
+                            ) : isRegistrationBlocked ? (
+                                <div className="p-4 bg-amber-50 text-amber-700 rounded-lg text-center font-medium">
+                                    {registrationWindow.reason}
                                 </div>
                             ) : (
                                 <form className="space-y-6" onSubmit={handleProposeSubmit}>
@@ -395,17 +462,19 @@ function TopicListPage() {
                         </div>
                         <div className="p-5">
                             {myRegistration ? (
-                                <div className={`relative pl-4 border-l-2 ${myRegistration.status === 'APPROVED' ? 'border-emerald-500' : myRegistration.status === 'REJECTED' ? 'border-red-500' : 'border-amber-500'}`}>
+                                <div className={`relative pl-4 border-l-2 ${['APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'DEFENDED', 'COMPLETED'].includes(myRegistration.status) ? 'border-emerald-500' : myRegistration.status === 'REJECTED' ? 'border-red-500' : 'border-amber-500'}`}>
                                     <div className="flex justify-between items-start mb-2">
                                         <h4 className="text-sm font-bold text-slate-900 dark:text-white leading-tight">
                                             {myRegistration.topic?.title || 'Chưa rõ tên đề tài'}
                                         </h4>
                                         <span className={`flex-shrink-0 ml-3 px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                            myRegistration.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' :
-                                            myRegistration.status === 'REJECTED' ? 'bg-red-100 text-red-700' :
-                                                'bg-amber-100 text-amber-700'
+                                            ['APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'DEFENDED', 'COMPLETED'].includes(myRegistration.status)
+                                                ? 'bg-emerald-100 text-emerald-700'
+                                                : myRegistration.status === 'REJECTED'
+                                                    ? 'bg-red-100 text-red-700'
+                                                    : 'bg-amber-100 text-amber-700'
                                         }`}>
-                                            {myRegistration.status === 'PENDING' ? 'Chờ duyệt' : myRegistration.status === 'APPROVED' ? 'Đã duyệt' : 'Từ chối'}
+                                            {renderRegistrationStatusLabel(myRegistration.status)}
                                         </span>
                                     </div>
                                     <p className="text-xs text-slate-500">Giảng viên: {myRegistration.topic?.mentor?.fullName || '-'}</p>

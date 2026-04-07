@@ -2,34 +2,36 @@
 
 ## Mục tiêu phiên tiếp theo
 
-Chốt UAT với bộ dữ liệu thật mới, sau đó mở rộng test để khóa chất lượng trước khi mở batch tính năng mới.
+Khóa chất lượng sau đợt hoàn thiện tính năng bằng test + UAT có checklist rõ ràng, trước khi mở feature mới.
 
 ---
 
 ## Ưu tiên thực thi
 
-### 1. UAT với dữ liệu seed mới (ưu tiên cao)
+### 1. Test backend cho phần mới (ưu tiên cao)
 
-- Admin:
-  - `ProjectOversightPage`
-  - `GradingDefensePage`
-- Student:
-  - `TopicListPage`
+- Bổ sung integration test cho:
+  - `PATCH /api/tasks/:id/status`
+  - `POST /api/tasks` với rule chặn registration không hợp lệ
+  - `GET /api/dashboard/semester-overview`
 
-Checklist:
+Mục tiêu:
 
-- Dữ liệu hiển thị theo học kỳ active đúng logic.
-- Luồng đăng ký/chấm điểm hiển thị đúng trạng thái.
-- Text tiếng Việt có dấu hiển thị chuẩn UTF-8.
+- Chặn hồi quy business rule sau các batch Student/Lecturer/Admin.
 
-### 2. Test backend (ưu tiên cao)
+### 2. UAT clone sạch (ưu tiên cao)
 
-- Bổ sung/kiểm tra integration test cho:
-  - `GET /api/topics/mentors`
+- Chạy theo tài liệu `SETUP_CLONE.md` trên máy clone mới.
+- Xác nhận các luồng tối thiểu:
+  - login theo role,
+  - student đăng ký + nộp bài,
+  - lecturer duyệt + giao việc,
+  - admin xem dashboard/oversight + toggle registration.
 
-### 3. Ổn định UI text (ưu tiên trung bình)
+### 3. Dọn nốt text/UX admin (ưu tiên trung bình)
 
-- Rà soát tiếp các trang admin còn lại để phát hiện sớm chuỗi tiếng Việt bị lỗi mã hóa.
+- Rà soát các trang admin chưa chạm trong đợt này để xử lý UTF-8/mojibake nếu còn.
+- Chuẩn hóa các label/câu cảnh báo theo cùng wording.
 
 ---
 
@@ -44,6 +46,6 @@ node scripts/regression-check.js
 
 ## Không ưu tiên lúc này
 
-- Mở feature lớn mới ngoài workflow canonical.
-- Refactor lan rộng khi chưa có nhu cầu nghiệp vụ rõ ràng.
+- Refactor lan rộng không phục vụ trực tiếp ổn định vận hành.
 - Quay lại kiến trúc `group/groupMember/evaluation`.
+- Mở tính năng mới lớn khi chưa khóa test hồi quy cho endpoint mới.

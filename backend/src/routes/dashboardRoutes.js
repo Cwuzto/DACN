@@ -17,6 +17,7 @@ router.get('/student', authorize('STUDENT', 'ADMIN'), dashboardController.getStu
 router.use(authorize('ADMIN'));
 
 router.get('/stats', dashboardController.getGeneralStats);
+router.get('/semester-overview', dashboardController.getSemesterOverview);
 router.get('/semesters', dashboardController.getSemesterStats);
 router.get('/scores', dashboardController.getScoreDistribution);
 router.get('/activities', dashboardController.getRecentActivities);

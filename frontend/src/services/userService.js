@@ -1,4 +1,4 @@
-import api from './api';
+﻿import api from './api';
 
 const wrapServiceError = (error, fallbackMessage) => {
     if (error?.success === false) return error;
@@ -56,5 +56,3 @@ const userService = {
 };
 
 export default userService;
-
-

@@ -1,4 +1,4 @@
-import api from './api';
+﻿import api from './api';
 
 const wrapServiceError = (error, fallbackMessage) => {
     if (error?.success === false) return error;
@@ -22,11 +22,19 @@ const dashboardService = {
         }
     },
 
+    getSemesterOverview: async (params = {}) => {
+        try {
+            return await api.get('/dashboard/semester-overview', { params });
+        } catch (error) {
+            throw wrapServiceError(error, 'Lỗi tải tổng quan học kỳ');
+        }
+    },
+
     getScores: async () => {
         try {
             return await api.get('/dashboard/scores');
         } catch (error) {
-            throw wrapServiceError(error, 'Lỗi tải phân bổ điểm');
+            throw wrapServiceError(error, 'Lỗi tải phân bố điểm');
         }
     },
 
@@ -56,5 +64,3 @@ const dashboardService = {
 };
 
 export default dashboardService;
-
-

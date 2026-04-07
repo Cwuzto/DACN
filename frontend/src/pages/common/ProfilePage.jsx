@@ -1,12 +1,31 @@
 ﻿import { useState, useEffect, useMemo } from 'react';
 import {
-    Card, Typography, Flex, Button, Input, Avatar, Row, Col, Divider,
-    Upload, Tag, Space, message,
+    Card,
+    Typography,
+    Flex,
+    Button,
+    Input,
+    Avatar,
+    Row,
+    Col,
+    Divider,
+    Upload,
+    Tag,
+    Space,
+    message,
 } from 'antd';
 import {
-    UserOutlined, MailOutlined, PhoneOutlined, IdcardOutlined,
-    EditOutlined, SaveOutlined, CameraOutlined, BankOutlined,
-    LockOutlined, KeyOutlined, LoadingOutlined,
+    UserOutlined,
+    MailOutlined,
+    PhoneOutlined,
+    IdcardOutlined,
+    EditOutlined,
+    SaveOutlined,
+    CameraOutlined,
+    BankOutlined,
+    LockOutlined,
+    KeyOutlined,
+    LoadingOutlined,
 } from '@ant-design/icons';
 import useAuthStore from '../../stores/authStore';
 import { authService } from '../../services/authService';
@@ -70,10 +89,10 @@ function ProfilePage() {
             const data = await uploadService.uploadFile(file, 'avatars');
             handleChange('avatarUrl', data.data.url);
             onSuccess(data);
-            message.success('Tai anh len thanh cong. Bam Luu thay doi de cap nhat.');
+            message.success('Tải ảnh lên thành công. Bấm Lưu thay đổi để cập nhật.');
         } catch (error) {
             onError(error);
-            message.error(error?.message || 'Tai anh len that bai.');
+            message.error(error?.message || 'Tải ảnh lên thất bại.');
         } finally {
             setUploading(false);
         }
@@ -87,11 +106,17 @@ function ProfilePage() {
                 phone: tempProfile.phone,
                 department: tempProfile.department,
             });
-            updateUser({ ...user, ...res.data.data });
-            setEditing(false);
-            message.success('Cap nhat thong tin thanh cong.');
+
+            if (res?.success && res?.data) {
+                updateUser({ ...user, ...res.data });
+                setEditing(false);
+                message.success('Cập nhật thông tin thành công.');
+                return;
+            }
+
+            message.error(res?.message || 'Cập nhật thất bại.');
         } catch (error) {
-            message.error(error?.message || 'Cap nhat that bai.');
+            message.error(error?.message || 'Cập nhật thất bại.');
         } finally {
             setSavingProfile(false);
         }
@@ -113,38 +138,46 @@ function ProfilePage() {
     const handleUpdatePassword = async () => {
         try {
             if (!passwords.currentPassword || !passwords.newPassword || !passwords.confirmPassword) {
-                message.warning('Vui long nhap du cac truong mat khau.');
+                message.warning('Vui lòng nhập đủ các trường mật khẩu.');
                 return;
             }
+
+            if (passwords.newPassword.length < 6) {
+                message.warning('Mật khẩu mới phải có ít nhất 6 ký tự.');
+                return;
+            }
+
             if (passwords.newPassword !== passwords.confirmPassword) {
-                message.error('Mat khau xac nhan khong khop.');
+                message.error('Mật khẩu xác nhận không khớp.');
                 return;
             }
+
             setChangingPassword(true);
             await authService.changePassword(passwords.currentPassword, passwords.newPassword);
-            message.success('Doi mat khau thanh cong.');
+            message.success('Đổi mật khẩu thành công.');
             setPasswords({ currentPassword: '', newPassword: '', confirmPassword: '' });
         } catch (error) {
-            message.error(error?.message || 'Doi mat khau that bai.');
+            message.error(error?.message || 'Đổi mật khẩu thất bại.');
         } finally {
             setChangingPassword(false);
         }
     };
 
-    if (!user) return <div style={{ padding: 24 }}>Dang tai thong tin...</div>;
+    if (!user) return <div style={{ padding: 24 }}>Đang tải thông tin...</div>;
 
-    const roleName = user.role === 'ADMIN' ? 'Quan tri vien' : user.role === 'LECTURER' ? 'Giang vien' : 'Sinh vien';
+    const roleName =
+        user.role === 'ADMIN' ? 'Quản trị viên' : user.role === 'LECTURER' ? 'Giảng viên' : 'Sinh viên';
     const roleColor = user.role === 'ADMIN' ? 'red' : user.role === 'LECTURER' ? 'blue' : 'green';
 
     return (
         <div>
             <Flex justify="space-between" align="center" style={{ marginBottom: 24 }}>
-                <Title level={3} style={{ margin: 0 }}>Ho so ca nhan</Title>
+                <Title level={3} style={{ margin: 0 }}>Hồ sơ cá nhân</Title>
                 {!editing ? (
-                    <Button icon={<EditOutlined />} onClick={() => setEditing(true)} disabled={isProfileBusy}>Chinh sua</Button>
+                    <Button icon={<EditOutlined />} onClick={() => setEditing(true)} disabled={isProfileBusy}>Chỉnh sửa</Button>
                 ) : (
                     <Space>
-                        <Button onClick={handleCancel} disabled={isProfileBusy}>Huy</Button>
+                        <Button onClick={handleCancel} disabled={isProfileBusy}>Hủy</Button>
                         <Button
                             type="primary"
                             icon={<SaveOutlined />}
@@ -152,7 +185,7 @@ function ProfilePage() {
                             loading={savingProfile}
                             disabled={!hasProfileChanges || isProfileBusy}
                         >
-                            Luu thay doi
+                            Lưu thay đổi
                         </Button>
                     </Space>
                 )}
@@ -186,26 +219,26 @@ function ProfilePage() {
                         <Divider />
                         <Flex vertical gap={12} align="flex-start">
                             <Flex gap={8} align="center"><MailOutlined style={{ color: '#8c8c8c' }} /><Text style={{ fontSize: 13 }}>{tempProfile.email}</Text></Flex>
-                            <Flex gap={8} align="center"><PhoneOutlined style={{ color: '#8c8c8c' }} /><Text style={{ fontSize: 13 }}>{tempProfile.phone || 'Chua cap nhat'}</Text></Flex>
+                            <Flex gap={8} align="center"><PhoneOutlined style={{ color: '#8c8c8c' }} /><Text style={{ fontSize: 13 }}>{tempProfile.phone || 'Chưa cập nhật'}</Text></Flex>
                             <Flex gap={8} align="center"><IdcardOutlined style={{ color: '#8c8c8c' }} /><Text style={{ fontSize: 13 }}>{tempProfile.employeeId}</Text></Flex>
                         </Flex>
                     </Card>
                 </Col>
 
                 <Col xs={24} md={16}>
-                    <Card title="Thong tin chi tiet" style={{ borderRadius: 10, marginBottom: 16 }}>
+                    <Card title="Thông tin chi tiết" style={{ borderRadius: 10, marginBottom: 16 }}>
                         <Row gutter={[16, 16]}>
                             <Col xs={24} md={12}>
-                                <Text type="secondary" style={{ fontSize: 12 }}>Ho va ten <Text type="danger">*</Text></Text>
+                                <Text type="secondary" style={{ fontSize: 12 }}>Họ và tên <Text type="danger">*</Text></Text>
                                 <div><Text strong>{tempProfile.name}</Text></div>
-                                <Text type="secondary" style={{ fontSize: 11 }}>Chi Admin moi co the sua ten.</Text>
+                                <Text type="secondary" style={{ fontSize: 11 }}>Chỉ Admin mới có thể sửa tên.</Text>
                             </Col>
                             <Col xs={24} md={12}>
                                 <Text type="secondary" style={{ fontSize: 12 }}>Email</Text>
                                 <div><Text strong>{tempProfile.email}</Text></div>
                             </Col>
                             <Col xs={24} md={12}>
-                                <Text type="secondary" style={{ fontSize: 12 }}>So dien thoai</Text>
+                                <Text type="secondary" style={{ fontSize: 12 }}>Số điện thoại</Text>
                                 {editing ? (
                                     <Input value={tempProfile.phone} onChange={(e) => handleChange('phone', e.target.value)} placeholder="0901234567" disabled={isProfileBusy} />
                                 ) : (
@@ -213,11 +246,11 @@ function ProfilePage() {
                                 )}
                             </Col>
                             <Col xs={24} md={12}>
-                                <Text type="secondary" style={{ fontSize: 12 }}>Ma nhan vien / MSSV</Text>
+                                <Text type="secondary" style={{ fontSize: 12 }}>Mã nhân viên / MSSV</Text>
                                 <div><Text strong>{tempProfile.employeeId}</Text></div>
                             </Col>
                             <Col xs={24} md={12}>
-                                <Text type="secondary" style={{ fontSize: 12 }}>Don vi / Khoa</Text>
+                                <Text type="secondary" style={{ fontSize: 12 }}>Đơn vị / Khoa</Text>
                                 {editing ? (
                                     <Input value={tempProfile.department} onChange={(e) => handleChange('department', e.target.value)} placeholder="Khoa CNTT" disabled={isProfileBusy} />
                                 ) : (
@@ -227,24 +260,24 @@ function ProfilePage() {
                         </Row>
                     </Card>
 
-                    <Card title={<><LockOutlined /> Doi mat khau</>} style={{ borderRadius: 10 }}>
+                    <Card title={<><LockOutlined /> Đổi mật khẩu</>} style={{ borderRadius: 10 }}>
                         <Row gutter={[16, 16]}>
                             <Col xs={24} md={8}>
-                                <Text type="secondary" style={{ fontSize: 12 }}>Mat khau hien tai</Text>
-                                <Input.Password placeholder="Nhap mat khau cu" value={passwords.currentPassword} onChange={(e) => handlePasswordChange('currentPassword', e.target.value)} disabled={isPasswordBusy} />
+                                <Text type="secondary" style={{ fontSize: 12 }}>Mật khẩu hiện tại</Text>
+                                <Input.Password placeholder="Nhập mật khẩu cũ" value={passwords.currentPassword} onChange={(e) => handlePasswordChange('currentPassword', e.target.value)} disabled={isPasswordBusy} />
                             </Col>
                             <Col xs={24} md={8}>
-                                <Text type="secondary" style={{ fontSize: 12 }}>Mat khau moi</Text>
-                                <Input.Password placeholder="Nhap mat khau moi" value={passwords.newPassword} onChange={(e) => handlePasswordChange('newPassword', e.target.value)} disabled={isPasswordBusy} />
+                                <Text type="secondary" style={{ fontSize: 12 }}>Mật khẩu mới</Text>
+                                <Input.Password placeholder="Nhập mật khẩu mới" value={passwords.newPassword} onChange={(e) => handlePasswordChange('newPassword', e.target.value)} disabled={isPasswordBusy} />
                             </Col>
                             <Col xs={24} md={8}>
-                                <Text type="secondary" style={{ fontSize: 12 }}>Xac nhan mat khau</Text>
-                                <Input.Password placeholder="Nhap lai mat khau moi" value={passwords.confirmPassword} onChange={(e) => handlePasswordChange('confirmPassword', e.target.value)} disabled={isPasswordBusy} />
+                                <Text type="secondary" style={{ fontSize: 12 }}>Xác nhận mật khẩu</Text>
+                                <Input.Password placeholder="Nhập lại mật khẩu mới" value={passwords.confirmPassword} onChange={(e) => handlePasswordChange('confirmPassword', e.target.value)} disabled={isPasswordBusy} />
                             </Col>
                         </Row>
                         <Flex justify="flex-end" style={{ marginTop: 16 }}>
                             <Button type="primary" icon={<KeyOutlined />} onClick={handleUpdatePassword} loading={changingPassword} disabled={isPasswordBusy}>
-                                Cap nhat mat khau
+                                Cập nhật mật khẩu
                             </Button>
                         </Flex>
                     </Card>

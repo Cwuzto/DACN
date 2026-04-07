@@ -1,7 +1,7 @@
-const prisma = require('../config/database');
+﻿const prisma = require('../config/database');
 const { getMentorMaxSlots } = require('../constants/mentorCapacity');
 
-// Giới hạn SV theo học vị
+// Giá»›i háº¡n SV theo há»c vá»‹
 
 const getActiveSemester = async () => prisma.semester.findFirst({
     where: {
@@ -14,7 +14,7 @@ const getActiveSemester = async () => prisma.semester.findFirst({
 
 /**
  * POST /api/registrations
- * Sinh viên đăng ký 1 đề tài (cá nhân, không nhóm)
+ * Sinh viĂªn Ä‘Äƒng kĂ½ 1 Ä‘á» tĂ i (cĂ¡ nhĂ¢n, khĂ´ng nhĂ³m)
  * Body: { topicId, semesterId }
  */
 const registerTopic = async (req, res, next) => {
@@ -24,13 +24,13 @@ const registerTopic = async (req, res, next) => {
         const semesterIdInt = parseInt(semesterId, 10);
 
         if (!topicId || !semesterId) {
-            return res.status(400).json({ success: false, message: 'Vui lòng chọn đề tài và đợt đồ án.' });
+            return res.status(400).json({ success: false, message: 'Vui lĂ²ng chá»n Ä‘á» tĂ i vĂ  Ä‘á»£t Ä‘á»“ Ă¡n.' });
         }
         if (!Number.isInteger(semesterIdInt)) {
-            return res.status(400).json({ success: false, message: 'Đợt đồ án không hợp lệ.' });
+            return res.status(400).json({ success: false, message: 'Äá»£t Ä‘á»“ Ă¡n khĂ´ng há»£p lá»‡.' });
         }
 
-        // 0. Kiểm tra đợt đồ án có mở đăng ký và còn trong thời hạn không
+        // 0. Kiá»ƒm tra Ä‘á»£t Ä‘á»“ Ă¡n cĂ³ má»Ÿ Ä‘Äƒng kĂ½ vĂ  cĂ²n trong thá»i háº¡n khĂ´ng
         const semester = await prisma.semester.findUnique({
             where: { id: semesterIdInt },
             select: {
@@ -42,13 +42,13 @@ const registerTopic = async (req, res, next) => {
         });
 
         if (!semester) {
-            return res.status(404).json({ success: false, message: 'Không tìm thấy đợt đồ án.' });
+            return res.status(404).json({ success: false, message: 'KhĂ´ng tĂ¬m tháº¥y Ä‘á»£t Ä‘á»“ Ă¡n.' });
         }
 
         if (!semester.registrationOpen) {
             return res.status(400).json({
                 success: false,
-                message: 'Đợt đồ án hiện đang đóng đăng ký. Vui lòng liên hệ quản trị viên.',
+                message: 'Äá»£t Ä‘á»“ Ă¡n hiá»‡n Ä‘ang Ä‘Ă³ng Ä‘Äƒng kĂ½. Vui lĂ²ng liĂªn há»‡ quáº£n trá»‹ viĂªn.',
             });
         }
 
@@ -56,35 +56,35 @@ const registerTopic = async (req, res, next) => {
         if (semester.startDate && now < new Date(semester.startDate)) {
             return res.status(400).json({
                 success: false,
-                message: 'Đợt đồ án chưa đến thời gian mở đăng ký.',
+                message: 'Äá»£t Ä‘á»“ Ă¡n chÆ°a Ä‘áº¿n thá»i gian má»Ÿ Ä‘Äƒng kĂ½.',
             });
         }
 
         if (semester.registrationDeadline && now > new Date(semester.registrationDeadline)) {
             return res.status(400).json({
                 success: false,
-                message: 'Đợt đồ án đã quá hạn đăng ký.',
+                message: 'Äá»£t Ä‘á»“ Ă¡n Ä‘Ă£ quĂ¡ háº¡n Ä‘Äƒng kĂ½.',
             });
         }
 
-        // 1. Kiểm tra SV đã đăng ký trong kỳ này chưa
+        // 1. Kiá»ƒm tra SV Ä‘Ă£ Ä‘Äƒng kĂ½ trong ká»³ nĂ y chÆ°a
         const existingReg = await prisma.topicRegistration.findUnique({
             where: { studentId_semesterId: { studentId, semesterId: semesterIdInt } },
         });
 
         if (existingReg) {
             if (existingReg.status === 'REJECTED') {
-                // Nếu bị từ chối → cho phép đổi đề tài (xóa đăng ký cũ)
+                // Náº¿u bá»‹ tá»« chá»‘i â†’ cho phĂ©p Ä‘á»•i Ä‘á» tĂ i (xĂ³a Ä‘Äƒng kĂ½ cÅ©)
                 await prisma.topicRegistration.delete({ where: { id: existingReg.id } });
             } else {
                 return res.status(400).json({
                     success: false,
-                    message: 'Bạn đã đăng ký đề tài trong kỳ này. Chỉ có thể đổi khi bị từ chối.',
+                    message: 'Báº¡n Ä‘Ă£ Ä‘Äƒng kĂ½ Ä‘á» tĂ i trong ká»³ nĂ y. Chá»‰ cĂ³ thá»ƒ Ä‘á»•i khi bá»‹ tá»« chá»‘i.',
                 });
             }
         }
 
-        // 2. Kiểm tra đề tài tồn tại & APPROVED
+        // 2. Kiá»ƒm tra Ä‘á» tĂ i tá»“n táº¡i & APPROVED
         const topic = await prisma.topic.findUnique({
             where: { id: parseInt(topicId) },
             include: {
@@ -94,19 +94,19 @@ const registerTopic = async (req, res, next) => {
         });
 
         if (!topic || topic.status !== 'APPROVED') {
-            return res.status(400).json({ success: false, message: 'Đề tài không tồn tại hoặc chưa được duyệt.' });
+            return res.status(400).json({ success: false, message: 'Äá» tĂ i khĂ´ng tá»“n táº¡i hoáº·c chÆ°a Ä‘Æ°á»£c duyá»‡t.' });
         }
 
         if (topic.semesterId !== semesterIdInt) {
-            return res.status(400).json({ success: false, message: 'Đề tài không thuộc đợt đăng ký hiện tại.' });
+            return res.status(400).json({ success: false, message: 'Äá» tĂ i khĂ´ng thuá»™c Ä‘á»£t Ä‘Äƒng kĂ½ hiá»‡n táº¡i.' });
         }
 
-        // 3. Kiểm tra còn slot chưa
+        // 3. Kiá»ƒm tra cĂ²n slot chÆ°a
         if (topic._count.registrations >= topic.maxStudents) {
-            return res.status(400).json({ success: false, message: 'Đề tài này đã đủ số lượng sinh viên đăng ký.' });
+            return res.status(400).json({ success: false, message: 'Äá» tĂ i nĂ y Ä‘Ă£ Ä‘á»§ sá»‘ lÆ°á»£ng sinh viĂªn Ä‘Äƒng kĂ½.' });
         }
 
-        // 4. Kiểm tra quota giảng viên
+        // 4. Kiá»ƒm tra quota giáº£ng viĂªn
         const maxSlots = getMentorMaxSlots(topic.mentor?.academicTitle);
         const mentorStudentCount = await prisma.topicRegistration.count({
             where: {
@@ -116,10 +116,10 @@ const registerTopic = async (req, res, next) => {
         });
 
         if (mentorStudentCount >= maxSlots) {
-            return res.status(400).json({ success: false, message: `Giảng viên đã đạt giới hạn hướng dẫn (${maxSlots} sinh viên).` });
+            return res.status(400).json({ success: false, message: `Giáº£ng viĂªn Ä‘Ă£ Ä‘áº¡t giá»›i háº¡n hÆ°á»›ng dáº«n (${maxSlots} sinh viĂªn).` });
         }
 
-        // 5. Tạo đăng ký
+        // 5. Táº¡o Ä‘Äƒng kĂ½
         const registration = await prisma.topicRegistration.create({
             data: {
                 topicId: parseInt(topicId),
@@ -132,19 +132,19 @@ const registerTopic = async (req, res, next) => {
             },
         });
 
-        // 6. Gửi notification cho GV
+        // 6. Gá»­i notification cho GV
         await prisma.notification.create({
             data: {
                 userId: topic.mentorId,
-                title: 'Sinh viên đăng ký đề tài',
-                content: `${req.user.fullName} (${req.user.code}) đã đăng ký đề tài "${topic.title}".`,
+                title: 'Sinh viĂªn Ä‘Äƒng kĂ½ Ä‘á» tĂ i',
+                content: `${req.user.fullName} (${req.user.code}) Ä‘Ă£ Ä‘Äƒng kĂ½ Ä‘á» tĂ i "${topic.title}".`,
                 type: 'REGISTRATION',
             },
         });
 
         res.status(201).json({
             success: true,
-            message: 'Đăng ký đề tài thành công! Chờ giảng viên phê duyệt.',
+            message: 'ÄÄƒng kĂ½ Ä‘á» tĂ i thĂ nh cĂ´ng! Chá» giáº£ng viĂªn phĂª duyá»‡t.',
             data: registration,
         });
     } catch (error) {
@@ -154,14 +154,20 @@ const registerTopic = async (req, res, next) => {
 
 /**
  * GET /api/registrations/my
- * Lấy thông tin đăng ký đề tài hiện tại của SV
+ * Láº¥y thĂ´ng tin Ä‘Äƒng kĂ½ Ä‘á» tĂ i hiá»‡n táº¡i cá»§a SV
  */
 const getMyRegistration = async (req, res, next) => {
     try {
         const studentId = req.user.id;
-        const activeSemester = await getActiveSemester();
+        const semesterIdQuery = req.query.semesterId ? parseInt(req.query.semesterId, 10) : null;
+        let targetSemesterId = semesterIdQuery;
 
-        if (!activeSemester) {
+        if (!targetSemesterId) {
+            const activeSemester = await getActiveSemester();
+            targetSemesterId = activeSemester?.id || null;
+        }
+
+        if (!targetSemesterId) {
             return res.json({
                 success: true,
                 data: null,
@@ -172,7 +178,7 @@ const getMyRegistration = async (req, res, next) => {
         const registration = await prisma.topicRegistration.findFirst({
             where: {
                 studentId,
-                semesterId: activeSemester.id,
+                semesterId: targetSemesterId,
             },
             include: {
                 topic: {
@@ -202,7 +208,7 @@ const getMyRegistration = async (req, res, next) => {
 
 /**
  * GET /api/registrations
- * Danh sách đăng ký (GV xem SV mình hướng dẫn, Admin xem tất cả)
+ * Danh sĂ¡ch Ä‘Äƒng kĂ½ (GV xem SV mĂ¬nh hÆ°á»›ng dáº«n, Admin xem táº¥t cáº£)
  */
 const getAllRegistrations = async (req, res, next) => {
     try {
@@ -228,7 +234,7 @@ const getAllRegistrations = async (req, res, next) => {
 
         if (unassignedCouncilOnly === 'true') {
             where.councilId = null;
-            // Chỉ xếp hội đồng cho sinh viên hợp lệ (ví dụ: đã duyệt)
+            // Chá»‰ xáº¿p há»™i Ä‘á»“ng cho sinh viĂªn há»£p lá»‡ (vĂ­ dá»¥: Ä‘Ă£ duyá»‡t)
             where.status = { notIn: ['PENDING', 'REJECTED'] };
         }
 
@@ -243,13 +249,36 @@ const getAllRegistrations = async (req, res, next) => {
             orderBy: { createdAt: 'desc' },
         });
 
-        // Tính progress cho mỗi đăng ký
+        const registrationIds = registrations.map((reg) => reg.id);
+        const overdueCounts = registrationIds.length > 0
+            ? await prisma.task.groupBy({
+                by: ['registrationId'],
+                where: {
+                    registrationId: { in: registrationIds },
+                    dueDate: { lt: new Date() },
+                    status: { in: ['OPEN', 'IN_PROGRESS'] },
+                },
+                _count: { _all: true },
+            })
+            : [];
+        const overdueCountMap = new Map(
+            overdueCounts.map((item) => [item.registrationId, item._count._all || 0]),
+        );
+
+        // TĂ­nh progress cho má»—i Ä‘Äƒng kĂ½
         const enhanced = registrations.map((reg) => {
             const milestones = reg.milestones || [];
             const passed = milestones.filter(m => m.status === 'PASSED').length;
             const progress = milestones.length > 0 ? Math.round((passed / milestones.length) * 100) : 0;
+            const overdueTaskCount = overdueCountMap.get(reg.id) || 0;
 
-            return { ...reg, progress, milestones: undefined };
+            return {
+                ...reg,
+                progress,
+                overdueTaskCount,
+                hasOverdueTask: overdueTaskCount > 0,
+                milestones: undefined,
+            };
         });
 
         res.json({ success: true, data: enhanced });
@@ -260,7 +289,7 @@ const getAllRegistrations = async (req, res, next) => {
 
 /**
  * PATCH /api/registrations/:id/approve
- * GV duyệt/từ chối đăng ký đề tài của SV
+ * GV duyá»‡t/tá»« chá»‘i Ä‘Äƒng kĂ½ Ä‘á» tĂ i cá»§a SV
  * Body: { action: 'APPROVE' | 'REJECT', rejectReason?: string }
  */
 const handleRegistration = async (req, res, next) => {
@@ -270,7 +299,7 @@ const handleRegistration = async (req, res, next) => {
         const { role, id: userId } = req.user;
 
         if (!['APPROVE', 'REJECT'].includes(action)) {
-            return res.status(400).json({ success: false, message: 'Hành động phải là APPROVE hoặc REJECT.' });
+            return res.status(400).json({ success: false, message: 'HĂ nh Ä‘á»™ng pháº£i lĂ  APPROVE hoáº·c REJECT.' });
         }
 
         const reg = await prisma.topicRegistration.findUnique({
@@ -282,20 +311,20 @@ const handleRegistration = async (req, res, next) => {
         });
 
         if (!reg) {
-            return res.status(404).json({ success: false, message: 'Không tìm thấy đăng ký.' });
+            return res.status(404).json({ success: false, message: 'KhĂ´ng tĂ¬m tháº¥y Ä‘Äƒng kĂ½.' });
         }
 
         if (reg.status !== 'PENDING') {
-            return res.status(400).json({ success: false, message: `Đăng ký đang ở trạng thái: ${reg.status}. Chỉ xử lý khi PENDING.` });
+            return res.status(400).json({ success: false, message: `ÄÄƒng kĂ½ Ä‘ang á»Ÿ tráº¡ng thĂ¡i: ${reg.status}. Chá»‰ xá»­ lĂ½ khi PENDING.` });
         }
 
-        // GV chỉ duyệt SV trong đề tài mình hướng dẫn
+        // GV chá»‰ duyá»‡t SV trong Ä‘á» tĂ i mĂ¬nh hÆ°á»›ng dáº«n
         if (role === 'LECTURER' && reg.topic.mentorId !== userId) {
-            return res.status(403).json({ success: false, message: 'Bạn không có quyền duyệt đăng ký này.' });
+            return res.status(403).json({ success: false, message: 'Báº¡n khĂ´ng cĂ³ quyá»n duyá»‡t Ä‘Äƒng kĂ½ nĂ y.' });
         }
 
         if (action === 'APPROVE') {
-            // Kiểm tra quota GV
+            // Kiá»ƒm tra quota GV
             const mentor = reg.topic.mentor;
             const maxSlots = getMentorMaxSlots(mentor?.academicTitle);
             const currentCount = await prisma.topicRegistration.count({
@@ -305,7 +334,7 @@ const handleRegistration = async (req, res, next) => {
                 },
             });
             if (currentCount >= maxSlots) {
-                return res.status(400).json({ success: false, message: `Đã đạt giới hạn ${maxSlots} sinh viên hướng dẫn.` });
+                return res.status(400).json({ success: false, message: `ÄĂ£ Ä‘áº¡t giá»›i háº¡n ${maxSlots} sinh viĂªn hÆ°á»›ng dáº«n.` });
             }
 
             await prisma.topicRegistration.update({
@@ -317,14 +346,14 @@ const handleRegistration = async (req, res, next) => {
             await prisma.notification.create({
                 data: {
                     userId: reg.studentId,
-                    title: 'Đăng ký đề tài được duyệt',
-                    content: `Đề tài "${reg.topic.title}" đã được phê duyệt. Bạn có thể bắt đầu thực hiện.`,
+                    title: 'ÄÄƒng kĂ½ Ä‘á» tĂ i Ä‘Æ°á»£c duyá»‡t',
+                    content: `Äá» tĂ i "${reg.topic.title}" Ä‘Ă£ Ä‘Æ°á»£c phĂª duyá»‡t. Báº¡n cĂ³ thá»ƒ báº¯t Ä‘áº§u thá»±c hiá»‡n.`,
                     type: 'APPROVAL',
                 },
             });
         } else {
             if (!rejectReason) {
-                return res.status(400).json({ success: false, message: 'Vui lòng nhập lý do từ chối.' });
+                return res.status(400).json({ success: false, message: 'Vui lĂ²ng nháº­p lĂ½ do tá»« chá»‘i.' });
             }
 
             await prisma.topicRegistration.update({
@@ -336,8 +365,8 @@ const handleRegistration = async (req, res, next) => {
             await prisma.notification.create({
                 data: {
                     userId: reg.studentId,
-                    title: 'Đăng ký đề tài bị từ chối',
-                    content: `Đề tài "${reg.topic.title}" bị từ chối. Lý do: ${rejectReason}. Bạn có thể đăng ký đề tài khác.`,
+                    title: 'ÄÄƒng kĂ½ Ä‘á» tĂ i bá»‹ tá»« chá»‘i',
+                    content: `Äá» tĂ i "${reg.topic.title}" bá»‹ tá»« chá»‘i. LĂ½ do: ${rejectReason}. Báº¡n cĂ³ thá»ƒ Ä‘Äƒng kĂ½ Ä‘á» tĂ i khĂ¡c.`,
                     type: 'APPROVAL',
                 },
             });
@@ -345,7 +374,7 @@ const handleRegistration = async (req, res, next) => {
 
         res.json({
             success: true,
-            message: action === 'APPROVE' ? 'Đã phê duyệt đăng ký.' : 'Đã từ chối đăng ký.',
+            message: action === 'APPROVE' ? 'ÄĂ£ phĂª duyá»‡t Ä‘Äƒng kĂ½.' : 'ÄĂ£ tá»« chá»‘i Ä‘Äƒng kĂ½.',
         });
     } catch (error) {
         next(error);
@@ -354,7 +383,7 @@ const handleRegistration = async (req, res, next) => {
 
 /**
  * DELETE /api/registrations/:id
- * SV hủy đăng ký (chỉ khi PENDING)
+ * SV há»§y Ä‘Äƒng kĂ½ (chá»‰ khi PENDING)
  */
 const cancelRegistration = async (req, res, next) => {
     try {
@@ -364,20 +393,20 @@ const cancelRegistration = async (req, res, next) => {
         const reg = await prisma.topicRegistration.findUnique({ where: { id: parseInt(id) } });
 
         if (!reg) {
-            return res.status(404).json({ success: false, message: 'Không tìm thấy đăng ký.' });
+            return res.status(404).json({ success: false, message: 'KhĂ´ng tĂ¬m tháº¥y Ä‘Äƒng kĂ½.' });
         }
 
         if (reg.studentId !== studentId) {
-            return res.status(403).json({ success: false, message: 'Bạn không có quyền hủy đăng ký này.' });
+            return res.status(403).json({ success: false, message: 'Báº¡n khĂ´ng cĂ³ quyá»n há»§y Ä‘Äƒng kĂ½ nĂ y.' });
         }
 
         if (reg.status !== 'PENDING') {
-            return res.status(400).json({ success: false, message: 'Chỉ có thể hủy đăng ký khi đang chờ duyệt.' });
+            return res.status(400).json({ success: false, message: 'Chá»‰ cĂ³ thá»ƒ há»§y Ä‘Äƒng kĂ½ khi Ä‘ang chá» duyá»‡t.' });
         }
 
         await prisma.topicRegistration.delete({ where: { id: parseInt(id) } });
 
-        res.json({ success: true, message: 'Đã hủy đăng ký đề tài.' });
+        res.json({ success: true, message: 'ÄĂ£ há»§y Ä‘Äƒng kĂ½ Ä‘á» tĂ i.' });
     } catch (error) {
         next(error);
     }
@@ -390,3 +419,4 @@ module.exports = {
     handleRegistration,
     cancelRegistration,
 };
+

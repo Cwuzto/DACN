@@ -1,4 +1,4 @@
-import api from './api';
+﻿import api from './api';
 
 const wrapServiceError = (error, fallbackMessage) => {
     if (error?.success === false) return error;
@@ -22,6 +22,14 @@ const taskService = {
         }
     },
 
+    updateTaskStatus: async (taskId, status) => {
+        try {
+            return await api.patch(`/tasks/${taskId}/status`, { status });
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi cập nhật trạng thái task');
+        }
+    },
+
     submitTask: async (taskId, submissionData) => {
         try {
             return await api.post(`/tasks/${taskId}/submit`, submissionData);
@@ -40,4 +48,3 @@ const taskService = {
 };
 
 export default taskService;
-

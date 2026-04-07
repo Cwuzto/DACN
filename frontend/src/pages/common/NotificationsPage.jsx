@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Avatar, Badge, Button, Card, Empty, Flex, Space, Tabs, Typography, message } from 'antd';
 import {
     BellOutlined,
@@ -30,7 +30,7 @@ function NotificationsPage() {
     const [activeTab, setActiveTab] = useState('all');
     const [loading, setLoading] = useState(true);
 
-    const fetchNotifications = async () => {
+    const fetchNotifications = useCallback(async () => {
         try {
             setLoading(true);
             const response = await notificationService.getMyNotifications();
@@ -40,25 +40,39 @@ function NotificationsPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
         fetchNotifications();
-    }, []);
+    }, [fetchNotifications]);
 
-    const unreadCount = useMemo(
-        () => notifications.filter((notification) => !notification.isRead).length,
-        [notifications]
-    );
+    useEffect(() => {
+        const intervalId = setInterval(() => {
+            fetchNotifications();
+        }, 30000);
+
+        const onVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                fetchNotifications();
+            }
+        };
+        document.addEventListener('visibilitychange', onVisibilityChange);
+
+        return () => {
+            clearInterval(intervalId);
+            document.removeEventListener('visibilitychange', onVisibilityChange);
+        };
+    }, [fetchNotifications]);
+
+    const unreadCount = useMemo(() => notifications.filter((item) => !item.isRead).length, [notifications]);
 
     const markAsRead = async (id) => {
         const target = notifications.find((item) => item.id === id);
         if (!target || target.isRead) return;
+
         try {
             await notificationService.markRead(id);
-            setNotifications((prev) =>
-                prev.map((item) => (item.id === id ? { ...item, isRead: true } : item))
-            );
+            setNotifications((prev) => prev.map((item) => (item.id === id ? { ...item, isRead: true } : item)));
         } catch (error) {
             message.error(error?.message || 'Không thể đánh dấu đã đọc');
         }
@@ -115,7 +129,7 @@ function NotificationsPage() {
                     <Text type="secondary">{unreadCount} thông báo chưa đọc</Text>
                 </div>
                 <Space>
-                    <Button icon={<CheckOutlined />} onClick={markAllRead}>
+                    <Button icon={<CheckOutlined />} onClick={markAllRead} disabled={unreadCount === 0}>
                         Đánh dấu tất cả đã đọc
                     </Button>
                 </Space>
@@ -183,7 +197,7 @@ function NotificationsPage() {
                                             <div style={{ marginTop: 4 }}>
                                                 <Badge
                                                     status="processing"
-                                                    text={<Text type="secondary" style={{ fontSize: 11 }}>Moi</Text>}
+                                                    text={<Text type="secondary" style={{ fontSize: 11 }}>Mới</Text>}
                                                 />
                                             </div>
                                         )}
@@ -199,5 +213,4 @@ function NotificationsPage() {
 }
 
 export default NotificationsPage;
-
 

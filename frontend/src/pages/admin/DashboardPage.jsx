@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Alert, Progress, Spin, message } from 'antd';
+﻿import { useEffect, useMemo, useState } from 'react';
+import { Alert, Progress, Select, Spin, Tag, message } from 'antd';
 import {
     ReadOutlined,
     SafetyCertificateOutlined,
@@ -19,6 +19,10 @@ function DashboardPage() {
     const [activities, setActivities] = useState([]);
     const [semesters, setSemesters] = useState([]);
 
+    const [selectedSemesterId, setSelectedSemesterId] = useState(null);
+    const [semesterOverview, setSemesterOverview] = useState(null);
+    const [overviewLoading, setOverviewLoading] = useState(false);
+
     useEffect(() => {
         const fetchDashboardData = async () => {
             setLoading(true);
@@ -35,7 +39,14 @@ function DashboardPage() {
                 if (semesterRes.success) setSemesterChart(semesterRes.data || []);
                 if (scoreRes.success) setScoreDistribution(scoreRes.data || []);
                 if (activityRes.success) setActivities(activityRes.data || []);
-                if (allSemesterRes.success) setSemesters(allSemesterRes.data || []);
+                if (allSemesterRes.success) {
+                    const list = allSemesterRes.data || [];
+                    setSemesters(list);
+                    if (list.length > 0) {
+                        const preferred = list.find((item) => ['REGISTRATION', 'ONGOING', 'DEFENSE'].includes(item.status));
+                        setSelectedSemesterId(preferred?.id || list[0].id);
+                    }
+                }
             } catch (error) {
                 message.error(error?.message || 'Không thể tải dữ liệu dashboard');
             } finally {
@@ -45,6 +56,26 @@ function DashboardPage() {
 
         fetchDashboardData();
     }, []);
+
+    useEffect(() => {
+        const fetchOverview = async () => {
+            try {
+                setOverviewLoading(true);
+                const res = await dashboardService.getSemesterOverview(
+                    selectedSemesterId ? { semesterId: selectedSemesterId } : {}
+                );
+                if (res.success) {
+                    setSemesterOverview(res.data || null);
+                }
+            } catch (error) {
+                message.error(error?.message || 'Không thể tải tổng quan học kỳ');
+            } finally {
+                setOverviewLoading(false);
+            }
+        };
+
+        fetchOverview();
+    }, [selectedSemesterId]);
 
     const statCards = useMemo(
         () => [
@@ -186,6 +217,73 @@ function DashboardPage() {
                 ))}
             </div>
 
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h3 className="font-bold text-slate-900">Tổng quan vận hành theo học kỳ</h3>
+                    <Select
+                        value={selectedSemesterId}
+                        onChange={setSelectedSemesterId}
+                        style={{ width: 280 }}
+                        options={semesters.map((semester) => ({ value: semester.id, label: semester.name }))}
+                        placeholder="Chọn học kỳ"
+                    />
+                </div>
+
+                <Spin spinning={overviewLoading}>
+                    {semesterOverview ? (
+                        <>
+                            <div className="flex flex-wrap items-center gap-3">
+                                <Tag color={semesterOverview.semester.registrationOpen ? 'green' : 'red'}>
+                                    {semesterOverview.semester.registrationOpen ? 'Đang mở đăng ký' : 'Đang đóng đăng ký'}
+                                </Tag>
+                                <Tag>{semesterOverview.semester.status}</Tag>
+                                <span className="text-xs text-slate-500">
+                                    Hạn đăng ký: {semesterOverview.semester.registrationDeadline ? dayjs(semesterOverview.semester.registrationDeadline).format('DD/MM/YYYY') : 'Chưa đặt'}
+                                </span>
+                            </div>
+
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <div className="rounded-lg border border-slate-100 p-3 bg-slate-50">
+                                    <p className="text-xs text-slate-500">Đề tài</p>
+                                    <p className="text-xl font-black text-slate-900">{semesterOverview.topics.total}</p>
+                                </div>
+                                <div className="rounded-lg border border-slate-100 p-3 bg-slate-50">
+                                    <p className="text-xs text-slate-500">Đăng ký</p>
+                                    <p className="text-xl font-black text-slate-900">{semesterOverview.registrations.total}</p>
+                                </div>
+                                <div className="rounded-lg border border-slate-100 p-3 bg-slate-50">
+                                    <p className="text-xs text-slate-500">Chờ duyệt</p>
+                                    <p className="text-xl font-black text-amber-600">{semesterOverview.registrations.pending}</p>
+                                </div>
+                                <div className="rounded-lg border border-slate-100 p-3 bg-slate-50">
+                                    <p className="text-xs text-slate-500">Đã hoàn thành</p>
+                                    <p className="text-xl font-black text-emerald-600">{semesterOverview.registrations.completed}</p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <div className="flex justify-between text-sm mb-1">
+                                        <span className="font-medium text-slate-700">Tỷ lệ duyệt đăng ký</span>
+                                        <span className="font-bold text-slate-900">{semesterOverview.registrations.approvalRate}%</span>
+                                    </div>
+                                    <Progress percent={semesterOverview.registrations.approvalRate} strokeColor="#1677ff" />
+                                </div>
+                                <div>
+                                    <div className="flex justify-between text-sm mb-1">
+                                        <span className="font-medium text-slate-700">Tỷ lệ hoàn thành</span>
+                                        <span className="font-bold text-slate-900">{semesterOverview.registrations.completionRate}%</span>
+                                    </div>
+                                    <Progress percent={semesterOverview.registrations.completionRate} strokeColor="#52c41a" />
+                                </div>
+                            </div>
+                        </>
+                    ) : (
+                        <p className="text-sm text-slate-400">Chưa có dữ liệu học kỳ.</p>
+                    )}
+                </Spin>
+            </div>
+
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                     <h3 className="font-bold text-slate-900 mb-4">Thống kê học kỳ</h3>
@@ -222,7 +320,7 @@ function DashboardPage() {
             </div>
 
             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                <h3 className="font-bold text-slate-900 mb-6">Phân bổ điểm bảo vệ</h3>
+                <h3 className="font-bold text-slate-900 mb-6">Phân bố điểm bảo vệ</h3>
                 <div className="space-y-6">
                     {scores.map((item, idx) => (
                         <div key={idx}>
@@ -261,5 +359,3 @@ function DashboardPage() {
 }
 
 export default DashboardPage;
-
-

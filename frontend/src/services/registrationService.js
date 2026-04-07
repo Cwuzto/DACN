@@ -6,9 +6,9 @@ const wrapServiceError = (error, fallbackMessage) => {
 };
 
 const registrationService = {
-    getMyRegistration: async () => {
+    getMyRegistration: async (params = {}) => {
         try {
-            return await api.get('/registrations/my');
+            return await api.get('/registrations/my', { params });
         } catch (error) {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi tải thông tin đăng ký');
         }

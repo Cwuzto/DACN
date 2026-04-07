@@ -1,9 +1,8 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect, useMemo } from 'react';
 import { message } from 'antd';
 import uploadService from '../../services/uploadService';
 import taskService from '../../services/taskService';
 import registrationService from '../../services/registrationService';
-import { CloudUploadOutlined, CheckCircleOutlined, ClockCircleOutlined, InboxOutlined, DownloadOutlined, FileZipOutlined, InfoCircleOutlined, FilePdfOutlined, LoadingOutlined } from '@ant-design/icons';
 
 const statusConfig = {
     OPEN: { label: 'Chưa nộp', colorClass: 'bg-amber-100 text-amber-700 border-amber-200', icon: <span className="material-symbols-outlined text-[16px]">schedule</span> },
@@ -13,22 +12,39 @@ const statusConfig = {
     OVERDUE: { label: 'Trễ hạn', colorClass: 'bg-red-100 text-red-700 border-red-200', icon: <span className="material-symbols-outlined text-[16px]">error</span> },
 };
 
+const ACTIVE_REG_STATUSES = ['APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'DEFENDED', 'COMPLETED'];
+
 function SubmissionPage() {
     const [subList, setSubList] = useState([]);
     const [registration, setRegistration] = useState(null);
     const [loading, setLoading] = useState(true);
     const [uploadingObj, setUploadingObj] = useState({});
+    const [submissionContent, setSubmissionContent] = useState({});
+    const [taskFilter, setTaskFilter] = useState('ALL');
 
-    // Dynamic Progress Calculations
-    const totalTasks = subList.length;
-    const submittedTasks = subList.filter(t => ['SUBMITTED', 'COMPLETED'].includes(t.status)).length;
-    const completedTasks = subList.filter(t => t.status === 'COMPLETED').length;
-    const openTasks = subList.filter(t => t.status === 'OPEN').length;
-    const progressPercent = totalTasks > 0 ? Math.round((submittedTasks / totalTasks) * 100) : 0;
+    const canSubmit = registration && ACTIVE_REG_STATUSES.includes(registration.status);
 
     useEffect(() => {
         fetchData();
     }, []);
+
+    const effectiveTasks = useMemo(() => subList.map((task) => {
+        const dueDate = task.dueDate ? new Date(task.dueDate) : null;
+        const isOverdue = dueDate && dueDate.getTime() < Date.now() && ['OPEN', 'IN_PROGRESS'].includes(task.status);
+        return { ...task, _effectiveStatus: isOverdue ? 'OVERDUE' : task.status };
+    }), [subList]);
+
+    const visibleTasks = useMemo(() => {
+        if (taskFilter === 'ALL') return effectiveTasks;
+        return effectiveTasks.filter((task) => task._effectiveStatus === taskFilter);
+    }, [effectiveTasks, taskFilter]);
+
+    const totalTasks = effectiveTasks.length;
+    const submittedTasks = effectiveTasks.filter((t) => ['SUBMITTED', 'COMPLETED'].includes(t._effectiveStatus)).length;
+    const completedTasks = effectiveTasks.filter((t) => t._effectiveStatus === 'COMPLETED').length;
+    const openTasks = effectiveTasks.filter((t) => ['OPEN', 'IN_PROGRESS'].includes(t._effectiveStatus)).length;
+    const overdueTasks = effectiveTasks.filter((t) => t._effectiveStatus === 'OVERDUE').length;
+    const progressPercent = totalTasks > 0 ? Math.round((submittedTasks / totalTasks) * 100) : 0;
 
     const fetchData = async () => {
         try {
@@ -36,81 +52,112 @@ function SubmissionPage() {
             const regRes = await registrationService.getMyRegistration();
             if (regRes.success && regRes.data) {
                 setRegistration(regRes.data);
+
                 const taskRes = await taskService.getTasksByRegistration(regRes.data.id);
                 if (taskRes.success) {
-                    setSubList(taskRes.data);
+                    setSubList(taskRes.data || []);
                 }
+            } else {
+                setRegistration(null);
+                setSubList([]);
             }
         } catch (error) {
-            console.error('Error fetching submission data:', error);
+            message.error(error?.message || 'Không thể tải dữ liệu nộp báo cáo.');
         } finally {
             setLoading(false);
         }
     };
 
-    const handleFileChange = async (e, subKey) => {
+    const handleFileChange = async (e, taskId) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        setUploadingObj(prev => ({ ...prev, [subKey]: true }));
+        if (!canSubmit) {
+            message.warning('Đăng ký của bạn chưa ở trạng thái cho phép nộp báo cáo.');
+            return;
+        }
+
+        setUploadingObj((prev) => ({ ...prev, [taskId]: true }));
         try {
             const res = await uploadService.uploadFile(file, 'submissions');
+            if (!res?.success || !res?.data?.url) {
+                throw new Error(res?.message || 'Upload failed');
+            }
 
-            // Save the uploaded url to local state temporarily so UI updates instantly
-            setSubList(prev => prev.map(task => {
-                if (task.id === subKey) {
-                    return {
-                        ...task,
-                        _tempFile: {
-                            name: file.name,
-                            size: `${(file.size / 1024 / 1024).toFixed(2)} MB`,
-                            date: new Date().toLocaleDateString('vi-VN'),
-                            url: res.data.url
-                        }
-                    };
-                }
-                return task;
-            }));
+            setSubList((prev) =>
+                prev.map((task) => {
+                    if (task.id === taskId) {
+                        return {
+                            ...task,
+                            _tempFile: {
+                                name: file.name,
+                                size: `${(file.size / 1024 / 1024).toFixed(2)} MB`,
+                                date: new Date().toLocaleDateString('vi-VN'),
+                                url: res.data.url,
+                            },
+                        };
+                    }
+                    return task;
+                })
+            );
 
             message.success(`${file.name} tải lên thành công. Vui lòng bấm "Chốt nộp báo cáo".`);
         } catch (err) {
-            console.error(err);
-            message.error(`${file.name} tải lên thất bại.`);
+            message.error(err?.message || `${file.name} tải lên thất bại.`);
         } finally {
-            setUploadingObj(prev => ({ ...prev, [subKey]: false }));
-            e.target.value = null; // reset input
+            setUploadingObj((prev) => ({ ...prev, [taskId]: false }));
+            e.target.value = null;
         }
     };
 
     const handleSubmit = async (taskId) => {
-        const task = subList.find(t => t.id === taskId);
-        if (!task || !task._tempFile) return;
+        const task = subList.find((t) => t.id === taskId);
+        if (!task) return;
+
+        const content = (submissionContent[taskId] || '').trim();
+        const fileUrl = task?._tempFile?.url || null;
+        const fileName = task?._tempFile?.name || null;
+
+        if (!content && !fileUrl) {
+            message.warning('Vui lòng nhập nội dung hoặc tải tệp trước khi nộp.');
+            return;
+        }
 
         try {
-            setUploadingObj(prev => ({ ...prev, [`submit_${taskId}`]: true }));
-            await taskService.submitTask(taskId, {
-                content: 'Báo cáo tiến độ',
-                fileUrl: task._tempFile.url,
-                fileName: task._tempFile.name
+            setUploadingObj((prev) => ({ ...prev, [`submit_${taskId}`]: true }));
+            const response = await taskService.submitTask(taskId, {
+                content: content || null,
+                fileUrl,
+                fileName,
             });
-            message.success('Nộp bài thành công!');
-            fetchData(); // reload
-        } catch {
-            message.error('Lỗi khi nộp bài');
+
+            if (response.success) {
+                message.success('Nộp bài thành công!');
+                setSubmissionContent((prev) => {
+                    const next = { ...prev };
+                    delete next[taskId];
+                    return next;
+                });
+                fetchData();
+            }
+        } catch (error) {
+            message.error(error?.message || 'Lỗi khi nộp bài');
         } finally {
-            setUploadingObj(prev => ({ ...prev, [`submit_${taskId}`]: false }));
+            setUploadingObj((prev) => ({ ...prev, [`submit_${taskId}`]: false }));
         }
     };
 
     const removeTempFile = (taskId) => {
-        setSubList(prev => prev.map(task => {
-            if (task.id === taskId) {
-                const newTask = { ...task };
-                delete newTask._tempFile;
-                return newTask;
-            }
-            return task;
-        }));
+        setSubList((prev) =>
+            prev.map((task) => {
+                if (task.id === taskId) {
+                    const newTask = { ...task };
+                    delete newTask._tempFile;
+                    return newTask;
+                }
+                return task;
+            })
+        );
     };
 
     if (loading) {
@@ -150,7 +197,12 @@ function SubmissionPage() {
                 </div>
             </div>
 
-            {/* Progress Overview Section */}
+            {!canSubmit && (
+                <div className="mb-6 p-4 rounded-xl border border-amber-200 bg-amber-50 text-amber-700 text-sm font-medium">
+                    Đăng ký hiện tại của bạn là <strong>{registration.status}</strong>. Chỉ có thể nộp báo cáo khi đề tài đã được duyệt hoặc đang thực hiện.
+                </div>
+            )}
+
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 mb-8 lg:flex lg:items-center lg:justify-between lg:gap-12">
                 <div className="flex-1 mb-6 lg:mb-0">
                     <div className="flex justify-between items-end mb-2">
@@ -158,13 +210,10 @@ function SubmissionPage() {
                         <span className="text-xl font-black text-primary">{progressPercent}%</span>
                     </div>
                     <div className="h-3 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                        <div 
-                            className="h-full bg-primary rounded-full transition-all duration-1000 ease-out" 
-                            style={{ width: `${progressPercent}%` }}
-                        ></div>
+                        <div className="h-full bg-primary rounded-full transition-all duration-1000 ease-out" style={{ width: `${progressPercent}%` }}></div>
                     </div>
                 </div>
-                
+
                 <div className="flex gap-4 sm:gap-8 overflow-x-auto pb-2 lg:pb-0 hide-scrollbar">
                     <div className="text-center px-4 shrink-0">
                         <span className="block text-3xl font-black text-slate-800 dark:text-white mb-1">{totalTasks}</span>
@@ -174,6 +223,10 @@ function SubmissionPage() {
                     <div className="text-center px-4 shrink-0">
                         <span className="block text-3xl font-black text-amber-500 mb-1">{openTasks}</span>
                         <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Chờ nộp</span>
+                    </div>
+                    <div className="text-center px-4 shrink-0">
+                        <span className="block text-3xl font-black text-red-500 mb-1">{overdueTasks}</span>
+                        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Quá hạn</span>
                     </div>
                     <div className="text-center px-4 shrink-0">
                         <span className="block text-3xl font-black text-indigo-500 mb-1">{submittedTasks - completedTasks}</span>
@@ -186,26 +239,46 @@ function SubmissionPage() {
                 </div>
             </div>
 
-            {/* Submissions List */}
+            <div className="mb-6 flex flex-wrap gap-2">
+                {[
+                    { key: 'ALL', label: `Tất cả (${totalTasks})` },
+                    { key: 'OPEN', label: `Chưa nộp (${openTasks})` },
+                    { key: 'OVERDUE', label: `Quá hạn (${overdueTasks})` },
+                    { key: 'SUBMITTED', label: `Đã nộp (${submittedTasks - completedTasks})` },
+                    { key: 'COMPLETED', label: `Đã chấm (${completedTasks})` },
+                ].map((item) => (
+                    <button
+                        key={item.key}
+                        onClick={() => setTaskFilter(item.key)}
+                        className={`px-3 py-1.5 rounded-full text-sm font-semibold border transition-colors ${taskFilter === item.key
+                            ? 'bg-primary text-white border-primary'
+                            : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-primary/40'
+                        }`}
+                    >
+                        {item.label}
+                    </button>
+                ))}
+            </div>
+
             <div className="space-y-6">
-                {subList.length === 0 ? (
+                {visibleTasks.length === 0 ? (
                     <div className="bg-slate-50 dark:bg-slate-800/30 rounded-2xl border border-slate-200 dark:border-slate-800 border-dashed p-12 flex flex-col items-center justify-center text-center">
                         <div className="size-16 rounded-full bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center text-slate-400 mb-4">
                             <span className="material-symbols-outlined text-3xl">assignment</span>
                         </div>
-                        <h3 className="font-bold text-lg mb-2 text-slate-700 dark:text-slate-300">Giảng viên chưa tạo yêu cầu báo cáo nào</h3>
-                        <p className="text-slate-500 text-sm max-w-xs">Các yêu cầu nộp báo cáo hoặc tài liệu theo từng giai đoạn sẽ xuất hiện ở đây.</p>
+                        <h3 className="font-bold text-lg mb-2 text-slate-700 dark:text-slate-300">Không có nhiệm vụ phù hợp bộ lọc</h3>
+                        <p className="text-slate-500 text-sm max-w-xs">Bạn có thể đổi bộ lọc để xem các nhiệm vụ khác.</p>
                     </div>
-                ) : subList.map((task) => {
-                    const cfg = statusConfig[task.status] || { colorClass: 'bg-slate-100 text-slate-700', icon: <span className="material-symbols-outlined text-[16px]">info</span>, label: task.status };
+                ) : visibleTasks.map((task) => {
+                    const cfg = statusConfig[task._effectiveStatus] || { colorClass: 'bg-slate-100 text-slate-700', icon: <span className="material-symbols-outlined text-[16px]">info</span>, label: task._effectiveStatus };
                     const isUploading = uploadingObj[task.id];
                     const isSubmitting = uploadingObj[`submit_${task.id}`];
                     const submissions = task.submissions || [];
                     const lastSubmission = submissions.length > 0 ? submissions[submissions.length - 1] : null;
+                    const canResubmit = task.status !== 'COMPLETED' && canSubmit;
 
                     return (
                         <div key={task.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col lg:flex-row">
-                            {/* Left Column: Info & Upload */}
                             <div className="p-6 lg:p-8 lg:w-3/5 border-b lg:border-b-0 lg:border-r border-slate-200 dark:border-slate-800">
                                 <div className="flex items-start gap-4 mb-6">
                                     <div className={`mt-1 shrink-0 px-2.5 py-1 rounded-md text-xs font-bold border flex items-center gap-1.5 ${cfg.colorClass}`}>
@@ -222,8 +295,20 @@ function SubmissionPage() {
                                     </div>
                                 </div>
 
-                                {/* Upload Area */}
-                                {task.status === 'OPEN' && !lastSubmission && (
+                                {canResubmit && (
+                                    <div className="mt-6 mb-4">
+                                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Nội dung báo cáo</label>
+                                        <textarea
+                                            className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 focus:ring-2 focus:ring-primary outline-none"
+                                            rows="3"
+                                            placeholder="Mô tả ngắn nội dung bạn nộp (tùy chọn nếu đã có file)..."
+                                            value={submissionContent[task.id] || ''}
+                                            onChange={(event) => setSubmissionContent((prev) => ({ ...prev, [task.id]: event.target.value }))}
+                                        />
+                                    </div>
+                                )}
+
+                                {canResubmit && (
                                     <div className="mt-8">
                                         {!task._tempFile ? (
                                             <label className="relative flex flex-col items-center justify-center w-full h-40 border-2 border-slate-300 dark:border-slate-700 border-dashed rounded-xl cursor-pointer bg-slate-50 dark:bg-slate-800/30 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors group">
@@ -241,11 +326,11 @@ function SubmissionPage() {
                                                         </>
                                                     )}
                                                 </div>
-                                                <input 
-                                                    type="file" 
-                                                    className="hidden" 
+                                                <input
+                                                    type="file"
+                                                    className="hidden"
                                                     disabled={isUploading}
-                                                    onChange={e => handleFileChange(e, task.id)} 
+                                                    onChange={(e) => handleFileChange(e, task.id)}
                                                     accept=".pdf,.doc,.docx,.zip,.rar"
                                                 />
                                             </label>
@@ -258,10 +343,10 @@ function SubmissionPage() {
                                                         </div>
                                                         <div className="min-w-0">
                                                             <h4 className="font-bold text-slate-900 dark:text-white truncate">{task._tempFile.name}</h4>
-                                                            <p className="text-xs text-slate-500">{task._tempFile.size} &bull; Sẵn sàng nộp</p>
+                                                            <p className="text-xs text-slate-500">{task._tempFile.size} • Sẵn sàng nộp</p>
                                                         </div>
                                                     </div>
-                                                    <button 
+                                                    <button
                                                         onClick={() => removeTempFile(task.id)}
                                                         className="size-8 rounded-full bg-white text-slate-400 hover:text-red-500 shadow-sm border border-slate-200 flex items-center justify-center shrink-0 transition-colors"
                                                         title="Hủy"
@@ -270,8 +355,8 @@ function SubmissionPage() {
                                                         <span className="material-symbols-outlined text-[18px]">close</span>
                                                     </button>
                                                 </div>
-                                                
-                                                <button 
+
+                                                <button
                                                     onClick={() => handleSubmit(task.id)}
                                                     disabled={isSubmitting}
                                                     className="w-full py-3 bg-primary hover:bg-primary/90 text-white font-bold rounded-lg flex items-center justify-center gap-2 shadow-sm transition-all"
@@ -279,7 +364,7 @@ function SubmissionPage() {
                                                     {isSubmitting ? (
                                                         <><span className="material-symbols-outlined animate-spin text-[20px]">progress_activity</span> Đang xử lý...</>
                                                     ) : (
-                                                        <><span className="material-symbols-outlined text-[20px]">send</span> Chốt nộp báo cáo</>
+                                                        <><span className="material-symbols-outlined text-[20px]">send</span> {lastSubmission ? 'Nộp lại báo cáo' : 'Chốt nộp báo cáo'}</>
                                                     )}
                                                 </button>
                                             </div>
@@ -288,7 +373,6 @@ function SubmissionPage() {
                                 )}
                             </div>
 
-                            {/* Right Column: History & Feedback */}
                             <div className="p-6 lg:p-8 lg:w-2/5 bg-slate-50/50 dark:bg-slate-800/10 flex flex-col">
                                 <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider mb-4 flex items-center gap-2">
                                     <span className="material-symbols-outlined text-[18px]">history</span>
@@ -298,7 +382,7 @@ function SubmissionPage() {
                                 <div className="flex-1 space-y-4">
                                     {lastSubmission ? (
                                         <>
-                                            {/* File submitted */}
+                                            <div className="text-xs text-slate-500">Tổng số lần nộp: <strong>{submissions.length}</strong></div>
                                             <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 shadow-sm">
                                                 <div className="flex items-start justify-between gap-3">
                                                     <div className="flex gap-3 min-w-0">
@@ -307,24 +391,30 @@ function SubmissionPage() {
                                                         </div>
                                                         <div className="min-w-0">
                                                             <p className="text-sm font-bold text-slate-900 dark:text-white truncate" title={lastSubmission.fileName || 'Tài liệu đã nộp'}>
-                                                                {lastSubmission.fileName || 'Tài liệu đã nộp'}
+                                                                {lastSubmission.fileName || 'Bài nộp không kèm tệp'}
                                                             </p>
                                                             <p className="text-xs text-slate-500 mt-0.5">Nộp lúc: {new Date(lastSubmission.submittedAt).toLocaleString('vi-VN')}</p>
                                                         </div>
                                                     </div>
-                                                    <a 
-                                                        href={lastSubmission.fileUrl} 
-                                                        target="_blank" 
-                                                        rel="noopener noreferrer"
-                                                        className="size-8 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0 transition-colors"
-                                                        title="Tải xuống"
-                                                    >
-                                                        <span className="material-symbols-outlined text-[18px]">download</span>
-                                                    </a>
+                                                    {lastSubmission.fileUrl && (
+                                                        <a
+                                                            href={lastSubmission.fileUrl}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="size-8 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0 transition-colors"
+                                                            title="Tải xuống"
+                                                        >
+                                                            <span className="material-symbols-outlined text-[18px]">download</span>
+                                                        </a>
+                                                    )}
                                                 </div>
+                                                {lastSubmission.content && (
+                                                    <div className="mt-3 text-sm text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/40 rounded-lg p-3">
+                                                        {lastSubmission.content}
+                                                    </div>
+                                                )}
                                             </div>
 
-                                            {/* Feedback */}
                                             {lastSubmission.feedback ? (
                                                 <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800/50 rounded-xl p-4 mt-4 relative">
                                                     <div className="absolute -top-3 left-6">
@@ -334,9 +424,7 @@ function SubmissionPage() {
                                                         <p className="text-xs font-bold text-indigo-800 dark:text-indigo-300">Nhận xét từ Giảng viên</p>
                                                         <p className="text-[10px] text-indigo-600/70">{new Date(lastSubmission.feedbackAt || Date.now()).toLocaleDateString('vi-VN')}</p>
                                                     </div>
-                                                    <p className="text-sm text-indigo-900 dark:text-indigo-100 italic leading-relaxed">
-                                                        "{lastSubmission.feedback}"
-                                                    </p>
+                                                    <p className="text-sm text-indigo-900 dark:text-indigo-100 italic leading-relaxed">"{lastSubmission.feedback}"</p>
                                                 </div>
                                             ) : (
                                                 <div className="text-center py-6 mt-4">

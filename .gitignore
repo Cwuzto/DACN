@@ -24,3 +24,12 @@ prisma/*.db
 # Logs
 *.log
 npm-debug.log*
+frontend/build-log*.txt
+frontend/dev-frontend-log.txt
+frontend/lint_output.txt
+db_check.txt
+db_test.txt
+tree.txt
+
+# Temp docs
+.tmp_*.md

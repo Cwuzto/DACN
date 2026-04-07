@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback } from 'react';
 import {
     Card, Table, Tag, Button, Input, Select, Typography, Flex, Space,
     Tooltip, Modal, Form, message, Popconfirm,
@@ -70,7 +70,12 @@ function TopicManagementPage() {
     const openFormModal = (topic = null) => {
         setEditingTopic(topic);
         if (topic) {
-            form.setFieldsValue({ title: topic.title, description: topic.description, maxStudents: topic.maxStudents, semesterId: topic.semesterId });
+            form.setFieldsValue({
+                title: topic.title,
+                description: topic.description,
+                maxStudents: topic.maxStudents,
+                semesterId: topic.semesterId,
+            });
         } else {
             form.resetFields();
             form.setFieldsValue({ maxStudents: 1, semesterId: semesterOptions[0]?.value });
@@ -78,7 +83,6 @@ function TopicManagementPage() {
         setFormModalOpen(true);
     };
 
-    // Lưu nháp
     const handleSaveDraft = async () => {
         try {
             const values = await form.validateFields();
@@ -99,17 +103,16 @@ function TopicManagementPage() {
         }
     };
 
-    // Gửi duyệt
-    const handleSubmitForApproval = async () => {
+    const handlePublishTopic = async () => {
         try {
             const values = await form.validateFields();
             setSubmitting(true);
             if (editingTopic) {
-                await topicService.update(editingTopic.id, { ...values, status: 'PENDING' });
+                await topicService.update(editingTopic.id, { ...values, status: 'APPROVED' });
             } else {
-                await topicService.create({ ...values, status: 'PENDING' });
+                await topicService.create({ ...values, status: 'APPROVED' });
             }
-            message.success('Đã gửi đề tài đi phê duyệt.');
+            message.success('Đã phát hành đề tài.');
             setFormModalOpen(false);
             fetchTopics();
         } catch (err) {
@@ -119,11 +122,10 @@ function TopicManagementPage() {
         }
     };
 
-    // Gửi DRAFT đi duyệt (từ nút trên bảng)
     const handleSendForApproval = async (id) => {
         try {
-            await topicService.update(id, { status: 'PENDING' });
-            message.success('Đã gửi đề tài đi phê duyệt.');
+            await topicService.update(id, { status: 'APPROVED' });
+            message.success('Đã phát hành đề tài.');
             fetchTopics();
         } catch (err) {
             message.error(err?.message || 'Có lỗi xảy ra.');
@@ -152,7 +154,7 @@ function TopicManagementPage() {
             ),
         },
         {
-            title: 'Sinh viên đăng ký', key: 'registrations', align: 'center', width: 120,
+            title: 'Sinh viên đăng ký', key: 'registrations', align: 'center', width: 140,
             render: (_, record) => <Tag>{record._count?.registrations || 0}/{record.maxStudents}</Tag>,
         },
         {
@@ -163,15 +165,15 @@ function TopicManagementPage() {
             },
         },
         {
-            title: 'Hành động', key: 'action', width: 160, align: 'center',
+            title: 'Hành động', key: 'action', width: 180, align: 'center',
             render: (_, record) => (
                 <Space>
                     <Tooltip title="Xem"><Button type="text" size="small" icon={<EyeOutlined />} /></Tooltip>
                     {['DRAFT', 'REJECTED'].includes(record.status) && (
                         <>
                             <Tooltip title="Sửa"><Button type="text" size="small" icon={<EditOutlined />} onClick={() => openFormModal(record)} /></Tooltip>
-                            <Tooltip title="Gửi duyệt">
-                                <Popconfirm title="Gửi đề tài này đi phê duyệt?" onConfirm={() => handleSendForApproval(record.id)}>
+                            <Tooltip title="Phát hành">
+                                <Popconfirm title="Phát hành đề tài này?" onConfirm={() => handleSendForApproval(record.id)}>
                                     <Button type="text" size="small" style={{ color: '#722ed1' }} icon={<SendOutlined />} />
                                 </Popconfirm>
                             </Tooltip>
@@ -189,14 +191,12 @@ function TopicManagementPage() {
         },
     ];
 
-    // Thêm cột lý do từ chối nếu có đề tài bị từ chối
-    if (statusFilter === 'REJECTED' || topics.some(t => t.status === 'REJECTED')) {
+    if (statusFilter === 'REJECTED' || topics.some((t) => t.status === 'REJECTED')) {
         const rejectCol = {
-            title: 'Lý do từ chối', dataIndex: 'rejectReason', key: 'rejectReason', width: 200,
-            render: (text) => text ? <Text type="danger" style={{ fontSize: 12 }}>{text}</Text> : '—',
+            title: 'Lý do từ chối', dataIndex: 'rejectReason', key: 'rejectReason', width: 240,
+            render: (text) => (text ? <Text type="danger" style={{ fontSize: 12 }}>{text}</Text> : '-'),
         };
-        // Insert trước cột hành động
-        if (!columns.find(c => c.key === 'rejectReason')) {
+        if (!columns.find((c) => c.key === 'rejectReason')) {
             columns.splice(columns.length - 1, 0, rejectCol);
         }
     }
@@ -205,7 +205,7 @@ function TopicManagementPage() {
         <div>
             <Flex justify="space-between" align="center" style={{ marginBottom: 24 }}>
                 <div>
-                    <Title level={3} style={{ margin: 0 }}>Quản lý Đề tài</Title>
+                    <Title level={3} style={{ margin: 0 }}>Quản lý đề tài</Title>
                     <Text type="secondary">Danh sách đề tài bạn đang hướng dẫn</Text>
                 </div>
                 <Button type="primary" icon={<PlusOutlined />} onClick={() => openFormModal()} style={{ background: '#722ed1', borderColor: '#722ed1' }}>
@@ -245,23 +245,27 @@ function TopicManagementPage() {
                 />
             </Card>
 
-            {/* Modal tạo/sửa đề tài */}
             <Modal
                 title={editingTopic ? 'Chỉnh sửa đề tài' : 'Đề xuất đề tài mới'}
                 open={formModalOpen}
                 onCancel={() => setFormModalOpen(false)}
-                footer={
+                footer={(
                     <Flex justify="space-between">
                         <Button onClick={() => setFormModalOpen(false)}>Hủy</Button>
                         <Space>
                             <Button onClick={handleSaveDraft} loading={submitting}>Lưu nháp</Button>
-                            <Button type="primary" onClick={handleSubmitForApproval} loading={submitting} icon={<SendOutlined />}
-                                style={{ background: '#722ed1', borderColor: '#722ed1' }}>
-                                Gửi phê duyệt
+                            <Button
+                                type="primary"
+                                onClick={handlePublishTopic}
+                                loading={submitting}
+                                icon={<SendOutlined />}
+                                style={{ background: '#722ed1', borderColor: '#722ed1' }}
+                            >
+                                Phát hành
                             </Button>
                         </Space>
                     </Flex>
-                }
+                )}
                 width={600}
             >
                 <Form form={form} layout="vertical" style={{ marginTop: 16 }}>

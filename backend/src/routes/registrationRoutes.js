@@ -8,7 +8,15 @@ const router = express.Router();
 
 router.use(authenticate);
 
-router.get('/my', authorize('STUDENT'), registrationController.getMyRegistration);
+router.get(
+    '/my',
+    [
+        authorize('STUDENT'),
+        query('semesterId').optional().isInt({ min: 1 }).withMessage('semesterId phải là số nguyên dương.'),
+        validateRequest,
+    ],
+    registrationController.getMyRegistration
+);
 
 router.get(
     '/',
@@ -67,4 +75,3 @@ router.delete(
 );
 
 module.exports = router;
-

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { Card, Table, Tag, Button, Typography, Flex, Space, Tooltip, Badge, Modal, Input, message } from 'antd';
 import { CheckOutlined, CloseOutlined, EyeOutlined, UserOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -13,67 +13,71 @@ const statusConfig = {
     REJECTED: { label: 'Từ chối', color: 'error' },
 };
 
-const getColumns = (handleApprove, setRejectingRecord, setRejectModalOpen) => {
-    return [
-        {
-            title: 'Sinh viên đề xuất', dataIndex: 'proposedBy', key: 'proposedBy', width: 220,
-            render: (proposedBy) => (
-                <Flex gap={8} align="center">
-                    <Tag icon={<UserOutlined />}>{proposedBy?.code || 'N/A'}</Tag>
-                    <Text strong>{proposedBy?.fullName || 'Sinh viên'}</Text>
-                </Flex>
-            ),
+const getColumns = (handleApprove, setRejectingRecord, setRejectModalOpen) => [
+    {
+        title: 'Sinh viên đề xuất', dataIndex: 'proposedBy', key: 'proposedBy', width: 240,
+        render: (proposedBy) => (
+            <Flex gap={8} align="center">
+                <Tag icon={<UserOutlined />}>{proposedBy?.code || 'N/A'}</Tag>
+                <Text strong>{proposedBy?.fullName || 'Sinh viên'}</Text>
+            </Flex>
+        ),
+    },
+    {
+        title: 'Đề tài đề xuất', dataIndex: 'title', key: 'title',
+        render: (title) => <Text strong style={{ fontSize: 13 }}>{title}</Text>,
+    },
+    {
+        title: 'GV hướng dẫn', dataIndex: ['mentor', 'fullName'], key: 'mentor',
+        render: (name) => <Text>{name || 'Chưa có'}</Text>,
+    },
+    {
+        title: 'Ngày nộp', dataIndex: 'createdAt', key: 'createdAt', width: 120,
+        render: (text) => <Text type="secondary">{dayjs(text).format('DD/MM/YYYY')}</Text>,
+    },
+    {
+        title: 'Trạng thái', dataIndex: 'status', key: 'status', width: 130,
+        render: (status) => {
+            const cfg = statusConfig[status] || { label: status, color: 'default' };
+            return <Tag color={cfg.color}>{cfg.label}</Tag>;
         },
-        {
-            title: 'Đề tài đề xuất', dataIndex: 'title', key: 'title',
-            render: (title) => <Text strong style={{ fontSize: 13 }}>{title}</Text>,
-        },
-        {
-            title: 'GV hướng dẫn', dataIndex: ['mentor', 'fullName'], key: 'mentor',
-            render: (name) => <Text>{name || 'Chưa có'}</Text>,
-        },
-        {
-            title: 'Ngày nộp', dataIndex: 'createdAt', key: 'createdAt', width: 120,
-            render: (text) => <Text type="secondary">{dayjs(text).format('DD/MM/YYYY')}</Text>,
-        },
-        {
-            title: 'Trạng thái', dataIndex: 'status', key: 'status', width: 130,
-            render: (status) => {
-                const cfg = statusConfig[status] || { label: status, color: 'default' };
-                return <Tag color={cfg.color}>{cfg.label}</Tag>;
-            },
-        },
-        {
-            title: 'Hành động', key: 'action', width: 160, align: 'center',
-            render: (_, record) => (
-                <Space>
-                    <Tooltip title="Xem chi tiết">
-                        <Button type="text" size="small" icon={<EyeOutlined />} />
-                    </Tooltip>
-                    {record.status === 'PENDING' && (
-                        <>
-                            <Tooltip title="Duyệt">
-                                <Button type="text" size="small" style={{ color: '#52c41a' }} icon={<CheckOutlined />} onClick={() => handleApprove(record)} />
-                            </Tooltip>
-                            <Tooltip title="Từ chối">
-                                <Button
-                                    type="text"
-                                    size="small"
-                                    danger
-                                    icon={<CloseOutlined />}
-                                    onClick={() => {
-                                        setRejectingRecord(record);
-                                        setRejectModalOpen(true);
-                                    }}
-                                />
-                            </Tooltip>
-                        </>
-                    )}
-                </Space>
-            ),
-        },
-    ];
-};
+    },
+    {
+        title: 'Hành động', key: 'action', width: 160, align: 'center',
+        render: (_, record) => (
+            <Space>
+                <Tooltip title="Xem chi tiết">
+                    <Button type="text" size="small" icon={<EyeOutlined />} />
+                </Tooltip>
+                {record.status === 'PENDING' && (
+                    <>
+                        <Tooltip title="Duyệt">
+                            <Button
+                                type="text"
+                                size="small"
+                                style={{ color: '#52c41a' }}
+                                icon={<CheckOutlined />}
+                                onClick={() => handleApprove(record)}
+                            />
+                        </Tooltip>
+                        <Tooltip title="Từ chối">
+                            <Button
+                                type="text"
+                                size="small"
+                                danger
+                                icon={<CloseOutlined />}
+                                onClick={() => {
+                                    setRejectingRecord(record);
+                                    setRejectModalOpen(true);
+                                }}
+                            />
+                        </Tooltip>
+                    </>
+                )}
+            </Space>
+        ),
+    },
+];
 
 function TopicApprovalPage() {
     const [approvals, setApprovals] = useState([]);
@@ -95,7 +99,7 @@ function TopicApprovalPage() {
                 setApprovals(res.data || []);
             }
         } catch (error) {
-            message.error('Lỗi khi tải danh sách chờ duyệt: ' + (error?.message || 'Unknown error'));
+            message.error(`Lỗi khi tải danh sách chờ duyệt: ${error?.message || 'Unknown error'}`);
         } finally {
             setLoading(false);
         }
@@ -120,10 +124,16 @@ function TopicApprovalPage() {
     };
 
     const handleReject = async () => {
-        if (!rejectReason.trim()) return message.warning('Vui lòng nhập lý do từ chối');
+        if (!rejectReason.trim()) {
+            return message.warning('Vui lòng nhập lý do từ chối');
+        }
+
         try {
             setSubmitting(true);
-            const res = await topicService.changeStatus(rejectingRecord.id, { status: 'REJECTED', rejectReason });
+            const res = await topicService.changeStatus(rejectingRecord.id, {
+                status: 'REJECTED',
+                rejectReason,
+            });
             if (res.success) {
                 message.success('Đã từ chối đề tài');
                 setRejectModalOpen(false);
@@ -176,7 +186,9 @@ function TopicApprovalPage() {
                 okText="Từ chối"
                 okButtonProps={{ danger: true }}
             >
-                <Text>Nhập lý do từ chối đề tài của sinh viên {rejectingRecord?.proposedBy?.fullName || ''}:</Text>
+                <Text>
+                    Nhập lý do từ chối đề tài của sinh viên {rejectingRecord?.proposedBy?.fullName || ''}:
+                </Text>
                 <TextArea
                     rows={4}
                     value={rejectReason}

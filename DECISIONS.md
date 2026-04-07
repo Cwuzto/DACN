@@ -122,3 +122,23 @@ Tài liệu lưu các quyết định kỹ thuật/nghiệp vụ quan trọng đ
 
 - Trải nghiệm hiển thị nhất quán tiếng Việt giữa các màn admin.
 - Giảm nguy cơ tái phát ASCII/mojibake ở luồng chấm điểm bảo vệ.
+
+---
+
+## 2026-04-08 - Hoàn thiện batch Student/Lecturer/Admin và khóa rule task
+
+**Quyết định**
+
+- Chấp nhận triển khai batch hoàn thiện đồng thời cho:
+  - Student: submission filter + resubmit
+  - Lecturer: duyệt đăng ký + task status update
+  - Admin: dashboard overview theo học kỳ + cảnh báo vận hành
+- Thêm API cập nhật trạng thái task:
+  - `PATCH /api/tasks/:id/status`
+- Chốt rule tạo task chỉ khi registration ở trạng thái hợp lệ (`APPROVED`, `IN_PROGRESS`).
+
+**Ảnh hưởng**
+
+- Luồng giảng viên và sinh viên đồng bộ hơn, giảm thao tác workaround thủ công.
+- Admin có bức tranh vận hành rõ hơn theo từng học kỳ.
+- Cần bổ sung test integration cho các endpoint mới ở batch kế tiếp để khóa hồi quy.

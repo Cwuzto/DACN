@@ -1,8 +1,37 @@
-import { useMemo, useState, useEffect } from 'react';
-import { Card, Table, Tag, Button, Typography, Flex, Progress, Select, Input, Row, Col, Statistic, Drawer, List, message, Spin, Modal, Form, DatePicker } from 'antd';
+﻿import { useMemo, useState, useEffect } from 'react';
 import {
-    SearchOutlined, CheckCircleOutlined, ClockCircleOutlined,
-    WarningOutlined, EyeOutlined, DownloadOutlined, FilePdfOutlined, PlusOutlined, UserOutlined
+    Card,
+    Table,
+    Tag,
+    Button,
+    Typography,
+    Flex,
+    Progress,
+    Select,
+    Input,
+    Row,
+    Col,
+    Statistic,
+    Drawer,
+    List,
+    message,
+    Spin,
+    Modal,
+    Form,
+    DatePicker,
+} from 'antd';
+import {
+    SearchOutlined,
+    CheckCircleOutlined,
+    ClockCircleOutlined,
+    WarningOutlined,
+    EyeOutlined,
+    DownloadOutlined,
+    FilePdfOutlined,
+    PlusOutlined,
+    UserOutlined,
+    CheckOutlined,
+    CloseOutlined,
 } from '@ant-design/icons';
 import registrationService from '../../services/registrationService';
 import taskService from '../../services/taskService';
@@ -19,6 +48,13 @@ const registrationStatusConfig = {
     REJECTED: { label: 'Từ chối', color: 'error' },
 };
 
+const taskStatusOptions = [
+    { value: 'OPEN', label: 'Mới giao' },
+    { value: 'IN_PROGRESS', label: 'Đang làm' },
+    { value: 'SUBMITTED', label: 'Đã nộp' },
+    { value: 'COMPLETED', label: 'Hoàn thành' },
+];
+
 function ProgressTrackingPage() {
     const [loading, setLoading] = useState(true);
     const [registrations, setRegistrations] = useState([]);
@@ -28,10 +64,16 @@ function ProgressTrackingPage() {
     const [selectedRegistration, setSelectedRegistration] = useState(null);
     const [selectedTasks, setSelectedTasks] = useState([]);
     const [taskLoading, setTaskLoading] = useState(false);
+    const [updatingTaskId, setUpdatingTaskId] = useState(null);
 
     const [taskModalOpen, setTaskModalOpen] = useState(false);
     const [taskSubmitting, setTaskSubmitting] = useState(false);
     const [taskForm] = Form.useForm();
+
+    const [handlingRegistration, setHandlingRegistration] = useState(false);
+    const [rejectModalOpen, setRejectModalOpen] = useState(false);
+    const [rejectingRegistration, setRejectingRegistration] = useState(null);
+    const [rejectReason, setRejectReason] = useState('');
 
     useEffect(() => {
         fetchRegistrations();
@@ -51,18 +93,21 @@ function ProgressTrackingPage() {
         }
     };
 
-    const filteredRegistrations = useMemo(() => {
-        return registrations.filter((registration) => {
-            if (statusFilter !== 'all' && registration.status !== statusFilter) return false;
+    const filteredRegistrations = useMemo(() => registrations.filter((registration) => {
+        if (statusFilter !== 'all' && registration.status !== statusFilter) return false;
 
-            if (!searchText.trim()) return true;
-            const search = searchText.toLowerCase();
-            const studentName = registration.student?.fullName?.toLowerCase() || '';
-            const studentCode = registration.student?.code?.toLowerCase() || '';
-            const topicTitle = registration.topic?.title?.toLowerCase() || '';
-            return studentName.includes(search) || studentCode.includes(search) || topicTitle.includes(search);
-        });
-    }, [registrations, searchText, statusFilter]);
+        if (!searchText.trim()) return true;
+        const search = searchText.toLowerCase();
+        const studentName = registration.student?.fullName?.toLowerCase() || '';
+        const studentCode = registration.student?.code?.toLowerCase() || '';
+        const topicTitle = registration.topic?.title?.toLowerCase() || '';
+        return studentName.includes(search) || studentCode.includes(search) || topicTitle.includes(search);
+    }), [registrations, searchText, statusFilter]);
+
+    const assignableRegistrations = useMemo(
+        () => registrations.filter((registration) => ['APPROVED', 'IN_PROGRESS'].includes(registration.status)),
+        [registrations],
+    );
 
     const handleViewRegistration = async (record) => {
         setSelectedRegistration(record);
@@ -81,6 +126,10 @@ function ProgressTrackingPage() {
     };
 
     const openTaskModal = (registration = null) => {
+        if (registration && !['APPROVED', 'IN_PROGRESS'].includes(registration.status)) {
+            message.warning('Chỉ giao nhiệm vụ cho sinh viên đã duyệt hoặc đang thực hiện.');
+            return;
+        }
         taskForm.resetFields();
         if (registration) {
             taskForm.setFieldsValue({ registrationId: registration.id });
@@ -113,6 +162,78 @@ function ProgressTrackingPage() {
         }
     };
 
+    const handleUpdateTaskStatus = async (taskId, status) => {
+        try {
+            setUpdatingTaskId(taskId);
+            const res = await taskService.updateTaskStatus(taskId, status);
+            if (res.success) {
+                setSelectedTasks((prev) => prev.map((task) => (
+                    task.id === taskId ? { ...task, status } : task
+                )));
+                message.success('Đã cập nhật trạng thái nhiệm vụ');
+            }
+        } catch (error) {
+            message.error(error?.message || 'Không thể cập nhật trạng thái nhiệm vụ');
+        } finally {
+            setUpdatingTaskId(null);
+        }
+    };
+
+    const handleApproveRegistration = (record) => {
+        Modal.confirm({
+            title: 'Xác nhận duyệt đăng ký',
+            content: `Duyệt sinh viên ${record.student?.fullName || ''} vào đề tài "${record.topic?.title || ''}"?`,
+            okText: 'Duyệt',
+            cancelText: 'Hủy',
+            onOk: async () => {
+                try {
+                    setHandlingRegistration(true);
+                    const res = await registrationService.handleRegistration(record.id, 'APPROVE');
+                    if (res.success) {
+                        message.success('Đã duyệt đăng ký');
+                        fetchRegistrations();
+                    }
+                } catch (error) {
+                    message.error(error?.message || 'Không thể duyệt đăng ký');
+                } finally {
+                    setHandlingRegistration(false);
+                }
+            },
+        });
+    };
+
+    const openRejectModal = (record) => {
+        setRejectingRegistration(record);
+        setRejectReason('');
+        setRejectModalOpen(true);
+    };
+
+    const handleRejectRegistration = async () => {
+        if (!rejectReason.trim()) {
+            return message.warning('Vui lòng nhập lý do từ chối');
+        }
+
+        try {
+            setHandlingRegistration(true);
+            const res = await registrationService.handleRegistration(
+                rejectingRegistration.id,
+                'REJECT',
+                rejectReason.trim(),
+            );
+            if (res.success) {
+                message.success('Đã từ chối đăng ký');
+                setRejectModalOpen(false);
+                setRejectingRegistration(null);
+                setRejectReason('');
+                fetchRegistrations();
+            }
+        } catch (error) {
+            message.error(error?.message || 'Không thể từ chối đăng ký');
+        } finally {
+            setHandlingRegistration(false);
+        }
+    };
+
     const columns = [
         {
             title: 'Sinh viên', dataIndex: 'student', key: 'student', width: 220,
@@ -125,7 +246,14 @@ function ProgressTrackingPage() {
         },
         {
             title: 'Đề tài', dataIndex: ['topic', 'title'], key: 'topic',
-            render: (text) => <Text style={{ fontSize: 13 }}>{text || 'Chưa đăng ký'}</Text>,
+            render: (text, record) => (
+                <Flex vertical gap={4}>
+                    <Text style={{ fontSize: 13 }}>{text || 'Chưa đăng ký'}</Text>
+                    {record.hasOverdueTask && (
+                        <Tag color="error">Có {record.overdueTaskCount} nhiệm vụ quá hạn</Tag>
+                    )}
+                </Flex>
+            ),
         },
         {
             title: 'Trạng thái', dataIndex: 'status', key: 'status', width: 130,
@@ -143,11 +271,41 @@ function ProgressTrackingPage() {
             render: (text) => <Text type="secondary" style={{ fontSize: 12 }}>{new Date(text).toLocaleDateString('vi-VN')}</Text>,
         },
         {
-            title: '', key: 'action', width: 100, align: 'center',
+            title: '', key: 'action', width: 180, align: 'center',
             render: (_, record) => (
                 <Flex gap={8} justify="center">
                     <Button type="text" size="small" icon={<EyeOutlined />} onClick={() => handleViewRegistration(record)} title="Xem bài nộp" />
-                    <Button type="text" size="small" icon={<PlusOutlined />} onClick={() => openTaskModal(record)} title="Giao việc" style={{ color: '#1677ff' }} />
+                    <Button
+                        type="text"
+                        size="small"
+                        icon={<PlusOutlined />}
+                        onClick={() => openTaskModal(record)}
+                        title="Giao việc"
+                        style={{ color: '#1677ff' }}
+                        disabled={!['APPROVED', 'IN_PROGRESS'].includes(record.status)}
+                    />
+                    {record.status === 'PENDING' && (
+                        <>
+                            <Button
+                                type="text"
+                                size="small"
+                                icon={<CheckOutlined />}
+                                title="Duyệt đăng ký"
+                                style={{ color: '#52c41a' }}
+                                onClick={() => handleApproveRegistration(record)}
+                                loading={handlingRegistration}
+                            />
+                            <Button
+                                type="text"
+                                size="small"
+                                danger
+                                icon={<CloseOutlined />}
+                                title="Từ chối đăng ký"
+                                onClick={() => openRejectModal(record)}
+                                loading={handlingRegistration}
+                            />
+                        </>
+                    )}
                 </Flex>
             ),
         },
@@ -156,6 +314,7 @@ function ProgressTrackingPage() {
     const onTrack = filteredRegistrations.filter((registration) => (registration.progress || 0) >= 70).length;
     const atRisk = filteredRegistrations.filter((registration) => (registration.progress || 0) >= 30 && (registration.progress || 0) < 70).length;
     const delayed = filteredRegistrations.filter((registration) => (registration.progress || 0) < 30).length;
+    const overdueCount = filteredRegistrations.filter((registration) => registration.hasOverdueTask).length;
 
     if (loading) {
         return <Flex justify="center" align="center" style={{ minHeight: '60vh' }}><Spin size="large" /></Flex>;
@@ -165,7 +324,7 @@ function ProgressTrackingPage() {
         <div>
             <Flex justify="space-between" align="center" style={{ marginBottom: 24 }} wrap="wrap" gap={16}>
                 <div>
-                    <Title level={3} style={{ margin: 0 }}>Theo dõi Tiến độ</Title>
+                    <Title level={3} style={{ margin: 0 }}>Theo dõi tiến độ</Title>
                     <Text type="secondary">Tổng quan tiến độ sinh viên đang được bạn hướng dẫn</Text>
                 </div>
                 <Button type="primary" icon={<PlusOutlined />} onClick={() => openTaskModal()}>
@@ -174,7 +333,7 @@ function ProgressTrackingPage() {
             </Flex>
 
             <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-                <Col xs={8}>
+                <Col xs={6}>
                     <Card>
                         <Statistic
                             title="Đúng tiến độ"
@@ -184,7 +343,7 @@ function ProgressTrackingPage() {
                         />
                     </Card>
                 </Col>
-                <Col xs={8}>
+                <Col xs={6}>
                     <Card>
                         <Statistic
                             title="Có rủi ro"
@@ -194,11 +353,21 @@ function ProgressTrackingPage() {
                         />
                     </Card>
                 </Col>
-                <Col xs={8}>
+                <Col xs={6}>
                     <Card>
                         <Statistic
                             title="Trễ tiến độ"
                             value={delayed}
+                            prefix={<WarningOutlined style={{ color: '#ff4d4f' }} />}
+                            valueStyle={{ color: '#ff4d4f' }}
+                        />
+                    </Card>
+                </Col>
+                <Col xs={6}>
+                    <Card>
+                        <Statistic
+                            title="Có nhiệm vụ quá hạn"
+                            value={overdueCount}
                             prefix={<WarningOutlined style={{ color: '#ff4d4f' }} />}
                             valueStyle={{ color: '#ff4d4f' }}
                         />
@@ -220,7 +389,9 @@ function ProgressTrackingPage() {
                                 { value: 'APPROVED', label: 'Đã duyệt' },
                                 { value: 'IN_PROGRESS', label: 'Đang thực hiện' },
                                 { value: 'SUBMITTED', label: 'Đã nộp' },
+                                { value: 'DEFENDED', label: 'Đã bảo vệ' },
                                 { value: 'COMPLETED', label: 'Hoàn thành' },
+                                { value: 'REJECTED', label: 'Từ chối' },
                             ]}
                         />
                         <Input
@@ -251,7 +422,7 @@ function ProgressTrackingPage() {
                 onClose={() => setViewerOpen(false)}
                 open={viewerOpen}
             >
-                <Title level={5}>Danh sách nhiệm vụ & bài nộp</Title>
+                <Title level={5}>Danh sách nhiệm vụ và bài nộp</Title>
                 <Spin spinning={taskLoading}>
                     <List
                         dataSource={selectedTasks}
@@ -263,6 +434,15 @@ function ProgressTrackingPage() {
                             return (
                                 <List.Item
                                     actions={[
+                                        <Select
+                                            key="status"
+                                            size="small"
+                                            value={task.status}
+                                            options={taskStatusOptions}
+                                            loading={updatingTaskId === task.id}
+                                            style={{ width: 132 }}
+                                            onChange={(value) => handleUpdateTaskStatus(task.id, value)}
+                                        />,
                                         latestSubmission?.fileUrl ? (
                                             <Button
                                                 key="download"
@@ -315,7 +495,7 @@ function ProgressTrackingPage() {
                     >
                         <Select
                             placeholder="Chọn sinh viên"
-                            options={registrations.map((registration) => ({
+                            options={assignableRegistrations.map((registration) => ({
                                 value: registration.id,
                                 label: `${registration.student?.fullName || 'Sinh viên'} (${registration.student?.code || 'N/A'}) - ${registration.topic?.title || 'Chưa đăng ký'}`,
                             }))}
@@ -341,6 +521,31 @@ function ProgressTrackingPage() {
                         <Button type="primary" htmlType="submit" loading={taskSubmitting}>Giao việc</Button>
                     </Flex>
                 </Form>
+            </Modal>
+
+            <Modal
+                title="Từ chối đăng ký"
+                open={rejectModalOpen}
+                onCancel={() => {
+                    setRejectModalOpen(false);
+                    setRejectingRegistration(null);
+                    setRejectReason('');
+                }}
+                onOk={handleRejectRegistration}
+                confirmLoading={handlingRegistration}
+                okText="Từ chối"
+                okButtonProps={{ danger: true }}
+            >
+                <Text>
+                    Nhập lý do từ chối cho sinh viên {rejectingRegistration?.student?.fullName || ''}:
+                </Text>
+                <Input.TextArea
+                    rows={4}
+                    value={rejectReason}
+                    onChange={(event) => setRejectReason(event.target.value)}
+                    placeholder="Lý do từ chối..."
+                    style={{ marginTop: 12 }}
+                />
             </Modal>
         </div>
     );

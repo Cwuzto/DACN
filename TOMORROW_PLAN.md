@@ -2,34 +2,41 @@
 
 ## Mục tiêu buổi tiếp theo
 
-Xác nhận bộ dữ liệu thật mới hoạt động ổn định trên các màn trọng tâm và khóa chất lượng trước khi mở batch mới.
+Chuyển trọng tâm sang **hardening**: tăng test coverage cho phần mới và chạy UAT trên môi trường clone sạch.
 
 ---
 
 ## Kế hoạch thực thi
 
-### Batch 1 - UAT nhanh theo role (ưu tiên cao)
+### Batch 1 - Test integration (ưu tiên cao)
 
-1. Admin:
-   - `ProjectOversightPage`
-   - `GradingDefensePage`
-2. Student:
-   - `TopicListPage`
+1. `PATCH /api/tasks/:id/status`
+2. `POST /api/tasks` với kiểm tra trạng thái registration
+3. `GET /api/dashboard/semester-overview`
 
 Tiêu chí pass:
 
-- Dữ liệu hiển thị logic theo học kỳ active.
-- Trạng thái đăng ký/chấm điểm phản ánh đúng dữ liệu backend.
-- Text tiếng Việt hiển thị đúng UTF-8 có dấu.
+- Endpoint trả đúng quyền truy cập theo role.
+- Business rule chính không bị bypass.
+- Case lỗi trả message/status code đúng mong đợi.
 
-### Batch 2 - Test mở rộng (ưu tiên cao)
+### Batch 2 - UAT clone sạch (ưu tiên cao)
 
-1. Bổ sung/hoàn thiện integration test cho:
-   - `GET /api/topics/mentors`
+1. Dùng `SETUP_CLONE.md` để dựng môi trường mới.
+2. Test nhanh theo role:
+   - Admin: dashboard + project period + oversight.
+   - Lecturer: approve/reject registration + assign/update task.
+   - Student: đăng ký đề tài + nộp bài + nộp lại.
 
-### Batch 3 - Ổn định chất lượng hiển thị (ưu tiên trung bình)
+Tiêu chí pass:
 
-1. Rà soát thêm các trang admin về tiếng Việt/UTF-8 để phát hiện sớm mojibake.
+- Login và kết nối DB ổn định từ bản clone mới.
+- Không lỗi contract giữa frontend/backend ở các luồng chính.
+
+### Batch 3 - Dọn text/UI còn lại (ưu tiên trung bình)
+
+1. Rà soát các màn admin chưa đụng gần đây để xử lý nốt UTF-8/mojibake.
+2. Chuẩn hóa wording thông báo/cảnh báo để đồng nhất trải nghiệm.
 
 ---
 
@@ -44,10 +51,10 @@ node scripts/regression-check.js
 
 ## Ghi nhớ
 
-- Sau thay đổi Prisma schema: migrate -> generate -> restart backend.
 - Không quay lại kiến trúc `group/groupMember/evaluation`.
-- Cập nhật lại 4 file trạng thái sau khi UAT xong:
+- Mọi cập nhật tiến độ phải phản ánh vào 4 file trạng thái:
   - `PROJECT_STATE.md`
   - `NEXT_STEPS.md`
   - `DECISIONS.md`
   - `TOMORROW_PLAN.md`
+- Không push từ agent; thao tác git do người dùng thực hiện.

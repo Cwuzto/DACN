@@ -460,6 +460,17 @@ function ProjectPeriodPage() {
                         loading={updatingToggle}
                         disabled={!selectedPeriod}
                     />
+                    {selectedPeriod && (
+                        <span
+                            className={`ml-2 text-xs font-bold px-2 py-1 rounded-full ${
+                                selectedPeriod.registrationOpen
+                                    ? 'bg-green-100 text-green-700'
+                                    : 'bg-red-100 text-red-700'
+                            }`}
+                        >
+                            {selectedPeriod.registrationOpen ? 'Đang mở' : 'Đang đóng'}
+                        </span>
+                    )}
                 </div>
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-4">

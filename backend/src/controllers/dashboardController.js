@@ -61,6 +61,117 @@ const getGeneralStats = async (req, res, next) => {
 };
 
 /**
+ * GET /api/dashboard/semester-overview
+ * Tổng quan vận hành theo học kỳ cho Admin
+ */
+const getSemesterOverview = async (req, res, next) => {
+    try {
+        const semesterIdQuery = req.query.semesterId ? parseInt(req.query.semesterId, 10) : null;
+        let targetSemester = null;
+
+        if (semesterIdQuery && Number.isInteger(semesterIdQuery)) {
+            targetSemester = await prisma.semester.findUnique({
+                where: { id: semesterIdQuery },
+            });
+        } else {
+            targetSemester = await getActiveSemester();
+            if (!targetSemester?.id) {
+                targetSemester = await prisma.semester.findFirst({
+                    orderBy: { startDate: 'desc' },
+                    select: {
+                        id: true,
+                        name: true,
+                        startDate: true,
+                        registrationDeadline: true,
+                        endDate: true,
+                        registrationOpen: true,
+                        status: true,
+                    },
+                });
+            } else {
+                targetSemester = await prisma.semester.findUnique({
+                    where: { id: targetSemester.id },
+                });
+            }
+        }
+
+        if (!targetSemester) {
+            return res.json({
+                success: true,
+                data: null,
+                message: 'Chưa có học kỳ để thống kê.',
+            });
+        }
+
+        const [
+            totalTopics,
+            approvedTopics,
+            totalRegistrations,
+            pendingRegistrations,
+            approvedRegistrations,
+            rejectedRegistrations,
+            inProgressRegistrations,
+            completedRegistrations,
+            defenseResults,
+        ] = await Promise.all([
+            prisma.topic.count({ where: { semesterId: targetSemester.id } }),
+            prisma.topic.count({ where: { semesterId: targetSemester.id, status: 'APPROVED' } }),
+            prisma.topicRegistration.count({ where: { semesterId: targetSemester.id } }),
+            prisma.topicRegistration.count({ where: { semesterId: targetSemester.id, status: 'PENDING' } }),
+            prisma.topicRegistration.count({ where: { semesterId: targetSemester.id, status: 'APPROVED' } }),
+            prisma.topicRegistration.count({ where: { semesterId: targetSemester.id, status: 'REJECTED' } }),
+            prisma.topicRegistration.count({
+                where: { semesterId: targetSemester.id, status: { in: ['IN_PROGRESS', 'SUBMITTED'] } },
+            }),
+            prisma.topicRegistration.count({
+                where: { semesterId: targetSemester.id, status: { in: ['DEFENDED', 'COMPLETED'] } },
+            }),
+            prisma.defenseResult.count({ where: { registration: { semesterId: targetSemester.id } } }),
+        ]);
+
+        const processedRegistrations = approvedRegistrations + rejectedRegistrations;
+        const approvalRate = processedRegistrations > 0
+            ? Math.round((approvedRegistrations / processedRegistrations) * 100)
+            : 0;
+        const completionRate = approvedRegistrations > 0
+            ? Math.round((completedRegistrations / approvedRegistrations) * 100)
+            : 0;
+
+        res.json({
+            success: true,
+            data: {
+                semester: {
+                    id: targetSemester.id,
+                    name: targetSemester.name,
+                    status: targetSemester.status,
+                    startDate: targetSemester.startDate,
+                    registrationDeadline: targetSemester.registrationDeadline,
+                    endDate: targetSemester.endDate,
+                    registrationOpen: targetSemester.registrationOpen,
+                },
+                topics: {
+                    total: totalTopics,
+                    approved: approvedTopics,
+                },
+                registrations: {
+                    total: totalRegistrations,
+                    pending: pendingRegistrations,
+                    approved: approvedRegistrations,
+                    rejected: rejectedRegistrations,
+                    inProgress: inProgressRegistrations,
+                    completed: completedRegistrations,
+                    approvalRate,
+                    completionRate,
+                },
+                defenseResults,
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
  * GET /api/dashboard/semesters
  * Biểu đồ số lượng đăng ký và hoàn thành theo học kỳ
  */
@@ -374,15 +485,29 @@ const getStudentDashboard = async (req, res, next) => {
         }
 
         const tasks = registration.tasks || [];
+        const now = new Date();
         const totalTasks = tasks.length;
         const submittedTasksCount = tasks.filter(
             (task) => task.status === 'SUBMITTED' || task.status === 'COMPLETED'
+        ).length;
+        const completedTasksCount = tasks.filter((task) => task.status === 'COMPLETED').length;
+        const overdueTasksCount = tasks.filter(
+            (task) =>
+                task.dueDate &&
+                new Date(task.dueDate) < now &&
+                !['SUBMITTED', 'COMPLETED'].includes(task.status)
+        ).length;
+        const upcomingTasksCount = tasks.filter(
+            (task) =>
+                task.dueDate &&
+                new Date(task.dueDate) >= now &&
+                !['SUBMITTED', 'COMPLETED'].includes(task.status)
         ).length;
         const remainingTasks = totalTasks - submittedTasksCount;
         const progressPercent = totalTasks > 0 ? Math.round((submittedTasksCount / totalTasks) * 100) : 0;
 
         const upcomingDeadlines = tasks
-            .filter((task) => task.dueDate && new Date(task.dueDate) > new Date())
+            .filter((task) => task.dueDate && new Date(task.dueDate) > now)
             .sort((firstTask, secondTask) => new Date(firstTask.dueDate) - new Date(secondTask.dueDate))
             .slice(0, 3)
             .map((task) => ({
@@ -420,7 +545,10 @@ const getStudentDashboard = async (req, res, next) => {
                 taskStatus: {
                     total: totalTasks,
                     submitted: submittedTasksCount,
+                    completed: completedTasksCount,
                     remaining: remainingTasks,
+                    overdue: overdueTasksCount,
+                    upcoming: upcomingTasksCount,
                     progressPercent,
                 },
                 upcomingDeadlines,
@@ -433,6 +561,7 @@ const getStudentDashboard = async (req, res, next) => {
 
 module.exports = {
     getGeneralStats,
+    getSemesterOverview,
     getSemesterStats,
     getScoreDistribution,
     getRecentActivities,

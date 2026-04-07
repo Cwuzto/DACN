@@ -1,4 +1,8 @@
-﻿# Hệ thống Quản lý Đồ án
+# Hệ thống Quản lý Đồ án
+
+## Bắt đầu nhanh cho người mới clone
+
+Xem hướng dẫn cài đặt và chạy dự án tại: [SETUP_CLONE.md](./SETUP_CLONE.md)
 
 ## 1. Giới thiệu
 
@@ -150,3 +154,4 @@ node scripts/regression-check.js
 3. `NEXT_STEPS.md`
 4. `DECISIONS.md`
 5. `TOMORROW_PLAN.md`
+
