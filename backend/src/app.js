@@ -4,6 +4,7 @@ const express = require('express');
 const cors = require('cors');
 const routes = require('./routes');
 const errorHandler = require('./middlewares/errorHandler');
+const { startScheduledJobs } = require('./jobs');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -57,6 +58,7 @@ if (require.main === module) {
         console.log(`📋 API Health: http://localhost:${PORT}/api/health`);
         console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}\n`);
     });
+    startScheduledJobs();
 }
 
 module.exports = app;

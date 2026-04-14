@@ -244,7 +244,7 @@ function Modal({ isOpen, onClose, title, children }: ModalProps) {
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>{title}</h2>
-          <button onClick={onClose} aria-label="Close">×</button>
+          <button onClick={onClose} aria-label="Close">Ă—</button>
         </div>
         <div className="modal-body">{children}</div>
       </div>
@@ -273,13 +273,13 @@ Prevent unnecessary re-renders.
 
 **React.memo**:
 ```tsx
-// ❌ Bad: child re-renders every time parent re-renders
+// âŒ Bad: child re-renders every time parent re-renders
 function ExpensiveComponent({ data }) {
   console.log('Rendering...');
   return <div>{/* Complex UI */}</div>;
 }
 
-// ✅ Good: re-renders only when props change
+// âœ… Good: re-renders only when props change
 const ExpensiveComponent = React.memo(({ data }) => {
   console.log('Rendering...');
   return <div>{/* Complex UI */}</div>;
@@ -289,12 +289,12 @@ const ExpensiveComponent = React.memo(({ data }) => {
 **useMemo & useCallback**:
 ```tsx
 function ProductList({ products, category }: { products: Product[]; category: string }) {
-  // ✅ Memoize filtered results
+  // âœ… Memoize filtered results
   const filteredProducts = useMemo(() => {
     return products.filter(p => p.category === category);
   }, [products, category]);
 
-  // ✅ Memoize callback
+  // âœ… Memoize callback
   const handleAddToCart = useCallback((productId: string) => {
     // Add to cart
     console.log('Adding:', productId);
@@ -329,22 +329,22 @@ const ProductCard = React.memo(({ product, onAddToCart }) => {
 
 ```
 components/
-├── Button/
-│   ├── Button.tsx           # Main component
-│   ├── Button.test.tsx      # Tests
-│   ├── Button.stories.tsx   # Storybook
-│   ├── Button.module.css    # Styles
-│   └── index.ts             # Export
-├── Card/
-│   ├── Card.tsx
-│   ├── CardHeader.tsx
-│   ├── CardBody.tsx
-│   ├── CardFooter.tsx
-│   └── index.ts
-└── Modal/
-    ├── Modal.tsx
-    ├── useModal.ts          # Custom hook
-    └── index.ts
+â”œâ”€â”€ Button/
+â”‚   â”œâ”€â”€ Button.tsx           # Main component
+â”‚   â”œâ”€â”€ Button.test.tsx      # Tests
+â”‚   â”œâ”€â”€ Button.stories.tsx   # Storybook
+â”‚   â”œâ”€â”€ Button.module.css    # Styles
+â”‚   â””â”€â”€ index.ts             # Export
+â”œâ”€â”€ Card/
+â”‚   â”œâ”€â”€ Card.tsx
+â”‚   â”œâ”€â”€ CardHeader.tsx
+â”‚   â”œâ”€â”€ CardBody.tsx
+â”‚   â”œâ”€â”€ CardFooter.tsx
+â”‚   â””â”€â”€ index.ts
+â””â”€â”€ Modal/
+    â”œâ”€â”€ Modal.tsx
+    â”œâ”€â”€ useModal.ts          # Custom hook
+    â””â”€â”€ index.ts
 ```
 
 ### Component Template
@@ -404,10 +404,10 @@ export default Component;
 
 3. **Inline objects/functions**: Performance degradation
    ```tsx
-   // ❌ Bad example
+   // âŒ Bad example
    <Component style={{ color: 'red' }} onClick={() => handleClick()} />
 
-   // ✅ Good example
+   // âœ… Good example
    const style = { color: 'red' };
    const handleClick = useCallback(() => {...}, []);
    <Component style={style} onClick={handleClick} />

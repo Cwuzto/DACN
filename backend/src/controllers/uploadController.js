@@ -1,32 +1,32 @@
-const UploadService = require('../services/uploadService');
-const path = require('path');
+﻿const UploadService = require('../services/uploadService');
 
 const uploadFile = async (req, res, next) => {
     try {
         if (!req.file) {
             return res.status(400).json({
                 success: false,
-                message: 'Vui lòng chọn một file để upload.',
+                message: 'Vui long chon mot file de upload.',
             });
         }
 
-        // Determine the folder based on request (optional)
         const folder = req.body.folder || 'general';
 
-        // Auto detect resource type to allow both images and documents (pdf, doc, zip)
-        let resourceType = 'auto'; // Cloudinary will guess
-
-        // Upload buffer to Cloudinary
-        const result = await UploadService.uploadBuffer(req.file.buffer, folder, resourceType);
+        const result = await UploadService.uploadBuffer(
+            req.file.buffer,
+            folder,
+            req.file.mimetype,
+            req.file.originalname,
+        );
 
         res.json({
             success: true,
-            message: 'Tải file lên thành công.',
+            message: 'Tai file len thanh cong.',
             data: {
                 url: result.secure_url,
                 publicId: result.public_id,
                 format: result.format,
                 bytes: result.bytes,
+                bucket: result.bucket,
                 originalName: req.file.originalname,
             },
         });

@@ -13,11 +13,12 @@ import {
     Button,
     Spin,
 } from 'antd';
-import { EditOutlined, FormOutlined, HistoryOutlined, TeamOutlined, UserOutlined } from '@ant-design/icons';
+import { EditOutlined, FormOutlined, HistoryOutlined, TeamOutlined, UserOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
 import notificationService from '../../services/notificationService';
 import councilService from '../../services/councilService';
+import PageHeader from '../../components/common/PageHeader';
 
 function NotificationCenterPage() {
     const [history, setHistory] = useState([]);
@@ -89,7 +90,7 @@ function NotificationCenterPage() {
 
             const response = await notificationService.sendBroadcast(payload);
             if (response.success) {
-                message.success(`Da gui thong bao thanh cong (${response.data?.sentCount || 0} nguoi nhan)`);
+                message.success(`Đã gửi thông báo thành công (${response.data?.sentCount || 0} người nhận)`);
                 setIsSendModalOpen(false);
                 form.resetFields();
                 setActiveTab('history');
@@ -121,7 +122,7 @@ function NotificationCenterPage() {
             setSavingTemplate(true);
             const response = await notificationService.updateTemplate(editingTemplate.key, values);
             if (response.success) {
-                message.success('Da cap nhat template');
+                message.success('Đã cập nhật template');
                 setIsTemplateModalOpen(false);
                 setEditingTemplate(null);
                 fetchTemplates();
@@ -134,53 +135,53 @@ function NotificationCenterPage() {
     };
 
     const audienceTag = (audience) => {
-        if (audience === 'ALL_STUDENTS') return <Tag color="blue" icon={<UserOutlined />}>Toan bo Sinh vien</Tag>;
-        if (audience === 'ALL_LECTURERS') return <Tag color="purple" icon={<TeamOutlined />}>Toan bo Giang vien</Tag>;
-        if (audience === 'ALL_ADMINS') return <Tag color="red">Toan bo Admin</Tag>;
-        if (audience === 'ALL_USERS') return <Tag color="magenta">Toan bo He thong</Tag>;
-        if (audience === 'SPECIFIC_COUNCIL') return <Tag color="gold">Theo hoi dong</Tag>;
+        if (audience === 'ALL_STUDENTS') return <Tag color="blue" icon={<UserOutlined />}>Toàn bộ Sinh viên</Tag>;
+        if (audience === 'ALL_LECTURERS') return <Tag color="purple" icon={<TeamOutlined />}>Toàn bộ Giảng viên</Tag>;
+        if (audience === 'ALL_ADMINS') return <Tag color="red">Toàn bộ Admin</Tag>;
+        if (audience === 'ALL_USERS') return <Tag color="magenta">Toàn bộ Hệ thống</Tag>;
+        if (audience === 'SPECIFIC_COUNCIL') return <Tag color="gold">Theo hội đồng</Tag>;
         return <Tag>{audience}</Tag>;
     };
 
     const columnsHistory = useMemo(
         () => [
             {
-                title: 'Tieu de',
+                title: 'Tiêu đề',
                 dataIndex: 'title',
                 key: 'title',
-                width: 300,
+                width: '35%',
                 render: (text, record) => (
                     <div>
                         <div className="font-bold text-slate-900 leading-tight mb-1 line-clamp-2">{text}</div>
-                        <code className="text-[10px] text-slate-400">{record.type}</code>
+                        <code className="text-[10px] text-slate-400 font-mono px-1 py-0.5 bg-slate-50 rounded border border-slate-100">{record.type}</code>
                     </div>
                 ),
             },
             {
-                title: 'Doi tuong',
+                title: 'Đối tượng',
                 dataIndex: 'audience',
                 key: 'audience',
                 render: (value) => audienceTag(value),
             },
             {
-                title: 'Thoi gian gui',
+                title: 'Thời gian gửi',
                 dataIndex: 'sentAt',
                 key: 'sentAt',
                 render: (time) => <span className="text-sm font-medium text-slate-600">{dayjs(time).format('HH:mm DD/MM/YYYY')}</span>,
             },
             {
-                title: 'Ti le doc',
+                title: 'Tỉ lệ đọc',
                 key: 'readRate',
                 render: (_, record) => {
                     const denominator = record.totalAudience || 1;
                     const percent = Math.round(((record.readCount || 0) / denominator) * 100);
                     return (
-                        <div className="w-full">
+                        <div className="w-full pr-4">
                             <div className="flex justify-between text-xs mb-1">
-                                <span className="text-slate-500">{record.readCount || 0} / {record.totalAudience || 0} da doc</span>
-                                <span className="font-bold">{percent}%</span>
+                                <span className="text-slate-500">{record.readCount || 0} / {record.totalAudience || 0} đã đọc</span>
+                                <span className="font-bold text-slate-700">{percent}%</span>
                             </div>
-                            <Progress percent={percent} showInfo={false} size="small" status={percent >= 80 ? 'success' : 'active'} />
+                            <Progress percent={percent} showInfo={false} size="small" status={percent >= 80 ? 'success' : 'active'} strokeColor="#0066cc" />
                         </div>
                     );
                 },
@@ -191,72 +192,80 @@ function NotificationCenterPage() {
 
     return (
         <div className="py-2">
-            <div className="flex items-center justify-between mb-6">
-                <div>
-                    <h2 className="text-2xl font-black text-slate-900">Quan ly Thong bao</h2>
-                    <p className="text-sm text-slate-500 mt-1">Dieu phoi luong thong tin va gui canh bao den nguoi dung he thong.</p>
-                </div>
-                <Button
-                    type="primary"
-                    onClick={() => {
-                        setIsSendModalOpen(true);
-                        form.resetFields();
-                    }}
-                >
-                    Soan thong bao moi
-                </Button>
-            </div>
+            <PageHeader
+                title="Quản lý Thông báo"
+                subtitle="Điều phối thông tin và gửi cảnh báo đến người dùng hệ thống."
+                actions={
+                    <Button
+                        type="primary"
+                        onClick={() => {
+                            setIsSendModalOpen(true);
+                            form.resetFields();
+                        }}
+                        className="h-[38px] px-5"
+                    >
+                        Soạn thông báo mới
+                    </Button>
+                }
+            />
 
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                 <Tabs
                     activeKey={activeTab}
                     onChange={setActiveTab}
-                    className="p-2 lg:px-6 py-4"
+                    className="px-6 pt-4"
+                    tabBarStyle={{ marginBottom: 0, borderBottom: '1px solid #f1f5f9' }}
                     items={[
                         {
                             key: 'history',
-                            label: <span><HistoryOutlined /> Lich su gui</span>,
+                            label: <span className="font-medium"><HistoryOutlined className="mr-1.5" /> Lịch sử gửi</span>,
                             children: (
-                                <div className="mt-4 border border-slate-200 rounded-lg overflow-hidden">
+                                <div className="py-6 min-h-[400px]">
                                     {loadingHistory ? (
-                                        <div className="p-8 text-center"><Spin /></div>
+                                        <div className="py-12 flex justify-center"><Spin size="large" /></div>
                                     ) : (
-                                        <Table
-                                            columns={columnsHistory}
-                                            dataSource={history}
-                                            rowKey="id"
-                                            pagination={{ pageSize: 5 }}
-                                        />
+                                        <div className="border border-slate-100 rounded-xl overflow-hidden shadow-sm">
+                                            <Table
+                                                columns={columnsHistory}
+                                                dataSource={history}
+                                                rowKey="id"
+                                                pagination={{ pageSize: 8 }}
+                                                className="ant-table-striped"
+                                            />
+                                        </div>
                                     )}
                                 </div>
                             ),
                         },
                         {
                             key: 'templates',
-                            label: <span><FormOutlined /> Cau hinh Template</span>,
+                            label: <span className="font-medium"><FormOutlined className="mr-1.5" /> Cấu hình Mẫu thông báo</span>,
                             children: (
-                                <div className="mt-4 border border-slate-200 rounded-lg p-4">
+                                <div className="py-6 min-h-[400px]">
                                     {loadingTemplates ? (
-                                        <div className="p-8 text-center"><Spin /></div>
+                                        <div className="py-12 flex justify-center"><Spin size="large" /></div>
                                     ) : (
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                             {templates.map((template) => (
-                                                <div key={template.key} className="border border-slate-200 p-5 rounded-xl hover:shadow-md transition bg-slate-50">
-                                                    <div className="flex justify-between items-start mb-3 gap-2">
+                                                <div key={template.key} className="bg-white border border-slate-200 p-5 rounded-xl hover:shadow-md hover:border-slate-300 transition-all shadow-sm flex flex-col gap-4">
+                                                    <div className="flex justify-between items-start gap-4">
                                                         <div>
-                                                            <h3 className="font-bold text-slate-900">{template.name}</h3>
-                                                            <code className="text-[11px] text-slate-500">{template.key}</code>
+                                                            <h3 className="font-bold text-slate-800 text-base mb-1">{template.name}</h3>
+                                                            <code className="text-[11px] font-mono text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">{template.key}</code>
                                                         </div>
-                                                        <Button type="text" icon={<EditOutlined style={{ color: '#1890ff' }} />} onClick={() => handleEditTemplate(template)} />
+                                                        <Button size="small" icon={<EditOutlined />} onClick={() => handleEditTemplate(template)}>Sửa</Button>
                                                     </div>
-                                                    <div className="mb-3 flex items-center gap-2">
-                                                        <Tag color="cyan">{template.autoTrigger}</Tag>
-                                                        <Tag color={template.isActive ? 'green' : 'default'}>{template.isActive ? 'Active' : 'Inactive'}</Tag>
+                                                    
+                                                    <div className="flex flex-wrap items-center gap-2">
+                                                        <span className="text-[11px] font-semibold tracking-wide uppercase px-2 py-0.5 rounded bg-cyan-100 text-cyan-800">{template.autoTrigger}</span>
+                                                        <span className={`text-[11px] font-semibold tracking-wide uppercase px-2 py-0.5 rounded ${template.isActive ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+                                                            {template.isActive ? 'Hoạt động' : 'Vô hiệu'}
+                                                        </span>
                                                     </div>
-                                                    <div className="bg-white p-3 rounded border text-sm text-slate-600 whitespace-pre-wrap">
-                                                        <span className="font-bold block mb-1">Tieu de: {template.title}</span>
-                                                        <hr className="my-2" />
-                                                        {template.content}
+                                                    
+                                                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-100/80 text-sm flex-1">
+                                                        <div className="font-semibold text-slate-800 mb-1.5 pb-1.5 border-b border-slate-200/60">Tiêu đề: {template.title}</div>
+                                                        <div className="text-slate-600 whitespace-pre-wrap leading-relaxed">{template.content}</div>
                                                     </div>
                                                 </div>
                                             ))}
@@ -270,29 +279,31 @@ function NotificationCenterPage() {
             </div>
 
             <Modal
-                title="Gui thong bao moi"
+                title={<div className="text-lg font-bold">Gửi thông báo mới</div>}
                 open={isSendModalOpen}
                 onCancel={() => setIsSendModalOpen(false)}
                 onOk={handleSendNotification}
-                okText="Gui thong bao"
-                cancelText="Huy"
+                okText="Gửi thông báo ngay"
+                cancelText="Hủy bỏ"
                 width={700}
                 confirmLoading={sending}
+                className="custom-modal"
             >
-                <Form form={form} layout="vertical" className="mt-4">
+                <Form form={form} layout="vertical" className="mt-6">
                     <Form.Item
                         name="audience"
-                        label="Doi tuong nhan"
-                        rules={[{ required: true, message: 'Vui long chon doi tuong' }]}
+                        label={<span className="font-semibold text-slate-700">Đối tượng nhận</span>}
+                        rules={[{ required: true, message: 'Vui lòng chọn đối tượng' }]}
                     >
                         <Select
-                            placeholder="Chon nhom nguoi dung"
+                            size="large"
+                            placeholder="Chọn nhóm người dùng mục tiêu"
                             options={[
-                                { value: 'ALL_USERS', label: 'Toan bo he thong (SV + GV + Admin)' },
-                                { value: 'ALL_STUDENTS', label: 'Toan bo Sinh vien' },
-                                { value: 'ALL_LECTURERS', label: 'Toan bo Giang vien' },
-                                { value: 'ALL_ADMINS', label: 'Toan bo Admin' },
-                                { value: 'SPECIFIC_COUNCIL', label: 'Thanh vien thuoc Hoi dong cu the' },
+                                { value: 'ALL_USERS', label: 'Toàn bộ hệ thống (SV + GV + Admin)' },
+                                { value: 'ALL_STUDENTS', label: 'Toàn bộ Sinh viên' },
+                                { value: 'ALL_LECTURERS', label: 'Toàn bộ Giảng viên' },
+                                { value: 'ALL_ADMINS', label: 'Toàn bộ Quản trị viên' },
+                                { value: 'SPECIFIC_COUNCIL', label: 'Thành viên thuộc Hội đồng đánh giá' },
                             ]}
                         />
                     </Form.Item>
@@ -300,11 +311,12 @@ function NotificationCenterPage() {
                     {selectedAudience === 'SPECIFIC_COUNCIL' && (
                         <Form.Item
                             name="councilId"
-                            label="Hoi dong"
-                            rules={[{ required: true, message: 'Vui long chon hoi dong' }]}
+                            label={<span className="font-semibold text-slate-700">Chọn Hội đồng</span>}
+                            rules={[{ required: true, message: 'Vui lòng chọn hội đồng' }]}
                         >
                             <Select
-                                placeholder="Chon hoi dong"
+                                size="large"
+                                placeholder="-- Chọn một hội đồng --"
                                 options={councils.map((council) => ({
                                     value: council.id,
                                     label: council.name,
@@ -315,51 +327,56 @@ function NotificationCenterPage() {
 
                     <Form.Item
                         name="title"
-                        label="Tieu de"
-                        rules={[{ required: true, message: 'Vui long nhap tieu de thong bao' }]}
+                        label={<span className="font-semibold text-slate-700">Tiêu đề thông báo</span>}
+                        rules={[{ required: true, message: 'Vui lòng nhập tiêu đề' }]}
                     >
-                        <Input placeholder="Vi du: Lich bao tri he thong" />
+                        <Input size="large" placeholder="Ví dụ: Lịch bảo trì hệ thống" />
                     </Form.Item>
                     <Form.Item
                         name="content"
-                        label="Noi dung thong bao"
-                        rules={[{ required: true, message: 'Vui long nhap noi dung thong bao' }]}
+                        label={<span className="font-semibold text-slate-700">Nội dung chi tiết</span>}
+                        rules={[{ required: true, message: 'Vui lòng nhập nội dung' }]}
                     >
-                        <Input.TextArea rows={6} placeholder="Nhap noi dung muon gui den nguoi dung..." />
+                        <Input.TextArea rows={6} placeholder="Nhập nội dung đầy đủ muốn gửi đến người dùng..." className="text-base" />
                     </Form.Item>
                     <Form.Item name="isEmail" valuePropName="checked" className="mb-0">
-                        <Checkbox>Dong thoi gui Email thong bao (du kien, backend chua xu ly email)</Checkbox>
+                        <Checkbox className="text-slate-600">Đồng thời gửi Email thông báo (hệ thống sẽ tự động queue email)</Checkbox>
                     </Form.Item>
                 </Form>
             </Modal>
 
             <Modal
-                title="Cap nhat template thong bao"
+                title={<div className="text-lg font-bold">Cập nhật Mẫu thông báo</div>}
                 open={isTemplateModalOpen}
                 onCancel={() => {
                     setIsTemplateModalOpen(false);
                     setEditingTemplate(null);
                 }}
                 onOk={handleSaveTemplate}
-                okText="Luu"
-                cancelText="Huy"
+                okText="Lưu thay đổi"
+                cancelText="Hủy bỏ"
                 confirmLoading={savingTemplate}
+                width={650}
             >
-                <Form form={templateForm} layout="vertical" className="mt-4">
-                    <Form.Item name="name" label="Ten template" rules={[{ required: true, message: 'Nhap ten template' }]}>
-                        <Input />
+                <div className="bg-blue-50 text-blue-800 p-3 rounded-lg mb-6 text-sm border border-blue-100 flex gap-3">
+                    <InfoCircleOutlined className="mt-0.5" />
+                    <p className="m-0">Mẫu thông báo được hệ thống trigger tự động dựa theo sự kiện. Không nên thay đổi nội dung nếu bạn không chắc chắn về các biến số có thể dùng.</p>
+                </div>
+                <Form form={templateForm} layout="vertical">
+                    <Form.Item name="name" label={<span className="font-semibold text-slate-700">Tên Mẫu (Hiển thị Admin)</span>} rules={[{ required: true }]}>
+                        <Input size="large" />
                     </Form.Item>
-                    <Form.Item name="title" label="Tieu de" rules={[{ required: true, message: 'Nhap tieu de' }]}>
-                        <Input />
+                    <Form.Item name="title" label={<span className="font-semibold text-slate-700">Tiêu đề (Hiển thị User)</span>} rules={[{ required: true }]}>
+                        <Input size="large" />
                     </Form.Item>
-                    <Form.Item name="content" label="Noi dung" rules={[{ required: true, message: 'Nhap noi dung' }]}>
-                        <Input.TextArea rows={4} />
+                    <Form.Item name="content" label={<span className="font-semibold text-slate-700">Nội dung thông báo</span>} rules={[{ required: true }]}>
+                        <Input.TextArea rows={5} />
                     </Form.Item>
-                    <Form.Item name="autoTrigger" label="Auto trigger" rules={[{ required: true, message: 'Nhap auto trigger' }]}>
-                        <Input />
+                    <Form.Item name="autoTrigger" label={<span className="font-semibold text-slate-700">Mã Trigger (System Code)</span>} rules={[{ required: true }]}>
+                        <Input disabled className="bg-slate-50" />
                     </Form.Item>
-                    <Form.Item name="isActive" valuePropName="checked" className="mb-0">
-                        <Checkbox>Template dang hoat dong</Checkbox>
+                    <Form.Item name="isActive" valuePropName="checked" className="mb-0 mt-2">
+                        <Checkbox className="text-slate-700 font-medium">Bật / Tắt kích hoạt Mẫu thông báo này</Checkbox>
                     </Form.Item>
                 </Form>
             </Modal>

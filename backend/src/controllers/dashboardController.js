@@ -1,6 +1,12 @@
 const prisma = require('../config/database');
+const { PENDING_REMINDER_DAYS } = require('../constants/registrationLimits');
 
 const ACTIVE_REGISTRATION_STATUSES = ['APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'DEFENDED', 'COMPLETED'];
+const getPendingCutoffDate = () => {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - PENDING_REMINDER_DAYS);
+    return cutoff;
+};
 
 const getActiveSemester = async () => prisma.semester.findFirst({
     where: {
@@ -113,6 +119,7 @@ const getSemesterOverview = async (req, res, next) => {
             inProgressRegistrations,
             completedRegistrations,
             defenseResults,
+            stalePendingRegistrations,
         ] = await Promise.all([
             prisma.topic.count({ where: { semesterId: targetSemester.id } }),
             prisma.topic.count({ where: { semesterId: targetSemester.id, status: 'APPROVED' } }),
@@ -127,6 +134,13 @@ const getSemesterOverview = async (req, res, next) => {
                 where: { semesterId: targetSemester.id, status: { in: ['DEFENDED', 'COMPLETED'] } },
             }),
             prisma.defenseResult.count({ where: { registration: { semesterId: targetSemester.id } } }),
+            prisma.topicRegistration.count({
+                where: {
+                    semesterId: targetSemester.id,
+                    status: 'PENDING',
+                    createdAt: { lte: getPendingCutoffDate() },
+                },
+            }),
         ]);
 
         const processedRegistrations = approvedRegistrations + rejectedRegistrations;
@@ -162,6 +176,7 @@ const getSemesterOverview = async (req, res, next) => {
                     completed: completedRegistrations,
                     approvalRate,
                     completionRate,
+                    stalePendingRegistrations,
                 },
                 defenseResults,
             },
@@ -321,7 +336,7 @@ const getLecturerDashboard = async (req, res, next) => {
             });
         }
 
-        const [activeTopics, activeRegistrations, completedRegistrations, pendingFeedbackSubmissions, upcomingTasks] = await Promise.all([
+        const [activeTopics, activeRegistrations, completedRegistrations, pendingFeedbackSubmissions, upcomingTasks, stalePendingRegistrations] = await Promise.all([
             prisma.topic.count({
                 where: {
                     mentorId,
@@ -383,6 +398,14 @@ const getLecturerDashboard = async (req, res, next) => {
                 orderBy: { dueDate: 'asc' },
                 take: 5,
             }),
+            prisma.topicRegistration.count({
+                where: {
+                    semesterId: activeSemester.id,
+                    status: 'PENDING',
+                    createdAt: { lte: getPendingCutoffDate() },
+                    topic: { mentorId },
+                },
+            }),
         ]);
 
         const recentSubmissions = pendingFeedbackSubmissions.map((submission) => ({
@@ -413,6 +436,7 @@ const getLecturerDashboard = async (req, res, next) => {
                     studentGroups: activeRegistrations,
                     completedRegistrations,
                     pendingFeedback: pendingFeedbackSubmissions.length,
+                    stalePendingRegistrations,
                 },
                 recentSubmissions,
                 timelineEvents,

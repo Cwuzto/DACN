@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
     Table, Button, Input, Select, Modal, Form,
-    Popconfirm, message, Tooltip,
+    Popconfirm, message, Tooltip, Dropdown,
 } from 'antd';
 import {
     PlusOutlined, SearchOutlined, EditOutlined, DeleteOutlined,
-    LockOutlined, UnlockOutlined, ReloadOutlined, KeyOutlined,
+    LockOutlined, UnlockOutlined, ReloadOutlined, KeyOutlined, DownOutlined,
 } from '@ant-design/icons';
 import userService from '../../services/userService';
+import PageHeader from '../../components/common/PageHeader';
 
 const roleMap = {
     ADMIN: { label: 'Quản trị viên', tw: 'bg-red-100 text-red-700' },
@@ -203,44 +204,69 @@ function UserManagementPage() {
             ),
         },
         {
-            title: 'Hành động', key: 'actions', width: 180, align: 'right',
-            render: (_, record) => (
-                <div className="flex items-center justify-end gap-1">
-                    <Tooltip title="Chỉnh sửa"><Button type="text" size="small" icon={<EditOutlined />} style={{ color: '#003366' }} onClick={() => handleEdit(record)} /></Tooltip>
-                    <Tooltip title={record.isActive ? 'Khóa tài khoản' : 'Mở khóa'}>
-                        <Popconfirm title={record.isActive ? 'Khóa tài khoản?' : 'Mở khóa?'} description={`${record.isActive ? 'Khóa' : 'Mở khóa'} "${record.fullName}"?`} okText="Đồng ý" cancelText="Hủy" onConfirm={() => handleToggleLock(record)}>
-                            <Button type="text" size="small" icon={record.isActive ? <LockOutlined /> : <UnlockOutlined />} style={{ color: '#FA8C16' }} />
-                        </Popconfirm>
-                    </Tooltip>
-                    <Tooltip title="Reset mật khẩu">
-                        <Popconfirm title="Reset mật khẩu?" description={`Mật khẩu gán lại: ${record.code}`} okText="Reset" cancelText="Hủy" onConfirm={() => handleResetPassword(record)}>
-                            <Button type="text" size="small" icon={<KeyOutlined />} style={{ color: '#722ed1' }} />
-                        </Popconfirm>
-                    </Tooltip>
-                    <Popconfirm title="Xóa người dùng" description={`Xóa "${record.fullName}"?`} okText="Xóa" cancelText="Hủy" okButtonProps={{ danger: true }} onConfirm={() => handleDelete(record)}>
-                        <Tooltip title="Xóa"><Button type="text" size="small" icon={<DeleteOutlined />} danger /></Tooltip>
-                    </Popconfirm>
-                </div>
-            ),
+            title: 'Hành động', key: 'actions', width: 140, align: 'right',
+            render: (_, record) => {
+                const items = [
+                    { key: 'edit', icon: <EditOutlined />, label: 'Chỉnh sửa' },
+                    { key: 'toggle', icon: record.isActive ? <LockOutlined /> : <UnlockOutlined />, label: record.isActive ? 'Khóa tài khoản' : 'Mở khóa', danger: record.isActive },
+                    { key: 'reset', icon: <KeyOutlined />, label: 'Reset mật khẩu' },
+                    { type: 'divider' },
+                    { key: 'delete', icon: <DeleteOutlined />, label: 'Xóa tài khoản', danger: true },
+                ];
+                const onMenuClick = ({ key }) => {
+                    if (key === 'edit') handleEdit(record);
+                    if (key === 'toggle') {
+                        Modal.confirm({
+                            title: record.isActive ? 'Khóa tài khoản?' : 'Xác nhận Mở khóa?',
+                            content: `Bạn có chắc muốn ${record.isActive ? 'khóa' : 'mở khóa'} tài khoản "${record.fullName}"?`,
+                            okText: 'Đồng ý', cancelText: 'Hủy',
+                            onOk: () => handleToggleLock(record)
+                        });
+                    }
+                    if (key === 'reset') {
+                        Modal.confirm({
+                            title: 'Reset mật khẩu?',
+                            content: `Mật khẩu mới sẽ quay về mã mặc định: ${record.code}`,
+                            okText: 'Reset', cancelText: 'Hủy',
+                            onOk: () => handleResetPassword(record)
+                        });
+                    }
+                    if (key === 'delete') {
+                        Modal.confirm({
+                            title: 'Cảnh báo xóa tĩnh',
+                            content: `Bạn sắp xóa vĩnh viễn tài khoản "${record.fullName}". Hành động này không thể hoàn tác.`,
+                            okText: 'Xóa ngay', cancelText: 'Hủy', okButtonProps: { danger: true },
+                            onOk: () => handleDelete(record)
+                        });
+                    }
+                };
+                return (
+                    <Dropdown menu={{ items, onClick: onMenuClick }} trigger={['click']} placement="bottomRight">
+                        <Button size="small" className="text-xs font-semibold border-slate-200 text-slate-600 hover:text-primary hover:border-primary">
+                            Thao tác <DownOutlined className="text-[9px] ml-0.5" />
+                        </Button>
+                    </Dropdown>
+                );
+            },
         },
     ];
 
     return (
         <div className="py-2">
-            <div className="flex items-center justify-between mb-6">
-                <div>
-                    <h2 className="text-2xl font-black text-slate-900">Quản lý Người dùng</h2>
-                    <p className="text-sm text-slate-500 mt-1">Tách theo từng nhóm vai trò và quản lý danh sách chi tiết</p>
-                </div>
-                <div className="flex items-center gap-3">
-                    <Button icon={<span className="material-symbols-outlined text-[16px]">upload_file</span>}>Import Excel</Button>
-                    <Button icon={<span className="material-symbols-outlined text-[16px]">download</span>}>Export</Button>
-                    <button onClick={handleAdd} className="inline-flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-lg font-bold text-sm hover:bg-primary-800 transition-colors">
-                        <span className="material-symbols-outlined text-[18px]">person_add</span>
-                        Thêm người dùng
-                    </button>
-                </div>
-            </div>
+            <PageHeader
+                title="Quản lý Người dùng"
+                subtitle="Tách theo từng nhóm vai trò và quản lý danh sách chi tiết"
+                actions={
+                    <>
+                        <Button icon={<span className="material-symbols-outlined text-[16px]">upload_file</span>}>Import Excel</Button>
+                        <Button icon={<span className="material-symbols-outlined text-[16px]">download</span>}>Export</Button>
+                        <button onClick={handleAdd} className="inline-flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-lg font-bold text-sm hover:bg-primary-800 transition-colors">
+                            <span className="material-symbols-outlined text-[18px]">person_add</span>
+                            Thêm người dùng
+                        </button>
+                    </>
+                }
+            />
 
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
@@ -313,7 +339,7 @@ function UserManagementPage() {
                 cancelText="Hủy"
                 confirmLoading={submitting}
                 width={600}
-                destroyOnClose
+                destroyOnHidden
             >
                 <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
                     <div className="grid grid-cols-2 gap-4">

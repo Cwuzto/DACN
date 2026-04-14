@@ -1,12 +1,12 @@
-# SETUP_CLONE.md
+﻿# SETUP_CLONE.md
 
-Hướng dẫn này dành cho thành viên mới clone repo `DACN` về máy và chạy được ngay.
+Hướng dẫn nhanh cho thành viên mới clone repo `DACN` và chạy được ngay.
 
 ## 1. Điều kiện cần
 
 - Node.js `>= 20`
 - npm `>= 10`
-- Có quyền truy cập project Supabase (lấy được `DATABASE_URL`)
+- Có quyền truy cập project Supabase (để lấy `DATABASE_URL`)
 
 ## 2. Clone project
 
@@ -15,16 +15,14 @@ git clone <repo-url>
 cd DACN
 ```
 
-## 3. Cấu hình biến môi trường
-
-### Backend
+## 3. Cấu hình môi trường backend
 
 ```bash
 cd backend
 cp .env.example .env
 ```
 
-Mở `backend/.env` và điền tối thiểu:
+Điền tối thiểu các biến sau trong `backend/.env`:
 
 ```env
 DATABASE_URL="postgresql://<user>:<password>@<host>:5432/<db>?sslmode=require"
@@ -32,83 +30,52 @@ JWT_SECRET="mot-secret-bat-ky-nhung-kho-doan"
 JWT_EXPIRES_IN="7d"
 PORT=5000
 NODE_ENV=development
+
+SUPABASE_URL="https://<project-ref>.supabase.co"
+SUPABASE_SERVICE_ROLE_KEY="<service-role-key>"
+SUPABASE_STORAGE_BUCKET="dacn"
 ```
 
-Lưu ý:
-- `DATABASE_URL` phải trỏ đúng **Supabase project đang dùng chung**.
-- `JWT_SECRET` bắt buộc phải có, thiếu biến này login sẽ lỗi.
-
-### Frontend
+## 4. Cài dependency
 
 ```bash
-cd ../frontend
-cp .env.example .env
-```
-
-Mở `frontend/.env`:
-
-```env
-VITE_API_URL="http://localhost:5000/api"
-```
-
-## 4. Cài package và chuẩn bị database
-
-### Backend
-
-```bash
-cd ../backend
+cd backend
 npm install
+cd ../frontend
+npm install
+```
+
+## 5. Chạy migrate + seed
+
+```bash
+cd backend
 npx prisma migrate deploy
 npm run db:seed
 ```
 
-Giải thích nhanh:
-- `migrate deploy`: áp migration lên DB Supabase (an toàn để chạy lại).
-- `db:seed`: tạo dữ liệu mẫu và tài khoản login.
+## 6. Chạy hệ thống
 
-## 5. Chạy dự án
+Terminal 1:
 
-Mở 2 terminal:
-
-Terminal 1 (backend):
 ```bash
 cd backend
 npm run dev
 ```
 
-Terminal 2 (frontend):
+Terminal 2:
+
 ```bash
 cd frontend
-npm install
 npm run dev
 ```
 
-## 6. Tài khoản đăng nhập mẫu
-
-- Admin: `admin@university.edu.vn / admin123`
-- Lecturer: `nguyenvana@university.edu.vn / lecturer123`
-- Student: `sv001@university.edu.vn / student123`
-
-## 7. Checklist khi "không login được"
-
-1. Kiểm tra `backend/.env` có đúng `DATABASE_URL` và có `JWT_SECRET`.
-2. Chạy:
-   - `npx prisma migrate status`
-   - `npm run db:seed`
-3. Đảm bảo backend chạy cổng `5000`.
-4. Đảm bảo frontend trỏ đúng `VITE_API_URL=http://localhost:5000/api`.
-5. Nếu frontend chạy cổng lạ (không phải `5173` hoặc `5174`), cập nhật CORS trong `backend/src/app.js`.
-
-## 8. Lưu ý làm việc nhóm
-
-- Không commit file `.env`.
-- Khi có thay đổi Prisma schema:
-  1. tạo migration mới,
-  2. cập nhật schema,
-  3. báo team chạy lại migrate.
-- Trước khi chốt batch, chạy gate:
+## 7. Kiểm tra nhanh sau khi clone
 
 ```bash
+cd ..
 node scripts/check-utf8.js
+node scripts/check-md-quality.js
 node scripts/regression-check.js
 ```
+
+Nếu cả ba lệnh PASS là có thể bắt đầu làm việc.

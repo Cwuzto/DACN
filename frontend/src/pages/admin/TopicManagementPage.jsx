@@ -10,15 +10,10 @@ import {
 import { topicService } from '../../services/topicService';
 import { semesterService } from '../../services/semesterService';
 import userService from '../../services/userService';
+import PageHeader from '../../components/common/PageHeader';
+import StatusBadge from '../../components/common/StatusBadge';
 
 const { TextArea } = Input;
-
-const statusConfig = {
-    DRAFT: { label: 'Bản nháp', color: 'default', tw: 'bg-slate-100 text-slate-600' },
-    PENDING: { label: 'Chờ duyệt', color: 'warning', tw: 'bg-amber-100 text-amber-700' },
-    APPROVED: { label: 'Đã duyệt', color: 'success', tw: 'bg-green-100 text-green-700' },
-    REJECTED: { label: 'Từ chối', color: 'error', tw: 'bg-red-100 text-red-700' },
-};
 
 function TopicManagementPage() {
     const [topics, setTopics] = useState([]);
@@ -106,13 +101,12 @@ function TopicManagementPage() {
             form.setFieldsValue({
                 title: topic.title,
                 description: topic.description,
-                maxStudents: topic.maxStudents,
                 semesterId: topic.semesterId,
                 mentorId: topic.mentorId || topic.mentor?.id,
             });
         } else {
             form.resetFields();
-            form.setFieldsValue({ maxStudents: 1, semesterId: activeSemesterId || undefined });
+            form.setFieldsValue({ semesterId: activeSemesterId || undefined });
         }
         setFormModalOpen(true);
     };
@@ -223,7 +217,7 @@ function TopicManagementPage() {
             render: (text, record) => (
                 <div>
                     <a className="text-primary font-bold hover:underline cursor-pointer" onClick={() => handleViewDetail(record.id)}>{text}</a>
-                    <p className="text-xs text-slate-400 mt-0.5">Mã: DT-{String(record.id).padStart(3, '0')} | Tối đa: {record.maxStudents} sinh viên</p>
+                    <p className="text-xs text-slate-400 mt-0.5">Mã: DT-{String(record.id).padStart(3, '0')} | Tối đa: 1 sinh viên</p>
                 </div>
             ),
         },
@@ -249,17 +243,14 @@ function TopicManagementPage() {
             key: 'registered',
             width: 80,
             align: 'center',
-            render: (_, record) => <span className="text-xs bg-slate-100 px-2 py-0.5 rounded">{record._count?.registrations || 0}/{record.maxStudents}</span>,
+            render: (_, record) => <span className="text-xs bg-slate-100 px-2 py-0.5 rounded">{record._count?.registrations || 0}/1</span>,
         },
         {
             title: 'Trạng thái',
             dataIndex: 'status',
             key: 'status',
             width: 130,
-            render: (status) => {
-                const cfg = statusConfig[status];
-                return <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold ${cfg?.tw || 'bg-slate-100 text-slate-600'}`}>{cfg?.label || status}</span>;
-            },
+            render: (status) => <StatusBadge status={status} />,
         },
         {
             title: 'Hành động',
@@ -267,33 +258,39 @@ function TopicManagementPage() {
             width: 180,
             align: 'center',
             render: (_, record) => (
-                <Space>
-                    <Tooltip title="Xem chi tiết"><Button type="text" size="small" icon={<EyeOutlined />} onClick={() => handleViewDetail(record.id)} /></Tooltip>
-                    {record.status === 'DRAFT' && <Tooltip title="Chỉnh sửa"><Button type="text" size="small" icon={<EditOutlined />} onClick={() => openFormModal(record)} /></Tooltip>}
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                    <Button size="small" className="text-xs font-medium border-slate-200 text-slate-700 shadow-sm hover:text-primary hover:border-primary hover:bg-slate-50" icon={<EyeOutlined />} onClick={() => handleViewDetail(record.id)}>Xem</Button>
+                    {record.status === 'DRAFT' && <Button size="small" className="text-xs font-medium border-slate-200 text-slate-700 shadow-sm hover:text-primary hover:border-primary hover:bg-slate-50" icon={<EditOutlined />} onClick={() => openFormModal(record)}>Sửa</Button>}
                     {record.status === 'PENDING' && (
                         <>
-                            <Tooltip title="Duyệt"><Popconfirm title="Duyệt đề tài này?" onConfirm={() => handleApprove(record.id)}><Button type="text" size="small" style={{ color: '#52c41a' }} icon={<CheckCircleOutlined />} /></Popconfirm></Tooltip>
-                            <Tooltip title="Từ chối"><Button type="text" size="small" danger icon={<CloseCircleOutlined />} onClick={() => { setRejectingTopicId(record.id); setRejectModalOpen(true); }} /></Tooltip>
+                            <Popconfirm title="Duyệt đề tài này?" onConfirm={() => handleApprove(record.id)}>
+                                <Button size="small" className="text-xs font-medium border-green-200 text-green-700 shadow-sm bg-green-50/50 hover:text-green-800 hover:border-green-300 hover:bg-green-100" icon={<CheckCircleOutlined />}>Duyệt</Button>
+                            </Popconfirm>
+                            <Button size="small" className="text-xs font-medium border-red-200 text-red-600 shadow-sm bg-red-50/50 hover:text-red-700 hover:border-red-300 hover:bg-red-100" icon={<CloseCircleOutlined />} onClick={() => { setRejectingTopicId(record.id); setRejectModalOpen(true); }}>Từ chối</Button>
                         </>
                     )}
-                    {record.status === 'DRAFT' && <Tooltip title="Xóa"><Popconfirm title="Xóa bản nháp này?" onConfirm={() => handleDelete(record.id)}><Button type="text" size="small" danger icon={<DeleteOutlined />} /></Popconfirm></Tooltip>}
-                </Space>
+                    {record.status === 'DRAFT' && (
+                        <Popconfirm title="Xóa bản nháp này?" onConfirm={() => handleDelete(record.id)}>
+                            <Button size="small" className="text-xs font-medium border-red-200 text-red-600 shadow-sm bg-red-50/50 hover:text-red-700 hover:border-red-300 hover:bg-red-100" icon={<DeleteOutlined />}>Xóa</Button>
+                        </Popconfirm>
+                    )}
+                </div>
             ),
         },
     ];
 
     return (
         <div className="py-2">
-            <div className="flex items-center justify-between mb-6">
-                <div>
-                    <h2 className="text-2xl font-black text-slate-900">Quản lý đề tài</h2>
-                    <p className="text-sm text-slate-500 mt-1">Duyệt, tạo và quản lý đề tài đồ án</p>
-                </div>
-                <button onClick={() => openFormModal()} className="inline-flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-lg font-bold text-sm hover:bg-primary-800 transition-colors">
-                    <span className="material-symbols-outlined text-[18px]">add</span>
-                    Thêm đề tài mới
-                </button>
-            </div>
+            <PageHeader
+                title="Quản lý đề tài"
+                subtitle="Duyệt, tạo và quản lý đề tài đồ án"
+                actions={
+                    <button onClick={() => openFormModal()} className="inline-flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-lg font-bold text-sm hover:bg-primary-800 transition-colors">
+                        <span className="material-symbols-outlined text-[18px]">add</span>
+                        Thêm đề tài mới
+                    </button>
+                }
+            />
 
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                 <Tabs activeKey={activeTab} onChange={handleTabChange} items={tabItems} style={{ padding: '0 24px' }} tabBarStyle={{ marginBottom: 0 }} />
@@ -346,9 +343,6 @@ function TopicManagementPage() {
                             <Select placeholder="Chọn GVHD" options={mentors} showSearch optionFilterProp="label" />
                         </Form.Item>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <Form.Item name="maxStudents" label="Số sinh viên tối đa"><Select options={[{ value: 1, label: '1 sinh viên' }, { value: 2, label: '2 sinh viên' }, { value: 3, label: '3 sinh viên' }]} /></Form.Item>
-                    </div>
                 </Form>
             </Modal>
 
@@ -371,8 +365,8 @@ function TopicManagementPage() {
                         <h3 className="text-lg font-bold text-slate-900">{detailTopic.title}</h3>
                         <p className="text-sm text-slate-500 mt-2">{detailTopic.description || 'Chưa có mô tả.'}</p>
                         <div className="grid grid-cols-2 gap-3 mt-4">
-                            <div><span className="text-xs font-bold text-slate-500">Trạng thái: </span><span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold ${statusConfig[detailTopic.status]?.tw}`}>{statusConfig[detailTopic.status]?.label}</span></div>
-                            <div><span className="text-xs font-bold text-slate-500">Số sinh viên tối đa: </span><span className="text-sm">{detailTopic.maxStudents}</span></div>
+                            <div><span className="text-xs font-bold text-slate-500">Trạng thái: </span><StatusBadge status={detailTopic.status} /></div>
+                            <div><span className="text-xs font-bold text-slate-500">Số sinh viên tối đa: </span><span className="text-sm">1</span></div>
                             <div><span className="text-xs font-bold text-slate-500">GVHD: </span><span className="text-sm">{detailTopic.mentor?.fullName}</span></div>
                             <div><span className="text-xs font-bold text-slate-500">Người đề xuất: </span><span className="text-sm">{detailTopic.proposedBy?.fullName}</span></div>
                             <div><span className="text-xs font-bold text-slate-500">Đợt đồ án: </span><span className="text-sm">{detailTopic.semester?.name}</span></div>

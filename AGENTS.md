@@ -1,4 +1,4 @@
-# AGENTS.md
+﻿# AGENTS.md
 
 ## Mục đích
 
@@ -45,71 +45,68 @@ Schema Prisma hiện tại đã đi theo mô hình:
 - `Council`
 - `DefenseResult`
 
-Tuy nhiên trong codebase vẫn còn sót phần kiến trúc cũ dùng:
-
-- `group`
-- `groupMember`
-- `evaluation`
-
-Các phần cũ này không còn là nguồn sự thật chính của dự án.
+Trong codebase vẫn còn một số dấu vết kiến trúc cũ (`group`, `groupMember`, `evaluation`),
+nhưng các phần cũ này **không còn là nguồn sự thật chính**.
 
 ---
 
-## Quyết định làm việc mặc định
-
-Trừ khi người dùng yêu cầu khác rõ ràng, hãy làm theo các nguyên tắc sau:
+## Quy tắc làm việc mặc định
 
 1. **Ưu tiên mô hình `TopicRegistration`**
-   - Không chủ động mở rộng lại mô hình `group/groupMember`
-   - Không viết tính năng mới dựa trên kiến trúc cũ
+   - Không chủ động mở rộng lại mô hình `group/groupMember`.
+   - Không viết tính năng mới dựa trên kiến trúc cũ.
 
 2. **Sửa gốc vấn đề trước**
-   - Ưu tiên sửa backend/model/service trước khi chỉnh UI hiển thị
+   - Ưu tiên backend/model/service trước khi chỉnh UI.
 
 3. **Giữ thay đổi nhỏ, chính xác**
-   - Không refactor lan rộng nếu chưa cần
-   - Không đổi tên/đổi cấu trúc ngoài phạm vi cần thiết
+   - Không refactor lan rộng khi chưa cần.
+   - Không đổi tên/đổi cấu trúc ngoài phạm vi cần thiết.
 
-4. **Frontend phải bám backend thật**
-   - Không duy trì mock data nếu API thật đã có hoặc chuẩn bị có
-   - Đồng bộ field và response contract trước khi chỉnh giao diện
+4. **Frontend bám backend thật**
+   - Không duy trì mock data nếu API thật đã có.
+   - Đồng bộ field/contract trước khi chỉnh giao diện.
 
-5. **Mọi phiên làm việc mới nên đọc các file này trước**
+5. **Mở phiên mới phải đọc trước**
    - `README.md`
    - `PROJECT_STATE.md`
    - `NEXT_STEPS.md`
    - `DECISIONS.md`
-   - `TOMORROW_PLAN.md` nếu còn liên quan
+   - `TOMORROW_PLAN.md` (nếu còn liên quan)
 
 ---
 
 ## Điều cần tránh
 
-- Không tái đưa `group`, `groupMember`, `evaluation` thành kiến trúc chính nếu chưa có quyết định mới
-- Không giả định frontend đang đúng chỉ vì UI render được
-- Không thêm chức năng mới khi các lỗi P0/P1 chưa xử lý
-- Không dùng NotebookLM làm nguồn nhớ duy nhất; repo mới là nguồn chính
+- Không tái đưa `group`, `groupMember`, `evaluation` thành kiến trúc chính khi chưa có quyết định mới.
+- Không giả định frontend đúng chỉ vì UI render được.
+- Không thêm chức năng mới khi các lỗi P0/P1 chưa xử lý.
+- Không dùng NotebookLM làm nguồn nhớ duy nhất; repo mới là nguồn chính.
 
 ---
 
 ## Cách cập nhật sau mỗi phiên
 
-Khi kết thúc một phiên làm việc có thay đổi đáng kể, nên cập nhật:
+Khi kết thúc phiên có thay đổi đáng kể, cần cập nhật:
 
 - `PROJECT_STATE.md`: hiện trạng mới nhất
 - `NEXT_STEPS.md`: việc cần làm tiếp ngay
-- `DECISIONS.md`: nếu có quyết định kỹ thuật/kiến trúc mới
-
-Nếu cần đồng bộ sang NotebookLM, chỉ upload các file tổng hợp thay vì upload mọi thay đổi nhỏ.
+- `DECISIONS.md`: quyết định kỹ thuật/kiến trúc mới (nếu có)
 
 ---
 
-## Rule bo sung (2026-03-31)
+## Rule bổ sung (2026-04-15)
 
-1. **Bat buoc kiem tra UTF-8 truoc khi chot batch**
-   - Truoc khi ket thuc batch, phai chay gate co check UTF-8 (`node scripts/check-utf8.js` hoac `node scripts/regression-check.js`).
-   - Neu fail encoding thi uu tien sua encoding truoc khi merge/chot.
+1. **Bắt buộc kiểm tra UTF-8 trước khi chốt batch**
+   - Chạy: `node scripts/check-utf8.js` (hoặc `node scripts/regression-check.js`).
 
-2. **Canh bao som khi ngu canh chat sap day**
-   - Khi phien lam viec da dai va ngu canh sap day, agent phai canh bao de nguoi dung chu dong mo cua so chat moi.
-   - Muc tieu: tranh dot token/quota va giam rui ro mat ngu canh quan trong.
+2. **Bắt buộc kiểm tra chất lượng tiếng Việt trong file `.md`**
+   - Chạy: `node scripts/check-md-quality.js`.
+   - Mục tiêu: phát hiện sớm lỗi `mojibake` và cụm tiếng Việt không dấu bất thường.
+
+3. **Bắt buộc lưu file text bằng UTF-8 không BOM**
+   - Áp dụng cho `.md`, `.js`, `.jsx`, `.json`, `.prisma`, `.yml`, ...
+   - Không dùng `UTF-8 with BOM`.
+
+4. **Cảnh báo sớm khi ngữ cảnh chat sắp đầy**
+   - Agent phải chủ động cảnh báo để người dùng mở cửa sổ chat mới khi cần.

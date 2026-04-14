@@ -4,6 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import dashboardService from '../../services/dashboardService';
 import useAuthStore from '../../stores/authStore';
 import dayjs from 'dayjs';
+import PageHeader from '../../components/common/PageHeader';
+import StatCard from '../../components/common/StatCard';
+import PageLoader from '../../components/common/PageLoader';
 
 function LecturerDashboardPage() {
     const user = useAuthStore((s) => s.user);
@@ -40,11 +43,7 @@ function LecturerDashboardPage() {
     }, []);
 
     if (loading) {
-        return (
-            <div className="flex justify-center items-center min-h-[60vh]">
-                <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div>
-            </div>
-        );
+        return <PageLoader />;
     }
 
     const completionPercent = stats.studentGroups > 0
@@ -68,48 +67,37 @@ function LecturerDashboardPage() {
 
     return (
         <div className="py-2">
-            {/* Title & Actions */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-                <div>
-                    <h2 className="text-2xl font-black text-slate-900 tracking-tight">Bảng điều khiển Giảng viên</h2>
-                    <p className="text-slate-500 text-sm mt-1">Xin chào, {user?.fullName || 'Giảng viên'}</p>
-                </div>
-                <div className="flex items-center gap-3">
-                    <button
-                        onClick={() => navigate('/lecturer/topics')}
-                        className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-bold shadow-sm hover:bg-primary/90 transition-all"
-                    >
-                        <span className="material-symbols-outlined text-[20px]">add</span>
-                        <span>Tạo đồ án mới</span>
-                    </button>
-                    <button
-                        onClick={() => navigate('/lecturer/approvals')}
-                        className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white rounded-lg text-sm font-bold shadow-sm hover:bg-slate-50 transition-all relative"
-                    >
-                        <span>Phê duyệt đăng ký</span>
-                        {stats.pendingFeedback > 0 && (
-                            <span className="flex items-center justify-center bg-red-500 text-white text-[10px] w-5 h-5 rounded-full absolute -top-2 -right-2 border-2 border-white">
-                                {stats.pendingFeedback}
-                            </span>
-                        )}
-                    </button>
-                </div>
-            </div>
+            <PageHeader
+                title="Bảng điều khiển Giảng viên"
+                subtitle={`Xin chào, ${user?.fullName || 'Giảng viên'}`}
+                actions={
+                    <>
+                        <button
+                            onClick={() => navigate('/lecturer/topics')}
+                            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-bold shadow-sm hover:bg-primary/90 transition-all"
+                        >
+                            <span className="material-symbols-outlined text-[20px]">add</span>
+                            <span>Tạo đồ án mới</span>
+                        </button>
+                        <button
+                            onClick={() => navigate('/lecturer/approvals')}
+                            className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white rounded-lg text-sm font-bold shadow-sm hover:bg-slate-50 transition-all relative"
+                        >
+                            <span>Phê duyệt đăng ký</span>
+                            {stats.pendingFeedback > 0 && (
+                                <span className="flex items-center justify-center bg-red-500 text-white text-[10px] w-5 h-5 rounded-full absolute -top-2 -right-2 border-2 border-white">
+                                    {stats.pendingFeedback}
+                                </span>
+                            )}
+                        </button>
+                    </>
+                }
+            />
 
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                 {statCards.map((card, index) => (
-                    <div key={index} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between hover:shadow-md transition-shadow">
-                        <div>
-                            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-1">{card.label}</p>
-                            <p className={`text-3xl font-black ${card.valueColor || 'text-slate-900'}`}>
-                                {String(card.value).padStart(2, '0')}
-                            </p>
-                        </div>
-                        <div className={`w-12 h-12 ${card.bgColor} rounded-lg flex items-center justify-center ${card.iconColor}`}>
-                            <span className="material-symbols-outlined text-[28px]">{card.icon}</span>
-                        </div>
-                    </div>
+                    <StatCard key={index} {...card} />
                 ))}
             </div>
 

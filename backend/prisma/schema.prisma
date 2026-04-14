@@ -27,6 +27,7 @@ model User {
   mentoredTopics Topic[]            @relation("MentoredBy")
   proposedTopics Topic[]            @relation("ProposedBy")
   registrations  TopicRegistration[]
+  auditLogs      AuditLog[]
 
   @@map("users")
 }
@@ -69,88 +70,86 @@ model Topic {
   @@map("topics")
 }
 
-// Bảng đăng ký đề tài: 1 sinh viên - 1 đề tài (thay thế Group)
 model TopicRegistration {
-  id          Int                    @id @default(autoincrement())
-  topicId     Int                    @map("topic_id")
-  studentId   Int                    @map("student_id")
-  semesterId  Int                    @map("semester_id")
-  status      RegistrationStatus     @default(PENDING)
-  rejectReason String?               @map("reject_reason")
-  councilId   Int?                   @map("council_id")
-  createdAt   DateTime               @default(now()) @map("created_at")
-  updatedAt   DateTime               @updatedAt @map("updated_at")
-  topic       Topic                  @relation(fields: [topicId], references: [id])
-  student     User                   @relation(fields: [studentId], references: [id])
-  council     Council?               @relation(fields: [councilId], references: [id])
-  submissions Submission[]
-  tasks       Task[]
-  milestones  Milestone[]
+  id            Int                @id @default(autoincrement())
+  topicId       Int                @map("topic_id")
+  studentId     Int                @map("student_id")
+  semesterId    Int                @map("semester_id")
+  status        RegistrationStatus @default(PENDING)
+  rejectReason  String?            @map("reject_reason")
+  councilId     Int?               @map("council_id")
+  createdAt     DateTime           @default(now()) @map("created_at")
+  updatedAt     DateTime           @updatedAt @map("updated_at")
+  topic         Topic              @relation(fields: [topicId], references: [id])
+  student       User               @relation(fields: [studentId], references: [id])
+  council       Council?           @relation(fields: [councilId], references: [id])
+  submissions   Submission[]
+  tasks         Task[]
+  milestones    Milestone[]
   defenseResult DefenseResult?
 
   @@unique([studentId, semesterId])
   @@map("topic_registrations")
 }
 
-// Giai đoạn báo cáo (checkpoints) cho mỗi sinh viên
 model Milestone {
-  id              Int               @id @default(autoincrement())
-  registrationId  Int               @map("registration_id")
-  title           String
-  dueDate         DateTime?         @map("due_date")
-  status          MilestoneStatus   @default(PENDING)
-  feedback        String?
-  completedAt     DateTime?         @map("completed_at")
-  createdAt       DateTime          @default(now()) @map("created_at")
-  registration    TopicRegistration @relation(fields: [registrationId], references: [id])
+  id             Int               @id @default(autoincrement())
+  registrationId Int               @map("registration_id")
+  title          String
+  dueDate        DateTime?         @map("due_date")
+  status         MilestoneStatus   @default(PENDING)
+  feedback       String?
+  completedAt    DateTime?         @map("completed_at")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  registration   TopicRegistration @relation(fields: [registrationId], references: [id])
 
   @@map("milestones")
 }
 
 model Task {
-  id              Int               @id @default(autoincrement())
-  registrationId  Int               @map("registration_id")
-  title           String
-  content         String?
-  dueDate         DateTime?         @map("due_date")
-  status          TaskStatus        @default(OPEN)
-  createdAt       DateTime          @default(now()) @map("created_at")
-  updatedAt       DateTime          @updatedAt @map("updated_at")
-  submissions     Submission[]
-  registration    TopicRegistration @relation(fields: [registrationId], references: [id])
+  id             Int               @id @default(autoincrement())
+  registrationId Int               @map("registration_id")
+  title          String
+  content        String?
+  dueDate        DateTime?         @map("due_date")
+  status         TaskStatus        @default(OPEN)
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+  submissions    Submission[]
+  registration   TopicRegistration @relation(fields: [registrationId], references: [id])
 
   @@map("tasks")
 }
 
 model Submission {
-  id              Int               @id @default(autoincrement())
-  taskId          Int               @map("task_id")
-  registrationId  Int               @map("registration_id")
-  submittedBy     Int               @map("submitted_by")
-  content         String?
-  fileUrl         String?           @map("file_url")
-  fileName        String?           @map("file_name")
-  submittedAt     DateTime          @default(now()) @map("submitted_at")
-  feedback        String?
-  feedbackAt      DateTime?         @map("feedback_at")
-  student         User              @relation(fields: [submittedBy], references: [id])
-  task            Task              @relation(fields: [taskId], references: [id])
-  registration    TopicRegistration @relation(fields: [registrationId], references: [id])
+  id             Int               @id @default(autoincrement())
+  taskId         Int               @map("task_id")
+  registrationId Int               @map("registration_id")
+  submittedBy    Int               @map("submitted_by")
+  content        String?
+  fileUrl        String?           @map("file_url")
+  fileName       String?           @map("file_name")
+  submittedAt    DateTime          @default(now()) @map("submitted_at")
+  feedback       String?
+  feedbackAt     DateTime?         @map("feedback_at")
+  student        User              @relation(fields: [submittedBy], references: [id])
+  task           Task              @relation(fields: [taskId], references: [id])
+  registration   TopicRegistration @relation(fields: [registrationId], references: [id])
 
   @@map("submissions")
 }
 
 model Council {
-  id              Int                 @id @default(autoincrement())
-  semesterId      Int                 @map("semester_id")
-  name            String
-  location        String?
-  defenseDate     DateTime?           @map("defense_date")
-  createdAt       DateTime            @default(now()) @map("created_at")
-  updatedAt       DateTime            @updatedAt @map("updated_at")
-  members         CouncilMember[]
-  semester        Semester            @relation(fields: [semesterId], references: [id])
-  registrations   TopicRegistration[]
+  id            Int                 @id @default(autoincrement())
+  semesterId    Int                 @map("semester_id")
+  name          String
+  location      String?
+  defenseDate   DateTime?           @map("defense_date")
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime            @updatedAt @map("updated_at")
+  members       CouncilMember[]
+  semester      Semester            @relation(fields: [semesterId], references: [id])
+  registrations TopicRegistration[]
 
   @@map("councils")
 }
@@ -167,18 +166,17 @@ model CouncilMember {
   @@map("council_members")
 }
 
-// Kết quả bảo vệ: điểm cuối + ảnh bảng chấm điểm
 model DefenseResult {
-  id              Int               @id @default(autoincrement())
-  registrationId  Int               @unique @map("registration_id")
-  finalScore      Float?            @map("final_score")
-  comments        String?
-  scoresheetUrl   String?           @map("scoresheet_url")
-  evaluatorId     Int               @map("evaluator_id")
-  createdAt       DateTime          @default(now()) @map("created_at")
-  updatedAt       DateTime          @updatedAt @map("updated_at")
-  registration    TopicRegistration @relation(fields: [registrationId], references: [id])
-  evaluator       User              @relation("DefenseEvaluator", fields: [evaluatorId], references: [id])
+  id             Int               @id @default(autoincrement())
+  registrationId Int               @unique @map("registration_id")
+  finalScore     Float?            @map("final_score")
+  comments       String?
+  scoresheetUrl  String?           @map("scoresheet_url")
+  evaluatorId    Int               @map("evaluator_id")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+  registration   TopicRegistration @relation(fields: [registrationId], references: [id])
+  evaluator      User              @relation("DefenseEvaluator", fields: [evaluatorId], references: [id])
 
   @@map("defense_results")
 }
@@ -197,17 +195,32 @@ model Notification {
   @@map("notifications")
 }
 
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  userId     Int      @map("user_id")
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String?  @map("entity_id")
+  details    Json?
+  ipAddress  String?  @map("ip_address")
+  createdAt  DateTime @default(now()) @map("created_at")
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([action, entityType, createdAt])
+  @@map("audit_logs")
+}
+
 enum UserRole {
   ADMIN
   LECTURER
   STUDENT
 }
 
-// Học vị giảng viên - quyết định số SV tối đa (ThS:10, TS:15, PGS:20)
 enum AcademicTitle {
-  THAC_SI    // ThS - 10 SV
-  TIEN_SI    // TS - 15 SV
-  PHO_GIAO_SU // PGS - 20 SV
+  THAC_SI
+  TIEN_SI
+  PHO_GIAO_SU
 }
 
 enum SemesterStatus {
@@ -225,15 +238,16 @@ enum TopicStatus {
   REJECTED
 }
 
-// Trạng thái đăng ký đề tài của sinh viên
 enum RegistrationStatus {
-  PENDING     // Sinh viên đã gửi, chờ GV duyệt
-  APPROVED    // GV đã duyệt
-  REJECTED    // GV từ chối
-  IN_PROGRESS // Đang thực hiện (sau hạn đăng ký)
-  SUBMITTED   // Đã nộp sản phẩm
-  DEFENDED    // Đã bảo vệ
-  COMPLETED   // Hoàn thành
+  PENDING
+  APPROVED
+  REJECTED
+  IN_PROGRESS
+  SUBMITTED
+  DEFENDED
+  COMPLETED
+  DROPPED
+  WITHDRAWN
 }
 
 enum MilestoneStatus {
@@ -246,6 +260,7 @@ enum TaskStatus {
   OPEN
   IN_PROGRESS
   SUBMITTED
+  REVISION
   COMPLETED
   OVERDUE
 }

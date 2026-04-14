@@ -97,10 +97,10 @@ Implement password hashing and verification logic.
 - Password strength validation (minimum 8 chars, upper/lowercase, numbers, special characters)
 
 **Decision Criteria**:
-- Node.js projects → use the bcrypt library
-- Python projects → use argon2-cffi or passlib
-- Performance-critical cases → choose bcrypt
-- Cases requiring maximum security → choose argon2
+- Node.js projects â†’ use the bcrypt library
+- Python projects â†’ use argon2-cffi or passlib
+- Performance-critical cases â†’ choose bcrypt
+- Cases requiring maximum security â†’ choose argon2
 
 **Example** (Node.js + TypeScript):
 ```typescript
@@ -137,7 +137,7 @@ Implement a token system for JWT-based authentication.
 
 **Tasks**:
 - Access Token (short expiry: 15 minutes)
-- Refresh Token (long expiry: 7–30 days)
+- Refresh Token (long expiry: 7â€“30 days)
 - Use a strong SECRET key for JWT signing (manage via environment variables)
 - Include only the minimum necessary information in the token payload (user_id, role)
 
@@ -423,18 +423,18 @@ Defines the exact format that deliverables should follow.
 
 ```
 Project directory/
-├── src/
-│   ├── auth/
-│   │   ├── password.ts          # password hashing/verification
-│   │   ├── jwt.ts                # JWT token generation/verification
-│   │   ├── middleware.ts         # authentication middleware
-│   │   └── routes.ts             # authentication API endpoints
-│   ├── models/
-│   │   └── User.ts               # user model
-│   └── database/
-│       └── schema.sql            # database schema
-├── .env.example                  # environment variable template
-└── README.md                     # authentication system documentation
+â”œâ”€â”€ src/
+â”‚   â”œâ”€â”€ auth/
+â”‚   â”‚   â”œâ”€â”€ password.ts          # password hashing/verification
+â”‚   â”‚   â”œâ”€â”€ jwt.ts                # JWT token generation/verification
+â”‚   â”‚   â”œâ”€â”€ middleware.ts         # authentication middleware
+â”‚   â”‚   â””â”€â”€ routes.ts             # authentication API endpoints
+â”‚   â”œâ”€â”€ models/
+â”‚   â”‚   â””â”€â”€ User.ts               # user model
+â”‚   â””â”€â”€ database/
+â”‚       â””â”€â”€ schema.sql            # database schema
+â”œâ”€â”€ .env.example                  # environment variable template
+â””â”€â”€ README.md                     # authentication system documentation
 ```
 
 ### Environment Variable File (.env.example)
@@ -557,8 +557,8 @@ router.delete('/users/:id',
 );
 
 // Usage example
-// Regular user (role: 'user') request → 403 Forbidden
-// Admin (role: 'admin') request → 200 OK
+// Regular user (role: 'user') request â†’ 403 Forbidden
+// Admin (role: 'admin') request â†’ 200 OK
 ```
 
 ## Best practices

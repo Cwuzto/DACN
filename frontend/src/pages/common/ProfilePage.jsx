@@ -1,17 +1,10 @@
 ﻿import { useState, useEffect, useMemo } from 'react';
 import {
-    Card,
-    Typography,
-    Flex,
     Button,
     Input,
     Avatar,
-    Row,
-    Col,
-    Divider,
     Upload,
     Tag,
-    Space,
     message,
 } from 'antd';
 import {
@@ -30,8 +23,7 @@ import {
 import useAuthStore from '../../stores/authStore';
 import { authService } from '../../services/authService';
 import uploadService from '../../services/uploadService';
-
-const { Title, Text } = Typography;
+import PageHeader from '../../components/common/PageHeader';
 
 function ProfilePage() {
     const { user, updateUser } = useAuthStore();
@@ -163,43 +155,48 @@ function ProfilePage() {
         }
     };
 
-    if (!user) return <div style={{ padding: 24 }}>Đang tải thông tin...</div>;
+    if (!user) return <div className="p-6 text-slate-500">Đang tải thông tin...</div>;
 
-    const roleName =
-        user.role === 'ADMIN' ? 'Quản trị viên' : user.role === 'LECTURER' ? 'Giảng viên' : 'Sinh viên';
+    const roleName = user.role === 'ADMIN' ? 'Quản trị viên' : user.role === 'LECTURER' ? 'Giảng viên' : 'Sinh viên';
     const roleColor = user.role === 'ADMIN' ? 'red' : user.role === 'LECTURER' ? 'blue' : 'green';
 
     return (
-        <div>
-            <Flex justify="space-between" align="center" style={{ marginBottom: 24 }}>
-                <Title level={3} style={{ margin: 0 }}>Hồ sơ cá nhân</Title>
-                {!editing ? (
-                    <Button icon={<EditOutlined />} onClick={() => setEditing(true)} disabled={isProfileBusy}>Chỉnh sửa</Button>
-                ) : (
-                    <Space>
-                        <Button onClick={handleCancel} disabled={isProfileBusy}>Hủy</Button>
-                        <Button
-                            type="primary"
-                            icon={<SaveOutlined />}
-                            onClick={handleSave}
-                            loading={savingProfile}
-                            disabled={!hasProfileChanges || isProfileBusy}
-                        >
-                            Lưu thay đổi
+        <div className="py-2">
+            <PageHeader
+                title="Hồ sơ cá nhân"
+                subtitle="Quản lý thông tin tài khoản và bảo mật."
+                actions={
+                    !editing ? (
+                        <Button icon={<EditOutlined />} onClick={() => setEditing(true)} disabled={isProfileBusy}>
+                            Chỉnh sửa hồ sơ
                         </Button>
-                    </Space>
-                )}
-            </Flex>
+                    ) : (
+                        <div className="flex gap-2">
+                            <Button onClick={handleCancel} disabled={isProfileBusy}>Hủy</Button>
+                            <Button
+                                type="primary"
+                                icon={<SaveOutlined />}
+                                onClick={handleSave}
+                                loading={savingProfile}
+                                disabled={!hasProfileChanges || isProfileBusy}
+                            >
+                                Lưu thay đổi
+                            </Button>
+                        </div>
+                    )
+                }
+            />
 
-            <Row gutter={[24, 24]}>
-                <Col xs={24} md={8}>
-                    <Card style={{ borderRadius: 10, textAlign: 'center' }}>
-                        <div style={{ position: 'relative', display: 'inline-block', marginBottom: 16 }}>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Left Column - Avatar and Basic Info */}
+                <div className="md:col-span-1 border border-slate-200">
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col items-center">
+                        <div className="relative inline-block mb-4">
                             <Avatar
                                 size={120}
                                 icon={!tempProfile.avatarUrl && <UserOutlined />}
                                 src={tempProfile.avatarUrl}
-                                style={{ background: '#1677FF', border: '2px solid #fff', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}
+                                className="bg-primary text-white border-2 border-white shadow-md text-4xl"
                             />
                             {editing && (
                                 <Upload customRequest={handleUploadAvatar} showUploadList={false} accept="image/*">
@@ -208,81 +205,112 @@ function ProfilePage() {
                                         shape="circle"
                                         size="middle"
                                         icon={uploading ? <LoadingOutlined /> : <CameraOutlined />}
-                                        style={{ position: 'absolute', bottom: 0, right: 0 }}
+                                        className="absolute bottom-0 right-0 shadow"
                                         disabled={uploading}
                                     />
                                 </Upload>
                             )}
                         </div>
-                        <Title level={5} style={{ margin: '8px 0 4px' }}>{tempProfile.name}</Title>
-                        <Tag color={roleColor}>{roleName}</Tag>
-                        <Divider />
-                        <Flex vertical gap={12} align="flex-start">
-                            <Flex gap={8} align="center"><MailOutlined style={{ color: '#8c8c8c' }} /><Text style={{ fontSize: 13 }}>{tempProfile.email}</Text></Flex>
-                            <Flex gap={8} align="center"><PhoneOutlined style={{ color: '#8c8c8c' }} /><Text style={{ fontSize: 13 }}>{tempProfile.phone || 'Chưa cập nhật'}</Text></Flex>
-                            <Flex gap={8} align="center"><IdcardOutlined style={{ color: '#8c8c8c' }} /><Text style={{ fontSize: 13 }}>{tempProfile.employeeId}</Text></Flex>
-                        </Flex>
-                    </Card>
-                </Col>
+                        <h3 className="text-lg font-bold text-slate-900">{tempProfile.name}</h3>
+                        <Tag color={roleColor} className="mt-2 mb-4 px-3 py-1 rounded-full">{roleName}</Tag>
+                        
+                        <div className="w-full border-t border-slate-100 my-4"></div>
+                        
+                        <div className="w-full flex flex-col gap-3">
+                            <div className="flex items-center gap-3 text-slate-600">
+                                <MailOutlined className="text-slate-400" />
+                                <span className="text-sm font-medium truncate" title={tempProfile.email}>{tempProfile.email}</span>
+                            </div>
+                            <div className="flex items-center gap-3 text-slate-600">
+                                <PhoneOutlined className="text-slate-400" />
+                                <span className="text-sm font-medium">{tempProfile.phone || 'Chưa cập nhật'}</span>
+                            </div>
+                            <div className="flex items-center gap-3 text-slate-600">
+                                <IdcardOutlined className="text-slate-400" />
+                                <span className="text-sm font-medium">{tempProfile.employeeId}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-                <Col xs={24} md={16}>
-                    <Card title="Thông tin chi tiết" style={{ borderRadius: 10, marginBottom: 16 }}>
-                        <Row gutter={[16, 16]}>
-                            <Col xs={24} md={12}>
-                                <Text type="secondary" style={{ fontSize: 12 }}>Họ và tên <Text type="danger">*</Text></Text>
-                                <div><Text strong>{tempProfile.name}</Text></div>
-                                <Text type="secondary" style={{ fontSize: 11 }}>Chỉ Admin mới có thể sửa tên.</Text>
-                            </Col>
-                            <Col xs={24} md={12}>
-                                <Text type="secondary" style={{ fontSize: 12 }}>Email</Text>
-                                <div><Text strong>{tempProfile.email}</Text></div>
-                            </Col>
-                            <Col xs={24} md={12}>
-                                <Text type="secondary" style={{ fontSize: 12 }}>Số điện thoại</Text>
-                                {editing ? (
-                                    <Input value={tempProfile.phone} onChange={(e) => handleChange('phone', e.target.value)} placeholder="0901234567" disabled={isProfileBusy} />
-                                ) : (
-                                    <div><Text strong>{tempProfile.phone || '---'}</Text></div>
-                                )}
-                            </Col>
-                            <Col xs={24} md={12}>
-                                <Text type="secondary" style={{ fontSize: 12 }}>Mã nhân viên / MSSV</Text>
-                                <div><Text strong>{tempProfile.employeeId}</Text></div>
-                            </Col>
-                            <Col xs={24} md={12}>
-                                <Text type="secondary" style={{ fontSize: 12 }}>Đơn vị / Khoa</Text>
-                                {editing ? (
-                                    <Input value={tempProfile.department} onChange={(e) => handleChange('department', e.target.value)} placeholder="Khoa CNTT" disabled={isProfileBusy} />
-                                ) : (
-                                    <div><Flex align="center" gap={6}><BankOutlined style={{ color: '#8c8c8c' }} /><Text strong>{tempProfile.department || '---'}</Text></Flex></div>
-                                )}
-                            </Col>
-                        </Row>
-                    </Card>
+                {/* Right Column - Detailed Info and Password */}
+                <div className="md:col-span-2 flex flex-col gap-6">
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+                            <h3 className="font-bold text-slate-800 text-base flex items-center gap-2">
+                                <IdcardOutlined />
+                                Thông tin chi tiết
+                            </h3>
+                        </div>
+                        <div className="p-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Họ và tên <span className="text-red-500">*</span></label>
+                                    <div className="text-sm font-medium text-slate-900 bg-slate-50 p-2.5 rounded border border-slate-200">{tempProfile.name}</div>
+                                    <p className="text-[11px] text-slate-400 mt-1">Chỉ Quản trị viên mới có thể sửa tên.</p>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Email</label>
+                                    <div className="text-sm font-medium text-slate-900 bg-slate-50 p-2.5 rounded border border-slate-200">{tempProfile.email}</div>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Số điện thoại</label>
+                                    {editing ? (
+                                        <Input size="large" value={tempProfile.phone} onChange={(e) => handleChange('phone', e.target.value)} placeholder="0901234567" disabled={isProfileBusy} />
+                                    ) : (
+                                        <div className="text-sm font-medium text-slate-900 bg-slate-50 p-2.5 rounded border border-transparent">{tempProfile.phone || '---'}</div>
+                                    )}
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Mã nhân viên / MSSV</label>
+                                    <div className="text-sm font-medium text-slate-900 bg-slate-50 p-2.5 rounded border border-slate-200">{tempProfile.employeeId}</div>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Đơn vị / Khoa</label>
+                                    {editing ? (
+                                        <Input size="large" value={tempProfile.department} onChange={(e) => handleChange('department', e.target.value)} placeholder="VD: Khoa CNTT" disabled={isProfileBusy} />
+                                    ) : (
+                                        <div className="text-sm font-medium text-slate-900 bg-slate-50 p-2.5 rounded border border-transparent flex items-center gap-2">
+                                            <BankOutlined className="text-slate-400" />
+                                            {tempProfile.department || '---'}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
-                    <Card title={<><LockOutlined /> Đổi mật khẩu</>} style={{ borderRadius: 10 }}>
-                        <Row gutter={[16, 16]}>
-                            <Col xs={24} md={8}>
-                                <Text type="secondary" style={{ fontSize: 12 }}>Mật khẩu hiện tại</Text>
-                                <Input.Password placeholder="Nhập mật khẩu cũ" value={passwords.currentPassword} onChange={(e) => handlePasswordChange('currentPassword', e.target.value)} disabled={isPasswordBusy} />
-                            </Col>
-                            <Col xs={24} md={8}>
-                                <Text type="secondary" style={{ fontSize: 12 }}>Mật khẩu mới</Text>
-                                <Input.Password placeholder="Nhập mật khẩu mới" value={passwords.newPassword} onChange={(e) => handlePasswordChange('newPassword', e.target.value)} disabled={isPasswordBusy} />
-                            </Col>
-                            <Col xs={24} md={8}>
-                                <Text type="secondary" style={{ fontSize: 12 }}>Xác nhận mật khẩu</Text>
-                                <Input.Password placeholder="Nhập lại mật khẩu mới" value={passwords.confirmPassword} onChange={(e) => handlePasswordChange('confirmPassword', e.target.value)} disabled={isPasswordBusy} />
-                            </Col>
-                        </Row>
-                        <Flex justify="flex-end" style={{ marginTop: 16 }}>
-                            <Button type="primary" icon={<KeyOutlined />} onClick={handleUpdatePassword} loading={changingPassword} disabled={isPasswordBusy}>
-                                Cập nhật mật khẩu
-                            </Button>
-                        </Flex>
-                    </Card>
-                </Col>
-            </Row>
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+                            <h3 className="font-bold text-slate-800 text-base flex items-center gap-2">
+                                <LockOutlined /> 
+                                Đổi mật khẩu
+                            </h3>
+                        </div>
+                        <div className="p-6">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Mật khẩu hiện tại</label>
+                                    <Input.Password size="large" placeholder="Nhập mật khẩu cũ" value={passwords.currentPassword} onChange={(e) => handlePasswordChange('currentPassword', e.target.value)} disabled={isPasswordBusy} />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Mật khẩu mới</label>
+                                    <Input.Password size="large" placeholder="Nhập mật khẩu mới" value={passwords.newPassword} onChange={(e) => handlePasswordChange('newPassword', e.target.value)} disabled={isPasswordBusy} />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Xác nhận mật khẩu</label>
+                                    <Input.Password size="large" placeholder="Nhập lại mật khẩu mới" value={passwords.confirmPassword} onChange={(e) => handlePasswordChange('confirmPassword', e.target.value)} disabled={isPasswordBusy} />
+                                </div>
+                            </div>
+                            <div className="mt-6 flex justify-end">
+                                <Button size="large" type="primary" icon={<KeyOutlined />} onClick={handleUpdatePassword} loading={changingPassword} disabled={isPasswordBusy}>
+                                    Cập nhật mật khẩu
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }

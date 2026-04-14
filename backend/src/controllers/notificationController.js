@@ -1,5 +1,6 @@
-﻿const prisma = require('../config/database');
+const prisma = require('../config/database');
 const notificationTemplateService = require('../services/notificationTemplateService');
+const { safeNotifyMany } = require('../services/notificationService');
 
 const AUDIENCE = {
     ALL_USERS: 'ALL_USERS',
@@ -245,15 +246,16 @@ const sendBroadcastNotification = async (req, res, next) => {
         }
 
         const now = new Date();
-        await prisma.notification.createMany({
-            data: recipients.map((recipient) => ({
+        await safeNotifyMany(
+            recipients.map((recipient) => ({
                 userId: recipient.id,
                 title,
                 content,
                 type: 'SYSTEM',
                 createdAt: now,
             })),
-        });
+            'sendBroadcastNotification',
+        );
 
         return res.status(201).json({
             success: true,

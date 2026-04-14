@@ -101,10 +101,10 @@ app.post('/api/users', async (req, res) => {
   }
 
   // 2. Prevent SQL Injection: Parameterized Queries
-  // ❌ Bad example
+  // âŒ Bad example
   // db.query(`SELECT * FROM users WHERE email = '${email}'`);
 
-  // ✅ Good example
+  // âœ… Good example
   const user = await db.query('SELECT * FROM users WHERE email = ?', [value.email]);
 
   // 3. Prevent XSS: Output Encoding

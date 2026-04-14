@@ -1,5 +1,17 @@
-const prisma = require('../config/database');
+﻿const prisma = require('../config/database');
+
 const REGISTRATION_TOGGLE_WARNING_WINDOW_DAYS = 14;
+
+const isWithinRegistrationWindow = (semester, now = new Date()) => {
+    if (!semester?.startDate || !semester?.registrationDeadline) return false;
+
+    const start = new Date(semester.startDate);
+    const registrationDeadline = new Date(semester.registrationDeadline);
+
+    if (Number.isNaN(start.getTime()) || Number.isNaN(registrationDeadline.getTime())) return false;
+
+    return now >= start && now <= registrationDeadline;
+};
 
 const calculateStatus = (semester) => {
     const now = new Date();
@@ -22,9 +34,21 @@ const calculateStatus = (semester) => {
     return 'UPCOMING';
 };
 
+const mapSemesterForResponse = (semester) => {
+    const status = calculateStatus(semester);
+    const registrationOpenConfigured = !!semester.registrationOpen;
+
+    return {
+        ...semester,
+        status,
+        registrationOpenConfigured,
+        registrationOpen: registrationOpenConfigured && isWithinRegistrationWindow(semester),
+    };
+};
+
 const getToggleWindowWarning = (semester) => {
     if (!semester?.startDate || !semester?.registrationDeadline) {
-        return 'Hoc ky chua du moc thoi gian de doi chieu cua so canh bao, he thong van cho phep override.';
+        return 'Học kỳ chưa đủ mốc thời gian để đối chiếu cửa sổ cảnh báo, hệ thống vẫn cho phép override.';
     }
 
     const now = Date.now();
@@ -32,7 +56,7 @@ const getToggleWindowWarning = (semester) => {
     const deadlineTime = new Date(semester.registrationDeadline).getTime();
 
     if (Number.isNaN(startTime) || Number.isNaN(deadlineTime)) {
-        return 'Khong the xac dinh cua so canh bao do du lieu ngay khong hop le, he thong van cho phep override.';
+        return 'Không thể xác định cửa sổ cảnh báo do dữ liệu ngày không hợp lệ, hệ thống vẫn cho phép override.';
     }
 
     const offsetMs = REGISTRATION_TOGGLE_WARNING_WINDOW_DAYS * 24 * 60 * 60 * 1000;
@@ -40,7 +64,7 @@ const getToggleWindowWarning = (semester) => {
     const windowEnd = deadlineTime + offsetMs;
 
     if (now < windowStart || now > windowEnd) {
-        return 'Dang thay doi toggle dang ky ngoai cua so goi y (startDate - 14 ngay den registrationDeadline + 14 ngay).';
+        return 'Đang thay đổi toggle đăng ký ngoài cửa sổ gợi ý (startDate - 14 ngày đến registrationDeadline + 14 ngày).';
     }
 
     return null;
@@ -54,10 +78,7 @@ const getAllSemesters = async (_req, res, next) => {
 
         res.json({
             success: true,
-            data: semesters.map((semester) => ({
-                ...semester,
-                status: calculateStatus(semester),
-            })),
+            data: semesters.map(mapSemesterForResponse),
         });
     } catch (error) {
         next(error);
@@ -84,10 +105,7 @@ const getSemesterById = async (req, res, next) => {
 
         res.json({
             success: true,
-            data: {
-                ...semester,
-                status: calculateStatus(semester),
-            },
+            data: mapSemesterForResponse(semester),
         });
     } catch (error) {
         next(error);
@@ -128,8 +146,7 @@ const createSemester = async (req, res, next) => {
                 registrationDeadline: new Date(registrationDeadline),
                 midtermReportDate: midtermReportDate ? new Date(midtermReportDate) : null,
                 defenseDate: defenseDate ? new Date(defenseDate) : null,
-                registrationOpen:
-                    typeof registrationOpen === 'boolean' ? registrationOpen : true,
+                registrationOpen: typeof registrationOpen === 'boolean' ? registrationOpen : true,
                 status: calculatedStatus,
             },
         });
@@ -137,10 +154,7 @@ const createSemester = async (req, res, next) => {
         res.status(201).json({
             success: true,
             message: 'Tạo đợt đồ án thành công.',
-            data: {
-                ...newSemester,
-                status: calculatedStatus,
-            },
+            data: mapSemesterForResponse(newSemester),
         });
     } catch (error) {
         next(error);
@@ -204,9 +218,7 @@ const updateSemester = async (req, res, next) => {
                 midtermReportDate: nextMidtermReportDate,
                 defenseDate: nextDefenseDate,
                 registrationOpen:
-                    typeof registrationOpen === 'boolean'
-                        ? registrationOpen
-                        : semester.registrationOpen,
+                    typeof registrationOpen === 'boolean' ? registrationOpen : semester.registrationOpen,
                 status: calculatedStatus,
             },
         });
@@ -214,10 +226,7 @@ const updateSemester = async (req, res, next) => {
         res.json({
             success: true,
             message: 'Cập nhật đợt đồ án thành công.',
-            data: {
-                ...updatedSemester,
-                status: calculatedStatus,
-            },
+            data: mapSemesterForResponse(updatedSemester),
         });
     } catch (error) {
         next(error);
@@ -248,6 +257,14 @@ const toggleSemesterRegistration = async (req, res, next) => {
             });
         }
 
+        if (registrationOpen && !isWithinRegistrationWindow(semester)) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    'Không thể mở đăng ký ở giai đoạn hiện tại. Chỉ được mở trong khoảng từ ngày bắt đầu đến hạn đăng ký.',
+            });
+        }
+
         const warning = getToggleWindowWarning(semester);
 
         const updated = await prisma.semester.update({
@@ -261,10 +278,7 @@ const toggleSemesterRegistration = async (req, res, next) => {
                 ? 'Đã mở đăng ký đề tài cho học kỳ.'
                 : 'Đã đóng đăng ký đề tài cho học kỳ.',
             warning,
-            data: {
-                ...updated,
-                status: calculateStatus(updated),
-            },
+            data: mapSemesterForResponse(updated),
         });
     } catch (error) {
         next(error);

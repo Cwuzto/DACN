@@ -2,93 +2,55 @@
 
 ## Trạng thái hiện tại
 
-**Cập nhật lần cuối:** 2026-04-08
+**Cập nhật lần cuối:** 2026-04-15
 
-Dự án đã đi qua một đợt hoàn thiện lớn cho 3 vai trò theo workflow `TopicRegistration`.
-Trạng thái hiện tại: **đã ổn định luồng chính cho STUDENT + LECTURER + ADMIN ở mức vận hành nội bộ**, sẵn sàng chuyển sang hardening test/UAT mở rộng.
+Dự án đang ở trạng thái **ổn định luồng chính cho 3 vai trò** (`ADMIN`, `LECTURER`, `STUDENT`) theo workflow `TopicRegistration`.
 
 ---
 
-## Đã hoàn thành (đợt gần nhất)
+## Tiến độ mới nhất
 
-### 1. Chuẩn hóa cấu trúc repo và tài liệu clone
+### 1. Demo data đã làm mới hoàn toàn
 
-- Dọn file dư thừa, log tạm, artifact không cần thiết.
-- Loại bỏ phần `notebooklm` khỏi repo làm việc.
-- Cập nhật `.gitignore` để tránh tái sinh file rác.
-- Bổ sung tài liệu setup clone:
-  - `SETUP_CLONE.md`
-- Cập nhật `README.md` để link đúng tài liệu setup.
+- Reset dữ liệu cũ và seed lại dữ liệu lớn, thực tế để phục vụ demo.
+- Dữ liệu hiện có:
+  - `users`: 86
+  - `semesters`: 4
+  - `topics`: 166
+  - `registrations`: 122
+  - `tasks`: 610
+  - `submissions`: 366
+  - `milestones`: 366
+  - `councils`: 7
+  - `defenseResults`: 58
+  - `notifications`: 220
+- Rule đã đồng bộ: mỗi đề tài chỉ 1 sinh viên (`maxStudents = 1`).
 
-### 2. Ổn định UTF-8 và service/frontend contract
+### 2. Đã sửa logic toggle mở/đóng đăng ký theo nghiệp vụ
 
-- Chuẩn hóa nhiều file service/frontend bị lỗi mã hóa tiếng Việt.
-- Cố định một số mapping response sai (đặc biệt luồng profile update).
-- Duy trì gate UTF-8 trước khi chốt mỗi batch.
+- Trước đây giữa kỳ vẫn có thể bật `registrationOpen` nên gây sai cảm giác vận hành.
+- Hiện tại:
+  - Backend chỉ cho bật đăng ký trong cửa sổ hợp lệ (`startDate` -> `registrationDeadline`).
+  - UI admin chỉ cho bật toggle khi học kỳ ở trạng thái `REGISTRATION`.
+  - API trả thêm trạng thái rõ ràng để UI hiển thị đúng theo hiệu lực thực tế.
 
-### 3. STUDENT (S1 + S2)
+### 3. Chuẩn hóa tiếng Việt và encoding
 
-- Topic registration:
-  - Đồng bộ chọn học kỳ theo ngữ cảnh đăng ký.
-  - Chặn đăng ký/nộp khi ngoài cửa sổ hoặc trạng thái không hợp lệ.
-- Submission:
-  - Bổ sung nhập nội dung + upload file rõ ràng.
-  - Hỗ trợ **nộp lại (resubmit)** khi task chưa `COMPLETED`.
-  - Phân nhóm nhiệm vụ theo trạng thái: chưa nộp / quá hạn / đã nộp / đã chấm.
-- Student dashboard + grade view:
-  - KPI nhiệm vụ có overdue/upcoming.
-  - Hiển thị kết quả bảo vệ và scoresheet tốt hơn.
-- Notifications:
-  - Tự refresh định kỳ để cập nhật thông báo mới.
-
-### 4. LECTURER (L1 + L2)
-
-- Topic management/approval:
-  - Sửa text UTF-8 và thống nhất hành vi phát hành đề tài.
-- Progress tracking:
-  - Bổ sung duyệt/từ chối đăng ký ngay trên màn giảng viên.
-  - Thêm giao task đúng điều kiện đăng ký.
-  - Cảnh báo có nhiệm vụ quá hạn theo registration.
-- Task management:
-  - Thêm API cập nhật trạng thái task (`PATCH /api/tasks/:id/status`).
-  - Chỉ cho phép tạo task khi registration ở trạng thái hợp lệ (`APPROVED`/`IN_PROGRESS`).
-
-### 5. ADMIN (A1 + A2)
-
-- Dashboard admin:
-  - Thêm tổng quan theo học kỳ (`semester overview`):
-    - số đề tài, số đăng ký,
-    - tỷ lệ duyệt,
-    - tỷ lệ hoàn thành,
-    - trạng thái mở/đóng đăng ký.
-- Project period:
-  - Làm rõ trạng thái mở/đóng đăng ký ngay cạnh toggle để giảm thao tác nhầm.
-- Project oversight:
-  - Nâng cấp thành trung tâm cảnh báo vận hành:
-    - đăng ký chờ duyệt,
-    - chưa phân hội đồng,
-    - sinh viên có nhiệm vụ quá hạn,
-    - học kỳ sắp đóng đăng ký,
-    - học kỳ quá hạn nhưng vẫn mở đăng ký.
+- Đã chuyển seed dữ liệu sang tiếng Việt có dấu để demo tự nhiên hơn.
+- Đã chuẩn hóa và cập nhật rule kiểm tra UTF-8 + chất lượng text markdown.
 
 ---
 
 ## Chất lượng và gate
 
-Các batch gần nhất đều pass:
-
-- `npm run lint` (frontend)
-- `node scripts/check-utf8.js`
-- `node scripts/regression-check.js`
+- `node scripts/check-utf8.js`: **PASS**
+- `node scripts/check-md-quality.js`: **PASS**
+- `npm --prefix frontend run build`: **PASS**
 
 ---
 
-## Còn lại (ưu tiên hiện tại)
+## Rủi ro còn lại cần theo dõi
 
-1. Hardening test backend cho các endpoint mới:
-   - `PATCH /api/tasks/:id/status`
-   - Rule create task theo trạng thái registration
-   - `GET /api/dashboard/semester-overview`
-2. UAT theo role trên môi trường clone sạch:
-   - luồng đăng nhập + kết nối DB + role permissions
-3. Rà soát nốt text UTF-8 ở các trang admin còn lại (nếu còn mojibake cục bộ).
+1. Cần UAT nhanh toàn luồng trước demo (admin, lecturer, student).
+2. Cần chụp sẵn ảnh màn hình backup cho tình huống mạng không ổn định khi demo.
+3. Một số file tài liệu cũ ngoài bộ trạng thái chính có thể cần rà soát thêm để đồng bộ văn phong/encoding.

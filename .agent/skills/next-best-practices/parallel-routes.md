@@ -6,18 +6,18 @@ Parallel routes render multiple pages in the same layout. Intercepting routes sh
 
 ```
 app/
-├── @modal/                    # Parallel route slot
-│   ├── default.tsx            # Required! Returns null
-│   ├── (.)photos/             # Intercepts /photos/*
-│   │   └── [id]/
-│   │       └── page.tsx       # Modal content
-│   └── [...]catchall/         # Optional: catch unmatched
-│       └── page.tsx
-├── photos/
-│   └── [id]/
-│       └── page.tsx           # Full page (direct access)
-├── layout.tsx                 # Renders both children and @modal
-└── page.tsx
+â”œâ”€â”€ @modal/                    # Parallel route slot
+â”‚   â”œâ”€â”€ default.tsx            # Required! Returns null
+â”‚   â”œâ”€â”€ (.)photos/             # Intercepts /photos/*
+â”‚   â”‚   â””â”€â”€ [id]/
+â”‚   â”‚       â””â”€â”€ page.tsx       # Modal content
+â”‚   â””â”€â”€ [...]catchall/         # Optional: catch unmatched
+â”‚       â””â”€â”€ page.tsx
+â”œâ”€â”€ photos/
+â”‚   â””â”€â”€ [id]/
+â”‚       â””â”€â”€ page.tsx           # Full page (direct access)
+â”œâ”€â”€ layout.tsx                 # Renders both children and @modal
+â””â”€â”€ page.tsx
 ```
 
 ## Step 1: Root Layout with Slot
@@ -206,7 +206,7 @@ export default async function PhotoPage({ params }) {
 
 ## Common Gotchas
 
-### 1. Missing `default.tsx` → 404 on Refresh
+### 1. Missing `default.tsx` â†’ 404 on Refresh
 
 Every `@slot` folder needs a `default.tsx` that returns `null` (or appropriate content).
 
@@ -220,11 +220,11 @@ If you have `@modal` inside a route group, each level needs its own `default.tsx
 
 ```
 app/
-├── (marketing)/
-│   ├── @modal/
-│   │   └── default.tsx     # Needed!
-│   └── layout.tsx
-└── layout.tsx
+â”œâ”€â”€ (marketing)/
+â”‚   â”œâ”€â”€ @modal/
+â”‚   â”‚   â””â”€â”€ default.tsx     # Needed!
+â”‚   â””â”€â”€ layout.tsx
+â””â”€â”€ layout.tsx
 ```
 
 ### 4. Intercepted Route Shows Wrong Content
@@ -248,17 +248,17 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
 
 ```
 app/
-├── @modal/
-│   ├── default.tsx
-│   └── (.)photos/
-│       └── [id]/
-│           └── page.tsx
-├── photos/
-│   ├── page.tsx           # Gallery grid
-│   └── [id]/
-│       └── page.tsx       # Full photo page
-├── layout.tsx
-└── page.tsx
+â”œâ”€â”€ @modal/
+â”‚   â”œâ”€â”€ default.tsx
+â”‚   â””â”€â”€ (.)photos/
+â”‚       â””â”€â”€ [id]/
+â”‚           â””â”€â”€ page.tsx
+â”œâ”€â”€ photos/
+â”‚   â”œâ”€â”€ page.tsx           # Gallery grid
+â”‚   â””â”€â”€ [id]/
+â”‚       â””â”€â”€ page.tsx       # Full photo page
+â”œâ”€â”€ layout.tsx
+â””â”€â”€ page.tsx
 ```
 
 Links in the gallery:
@@ -282,6 +282,6 @@ export default async function Gallery() {
 }
 ```
 
-Clicking a photo → Modal opens (intercepted)
-Direct URL → Full page renders
-Refresh while modal open → Full page renders
+Clicking a photo â†’ Modal opens (intercepted)
+Direct URL â†’ Full page renders
+Refresh while modal open â†’ Full page renders

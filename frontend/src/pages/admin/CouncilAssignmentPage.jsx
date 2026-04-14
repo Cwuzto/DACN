@@ -19,6 +19,8 @@ import councilService from '../../services/councilService';
 import registrationService from '../../services/registrationService';
 import { semesterService } from '../../services/semesterService';
 import userService from '../../services/userService';
+import PageHeader from '../../components/common/PageHeader';
+import StatCard from '../../components/common/StatCard';
 
 function CouncilAssignmentPage() {
     const [councils, setCouncils] = useState([]);
@@ -270,23 +272,19 @@ function CouncilAssignmentPage() {
             width: 120,
             align: 'center',
             render: (_, record) => (
-                <Space>
-                    <Tooltip title="Chỉnh sửa">
-                        <Button type="text" size="small" icon={<EditOutlined />} onClick={() => showEditModal(record)} style={{ color: '#003366' }} />
-                    </Tooltip>
-                    <Popconfirm
-                        title="Xóa hội đồng?"
-                        description="Bạn có chắc muốn xóa?"
-                        onConfirm={() => handleDeleteCouncil(record.id)}
-                        okText="Xóa"
-                        cancelText="Hủy"
-                        okButtonProps={{ danger: true }}
-                    >
-                        <Tooltip title="Xóa">
-                            <Button type="text" size="small" danger icon={<DeleteOutlined />} disabled={record._count?.registrations > 0} />
-                        </Tooltip>
-                    </Popconfirm>
-                </Space>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+                <Button size="small" className="text-xs font-medium border-slate-200 text-slate-700 shadow-sm hover:text-primary hover:border-primary hover:bg-slate-50" icon={<EditOutlined />} onClick={() => showEditModal(record)}>Sửa</Button>
+                <Popconfirm
+                    title="Xóa hội đồng?"
+                    description="Bạn có chắc muốn xóa?"
+                    onConfirm={() => handleDeleteCouncil(record.id)}
+                    okText="Xóa"
+                    cancelText="Hủy"
+                    okButtonProps={{ danger: true }}
+                >
+                    <Button size="small" danger className="text-xs font-medium border-red-200 text-red-600 shadow-sm bg-red-50/50 hover:text-red-700 hover:border-red-300 hover:bg-red-100" icon={<DeleteOutlined />} disabled={record._count?.registrations > 0}>Xóa</Button>
+                </Popconfirm>
+            </div>
             ),
         },
     ];
@@ -317,42 +315,34 @@ function CouncilAssignmentPage() {
 
     return (
         <div className="py-2">
-            <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-                <div>
-                    <h2 className="text-2xl font-black text-slate-900">Phân công Hội đồng</h2>
-                    <p className="text-sm text-slate-500 mt-1">Quan ly và phân công hội đồng bảo vệ do an</p>
-                </div>
-                <div className="flex items-center gap-3">
-                    <Select
-                        value={selectedSemester}
-                        onChange={setSelectedSemester}
-                        style={{ width: 200 }}
-                        options={semesters.map((semester) => ({ value: semester.id, label: semester.name }))}
-                        loading={semesters.length === 0}
-                        placeholder="Chon học kỳ"
-                    />
-                    <button
-                        onClick={showCreateModal}
-                        disabled={!selectedSemester}
-                        className="inline-flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-lg font-bold text-sm hover:bg-primary-800 transition-colors disabled:opacity-50"
-                    >
-                        <span className="material-symbols-outlined text-[18px]">add</span>
-                        Tạo hội đồng
-                    </button>
-                </div>
-            </div>
+            <PageHeader
+                title="Phân công Hội đồng"
+                subtitle="Quản lý và phân công hội đồng bảo vệ đồ án"
+                actions={
+                    <>
+                        <Select
+                            value={selectedSemester}
+                            onChange={setSelectedSemester}
+                            style={{ width: 200 }}
+                            options={semesters.map((semester) => ({ value: semester.id, label: semester.name }))}
+                            loading={semesters.length === 0}
+                            placeholder="Chọn học kỳ"
+                        />
+                        <button
+                            onClick={showCreateModal}
+                            disabled={!selectedSemester}
+                            className="inline-flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-lg font-bold text-sm hover:bg-primary-800 transition-colors disabled:opacity-50"
+                        >
+                            <span className="material-symbols-outlined text-[18px]">add</span>
+                            Tạo hội đồng
+                        </button>
+                    </>
+                }
+            />
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
                 {statsData.map((card, idx) => (
-                    <div key={idx} className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 hover:shadow-md transition-all">
-                        <div className="flex items-center gap-3 mb-3">
-                            <div className={`w-10 h-10 ${card.iconBg} rounded-lg flex items-center justify-center`}>
-                                <span className={`material-symbols-outlined ${card.iconColor}`}>{card.icon}</span>
-                            </div>
-                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">{card.title}</p>
-                        </div>
-                        <p className="text-3xl font-black text-slate-900">{card.value}</p>
-                    </div>
+                    <StatCard key={idx} icon={card.icon} iconBg={card.iconBg} iconColor={card.iconColor} label={card.title} value={card.value} />
                 ))}
             </div>
 
@@ -361,7 +351,7 @@ function CouncilAssignmentPage() {
             </div>
 
             <Modal
-                title={editingCouncil ? 'Chinh sua Hội đồng' : 'Tạo Hội đồng moi'}
+                title={editingCouncil ? 'Chỉnh sửa Hội đồng' : 'Tạo Hội đồng mới'}
                 open={isCouncilModalVisible}
                 onOk={handleSaveCouncil}
                 onCancel={() => setIsCouncilModalVisible(false)}
@@ -372,12 +362,12 @@ function CouncilAssignmentPage() {
                 <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
                     <div className="grid grid-cols-6 gap-4">
                         <div className="col-span-3">
-                            <Form.Item name="name" label="Ten hội đồng" rules={[{ required: true, message: 'Nhap ten' }]}>
+                            <Form.Item name="name" label="Tên hội đồng" rules={[{ required: true, message: 'Nhập tên' }]}>
                                 <Input placeholder="VD: Hội đồng CNTT - 01" />
                             </Form.Item>
                         </div>
                         <div className="col-span-1">
-                            <Form.Item name="location" label="Phong">
+                            <Form.Item name="location" label="Phòng">
                                 <Input placeholder="P. 301" />
                             </Form.Item>
                         </div>
@@ -388,24 +378,24 @@ function CouncilAssignmentPage() {
                         </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
-                        <Form.Item name="chairman" label="Chu tich HD" rules={[{ required: true, message: 'Chon chu tich' }]}>
-                            <Select showSearch placeholder="Chon giảng viên" optionFilterProp="label" options={lecturerOptions} />
+                        <Form.Item name="chairman" label="Chủ tịch HĐ" rules={[{ required: true, message: 'Chọn chủ tịch' }]}>
+                            <Select showSearch placeholder="Chọn giảng viên" optionFilterProp="label" options={lecturerOptions} />
                         </Form.Item>
-                        <Form.Item name="secretary" label="Thu ky HD">
-                            <Select showSearch placeholder="Chon giảng viên" optionFilterProp="label" options={lecturerOptions} />
+                        <Form.Item name="secretary" label="Thư ký HĐ">
+                            <Select showSearch placeholder="Chọn giảng viên" optionFilterProp="label" options={lecturerOptions} />
                         </Form.Item>
                     </div>
-                    <Form.Item name="reviewers" label="Uy vien / Phan bien">
-                        <Select mode="multiple" showSearch placeholder="Chon GV phan bien" optionFilterProp="label" options={lecturerOptions} />
+                    <Form.Item name="reviewers" label="Ủy viên / Phản biện">
+                        <Select mode="multiple" showSearch placeholder="Chọn GV phản biện" optionFilterProp="label" options={lecturerOptions} />
                     </Form.Item>
-                    <Form.Item name="members" label="Uy vien khac">
-                        <Select mode="multiple" showSearch placeholder="Chon GV uy vien" optionFilterProp="label" options={lecturerOptions} />
+                    <Form.Item name="members" label="Ủy viên khác">
+                        <Select mode="multiple" showSearch placeholder="Chọn GV ủy viên" optionFilterProp="label" options={lecturerOptions} />
                     </Form.Item>
                 </Form>
             </Modal>
 
             <Modal
-                title={`Phân công SV vao "${assigningCouncil?.name}"`}
+                title={`Phân công SV vào "${assigningCouncil?.name}"`}
                 open={isAssignModalVisible}
                 onOk={handleAssignRegistrations}
                 onCancel={() => setIsAssignModalVisible(false)}
@@ -413,11 +403,11 @@ function CouncilAssignmentPage() {
                 width={700}
                 destroyOnClose
             >
-                <p className="text-sm text-slate-500 mb-4">Chon cac sinh viên chưa được phân công hội đồng.</p>
+                <p className="text-sm text-slate-500 mb-4">Chọn các sinh viên chưa được phân công hội đồng.</p>
                 <Select
                     mode="multiple"
                     style={{ width: '100%' }}
-                    placeholder="Chon sinh viên"
+                    placeholder="Chọn sinh viên"
                     value={selectedRegistrationsToAssign}
                     onChange={setSelectedRegistrationsToAssign}
                     optionLabelProp="label"

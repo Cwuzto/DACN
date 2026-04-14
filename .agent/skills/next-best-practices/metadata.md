@@ -100,11 +100,11 @@ For most sites, **static metadata files provide excellent SEO coverage**:
 
 ```
 app/
-├── favicon.ico
-├── opengraph-image.png     # Works for both OG and Twitter
-├── sitemap.ts
-├── robots.ts
-└── layout.tsx              # With title/description metadata
+â”œâ”€â”€ favicon.ico
+â”œâ”€â”€ opengraph-image.png     # Works for both OG and Twitter
+â”œâ”€â”€ sitemap.ts
+â”œâ”€â”€ robots.ts
+â””â”€â”€ layout.tsx              # With title/description metadata
 ```
 
 **Tips:**

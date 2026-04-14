@@ -246,21 +246,21 @@ function TopicListPage() {
     return (
         <div className="py-2">
             <div className="mb-8">
-                <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">Đăng ký đề tài</h1>
-                <p className="mt-2 text-slate-600 dark:text-slate-400">Chọn đề tài hoặc đề xuất ý tưởng của riêng bạn</p>
+                <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">Đăng ký đề tài</h1>
+                <p className="mt-2 text-slate-600">Chọn đề tài hoặc đề xuất đề tài mới</p>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 <div className="lg:col-span-8 space-y-6">
-                    <div className="bg-white dark:bg-slate-900 p-1 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 flex w-full">
+                    <div className="bg-white p-1 rounded-xl shadow-sm border border-slate-200 flex w-full">
                         <button
-                            className={`flex-1 py-2.5 px-4 text-sm font-bold rounded-lg transition-all ${activeTab === 'list' ? 'bg-primary text-white shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                            className={`flex-1 py-2.5 px-4 text-sm font-bold rounded-lg transition-all ${activeTab === 'list' ? 'bg-primary text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'}`}
                             onClick={() => setActiveTab('list')}
                         >
                             Chọn đề tài có sẵn
                         </button>
                         <button
-                            className={`flex-1 py-2.5 px-4 text-sm font-bold rounded-lg transition-all ${activeTab === 'propose' ? 'bg-primary text-white shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                            className={`flex-1 py-2.5 px-4 text-sm font-bold rounded-lg transition-all ${activeTab === 'propose' ? 'bg-primary text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'}`}
                             onClick={() => setActiveTab('propose')}
                         >
                             Đề xuất đề tài mới
@@ -273,14 +273,14 @@ function TopicListPage() {
                                 <div className="relative flex-1">
                                     <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
                                     <input
-                                        className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
+                                        className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
                                         placeholder="Tìm kiếm đề tài, giảng viên..."
                                         type="text"
                                         value={searchText}
                                         onChange={(e) => setSearchText(e.target.value)}
                                     />
                                 </div>
-                                <button type="submit" className="flex items-center justify-center gap-2 px-6 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl font-medium text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 transition-colors">
+                                <button type="submit" className="flex items-center justify-center gap-2 px-6 py-2.5 bg-white border border-slate-200 rounded-xl font-medium text-sm text-slate-700 hover:bg-slate-50 transition-colors">
                                     Tìm kiếm
                                 </button>
                             </form>
@@ -296,7 +296,7 @@ function TopicListPage() {
                                     <div className="animate-spin rounded-full h-10 w-10 border-4 border-primary border-t-transparent"></div>
                                 </div>
                             ) : topics.length === 0 ? (
-                                <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-12 text-center">
+                                <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
                                     <div className="size-16 bg-slate-100 rounded-full flex justify-center items-center mx-auto mb-4">
                                         <span className="material-symbols-outlined text-slate-400 text-3xl">search_off</span>
                                     </div>
@@ -307,14 +307,14 @@ function TopicListPage() {
                                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                                     {topics.map((topic) => {
                                         const registrationsCount = topic._count?.registrations || 0;
-                                        const maxStudents = topic.maxStudents || 1;
+                                        const maxStudents = 1;
                                         const isFull = registrationsCount >= maxStudents;
                                         const percent = maxStudents > 0 ? (registrationsCount / maxStudents) * 100 : 0;
                                         const isSaved = savedIds.includes(topic.id);
                                         const isMyTopic = myRegistration?.topicId === topic.id && myRegistration?.status !== 'REJECTED';
 
                                         return (
-                                            <div key={topic.id} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm hover:shadow-md transition-shadow relative">
+                                            <div key={topic.id} className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm hover:shadow-md transition-shadow relative">
                                                 <div className="flex justify-between items-start mb-3">
                                                     {isFull ? (
                                                         <span className="px-2 py-1 bg-red-100 text-red-700 text-[10px] font-bold uppercase rounded">Đã đủ chỗ</span>
@@ -325,7 +325,7 @@ function TopicListPage() {
                                                 </div>
 
                                                 <h3
-                                                    className="font-bold text-slate-900 dark:text-white leading-snug min-h-[3rem] cursor-pointer hover:text-primary transition-colors pr-8"
+                                                    className="font-bold text-slate-900 leading-snug min-h-[3rem] cursor-pointer hover:text-primary transition-colors pr-8"
                                                     onClick={() => handleViewDetail(topic.id)}
                                                 >
                                                     {topic.title}
@@ -354,7 +354,7 @@ function TopicListPage() {
                                                         <span className="text-slate-600">Số lượng sinh viên</span>
                                                         <span className={isFull ? 'text-red-600' : 'text-primary'}>{registrationsCount}/{maxStudents} SV</span>
                                                     </div>
-                                                    <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                                                    <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                                                         <div className={`${isFull ? 'bg-red-500' : 'bg-primary'} h-full rounded-full transition-all`} style={{ width: `${percent}%` }}></div>
                                                     </div>
                                                 </div>
@@ -365,7 +365,7 @@ function TopicListPage() {
                                                         Đề tài đang chọn
                                                     </button>
                                                 ) : isFull ? (
-                                                    <button className="mt-6 w-full py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-400 font-bold rounded-lg cursor-not-allowed">
+                                                    <button className="mt-6 w-full py-2.5 bg-slate-100 text-slate-400 font-bold rounded-lg cursor-not-allowed">
                                                         Đã hết chỗ
                                                     </button>
                                                 ) : (
@@ -390,7 +390,7 @@ function TopicListPage() {
                     )}
 
                     {activeTab === 'propose' && (
-                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 lg:p-8 shadow-sm space-y-6">
+                        <div className="bg-white border border-slate-200 rounded-2xl p-6 lg:p-8 shadow-sm space-y-6">
                             <div className="text-center mb-6">
                                 <h2 className="text-xl font-bold">Đề xuất đề tài mới</h2>
                                 <p className="text-slate-500 mt-1 text-sm">Điền thông tin chi tiết về ý tưởng nghiên cứu bạn muốn thực hiện</p>
@@ -409,7 +409,7 @@ function TopicListPage() {
                                         <label className="block text-sm font-bold mb-2">Tên đề tài đề xuất</label>
                                         <input
                                             required
-                                            className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 focus:ring-2 focus:ring-primary outline-none"
+                                            className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:ring-2 focus:ring-primary outline-none"
                                             placeholder="Ví dụ: Nghiên cứu ứng dụng AR trong giáo dục..."
                                             type="text"
                                             value={proposeForm.title}
@@ -420,7 +420,7 @@ function TopicListPage() {
                                         <label className="block text-sm font-bold mb-2">Giảng viên hướng dẫn mong muốn</label>
                                         <select
                                             required
-                                            className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 focus:ring-2 focus:ring-primary outline-none appearance-none"
+                                            className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:ring-2 focus:ring-primary outline-none appearance-none"
                                             value={proposeForm.mentorId}
                                             onChange={(event) => setProposeForm({ ...proposeForm, mentorId: event.target.value })}
                                         >
@@ -434,7 +434,7 @@ function TopicListPage() {
                                         <label className="block text-sm font-bold mb-2">Mô tả chi tiết ý tưởng</label>
                                         <textarea
                                             required
-                                            className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 focus:ring-2 focus:ring-primary outline-none"
+                                            className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:ring-2 focus:ring-primary outline-none"
                                             placeholder="Trình bày lý do, mục tiêu nghiên cứu và công nghệ sẽ áp dụng..."
                                             rows="5"
                                             value={proposeForm.description}
@@ -453,8 +453,8 @@ function TopicListPage() {
                 </div>
 
                 <div className="lg:col-span-4 space-y-6">
-                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-                        <div className="p-5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50">
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div className="p-5 border-b border-slate-200 bg-slate-50/50">
                             <div className="flex items-center gap-2">
                                 <span className="material-symbols-outlined text-primary">app_registration</span>
                                 <h2 className="text-lg font-bold">Trạng thái đăng ký</h2>
@@ -464,7 +464,7 @@ function TopicListPage() {
                             {myRegistration ? (
                                 <div className={`relative pl-4 border-l-2 ${['APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'DEFENDED', 'COMPLETED'].includes(myRegistration.status) ? 'border-emerald-500' : myRegistration.status === 'REJECTED' ? 'border-red-500' : 'border-amber-500'}`}>
                                     <div className="flex justify-between items-start mb-2">
-                                        <h4 className="text-sm font-bold text-slate-900 dark:text-white leading-tight">
+                                        <h4 className="text-sm font-bold text-slate-900 leading-tight">
                                             {myRegistration.topic?.title || 'Chưa rõ tên đề tài'}
                                         </h4>
                                         <span className={`flex-shrink-0 ml-3 px-2 py-0.5 rounded-full text-[10px] font-bold ${
@@ -509,7 +509,7 @@ function TopicListPage() {
                 >
                     <div className="mt-4 space-y-4">
                         <h3 className="text-xl font-bold text-primary">{detailTopic.title}</h3>
-                        <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed bg-slate-50 p-4 rounded-lg border border-slate-100 whitespace-pre-line">
+                        <p className="text-slate-600 text-sm leading-relaxed bg-slate-50 p-4 rounded-lg border border-slate-100 whitespace-pre-line">
                             {detailTopic.description || 'Không có mô tả chi tiết cho đề tài này.'}
                         </p>
                     </div>

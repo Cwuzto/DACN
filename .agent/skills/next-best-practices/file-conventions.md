@@ -8,21 +8,21 @@ Reference: https://nextjs.org/docs/app/getting-started/project-structure
 
 ```
 app/
-├── layout.tsx          # Root layout (required)
-├── page.tsx            # Home page (/)
-├── loading.tsx         # Loading UI
-├── error.tsx           # Error UI
-├── not-found.tsx       # 404 UI
-├── global-error.tsx    # Global error UI
-├── route.ts            # API endpoint
-├── template.tsx        # Re-rendered layout
-├── default.tsx         # Parallel route fallback
-├── blog/
-│   ├── page.tsx        # /blog
-│   └── [slug]/
-│       └── page.tsx    # /blog/:slug
-└── (group)/            # Route group (no URL impact)
-    └── page.tsx
+â”œâ”€â”€ layout.tsx          # Root layout (required)
+â”œâ”€â”€ page.tsx            # Home page (/)
+â”œâ”€â”€ loading.tsx         # Loading UI
+â”œâ”€â”€ error.tsx           # Error UI
+â”œâ”€â”€ not-found.tsx       # 404 UI
+â”œâ”€â”€ global-error.tsx    # Global error UI
+â”œâ”€â”€ route.ts            # API endpoint
+â”œâ”€â”€ template.tsx        # Re-rendered layout
+â”œâ”€â”€ default.tsx         # Parallel route fallback
+â”œâ”€â”€ blog/
+â”‚   â”œâ”€â”€ page.tsx        # /blog
+â”‚   â””â”€â”€ [slug]/
+â”‚       â””â”€â”€ page.tsx    # /blog/:slug
+â””â”€â”€ (group)/            # Route group (no URL impact)
+    â””â”€â”€ page.tsx
 ```
 
 ## Special Files
@@ -42,35 +42,35 @@ app/
 
 ```
 app/
-├── blog/               # Static segment: /blog
-├── [slug]/             # Dynamic segment: /:slug
-├── [...slug]/          # Catch-all: /a/b/c
-├── [[...slug]]/        # Optional catch-all: / or /a/b/c
-└── (marketing)/        # Route group (ignored in URL)
+â”œâ”€â”€ blog/               # Static segment: /blog
+â”œâ”€â”€ [slug]/             # Dynamic segment: /:slug
+â”œâ”€â”€ [...slug]/          # Catch-all: /a/b/c
+â”œâ”€â”€ [[...slug]]/        # Optional catch-all: / or /a/b/c
+â””â”€â”€ (marketing)/        # Route group (ignored in URL)
 ```
 
 ## Parallel Routes
 
 ```
 app/
-├── @analytics/
-│   └── page.tsx
-├── @sidebar/
-│   └── page.tsx
-└── layout.tsx          # Receives { analytics, sidebar } as props
+â”œâ”€â”€ @analytics/
+â”‚   â””â”€â”€ page.tsx
+â”œâ”€â”€ @sidebar/
+â”‚   â””â”€â”€ page.tsx
+â””â”€â”€ layout.tsx          # Receives { analytics, sidebar } as props
 ```
 
 ## Intercepting Routes
 
 ```
 app/
-├── feed/
-│   └── page.tsx
-├── @modal/
-│   └── (.)photo/[id]/  # Intercepts /photo/[id] from /feed
-│       └── page.tsx
-└── photo/[id]/
-    └── page.tsx
+â”œâ”€â”€ feed/
+â”‚   â””â”€â”€ page.tsx
+â”œâ”€â”€ @modal/
+â”‚   â””â”€â”€ (.)photo/[id]/  # Intercepts /photo/[id] from /feed
+â”‚       â””â”€â”€ page.tsx
+â””â”€â”€ photo/[id]/
+    â””â”€â”€ page.tsx
 ```
 
 Conventions:
@@ -83,9 +83,9 @@ Conventions:
 
 ```
 app/
-├── _components/        # Private folder (not a route)
-│   └── Button.tsx
-└── page.tsx
+â”œâ”€â”€ _components/        # Private folder (not a route)
+â”‚   â””â”€â”€ Button.tsx
+â””â”€â”€ page.tsx
 ```
 
 Prefix with `_` to exclude from routing.

@@ -1,4 +1,5 @@
-jest.mock('../../src/config/database', () => ({
+﻿jest.mock('../../src/config/database', () => ({
+    $transaction: jest.fn(),
     user: {
         findUnique: jest.fn(),
     },
@@ -20,10 +21,16 @@ jest.mock('../../src/config/database', () => ({
     notification: {
         create: jest.fn(),
     },
+    task: {
+        groupBy: jest.fn(),
+    },
 }));
 
 jest.mock('../../src/constants/mentorCapacity', () => ({
     getMentorMaxSlots: jest.fn(),
+}));
+jest.mock('../../src/services/auditLogService', () => ({
+    auditLog: jest.fn().mockResolvedValue(undefined),
 }));
 
 jest.mock('jsonwebtoken', () => ({
@@ -39,8 +46,10 @@ const app = require('../../src/app');
 describe('Integration - registrations routes', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        prisma.$transaction.mockImplementation(async (callback) => callback(prisma));
         process.env.JWT_SECRET = 'integration-secret';
         prisma.semester.findFirst.mockResolvedValue({ id: 9 });
+        prisma.task.groupBy.mockResolvedValue([]);
 
         jwt.verify.mockImplementation((token) => {
             if (token === 'student-token') return { userId: 5, role: 'STUDENT' };

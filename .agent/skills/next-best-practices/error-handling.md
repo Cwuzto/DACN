@@ -217,11 +217,11 @@ Errors bubble up to the nearest error boundary:
 
 ```
 app/
-├── error.tsx           # Catches errors from all children
-├── blog/
-│   ├── error.tsx       # Catches errors in /blog/*
-│   └── [slug]/
-│       ├── error.tsx   # Catches errors in /blog/[slug]
-│       └── page.tsx
-└── layout.tsx          # Errors here go to global-error.tsx
+â”œâ”€â”€ error.tsx           # Catches errors from all children
+â”œâ”€â”€ blog/
+â”‚   â”œâ”€â”€ error.tsx       # Catches errors in /blog/*
+â”‚   â””â”€â”€ [slug]/
+â”‚       â”œâ”€â”€ error.tsx   # Catches errors in /blog/[slug]
+â”‚       â””â”€â”€ page.tsx
+â””â”€â”€ layout.tsx          # Errors here go to global-error.tsx
 ```

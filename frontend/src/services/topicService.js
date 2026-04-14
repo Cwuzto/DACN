@@ -46,14 +46,6 @@ export const topicService = {
         }
     },
 
-    getApprovals: async (params = {}) => {
-        try {
-            return await api.get('/topics/approvals', { params });
-        } catch (error) {
-            throw wrapServiceError(error, 'Đã xảy ra lỗi khi tải đề tài chờ duyệt');
-        }
-    },
-
     getMentors: async () => {
         try {
             return await api.get('/topics/mentors');

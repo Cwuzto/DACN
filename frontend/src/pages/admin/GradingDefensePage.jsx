@@ -22,6 +22,7 @@ import {
 import CouncilAssignmentPage from './CouncilAssignmentPage';
 import evaluationService from '../../services/evaluationService';
 import uploadService from '../../services/uploadService';
+import PageHeader from '../../components/common/PageHeader';
 
 const csvEscape = (value) => {
     if (value === null || value === undefined) return '';
@@ -286,14 +287,14 @@ function GradingDefensePage() {
             align: 'right',
             width: 120,
             render: (_, record) => (
-                <Tooltip title="Cập nhật điểm / biên bản">
-                    <Button
-                        type="text"
-                        icon={<EditOutlined />}
-                        style={{ color: '#FA8C16' }}
-                        onClick={() => handleEditScore(record)}
-                    />
-                </Tooltip>
+                <Button
+                    size="small"
+                    className="text-xs font-medium border-orange-200 text-orange-600 shadow-sm bg-orange-50/50 hover:text-orange-700 hover:border-orange-300 hover:bg-orange-100"
+                    icon={<EditOutlined />}
+                    onClick={() => handleEditScore(record)}
+                >
+                    Cập nhật
+                </Button>
             ),
         },
     ];
@@ -348,12 +349,7 @@ function GradingDefensePage() {
 
     return (
         <div className="py-2">
-            <div className="mb-6">
-                <h2 className="text-2xl font-black text-slate-900">Quản lý điểm và bảo vệ</h2>
-                <p className="text-sm text-slate-500 mt-1">
-                    Tổng hợp điểm số, cập nhật kết quả bảo vệ và phân công hội đồng.
-                </p>
-            </div>
+            <PageHeader title="Quản lý điểm và bảo vệ" subtitle="Tổng hợp điểm số, cập nhật kết quả bảo vệ và phân công hội đồng." />
 
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-2 lg:p-6">
                 <Tabs defaultActiveKey="grades" items={tabItems} size="large" />

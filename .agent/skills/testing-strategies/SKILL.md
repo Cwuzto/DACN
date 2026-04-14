@@ -23,13 +23,13 @@ metadata:
 
 ```
        /\
-      /E2E\          ← few (slow, expensive)
+      /E2E\          â† few (slow, expensive)
      /______\
     /        \
-   /Integration\    ← medium
+   /Integration\    â† medium
   /____________\
  /              \
-/   Unit Tests   \  ← many (fast, inexpensive)
+/   Unit Tests   \  â† many (fast, inexpensive)
 /________________\
 ```
 
@@ -247,7 +247,7 @@ it('should return false for non-palindrome', () => {
 
 1. **Test isolation**: each test is independent
 2. **Fast feedback**: unit tests should be fast (<1 min)
-3. **Deterministic**: same input → same result
+3. **Deterministic**: same input â†’ same result
 
 ### Prohibited items (MUST NOT)
 

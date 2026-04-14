@@ -1,10 +1,14 @@
 ﻿import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Input, Modal, message } from 'antd';
 import useAuthStore from '../../stores/authStore';
 import dashboardService from '../../services/dashboardService';
+import registrationService from '../../services/registrationService';
 import dayjs from 'dayjs';
+import PageLoader from '../../components/common/PageLoader';
 
 const ACTIVE_FLOW_STATUSES = ['APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'DEFENDED', 'COMPLETED'];
+const WITHDRAWABLE_STATUSES = ['APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'DEFENDED', 'COMPLETED'];
 
 function StudentDashboardPage() {
     const { user } = useAuthStore();
@@ -12,37 +16,37 @@ function StudentDashboardPage() {
 
     const [loading, setLoading] = useState(true);
     const [data, setData] = useState(null);
+    const [withdrawModalOpen, setWithdrawModalOpen] = useState(false);
+    const [withdrawReason, setWithdrawReason] = useState('');
+    const [withdrawing, setWithdrawing] = useState(false);
+
+    const fetchDashboardData = async () => {
+        try {
+            setLoading(true);
+            const res = await dashboardService.getStudentStats();
+            if (res.success) {
+                setData(res.data);
+            }
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
-        const fetchDashboardData = async () => {
-            try {
-                setLoading(true);
-                const res = await dashboardService.getStudentStats();
-                if (res.success) {
-                    setData(res.data);
-                }
-            } catch (error) {
-                console.error(error);
-            } finally {
-                setLoading(false);
-            }
-        };
-
         fetchDashboardData();
     }, []);
 
     if (loading) {
-        return (
-            <div className="flex justify-center items-center min-h-[60vh]">
-                <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div>
-            </div>
-        );
+        return <PageLoader />;
     }
 
     const { hasRegistration, registrationDetails, taskStatus, upcomingDeadlines } = data || {};
     const hasAnyRegistration = hasRegistration ?? false;
     const currentRegistration = registrationDetails ?? null;
     const isActiveFlow = ACTIVE_FLOW_STATUSES.includes(currentRegistration?.status);
+    const canWithdraw = hasAnyRegistration && WITHDRAWABLE_STATUSES.includes(currentRegistration?.status);
     const nearestDeadline = upcomingDeadlines && upcomingDeadlines.length > 0 ? upcomingDeadlines[0] : null;
 
     const total = taskStatus?.total || 0;
@@ -63,7 +67,38 @@ function StudentDashboardPage() {
         if (status === 'REJECTED') {
             return <span className="bg-red-50 text-red-700 px-2 py-0.5 rounded text-xs font-bold border border-red-100">Từ chối</span>;
         }
+        if (status === 'DROPPED') {
+            return <span className="bg-rose-50 text-rose-700 px-2 py-0.5 rounded text-xs font-bold border border-rose-100">Đã hủy</span>;
+        }
+        if (status === 'WITHDRAWN') {
+            return <span className="bg-orange-50 text-orange-700 px-2 py-0.5 rounded text-xs font-bold border border-orange-100">Đã rút</span>;
+        }
         return <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded text-xs font-bold border border-emerald-100">Đang thực hiện</span>;
+    };
+
+    const handleWithdrawRegistration = async () => {
+        if (!withdrawReason.trim()) {
+            message.warning('Vui lòng nhập lý do rút đăng ký.');
+            return;
+        }
+        if (!currentRegistration?.registrationId) {
+            message.error('Không tìm thấy đăng ký để thực hiện thao tác.');
+            return;
+        }
+        try {
+            setWithdrawing(true);
+            const res = await registrationService.withdrawRegistration(currentRegistration.registrationId, withdrawReason.trim());
+            if (res.success) {
+                message.success('Đã rút đăng ký thành công.');
+                setWithdrawModalOpen(false);
+                setWithdrawReason('');
+                await fetchDashboardData();
+            }
+        } catch (error) {
+            message.error(error?.message || 'Không thể rút đăng ký lúc này.');
+        } finally {
+            setWithdrawing(false);
+        }
     };
 
     return (
@@ -231,6 +266,15 @@ function StudentDashboardPage() {
                                     <span className="material-symbols-outlined">upload</span>
                                     Nộp báo cáo
                                 </button>
+                                {canWithdraw && (
+                                    <button
+                                        onClick={() => setWithdrawModalOpen(true)}
+                                        className="w-full border shadow-sm border-red-200 hover:border-red-300 hover:bg-red-50 py-3 rounded-lg font-semibold flex items-center justify-center gap-2 transition-all text-red-700"
+                                    >
+                                        <span className="material-symbols-outlined">logout</span>
+                                        Rút đăng ký
+                                    </button>
+                                )}
                                 <button onClick={() => navigate('/student/grades')} className="w-full border shadow-sm border-slate-200 dark:border-slate-800 hover:border-primary/30 hover:bg-slate-50 dark:hover:bg-slate-800/50 py-3 rounded-lg font-semibold flex items-center justify-center gap-2 transition-all text-slate-700 dark:text-slate-300">
                                     <span className="material-symbols-outlined">visibility</span>
                                     Xem điểm đồ án
@@ -262,6 +306,30 @@ function StudentDashboardPage() {
                     </div>
                 </div>
             )}
+
+            <Modal
+                title="Rút đăng ký đề tài"
+                open={withdrawModalOpen}
+                onCancel={() => {
+                    setWithdrawModalOpen(false);
+                    setWithdrawReason('');
+                }}
+                onOk={handleWithdrawRegistration}
+                confirmLoading={withdrawing}
+                okText="Xác nhận rút"
+                okButtonProps={{ danger: true }}
+                cancelText="Hủy"
+            >
+                <p className="text-sm text-slate-600 mb-3">
+                    Vui lòng nhập lý do rút đăng ký để giảng viên và quản trị viên theo dõi.
+                </p>
+                <Input.TextArea
+                    rows={4}
+                    value={withdrawReason}
+                    onChange={(event) => setWithdrawReason(event.target.value)}
+                    placeholder="Ví dụ: Điều chỉnh hướng đề tài..."
+                />
+            </Modal>
         </div>
     );
 }

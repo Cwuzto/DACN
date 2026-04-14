@@ -58,7 +58,7 @@ Specifies the step-by-step task sequence to follow precisely.
 Identify core data objects and their attributes.
 
 **Tasks**:
-- Extract nouns from business requirements → entities
+- Extract nouns from business requirements â†’ entities
 - List each entity's attributes (columns)
 - Determine data types (VARCHAR, INTEGER, TIMESTAMP, JSON, etc.)
 - Designate Primary Keys (UUID vs Auto-increment ID)
@@ -108,10 +108,10 @@ Define relationships between tables and apply normalization.
 - Determine normalization level (1NF ~ 3NF)
 
 **Decision Criteria**:
-- OLTP systems → normalize to 3NF (data integrity)
-- OLAP/analytics systems → denormalization allowed (query performance)
-- Read-heavy → minimize JOINs with partial denormalization
-- Write-heavy → full normalization to eliminate redundancy
+- OLTP systems â†’ normalize to 3NF (data integrity)
+- OLAP/analytics systems â†’ denormalization allowed (query performance)
+- Read-heavy â†’ minimize JOINs with partial denormalization
+- Write-heavy â†’ full normalization to eliminate redundancy
 
 **Example** (ERD Mermaid):
 ```mermaid
@@ -162,8 +162,8 @@ Design indexes for query performance.
 
 **Tasks**:
 - Primary Keys automatically create indexes
-- Columns frequently used in WHERE clauses → add indexes
-- Foreign Keys used in JOINs → indexes
+- Columns frequently used in WHERE clauses â†’ add indexes
+- Foreign Keys used in JOINs â†’ indexes
 - Consider composite indexes (WHERE col1 = ? AND col2 = ?)
 - UNIQUE indexes (email, username, etc.)
 
@@ -326,19 +326,19 @@ Defines the exact format that deliverables should follow.
 
 ```
 project/
-├── database/
-│   ├── schema.sql                    # full schema
-│   ├── migrations/
-│   │   ├── 001_create_users.up.sql
-│   │   ├── 001_create_users.down.sql
-│   │   ├── 002_create_products.up.sql
-│   │   └── 002_create_products.down.sql
-│   ├── seeds/
-│   │   └── sample_data.sql           # test data
-│   └── docs/
-│       ├── ERD.md                     # Mermaid ERD diagram
-│       └── SCHEMA.md                  # schema documentation
-└── README.md
+â”œâ”€â”€ database/
+â”‚   â”œâ”€â”€ schema.sql                    # full schema
+â”‚   â”œâ”€â”€ migrations/
+â”‚   â”‚   â”œâ”€â”€ 001_create_users.up.sql
+â”‚   â”‚   â”œâ”€â”€ 001_create_users.down.sql
+â”‚   â”‚   â”œâ”€â”€ 002_create_products.up.sql
+â”‚   â”‚   â””â”€â”€ 002_create_products.down.sql
+â”‚   â”œâ”€â”€ seeds/
+â”‚   â”‚   â””â”€â”€ sample_data.sql           # test data
+â”‚   â””â”€â”€ docs/
+â”‚       â”œâ”€â”€ ERD.md                     # Mermaid ERD diagram
+â”‚       â””â”€â”€ SCHEMA.md                  # schema documentation
+â””â”€â”€ README.md
 ```
 
 ### ERD Diagram (Mermaid Format)
@@ -628,12 +628,12 @@ db.messages.createIndex({ sender_id: 1 });
 
 **Solution**:
 ```sql
--- ❌ Bad example: N+1 queries
+-- âŒ Bad example: N+1 queries
 SELECT * FROM posts;  -- 1 time
 -- for each post
 SELECT * FROM users WHERE id = ?;  -- N times
 
--- ✅ Good example: 1 query
+-- âœ… Good example: 1 query
 SELECT posts.*, users.username, users.avatar_url
 FROM posts
 JOIN users ON posts.author_id = users.id;

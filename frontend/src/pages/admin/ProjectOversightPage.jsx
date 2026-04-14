@@ -26,13 +26,10 @@ import { topicService } from '../../services/topicService';
 import registrationService from '../../services/registrationService';
 import { semesterService } from '../../services/semesterService';
 import userService from '../../services/userService';
-
-const statusConfig = {
-    APPROVED: { label: 'Đã duyệt', tw: 'bg-green-100 text-green-700' },
-    PENDING: { label: 'Chờ duyệt', tw: 'bg-orange-100 text-orange-700' },
-    REJECTED: { label: 'Đã từ chối', tw: 'bg-red-100 text-red-700' },
-    DRAFT: { label: 'Bản nháp', tw: 'bg-slate-100 text-slate-600' },
-};
+import PageHeader from '../../components/common/PageHeader';
+import StatusBadge from '../../components/common/StatusBadge';
+import StatCard from '../../components/common/StatCard';
+import { STATUS_MAP } from '../../components/common/statusMap';
 
 function ProjectOversightPage() {
     const [loading, setLoading] = useState(true);
@@ -257,10 +254,7 @@ function ProjectOversightPage() {
             dataIndex: 'status',
             key: 'status',
             width: 120,
-            render: (status) => {
-                const config = statusConfig[status] || { label: status, tw: 'bg-slate-100 text-slate-600' };
-                return <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-bold ${config.tw}`}>{config.label}</span>;
-            },
+            render: (status) => <StatusBadge status={status} />,
         },
         {
             title: 'Can thiệp (Admin)',
@@ -319,7 +313,7 @@ function ProjectOversightPage() {
 
                 return (
                     <Dropdown menu={{ items: menuItems, onClick: onAction }} trigger={['click']} placement="bottomRight">
-                        <Button type="text" icon={<MoreOutlined />} />
+                        <Button type="link" size="small">Thao tác {<MoreOutlined />}</Button>
                     </Dropdown>
                 );
             },
@@ -379,32 +373,13 @@ function ProjectOversightPage() {
 
     return (
         <div className="py-2">
-            <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-                <div>
-                    <h2 className="text-2xl font-black text-slate-900">Giám sát</h2>
-                    <p className="text-sm text-slate-500 mt-1">
-                        Theo dõi toàn bộ đề tài và xử lý nhanh các trường hợp cần can thiệp.
-                    </p>
-                </div>
-            </div>
+            <PageHeader title="Giám sát" subtitle="Theo dõi toàn bộ đề tài và xử lý nhanh các trường hợp cần can thiệp." />
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-4">
-                <div className="bg-white rounded-xl border border-slate-200 p-4">
-                    <p className="text-xs text-slate-500">Đăng ký chờ duyệt</p>
-                    <p className="text-2xl font-black text-amber-600">{warningStats.pendingRegistrations}</p>
-                </div>
-                <div className="bg-white rounded-xl border border-slate-200 p-4">
-                    <p className="text-xs text-slate-500">Chưa phân hội đồng</p>
-                    <p className="text-2xl font-black text-orange-600">{warningStats.unassignedCouncil}</p>
-                </div>
-                <div className="bg-white rounded-xl border border-slate-200 p-4">
-                    <p className="text-xs text-slate-500">SV có nhiệm vụ quá hạn</p>
-                    <p className="text-2xl font-black text-red-600">{warningStats.overdueTaskRegistrations}</p>
-                </div>
-                <div className="bg-white rounded-xl border border-slate-200 p-4">
-                    <p className="text-xs text-slate-500">Kỳ sắp đóng đăng ký (7 ngày)</p>
-                    <p className="text-2xl font-black text-blue-600">{warningStats.closingSoonSemesters.length}</p>
-                </div>
+                <StatCard icon="pending_actions" iconBg="bg-amber-50" iconColor="text-amber-600" label="Đăng ký chờ duyệt" value={warningStats.pendingRegistrations} />
+                <StatCard icon="group_off" iconBg="bg-orange-50" iconColor="text-orange-600" label="Chưa phân hội đồng" value={warningStats.unassignedCouncil} />
+                <StatCard icon="assignment_late" iconBg="bg-red-50" iconColor="text-red-600" label="SV có nhiệm vụ quá hạn" value={warningStats.overdueTaskRegistrations} />
+                <StatCard icon="event_upcoming" iconBg="bg-blue-50" iconColor="text-blue-600" label="Kỳ sắp đóng đăng ký (7 ngày)" value={warningStats.closingSoonSemesters.length} />
             </div>
 
             <div className="space-y-3 mb-4">
@@ -471,8 +446,8 @@ function ProjectOversightPage() {
                             allowClear
                             value={statusFilter}
                             onChange={(value) => setStatusFilter(value || null)}
-                            options={Object.keys(statusConfig).map((key) => ({
-                                label: statusConfig[key].label,
+                            options={['APPROVED','PENDING','REJECTED','DRAFT'].map((key) => ({
+                                label: STATUS_MAP[key]?.label || key,
                                 value: key,
                             }))}
                         />

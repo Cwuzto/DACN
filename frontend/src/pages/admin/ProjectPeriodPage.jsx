@@ -43,13 +43,13 @@ const getToggleWindowWarning = (period) => {
     const registrationDeadline = period?.rawData?.registrationDeadline;
 
     if (!startDate || !registrationDeadline) {
-        return 'Hoc ky chua du moc thoi gian de doi chieu cua so khuyen nghi, he thong van cho phep thay doi.';
+        return 'Học kỳ chưa đủ mốc thời gian để đối chiếu cửa sổ khuyến nghị, hệ thống vẫn cho phép thay đổi.';
     }
 
     const start = dayjs(startDate);
     const deadline = dayjs(registrationDeadline);
     if (!start.isValid() || !deadline.isValid()) {
-        return 'Du lieu ngay khong hop le, he thong van cho phep thay doi trang thai dang ky.';
+        return 'Dữ liệu ngày không hợp lệ, hệ thống vẫn cho phép thay đổi trạng thái đăng ký.';
     }
 
     const now = dayjs();

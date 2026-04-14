@@ -167,17 +167,17 @@ Build production-ready design systems with Tailwind CSS v4, including CSS-first 
 
 ```
 Brand Tokens (abstract)
-    └── Semantic Tokens (purpose)
-        └── Component Tokens (specific)
+    â””â”€â”€ Semantic Tokens (purpose)
+        â””â”€â”€ Component Tokens (specific)
 
 Example:
-    oklch(45% 0.2 260) → --color-primary → bg-primary
+    oklch(45% 0.2 260) â†’ --color-primary â†’ bg-primary
 ```
 
 ### 2. Component Architecture
 
 ```
-Base styles → Variants → Sizes → States → Overrides
+Base styles â†’ Variants â†’ Sizes â†’ States â†’ Overrides
 ```
 
 ## Patterns

@@ -6,20 +6,20 @@ Choose the right data fetching pattern for each use case.
 
 ```
 Need to fetch data?
-├── From a Server Component?
-│   └── Use: Fetch directly (no API needed)
-│
-├── From a Client Component?
-│   ├── Is it a mutation (POST/PUT/DELETE)?
-│   │   └── Use: Server Action
-│   └── Is it a read (GET)?
-│       └── Use: Route Handler OR pass from Server Component
-│
-├── Need external API access (webhooks, third parties)?
-│   └── Use: Route Handler
-│
-└── Need REST API for mobile app / external clients?
-    └── Use: Route Handler
+â”œâ”€â”€ From a Server Component?
+â”‚   â””â”€â”€ Use: Fetch directly (no API needed)
+â”‚
+â”œâ”€â”€ From a Client Component?
+â”‚   â”œâ”€â”€ Is it a mutation (POST/PUT/DELETE)?
+â”‚   â”‚   â””â”€â”€ Use: Server Action
+â”‚   â””â”€â”€ Is it a read (GET)?
+â”‚       â””â”€â”€ Use: Route Handler OR pass from Server Component
+â”‚
+â”œâ”€â”€ Need external API access (webhooks, third parties)?
+â”‚   â””â”€â”€ Use: Route Handler
+â”‚
+â””â”€â”€ Need REST API for mobile app / external clients?
+    â””â”€â”€ Use: Route Handler
 ```
 
 ## Pattern 1: Server Components (Preferred for Reads)

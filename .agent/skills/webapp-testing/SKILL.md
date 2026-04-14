@@ -16,16 +16,16 @@ To test local web applications, write native Python Playwright scripts.
 ## Decision Tree: Choosing Your Approach
 
 ```
-User task → Is it static HTML?
-    ├─ Yes → Read HTML file directly to identify selectors
-    │         ├─ Success → Write Playwright script using selectors
-    │         └─ Fails/Incomplete → Treat as dynamic (below)
-    │
-    └─ No (dynamic webapp) → Is the server already running?
-        ├─ No → Run: python scripts/with_server.py --help
-        │        Then use the helper + write simplified Playwright script
-        │
-        └─ Yes → Reconnaissance-then-action:
+User task â†’ Is it static HTML?
+    â”œâ”€ Yes â†’ Read HTML file directly to identify selectors
+    â”‚         â”œâ”€ Success â†’ Write Playwright script using selectors
+    â”‚         â””â”€ Fails/Incomplete â†’ Treat as dynamic (below)
+    â”‚
+    â””â”€ No (dynamic webapp) â†’ Is the server already running?
+        â”œâ”€ No â†’ Run: python scripts/with_server.py --help
+        â”‚        Then use the helper + write simplified Playwright script
+        â”‚
+        â””â”€ Yes â†’ Reconnaissance-then-action:
             1. Navigate and wait for networkidle
             2. Take screenshot or inspect DOM
             3. Identify selectors from rendered state
@@ -77,8 +77,8 @@ with sync_playwright() as p:
 
 ## Common Pitfall
 
-❌ **Don't** inspect the DOM before waiting for `networkidle` on dynamic apps
-✅ **Do** wait for `page.wait_for_load_state('networkidle')` before inspection
+âŒ **Don't** inspect the DOM before waiting for `networkidle` on dynamic apps
+âœ… **Do** wait for `page.wait_for_load_state('networkidle')` before inspection
 
 ## Best Practices
 

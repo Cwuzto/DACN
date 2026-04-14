@@ -1,10 +1,13 @@
-jest.mock('../../src/config/database', () => ({
+﻿jest.mock('../../src/config/database', () => ({
+    $transaction: jest.fn(),
     topicRegistration: {
         findUnique: jest.fn(),
+        findFirst: jest.fn(),
         create: jest.fn(),
         update: jest.fn(),
         delete: jest.fn(),
         count: jest.fn(),
+        findMany: jest.fn(),
     },
     topic: {
         findUnique: jest.fn(),
@@ -15,10 +18,16 @@ jest.mock('../../src/config/database', () => ({
     notification: {
         create: jest.fn(),
     },
+    task: {
+        groupBy: jest.fn(),
+    },
 }));
 
 jest.mock('../../src/constants/mentorCapacity', () => ({
     getMentorMaxSlots: jest.fn(),
+}));
+jest.mock('../../src/services/auditLogService', () => ({
+    auditLog: jest.fn().mockResolvedValue(undefined),
 }));
 
 const prisma = require('../../src/config/database');
@@ -32,6 +41,7 @@ const { createMockReq, createMockRes, createNext } = require('../helpers/http');
 describe('registrationController', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        prisma.$transaction.mockImplementation(async (callback) => callback(prisma));
     });
 
     test('registerTopic creates registration successfully', async () => {
@@ -44,13 +54,13 @@ describe('registrationController', () => {
         prisma.topicRegistration.findUnique.mockResolvedValue(null);
         prisma.topic.findUnique.mockResolvedValue({
             id: 100,
-            title: 'Đồ án AI',
+            title: 'Do an AI',
             semesterId: 9,
             mentorId: 77,
             status: 'APPROVED',
-            maxStudents: 2,
+            maxStudents: 1,
             mentor: { id: 77, academicTitle: 'TIEN_SI' },
-            _count: { registrations: 1 },
+            _count: { registrations: 0 },
         });
         getMentorMaxSlots.mockReturnValue(15);
         prisma.topicRegistration.count.mockResolvedValue(3);
@@ -71,6 +81,7 @@ describe('registrationController', () => {
 
         await registerTopic(req, res, next);
 
+        expect(prisma.$transaction).toHaveBeenCalledTimes(1);
         expect(prisma.topicRegistration.create).toHaveBeenCalledWith(
             expect.objectContaining({
                 data: expect.objectContaining({
@@ -116,7 +127,7 @@ describe('registrationController', () => {
             status: 'PENDING',
             topic: {
                 id: 100,
-                title: 'Đồ án AI',
+                title: 'Do an AI',
                 mentorId: 77,
                 mentor: { id: 77, academicTitle: 'TIEN_SI' },
             },
@@ -139,9 +150,10 @@ describe('registrationController', () => {
 
         await handleRegistration(req, res, next);
 
+        expect(prisma.$transaction).toHaveBeenCalledTimes(1);
         expect(prisma.topicRegistration.update).toHaveBeenCalledWith({
             where: { id: 88 },
-            data: { status: 'APPROVED' },
+            data: { status: 'APPROVED', rejectReason: null },
         });
         expect(prisma.notification.create).toHaveBeenCalledTimes(1);
         expect(res.json).toHaveBeenCalledWith(
@@ -158,7 +170,7 @@ describe('registrationController', () => {
             status: 'PENDING',
             topic: {
                 id: 101,
-                title: 'Đồ án Web',
+                title: 'Do an Web',
                 mentorId: 77,
                 mentor: { id: 77, academicTitle: 'THAC_SI' },
             },
@@ -188,7 +200,7 @@ describe('registrationController', () => {
             status: 'PENDING',
             topic: {
                 id: 102,
-                title: 'Đồ án Cloud',
+                title: 'Do an Cloud',
                 mentorId: 77,
                 mentor: { id: 77, academicTitle: 'THAC_SI' },
             },
@@ -201,7 +213,7 @@ describe('registrationController', () => {
 
         const req = createMockReq({
             params: { id: '91' },
-            body: { action: 'REJECT', rejectReason: 'Đề tài không phù hợp' },
+            body: { action: 'REJECT', rejectReason: 'De tai khong phu hop' },
             user: { id: 1, role: 'ADMIN' },
         });
         const res = createMockRes();
@@ -211,7 +223,7 @@ describe('registrationController', () => {
 
         expect(prisma.topicRegistration.update).toHaveBeenCalledWith({
             where: { id: 91 },
-            data: { status: 'REJECTED', rejectReason: 'Đề tài không phù hợp' },
+            data: { status: 'REJECTED', rejectReason: 'De tai khong phu hop' },
         });
         expect(prisma.notification.create).toHaveBeenCalledTimes(1);
         expect(res.json).toHaveBeenCalledWith(

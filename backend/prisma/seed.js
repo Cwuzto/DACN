@@ -1,4 +1,4 @@
-require("dotenv").config();
+﻿require("dotenv").config();
 
 const bcrypt = require("bcryptjs");
 const { PrismaClient } = require("@prisma/client");
@@ -7,11 +7,67 @@ const { PrismaPg } = require("@prisma/adapter-pg");
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
 
-const daysFromNow = (days) => {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return d;
-};
+const TOPIC_KEYWORDS = [
+  "Quản lý đồ án",
+  "Phân tích dữ liệu học tập",
+  "Hệ thống đăng ký đề tài",
+  "Giám sát tiến độ học thuật",
+  "Nền tảng nộp báo cáo",
+  "Dashboard cảnh báo tiến độ",
+  "Chấm điểm và lưu vết đánh giá",
+  "Phân tích chất lượng đề tài",
+  "Quản trị hội đồng bảo vệ",
+  "Kho tài liệu hướng dẫn",
+  "Công cụ review báo cáo",
+  "API tích hợp LMS",
+  "Portal thông báo học vụ",
+  "Phân quyền theo vai trò",
+  "Kiểm thử và đối soát kết quả",
+];
+
+const TOPIC_SCOPES = [
+  "cho cấp khoa",
+  "cho cấp viện",
+  "đa khoa",
+  "có tích hợp mobile",
+  "có pipeline dữ liệu",
+  "có module báo cáo",
+  "có lưu vết audit",
+  "có tích hợp cloud storage",
+  "hỗ trợ realtime",
+  "tập trung vào bảo mật",
+];
+
+const lastNames = ["Nguyễn", "Trần", "Lê", "Phạm", "Hoàng", "Võ", "Đặng", "Bùi", "Đỗ", "Phan"];
+const middleNames = ["Minh", "Quốc", "Gia", "Thanh", "Khánh", "Đức", "Anh", "Hữu", "Tuấn", "Ngọc"];
+const firstNames = ["An", "Bình", "Châu", "Dũng", "Giang", "Hà", "Hiếu", "Khoa", "Linh", "Nam", "Phương", "Quân", "Trang", "Vy", "Yến"];
+
+function pick(list, index) {
+  return list[index % list.length];
+}
+
+function makeDate(iso) {
+  return new Date(`${iso}T00:00:00.000Z`);
+}
+
+function shiftDays(date, amount) {
+  const value = new Date(date);
+  value.setDate(value.getDate() + amount);
+  return value;
+}
+
+function scoreByIndex(i) {
+  const raw = 6.7 + (i % 24) * 0.12;
+  return Math.min(9.8, Number(raw.toFixed(2)));
+}
+
+function registrationStatusByProgress(progress) {
+  if (progress >= 100) return "COMPLETED";
+  if (progress >= 90) return "DEFENDED";
+  if (progress >= 70) return "SUBMITTED";
+  if (progress >= 35) return "IN_PROGRESS";
+  return "APPROVED";
+}
 
 async function upsertUsers() {
   const passwordHashes = {
@@ -20,14 +76,14 @@ async function upsertUsers() {
     student: await bcrypt.hash("student123", 10),
   };
 
-  const userSeeds = [
+  const admins = [
     {
       email: "admin@university.edu.vn",
       passwordHash: passwordHashes.admin,
       fullName: "Quản trị hệ thống",
       code: "ADMIN001",
       role: "ADMIN",
-      department: "Viện Công nghệ Số",
+      department: "Viện Công nghệ số",
       isActive: true,
     },
     {
@@ -36,136 +92,43 @@ async function upsertUsers() {
       fullName: "Quản trị đào tạo",
       code: "ADMIN002",
       role: "ADMIN",
-      department: "Viện Công nghệ Số",
-      isActive: true,
-    },
-
-    {
-      email: "nguyenvana@university.edu.vn",
-      passwordHash: passwordHashes.lecturer,
-      fullName: "TS. Nguyễn Văn A",
-      code: "GV001",
-      role: "LECTURER",
-      department: "Bộ môn Công nghệ Phần mềm",
-      academicTitle: "TIEN_SI",
-      isActive: true,
-    },
-    {
-      email: "tranvanb@university.edu.vn",
-      passwordHash: passwordHashes.lecturer,
-      fullName: "ThS. Trần Văn B",
-      code: "GV002",
-      role: "LECTURER",
-      department: "Bộ môn Hệ thống Thông tin",
-      academicTitle: "THAC_SI",
-      isActive: true,
-    },
-    {
-      email: "levanc@university.edu.vn",
-      passwordHash: passwordHashes.lecturer,
-      fullName: "PGS. Lê Văn C",
-      code: "GV003",
-      role: "LECTURER",
-      department: "Bộ môn Trí tuệ nhân tạo",
-      academicTitle: "PHO_GIAO_SU",
-      isActive: true,
-    },
-    {
-      email: "phamthid@university.edu.vn",
-      passwordHash: passwordHashes.lecturer,
-      fullName: "TS. Phạm Thị D",
-      code: "GV004",
-      role: "LECTURER",
-      department: "Bộ môn Mạng máy tính",
-      academicTitle: "TIEN_SI",
-      isActive: true,
-    },
-    {
-      email: "hoangvane@university.edu.vn",
-      passwordHash: passwordHashes.lecturer,
-      fullName: "ThS. Hoàng Văn E",
-      code: "GV005",
-      role: "LECTURER",
-      department: "Bộ môn Khoa học dữ liệu",
-      academicTitle: "THAC_SI",
-      isActive: true,
-    },
-
-    {
-      email: "sv001@university.edu.vn",
-      passwordHash: passwordHashes.student,
-      fullName: "Lê Thị C",
-      code: "2021001",
-      role: "STUDENT",
-      department: "Viện Công nghệ Số",
-      isActive: true,
-    },
-    {
-      email: "sv002@university.edu.vn",
-      passwordHash: passwordHashes.student,
-      fullName: "Phạm Văn D",
-      code: "2021002",
-      role: "STUDENT",
-      department: "Viện Công nghệ Số",
-      isActive: true,
-    },
-    {
-      email: "sv003@university.edu.vn",
-      passwordHash: passwordHashes.student,
-      fullName: "Hoang Minh E",
-      code: "2021003",
-      role: "STUDENT",
-      department: "Viện Công nghệ Số",
-      isActive: true,
-    },
-    {
-      email: "sv004@university.edu.vn",
-      passwordHash: passwordHashes.student,
-      fullName: "Nguyễn Thị F",
-      code: "2021004",
-      role: "STUDENT",
-      department: "Viện Công nghệ Số",
-      isActive: true,
-    },
-    {
-      email: "sv005@university.edu.vn",
-      passwordHash: passwordHashes.student,
-      fullName: "Trần Quang G",
-      code: "2021005",
-      role: "STUDENT",
-      department: "Viện Công nghệ Số",
-      isActive: true,
-    },
-    {
-      email: "sv006@university.edu.vn",
-      passwordHash: passwordHashes.student,
-      fullName: "Bùi Minh H",
-      code: "2021006",
-      role: "STUDENT",
-      department: "Viện Công nghệ Số",
-      isActive: true,
-    },
-    {
-      email: "sv007@university.edu.vn",
-      passwordHash: passwordHashes.student,
-      fullName: "Võ Tuấn I",
-      code: "2021007",
-      role: "STUDENT",
-      department: "Viện Công nghệ Số",
-      isActive: true,
-    },
-    {
-      email: "sv008@university.edu.vn",
-      passwordHash: passwordHashes.student,
-      fullName: "Đặng Bảo K",
-      code: "2021008",
-      role: "STUDENT",
-      department: "Viện Công nghệ Số",
+      department: "Viện Công nghệ số",
       isActive: true,
     },
   ];
 
-  for (const user of userSeeds) {
+  const lecturers = Array.from({ length: 12 }, (_, i) => {
+    const idx = i + 1;
+    const title = idx % 3 === 0 ? "PHO_GIAO_SU" : idx % 2 === 0 ? "TIEN_SI" : "THAC_SI";
+
+    return {
+      email: `lecturer${String(idx).padStart(2, "0")}@university.edu.vn`,
+      passwordHash: passwordHashes.lecturer,
+      fullName: `${pick(lastNames, idx)} ${pick(middleNames, idx + 3)} ${pick(firstNames, idx + 7)}`,
+      code: `GV${String(idx).padStart(3, "0")}`,
+      role: "LECTURER",
+      department: idx % 2 === 0 ? "Kỹ thuật phần mềm" : "Hệ thống thông tin",
+      academicTitle: title,
+      isActive: true,
+    };
+  });
+
+  const students = Array.from({ length: 72 }, (_, i) => {
+    const idx = i + 1;
+    return {
+      email: `sv${String(idx).padStart(3, "0")}@university.edu.vn`,
+      passwordHash: passwordHashes.student,
+      fullName: `${pick(lastNames, idx + 9)} ${pick(middleNames, idx + 11)} ${pick(firstNames, idx + 13)}`,
+      code: `2021${String(idx).padStart(3, "0")}`,
+      role: "STUDENT",
+      department: idx % 3 === 0 ? "Khoa học dữ liệu" : "Viện Công nghệ số",
+      isActive: true,
+    };
+  });
+
+  const allUsers = [...admins, ...lecturers, ...students];
+
+  for (const user of allUsers) {
     const { email, ...data } = user;
     await prisma.user.upsert({
       where: { email },
@@ -177,346 +140,458 @@ async function upsertUsers() {
 
 async function clearNonUserData() {
   await prisma.$transaction([
+    prisma.auditLog.deleteMany(),
     prisma.notification.deleteMany(),
     prisma.defenseResult.deleteMany(),
     prisma.submission.deleteMany(),
     prisma.task.deleteMany(),
     prisma.milestone.deleteMany(),
-    prisma.councilMember.deleteMany(),
     prisma.topicRegistration.deleteMany(),
+    prisma.councilMember.deleteMany(),
     prisma.council.deleteMany(),
     prisma.topic.deleteMany(),
     prisma.semester.deleteMany(),
+    prisma.user.deleteMany(),
   ]);
 }
 
-async function seedBusinessData() {
-  const users = await prisma.user.findMany({
-    where: { isActive: true },
-    select: { id: true, email: true, role: true },
-  });
-
-  const idByEmail = Object.fromEntries(users.map((u) => [u.email, u.id]));
-
-  const semesterPast = await prisma.semester.create({
+async function createSemesters() {
+  const semesterA = await prisma.semester.create({
     data: {
-      name: "Đồ án chuyên ngành - HK2 2024-2025",
-      startDate: new Date("2025-02-01T00:00:00.000Z"),
-      registrationDeadline: new Date("2025-02-20T23:59:59.000Z"),
-      midtermReportDate: new Date("2025-04-05T00:00:00.000Z"),
-      defenseDate: new Date("2025-06-25T00:00:00.000Z"),
-      endDate: new Date("2025-07-05T00:00:00.000Z"),
+      name: "Đồ án chuyên ngành - HK1 2024-2025",
+      startDate: makeDate("2024-09-01"),
+      registrationDeadline: makeDate("2024-09-25"),
+      midtermReportDate: makeDate("2024-11-05"),
+      defenseDate: makeDate("2025-01-10"),
+      endDate: makeDate("2025-01-20"),
       registrationOpen: false,
       status: "COMPLETED",
     },
   });
 
-  const semesterCurrent = await prisma.semester.create({
+  const semesterB = await prisma.semester.create({
+    data: {
+      name: "Đồ án chuyên ngành - HK2 2024-2025",
+      startDate: makeDate("2025-02-10"),
+      registrationDeadline: makeDate("2025-03-02"),
+      midtermReportDate: makeDate("2025-04-12"),
+      defenseDate: makeDate("2025-06-28"),
+      endDate: makeDate("2025-07-08"),
+      registrationOpen: false,
+      status: "COMPLETED",
+    },
+  });
+
+  const semesterC = await prisma.semester.create({
     data: {
       name: "Đồ án chuyên ngành - HK2 2025-2026",
-      startDate: new Date("2026-03-01T00:00:00.000Z"),
-      registrationDeadline: new Date("2026-04-25T23:59:59.000Z"),
-      midtermReportDate: new Date("2026-05-20T00:00:00.000Z"),
-      defenseDate: new Date("2026-07-10T00:00:00.000Z"),
-      endDate: new Date("2026-07-20T00:00:00.000Z"),
+      startDate: makeDate("2026-02-25"),
+      registrationDeadline: makeDate("2026-03-20"),
+      midtermReportDate: makeDate("2026-04-22"),
+      defenseDate: makeDate("2026-05-28"),
+      endDate: makeDate("2026-06-10"),
+      registrationOpen: false,
+      status: "DEFENSE",
+    },
+  });
+
+  const semesterD = await prisma.semester.create({
+    data: {
+      name: "Đồ án chuyên ngành - HK1 2026-2027",
+      startDate: makeDate("2026-09-05"),
+      registrationDeadline: makeDate("2026-09-30"),
+      midtermReportDate: makeDate("2026-11-08"),
+      defenseDate: makeDate("2027-01-12"),
+      endDate: makeDate("2027-01-22"),
       registrationOpen: true,
       status: "REGISTRATION",
     },
   });
 
-  const semesterNext = await prisma.semester.create({
-    data: {
-      name: "Đồ án chuyên ngành - HK1 2026-2027",
-      startDate: new Date("2026-09-01T00:00:00.000Z"),
-      registrationDeadline: new Date("2026-09-25T23:59:59.000Z"),
-      midtermReportDate: new Date("2026-10-25T00:00:00.000Z"),
-      defenseDate: new Date("2027-01-10T00:00:00.000Z"),
-      endDate: new Date("2027-01-20T00:00:00.000Z"),
-      registrationOpen: false,
-      status: "UPCOMING",
-    },
-  });
+  return [semesterA, semesterB, semesterC, semesterD];
+}
 
-  const topicA = await prisma.topic.create({
-    data: {
-      semesterId: semesterCurrent.id,
-      title: "Nền tảng quản lý đồ án học thuật",
-      description:
-        "Xây dựng nền tảng full-stack quản lý toàn bộ luồng đồ án theo vai trò, từ đăng ký đến bảo vệ và chấm điểm.",
-      proposedById: idByEmail["nguyenvana@university.edu.vn"],
-      mentorId: idByEmail["nguyenvana@university.edu.vn"],
-      maxStudents: 3,
-      status: "APPROVED",
-    },
-  });
+function buildTopicTitle(index) {
+  const keyword = pick(TOPIC_KEYWORDS, index);
+  const scope = pick(TOPIC_SCOPES, index + 2);
+  return `${keyword} ${scope}`;
+}
 
-  const topicB = await prisma.topic.create({
-    data: {
-      semesterId: semesterCurrent.id,
-      title: "Hệ thống điểm danh bằng nhận diện khuôn mặt",
-      description:
-        "Thiết kế giải pháp điểm danh tự động dùng nhận diện khuôn mặt và suy luận biên cho phòng học thông minh.",
-      proposedById: idByEmail["tranvanb@university.edu.vn"],
-      mentorId: idByEmail["tranvanb@university.edu.vn"],
-      maxStudents: 2,
-      status: "APPROVED",
-    },
-  });
+async function createTopicsForSemester({ semester, lecturerIds, approvedCount, pendingCount, rejectedCount, startIndex }) {
+  const topics = [];
+  const total = approvedCount + pendingCount + rejectedCount;
 
-  const topicC = await prisma.topic.create({
-    data: {
-      semesterId: semesterCurrent.id,
-      title: "Bảng điều khiển phát hiện bất thường mạng",
-      description:
-        "Xây dựng dashboard phát hiện bất thường từ telemetry mạng và nhật ký sự kiện an ninh.",
-      proposedById: idByEmail["phamthid@university.edu.vn"],
-      mentorId: idByEmail["phamthid@university.edu.vn"],
-      maxStudents: 2,
-      status: "PENDING",
-    },
-  });
+  for (let i = 0; i < total; i += 1) {
+    const topicIndex = startIndex + i;
+    const mentorId = lecturerIds[topicIndex % lecturerIds.length];
+    let status = "APPROVED";
 
-  const topicD = await prisma.topic.create({
-    data: {
-      semesterId: semesterCurrent.id,
-      title: "Kho dữ liệu phân tích học tập",
-      description:
-        "Xây dựng pipeline ETL và báo cáo BI phục vụ theo dõi tiến độ học tập và phân tích kết quả đầu ra.",
-      proposedById: idByEmail["hoangvane@university.edu.vn"],
-      mentorId: idByEmail["hoangvane@university.edu.vn"],
-      maxStudents: 2,
-      status: "REJECTED",
-      rejectReason: "Phạm vi đề tài quá rộng so với một chu kỳ đồ án.",
-    },
-  });
+    if (i >= approvedCount && i < approvedCount + pendingCount) {
+      status = "PENDING";
+    }
+    if (i >= approvedCount + pendingCount) {
+      status = "REJECTED";
+    }
 
-  const registration1 = await prisma.topicRegistration.create({
-    data: {
-      topicId: topicA.id,
-      studentId: idByEmail["sv001@university.edu.vn"],
-      semesterId: semesterCurrent.id,
-      status: "IN_PROGRESS",
-    },
-  });
+    const topic = await prisma.topic.create({
+      data: {
+        semesterId: semester.id,
+        title: buildTopicTitle(topicIndex),
+        description: `Đề tài tập trung vào bài toán thực tế, có mock API, dashboard quản trị và bộ tiêu chí đánh giá rõ ràng. Biên số: DT-${semester.id}-${String(i + 1).padStart(3, "0")}.`,
+        proposedById: mentorId,
+        mentorId,
+        maxStudents: 1,
+        status,
+        rejectReason: status === "REJECTED" ? "Phạm vi đề tài vượt quá 1 học kỳ đồ án." : null,
+      },
+    });
 
-  const registration2 = await prisma.topicRegistration.create({
-    data: {
-      topicId: topicB.id,
-      studentId: idByEmail["sv002@university.edu.vn"],
-      semesterId: semesterCurrent.id,
-      status: "APPROVED",
-    },
-  });
+    topics.push(topic);
+  }
 
-  await prisma.topicRegistration.create({
-    data: {
-      topicId: topicA.id,
-      studentId: idByEmail["sv003@university.edu.vn"],
-      semesterId: semesterCurrent.id,
-      status: "PENDING",
-    },
-  });
+  return topics;
+}
 
-  await prisma.topicRegistration.create({
-    data: {
-      topicId: topicC.id,
-      studentId: idByEmail["sv004@university.edu.vn"],
-      semesterId: semesterCurrent.id,
-      status: "REJECTED",
-      rejectReason: "Topic not approved yet.",
-    },
-  });
+async function createRegistrationsAndProgress({
+  semester,
+  approvedTopics,
+  studentIds,
+  targetCount,
+  profile,
+}) {
+  const registrations = [];
 
-  const registrationPast = await prisma.topicRegistration.create({
-    data: {
-      topicId: await prisma.topic
-        .create({
+  for (let i = 0; i < targetCount; i += 1) {
+    const topic = approvedTopics[i % approvedTopics.length];
+    const studentId = studentIds[i % studentIds.length];
+    const progress = profile(i);
+    const status = registrationStatusByProgress(progress);
+
+    const registration = await prisma.topicRegistration.create({
+      data: {
+        topicId: topic.id,
+        studentId,
+        semesterId: semester.id,
+        status,
+        rejectReason: null,
+      },
+    });
+
+    registrations.push({ registration, progress, topic, studentId });
+  }
+
+  return registrations;
+}
+
+async function addRejectedOrWithdrawnCases({ semester, approvedTopics, studentIds, usedTopicIds, usedStudentIds }) {
+  const extra = [];
+  const availableTopics = approvedTopics.filter((topic) => !usedTopicIds.has(topic.id));
+  const availableStudents = studentIds.filter((studentId) => !usedStudentIds.has(studentId));
+  const baseIndexes = [0, 1, 2, 3, 4, 5];
+  const statuses = ["REJECTED", "WITHDRAWN", "DROPPED", "REJECTED", "WITHDRAWN", "DROPPED"];
+
+  for (let i = 0; i < baseIndexes.length; i += 1) {
+    if (!availableTopics[i] || !availableStudents[i]) {
+      break;
+    }
+
+    const topic = availableTopics[(baseIndexes[i] + 7) % availableTopics.length];
+    const studentId = availableStudents[(baseIndexes[i] + 19) % availableStudents.length];
+
+    const created = await prisma.topicRegistration.create({
+      data: {
+        topicId: topic.id,
+        studentId,
+        semesterId: semester.id,
+        status: statuses[i],
+        rejectReason: statuses[i] === "REJECTED" ? "Sinh viên chưa đạt điều kiện tiên quyết." : null,
+      },
+    });
+
+    usedTopicIds.add(topic.id);
+    usedStudentIds.add(studentId);
+    extra.push(created);
+  }
+
+  return extra;
+}
+
+async function createTasksMilestonesSubmissions({ semester, registrationEntries }) {
+  let createdTasks = 0;
+  let createdSubmissions = 0;
+  let createdMilestones = 0;
+
+  for (let i = 0; i < registrationEntries.length; i += 1) {
+    const { registration, progress, studentId } = registrationEntries[i];
+
+    const taskTemplates = [
+      { title: "Khảo sát yêu cầu", delta: -35, status: progress >= 40 ? "COMPLETED" : "IN_PROGRESS" },
+      { title: "Thiết kế kiến trúc và CSDL", delta: -20, status: progress >= 55 ? "COMPLETED" : "IN_PROGRESS" },
+      { title: "Xây dựng module chính", delta: -8, status: progress >= 70 ? "SUBMITTED" : "IN_PROGRESS" },
+      { title: "Kiểm thử và tinh chỉnh", delta: 3, status: progress >= 85 ? "COMPLETED" : progress >= 60 ? "IN_PROGRESS" : "OPEN" },
+      { title: "Báo cáo tổng kết", delta: 10, status: progress >= 90 ? "SUBMITTED" : "OPEN" },
+    ];
+
+    for (let t = 0; t < taskTemplates.length; t += 1) {
+      const template = taskTemplates[t];
+      const dueDate = shiftDays(semester.midtermReportDate || semester.startDate, template.delta + t);
+      const task = await prisma.task.create({
+        data: {
+          registrationId: registration.id,
+          title: `${template.title} - Task ${t + 1}`,
+          content: "Cần có tài liệu minh chứng, commit rõ ràng và video demo ngắn cho từng mốc.",
+          dueDate,
+          status: template.status,
+        },
+      });
+      createdTasks += 1;
+
+      if (["SUBMITTED", "COMPLETED"].includes(template.status)) {
+        await prisma.submission.create({
           data: {
-            semesterId: semesterPast.id,
-            title: "Ứng dụng di động theo dõi sức khỏe cá nhân",
-            description:
-              "Phát triển ứng dụng di động theo dõi sức khỏe cá nhân, đồng bộ đám mây và xuất báo cáo.",
-            proposedById: idByEmail["levanc@university.edu.vn"],
-            mentorId: idByEmail["levanc@university.edu.vn"],
-            maxStudents: 2,
-            status: "APPROVED",
+            taskId: task.id,
+            registrationId: registration.id,
+            submittedBy: studentId,
+            content: "Đã nộp bản cập nhật bao gồm mã nguồn, tài liệu mô tả và kết quả kiểm thử.",
+            fileUrl: `https://demo.example.edu/files/${registration.id}-${task.id}.pdf`,
+            fileName: `submission-${registration.id}-${task.id}.pdf`,
+            submittedAt: shiftDays(dueDate, -1),
+            feedback: "Đã nhận bài. Nội dung đạt mục tiêu của giai đoạn.",
+            feedbackAt: shiftDays(dueDate, 1),
           },
-        })
-        .then((t) => t.id),
-      studentId: idByEmail["sv005@university.edu.vn"],
-      semesterId: semesterPast.id,
-      status: "COMPLETED",
-    },
-  });
+        });
+        createdSubmissions += 1;
+      }
+    }
 
-  const task1 = await prisma.task.create({
-    data: {
-      registrationId: registration1.id,
-      title: "Tuần 1 - Khảo sát yêu cầu",
-      content: "Thu thập yêu cầu từ luồng nghiệp vụ quản trị viên, giảng viên và sinh viên.",
-      dueDate: daysFromNow(5),
-      status: "COMPLETED",
-    },
-  });
+    const milestoneTemplates = [
+      { title: "Mốc 1 - Phân tích bài toán", offset: -25, gate: 35 },
+      { title: "Mốc 2 - Bản chạy thử", offset: -5, gate: 65 },
+      { title: "Mốc 3 - Hoàn thiện bảo vệ", offset: 12, gate: 90 },
+    ];
 
-  const task2 = await prisma.task.create({
-    data: {
-      registrationId: registration1.id,
-      title: "Tuần 2 - Thiết kế ERD và chốt API",
-      content: "Thiết kế ERD và chốt API contract cho luồng học kỳ và đề tài.",
-      dueDate: daysFromNow(12),
-      status: "IN_PROGRESS",
-    },
-  });
+    for (const milestoneTemplate of milestoneTemplates) {
+      const passed = progress >= milestoneTemplate.gate;
+      await prisma.milestone.create({
+        data: {
+          registrationId: registration.id,
+          title: milestoneTemplate.title,
+          dueDate: shiftDays(semester.midtermReportDate || semester.startDate, milestoneTemplate.offset),
+          status: passed ? "PASSED" : "PENDING",
+          feedback: passed ? "Đạt yêu cầu của hội đồng hướng dẫn." : null,
+          completedAt: passed ? shiftDays(semester.startDate, 40) : null,
+        },
+      });
+      createdMilestones += 1;
+    }
+  }
 
-  await prisma.submission.create({
-    data: {
-      taskId: task1.id,
-      registrationId: registration1.id,
-      submittedBy: idByEmail["sv001@university.edu.vn"],
-      content: "Đính kèm tài liệu phân tích yêu cầu và user journey theo từng vai trò.",
-      fileUrl: "https://example.com/files/khao-sat-yeu-cau-sv001.pdf",
-      fileName: "khao-sat-yeu-cau-sv001.pdf",
-      submittedAt: daysFromNow(-2),
-      feedback: "Bố cục tốt. Bổ sung thêm yêu cầu phi chức năng ở bản cập nhật tiếp theo.",
-      feedbackAt: daysFromNow(-1),
-    },
-  });
+  return { createdTasks, createdSubmissions, createdMilestones };
+}
 
-  await prisma.submission.create({
-    data: {
-      taskId: task2.id,
-      registrationId: registration1.id,
-      submittedBy: idByEmail["sv001@university.edu.vn"],
-      content: "Đã hoàn thành bản nháp thiết kế cơ sở dữ liệu và danh sách endpoint ban đầu.",
-      fileUrl: "https://example.com/files/ban-nhap-erd-api-sv001.pdf",
-      fileName: "ban-nhap-erd-api-sv001.pdf",
-      submittedAt: daysFromNow(0),
-    },
-  });
+async function createCouncilsAndResults({ semester, lecturerIds, registrations, createDefenseResult }) {
+  const councils = [];
+  const candidateRegs = registrations.filter((entry) => ["DEFENDED", "COMPLETED"].includes(entry.registration.status));
 
-  await prisma.milestone.createMany({
-    data: [
-      {
-        registrationId: registration1.id,
-        title: "Mốc 1 - Phân tích yêu cầu",
-        dueDate: daysFromNow(7),
-        status: "PASSED",
-        feedback: "Đạt yêu cầu sau khi chỉnh sửa nhỏ.",
-        completedAt: daysFromNow(-1),
+  if (candidateRegs.length === 0) {
+    return { councilsCreated: 0, membersCreated: 0, defenseResultsCreated: 0 };
+  }
+
+  const councilCount = Math.min(3, Math.max(1, Math.ceil(candidateRegs.length / 6)));
+
+  for (let i = 0; i < councilCount; i += 1) {
+    const council = await prisma.council.create({
+      data: {
+        semesterId: semester.id,
+        name: `Hội đồng ${String.fromCharCode(65 + i)} - Đợt ${semester.id}`,
+        location: `Phòng B${401 + i}`,
+        defenseDate: shiftDays(semester.defenseDate || semester.endDate, i),
       },
-      {
-        registrationId: registration1.id,
-        title: "Mốc 2 - Nền tảng kiến trúc hệ thống",
-        dueDate: daysFromNow(20),
-        status: "PENDING",
-      },
-      {
-        registrationId: registration2.id,
-        title: "Mốc 1 - Chuẩn bị bộ dữ liệu",
-        dueDate: daysFromNow(10),
-        status: "PENDING",
-      },
-    ],
+    });
+    councils.push(council);
+
+    const chair = lecturerIds[(i * 3) % lecturerIds.length];
+    const secretary = lecturerIds[(i * 3 + 1) % lecturerIds.length];
+    const reviewer = lecturerIds[(i * 3 + 2) % lecturerIds.length];
+
+    await prisma.councilMember.createMany({
+      data: [
+        { councilId: council.id, lecturerId: chair, roleInCouncil: "CHAIRMAN" },
+        { councilId: council.id, lecturerId: secretary, roleInCouncil: "SECRETARY" },
+        { councilId: council.id, lecturerId: reviewer, roleInCouncil: "REVIEWER" },
+      ],
+    });
+  }
+
+  let assigned = 0;
+  let defenseResultsCreated = 0;
+
+  for (const entry of candidateRegs) {
+    const council = councils[assigned % councils.length];
+    assigned += 1;
+
+    await prisma.topicRegistration.update({
+      where: { id: entry.registration.id },
+      data: { councilId: council.id },
+    });
+
+    if (createDefenseResult) {
+      await prisma.defenseResult.create({
+        data: {
+          registrationId: entry.registration.id,
+          finalScore: scoreByIndex(entry.registration.id),
+          comments: "Kết quả bảo vệ đạt yêu cầu, giải trình rõ, làm chủ hệ thống.",
+          scoresheetUrl: `https://demo.example.edu/scores/${entry.registration.id}.pdf`,
+          evaluatorId: lecturerIds[(entry.registration.id + 2) % lecturerIds.length],
+        },
+      });
+      defenseResultsCreated += 1;
+
+      if (entry.registration.status === "DEFENDED") {
+        await prisma.topicRegistration.update({
+          where: { id: entry.registration.id },
+          data: { status: "COMPLETED" },
+        });
+      }
+    }
+  }
+
+  return {
+    councilsCreated: councils.length,
+    membersCreated: councils.length * 3,
+    defenseResultsCreated,
+  };
+}
+
+async function createNotifications({ allUserIds, semesters }) {
+  const notifications = [];
+
+  for (let i = 0; i < 220; i += 1) {
+    const userId = allUserIds[i % allUserIds.length];
+    const semester = semesters[i % semesters.length];
+    const typeCycle = ["SYSTEM", "APPROVAL", "REGISTRATION", "TASK_REMINDER", "SUBMISSION", "DEFENSE"];
+    const type = typeCycle[i % typeCycle.length];
+
+    notifications.push({
+      userId,
+      title: `Thông báo ${i + 1} - ${semester.name}`,
+      content: "Hệ thống cập nhật tiến độ, lịch học vụ và trạng thái duyệt đề tài cho tài khoản của bạn.",
+      type,
+      isRead: i % 4 === 0,
+      referenceUrl: `/dashboard/notifications/${i + 1}`,
+    });
+  }
+
+  await prisma.notification.createMany({ data: notifications });
+  return notifications.length;
+}
+
+async function seedBusinessData() {
+  const users = await prisma.user.findMany({
+    where: { isActive: true },
+    select: { id: true, role: true, email: true },
+    orderBy: { id: "asc" },
   });
 
-  const council = await prisma.council.create({
-    data: {
-      semesterId: semesterCurrent.id,
-      name: "Hội đồng A - Công nghệ phần mềm và AI",
-      location: "Phòng B402",
-      defenseDate: semesterCurrent.defenseDate,
-    },
-  });
+  const lecturerIds = users.filter((u) => u.role === "LECTURER").map((u) => u.id);
+  const studentIds = users.filter((u) => u.role === "STUDENT").map((u) => u.id);
+  const allUserIds = users.map((u) => u.id);
 
-  await prisma.councilMember.createMany({
-    data: [
-      {
-        councilId: council.id,
-        lecturerId: idByEmail["levanc@university.edu.vn"],
-        roleInCouncil: "CHAIRMAN",
-      },
-      {
-        councilId: council.id,
-        lecturerId: idByEmail["phamthid@university.edu.vn"],
-        roleInCouncil: "SECRETARY",
-      },
-      {
-        councilId: council.id,
-        lecturerId: idByEmail["nguyenvana@university.edu.vn"],
-        roleInCouncil: "REVIEWER",
-      },
-    ],
-  });
+  const semesters = await createSemesters();
 
-  await prisma.topicRegistration.update({
-    where: { id: registration1.id },
-    data: { councilId: council.id },
-  });
+  const semesterPlans = [
+    { semester: semesters[0], topics: { approved: 26, pending: 3, rejected: 4 }, registrations: 24, profile: () => 100 },
+    { semester: semesters[1], topics: { approved: 30, pending: 4, rejected: 5 }, registrations: 28, profile: (i) => 95 + (i % 6) },
+    { semester: semesters[2], topics: { approved: 34, pending: 5, rejected: 5 }, registrations: 30, profile: (i) => [88, 78, 72, 64, 55, 45, 92, 97][i % 8] },
+    { semester: semesters[3], topics: { approved: 38, pending: 8, rejected: 4 }, registrations: 26, profile: (i) => [30, 35, 40, 50, 60, 25][i % 6] },
+  ];
 
-  await prisma.topicRegistration.update({
-    where: { id: registrationPast.id },
-    data: { status: "DEFENDED" },
-  });
+  let topicStartIndex = 1;
+  let createdTasks = 0;
+  let createdSubmissions = 0;
+  let createdMilestones = 0;
+  let councilsCreated = 0;
+  let membersCreated = 0;
+  let defenseResultsCreated = 0;
 
-  await prisma.defenseResult.create({
-    data: {
-      registrationId: registrationPast.id,
-      finalScore: 8.7,
-      comments: "Triển khai tốt, trình bày rõ ràng, trả lời phản biện thuyết phục.",
-      scoresheetUrl: "https://example.com/files/bang-diem-bao-ve-sv005.pdf",
-      evaluatorId: idByEmail["levanc@university.edu.vn"],
-    },
-  });
+  for (let s = 0; s < semesterPlans.length; s += 1) {
+    const plan = semesterPlans[s];
 
-  await prisma.topicRegistration.update({
-    where: { id: registrationPast.id },
-    data: { status: "COMPLETED" },
-  });
+    const topics = await createTopicsForSemester({
+      semester: plan.semester,
+      lecturerIds,
+      approvedCount: plan.topics.approved,
+      pendingCount: plan.topics.pending,
+      rejectedCount: plan.topics.rejected,
+      startIndex: topicStartIndex,
+    });
+    topicStartIndex += topics.length;
 
-  await prisma.notification.createMany({
-    data: [
-      {
-        userId: idByEmail["sv001@university.edu.vn"],
-        title: "Cập nhật phản hồi nhiệm vụ",
-        content: "Bài nộp Tuần 1 của bạn đã có phản hồi mới từ giảng viên.",
-        type: "SUBMISSION",
-        isRead: false,
-      },
-      {
-        userId: idByEmail["sv002@university.edu.vn"],
-        title: "Đăng ký đề tài đã được duyệt",
-        content: "Đăng ký đề tài điểm danh bằng nhận diện khuôn mặt của bạn đã được chấp thuận.",
-        type: "APPROVAL",
-        isRead: true,
-      },
-      {
-        userId: idByEmail["nguyenvana@university.edu.vn"],
-        title: "Có bài nộp mới",
-        content: "Sinh viên sv001 đã nộp bài cho nhiệm vụ Tuần 2.",
-        type: "SUBMISSION",
-        isRead: false,
-      },
-      {
-        userId: idByEmail["admin@university.edu.vn"],
-        title: "Sẵn sàng phân lịch bảo vệ",
-        content: "Hội đồng A đã đủ thành viên để lên lịch bảo vệ.",
-        type: "DEFENSE",
-        isRead: false,
-      },
-    ],
-  });
+    const approvedTopics = topics.filter((topic) => topic.status === "APPROVED");
+    const semesterStudents = studentIds.slice((s * 18) % studentIds.length).concat(studentIds.slice(0, (s * 18) % studentIds.length));
 
-  void semesterNext;
-  void topicD;
+    const baseRegistrations = await createRegistrationsAndProgress({
+      semester: plan.semester,
+      approvedTopics,
+      studentIds: semesterStudents,
+      targetCount: plan.registrations,
+      profile: plan.profile,
+    });
+
+    const usedTopicIds = new Set(baseRegistrations.map((entry) => entry.topic.id));
+    const usedStudentIds = new Set(baseRegistrations.map((entry) => entry.studentId));
+
+    const extraRegs = await addRejectedOrWithdrawnCases({
+      semester: plan.semester,
+      approvedTopics,
+      studentIds: semesterStudents,
+      usedTopicIds,
+      usedStudentIds,
+    });
+
+    const mergedEntries = baseRegistrations.concat(
+      extraRegs.map((registration) => ({ registration, progress: 15, studentId: registration.studentId }))
+    );
+
+    const taskStats = await createTasksMilestonesSubmissions({
+      semester: plan.semester,
+      registrationEntries: mergedEntries,
+    });
+    createdTasks += taskStats.createdTasks;
+    createdSubmissions += taskStats.createdSubmissions;
+    createdMilestones += taskStats.createdMilestones;
+
+    const councilStats = await createCouncilsAndResults({
+      semester: plan.semester,
+      lecturerIds,
+      registrations: mergedEntries,
+      createDefenseResult: ["COMPLETED", "DEFENSE"].includes(plan.semester.status),
+    });
+    councilsCreated += councilStats.councilsCreated;
+    membersCreated += councilStats.membersCreated;
+    defenseResultsCreated += councilStats.defenseResultsCreated;
+  }
+
+  const notificationsCreated = await createNotifications({ allUserIds, semesters });
+
+  return {
+    semesters: semesters.length,
+    tasks: createdTasks,
+    submissions: createdSubmissions,
+    milestones: createdMilestones,
+    councils: councilsCreated,
+    councilMembers: membersCreated,
+    defenseResults: defenseResultsCreated,
+    notifications: notificationsCreated,
+  };
 }
 
 async function main() {
-  console.log("[seed] Start seeding users + realistic business data...");
+  console.log("[seed] Start seeding realistic demo data...");
 
-  await upsertUsers();
   await clearNonUserData();
-  await seedBusinessData();
+  await upsertUsers();
+  const generated = await seedBusinessData();
 
   const counts = {
     users: await prisma.user.count(),
@@ -525,16 +600,22 @@ async function main() {
     registrations: await prisma.topicRegistration.count(),
     tasks: await prisma.task.count(),
     submissions: await prisma.submission.count(),
+    milestones: await prisma.milestone.count(),
     councils: await prisma.council.count(),
+    councilMembers: await prisma.councilMember.count(),
     defenseResults: await prisma.defenseResult.count(),
     notifications: await prisma.notification.count(),
   };
 
-  console.log("[seed] Done.");
+  console.log("[seed] Generated summary:");
+  console.table(generated);
+
+  console.log("[seed] Final DB counts:");
   console.table(counts);
-  console.log("\nLogin samples:");
+
+  console.log("\\nLogin samples:");
   console.log("- admin@university.edu.vn / admin123");
-  console.log("- nguyenvana@university.edu.vn / lecturer123");
+  console.log("- lecturer01@university.edu.vn / lecturer123");
   console.log("- sv001@university.edu.vn / student123");
 }
 

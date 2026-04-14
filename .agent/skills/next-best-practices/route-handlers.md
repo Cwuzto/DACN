@@ -28,23 +28,23 @@ export async function POST(request: Request) {
 
 ```
 app/
-├── api/
-│   └── users/
-│       └── route.ts    # /api/users
-└── users/
-    ├── page.tsx        # /users (page)
-    └── route.ts        # Warning: Conflicts with page.tsx!
+â”œâ”€â”€ api/
+â”‚   â””â”€â”€ users/
+â”‚       â””â”€â”€ route.ts    # /api/users
+â””â”€â”€ users/
+    â”œâ”€â”€ page.tsx        # /users (page)
+    â””â”€â”€ route.ts        # Warning: Conflicts with page.tsx!
 ```
 
 If you need both a page and an API at the same path, use different paths:
 
 ```
 app/
-├── users/
-│   └── page.tsx        # /users (page)
-└── api/
-    └── users/
-        └── route.ts    # /api/users (API)
+â”œâ”€â”€ users/
+â”‚   â””â”€â”€ page.tsx        # /users (page)
+â””â”€â”€ api/
+    â””â”€â”€ users/
+        â””â”€â”€ route.ts    # /api/users (API)
 ```
 
 ## Environment Behavior

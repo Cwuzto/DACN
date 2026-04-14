@@ -1,15 +1,11 @@
 ﻿import { useEffect, useMemo, useState } from 'react';
 import { Alert, Progress, Select, Spin, Tag, message } from 'antd';
-import {
-    ReadOutlined,
-    SafetyCertificateOutlined,
-    TeamOutlined,
-    UserOutlined,
-} from '@ant-design/icons';
 import dayjs from 'dayjs';
 
 import dashboardService from '../../services/dashboardService';
 import { semesterService } from '../../services/semesterService';
+import PageHeader from '../../components/common/PageHeader';
+import StatCard from '../../components/common/StatCard';
 
 function DashboardPage() {
     const [loading, setLoading] = useState(true);
@@ -80,28 +76,32 @@ function DashboardPage() {
     const statCards = useMemo(
         () => [
             {
-                title: 'Sinh viên hoạt động',
+                label: 'Sinh viên hoạt động',
                 value: stats?.totalStudents ?? 0,
-                icon: <UserOutlined />,
-                color: 'bg-blue-100 text-blue-600',
+                icon: 'person',
+                iconBg: 'bg-blue-50',
+                iconColor: 'text-blue-600',
             },
             {
-                title: 'Đề tài đã duyệt',
+                label: 'Đề tài đã duyệt',
                 value: stats?.ongoingTopics ?? 0,
-                icon: <ReadOutlined />,
-                color: 'bg-indigo-100 text-indigo-600',
+                icon: 'menu_book',
+                iconBg: 'bg-indigo-50',
+                iconColor: 'text-indigo-600',
             },
             {
-                title: 'Chưa gắn hội đồng',
+                label: 'Chưa gắn hội đồng',
                 value: stats?.unassignedRegistrations ?? 0,
-                icon: <TeamOutlined />,
-                color: 'bg-orange-100 text-orange-600',
+                icon: 'groups',
+                iconBg: 'bg-orange-50',
+                iconColor: 'text-orange-600',
             },
             {
-                title: 'Hội đồng sắp bảo vệ',
+                label: 'Hội đồng sắp bảo vệ',
                 value: stats?.upcomingDefenses ?? 0,
-                icon: <SafetyCertificateOutlined />,
-                color: 'bg-teal-100 text-teal-600',
+                icon: 'verified_user',
+                iconBg: 'bg-teal-50',
+                iconColor: 'text-teal-600',
             },
         ],
         [stats]
@@ -172,12 +172,7 @@ function DashboardPage() {
 
     return (
         <div className="py-2 space-y-6">
-            <div className="flex justify-between items-center">
-                <div>
-                    <h2 className="text-2xl font-black text-slate-900">Dashboard</h2>
-                    <p className="text-sm text-slate-500 mt-1">Tổng quan tình hình hệ thống</p>
-                </div>
-            </div>
+            <PageHeader title="Dashboard" subtitle="Tổng quan tình hình hệ thống" />
 
             {loading && (
                 <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
@@ -202,18 +197,7 @@ function DashboardPage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {statCards.map((stat, idx) => (
-                    <div
-                        key={idx}
-                        className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between hover:shadow-md transition"
-                    >
-                        <div>
-                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">{stat.title}</p>
-                            <p className="text-3xl font-black text-slate-900 mt-1">{stat.value}</p>
-                        </div>
-                        <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl ${stat.color}`}>
-                            {stat.icon}
-                        </div>
-                    </div>
+                    <StatCard key={idx} {...stat} />
                 ))}
             </div>
 

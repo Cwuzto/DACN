@@ -1,37 +1,31 @@
 ﻿# NEXT_STEPS.md
 
-## Mục tiêu phiên tiếp theo
+## Trọng tâm hiện tại
 
-Khóa chất lượng sau đợt hoàn thiện tính năng bằng test + UAT có checklist rõ ràng, trước khi mở feature mới.
+Khóa chất lượng cho buổi demo và tránh hồi quy sau các batch đã hoàn thành.
 
----
+## Việc cần làm tiếp
 
-## Ưu tiên thực thi
+### Ưu tiên cao
 
-### 1. Test backend cho phần mới (ưu tiên cao)
+- [ ] UAT nhanh toàn luồng theo 3 vai trò:
+  - Admin: quản lý đợt đồ án, dashboard, duyệt vận hành
+  - Lecturer: duyệt đăng ký, giao task, theo dõi tiến độ
+  - Student: đăng ký, làm task, nộp bài, xem điểm
+- [ ] Kiểm tra lại dữ liệu hiển thị ở các trang chính bằng bộ seed mới.
+- [ ] Chụp 8-10 ảnh màn hình backup cho demo.
 
-- Bổ sung integration test cho:
+### Ưu tiên trung bình
+
+- [ ] Bổ sung integration test cho:
   - `PATCH /api/tasks/:id/status`
-  - `POST /api/tasks` với rule chặn registration không hợp lệ
+  - `POST /api/tasks`
   - `GET /api/dashboard/semester-overview`
+- [ ] Rà soát text/UX các trang admin còn lại.
 
-Mục tiêu:
+### Ưu tiên thấp
 
-- Chặn hồi quy business rule sau các batch Student/Lecturer/Admin.
-
-### 2. UAT clone sạch (ưu tiên cao)
-
-- Chạy theo tài liệu `SETUP_CLONE.md` trên máy clone mới.
-- Xác nhận các luồng tối thiểu:
-  - login theo role,
-  - student đăng ký + nộp bài,
-  - lecturer duyệt + giao việc,
-  - admin xem dashboard/oversight + toggle registration.
-
-### 3. Dọn nốt text/UX admin (ưu tiên trung bình)
-
-- Rà soát các trang admin chưa chạm trong đợt này để xử lý UTF-8/mojibake nếu còn.
-- Chuẩn hóa các label/câu cảnh báo theo cùng wording.
+- [ ] Dọn dead code legacy sau các quyết định kiến trúc mới.
 
 ---
 
@@ -39,13 +33,13 @@ Mục tiêu:
 
 ```bash
 node scripts/check-utf8.js
+node scripts/check-md-quality.js
 node scripts/regression-check.js
+npm --prefix backend test -- --runInBand
+npm --prefix frontend run build
 ```
 
----
+## Ghi chú
 
-## Không ưu tiên lúc này
-
-- Refactor lan rộng không phục vụ trực tiếp ổn định vận hành.
-- Quay lại kiến trúc `group/groupMember/evaluation`.
-- Mở tính năng mới lớn khi chưa khóa test hồi quy cho endpoint mới.
+- Luồng duyệt hiện tại tập trung vào **đăng ký đề tài chờ duyệt** (`TopicRegistration`).
+- Không dùng luồng “đề tài sinh viên đề xuất” trong phạm vi dự án hiện tại.

@@ -9,7 +9,7 @@ tags: javascript, loops, optimization, caching
 
 Cache object property lookups in hot paths.
 
-**Incorrect (3 lookups × N iterations):**
+**Incorrect (3 lookups Ă— N iterations):**
 
 ```typescript
 for (let i = 0; i < arr.length; i++) {

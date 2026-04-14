@@ -18,11 +18,11 @@ This repository follows the **Agent Skills** open standard. Each skill is self-c
 
 ```text
 skills/react-components/
-├── SKILL.md           — Core instructions & workflow
-├── package.json       — Validator dependencies
-├── scripts/           — Networking & AST validation
-├── resources/         — Style guides & API references
-└── examples/          — Gold-standard code samples
+â”œâ”€â”€ SKILL.md           â€” Core instructions & workflow
+â”œâ”€â”€ package.json       â€” Validator dependencies
+â”œâ”€â”€ scripts/           â€” Networking & AST validation
+â”œâ”€â”€ resources/         â€” Style guides & API references
+â””â”€â”€ examples/          â€” Gold-standard code samples
 ```
 
 ## How it Works

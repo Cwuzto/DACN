@@ -47,18 +47,18 @@ npm run build
 
 ```
 skills/supabase-postgres-best-practices/
-├── SKILL.md           # Agent-facing skill manifest (Agent Skills spec)
-├── AGENTS.md          # [GENERATED] Compiled references document
-├── README.md          # This file
-└── references/
-    ├── _template.md      # Reference template
-    ├── _sections.md      # Section definitions
-    ├── _contributing.md  # Writing guidelines
-    └── *.md              # Individual references
+â”œâ”€â”€ SKILL.md           # Agent-facing skill manifest (Agent Skills spec)
+â”œâ”€â”€ AGENTS.md          # [GENERATED] Compiled references document
+â”œâ”€â”€ README.md          # This file
+â””â”€â”€ references/
+    â”œâ”€â”€ _template.md      # Reference template
+    â”œâ”€â”€ _sections.md      # Section definitions
+    â”œâ”€â”€ _contributing.md  # Writing guidelines
+    â””â”€â”€ *.md              # Individual references
 
 packages/skills-build/
-├── src/               # Generic build system source
-└── package.json       # NPM scripts
+â”œâ”€â”€ src/               # Generic build system source
+â””â”€â”€ package.json       # NPM scripts
 ```
 
 ## Reference File Structure

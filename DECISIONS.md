@@ -6,16 +6,16 @@ Tài liệu lưu các quyết định kỹ thuật/nghiệp vụ quan trọng đ
 
 ---
 
-## 2026-03-28 - Repo là bộ nhớ chính, NotebookLM là bộ nhớ phụ
+## 2026-03-28 - Repo là bộ nhớ chính
 
 **Quyết định**
 
 - Dùng file trong repo làm nguồn trạng thái chính thức.
-- Dùng NotebookLM như công cụ hỗ trợ tra cứu/tóm tắt.
+- NotebookLM chỉ là công cụ hỗ trợ tra cứu/tóm tắt.
 
 **Ảnh hưởng**
 
-- Duy trì đồng bộ: `AGENTS.md`, `PROJECT_STATE.md`, `NEXT_STEPS.md`, `DECISIONS.md`, `TOMORROW_PLAN.md`.
+- Luôn đồng bộ các file: `AGENTS.md`, `PROJECT_STATE.md`, `NEXT_STEPS.md`, `DECISIONS.md`.
 
 ---
 
@@ -24,15 +24,15 @@ Tài liệu lưu các quyết định kỹ thuật/nghiệp vụ quan trọng đ
 **Quyết định**
 
 - `TopicRegistration` là mô hình nghiệp vụ chính.
-- Không đưa `group/groupMember/evaluation` trở lại làm kiến trúc chính nếu chưa có quyết định mới.
+- Không đưa `group/groupMember/evaluation` trở lại kiến trúc chính.
 
 **Ảnh hưởng**
 
-- Mọi phần còn tư duy `group` được coi là legacy và phải dọn dần.
+- Mọi phát triển mới phải bám workflow hiện tại, legacy chỉ xử lý theo hướng dọn dần.
 
 ---
 
-## 2026-03-29 - Chốt quota giảng viên theo học vị
+## 2026-03-29 - Quota giảng viên theo học vị
 
 **Quyết định**
 
@@ -46,99 +46,58 @@ Tài liệu lưu các quyết định kỹ thuật/nghiệp vụ quan trọng đ
 
 ---
 
-## 2026-03-31 - Workflow-first implementation
+## 2026-04-01 - Toggle đăng ký theo từng học kỳ
 
 **Quyết định**
 
-Ưu tiên hoàn thiện workflow nghiệp vụ end-to-end trước khi mở rộng feature:
-
-1. `Semester`
-2. `Topic`
-3. `TopicRegistration`
-4. `Task` / `Submission` / `Milestone`
-5. `Council`
-6. `DefenseResult`
-7. `Notification`
-
-**Ảnh hưởng**
-
-- Backend contract/business rule là nguồn sự thật đầu tiên.
-- Frontend/service phải bám API thật, không duy trì mock khi API đã có.
-
----
-
-## 2026-03-31 - Gate bắt buộc trước khi chốt batch
-
-**Quyết định**
-
-- Bắt buộc chạy:
-  - `node scripts/check-utf8.js`
-  - `node scripts/regression-check.js`
-
-**Ảnh hưởng**
-
-- Giảm rủi ro tái phát lỗi encoding và lỗi hồi quy luồng chính.
-
----
-
-## 2026-04-01 - Chốt registration toggle theo `Semester`
-
-**Quyết định**
-
-- Lưu trạng thái “Cho phép đăng ký” theo từng học kỳ (`Semester.registrationOpen`).
+- Trạng thái mở/đóng đăng ký được lưu theo `Semester.registrationOpen`.
 - Không tạo bảng `SystemConfig` cho bài toán này.
 
 **Ảnh hưởng**
 
-- Có endpoint `PATCH /api/semesters/:id/registration-toggle`.
-- Frontend `ProjectPeriodPage` đã persist đúng qua API.
+- Dùng endpoint `PATCH /api/semesters/:id/registration-toggle`.
 
 ---
 
-## 2026-04-01 - Real-data seeding strategy
+## 2026-04-15 - Seed dữ liệu demo lớn và thực tế
 
 **Quyết định**
 
-- Chiến lược seed cho demo/UAT:
-  - giữ `users`,
-  - xóa dữ liệu nghiệp vụ,
-  - tạo lại bộ dữ liệu nghiệp vụ logic theo workflow canonical.
+- Xóa dữ liệu cũ và seed lại bộ dữ liệu demo đầy đủ theo nhiều giai đoạn học kỳ.
+- Giữ rule: mỗi đề tài chỉ 1 sinh viên (`maxStudents = 1`).
 
 **Ảnh hưởng**
 
-- Giảm nhiễu từ dữ liệu cũ qua nhiều batch.
-- `backend/prisma/seed.js` là điểm reset dữ liệu chuẩn của dự án.
+- Dữ liệu demo ổn định, dễ trình diễn các màn hình theo nghiệp vụ thật.
+- Giảm rủi ro demo bị “trống dữ liệu” hoặc sai logic.
 
 ---
 
-## 2026-04-01 - Việt hóa dữ liệu seed và chuẩn hóa UTF-8 màn chấm điểm
+## 2026-04-15 - Siết logic toggle đăng ký theo thời gian thực tế
 
 **Quyết định**
 
-- Seed dữ liệu dùng tiếng Việt có dấu (học kỳ, học vị, bộ môn, đề tài, thông báo...).
-- Chuẩn hóa toàn bộ text UI ở `frontend/src/pages/admin/GradingDefensePage.jsx` về UTF-8.
+- Chỉ cho bật đăng ký khi đang trong cửa sổ hợp lệ: `startDate` -> `registrationDeadline`.
+- Không cho bật đăng ký ở giữa kỳ/bảo vệ/hoàn thành.
 
 **Ảnh hưởng**
 
-- Trải nghiệm hiển thị nhất quán tiếng Việt giữa các màn admin.
-- Giảm nguy cơ tái phát ASCII/mojibake ở luồng chấm điểm bảo vệ.
+- Backend chặn bật sai thời điểm.
+- Frontend disable toggle ngoài trạng thái `REGISTRATION`.
+- Trạng thái hiển thị nhất quán hơn với nghiệp vụ.
 
 ---
 
-## 2026-04-08 - Hoàn thiện batch Student/Lecturer/Admin và khóa rule task
+## 2026-04-15 - Bổ sung gate chất lượng Markdown
 
 **Quyết định**
 
-- Chấp nhận triển khai batch hoàn thiện đồng thời cho:
-  - Student: submission filter + resubmit
-  - Lecturer: duyệt đăng ký + task status update
-  - Admin: dashboard overview theo học kỳ + cảnh báo vận hành
-- Thêm API cập nhật trạng thái task:
-  - `PATCH /api/tasks/:id/status`
-- Chốt rule tạo task chỉ khi registration ở trạng thái hợp lệ (`APPROVED`, `IN_PROGRESS`).
+- Thêm script `node scripts/check-md-quality.js` vào quy trình gate.
+- Script phát hiện:
+  - dấu hiệu `mojibake` trong `.md`
+  - nhiều cụm tiếng Việt không dấu bất thường trong `.md`
 
 **Ảnh hưởng**
 
-- Luồng giảng viên và sinh viên đồng bộ hơn, giảm thao tác workaround thủ công.
-- Admin có bức tranh vận hành rõ hơn theo từng học kỳ.
-- Cần bổ sung test integration cho các endpoint mới ở batch kế tiếp để khóa hồi quy.
+- Giảm rủi ro tài liệu bị lỗi encoding hoặc xuống chất lượng hiển thị tiếng Việt qua từng batch.
+- Tăng độ tin cậy khi dùng tài liệu repo làm nguồn sự thật.

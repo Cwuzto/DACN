@@ -37,6 +37,27 @@ const registrationService = {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi xử lý đăng ký');
         }
     },
+    dropRegistration: async (id, reason) => {
+        try {
+            return await api.patch(`/registrations/${id}/drop`, { reason });
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi hủy đăng ký đồ án');
+        }
+    },
+    withdrawRegistration: async (id, reason) => {
+        try {
+            return await api.post(`/registrations/${id}/withdraw`, { reason });
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi rút đăng ký');
+        }
+    },
+    forceDecisionRegistration: async (id, action, rejectReason = '') => {
+        try {
+            return await api.patch(`/registrations/${id}/force-decision`, { action, rejectReason });
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi xử lý force decision');
+        }
+    },
 
     cancelRegistration: async (id) => {
         try {

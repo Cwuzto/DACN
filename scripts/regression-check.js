@@ -31,6 +31,7 @@ const npmLintCommand =
 
 try {
     run('UTF-8 validation', 'node scripts/check-utf8.js');
+    run('Markdown text-quality validation', 'node scripts/check-md-quality.js');
     run('Frontend lint', npmLintCommand);
     run(
         'Backend route graph load',

@@ -1,4 +1,4 @@
-﻿import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import {
     Card,
     Table,
@@ -30,28 +30,20 @@ import {
     FilePdfOutlined,
     PlusOutlined,
     UserOutlined,
-    CheckOutlined,
-    CloseOutlined,
 } from '@ant-design/icons';
 import registrationService from '../../services/registrationService';
 import taskService from '../../services/taskService';
+import PageHeader from '../../components/common/PageHeader';
+import StatusBadge from '../../components/common/StatusBadge';
+import PageLoader from '../../components/common/PageLoader';
 
 const { Title, Text } = Typography;
-
-const registrationStatusConfig = {
-    PENDING: { label: 'Chờ duyệt', color: 'gold' },
-    APPROVED: { label: 'Đã duyệt', color: 'green' },
-    IN_PROGRESS: { label: 'Đang thực hiện', color: 'blue' },
-    SUBMITTED: { label: 'Đã nộp', color: 'cyan' },
-    DEFENDED: { label: 'Đã bảo vệ', color: 'purple' },
-    COMPLETED: { label: 'Hoàn thành', color: 'success' },
-    REJECTED: { label: 'Từ chối', color: 'error' },
-};
 
 const taskStatusOptions = [
     { value: 'OPEN', label: 'Mới giao' },
     { value: 'IN_PROGRESS', label: 'Đang làm' },
     { value: 'SUBMITTED', label: 'Đã nộp' },
+    { value: 'REVISION', label: 'Yêu cầu sửa' },
     { value: 'COMPLETED', label: 'Hoàn thành' },
 ];
 
@@ -70,11 +62,6 @@ function ProgressTrackingPage() {
     const [taskSubmitting, setTaskSubmitting] = useState(false);
     const [taskForm] = Form.useForm();
 
-    const [handlingRegistration, setHandlingRegistration] = useState(false);
-    const [rejectModalOpen, setRejectModalOpen] = useState(false);
-    const [rejectingRegistration, setRejectingRegistration] = useState(null);
-    const [rejectReason, setRejectReason] = useState('');
-
     useEffect(() => {
         fetchRegistrations();
     }, []);
@@ -84,7 +71,9 @@ function ProgressTrackingPage() {
             setLoading(true);
             const res = await registrationService.getAllRegistrations();
             if (res.success) {
-                setRegistrations(res.data || []);
+                setRegistrations(
+                    (res.data || []).filter((registration) => registration.status !== 'PENDING'),
+                );
             }
         } catch (error) {
             message.error(error?.message || 'Lỗi khi tải danh sách sinh viên đăng ký');
@@ -179,61 +168,6 @@ function ProgressTrackingPage() {
         }
     };
 
-    const handleApproveRegistration = (record) => {
-        Modal.confirm({
-            title: 'Xác nhận duyệt đăng ký',
-            content: `Duyệt sinh viên ${record.student?.fullName || ''} vào đề tài "${record.topic?.title || ''}"?`,
-            okText: 'Duyệt',
-            cancelText: 'Hủy',
-            onOk: async () => {
-                try {
-                    setHandlingRegistration(true);
-                    const res = await registrationService.handleRegistration(record.id, 'APPROVE');
-                    if (res.success) {
-                        message.success('Đã duyệt đăng ký');
-                        fetchRegistrations();
-                    }
-                } catch (error) {
-                    message.error(error?.message || 'Không thể duyệt đăng ký');
-                } finally {
-                    setHandlingRegistration(false);
-                }
-            },
-        });
-    };
-
-    const openRejectModal = (record) => {
-        setRejectingRegistration(record);
-        setRejectReason('');
-        setRejectModalOpen(true);
-    };
-
-    const handleRejectRegistration = async () => {
-        if (!rejectReason.trim()) {
-            return message.warning('Vui lòng nhập lý do từ chối');
-        }
-
-        try {
-            setHandlingRegistration(true);
-            const res = await registrationService.handleRegistration(
-                rejectingRegistration.id,
-                'REJECT',
-                rejectReason.trim(),
-            );
-            if (res.success) {
-                message.success('Đã từ chối đăng ký');
-                setRejectModalOpen(false);
-                setRejectingRegistration(null);
-                setRejectReason('');
-                fetchRegistrations();
-            }
-        } catch (error) {
-            message.error(error?.message || 'Không thể từ chối đăng ký');
-        } finally {
-            setHandlingRegistration(false);
-        }
-    };
-
     const columns = [
         {
             title: 'Sinh viên', dataIndex: 'student', key: 'student', width: 220,
@@ -257,10 +191,7 @@ function ProgressTrackingPage() {
         },
         {
             title: 'Trạng thái', dataIndex: 'status', key: 'status', width: 130,
-            render: (status) => {
-                const conf = registrationStatusConfig[status] || { label: status, color: 'default' };
-                return <Tag color={conf.color}>{conf.label}</Tag>;
-            },
+            render: (status) => <StatusBadge status={status} />,
         },
         {
             title: 'Tiến độ', dataIndex: 'progress', key: 'progress', width: 180,
@@ -273,40 +204,18 @@ function ProgressTrackingPage() {
         {
             title: '', key: 'action', width: 180, align: 'center',
             render: (_, record) => (
-                <Flex gap={8} justify="center">
-                    <Button type="text" size="small" icon={<EyeOutlined />} onClick={() => handleViewRegistration(record)} title="Xem bài nộp" />
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                    <Button size="small" className="text-xs font-medium border-slate-200 text-slate-700 shadow-sm hover:text-primary hover:border-primary hover:bg-slate-50" icon={<EyeOutlined />} onClick={() => handleViewRegistration(record)}>Xem</Button>
                     <Button
-                        type="text"
                         size="small"
+                        className="text-xs font-medium border-blue-200 text-blue-600 shadow-sm bg-blue-50/50 hover:text-blue-700 hover:border-blue-300 hover:bg-blue-100"
                         icon={<PlusOutlined />}
                         onClick={() => openTaskModal(record)}
-                        title="Giao việc"
-                        style={{ color: '#1677ff' }}
                         disabled={!['APPROVED', 'IN_PROGRESS'].includes(record.status)}
-                    />
-                    {record.status === 'PENDING' && (
-                        <>
-                            <Button
-                                type="text"
-                                size="small"
-                                icon={<CheckOutlined />}
-                                title="Duyệt đăng ký"
-                                style={{ color: '#52c41a' }}
-                                onClick={() => handleApproveRegistration(record)}
-                                loading={handlingRegistration}
-                            />
-                            <Button
-                                type="text"
-                                size="small"
-                                danger
-                                icon={<CloseOutlined />}
-                                title="Từ chối đăng ký"
-                                onClick={() => openRejectModal(record)}
-                                loading={handlingRegistration}
-                            />
-                        </>
-                    )}
-                </Flex>
+                    >
+                        Giao việc
+                    </Button>
+                </div>
             ),
         },
     ];
@@ -317,20 +226,20 @@ function ProgressTrackingPage() {
     const overdueCount = filteredRegistrations.filter((registration) => registration.hasOverdueTask).length;
 
     if (loading) {
-        return <Flex justify="center" align="center" style={{ minHeight: '60vh' }}><Spin size="large" /></Flex>;
+        return <PageLoader />;
     }
 
     return (
         <div>
-            <Flex justify="space-between" align="center" style={{ marginBottom: 24 }} wrap="wrap" gap={16}>
-                <div>
-                    <Title level={3} style={{ margin: 0 }}>Theo dõi tiến độ</Title>
-                    <Text type="secondary">Tổng quan tiến độ sinh viên đang được bạn hướng dẫn</Text>
-                </div>
-                <Button type="primary" icon={<PlusOutlined />} onClick={() => openTaskModal()}>
-                    Giao việc
-                </Button>
-            </Flex>
+            <PageHeader
+                title="Theo dõi tiến độ"
+                subtitle="Tổng quan tiến độ sinh viên đang được bạn hướng dẫn"
+                actions={
+                    <Button type="primary" icon={<PlusOutlined />} onClick={() => openTaskModal()}>
+                        Giao việc
+                    </Button>
+                }
+            />
 
             <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
                 <Col xs={6}>
@@ -385,7 +294,6 @@ function ProgressTrackingPage() {
                             style={{ width: 150 }}
                             options={[
                                 { value: 'all', label: 'Tất cả' },
-                                { value: 'PENDING', label: 'Chờ duyệt' },
                                 { value: 'APPROVED', label: 'Đã duyệt' },
                                 { value: 'IN_PROGRESS', label: 'Đang thực hiện' },
                                 { value: 'SUBMITTED', label: 'Đã nộp' },
@@ -523,30 +431,6 @@ function ProgressTrackingPage() {
                 </Form>
             </Modal>
 
-            <Modal
-                title="Từ chối đăng ký"
-                open={rejectModalOpen}
-                onCancel={() => {
-                    setRejectModalOpen(false);
-                    setRejectingRegistration(null);
-                    setRejectReason('');
-                }}
-                onOk={handleRejectRegistration}
-                confirmLoading={handlingRegistration}
-                okText="Từ chối"
-                okButtonProps={{ danger: true }}
-            >
-                <Text>
-                    Nhập lý do từ chối cho sinh viên {rejectingRegistration?.student?.fullName || ''}:
-                </Text>
-                <Input.TextArea
-                    rows={4}
-                    value={rejectReason}
-                    onChange={(event) => setRejectReason(event.target.value)}
-                    placeholder="Lý do từ chối..."
-                    style={{ marginTop: 12 }}
-                />
-            </Modal>
         </div>
     );
 }

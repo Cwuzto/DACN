@@ -34,7 +34,7 @@ Distinguish between local and global state.
 
 **Example**:
 ```tsx
-// ✅ Local state (single component)
+// âœ… Local state (single component)
 function SearchBox() {
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
@@ -51,7 +51,7 @@ function SearchBox() {
   );
 }
 
-// ✅ Global state (multiple components)
+// âœ… Global state (multiple components)
 // User authentication info is used in Header, Profile, Settings, etc.
 const { user, logout } = useAuth();  // Context or Zustand
 ```
@@ -458,19 +458,19 @@ function UserProfile({ userId }: { userId: string }) {
 Recommended tools by scenario:
 
 1. Simple global state (theme, language)
-   → React Context API
+   â†’ React Context API
 
 2. Medium complexity (shopping cart, user settings)
-   → Zustand
+   â†’ Zustand
 
 3. Large-scale apps, complex logic, middleware required
-   → Redux Toolkit
+   â†’ Redux Toolkit
 
 4. Server data fetching/caching
-   → React Query (TanStack Query)
+   â†’ React Query (TanStack Query)
 
 5. Form state
-   → React Hook Form + Zod
+   â†’ React Hook Form + Zod
 ```
 
 ## Constraints
@@ -479,20 +479,20 @@ Recommended tools by scenario:
 
 1. **State Immutability**: Never mutate state directly
    ```tsx
-   // ❌ Bad example
+   // âŒ Bad example
    state.items.push(newItem);
 
-   // ✅ Good example
+   // âœ… Good example
    setState({ items: [...state.items, newItem] });
    ```
 
 2. **Minimal State Principle**: Do not store derivable values in state
    ```tsx
-   // ❌ Bad example
+   // âŒ Bad example
    const [items, setItems] = useState([]);
    const [count, setCount] = useState(0);  // Can be calculated as items.length
 
-   // ✅ Good example
+   // âœ… Good example
    const [items, setItems] = useState([]);
    const count = items.length;  // Derived value
    ```
@@ -510,14 +510,14 @@ Recommended tools by scenario:
 
 1. **Selective Subscription**: Subscribe only to the state you need
    ```tsx
-   // ✅ Good: only what you need
+   // âœ… Good: only what you need
    const items = useCartStore(state => state.items);
 
-   // ❌ Bad: subscribing to everything
+   // âŒ Bad: subscribing to everything
    const { items, addItem, removeItem, updateQuantity, clearCart } = useCartStore();
    ```
 
-2. **Clear Action Names**: `update` → `updateUserProfile`
+2. **Clear Action Names**: `update` â†’ `updateUserProfile`
 
 3. **Use TypeScript**: Ensure type safety
 

@@ -17,11 +17,11 @@ This creates a minimal `standalone` folder with only production dependencies:
 
 ```
 .next/
-├── standalone/
-│   ├── server.js          # Entry point
-│   ├── node_modules/      # Only production deps
-│   └── .next/             # Build output
-└── static/                # Must be copied separately
+â”œâ”€â”€ standalone/
+â”‚   â”œâ”€â”€ server.js          # Entry point
+â”‚   â”œâ”€â”€ node_modules/      # Only production deps
+â”‚   â””â”€â”€ .next/             # Build output
+â””â”€â”€ static/                # Must be copied separately
 ```
 
 ## Docker Deployment
@@ -119,9 +119,9 @@ pm2 start ecosystem.config.js
 
 ISR (Incremental Static Regeneration) uses filesystem caching by default. This **breaks with multiple instances**:
 
-- Instance A regenerates page → saves to its local disk
-- Instance B serves stale page → doesn't see Instance A's cache
-- Load balancer sends users to random instances → inconsistent content
+- Instance A regenerates page â†’ saves to its local disk
+- Instance B serves stale page â†’ doesn't see Instance A's cache
+- Load balancer sends users to random instances â†’ inconsistent content
 
 ### Solution: Custom Cache Handler
 

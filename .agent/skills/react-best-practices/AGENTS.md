@@ -20,19 +20,19 @@ Comprehensive performance optimization guide for React and Next.js applications,
 
 ## Table of Contents
 
-1. [Eliminating Waterfalls](#1-eliminating-waterfalls) — **CRITICAL**
+1. [Eliminating Waterfalls](#1-eliminating-waterfalls) â€” **CRITICAL**
    - 1.1 [Defer Await Until Needed](#11-defer-await-until-needed)
    - 1.2 [Dependency-Based Parallelization](#12-dependency-based-parallelization)
    - 1.3 [Prevent Waterfall Chains in API Routes](#13-prevent-waterfall-chains-in-api-routes)
    - 1.4 [Promise.all() for Independent Operations](#14-promiseall-for-independent-operations)
    - 1.5 [Strategic Suspense Boundaries](#15-strategic-suspense-boundaries)
-2. [Bundle Size Optimization](#2-bundle-size-optimization) — **CRITICAL**
+2. [Bundle Size Optimization](#2-bundle-size-optimization) â€” **CRITICAL**
    - 2.1 [Avoid Barrel File Imports](#21-avoid-barrel-file-imports)
    - 2.2 [Conditional Module Loading](#22-conditional-module-loading)
    - 2.3 [Defer Non-Critical Third-Party Libraries](#23-defer-non-critical-third-party-libraries)
    - 2.4 [Dynamic Imports for Heavy Components](#24-dynamic-imports-for-heavy-components)
    - 2.5 [Preload Based on User Intent](#25-preload-based-on-user-intent)
-3. [Server-Side Performance](#3-server-side-performance) — **HIGH**
+3. [Server-Side Performance](#3-server-side-performance) â€” **HIGH**
    - 3.1 [Authenticate Server Actions Like API Routes](#31-authenticate-server-actions-like-api-routes)
    - 3.2 [Avoid Duplicate Serialization in RSC Props](#32-avoid-duplicate-serialization-in-rsc-props)
    - 3.3 [Cross-Request LRU Caching](#33-cross-request-lru-caching)
@@ -41,12 +41,12 @@ Comprehensive performance optimization guide for React and Next.js applications,
    - 3.6 [Parallel Data Fetching with Component Composition](#36-parallel-data-fetching-with-component-composition)
    - 3.7 [Per-Request Deduplication with React.cache()](#37-per-request-deduplication-with-reactcache)
    - 3.8 [Use after() for Non-Blocking Operations](#38-use-after-for-non-blocking-operations)
-4. [Client-Side Data Fetching](#4-client-side-data-fetching) — **MEDIUM-HIGH**
+4. [Client-Side Data Fetching](#4-client-side-data-fetching) â€” **MEDIUM-HIGH**
    - 4.1 [Deduplicate Global Event Listeners](#41-deduplicate-global-event-listeners)
    - 4.2 [Use Passive Event Listeners for Scrolling Performance](#42-use-passive-event-listeners-for-scrolling-performance)
    - 4.3 [Use SWR for Automatic Deduplication](#43-use-swr-for-automatic-deduplication)
    - 4.4 [Version and Minimize localStorage Data](#44-version-and-minimize-localstorage-data)
-5. [Re-render Optimization](#5-re-render-optimization) — **MEDIUM**
+5. [Re-render Optimization](#5-re-render-optimization) â€” **MEDIUM**
    - 5.1 [Calculate Derived State During Rendering](#51-calculate-derived-state-during-rendering)
    - 5.2 [Defer State Reads to Usage Point](#52-defer-state-reads-to-usage-point)
    - 5.3 [Do not wrap a simple expression with a primitive result type in useMemo](#53-do-not-wrap-a-simple-expression-with-a-primitive-result-type-in-usememo)
@@ -59,7 +59,7 @@ Comprehensive performance optimization guide for React and Next.js applications,
    - 5.10 [Use Lazy State Initialization](#510-use-lazy-state-initialization)
    - 5.11 [Use Transitions for Non-Urgent Updates](#511-use-transitions-for-non-urgent-updates)
    - 5.12 [Use useRef for Transient Values](#512-use-useref-for-transient-values)
-6. [Rendering Performance](#6-rendering-performance) — **MEDIUM**
+6. [Rendering Performance](#6-rendering-performance) â€” **MEDIUM**
    - 6.1 [Animate SVG Wrapper Instead of SVG Element](#61-animate-svg-wrapper-instead-of-svg-element)
    - 6.2 [CSS content-visibility for Long Lists](#62-css-content-visibility-for-long-lists)
    - 6.3 [Hoist Static JSX Elements](#63-hoist-static-jsx-elements)
@@ -69,7 +69,7 @@ Comprehensive performance optimization guide for React and Next.js applications,
    - 6.7 [Use Activity Component for Show/Hide](#67-use-activity-component-for-showhide)
    - 6.8 [Use Explicit Conditional Rendering](#68-use-explicit-conditional-rendering)
    - 6.9 [Use useTransition Over Manual Loading States](#69-use-usetransition-over-manual-loading-states)
-7. [JavaScript Performance](#7-javascript-performance) — **LOW-MEDIUM**
+7. [JavaScript Performance](#7-javascript-performance) â€” **LOW-MEDIUM**
    - 7.1 [Avoid Layout Thrashing](#71-avoid-layout-thrashing)
    - 7.2 [Build Index Maps for Repeated Lookups](#72-build-index-maps-for-repeated-lookups)
    - 7.3 [Cache Property Access in Loops](#73-cache-property-access-in-loops)
@@ -82,7 +82,7 @@ Comprehensive performance optimization guide for React and Next.js applications,
    - 7.10 [Use Loop for Min/Max Instead of Sort](#710-use-loop-for-minmax-instead-of-sort)
    - 7.11 [Use Set/Map for O(1) Lookups](#711-use-setmap-for-o1-lookups)
    - 7.12 [Use toSorted() Instead of sort() for Immutability](#712-use-tosorted-instead-of-sort-for-immutability)
-8. [Advanced Patterns](#8-advanced-patterns) — **LOW**
+8. [Advanced Patterns](#8-advanced-patterns) â€” **LOW**
    - 8.1 [Initialize App Once, Not Per Mount](#81-initialize-app-once-not-per-mount)
    - 8.2 [Store Event Handlers in Refs](#82-store-event-handlers-in-refs)
    - 8.3 [useEffectEvent for Stable Callback Refs](#83-useeffectevent-for-stable-callback-refs)
@@ -173,7 +173,7 @@ This optimization is especially valuable when the skipped branch is frequently t
 
 ### 1.2 Dependency-Based Parallelization
 
-**Impact: CRITICAL (2-10× improvement)**
+**Impact: CRITICAL (2-10Ă— improvement)**
 
 For operations with partial dependencies, use `better-all` to maximize parallelism. It automatically starts each task at the earliest possible moment.
 
@@ -220,7 +220,7 @@ Reference: [https://github.com/shuding/better-all](https://github.com/shuding/be
 
 ### 1.3 Prevent Waterfall Chains in API Routes
 
-**Impact: CRITICAL (2-10× improvement)**
+**Impact: CRITICAL (2-10Ă— improvement)**
 
 In API routes and Server Actions, start independent operations immediately, even if you don't await them yet.
 
@@ -254,7 +254,7 @@ For operations with more complex dependency chains, use `better-all` to automati
 
 ### 1.4 Promise.all() for Independent Operations
 
-**Impact: CRITICAL (2-10× improvement)**
+**Impact: CRITICAL (2-10Ă— improvement)**
 
 When async operations have no interdependencies, execute them concurrently using `Promise.all()`.
 
@@ -370,7 +370,7 @@ Both components share the same promise, so only one fetch occurs. Layout renders
 
 - Small, fast queries where suspense overhead isn't worth it
 
-- When you want to avoid layout shift (loading → content jump)
+- When you want to avoid layout shift (loading â†’ content jump)
 
 **Trade-off:** Faster initial paint vs potential layout shift. Choose based on your UX priorities.
 
@@ -598,7 +598,7 @@ Optimizing server-side rendering and data fetching eliminates server-side waterf
 
 **Impact: CRITICAL (prevents unauthorized access to server mutations)**
 
-Server Actions (functions with `"use server"`) are exposed as public endpoints, just like API routes. Always verify authentication and authorization **inside** each Server Action—do not rely solely on middleware, layout guards, or page-level checks, as Server Actions can be invoked directly.
+Server Actions (functions with `"use server"`) are exposed as public endpoints, just like API routes. Always verify authentication and authorization **inside** each Server Actionâ€”do not rely solely on middleware, layout guards, or page-level checks, as Server Actions can be invoked directly.
 
 Next.js documentation explicitly states: "Treat Server Actions with the same security considerations as public-facing API endpoints, and verify if the user is allowed to perform a mutation."
 
@@ -688,12 +688,12 @@ Reference: [https://nextjs.org/docs/app/guides/authentication](https://nextjs.or
 
 **Impact: LOW (reduces network payload by avoiding duplicate serialization)**
 
-RSC→client serialization deduplicates by object reference, not value. Same reference = serialized once; new reference = serialized again. Do transformations (`.toSorted()`, `.filter()`, `.map()`) in client, not server.
+RSCâ†’client serialization deduplicates by object reference, not value. Same reference = serialized once; new reference = serialized again. Do transformations (`.toSorted()`, `.filter()`, `.map()`) in client, not server.
 
 **Incorrect: duplicates array**
 
 ```tsx
-// RSC: sends 6 strings (2 arrays × 3 items)
+// RSC: sends 6 strings (2 arrays Ă— 3 items)
 <ClientList usernames={usernames} usernamesOrdered={usernames.toSorted()} />
 ```
 
@@ -733,11 +733,11 @@ Deduplication works recursively. Impact varies by data type:
 **More examples:**
 
 ```tsx
-// ❌ Bad
+// âŒ Bad
 <C users={users} active={users.filter(u => u.active)} />
 <C product={product} productName={product.name} />
 
-// ✅ Good
+// âœ… Good
 <C users={users} />
 <C product={product} />
 // Do filtering/destructuring in client
@@ -1621,18 +1621,18 @@ function TodoList() {
   // Callback must depend on items, recreated on every items change
   const addItems = useCallback((newItems: Item[]) => {
     setItems([...items, ...newItems])
-  }, [items])  // ❌ items dependency causes recreations
+  }, [items])  // âŒ items dependency causes recreations
   
   // Risk of stale closure if dependency is forgotten
   const removeItem = useCallback((id: string) => {
     setItems(items.filter(item => item.id !== id))
-  }, [])  // ❌ Missing items dependency - will use stale items!
+  }, [])  // âŒ Missing items dependency - will use stale items!
   
   return <ItemsEditor items={items} onAdd={addItems} onRemove={removeItem} />
 }
 ```
 
-The first callback is recreated every time `items` changes, which can cause child components to re-render unnecessarily. The second callback has a stale closure bug—it will always reference the initial `items` value.
+The first callback is recreated every time `items` changes, which can cause child components to re-render unnecessarily. The second callback has a stale closure bugâ€”it will always reference the initial `items` value.
 
 **Correct: stable callbacks, no stale closures**
 
@@ -1643,12 +1643,12 @@ function TodoList() {
   // Stable callback, never recreated
   const addItems = useCallback((newItems: Item[]) => {
     setItems(curr => [...curr, ...newItems])
-  }, [])  // ✅ No dependencies needed
+  }, [])  // âœ… No dependencies needed
   
   // Always uses latest state, no stale closure risk
   const removeItem = useCallback((id: string) => {
     setItems(curr => curr.filter(item => item.id !== id))
-  }, [])  // ✅ Safe and stable
+  }, [])  // âœ… Safe and stable
   
   return <ItemsEditor items={items} onAdd={addItems} onRemove={removeItem} />
 }
@@ -1926,7 +1926,7 @@ function MessageList({ messages }: { messages: Message[] }) {
 }
 ```
 
-For 1000 messages, browser skips layout/paint for ~990 off-screen items (10× faster initial render).
+For 1000 messages, browser skips layout/paint for ~990 off-screen items (10Ă— faster initial render).
 
 ### 6.3 Hoist Static JSX Elements
 
@@ -2076,7 +2076,7 @@ This pattern is especially useful for theme toggles, user preferences, authentic
 
 **Impact: LOW-MEDIUM (avoids noisy hydration warnings for known differences)**
 
-In SSR frameworks (e.g., Next.js), some values are intentionally different on server vs client (random IDs, dates, locale/timezone formatting). For these *expected* mismatches, wrap the dynamic text in an element with `suppressHydrationWarning` to prevent noisy warnings. Do not use this to hide real bugs. Don’t overuse it.
+In SSR frameworks (e.g., Next.js), some values are intentionally different on server vs client (random IDs, dates, locale/timezone formatting). For these *expected* mismatches, wrap the dynamic text in an element with `suppressHydrationWarning` to prevent noisy warnings. Do not use this to hide real bugs. Donâ€™t overuse it.
 
 **Incorrect: known mismatch warnings**
 
@@ -2358,7 +2358,7 @@ function processOrders(orders: Order[], users: User[]) {
 
 Build map once (O(n)), then all lookups are O(1).
 
-For 1000 orders × 1000 users: 1M ops → 2K ops.
+For 1000 orders Ă— 1000 users: 1M ops â†’ 2K ops.
 
 ### 7.3 Cache Property Access in Loops
 
@@ -2366,7 +2366,7 @@ For 1000 orders × 1000 users: 1M ops → 2K ops.
 
 Cache object property lookups in hot paths.
 
-**Incorrect: 3 lookups × N iterations**
+**Incorrect: 3 lookups Ă— N iterations**
 
 ```typescript
 for (let i = 0; i < arr.length; i++) {

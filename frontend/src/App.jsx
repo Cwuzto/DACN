@@ -1,5 +1,6 @@
 ﻿import { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { ConfigProvider } from 'antd';
 
 // Layouts
 import AdminLayout from './components/layout/AdminLayout';
@@ -50,60 +51,75 @@ function RouteLoading() {
 
 function App() {
     return (
-        <BrowserRouter>
-            <Suspense fallback={<RouteLoading />}>
-                <Routes>
-                    <Route element={<PublicOnlyRoute />}>
-                        <Route path="/login" element={<LoginPage />} />
-                        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-                    </Route>
-
-                    <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
-                        <Route path="/admin" element={<AdminLayout />}>
-                            <Route index element={<Navigate to="dashboard" replace />} />
-                            <Route path="dashboard" element={<DashboardPage />} />
-                            <Route path="users" element={<UserManagementPage />} />
-                            <Route path="project-periods" element={<ProjectPeriodPage />} />
-                            <Route path="topics" element={<AdminTopicManagementPage />} />
-                            <Route path="oversight" element={<ProjectOversightPage />} />
-                            <Route path="grading" element={<GradingDefensePage />} />
-                            <Route path="councils" element={<CouncilAssignmentPage />} />
-                            <Route path="notifications" element={<NotificationCenterPage />} />
-                            <Route path="profile" element={<ProfilePage />} />
+        <ConfigProvider
+            theme={{
+                token: {
+                    colorPrimary: '#003366',
+                    fontFamily: "'Inter', 'Roboto', 'sans-serif'",
+                    borderRadius: 6,
+                },
+                components: {
+                    Typography: {
+                        fontFamilyCode: "'Lexend', 'Inter', 'sans-serif'",
+                    }
+                }
+            }}
+        >
+            <BrowserRouter>
+                <Suspense fallback={<RouteLoading />}>
+                    <Routes>
+                        <Route element={<PublicOnlyRoute />}>
+                            <Route path="/login" element={<LoginPage />} />
+                            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
                         </Route>
-                    </Route>
 
-                    <Route element={<ProtectedRoute allowedRoles={['LECTURER']} />}>
-                        <Route path="/lecturer" element={<LecturerLayout />}>
-                            <Route index element={<Navigate to="dashboard" replace />} />
-                            <Route path="dashboard" element={<LecturerDashboardPage />} />
-                            <Route path="topics" element={<LecturerTopicManagementPage />} />
-                            <Route path="approvals" element={<TopicApprovalPage />} />
-                            <Route path="progress" element={<ProgressTrackingPage />} />
-                            <Route path="grading" element={<GradingPage />} />
-                            <Route path="notifications" element={<NotificationsPage />} />
-                            <Route path="profile" element={<ProfilePage />} />
+                        <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
+                            <Route path="/admin" element={<AdminLayout />}>
+                                <Route index element={<Navigate to="dashboard" replace />} />
+                                <Route path="dashboard" element={<DashboardPage />} />
+                                <Route path="users" element={<UserManagementPage />} />
+                                <Route path="project-periods" element={<ProjectPeriodPage />} />
+                                <Route path="topics" element={<AdminTopicManagementPage />} />
+                                <Route path="oversight" element={<ProjectOversightPage />} />
+                                <Route path="grading" element={<GradingDefensePage />} />
+                                <Route path="councils" element={<CouncilAssignmentPage />} />
+                                <Route path="notifications" element={<NotificationCenterPage />} />
+                                <Route path="profile" element={<ProfilePage />} />
+                            </Route>
                         </Route>
-                    </Route>
 
-                    <Route element={<ProtectedRoute allowedRoles={['STUDENT']} />}>
-                        <Route path="/student" element={<StudentLayout />}>
-                            <Route index element={<Navigate to="dashboard" replace />} />
-                            <Route path="dashboard" element={<StudentDashboardPage />} />
-                            <Route path="topics" element={<TopicListPage />} />
-                            <Route path="submissions" element={<SubmissionPage />} />
-                            <Route path="grades" element={<GradeViewPage />} />
-                            <Route path="notifications" element={<NotificationsPage />} />
-                            <Route path="profile" element={<ProfilePage />} />
+                        <Route element={<ProtectedRoute allowedRoles={['LECTURER']} />}>
+                            <Route path="/lecturer" element={<LecturerLayout />}>
+                                <Route index element={<Navigate to="dashboard" replace />} />
+                                <Route path="dashboard" element={<LecturerDashboardPage />} />
+                                <Route path="topics" element={<LecturerTopicManagementPage />} />
+                                <Route path="approvals" element={<TopicApprovalPage />} />
+                                <Route path="progress" element={<ProgressTrackingPage />} />
+                                <Route path="grading" element={<GradingPage />} />
+                                <Route path="notifications" element={<NotificationsPage />} />
+                                <Route path="profile" element={<ProfilePage />} />
+                            </Route>
                         </Route>
-                    </Route>
 
-                    <Route path="/dashboard" element={<RoleDashboardRedirect />} />
-                    <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                    <Route path="*" element={<RouteFallbackHandler />} />
-                </Routes>
-            </Suspense>
-        </BrowserRouter>
+                        <Route element={<ProtectedRoute allowedRoles={['STUDENT']} />}>
+                            <Route path="/student" element={<StudentLayout />}>
+                                <Route index element={<Navigate to="dashboard" replace />} />
+                                <Route path="dashboard" element={<StudentDashboardPage />} />
+                                <Route path="topics" element={<TopicListPage />} />
+                                <Route path="submissions" element={<SubmissionPage />} />
+                                <Route path="grades" element={<GradeViewPage />} />
+                                <Route path="notifications" element={<NotificationsPage />} />
+                                <Route path="profile" element={<ProfilePage />} />
+                            </Route>
+                        </Route>
+
+                        <Route path="/dashboard" element={<RoleDashboardRedirect />} />
+                        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                        <Route path="*" element={<RouteFallbackHandler />} />
+                    </Routes>
+                </Suspense>
+            </BrowserRouter>
+        </ConfigProvider>
     );
 }
 

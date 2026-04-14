@@ -1,5 +1,5 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Avatar, Badge, Button, Card, Empty, Flex, Space, Tabs, Typography, message } from 'antd';
+import { Avatar, Badge, Button, Tabs, message } from 'antd';
 import {
     BellOutlined,
     CheckOutlined,
@@ -13,16 +13,16 @@ import {
 import dayjs from 'dayjs';
 
 import notificationService from '../../services/notificationService';
-
-const { Title, Text } = Typography;
+import PageHeader from '../../components/common/PageHeader';
+import EmptyState from '../../components/common/EmptyState';
 
 const typeIconMap = {
-    SYSTEM: <SettingOutlined style={{ color: '#8c8c8c' }} />,
-    APPROVAL: <InfoCircleOutlined style={{ color: '#722ed1' }} />,
-    TASK_REMINDER: <WarningOutlined style={{ color: '#fa8c16' }} />,
-    REGISTRATION: <TeamOutlined style={{ color: '#13C2C2' }} />,
-    SUBMISSION: <FileTextOutlined style={{ color: '#1677FF' }} />,
-    DEFENSE: <FileTextOutlined style={{ color: '#1677FF' }} />,
+    SYSTEM: <SettingOutlined className="text-slate-500" />,
+    APPROVAL: <InfoCircleOutlined className="text-purple-500" />,
+    TASK_REMINDER: <WarningOutlined className="text-orange-500" />,
+    REGISTRATION: <TeamOutlined className="text-teal-500" />,
+    SUBMISSION: <FileTextOutlined className="text-blue-500" />,
+    DEFENSE: <FileTextOutlined className="text-blue-500" />,
 };
 
 function NotificationsPage() {
@@ -119,98 +119,89 @@ function NotificationsPage() {
     ];
 
     return (
-        <div>
-            <Flex justify="space-between" align="center" style={{ marginBottom: 24 }}>
-                <div>
-                    <Title level={3} style={{ margin: 0 }}>
-                        <BellOutlined style={{ marginRight: 8 }} />
-                        Thông báo
-                    </Title>
-                    <Text type="secondary">{unreadCount} thông báo chưa đọc</Text>
-                </div>
-                <Space>
+        <div className="py-2">
+            <PageHeader
+                title="Thông báo"
+                subtitle={`${unreadCount} thông báo chưa đọc`}
+                actions={
                     <Button icon={<CheckOutlined />} onClick={markAllRead} disabled={unreadCount === 0}>
                         Đánh dấu tất cả đã đọc
                     </Button>
-                </Space>
-            </Flex>
+                }
+            />
 
-            <Card style={{ borderRadius: 10 }} styles={{ body: { padding: 0 } }}>
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                 <Tabs
                     items={tabItems}
                     activeKey={activeTab}
                     onChange={setActiveTab}
-                    style={{ padding: '0 24px' }}
-                    tabBarStyle={{ marginBottom: 0 }}
+                    className="px-6 pt-4"
+                    tabBarStyle={{ marginBottom: 0, borderBottom: '1px solid #f1f5f9' }}
                 />
 
-                <div style={{ padding: '8px 0' }}>
+                <div className="divide-y divide-slate-100 min-h-[400px]">
                     {!loading && filteredNotifications.length === 0 ? (
-                        <Empty description="Không có thông báo" style={{ padding: '40px 0' }} />
+                        <div className="py-12">
+                            <EmptyState
+                                icon={<BellOutlined />}
+                                title="Không có thông báo"
+                                description="Bạn hiện không có thông báo nào trong mục này."
+                            />
+                        </div>
                     ) : (
                         filteredNotifications.map((notification) => (
                             <div
                                 key={notification.id}
-                                style={{
-                                    padding: '16px 24px',
-                                    borderBottom: '1px solid #f0f0f0',
-                                    background: notification.isRead ? 'transparent' : '#f0f5ff',
-                                    cursor: 'pointer',
-                                    transition: 'background 0.2s',
-                                }}
+                                className={`p-5 cursor-pointer transition-colors hover:bg-slate-50 flex gap-4 ${
+                                    notification.isRead ? 'bg-white' : 'bg-blue-50/30'
+                                }`}
                                 onClick={() => markAsRead(notification.id)}
                             >
-                                <Flex gap={16} align="flex-start">
-                                    <Avatar
-                                        size={40}
-                                        icon={typeIconMap[notification.type] || <InfoCircleOutlined />}
-                                        style={{
-                                            background: notification.isRead ? '#f5f5f5' : '#e6f4ff',
-                                            flexShrink: 0,
-                                        }}
-                                    />
-                                    <div style={{ flex: 1 }}>
-                                        <Flex justify="space-between" align="flex-start">
-                                            <Text strong={!notification.isRead} style={{ fontSize: 14 }}>
-                                                {notification.title}
-                                            </Text>
-                                            <Flex gap={8} align="center">
-                                                <Text type="secondary" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
-                                                    {dayjs(notification.createdAt).format('HH:mm DD/MM/YYYY')}
-                                                </Text>
-                                                <Button
-                                                    type="text"
-                                                    size="small"
-                                                    danger
-                                                    icon={<DeleteOutlined />}
-                                                    onClick={(event) => {
-                                                        event.stopPropagation();
-                                                        deleteNotification(notification.id);
-                                                    }}
-                                                />
-                                            </Flex>
-                                        </Flex>
-                                        <Text type="secondary" style={{ fontSize: 13 }}>
-                                            {notification.content}
-                                        </Text>
-                                        {!notification.isRead && (
-                                            <div style={{ marginTop: 4 }}>
-                                                <Badge
-                                                    status="processing"
-                                                    text={<Text type="secondary" style={{ fontSize: 11 }}>Mới</Text>}
-                                                />
-                                            </div>
-                                        )}
+                                <Avatar
+                                    size={44}
+                                    icon={typeIconMap[notification.type] || <InfoCircleOutlined />}
+                                    className={`shrink-0 ${
+                                        notification.isRead ? 'bg-slate-100' : 'bg-white shadow-sm border border-blue-100'
+                                    }`}
+                                />
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex justify-between items-start gap-4 mb-1">
+                                        <h4 className={`text-sm m-0 ${notification.isRead ? 'font-medium text-slate-700' : 'font-bold text-slate-900'}`}>
+                                            {notification.title}
+                                        </h4>
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            <span className="text-xs text-slate-500 font-medium">
+                                                {dayjs(notification.createdAt).format('HH:mm DD/MM/YYYY')}
+                                            </span>
+                                            <Button
+                                                type="text"
+                                                size="small"
+                                                danger
+                                                icon={<DeleteOutlined />}
+                                                onClick={(event) => {
+                                                    event.stopPropagation();
+                                                    deleteNotification(notification.id);
+                                                }}
+                                                className="opacity-50 hover:opacity-100"
+                                            />
+                                        </div>
                                     </div>
-                                </Flex>
+                                    <p className="text-sm text-slate-600 truncate mb-0">
+                                        {notification.content}
+                                    </p>
+                                    {!notification.isRead && (
+                                        <div className="mt-2">
+                                            <Badge status="processing" text={<span className="text-xs text-primary font-medium">Mới</span>} />
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         ))
                     )}
                 </div>
-            </Card>
+            </div>
         </div>
     );
 }
 
 export default NotificationsPage;
-
