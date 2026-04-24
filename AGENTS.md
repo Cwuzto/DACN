@@ -69,10 +69,10 @@ nhưng các phần cũ này **không còn là nguồn sự thật chính**.
 
 5. **Mở phiên mới phải đọc trước**
    - `README.md`
-   - `PROJECT_STATE.md`
-   - `NEXT_STEPS.md`
-   - `DECISIONS.md`
-   - `TOMORROW_PLAN.md` (nếu còn liên quan)
+   - `.docs/PROJECT_STATE.md`
+   - `.docs/NEXT_STEPS.md`
+   - `.docs/DECISIONS.md`
+   - `.docs/TOMORROW_PLAN.md` (nếu còn liên quan)
 
 ---
 
@@ -89,9 +89,9 @@ nhưng các phần cũ này **không còn là nguồn sự thật chính**.
 
 Khi kết thúc phiên có thay đổi đáng kể, cần cập nhật:
 
-- `PROJECT_STATE.md`: hiện trạng mới nhất
-- `NEXT_STEPS.md`: việc cần làm tiếp ngay
-- `DECISIONS.md`: quyết định kỹ thuật/kiến trúc mới (nếu có)
+- `.docs/PROJECT_STATE.md`: hiện trạng mới nhất
+- `.docs/NEXT_STEPS.md`: việc cần làm tiếp ngay
+- `.docs/DECISIONS.md`: quyết định kỹ thuật/kiến trúc mới (nếu có)
 
 ---
 

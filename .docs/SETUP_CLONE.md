@@ -43,6 +43,9 @@ Copy-Item .env.example .env
 
 ```env
 DATABASE_URL="postgresql://<user>:<password>@<host>:5432/<db>?sslmode=require"
+DB_POOL_MAX=2
+DB_POOL_IDLE_TIMEOUT_MS=30000
+DB_POOL_CONNECTION_TIMEOUT_MS=10000
 JWT_SECRET="replace-with-strong-secret"
 JWT_EXPIRES_IN="7d"
 SUPABASE_URL="https://<project-ref>.supabase.co"
@@ -124,5 +127,6 @@ Nếu tất cả PASS thì môi trường clone mới đã sẵn sàng làm vi�
 ## 8. Lỗi thường gặp
 
 - `P1001/P1000` khi migrate: kiểm tra lại `DATABASE_URL` và quyền truy cập DB.
+- `maxClientsInSessionMode: max clients reached`: giảm `DB_POOL_MAX` (khuyến nghị `2`) hoặc tăng pool size ở DB pooler.
 - Lỗi CORS hoặc frontend không gọi được API: kiểm tra `frontend/.env` (`VITE_API_URL`).
 - Lỗi upload file: kiểm tra `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET`.

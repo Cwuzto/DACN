@@ -26,7 +26,7 @@ const shouldCheckFile = (filePath) => TEXT_EXTENSIONS.has(path.extname(filePath)
 const walk = (dir, out) => {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
     entries.forEach((entry) => {
-        if (entry.name.startsWith('.') && entry.name !== '.env.example') return;
+        if (entry.name.startsWith('.') && entry.name !== '.env.example' && entry.name !== '.docs') return;
         if (entry.isDirectory()) {
             if (SKIP_DIRS.has(entry.name)) return;
             walk(path.join(dir, entry.name), out);

@@ -42,7 +42,7 @@ const walk = (dir, out) => {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (entry.isDirectory()) {
       if (SKIP_DIRS.has(entry.name)) continue;
-      if (entry.name.startsWith('.') && entry.name !== '.vscode') continue;
+      if (entry.name.startsWith('.') && entry.name !== '.vscode' && entry.name !== '.docs') continue;
       walk(path.join(dir, entry.name), out);
       continue;
     }

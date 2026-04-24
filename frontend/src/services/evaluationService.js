@@ -29,6 +29,30 @@ const evaluationService = {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi lấy điểm');
         }
     },
+
+    getAdminDefenseCenter: async (params = {}) => {
+        try {
+            return await api.get('/evaluations/admin-defense-center', { params });
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi tải dữ liệu trung tâm hội đồng');
+        }
+    },
+
+    remindDefenseGrading: async (registrationIds) => {
+        try {
+            return await api.post('/evaluations/admin-defense-center/remind-grading', { registrationIds });
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi gửi nhắc chấm điểm');
+        }
+    },
+
+    setDefenseScoreLock: async (id, action) => {
+        try {
+            return await api.patch(`/evaluations/admin-defense-center/${id}/score-lock`, { action });
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi khóa/mở khóa điểm');
+        }
+    },
 };
 
 export default evaluationService;

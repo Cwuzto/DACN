@@ -41,7 +41,7 @@ const NAV_CONFIG = {
             { path: '/admin/project-periods', icon: 'calendar_month', label: 'Đợt đồ án' },
             { path: '/admin/topics', icon: 'description', label: 'Đề tài' },
             { path: '/admin/oversight', icon: 'policy', label: 'Giám sát Đề tài' },
-            { path: '/admin/grading', icon: 'workspace_premium', label: 'Điểm & Bảo vệ' },
+            { path: '/admin/grading', icon: 'groups', label: 'Quản lý Hội Đồng' },
         ],
         bottomItems: [
             { path: '/admin/notifications', icon: 'campaign', label: 'Trung tâm Thông báo' },

@@ -2,7 +2,7 @@
 
 ## Bắt đầu nhanh
 
-Xem hướng dẫn cài đặt và chạy dự án tại: [SETUP_CLONE.md](./SETUP_CLONE.md)
+Xem hướng dẫn cài đặt và chạy dự án tại: [.docs/SETUP_CLONE.md](./.docs/SETUP_CLONE.md)
 
 ## Giới thiệu
 
@@ -46,7 +46,7 @@ Các luồng chính:
 ## Tài liệu quan trọng
 
 - `AGENTS.md`
-- `PROJECT_STATE.md`
-- `NEXT_STEPS.md`
-- `DECISIONS.md`
-- `TOMORROW_PLAN.md`
+- `.docs/PROJECT_STATE.md`
+- `.docs/NEXT_STEPS.md`
+- `.docs/DECISIONS.md`
+- `.docs/TOMORROW_PLAN.md`

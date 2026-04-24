@@ -1,4 +1,4 @@
-﻿# DECISIONS.md
+# DECISIONS.md
 
 ## Decision Log
 
@@ -15,7 +15,7 @@ Tài liệu lưu các quyết định kỹ thuật/nghiệp vụ quan trọng đ
 
 **Ảnh hưởng**
 
-- Luôn đồng bộ các file: `AGENTS.md`, `PROJECT_STATE.md`, `NEXT_STEPS.md`, `DECISIONS.md`.
+- Luôn đồng bộ các file trong `.docs/`.
 
 ---
 
@@ -28,7 +28,7 @@ Tài liệu lưu các quyết định kỹ thuật/nghiệp vụ quan trọng đ
 
 **Ảnh hưởng**
 
-- Mọi phát triển mới phải bám workflow hiện tại, legacy chỉ xử lý theo hướng dọn dần.
+- Mọi phát triển mới phải bám workflow hiện tại.
 
 ---
 
@@ -66,11 +66,6 @@ Tài liệu lưu các quyết định kỹ thuật/nghiệp vụ quan trọng đ
 - Xóa dữ liệu cũ và seed lại bộ dữ liệu demo đầy đủ theo nhiều giai đoạn học kỳ.
 - Giữ rule: mỗi đề tài chỉ 1 sinh viên (`maxStudents = 1`).
 
-**Ảnh hưởng**
-
-- Dữ liệu demo ổn định, dễ trình diễn các màn hình theo nghiệp vụ thật.
-- Giảm rủi ro demo bị “trống dữ liệu” hoặc sai logic.
-
 ---
 
 ## 2026-04-15 - Siết logic toggle đăng ký theo thời gian thực tế
@@ -78,13 +73,6 @@ Tài liệu lưu các quyết định kỹ thuật/nghiệp vụ quan trọng đ
 **Quyết định**
 
 - Chỉ cho bật đăng ký khi đang trong cửa sổ hợp lệ: `startDate` -> `registrationDeadline`.
-- Không cho bật đăng ký ở giữa kỳ/bảo vệ/hoàn thành.
-
-**Ảnh hưởng**
-
-- Backend chặn bật sai thời điểm.
-- Frontend disable toggle ngoài trạng thái `REGISTRATION`.
-- Trạng thái hiển thị nhất quán hơn với nghiệp vụ.
 
 ---
 
@@ -93,11 +81,32 @@ Tài liệu lưu các quyết định kỹ thuật/nghiệp vụ quan trọng đ
 **Quyết định**
 
 - Thêm script `node scripts/check-md-quality.js` vào quy trình gate.
-- Script phát hiện:
-  - dấu hiệu `mojibake` trong `.md`
-  - nhiều cụm tiếng Việt không dấu bất thường trong `.md`
+
+---
+
+## 2026-04-22 - Chốt phạm vi batch nghiệp vụ mới
+
+**Quyết định**
+
+- Tự động `REJECT` đăng ký đề tài `PENDING` sau 5 ngày nếu giảng viên không phản hồi.
+- Tự động `REJECT` các đăng ký `PENDING` khi kết thúc hạn đăng ký của đợt.
+- Trang "Đề tài của tôi" của giảng viên hiển thị tên sinh viên đăng ký, hỗ trợ search theo tên sinh viên, và bỏ filter "Bản nháp".
+- Quy tắc filter mặc định ưu tiên đợt hiện tại; nếu chưa có thì lấy đợt gần nhất vừa kết thúc.
+- Triển khai bảng chấm điểm hội đồng online theo barem, hỗ trợ xuất PDF.
+- Bổ sung cơ chế nhận diện và giới hạn quyền tài khoản sinh viên đã hoàn thành đồ án tốt nghiệp.
+
+---
+
+## 2026-04-22 - Hợp nhất API quản trị bảo vệ/chấm điểm cho Admin
+
+**Quyết định**
+
+- Bổ sung nhóm endpoint `Admin Defense Center` dưới `/api/evaluations/admin-defense-center`.
+- Dùng mô hình tab theo workflow thực tế: `PENDING_ASSIGNMENT`, `ASSIGNED_COUNCIL`, `AWAITING_GRADING`, `COMPLETED`.
+- Bổ sung action nghiệp vụ cho admin: nhắc chấm điểm hàng loạt và khóa/mở khóa trạng thái điểm.
 
 **Ảnh hưởng**
 
-- Giảm rủi ro tài liệu bị lỗi encoding hoặc xuống chất lượng hiển thị tiếng Việt qua từng batch.
-- Tăng độ tin cậy khi dùng tài liệu repo làm nguồn sự thật.
+- UI Admin có thể gom điều phối hội đồng + theo dõi chấm điểm trên một màn hình thống nhất.
+- Giảm thao tác qua lại giữa trang hội đồng và trang chấm điểm.
+- Cần frontend cập nhật theo contract API mới.

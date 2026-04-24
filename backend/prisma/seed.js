@@ -4,7 +4,17 @@ const bcrypt = require("bcryptjs");
 const { PrismaClient } = require("@prisma/client");
 const { PrismaPg } = require("@prisma/adapter-pg");
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+function readPositiveInt(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+const adapter = new PrismaPg({
+  connectionString: process.env.DATABASE_URL,
+  max: readPositiveInt(process.env.DB_POOL_MAX, 2),
+  idleTimeoutMillis: readPositiveInt(process.env.DB_POOL_IDLE_TIMEOUT_MS, 30000),
+  connectionTimeoutMillis: readPositiveInt(process.env.DB_POOL_CONNECTION_TIMEOUT_MS, 10000),
+});
 const prisma = new PrismaClient({ adapter });
 
 const TOPIC_KEYWORDS = [
