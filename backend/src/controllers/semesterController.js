@@ -1,4 +1,4 @@
-﻿const prisma = require('../config/database');
+const prisma = require('../config/database');
 
 const REGISTRATION_TOGGLE_WARNING_WINDOW_DAYS = 14;
 

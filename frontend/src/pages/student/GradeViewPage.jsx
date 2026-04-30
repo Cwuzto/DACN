@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button, Divider, message } from 'antd';
 import evaluationService from '../../services/evaluationService';
 import PageLoader from '../../components/common/PageLoader';

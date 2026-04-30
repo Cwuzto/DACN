@@ -13,6 +13,41 @@ router.get('/my-grades', authorize('STUDENT'), evaluationController.getMyGrades)
 // GV/Admin xem danh sach SV can cham diem
 router.get('/grading-students', authorize('LECTURER', 'ADMIN'), evaluationController.getGradingStudents);
 
+router.get(
+    '/:registrationId/score-sheet',
+    authorize('LECTURER', 'ADMIN'),
+    [
+        param('registrationId').isInt({ min: 1 }).withMessage('registrationId phai la so nguyen duong.'),
+        validateRequest,
+    ],
+    evaluationController.getScoreSheet,
+);
+
+router.put(
+    '/:registrationId/score-sheet',
+    authorize('LECTURER', 'ADMIN'),
+    [
+        param('registrationId').isInt({ min: 1 }).withMessage('registrationId phai la so nguyen duong.'),
+        body('scores').isArray({ min: 1 }).withMessage('scores phai la mang co it nhat 1 phan tu.'),
+        body('scores.*.criterionCode').isString().trim().notEmpty().withMessage('criterionCode la bat buoc.'),
+        body('scores.*.score').isFloat({ min: 0 }).withMessage('score phai la so hop le.'),
+        body('scores.*.comment').optional({ nullable: true }).isString(),
+        body('generalComment').optional({ nullable: true }).isString(),
+        validateRequest,
+    ],
+    evaluationController.saveScoreSheet,
+);
+
+router.post(
+    '/:registrationId/score-sheet/export-pdf',
+    authorize('LECTURER', 'ADMIN'),
+    [
+        param('registrationId').isInt({ min: 1 }).withMessage('registrationId phai la so nguyen duong.'),
+        validateRequest,
+    ],
+    evaluationController.exportScoreSheetPdf,
+);
+
 // GV/Admin nhap diem bao ve + anh bang cham
 router.post('/defense-result', authorize('LECTURER', 'ADMIN'), evaluationController.submitDefenseResult);
 

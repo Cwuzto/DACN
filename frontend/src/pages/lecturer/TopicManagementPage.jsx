@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
     Card, Table, Tag, Button, Input, Select, Space,
     Tooltip, Modal, Form, message, Popconfirm,
@@ -11,6 +11,7 @@ import { semesterService } from '../../services/semesterService';
 import useAuthStore from '../../stores/authStore';
 import PageHeader from '../../components/common/PageHeader';
 import StatusBadge from '../../components/common/StatusBadge';
+import { PROJECT_NAME, formatSemesterLabel } from '../../utils/semesterDisplay';
 
 const { TextArea } = Input;
 
@@ -19,6 +20,7 @@ function TopicManagementPage() {
     const [topics, setTopics] = useState([]);
     const [loading, setLoading] = useState(false);
     const [semesterOptions, setSemesterOptions] = useState([]);
+    const [selectedProjectName, setSelectedProjectName] = useState(PROJECT_NAME);
     const [searchText, setSearchText] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
     const [formModalOpen, setFormModalOpen] = useState(false);
@@ -53,7 +55,7 @@ function TopicManagementPage() {
                 if (!res.success) return;
                 const options = (res.data || []).map((semester) => ({
                     value: semester.id,
-                    label: semester.name,
+                    label: formatSemesterLabel(semester),
                 }));
                 setSemesterOptions(options);
             } catch {
@@ -150,8 +152,21 @@ function TopicManagementPage() {
             ),
         },
         {
-            title: 'Sinh viên đăng ký', key: 'registrations', align: 'center', width: 140,
-            render: (_, record) => <Tag>{record._count?.registrations || 0}/1</Tag>,
+            title: 'Sinh viên đăng ký', key: 'registrations', width: 260,
+            render: (_, record) => {
+                const latestRegistration = record.registrations?.[0];
+                const student = latestRegistration?.student;
+                if (!student) {
+                    return <Tag color="default">Chưa có</Tag>;
+                }
+
+                return (
+                    <div className="text-sm">
+                        <div className="font-semibold text-slate-800">{student.fullName}</div>
+                        <div className="text-xs text-slate-500">{student.code}</div>
+                    </div>
+                );
+            },
         },
         {
             title: 'Trạng thái', dataIndex: 'status', key: 'status', width: 130,
@@ -179,6 +194,7 @@ function TopicManagementPage() {
             ),
         },
     ];
+    const projectOptions = [{ value: PROJECT_NAME, label: PROJECT_NAME }];
 
     if (statusFilter === 'REJECTED' || topics.some((t) => t.status === 'REJECTED')) {
         const rejectCol = {
@@ -205,19 +221,26 @@ function TopicManagementPage() {
 
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
-                    <Select
-                        value={statusFilter}
-                        onChange={setStatusFilter}
-                        style={{ width: 180 }}
-                        options={[
-                            { value: 'all', label: 'Tất cả trạng thái' },
-                            { value: 'DRAFT', label: 'Bản nháp' },
-                            { value: 'APPROVED', label: 'Đã duyệt' },
-                            { value: 'REJECTED', label: 'Từ chối' },
-                        ]}
-                    />
+                    <Space>
+                        <Select
+                            value={selectedProjectName}
+                            onChange={setSelectedProjectName}
+                            style={{ width: 200 }}
+                            options={projectOptions}
+                        />
+                        <Select
+                            value={statusFilter}
+                            onChange={setStatusFilter}
+                            style={{ width: 180 }}
+                            options={[
+                                { value: 'all', label: 'Tất cả trạng thái' },
+                                { value: 'APPROVED', label: 'Đã duyệt' },
+                                { value: 'REJECTED', label: 'Từ chối' },
+                            ]}
+                        />
+                    </Space>
                     <Input
-                        placeholder="Tìm kiếm đề tài..."
+                        placeholder="Tìm đề tài hoặc sinh viên đăng ký..."
                         prefix={<SearchOutlined />}
                         value={searchText}
                         onChange={(e) => setSearchText(e.target.value)}
@@ -264,9 +287,14 @@ function TopicManagementPage() {
                     <Form.Item name="description" label="Mô tả chi tiết">
                         <TextArea rows={4} placeholder="Mô tả nội dung, phạm vi, công nghệ sử dụng..." />
                     </Form.Item>
-                    <Form.Item name="semesterId" label="Đợt đồ án" rules={[{ required: true }]}>
-                        <Select placeholder="Chọn đợt" options={semesterOptions} />
-                    </Form.Item>
+                    <div className="grid grid-cols-2 gap-4">
+                        <Form.Item label="Tên đồ án">
+                            <Input value={PROJECT_NAME} disabled />
+                        </Form.Item>
+                        <Form.Item name="semesterId" label="Đợt đồ án" rules={[{ required: true }]}>
+                            <Select placeholder="Chọn đợt đồ án" options={semesterOptions} />
+                        </Form.Item>
+                    </div>
                 </Form>
             </Modal>
         </div>

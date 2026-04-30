@@ -14,7 +14,7 @@ const createTask = async (req, res, next) => {
         const mentorId = req.user.id;
 
         if (!registrationId || !title) {
-            return res.status(400).json({ success: false, message: 'Thieu registrationId hoac title.' });
+            return res.status(400).json({ success: false, message: 'Thiếu registrationId hoặc title.' });
         }
 
         const registration = await prisma.topicRegistration.findUnique({
@@ -22,14 +22,14 @@ const createTask = async (req, res, next) => {
             include: { topic: true, student: true },
         });
 
-        if (!registration) return res.status(404).json({ success: false, message: 'Dang ky khong ton tai.' });
+        if (!registration) return res.status(404).json({ success: false, message: 'Đăng ký không tồn tại.' });
         if (!registration.topic || registration.topic.mentorId !== mentorId) {
-            return res.status(403).json({ success: false, message: 'Ban khong phai giang vien huong dan cua sinh vien nay.' });
+            return res.status(403).json({ success: false, message: 'Bạn không phải giảng viên hướng dẫn của sinh viên này.' });
         }
         if (!['APPROVED', 'IN_PROGRESS'].includes(registration.status)) {
             return res.status(400).json({
                 success: false,
-                message: 'Chi co the giao nhiem vu cho dang ky da duyet hoac dang thuc hien.',
+                message: 'Chỉ có thể giao nhiệm vụ cho đăng ký đã duyệt hoặc đang thực hiện.',
             });
         }
 
@@ -46,8 +46,8 @@ const createTask = async (req, res, next) => {
         await safeNotify(
             {
                 userId: registration.studentId,
-                title: 'Nhiem vu moi',
-                content: `Giang vien vua giao nhiem vu moi: ${title}`,
+                title: 'Nhiệm vụ mới',
+                content: `Giảng viên vừa giao nhiệm vụ mới: ${title}`,
                 type: 'TASK_REMINDER',
             },
             'createTask',
@@ -62,7 +62,7 @@ const createTask = async (req, res, next) => {
             getRequestIp(req),
         );
 
-        res.status(201).json({ success: true, message: 'Tao nhiem vu thanh cong.', data: newTask });
+        res.status(201).json({ success: true, message: 'Tạo nhiệm vụ thành công.', data: newTask });
     } catch (error) {
         next(error);
     }
@@ -75,7 +75,7 @@ const getTasksByRegistration = async (req, res, next) => {
         const { role, id: userId } = req.user;
 
         if (!Number.isInteger(registrationId)) {
-            return res.status(400).json({ success: false, message: 'registrationId khong hop le.' });
+            return res.status(400).json({ success: false, message: 'registrationId không hợp lệ.' });
         }
 
         const registration = await prisma.topicRegistration.findUnique({
@@ -84,15 +84,15 @@ const getTasksByRegistration = async (req, res, next) => {
         });
 
         if (!registration) {
-            return res.status(404).json({ success: false, message: 'Dang ky khong ton tai.' });
+            return res.status(404).json({ success: false, message: 'Đăng ký không tồn tại.' });
         }
 
         if (role === 'STUDENT' && registration.studentId !== userId) {
-            return res.status(403).json({ success: false, message: 'Ban khong co quyen xem danh sach nhiem vu nay.' });
+            return res.status(403).json({ success: false, message: 'Bạn không có quyền xem danh sách nhiệm vụ này.' });
         }
 
         if (role === 'LECTURER' && registration.topic?.mentorId !== userId) {
-            return res.status(403).json({ success: false, message: 'Ban khong phai giang vien huong dan cua sinh vien nay.' });
+            return res.status(403).json({ success: false, message: 'Bạn không phải giảng viên hướng dẫn của sinh viên này.' });
         }
 
         const tasks = await prisma.task.findMany({
@@ -122,11 +122,11 @@ const submitTask = async (req, res, next) => {
         const { content, fileUrl, fileName } = req.body;
 
         if (!Number.isInteger(taskId)) {
-            return res.status(400).json({ success: false, message: 'Task khong hop le.' });
+            return res.status(400).json({ success: false, message: 'Task không hợp lệ.' });
         }
 
         if (!content && !fileUrl) {
-            return res.status(400).json({ success: false, message: 'Vui long nhap noi dung hoac tai tep truoc khi nop.' });
+            return res.status(400).json({ success: false, message: 'Vui lòng nhập nội dung hoặc tải tệp trước khi nộp.' });
         }
 
         const task = await prisma.task.findUnique({
@@ -134,20 +134,20 @@ const submitTask = async (req, res, next) => {
             include: { registration: true },
         });
 
-        if (!task) return res.status(404).json({ success: false, message: 'Nhiem vu khong ton tai.' });
+        if (!task) return res.status(404).json({ success: false, message: 'Nhiệm vụ không tồn tại.' });
 
         if (task.registration.studentId !== studentId) {
-            return res.status(403).json({ success: false, message: 'Ban khong co quyen nop bao cao cho nhiem vu nay.' });
+            return res.status(403).json({ success: false, message: 'Bạn không có quyền nộp báo cáo cho nhiệm vụ này.' });
         }
 
         if (task.status === 'COMPLETED') {
-            return res.status(400).json({ success: false, message: 'Nhiem vu nay da hoan thanh, khong the nop lai.' });
+            return res.status(400).json({ success: false, message: 'Nhiệm vụ này đã hoàn thành, không thể nộp lại.' });
         }
 
         if (task.status === 'SUBMITTED') {
             return res.status(400).json({
                 success: false,
-                message: 'Nhiem vu dang cho giang vien nhan xet. Vui long doi phan hoi truoc khi nop lai.',
+                message: 'Nhiệm vụ đang chờ giảng viên nhận xét. Vui lòng đợi phản hồi trước khi nộp lại.',
             });
         }
 
@@ -158,7 +158,7 @@ const submitTask = async (req, res, next) => {
         if (submissionCount >= MAX_SUBMISSIONS_PER_TASK) {
             return res.status(400).json({
                 success: false,
-                message: `Ban da dat gioi han ${MAX_SUBMISSIONS_PER_TASK} lan nop cho nhiem vu nay.`,
+                message: `Bạn đã đạt giới hạn ${MAX_SUBMISSIONS_PER_TASK} lần nộp cho nhiệm vụ này.`,
             });
         }
 
@@ -173,7 +173,7 @@ const submitTask = async (req, res, next) => {
                 if (daysLate > MAX_LATE_DAYS) {
                     return res.status(400).json({
                         success: false,
-                        message: `Da qua han nop ${daysLate} ngay. He thong chi cho phep nop tre toi da ${MAX_LATE_DAYS} ngay.`,
+                        message: `Đã quá hạn nộp ${daysLate} ngày. Hệ thống chỉ cho phép nộp trễ tối đa ${MAX_LATE_DAYS} ngày.`,
                     });
                 }
                 lateInfo = { isLate: true, daysLate, maxLateDays: MAX_LATE_DAYS };
@@ -198,7 +198,7 @@ const submitTask = async (req, res, next) => {
 
         res.json({
             success: true,
-            message: 'Nop bao cao thanh cong.',
+            message: 'Nộp báo cáo thành công.',
             data: {
                 ...newSubmission,
                 ...lateInfo,
@@ -223,7 +223,7 @@ const gradeSubmission = async (req, res, next) => {
         if (!allowedDecisions.includes(normalizedDecision)) {
             return res.status(400).json({
                 success: false,
-                message: `decision khong hop le. Chi ho tro: ${allowedDecisions.join(', ')}.`,
+                message: `decision không hợp lệ. Chỉ hỗ trợ: ${allowedDecisions.join(', ')}.`,
             });
         }
 
@@ -232,11 +232,11 @@ const gradeSubmission = async (req, res, next) => {
             include: { task: { include: { registration: { include: { topic: true } } } }, student: true },
         });
 
-        if (!submission) return res.status(404).json({ success: false, message: 'Bao cao khong ton tai.' });
+        if (!submission) return res.status(404).json({ success: false, message: 'Báo cáo không tồn tại.' });
 
         const mentor = submission.task.registration.topic.mentorId;
         if (mentor !== mentorId) {
-            return res.status(403).json({ success: false, message: 'Chi giang vien huong dan moi duoc nhan xet.' });
+            return res.status(403).json({ success: false, message: 'Chỉ giảng viên hướng dẫn mới được nhận xét.' });
         }
 
         const updatedSubmission = await prisma.submission.update({
@@ -255,10 +255,10 @@ const gradeSubmission = async (req, res, next) => {
         await safeNotify(
             {
                 userId: submission.submittedBy,
-                title: 'Giang vien da nhan xet',
+                title: 'Giảng viên đã nhận xét',
                 content: normalizedDecision === 'REVISION'
-                    ? `Bao cao "${submission.task.title}" can chinh sua va nop lai theo nhan xet cua giang vien.`
-                    : `Giang vien da nhan xet bao cao cho nhiem vu: ${submission.task.title}`,
+                    ? `Báo cáo "${submission.task.title}" cần chỉnh sửa và nộp lại theo nhận xét của giảng viên.`
+                    : `Giảng viên đã nhận xét báo cáo cho nhiệm vụ: ${submission.task.title}`,
                 type: 'SUBMISSION',
             },
             'gradeSubmission',
@@ -276,8 +276,8 @@ const gradeSubmission = async (req, res, next) => {
         res.json({
             success: true,
             message: normalizedDecision === 'REVISION'
-                ? 'Da luu nhan xet va yeu cau sinh vien chinh sua.'
-                : 'Da luu nhan xet.',
+                ? 'Đã lưu nhận xét và yêu cầu sinh viên chỉnh sửa.'
+                : 'Đã lưu nhận xét.',
             data: updatedSubmission,
         });
     } catch (error) {
@@ -294,12 +294,12 @@ const updateTaskStatus = async (req, res, next) => {
         const allowedStatuses = ['OPEN', 'IN_PROGRESS', 'SUBMITTED', 'REVISION', 'COMPLETED', 'OVERDUE'];
 
         if (!Number.isInteger(taskId)) {
-            return res.status(400).json({ success: false, message: 'Task khong hop le.' });
+            return res.status(400).json({ success: false, message: 'Task không hợp lệ.' });
         }
         if (!allowedStatuses.includes(status)) {
             return res.status(400).json({
                 success: false,
-                message: `Trang thai task khong hop le. Chi ho tro: ${allowedStatuses.join(', ')}.`,
+                message: `Trạng thái task không hợp lệ. Chỉ hỗ trợ: ${allowedStatuses.join(', ')}.`,
             });
         }
 
@@ -315,11 +315,11 @@ const updateTaskStatus = async (req, res, next) => {
         });
 
         if (!task) {
-            return res.status(404).json({ success: false, message: 'Nhiem vu khong ton tai.' });
+            return res.status(404).json({ success: false, message: 'Nhiệm vụ không tồn tại.' });
         }
 
         if (role === 'LECTURER' && task.registration?.topic?.mentorId !== userId) {
-            return res.status(403).json({ success: false, message: 'Ban khong co quyen cap nhat nhiem vu nay.' });
+            return res.status(403).json({ success: false, message: 'Bạn không có quyền cập nhật nhiệm vụ này.' });
         }
 
         const updatedTask = await prisma.task.update({
@@ -336,7 +336,7 @@ const updateTaskStatus = async (req, res, next) => {
             getRequestIp(req),
         );
 
-        res.json({ success: true, message: 'Cap nhat trang thai nhiem vu thanh cong.', data: updatedTask });
+        res.json({ success: true, message: 'Cập nhật trạng thái nhiệm vụ thành công.', data: updatedTask });
     } catch (error) {
         next(error);
     }

@@ -40,8 +40,9 @@ const NAV_CONFIG = {
             { path: '/admin/users', icon: 'group', label: 'Người dùng' },
             { path: '/admin/project-periods', icon: 'calendar_month', label: 'Đợt đồ án' },
             { path: '/admin/topics', icon: 'description', label: 'Đề tài' },
-            { path: '/admin/oversight', icon: 'policy', label: 'Giám sát Đề tài' },
-            { path: '/admin/grading', icon: 'groups', label: 'Quản lý Hội Đồng' },
+            { path: '/admin/oversight', icon: 'policy', label: 'Giám sát đề tài' },
+            { path: '/admin/councils', icon: 'groups', label: 'Phân công Hội đồng' },
+            { path: '/admin/grading', icon: 'rate_review', label: 'Chấm bảo vệ' },
         ],
         bottomItems: [
             { path: '/admin/notifications', icon: 'campaign', label: 'Trung tâm Thông báo' },
@@ -68,7 +69,7 @@ function AppLayout({ role }) {
 
     return (
         <div className="flex min-h-screen bg-[#f5f7f8]">
-            {/* ───── Sidebar ───── */}
+            {/* Sidebar */}
             <aside className="hidden md:flex w-64 flex-col border-r border-slate-200 bg-white shrink-0 fixed inset-y-0 left-0 z-20">
                 {/* Logo */}
                 <div className="p-6 flex items-center gap-3 border-b border-slate-100">
@@ -130,7 +131,7 @@ function AppLayout({ role }) {
                 </div>
             </aside>
 
-            {/* ───── Main Content Area ───── */}
+            {/* Main Content Area */}
             <div className="flex-1 flex flex-col min-w-0 md:ml-64">
                 {/* Header */}
                 <header className="h-16 border-b border-slate-200 bg-white flex items-center justify-between px-4 lg:px-8 shrink-0 sticky top-0 z-10">
@@ -175,7 +176,7 @@ function AppLayout({ role }) {
                 </main>
             </div>
 
-            {/* ───── Mobile Bottom Nav ───── */}
+            {/* Mobile Bottom Nav */}
             <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-slate-200 flex items-center justify-around px-2 py-2 z-30">
                 {config.items.slice(0, 5).map((item) => (
                     <button

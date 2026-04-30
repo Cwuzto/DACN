@@ -1,4 +1,4 @@
-﻿# Hệ thống Quản lý Đồ án
+# Hệ thống Quản lý Đồ án
 
 ## Bắt đầu nhanh
 

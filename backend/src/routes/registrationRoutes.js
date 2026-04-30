@@ -1,4 +1,4 @@
-﻿const express = require('express');
+const express = require('express');
 const { body, param, query } = require('express-validator');
 const registrationController = require('../controllers/registrationController');
 const { authenticate, authorize } = require('../middlewares/auth');

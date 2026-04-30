@@ -1,4 +1,4 @@
-﻿import { STATUS_MAP } from './statusMap';
+import { STATUS_MAP } from './statusMap';
 
 export default function StatusBadge({ status, label }) {
     const config = STATUS_MAP[status] || { label: status, tw: 'bg-slate-100 text-slate-600' };

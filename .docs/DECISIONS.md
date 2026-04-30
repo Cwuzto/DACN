@@ -110,3 +110,87 @@ Tài liệu lưu các quyết định kỹ thuật/nghiệp vụ quan trọng đ
 - UI Admin có thể gom điều phối hội đồng + theo dõi chấm điểm trên một màn hình thống nhất.
 - Giảm thao tác qua lại giữa trang hội đồng và trang chấm điểm.
 - Cần frontend cập nhật theo contract API mới.
+
+---
+
+## 2026-04-30 - Chốt triển khai batch auto-reject + default semester fallback + lecturer topics UX
+
+**Quyết định**
+
+- Tận dụng scheduler hiện có (`pendingRegistrationReminderJob`) để chạy thêm auto-reject đăng ký `PENDING`.
+- Rule auto-reject gồm 2 điều kiện:
+  - quá 5 ngày không được phản hồi,
+  - quá `registrationDeadline` của đợt.
+- Chuẩn hóa rule chọn đợt mặc định ở backend bằng helper dùng chung:
+  - ưu tiên đợt hiện tại,
+  - nếu chưa có thì lấy đợt gần nhất vừa kết thúc.
+- Trang "Đề tài của tôi" của giảng viên dùng dữ liệu đăng ký thật:
+  - hiển thị tên sinh viên đăng ký,
+  - hỗ trợ search theo sinh viên,
+  - bỏ filter "Bản nháp" khỏi filter nhanh.
+
+**Ảnh hưởng**
+
+- Đồng bộ behavior mặc định giữa các API dashboard/registration.
+- Giảm sai lệch giữa UI giảng viên và trạng thái đăng ký thực tế.
+- Tăng tính nhất quán nghiệp vụ theo mô hình `TopicRegistration`.
+
+---
+
+## 2026-04-30 - Chốt đặc tả kỹ thuật bảng chấm điểm online + xuất PDF (v1)
+
+**Quyết định**
+
+- Chốt tài liệu kỹ thuật tại `.docs/ONLINE_GRADING_PDF_SPEC.md`.
+- Dùng mô hình `DefenseResult` làm nguồn điểm cuối, bổ sung bảng chi tiết `DefenseCriterionScore`.
+- Chuẩn hóa barem v1 theo 100 điểm và quy đổi hệ 10.
+- Khóa/mở khóa điểm gắn với trạng thái `TopicRegistration` (`COMPLETED`/`DEFENDED`).
+
+**Ảnh hưởng**
+
+- Batch tiếp theo có thể bắt đầu triển khai backend/frontend theo contract rõ ràng.
+- Giảm rủi ro lệch giữa UI chấm điểm, báo cáo và PDF đầu ra.
+
+---
+
+## 2026-04-30 - Chốt phương án triển khai PDF server-side bằng `pdfkit`
+
+**Quyết định**
+
+- Triển khai export PDF server-side bằng `pdfkit` (thay cho phương án tạm reuse file upload).
+- PDF được render từ dữ liệu score-sheet thật (`DefenseResult` + `DefenseCriterionScore`) rồi upload storage qua `UploadService`.
+- Lưu metadata PDF vào `DefenseResult`: `pdfUrl`, `pdfGeneratedAt`.
+
+**Ảnh hưởng**
+
+- Luồng export PDF đã chạy end-to-end từ dữ liệu chấm điểm thực.
+- UI admin/lecturer có thể mở file PDF ngay sau khi export.
+- Cần tiếp tục chuẩn hóa migration/test để chốt batch an toàn.
+
+---
+
+## 2026-05-01 - Chốt rule đăng ký đề tài theo môn đồ án đã đăng ký
+
+**Quyết định**
+
+- Hệ thống mở rộng theo mô hình:
+  - `Tên đồ án` (danh mục môn đồ án),
+  - `Đợt đồ án` (thuộc học kỳ/năm học),
+  - `Đề tài` (thuộc tên đồ án cụ thể).
+- Sinh viên chỉ được đăng ký đề tài nếu đã có đăng ký môn đồ án hợp lệ tương ứng trong đúng đợt.
+- Học kỳ/đợt mặc định ở UI đăng ký đề tài là đợt mới nhất hiện tại.
+- Giai đoạn hiện tại chưa triển khai import Excel; trước mắt bổ sung schema và seed dữ liệu để vận hành.
+
+**Ảnh hưởng**
+
+- Cần bổ sung dữ liệu danh mục `Tên đồ án` và bảng enrollment môn đồ án của sinh viên.
+- Cần khóa validate ở backend cho mọi luồng tạo/cập nhật đăng ký đề tài để tránh bypass từ UI.
+- Cần cập nhật filter và cách hiển thị ở frontend để tách rõ:
+  - `Tên đồ án`,
+  - `Đợt đồ án`.
+
+**Lộ trình áp dụng**
+
+- P0: schema + backend validation + seed + test.
+- P1: UI student/admin + đối soát dữ liệu.
+- P2: chuẩn bị metadata phục vụ import Excel trong pha tiếp theo.

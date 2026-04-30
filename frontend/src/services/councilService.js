@@ -1,4 +1,4 @@
-﻿import api from './api';
+import api from './api';
 
 const wrapServiceError = (error, fallbackMessage) => {
     if (error?.success === false) return error;
@@ -19,6 +19,14 @@ const councilService = {
             return await api.get(`/councils/${id}`);
         } catch (error) {
             throw wrapServiceError(error, 'Lỗi khi tải chi tiết hội đồng');
+        }
+    },
+
+    getCouncilLogs: async (id) => {
+        try {
+            return await api.get(`/councils/${id}/logs`);
+        } catch (error) {
+            throw wrapServiceError(error, 'Lỗi khi tải lịch sử hội đồng');
         }
     },
 
@@ -51,6 +59,14 @@ const councilService = {
             return await api.post(`/councils/${id}/assign`, { registrationIds });
         } catch (error) {
             throw wrapServiceError(error, 'Lỗi khi phân công sinh viên');
+        }
+    },
+
+    autoAssignRegistrations: async (semesterId) => {
+        try {
+            return await api.post('/councils/auto-assign', { semesterId });
+        } catch (error) {
+            throw wrapServiceError(error, 'Lỗi khi phân công tự động');
         }
     },
 

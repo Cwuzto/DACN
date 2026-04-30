@@ -12,6 +12,7 @@ function GradingCard({ registration, onRefresh }) {
     const [comment, setComment] = useState(registration.defenseResult?.comments || '');
     const [scoresheetUrl, setScoresheetUrl] = useState(registration.defenseResult?.scoresheetUrl || '');
     const [saving, setSaving] = useState(false);
+    const [exporting, setExporting] = useState(false);
 
     useEffect(() => {
         setScore(registration.finalScore ?? '');
@@ -58,6 +59,22 @@ function GradingCard({ registration, onRefresh }) {
         } catch (error) {
             onError(error);
             message.error(error.message || 'Upload failed');
+        }
+    };
+
+    const handleExportPdf = async () => {
+        try {
+            setExporting(true);
+            const res = await evaluationService.exportScoreSheetPdf(registration.id);
+            if (res.success) {
+                message.success(res.message || 'Đã xuất PDF bảng điểm');
+                if (res.data?.pdfUrl) window.open(res.data.pdfUrl, '_blank');
+                if (onRefresh) onRefresh();
+            }
+        } catch (error) {
+            message.error(error.message || 'Không thể xuất PDF bảng điểm');
+        } finally {
+            setExporting(false);
         }
     };
 
@@ -155,6 +172,14 @@ function GradingCard({ registration, onRefresh }) {
 
             {/* Footer */}
             <div className="px-6 pb-6 flex justify-end gap-3 mt-4 border-t border-slate-100 pt-4">
+                <button
+                    onClick={handleExportPdf}
+                    disabled={!hasScore || saving || exporting}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    <span className="material-symbols-outlined text-[18px]">download</span>
+                    Xuat PDF
+                </button>
                 <button
                     onClick={handleSave}
                     disabled={!hasScore || saving}

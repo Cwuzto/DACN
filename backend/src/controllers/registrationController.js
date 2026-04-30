@@ -3,6 +3,7 @@ const { getMentorMaxSlots } = require('../constants/mentorCapacity');
 const { PENDING_REMINDER_DAYS } = require('../constants/registrationLimits');
 const { auditLog } = require('../services/auditLogService');
 const { safeNotify } = require('../services/notificationService');
+const { getDefaultSemester } = require('../utils/semesterResolver');
 
 const SERIALIZATION_ERROR_CODE = 'P2034';
 const MENTOR_ACTIVE_REGISTRATION_STATUSES = ['PENDING', 'APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'DEFENDED', 'COMPLETED'];
@@ -22,15 +23,6 @@ const getPendingCutoffDate = (days = PENDING_REMINDER_DAYS) => {
     cutoff.setDate(cutoff.getDate() - days);
     return cutoff;
 };
-
-const getActiveSemester = async () => prisma.semester.findFirst({
-    where: {
-        startDate: { lte: new Date() },
-        endDate: { gte: new Date() },
-    },
-    orderBy: { startDate: 'desc' },
-    select: { id: true },
-});
 
 const fetchRegistrationWithContext = async (idInt) => prisma.topicRegistration.findUnique({
     where: { id: idInt },
@@ -52,13 +44,13 @@ const registerTopic = async (req, res, next) => {
         const semesterIdInt = parseInt(semesterId, 10);
 
         if (!topicId || !semesterId) {
-            return res.status(400).json({ success: false, message: 'Vui long chon de tai va dot do an.' });
+            return res.status(400).json({ success: false, message: 'Vui lòng chọn đề tài và đợt đồ án.' });
         }
         if (!Number.isInteger(topicIdInt)) {
-            return res.status(400).json({ success: false, message: 'De tai khong hop le.' });
+            return res.status(400).json({ success: false, message: 'Đề tài không hợp lệ.' });
         }
         if (!Number.isInteger(semesterIdInt)) {
-            return res.status(400).json({ success: false, message: 'Dot do an khong hop le.' });
+            return res.status(400).json({ success: false, message: 'Đợt đồ án không hợp lệ.' });
         }
 
         const semester = await prisma.semester.findUnique({
@@ -72,13 +64,13 @@ const registerTopic = async (req, res, next) => {
         });
 
         if (!semester) {
-            return res.status(404).json({ success: false, message: 'Khong tim thay dot do an.' });
+            return res.status(404).json({ success: false, message: 'Không tìm thấy đợt đồ án.' });
         }
 
         if (!semester.registrationOpen) {
             return res.status(400).json({
                 success: false,
-                message: 'Dot do an hien dang dong dang ky. Vui long lien he quan tri vien.',
+                message: 'Đợt đồ án hiện đang đóng đăng ký. Vui lòng liên hệ quản trị viên.',
             });
         }
 
@@ -86,14 +78,14 @@ const registerTopic = async (req, res, next) => {
         if (semester.startDate && now < new Date(semester.startDate)) {
             return res.status(400).json({
                 success: false,
-                message: 'Dot do an chua den thoi gian mo dang ky.',
+                message: 'Đợt đồ án chưa đến thời gian mở đăng ký.',
             });
         }
 
         if (semester.registrationDeadline && now > new Date(semester.registrationDeadline)) {
             return res.status(400).json({
                 success: false,
-                message: 'Dot do an da qua han dang ky.',
+                message: 'Đợt đồ án đã quá hạn đăng ký.',
             });
         }
 
@@ -108,7 +100,7 @@ const registerTopic = async (req, res, next) => {
                 } else {
                     throw createHttpError(
                         400,
-                        'Ban da dang ky de tai trong ky nay. Chi co the doi khi bi tu choi.',
+                        'Bạn đã đăng ký đề tài trong kỳ này. Chỉ có thể đổi khi bị từ chối.',
                     );
                 }
             }
@@ -122,15 +114,15 @@ const registerTopic = async (req, res, next) => {
             });
 
             if (!topic || topic.status !== 'APPROVED') {
-                throw createHttpError(400, 'De tai khong ton tai hoac chua duoc duyet.');
+                throw createHttpError(400, 'Đề tài không tồn tại hoặc chưa được duyệt.');
             }
 
             if (topic.semesterId !== semesterIdInt) {
-                throw createHttpError(400, 'De tai khong thuoc dot dang ky hien tai.');
+                throw createHttpError(400, 'Đề tài không thuộc đợt đăng ký hiện tại.');
             }
 
             if (topic._count.registrations >= 1) {
-                throw createHttpError(400, 'De tai nay da co sinh vien dang ky.');
+                throw createHttpError(400, 'Đề tài này đã có sinh viên đăng ký.');
             }
 
             const maxSlots = getMentorMaxSlots(topic.mentor?.academicTitle);
@@ -142,7 +134,7 @@ const registerTopic = async (req, res, next) => {
             });
 
             if (mentorStudentCount >= maxSlots) {
-                throw createHttpError(400, `Giang vien da dat gioi han huong dan (${maxSlots} sinh vien).`);
+                throw createHttpError(400, `Giảng viên đã đạt giới hạn hướng dẫn (${maxSlots} sinh viên).`);
             }
 
             const created = await tx.topicRegistration.create({
@@ -167,8 +159,8 @@ const registerTopic = async (req, res, next) => {
         await safeNotify(
             {
                 userId: mentorId,
-                title: 'Sinh vien dang ky de tai',
-                content: `${req.user.fullName} (${req.user.code}) da dang ky de tai "${topicTitle}".`,
+                title: 'Sinh viên đăng ký đề tài',
+                content: `${req.user.fullName} (${req.user.code}) đã đăng ký đề tài "${topicTitle}".`,
                 type: 'REGISTRATION',
             },
             'registerTopic',
@@ -176,14 +168,14 @@ const registerTopic = async (req, res, next) => {
 
         res.status(201).json({
             success: true,
-            message: 'Dang ky de tai thanh cong! Cho giang vien phe duyet.',
+            message: 'Đăng ký đề tài thành công! Chờ giảng viên phê duyệt.',
             data: registration,
         });
     } catch (error) {
         if (isSerializationConflict(error)) {
             return res.status(409).json({
                 success: false,
-                message: 'Co xung dot khi dang ky do thao tac dong thoi. Vui long thu lai.',
+                message: 'Có xung đột khi đăng ký do thao tác đồng thời. Vui lòng thử lại.',
             });
         }
         if (error.statusCode) {
@@ -203,15 +195,15 @@ const getMyRegistration = async (req, res, next) => {
         let targetSemesterId = semesterIdQuery;
 
         if (!targetSemesterId) {
-            const activeSemester = await getActiveSemester();
-            targetSemesterId = activeSemester?.id || null;
+            const defaultSemester = await getDefaultSemester({ id: true });
+            targetSemesterId = defaultSemester?.id || null;
         }
 
         if (!targetSemesterId) {
             return res.json({
                 success: true,
                 data: null,
-                message: 'Hien chua co dot do an dang hoat dong.',
+                message: 'Hiện chưa có đợt đồ án đang hoạt động.',
             });
         }
 
@@ -237,7 +229,7 @@ const getMyRegistration = async (req, res, next) => {
         });
 
         if (!registration) {
-            return res.json({ success: true, data: null, message: 'Ban chua dang ky de tai nao.' });
+            return res.json({ success: true, data: null, message: 'Bạn chưa đăng ký đề tài nào.' });
         }
 
         res.json({ success: true, data: registration });
@@ -263,11 +255,11 @@ const getAllRegistrations = async (req, res, next) => {
         if (semesterId) {
             where.semesterId = parseInt(semesterId, 10);
         } else if (role === 'LECTURER') {
-            const activeSemester = await getActiveSemester();
-            if (!activeSemester) {
+            const defaultSemester = await getDefaultSemester({ id: true });
+            if (!defaultSemester) {
                 return res.json({ success: true, data: [] });
             }
-            where.semesterId = activeSemester.id;
+            where.semesterId = defaultSemester.id;
         }
 
         if (status) {
@@ -276,7 +268,7 @@ const getAllRegistrations = async (req, res, next) => {
 
         if (unassignedCouncilOnly === 'true') {
             where.councilId = null;
-            where.status = { notIn: ['PENDING', 'REJECTED'] };
+            where.status = { in: ['SUBMITTED', 'DEFENDED', 'COMPLETED'] };
         }
 
         if (stalePendingOnly === 'true') {
@@ -350,7 +342,7 @@ const handleRegistration = async (req, res, next) => {
         const { role, id: userId } = req.user;
 
         if (!['APPROVE', 'REJECT'].includes(action)) {
-            return res.status(400).json({ success: false, message: 'Hanh dong phai la APPROVE hoac REJECT.' });
+            return res.status(400).json({ success: false, message: 'Hành động phải là APPROVE hoặc REJECT.' });
         }
 
         if (action === 'APPROVE') {
@@ -364,15 +356,15 @@ const handleRegistration = async (req, res, next) => {
                 });
 
                 if (!currentReg) {
-                    throw createHttpError(404, 'Khong tim thay dang ky.');
+                    throw createHttpError(404, 'Không tìm thấy đăng ký.');
                 }
 
                 if (currentReg.status !== 'PENDING') {
-                    throw createHttpError(400, `Dang ky dang o trang thai: ${currentReg.status}. Chi xu ly khi PENDING.`);
+                    throw createHttpError(400, `Đăng ký đang ở trạng thái: ${currentReg.status}. Chỉ xử lý khi PENDING.`);
                 }
 
                 if (role === 'LECTURER' && currentReg.topic.mentorId !== userId) {
-                    throw createHttpError(403, 'Ban khong co quyen duyet dang ky nay.');
+                    throw createHttpError(403, 'Bạn không có quyền duyệt đăng ký này.');
                 }
 
                 const mentor = currentReg.topic.mentor;
@@ -385,7 +377,7 @@ const handleRegistration = async (req, res, next) => {
                 });
 
                 if (currentCount >= maxSlots) {
-                    throw createHttpError(400, `Da dat gioi han ${maxSlots} sinh vien huong dan.`);
+                    throw createHttpError(400, `Đã đạt giới hạn ${maxSlots} sinh viên hướng dẫn.`);
                 }
 
                 await tx.topicRegistration.update({
@@ -399,8 +391,8 @@ const handleRegistration = async (req, res, next) => {
             await safeNotify(
                 {
                     userId: reg.studentId,
-                    title: 'Dang ky de tai duoc duyet',
-                    content: `De tai "${reg.topic.title}" da duoc phe duyet. Ban co the bat dau thuc hien.`,
+                    title: 'Đăng ký đề tài được duyệt',
+                    content: `Đề tài "${reg.topic.title}" đã được phê duyệt. Bạn có thể bắt đầu thực hiện.`,
                     type: 'APPROVAL',
                 },
                 'handleRegistration_APPROVE',
@@ -418,19 +410,19 @@ const handleRegistration = async (req, res, next) => {
             const reg = await fetchRegistrationWithContext(idInt);
 
             if (!reg) {
-                return res.status(404).json({ success: false, message: 'Khong tim thay dang ky.' });
+                return res.status(404).json({ success: false, message: 'Không tìm thấy đăng ký.' });
             }
 
             if (reg.status !== 'PENDING') {
-                return res.status(400).json({ success: false, message: `Dang ky dang o trang thai: ${reg.status}. Chi xu ly khi PENDING.` });
+                return res.status(400).json({ success: false, message: `Đăng ký đang ở trạng thái: ${reg.status}. Chỉ xử lý khi PENDING.` });
             }
 
             if (role === 'LECTURER' && reg.topic.mentorId !== userId) {
-                return res.status(403).json({ success: false, message: 'Ban khong co quyen duyet dang ky nay.' });
+                return res.status(403).json({ success: false, message: 'Bạn không có quyền duyệt đăng ký này.' });
             }
 
             if (!rejectReason) {
-                return res.status(400).json({ success: false, message: 'Vui long nhap ly do tu choi.' });
+                return res.status(400).json({ success: false, message: 'Vui lòng nhập lý do từ chối.' });
             }
 
             await prisma.topicRegistration.update({
@@ -441,8 +433,8 @@ const handleRegistration = async (req, res, next) => {
             await safeNotify(
                 {
                     userId: reg.studentId,
-                    title: 'Dang ky de tai bi tu choi',
-                    content: `De tai "${reg.topic.title}" bi tu choi. Ly do: ${rejectReason}. Ban co the dang ky de tai khac.`,
+                    title: 'Đăng ký đề tài bị từ chối',
+                    content: `Đề tài "${reg.topic.title}" bị từ chối. Lý do: ${rejectReason}. Bạn có thể đăng ký đề tài khác.`,
                     type: 'APPROVAL',
                 },
                 'handleRegistration_REJECT',
@@ -460,13 +452,13 @@ const handleRegistration = async (req, res, next) => {
 
         res.json({
             success: true,
-            message: action === 'APPROVE' ? 'Da phe duyet dang ky.' : 'Da tu choi dang ky.',
+            message: action === 'APPROVE' ? 'Đã phê duyệt đăng ký.' : 'Đã từ chối đăng ký.',
         });
     } catch (error) {
         if (isSerializationConflict(error)) {
             return res.status(409).json({
                 success: false,
-                message: 'Co xung dot khi duyet dang ky do thao tac dong thoi. Vui long thu lai.',
+                message: 'Có xung đột khi duyệt đăng ký do thao tác đồng thời. Vui lòng thử lại.',
             });
         }
         if (error.statusCode) {
@@ -486,22 +478,22 @@ const dropRegistration = async (req, res, next) => {
         const { role, id: userId } = req.user;
 
         if (!reason || !String(reason).trim()) {
-            return res.status(400).json({ success: false, message: 'Ly do drop la bat buoc.' });
+            return res.status(400).json({ success: false, message: 'Lý do drop là bắt buộc.' });
         }
 
         const reg = await fetchRegistrationWithContext(idInt);
         if (!reg) {
-            return res.status(404).json({ success: false, message: 'Khong tim thay dang ky.' });
+            return res.status(404).json({ success: false, message: 'Không tìm thấy đăng ký.' });
         }
 
         if (role === 'LECTURER' && reg.topic.mentorId !== userId) {
-            return res.status(403).json({ success: false, message: 'Ban khong co quyen drop dang ky nay.' });
+            return res.status(403).json({ success: false, message: 'Bạn không có quyền drop đăng ký này.' });
         }
 
         if (!['APPROVED', 'IN_PROGRESS', 'SUBMITTED'].includes(reg.status)) {
             return res.status(400).json({
                 success: false,
-                message: 'Chi duoc drop khi trang thai la APPROVED, IN_PROGRESS hoac SUBMITTED.',
+                message: 'Chỉ được drop khi trạng thái là APPROVED, IN_PROGRESS hoặc SUBMITTED.',
             });
         }
 
@@ -527,8 +519,8 @@ const dropRegistration = async (req, res, next) => {
         await safeNotify(
             {
                 userId: reg.studentId,
-                title: 'Dang ky do an bi huy',
-                content: `Dang ky de tai "${reg.topic.title}" da bi huy. Ly do: ${reason}`,
+                title: 'Đăng ký đồ án bị hủy',
+                content: `Đăng ký đề tài "${reg.topic.title}" đã bị hủy. Lý do: ${reason}`,
                 type: 'APPROVAL',
             },
             'dropRegistration',
@@ -543,7 +535,7 @@ const dropRegistration = async (req, res, next) => {
             getRequestIp(req),
         );
 
-        res.json({ success: true, message: 'Da drop dang ky thanh cong.' });
+        res.json({ success: true, message: 'Đã drop đăng ký thành công.' });
     } catch (error) {
         next(error);
     }
@@ -559,12 +551,12 @@ const withdrawRegistration = async (req, res, next) => {
         const { role, id: userId } = req.user;
 
         if (!reason || !String(reason).trim()) {
-            return res.status(400).json({ success: false, message: 'Ly do rut dang ky la bat buoc.' });
+            return res.status(400).json({ success: false, message: 'Lý do rút đăng ký là bắt buộc.' });
         }
 
         const reg = await fetchRegistrationWithContext(idInt);
         if (!reg) {
-            return res.status(404).json({ success: false, message: 'Khong tim thay dang ky.' });
+            return res.status(404).json({ success: false, message: 'Không tìm thấy đăng ký.' });
         }
 
         const canAccess = role === 'ADMIN'
@@ -572,17 +564,17 @@ const withdrawRegistration = async (req, res, next) => {
             || (role === 'LECTURER' && reg.topic.mentorId === userId);
 
         if (!canAccess) {
-            return res.status(403).json({ success: false, message: 'Ban khong co quyen rut dang ky nay.' });
+            return res.status(403).json({ success: false, message: 'Bạn không có quyền rút đăng ký này.' });
         }
 
         if (reg.defenseResult) {
-            return res.status(400).json({ success: false, message: 'Khong the rut dang ky da co ket qua bao ve.' });
+            return res.status(400).json({ success: false, message: 'Không thể rút đăng ký đã có kết quả bảo vệ.' });
         }
 
         if (!ACTIVE_NON_PENDING_STATUSES.includes(reg.status)) {
             return res.status(400).json({
                 success: false,
-                message: 'Chi duoc rut dang ky o trang thai APPROVED, IN_PROGRESS, SUBMITTED, DEFENDED hoac COMPLETED.',
+                message: 'Chỉ được rút đăng ký ở trạng thái APPROVED, IN_PROGRESS, SUBMITTED, DEFENDED hoặc COMPLETED.',
             });
         }
 
@@ -598,8 +590,8 @@ const withdrawRegistration = async (req, res, next) => {
         await safeNotify(
             {
                 userId: role === 'STUDENT' ? reg.topic.mentorId : reg.studentId,
-                title: 'Yeu cau rut dang ky de tai',
-                content: `${role === 'STUDENT' ? reg.student.fullName : 'Giang vien/Admin'} da rut dang ky de tai "${reg.topic.title}". Ly do: ${reason}`,
+                title: 'Yêu cầu rút đăng ký đề tài',
+                content: `${role === 'STUDENT' ? reg.student.fullName : 'Giảng viên/Admin'} đã rút đăng ký đề tài "${reg.topic.title}". Lý do: ${reason}`,
                 type: 'REGISTRATION',
             },
             'withdrawRegistration',
@@ -614,7 +606,7 @@ const withdrawRegistration = async (req, res, next) => {
             getRequestIp(req),
         );
 
-        res.json({ success: true, message: 'Da rut dang ky thanh cong.' });
+        res.json({ success: true, message: 'Đã rút đăng ký thành công.' });
     } catch (error) {
         next(error);
     }
@@ -630,16 +622,16 @@ const forceDecisionRegistration = async (req, res, next) => {
         const adminId = req.user.id;
 
         if (!['FORCE_APPROVE', 'FORCE_REJECT'].includes(action)) {
-            return res.status(400).json({ success: false, message: 'action phai la FORCE_APPROVE hoac FORCE_REJECT.' });
+            return res.status(400).json({ success: false, message: 'action phải là FORCE_APPROVE hoặc FORCE_REJECT.' });
         }
 
         const reg = await fetchRegistrationWithContext(idInt);
         if (!reg) {
-            return res.status(404).json({ success: false, message: 'Khong tim thay dang ky.' });
+            return res.status(404).json({ success: false, message: 'Không tìm thấy đăng ký.' });
         }
 
         if (reg.status !== 'PENDING') {
-            return res.status(400).json({ success: false, message: 'Chi force decision duoc voi dang ky PENDING.' });
+            return res.status(400).json({ success: false, message: 'Chỉ force decision được với đăng ký PENDING.' });
         }
 
         if (action === 'FORCE_APPROVE') {
@@ -653,7 +645,7 @@ const forceDecisionRegistration = async (req, res, next) => {
                 });
 
                 if (currentCount >= maxSlots) {
-                    throw createHttpError(400, `Da dat gioi han ${maxSlots} sinh vien huong dan.`);
+                    throw createHttpError(400, `Đã đạt giới hạn ${maxSlots} sinh viên hướng dẫn.`);
                 }
 
                 await tx.topicRegistration.update({
@@ -665,15 +657,15 @@ const forceDecisionRegistration = async (req, res, next) => {
             await safeNotify(
                 {
                     userId: reg.studentId,
-                    title: 'Dang ky de tai duoc duyet boi Admin',
-                    content: `Admin da force-approve dang ky de tai "${reg.topic.title}".`,
+                    title: 'Đăng ký đề tài được duyệt bởi Admin',
+                    content: `Admin đã force-approve đăng ký đề tài "${reg.topic.title}".`,
                     type: 'APPROVAL',
                 },
                 'forceDecisionRegistration_FORCE_APPROVE',
             );
         } else {
             if (!rejectReason || !String(rejectReason).trim()) {
-                return res.status(400).json({ success: false, message: 'Vui long nhap ly do force reject.' });
+                return res.status(400).json({ success: false, message: 'Vui lòng nhập lý do force reject.' });
             }
 
             await prisma.topicRegistration.update({
@@ -684,8 +676,8 @@ const forceDecisionRegistration = async (req, res, next) => {
             await safeNotify(
                 {
                     userId: reg.studentId,
-                    title: 'Dang ky de tai bi tu choi boi Admin',
-                    content: `Admin da force-reject dang ky de tai "${reg.topic.title}". Ly do: ${rejectReason}`,
+                    title: 'Đăng ký đề tài bị từ chối bởi Admin',
+                    content: `Admin đã force-reject đăng ký đề tài "${reg.topic.title}". Lý do: ${rejectReason}`,
                     type: 'APPROVAL',
                 },
                 'forceDecisionRegistration_FORCE_REJECT',
@@ -701,12 +693,12 @@ const forceDecisionRegistration = async (req, res, next) => {
             getRequestIp(req),
         );
 
-        res.json({ success: true, message: 'Da xu ly force decision thanh cong.' });
+        res.json({ success: true, message: 'Đã xử lý force decision thành công.' });
     } catch (error) {
         if (isSerializationConflict(error)) {
             return res.status(409).json({
                 success: false,
-                message: 'Co xung dot khi force approve do thao tac dong thoi. Vui long thu lai.',
+                message: 'Có xung đột khi force approve do thao tác đồng thời. Vui lòng thử lại.',
             });
         }
         if (error.statusCode) {
@@ -728,20 +720,20 @@ const cancelRegistration = async (req, res, next) => {
         const reg = await prisma.topicRegistration.findUnique({ where: { id: idInt } });
 
         if (!reg) {
-            return res.status(404).json({ success: false, message: 'Khong tim thay dang ky.' });
+            return res.status(404).json({ success: false, message: 'Không tìm thấy đăng ký.' });
         }
 
         if (reg.studentId !== studentId) {
-            return res.status(403).json({ success: false, message: 'Ban khong co quyen huy dang ky nay.' });
+            return res.status(403).json({ success: false, message: 'Bạn không có quyền hủy đăng ký này.' });
         }
 
         if (reg.status !== 'PENDING') {
-            return res.status(400).json({ success: false, message: 'Chi co the huy dang ky khi dang cho duyet.' });
+            return res.status(400).json({ success: false, message: 'Chỉ có thể hủy đăng ký khi đang chờ duyệt.' });
         }
 
         await prisma.topicRegistration.delete({ where: { id: idInt } });
 
-        res.json({ success: true, message: 'Da huy dang ky de tai.' });
+        res.json({ success: true, message: 'Đã hủy đăng ký đề tài.' });
     } catch (error) {
         next(error);
     }

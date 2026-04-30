@@ -1,4 +1,4 @@
-﻿jest.mock('../../src/config/database', () => ({
+jest.mock('../../src/config/database', () => ({
     $transaction: jest.fn(),
     topicRegistration: {
         findUnique: jest.fn(),

@@ -4,6 +4,8 @@ import {
     DatePicker,
     Form,
     Input,
+    List,
+    Descriptions,
     message,
     Modal,
     Popconfirm,
@@ -12,7 +14,7 @@ import {
     Table,
     Tooltip,
 } from 'antd';
-import { CalendarOutlined, DeleteOutlined, EditOutlined, LinkOutlined } from '@ant-design/icons';
+import { CalendarOutlined, DeleteOutlined, EditOutlined, LinkOutlined, TeamOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
 import councilService from '../../services/councilService';
@@ -21,6 +23,7 @@ import { semesterService } from '../../services/semesterService';
 import userService from '../../services/userService';
 import PageHeader from '../../components/common/PageHeader';
 import StatCard from '../../components/common/StatCard';
+import { PROJECT_NAME, formatSemesterLabel } from '../../utils/semesterDisplay';
 
 function CouncilAssignmentPage() {
     const [councils, setCouncils] = useState([]);
@@ -28,14 +31,26 @@ function CouncilAssignmentPage() {
     const [lecturers, setLecturers] = useState([]);
     const [unassignedRegistrations, setUnassignedRegistrations] = useState([]);
     const [selectedSemester, setSelectedSemester] = useState(null);
+    const [selectedProjectName, setSelectedProjectName] = useState(PROJECT_NAME);
     const [loading, setLoading] = useState(false);
     const [submitLoading, setSubmitLoading] = useState(false);
+
     const [isCouncilModalVisible, setIsCouncilModalVisible] = useState(false);
+    const [isMemberModalVisible, setIsMemberModalVisible] = useState(false);
     const [isAssignModalVisible, setIsAssignModalVisible] = useState(false);
+    const [isDetailModalVisible, setIsDetailModalVisible] = useState(false);
+    const [isLogModalVisible, setIsLogModalVisible] = useState(false);
+
     const [editingCouncil, setEditingCouncil] = useState(null);
+    const [memberCouncil, setMemberCouncil] = useState(null);
     const [assigningCouncil, setAssigningCouncil] = useState(null);
+    const [detailCouncil, setDetailCouncil] = useState(null);
+    const [logCouncil, setLogCouncil] = useState(null);
+    const [councilLogs, setCouncilLogs] = useState([]);
     const [selectedRegistrationsToAssign, setSelectedRegistrationsToAssign] = useState([]);
-    const [form] = Form.useForm();
+
+    const [councilForm] = Form.useForm();
+    const [memberForm] = Form.useForm();
 
     const fetchSemesters = useCallback(async () => {
         try {
@@ -80,57 +95,57 @@ function CouncilAssignmentPage() {
         fetchCouncils();
     }, [fetchCouncils]);
 
-    const showCreateModal = () => {
-        setEditingCouncil(null);
-        form.resetFields();
-        form.setFieldsValue({ semesterId: selectedSemester });
-        setIsCouncilModalVisible(true);
+    const handleAutoAssign = async () => {
+        if (!selectedSemester) return;
+        try {
+            setSubmitLoading(true);
+            const response = await councilService.autoAssignRegistrations(selectedSemester);
+            if (response.success) {
+                const assigned = response.data?.assigned || 0;
+                const total = response.data?.totalUnassigned || 0;
+                const skipped = response.data?.skipped?.length || 0;
+                message.success(`Đã tự động phân công ${assigned}/${total} sinh viên`);
+                if (skipped > 0) {
+                    message.warning(`Còn ${skipped} sinh viên chưa thể phân công (xung đột/hết slot).`);
+                }
+                fetchCouncils();
+            }
+        } catch (error) {
+            message.error(error.message || 'Lỗi khi phân công tự động');
+        } finally {
+            setSubmitLoading(false);
+        }
     };
 
     const showEditModal = (council) => {
         setEditingCouncil(council);
-        const chairman = council.members.find((member) => member.roleInCouncil === 'CHAIRMAN')?.lecturerId;
-        const secretary = council.members.find((member) => member.roleInCouncil === 'SECRETARY')?.lecturerId;
-        const reviewers = council.members
-            .filter((member) => member.roleInCouncil === 'REVIEWER')
-            .map((member) => member.lecturerId);
-        const members = council.members
-            .filter((member) => member.roleInCouncil === 'MEMBER')
-            .map((member) => member.lecturerId);
-
-        form.setFieldsValue({
+        councilForm.setFieldsValue({
             name: council.name,
             location: council.location,
             defenseDate: council.defenseDate ? dayjs(council.defenseDate) : null,
-            chairman,
-            secretary,
-            reviewers,
-            members,
         });
         setIsCouncilModalVisible(true);
     };
 
+    const showMemberModal = (council) => {
+        setMemberCouncil(council);
+        const chairman = council.members.find((member) => member.roleInCouncil === 'CHAIRMAN')?.lecturerId;
+        const secretary = council.members.find((member) => member.roleInCouncil === 'SECRETARY')?.lecturerId;
+        const reviewer = council.members.find((member) => member.roleInCouncil === 'REVIEWER')?.lecturerId;
+        memberForm.setFieldsValue({ chairman, secretary, reviewer });
+        setIsMemberModalVisible(true);
+    };
+
     const handleSaveCouncil = async () => {
         try {
-            const values = await form.validateFields();
+            const values = await councilForm.validateFields();
             setSubmitLoading(true);
-            const builtMembers = [];
-
-            if (values.chairman) builtMembers.push({ lecturerId: values.chairman, roleInCouncil: 'CHAIRMAN' });
-            if (values.secretary) builtMembers.push({ lecturerId: values.secretary, roleInCouncil: 'SECRETARY' });
-            if (values.reviewers?.length) {
-                values.reviewers.forEach((id) => builtMembers.push({ lecturerId: id, roleInCouncil: 'REVIEWER' }));
-            }
-            if (values.members?.length) {
-                values.members.forEach((id) => builtMembers.push({ lecturerId: id, roleInCouncil: 'MEMBER' }));
-            }
 
             const payload = {
                 semesterId: selectedSemester,
                 name: values.name,
                 location: values.location,
                 defenseDate: values.defenseDate ? values.defenseDate.toISOString() : null,
-                members: builtMembers,
             };
 
             if (editingCouncil) {
@@ -138,9 +153,41 @@ function CouncilAssignmentPage() {
                 message.success('Cập nhật hội đồng thành công');
             } else {
                 await councilService.createCouncil(payload);
-                message.success('Tạo hội đồng thành công');
+                message.success('Tạo hội đồng thành công. Tiếp theo hãy phân công 3 giảng viên.');
             }
+
             setIsCouncilModalVisible(false);
+            fetchCouncils();
+        } catch (error) {
+            if (error.message) message.error(error.message);
+        } finally {
+            setSubmitLoading(false);
+        }
+    };
+
+    const handleSaveMembers = async () => {
+        if (!memberCouncil) return;
+        try {
+            const values = await memberForm.validateFields();
+            setSubmitLoading(true);
+
+            const members = [
+                { lecturerId: values.chairman, roleInCouncil: 'CHAIRMAN' },
+                { lecturerId: values.secretary, roleInCouncil: 'SECRETARY' },
+                { lecturerId: values.reviewer, roleInCouncil: 'REVIEWER' },
+            ];
+
+            const uniqueLecturers = new Set(members.map((member) => member.lecturerId));
+            if (uniqueLecturers.size !== 3) {
+                message.warning('3 vai trò phải là 3 giảng viên khác nhau.');
+                return;
+            }
+
+            const response = await councilService.updateCouncil(memberCouncil.id, { members });
+            message.success('Đã cập nhật thành viên hội đồng');
+            if (response?.warnings?.length) response.warnings.forEach((warning) => message.warning(warning));
+
+            setIsMemberModalVisible(false);
             fetchCouncils();
         } catch (error) {
             if (error.message) message.error(error.message);
@@ -194,9 +241,84 @@ function CouncilAssignmentPage() {
         }
     };
 
+    const showDetailModal = async (councilId) => {
+        try {
+            setLoading(true);
+            const response = await councilService.getCouncilById(councilId);
+            if (response.success) {
+                setDetailCouncil(response.data);
+                setIsDetailModalVisible(true);
+            }
+        } catch (error) {
+            message.error(error.message || 'Không thể tải chi tiết hội đồng');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleRemoveRegistration = async (councilId, registrationId) => {
+        try {
+            await councilService.removeRegistration(councilId, registrationId);
+            message.success('Đã gỡ sinh viên khỏi hội đồng');
+            await Promise.all([fetchCouncils(), showDetailModal(councilId)]);
+        } catch (error) {
+            message.error(error.message || 'Lỗi khi gỡ sinh viên');
+        }
+    };
+    const showLogModal = async (council) => {
+        try {
+            setLogCouncil(council);
+            setLoading(true);
+            const response = await councilService.getCouncilLogs(council.id);
+            if (response.success) {
+                setCouncilLogs(response.data || []);
+                setIsLogModalVisible(true);
+            }
+        } catch (error) {
+            message.error(error.message || 'Không thể tải lịch sử hội đồng');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const actionTextMap = {
+        CREATE_COUNCIL: 'Tạo hội đồng',
+        UPDATE_COUNCIL: 'Cập nhật hội đồng',
+        ASSIGN_COUNCIL: 'Phân công sinh viên vào hội đồng',
+        REMOVE_REGISTRATION_FROM_COUNCIL: 'Gỡ sinh viên khỏi hội đồng',
+        AUTO_ASSIGN_COUNCIL: 'Phân công tự động',
+        DELETE_COUNCIL: 'Xóa hội đồng',
+    };
+
     const lecturerOptions = useMemo(
         () => lecturers.map((lecturer) => ({ label: `${lecturer.fullName} (${lecturer.code})`, value: lecturer.id })),
-        [lecturers]
+        [lecturers],
+    );
+    const projectOptions = useMemo(
+        () => [{ value: PROJECT_NAME, label: PROJECT_NAME }],
+        [],
+    );
+    const semesterOptions = useMemo(
+        () => semesters.map((semester) => ({ value: semester.id, label: formatSemesterLabel(semester) })),
+        [semesters],
+    );
+    const unassignedRegistrationOptions = useMemo(
+        () => unassignedRegistrations
+            .filter((registration) => registration?.councilId == null)
+            .map((registration) => ({
+                value: registration.id,
+                label: `${registration.student?.fullName || 'N/A'} - ${registration.student?.code || 'N/A'}`,
+                desc: (
+                    <div>
+                        <span className="font-bold">
+                            {registration.student?.fullName || 'N/A'} - {registration.student?.code || 'N/A'}
+                        </span>
+                        <br />
+                        <span className="text-xs text-slate-400">{registration.topic?.title || 'Không có đề tài'}</span>
+                    </div>
+                ),
+            })),
+        [unassignedRegistrations],
     );
 
     const columns = [
@@ -212,17 +334,17 @@ function CouncilAssignmentPage() {
             ),
         },
         {
-            title: 'Chủ tịch HD',
-            key: 'chairman',
+            title: 'Thành viên',
+            key: 'members',
             render: (_, record) => {
-                const chairman = record.members?.find((member) => member.roleInCouncil === 'CHAIRMAN')?.lecturer;
-                if (!chairman) return <span className="text-slate-400 text-sm">Chưa chọn</span>;
+                const chairman = record.members?.find((member) => member.roleInCouncil === 'CHAIRMAN')?.lecturer?.fullName;
+                const secretary = record.members?.find((member) => member.roleInCouncil === 'SECRETARY')?.lecturer?.fullName;
+                const reviewer = record.members?.find((member) => member.roleInCouncil === 'REVIEWER')?.lecturer?.fullName;
                 return (
-                    <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-full bg-purple-600 flex items-center justify-center text-white text-xs font-bold">
-                            {chairman.fullName[0]}
-                        </div>
-                        <span className="text-sm">{chairman.fullName}</span>
+                    <div className="text-xs leading-5">
+                        <div><b>CT:</b> {chairman || 'Chưa có'}</div>
+                        <div><b>TK:</b> {secretary || 'Chưa có'}</div>
+                        <div><b>PB:</b> {reviewer || 'Chưa có'}</div>
                     </div>
                 );
             },
@@ -239,32 +361,33 @@ function CouncilAssignmentPage() {
             ),
         },
         {
-            title: 'Thành viên',
-            key: 'memberCount',
-            align: 'center',
-            render: (_, record) => (
-                <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-700">
-                    {record.members?.length || 0} nguoi
-                </span>
-            ),
-        },
-        {
             title: 'SV Bảo vệ',
             key: 'registrationCount',
             align: 'center',
             render: (_, record) => <span className="font-bold text-slate-900">{record._count?.registrations || 0}</span>,
         },
         {
-            title: 'Phan SV',
+            title: 'Phân công',
             key: 'assign',
             align: 'center',
-            render: (_, record) => (
-                <Tooltip title="Gán sinh viên bảo vệ">
-                    <Button type="dashed" size="small" icon={<LinkOutlined />} onClick={() => showAssignModal(record)}>
-                        Phân công
-                    </Button>
-                </Tooltip>
-            ),
+            render: (_, record) => {
+                const hasEnoughMembers = (record.members?.length || 0) === 3;
+                return (
+                    <Space size="small">
+                        <Tooltip title="Phân công giảng viên vào vai trò hội đồng">
+                            <Button size="small" icon={<TeamOutlined />} onClick={() => showMemberModal(record)}>
+                                Thành viên
+                            </Button>
+                        </Tooltip>
+                        <Tooltip title={hasEnoughMembers ? 'Gán sinh viên bảo vệ' : 'Cần phân công đủ 3 vai trò trước'}>
+                            <Button type="dashed" size="small" icon={<LinkOutlined />} onClick={() => showAssignModal(record)} disabled={!hasEnoughMembers}>
+                                SV
+                            </Button>
+                        </Tooltip>
+                        <Button size="small" onClick={() => showDetailModal(record.id)}>DS SV</Button>
+                    </Space>
+                );
+            },
         },
         {
             title: 'Hành động',
@@ -272,72 +395,56 @@ function CouncilAssignmentPage() {
             width: 120,
             align: 'center',
             render: (_, record) => (
-            <div className="flex flex-wrap items-center justify-end gap-2">
-                <Button size="small" className="text-xs font-medium border-slate-200 text-slate-700 shadow-sm hover:text-primary hover:border-primary hover:bg-slate-50" icon={<EditOutlined />} onClick={() => showEditModal(record)}>Sửa</Button>
-                <Popconfirm
-                    title="Xóa hội đồng?"
-                    description="Bạn có chắc muốn xóa?"
-                    onConfirm={() => handleDeleteCouncil(record.id)}
-                    okText="Xóa"
-                    cancelText="Hủy"
-                    okButtonProps={{ danger: true }}
-                >
-                    <Button size="small" danger className="text-xs font-medium border-red-200 text-red-600 shadow-sm bg-red-50/50 hover:text-red-700 hover:border-red-300 hover:bg-red-100" icon={<DeleteOutlined />} disabled={record._count?.registrations > 0}>Xóa</Button>
-                </Popconfirm>
-            </div>
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                    <Button size="small" onClick={() => showLogModal(record)}>Lịch sử</Button>
+                    <Button size="small" icon={<EditOutlined />} onClick={() => showEditModal(record)}>Sửa</Button>
+                    <Popconfirm
+                        title="Xóa hội đồng?"
+                        description="Bạn có chắc muốn xóa?"
+                        onConfirm={() => handleDeleteCouncil(record.id)}
+                        okText="Xóa"
+                        cancelText="Hủy"
+                        okButtonProps={{ danger: true }}
+                    >
+                        <Button size="small" danger icon={<DeleteOutlined />} disabled={record._count?.registrations > 0}>Xóa</Button>
+                    </Popconfirm>
+                </div>
             ),
         },
     ];
 
     const statsData = [
-        {
-            title: 'Tổng Hội đồng',
-            value: councils.length,
-            icon: 'groups_3',
-            iconBg: 'bg-blue-50',
-            iconColor: 'text-blue-600',
-        },
-        {
-            title: 'Tổng thanh viên HD',
-            value: councils.reduce((sum, council) => sum + (council.members?.length || 0), 0),
-            icon: 'how_to_reg',
-            iconBg: 'bg-green-50',
-            iconColor: 'text-green-600',
-        },
-        {
-            title: 'SV được phân công',
-            value: councils.reduce((sum, council) => sum + (council._count?.registrations || 0), 0),
-            icon: 'assignment',
-            iconBg: 'bg-purple-50',
-            iconColor: 'text-purple-600',
-        },
+        { title: 'Tổng Hội đồng', value: councils.length, icon: 'groups_3', iconBg: 'bg-blue-50', iconColor: 'text-blue-600' },
+        { title: 'Tổng thành viên HĐ', value: councils.reduce((sum, council) => sum + (council.members?.length || 0), 0), icon: 'how_to_reg', iconBg: 'bg-green-50', iconColor: 'text-green-600' },
+        { title: 'SV được phân công', value: councils.reduce((sum, council) => sum + (council._count?.registrations || 0), 0), icon: 'assignment', iconBg: 'bg-purple-50', iconColor: 'text-purple-600' },
     ];
 
     return (
         <div className="py-2">
             <PageHeader
                 title="Phân công Hội đồng"
-                subtitle="Quản lý và phân công hội đồng bảo vệ đồ án"
-                actions={
+                subtitle={`${PROJECT_NAME} - theo đợt đồ án mới nhất (gắn với học kỳ, năm học)`}
+                actions={(
                     <>
+                        <Select
+                            value={selectedProjectName}
+                            onChange={setSelectedProjectName}
+                            style={{ width: 220 }}
+                            options={projectOptions}
+                        />
                         <Select
                             value={selectedSemester}
                             onChange={setSelectedSemester}
-                            style={{ width: 200 }}
-                            options={semesters.map((semester) => ({ value: semester.id, label: semester.name }))}
+                            style={{ width: 220 }}
+                            options={semesterOptions}
                             loading={semesters.length === 0}
-                            placeholder="Chọn học kỳ"
+                            placeholder="Chọn đợt đồ án"
                         />
-                        <button
-                            onClick={showCreateModal}
-                            disabled={!selectedSemester}
-                            className="inline-flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-lg font-bold text-sm hover:bg-primary-800 transition-colors disabled:opacity-50"
-                        >
-                            <span className="material-symbols-outlined text-[18px]">add</span>
-                            Tạo hội đồng
-                        </button>
+                        <Button type="primary" onClick={handleAutoAssign} loading={submitLoading} disabled={!selectedSemester}>
+                            Phân công tự động
+                        </Button>
                     </>
-                }
+                )}
             />
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
@@ -351,7 +458,7 @@ function CouncilAssignmentPage() {
             </div>
 
             <Modal
-                title={editingCouncil ? 'Chỉnh sửa Hội đồng' : 'Tạo Hội đồng mới'}
+                title={editingCouncil ? 'Chỉnh sửa thông tin hội đồng' : 'Tạo hội đồng mới'}
                 open={isCouncilModalVisible}
                 onOk={handleSaveCouncil}
                 onCancel={() => setIsCouncilModalVisible(false)}
@@ -359,7 +466,7 @@ function CouncilAssignmentPage() {
                 width={700}
                 destroyOnClose
             >
-                <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
+                <Form form={councilForm} layout="vertical" style={{ marginTop: 16 }}>
                     <div className="grid grid-cols-6 gap-4">
                         <div className="col-span-3">
                             <Form.Item name="name" label="Tên hội đồng" rules={[{ required: true, message: 'Nhập tên' }]}>
@@ -368,7 +475,7 @@ function CouncilAssignmentPage() {
                         </div>
                         <div className="col-span-1">
                             <Form.Item name="location" label="Phòng">
-                                <Input placeholder="P. 301" />
+                                <Input placeholder="P.301" />
                             </Form.Item>
                         </div>
                         <div className="col-span-2">
@@ -377,20 +484,30 @@ function CouncilAssignmentPage() {
                             </Form.Item>
                         </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                </Form>
+            </Modal>
+
+            <Modal
+                title={`Phân công thành viên - ${memberCouncil?.name || ''}`}
+                open={isMemberModalVisible}
+                onOk={handleSaveMembers}
+                onCancel={() => setIsMemberModalVisible(false)}
+                confirmLoading={submitLoading}
+                width={720}
+                destroyOnClose
+            >
+                <Form form={memberForm} layout="vertical" style={{ marginTop: 12 }}>
+                    <div className="grid grid-cols-3 gap-4">
                         <Form.Item name="chairman" label="Chủ tịch HĐ" rules={[{ required: true, message: 'Chọn chủ tịch' }]}>
                             <Select showSearch placeholder="Chọn giảng viên" optionFilterProp="label" options={lecturerOptions} />
                         </Form.Item>
-                        <Form.Item name="secretary" label="Thư ký HĐ">
+                        <Form.Item name="secretary" label="Thư ký HĐ" rules={[{ required: true, message: 'Chọn thư ký' }]}>
+                            <Select showSearch placeholder="Chọn giảng viên" optionFilterProp="label" options={lecturerOptions} />
+                        </Form.Item>
+                        <Form.Item name="reviewer" label="Phản biện" rules={[{ required: true, message: 'Chọn phản biện' }]}>
                             <Select showSearch placeholder="Chọn giảng viên" optionFilterProp="label" options={lecturerOptions} />
                         </Form.Item>
                     </div>
-                    <Form.Item name="reviewers" label="Ủy viên / Phản biện">
-                        <Select mode="multiple" showSearch placeholder="Chọn GV phản biện" optionFilterProp="label" options={lecturerOptions} />
-                    </Form.Item>
-                    <Form.Item name="members" label="Ủy viên khác">
-                        <Select mode="multiple" showSearch placeholder="Chọn GV ủy viên" optionFilterProp="label" options={lecturerOptions} />
-                    </Form.Item>
                 </Form>
             </Modal>
 
@@ -412,18 +529,78 @@ function CouncilAssignmentPage() {
                     onChange={setSelectedRegistrationsToAssign}
                     optionLabelProp="label"
                     loading={loading}
-                    options={unassignedRegistrations.map((registration) => ({
-                        value: registration.id,
-                        label: `${registration.student?.fullName} - ${registration.topic?.title?.substring(0, 30)}...`,
-                        desc: (
-                            <div>
-                                <span className="font-bold">{registration.student?.fullName}</span>
-                                <br />
-                                <span className="text-xs text-slate-400">{registration.topic?.title}</span>
-                            </div>
-                        ),
-                    }))}
+                    options={unassignedRegistrationOptions}
                     optionRender={(option) => option.data.desc}
+                />
+            </Modal>
+
+            <Modal
+                title={`Danh sách sinh viên - ${detailCouncil?.name || ''}`}
+                open={isDetailModalVisible}
+                onCancel={() => setIsDetailModalVisible(false)}
+                footer={null}
+                width={760}
+                destroyOnClose
+            >
+                <List
+                    dataSource={detailCouncil?.registrations || []}
+                    locale={{ emptyText: 'Chưa có sinh viên được phân công.' }}
+                    renderItem={(registration) => (
+                        <List.Item
+                            actions={[
+                                <Popconfirm
+                                    key="remove"
+                                    title="Gỡ sinh viên khỏi hội đồng?"
+                                    onConfirm={() => handleRemoveRegistration(detailCouncil.id, registration.id)}
+                                    okText="Gỡ"
+                                    cancelText="Hủy"
+                                >
+                                    <Button size="small" danger>Gỡ</Button>
+                                </Popconfirm>,
+                            ]}
+                        >
+                            <List.Item.Meta
+                                title={`${registration.student?.fullName || 'N/A'} (${registration.student?.code || 'N/A'})`}
+                                description={registration.topic?.title || 'Không có đề tài'}
+                            />
+                        </List.Item>
+                    )}
+                />
+            </Modal>
+            <Modal
+                title={`Lịch sử thao tác - ${logCouncil?.name || ''}`}
+                open={isLogModalVisible}
+                onCancel={() => setIsLogModalVisible(false)}
+                footer={null}
+                width={800}
+                destroyOnClose
+            >
+                <List
+                    dataSource={councilLogs}
+                    locale={{ emptyText: 'Chưa có log cho hội đồng này.' }}
+                    renderItem={(item) => (
+                        <List.Item>
+                            <Descriptions column={1} size="small" bordered style={{ width: '100%' }}>
+                                <Descriptions.Item label="Thao tác">
+                                    {actionTextMap[item.action] || item.action}
+                                </Descriptions.Item>
+                                <Descriptions.Item label="Người thao tác">
+                                    {item.user?.fullName || 'N/A'} {item.user?.code ? `(${item.user.code})` : ''}
+                                </Descriptions.Item>
+                                <Descriptions.Item label="Vai trò">
+                                    {item.user?.role || 'N/A'}
+                                </Descriptions.Item>
+                                <Descriptions.Item label="Thời gian">
+                                    {item.createdAt ? dayjs(item.createdAt).format('DD/MM/YYYY HH:mm:ss') : 'N/A'}
+                                </Descriptions.Item>
+                                <Descriptions.Item label="Chi tiết">
+                                    <pre className="whitespace-pre-wrap text-xs bg-slate-50 rounded p-2 border border-slate-100">
+                                        {JSON.stringify(item.details || {}, null, 2)}
+                                    </pre>
+                                </Descriptions.Item>
+                            </Descriptions>
+                        </List.Item>
+                    )}
                 />
             </Modal>
         </div>
@@ -431,5 +608,3 @@ function CouncilAssignmentPage() {
 }
 
 export default CouncilAssignmentPage;
-
-

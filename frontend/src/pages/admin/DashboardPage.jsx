@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Progress, Select, Spin, Tag, message } from 'antd';
 import dayjs from 'dayjs';
 
@@ -6,6 +6,7 @@ import dashboardService from '../../services/dashboardService';
 import { semesterService } from '../../services/semesterService';
 import PageHeader from '../../components/common/PageHeader';
 import StatCard from '../../components/common/StatCard';
+import { PROJECT_NAME, formatSemesterLabel } from '../../utils/semesterDisplay';
 
 function DashboardPage() {
     const [loading, setLoading] = useState(true);
@@ -16,6 +17,7 @@ function DashboardPage() {
     const [semesters, setSemesters] = useState([]);
 
     const [selectedSemesterId, setSelectedSemesterId] = useState(null);
+    const [selectedProjectName, setSelectedProjectName] = useState(PROJECT_NAME);
     const [semesterOverview, setSemesterOverview] = useState(null);
     const [overviewLoading, setOverviewLoading] = useState(false);
 
@@ -160,6 +162,7 @@ function DashboardPage() {
             { label: 'Hoàn thành', value: totalCompleted, color: 'text-green-500' },
         ];
     }, [semesterChart]);
+    const projectOptions = useMemo(() => [{ value: PROJECT_NAME, label: PROJECT_NAME }], []);
 
     const scores = scoreDistribution.length
         ? scoreDistribution
@@ -203,14 +206,22 @@ function DashboardPage() {
 
             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                    <h3 className="font-bold text-slate-900">Tổng quan vận hành theo học kỳ</h3>
-                    <Select
-                        value={selectedSemesterId}
-                        onChange={setSelectedSemesterId}
-                        style={{ width: 280 }}
-                        options={semesters.map((semester) => ({ value: semester.id, label: semester.name }))}
-                        placeholder="Chọn học kỳ"
-                    />
+                    <h3 className="font-bold text-slate-900">Tổng quan vận hành theo đợt đồ án</h3>
+                    <div className="flex items-center gap-2">
+                        <Select
+                            value={selectedProjectName}
+                            onChange={setSelectedProjectName}
+                            style={{ width: 200 }}
+                            options={projectOptions}
+                        />
+                        <Select
+                            value={selectedSemesterId}
+                            onChange={setSelectedSemesterId}
+                            style={{ width: 280 }}
+                            options={semesters.map((semester) => ({ value: semester.id, label: formatSemesterLabel(semester) }))}
+                            placeholder="Chọn đợt đồ án"
+                        />
+                    </div>
                 </div>
 
                 <Spin spinning={overviewLoading}>
@@ -263,14 +274,14 @@ function DashboardPage() {
                             </div>
                         </>
                     ) : (
-                        <p className="text-sm text-slate-400">Chưa có dữ liệu học kỳ.</p>
+                        <p className="text-sm text-slate-400">Chưa có dữ liệu đợt đồ án.</p>
                     )}
                 </Spin>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                    <h3 className="font-bold text-slate-900 mb-4">Thống kê học kỳ</h3>
+                    <h3 className="font-bold text-slate-900 mb-4">Thống kê đợt đồ án</h3>
                     <div className="grid grid-cols-2 gap-4">
                         {semesterSummary.map((item, idx) => (
                             <div key={idx} className="p-4 bg-slate-50 rounded-lg text-center border">
