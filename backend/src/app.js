@@ -15,9 +15,18 @@ const PORT = process.env.PORT || 5000;
 
 // Cho phép Frontend gọi API (Cross-Origin)
 app.use(cors({
-    origin: process.env.NODE_ENV === 'production'
-        ? 'https://your-frontend-domain.com'  // Thay bằng domain thật khi deploy
-        : ['http://localhost:5173', 'http://localhost:5174'], // Cho phép cả cổng 5173 và 5174
+    origin: (origin, callback) => {
+        if (process.env.NODE_ENV === 'production') {
+            const allowedOrigin = 'https://your-frontend-domain.com';
+            if (!origin || origin === allowedOrigin) return callback(null, true);
+            return callback(new Error('Not allowed by CORS'));
+        }
+
+        // Dev: cho phep localhost/127.0.0.1 o moi cong de tranh loi khi Vite doi port.
+        if (!origin) return callback(null, true);
+        const isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin);
+        return callback(isLocalhost ? null : new Error('Not allowed by CORS'), isLocalhost);
+    },
     credentials: true,
 }));
 

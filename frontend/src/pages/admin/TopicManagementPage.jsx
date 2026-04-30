@@ -12,6 +12,7 @@ import { semesterService } from '../../services/semesterService';
 import userService from '../../services/userService';
 import PageHeader from '../../components/common/PageHeader';
 import StatusBadge from '../../components/common/StatusBadge';
+import { PROJECT_NAME, formatSemesterLabel } from '../../utils/semesterDisplay';
 
 const { TextArea } = Input;
 
@@ -23,6 +24,7 @@ function TopicManagementPage() {
     const [activeTab, setActiveTab] = useState('all');
     const [semesters, setSemesters] = useState([]);
     const [activeSemesterId, setActiveSemesterId] = useState(null);
+    const [selectedProjectName, setSelectedProjectName] = useState(PROJECT_NAME);
     const [mentors, setMentors] = useState([]);
 
     const [formModalOpen, setFormModalOpen] = useState(false);
@@ -55,7 +57,7 @@ function TopicManagementPage() {
         try {
             const res = await semesterService.getAll();
             if (res.success) {
-                const semesterOptions = (res.data || []).map((s) => ({ value: s.id, label: s.name }));
+                const semesterOptions = (res.data || []).map((s) => ({ value: s.id, label: formatSemesterLabel(s) }));
                 setSemesters(semesterOptions);
 
                 const activeSemester = (res.data || []).find((s) =>
@@ -201,6 +203,7 @@ function TopicManagementPage() {
     };
 
     const pendingCount = topics.filter((t) => t.status === 'PENDING').length;
+    const projectOptions = [{ value: PROJECT_NAME, label: PROJECT_NAME }];
 
     const tabItems = [
         { key: 'all', label: 'Tất cả đề tài' },
@@ -296,18 +299,26 @@ function TopicManagementPage() {
                 <Tabs activeKey={activeTab} onChange={handleTabChange} items={tabItems} style={{ padding: '0 24px' }} tabBarStyle={{ marginBottom: 0 }} />
 
                 <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
-                    <Select
-                        value={statusFilter === 'all' && activeTab === 'all' ? 'all' : statusFilter}
-                        onChange={(v) => { setStatusFilter(v); setActiveTab('all'); }}
-                        style={{ width: 180 }}
-                        options={[
-                            { value: 'all', label: 'Tất cả trạng thái' },
-                            { value: 'DRAFT', label: 'Bản nháp' },
-                            { value: 'PENDING', label: 'Chờ duyệt' },
-                            { value: 'APPROVED', label: 'Đã duyệt' },
-                            { value: 'REJECTED', label: 'Từ chối' },
-                        ]}
-                    />
+                    <Space>
+                        <Select
+                            value={selectedProjectName}
+                            onChange={setSelectedProjectName}
+                            style={{ width: 200 }}
+                            options={projectOptions}
+                        />
+                        <Select
+                            value={statusFilter === 'all' && activeTab === 'all' ? 'all' : statusFilter}
+                            onChange={(v) => { setStatusFilter(v); setActiveTab('all'); }}
+                            style={{ width: 180 }}
+                            options={[
+                                { value: 'all', label: 'Tất cả trạng thái' },
+                                { value: 'DRAFT', label: 'Bản nháp' },
+                                { value: 'PENDING', label: 'Chờ duyệt' },
+                                { value: 'APPROVED', label: 'Đã duyệt' },
+                                { value: 'REJECTED', label: 'Từ chối' },
+                            ]}
+                        />
+                    </Space>
                     <Input
                         placeholder="Tìm đề tài..."
                         prefix={<SearchOutlined />}
@@ -337,7 +348,10 @@ function TopicManagementPage() {
                 <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
                     <Form.Item name="title" label="Tên đề tài" rules={[{ required: true, message: 'Nhập tên đề tài' }]}><Input placeholder="Nhập tên đề tài" /></Form.Item>
                     <Form.Item name="description" label="Mô tả"><TextArea rows={4} placeholder="Mô tả chi tiết đề tài" /></Form.Item>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-3 gap-4">
+                        <Form.Item label="Tên đồ án">
+                            <Input value={PROJECT_NAME} disabled />
+                        </Form.Item>
                         <Form.Item name="semesterId" label="Đợt đồ án" rules={[{ required: true, message: 'Chọn đợt' }]}><Select placeholder="Chọn đợt" options={semesters} /></Form.Item>
                         <Form.Item name="mentorId" label="GVHD" rules={[{ required: true, message: 'Chọn giảng viên hướng dẫn' }]}>
                             <Select placeholder="Chọn GVHD" options={mentors} showSearch optionFilterProp="label" />

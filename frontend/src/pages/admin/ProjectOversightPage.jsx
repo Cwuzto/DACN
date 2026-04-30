@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
     Alert,
     Button,
@@ -30,6 +30,7 @@ import PageHeader from '../../components/common/PageHeader';
 import StatusBadge from '../../components/common/StatusBadge';
 import StatCard from '../../components/common/StatCard';
 import { STATUS_MAP } from '../../components/common/statusMap';
+import { PROJECT_NAME, formatSemesterLabel } from '../../utils/semesterDisplay';
 
 function ProjectOversightPage() {
     const [loading, setLoading] = useState(true);
@@ -40,6 +41,7 @@ function ProjectOversightPage() {
     const [searchText, setSearchText] = useState('');
     const [statusFilter, setStatusFilter] = useState(null);
     const [semesterFilter, setSemesterFilter] = useState(null);
+    const [selectedProjectName, setSelectedProjectName] = useState(PROJECT_NAME);
 
     const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
     const [auditTopic, setAuditTopic] = useState(null);
@@ -327,8 +329,9 @@ function ProjectOversightPage() {
 
     const semesterOptions = semesters.map((semester) => ({
         value: semester.id,
-        label: semester.name,
+        label: formatSemesterLabel(semester),
     }));
+    const projectOptions = [{ value: PROJECT_NAME, label: PROJECT_NAME }];
 
     const auditItems = useMemo(() => {
         if (!auditTopic) return [];
@@ -452,7 +455,14 @@ function ProjectOversightPage() {
                             }))}
                         />
                         <Select
-                            placeholder="Học kỳ"
+                            placeholder="Tên đồ án"
+                            style={{ minWidth: 180 }}
+                            value={selectedProjectName}
+                            onChange={setSelectedProjectName}
+                            options={projectOptions}
+                        />
+                        <Select
+                            placeholder="Đợt đồ án"
                             style={{ minWidth: 220 }}
                             allowClear
                             value={semesterFilter}

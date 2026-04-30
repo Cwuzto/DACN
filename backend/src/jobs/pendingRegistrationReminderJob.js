@@ -1,6 +1,12 @@
 const prisma = require('../config/database');
-const { PENDING_REMINDER_DAYS } = require('../constants/registrationLimits');
+const {
+    PENDING_REMINDER_DAYS,
+    AUTO_REJECT_PENDING_DAYS,
+    AUTO_REJECT_REASON_STALE,
+    AUTO_REJECT_REASON_DEADLINE,
+} = require('../constants/registrationLimits');
 const { safeNotify } = require('../services/notificationService');
+const { auditLog } = require('../services/auditLogService');
 
 const DEFAULT_INTERVAL_MINUTES = 60;
 const REFERENCE_PREFIX = 'pending-registration-reminder';
@@ -14,6 +20,12 @@ const toStartOfDay = (date) => {
 const getPendingCutoffDate = () => {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - PENDING_REMINDER_DAYS);
+    return cutoff;
+};
+
+const getAutoRejectCutoffDate = () => {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - AUTO_REJECT_PENDING_DAYS);
     return cutoff;
 };
 
@@ -82,8 +94,8 @@ const runPendingRegistrationReminderJob = async () => {
         await safeNotify(
             {
                 userId: registration.topic.mentorId,
-                title: 'Nhac xu ly dang ky de tai dang cho duyet',
-                content: `Sinh vien ${registration.student?.fullName || 'N/A'} (${registration.student?.code || 'N/A'}) dang cho duyet de tai "${registration.topic.title}" trong ${pendingDays} ngay (hoc ky: ${registration.topic?.semester?.name || 'N/A'}).`,
+                title: 'Nhắc xử lý đăng ký đề tài đang chờ duyệt',
+                content: `Sinh viên ${registration.student?.fullName || 'N/A'} (${registration.student?.code || 'N/A'}) đang chờ duyệt đề tài "${registration.topic.title}" trong ${pendingDays} ngày (học kỳ: ${registration.topic?.semester?.name || 'N/A'}).`,
                 type: 'REGISTRATION',
                 referenceUrl,
             },
@@ -97,6 +109,114 @@ const runPendingRegistrationReminderJob = async () => {
         processed: stalePendingRegistrations.length,
         sent,
         skipped,
+    };
+};
+
+const runPendingRegistrationAutoRejectJob = async () => {
+    const now = new Date();
+    const staleCutoffDate = getAutoRejectCutoffDate();
+
+    const pendingRegistrations = await prisma.topicRegistration.findMany({
+        where: {
+            status: 'PENDING',
+            OR: [
+                { createdAt: { lte: staleCutoffDate } },
+                { topic: { semester: { registrationDeadline: { lt: now } } } },
+            ],
+        },
+        include: {
+            student: { select: { id: true, fullName: true, code: true } },
+            topic: {
+                select: {
+                    title: true,
+                    mentorId: true,
+                    semester: { select: { name: true, registrationDeadline: true } },
+                },
+            },
+        },
+        orderBy: { createdAt: 'asc' },
+    });
+
+    if (!pendingRegistrations.length) {
+        return { processed: 0, rejected: 0, notified: 0, auditLogged: 0 };
+    }
+
+    let rejected = 0;
+    let notified = 0;
+    let auditLogged = 0;
+
+    for (const registration of pendingRegistrations) {
+        const isOverDeadline = Boolean(
+            registration.topic?.semester?.registrationDeadline
+            && new Date(registration.topic.semester.registrationDeadline).getTime() < now.getTime(),
+        );
+
+        const rejectReason = isOverDeadline ? AUTO_REJECT_REASON_DEADLINE : AUTO_REJECT_REASON_STALE;
+
+        const updated = await prisma.topicRegistration.updateMany({
+            where: {
+                id: registration.id,
+                status: 'PENDING',
+            },
+            data: {
+                status: 'REJECTED',
+                rejectReason,
+            },
+        });
+
+        if (!updated.count) {
+            continue;
+        }
+
+        rejected += 1;
+
+        const notifyResults = await Promise.all([
+            safeNotify(
+                {
+                    userId: registration.studentId,
+                    title: 'Đăng ký đề tài đã được tự động từ chối',
+                    content: `Đăng ký đề tài "${registration.topic?.title || 'N/A'}" đã được hệ thống tự động từ chối. Lý do: ${rejectReason}`,
+                    type: 'APPROVAL',
+                },
+                'pendingRegistrationAutoRejectJob_student',
+            ),
+            registration.topic?.mentorId
+                ? safeNotify(
+                    {
+                        userId: registration.topic.mentorId,
+                        title: 'Hệ thống đã tự động từ chối đăng ký chờ duyệt quá hạn',
+                        content: `Đăng ký của sinh viên ${registration.student?.fullName || 'N/A'} (${registration.student?.code || 'N/A'}) cho đề tài "${registration.topic?.title || 'N/A'}" đã bị tự động từ chối. Lý do: ${rejectReason}`,
+                        type: 'REGISTRATION',
+                    },
+                    'pendingRegistrationAutoRejectJob_mentor',
+                )
+                : Promise.resolve({ ok: false, skipped: true }),
+        ]);
+
+        notified += notifyResults.filter((r) => r?.ok).length;
+
+        if (registration.topic?.mentorId) {
+            await auditLog(
+                registration.topic.mentorId,
+                'AUTO_REJECT_REGISTRATION',
+                'TopicRegistration',
+                registration.id,
+                {
+                    reason: rejectReason,
+                    source: 'pendingRegistrationAutoRejectJob',
+                    semesterName: registration.topic?.semester?.name || null,
+                },
+                null,
+            );
+            auditLogged += 1;
+        }
+    }
+
+    return {
+        processed: pendingRegistrations.length,
+        rejected,
+        notified,
+        auditLogged,
     };
 };
 
@@ -118,12 +238,20 @@ const startPendingRegistrationReminderScheduler = () => {
         if (isRunning) return;
         isRunning = true;
         try {
-            const result = await runPendingRegistrationReminderJob();
-            if (result.sent > 0 || result.processed > 0) {
-                console.log(`[jobs] Pending reminder tick: processed=${result.processed}, sent=${result.sent}, skipped=${result.skipped}`);
+            const [reminderResult, autoRejectResult] = await Promise.all([
+                runPendingRegistrationReminderJob(),
+                runPendingRegistrationAutoRejectJob(),
+            ]);
+
+            if (reminderResult.sent > 0 || reminderResult.processed > 0) {
+                console.log(`[jobs] Pending reminder tick: processed=${reminderResult.processed}, sent=${reminderResult.sent}, skipped=${reminderResult.skipped}`);
+            }
+
+            if (autoRejectResult.rejected > 0 || autoRejectResult.processed > 0) {
+                console.log(`[jobs] Pending auto-reject tick: processed=${autoRejectResult.processed}, rejected=${autoRejectResult.rejected}, notified=${autoRejectResult.notified}, auditLogged=${autoRejectResult.auditLogged}`);
             }
         } catch (error) {
-            console.error('[jobs] Pending reminder job failed:', error?.message || error);
+            console.error('[jobs] Pending registration scheduler failed:', error?.message || error);
         } finally {
             isRunning = false;
         }
@@ -139,5 +267,6 @@ const startPendingRegistrationReminderScheduler = () => {
 
 module.exports = {
     runPendingRegistrationReminderJob,
+    runPendingRegistrationAutoRejectJob,
     startPendingRegistrationReminderScheduler,
 };

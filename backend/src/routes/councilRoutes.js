@@ -27,13 +27,14 @@ router.post(
             .withMessage('lecturerId phải là số nguyên dương.'),
         body('members.*.roleInCouncil')
             .optional()
-            .isIn(['CHAIRMAN', 'SECRETARY', 'REVIEWER', 'MEMBER'])
+            .isIn(['CHAIRMAN', 'SECRETARY', 'REVIEWER'])
             .withMessage('roleInCouncil không hợp lệ.'),
         validateRequest,
     ],
     councilController.createCouncil
 );
 router.get('/:id', [param('id').isInt({ min: 1 }), validateRequest], councilController.getCouncilById);
+router.get('/:id/logs', [param('id').isInt({ min: 1 }), validateRequest], councilController.getCouncilAuditLogs);
 router.put(
     '/:id',
     [
@@ -51,13 +52,25 @@ router.put(
             .withMessage('lecturerId phải là số nguyên dương.'),
         body('members.*.roleInCouncil')
             .optional()
-            .isIn(['CHAIRMAN', 'SECRETARY', 'REVIEWER', 'MEMBER'])
+            .isIn(['CHAIRMAN', 'SECRETARY', 'REVIEWER'])
             .withMessage('roleInCouncil không hợp lệ.'),
         validateRequest,
     ],
     councilController.updateCouncil
 );
 router.delete('/:id', [param('id').isInt({ min: 1 }), validateRequest], councilController.deleteCouncil);
+
+router.post(
+    '/auto-assign',
+    [
+        body('semesterId')
+            .optional()
+            .isInt({ min: 1 })
+            .withMessage('semesterId phai la so nguyen duong.'),
+        validateRequest,
+    ],
+    councilController.autoAssignRegistrationsToCouncils
+);
 
 router.post(
     '/:id/assign',
@@ -86,4 +99,3 @@ router.post(
 );
 
 module.exports = router;
-

@@ -1,6 +1,7 @@
 ﻿const prisma = require('../config/database');
 const { MAX_STUDENTS_PER_COUNCIL } = require('../constants/councilLimits');
 const { auditLog } = require('../services/auditLogService');
+const { runAutoCouncilSetupForSemester } = require('../services/councilAutoSetupService');
 
 const getRequestIp = (req) => req.ip || req.headers['x-forwarded-for'] || null;
 
@@ -18,18 +19,35 @@ const normalizeMemberInput = (members = []) => {
 
     const invalid = normalized.find((member) => !Number.isInteger(member.lecturerId));
     if (invalid) {
-        throw createHttpError(400, 'LecturerId trong members khong hop le.');
+        throw createHttpError(400, 'LecturerId trong members khĂ´ng há»£p lá»‡.');
     }
 
     const seen = new Set();
     for (const member of normalized) {
         if (seen.has(member.lecturerId)) {
-            throw createHttpError(400, 'Danh sach members dang co giang vien bi trung lap.');
+            throw createHttpError(400, 'Danh sĂ¡ch members Ä‘ang cĂ³ giáº£ng viĂªn bá»‹ trĂ¹ng láº·p.');
         }
         seen.add(member.lecturerId);
     }
 
     return normalized;
+};
+const validateCouncilComposition = (members = []) => {
+    if (!Array.isArray(members) || members.length !== 3) {
+        throw createHttpError(400, 'Má»—i há»™i Ä‘á»“ng pháº£i cĂ³ Ä‘Ăºng 3 giáº£ng viĂªn.');
+    }
+
+    const roleSet = new Set(members.map((member) => member.roleInCouncil));
+    const expectedRoles = ['CHAIRMAN', 'SECRETARY', 'REVIEWER'];
+    for (const role of expectedRoles) {
+        if (!roleSet.has(role)) {
+            throw createHttpError(400, 'Há»™i Ä‘á»“ng pháº£i Ä‘á»§ 3 vai trĂ²: CHAIRMAN, SECRETARY, REVIEWER.');
+        }
+    }
+
+    if (roleSet.size !== 3) {
+        throw createHttpError(400, 'Má»—i vai trĂ² chá»‰ Ä‘Æ°á»£c cĂ³ 1 giáº£ng viĂªn.');
+    }
 };
 
 const findScheduleWarnings = async (tx, { semesterId, councilId, defenseDate, lecturerIds }) => {
@@ -53,7 +71,7 @@ const findScheduleWarnings = async (tx, { semesterId, councilId, defenseDate, le
     });
 
     return conflictingMembers.map((member) => (
-        `Canh bao: Giang vien ${member.lecturer.fullName} da tham gia hoi dong #${member.council.id} (${member.council.name}) cung defenseDate.`
+        `Cáº£nh bĂ¡o: Giáº£ng viĂªn ${member.lecturer.fullName} Ä‘Ă£ tham gia há»™i Ä‘á»“ng #${member.council.id} (${member.council.name}) cĂ¹ng defenseDate.`
     ));
 };
 
@@ -76,7 +94,7 @@ const validateCouncilMembersAgainstAssignedStudents = async (tx, councilId, lect
     if (conflict) {
         throw createHttpError(
             400,
-            `Conflict of interest: Giang vien huong dan khong duoc cham sinh vien ${conflict.student.fullName} (${conflict.student.code}) voi de tai "${conflict.topic.title}".`,
+            `Conflict of interest: Giáº£ng viĂªn hÆ°á»›ng dáº«n khĂ´ng Ä‘Æ°á»£c cháº¥m sinh viĂªn ${conflict.student.fullName} (${conflict.student.code}) vá»›i Ä‘á» tĂ i "${conflict.topic.title}".`,
         );
     }
 };
@@ -131,7 +149,7 @@ const getCouncilById = async (req, res, next) => {
         });
 
         if (!council) {
-            return res.status(404).json({ success: false, message: 'Khong tim thay hoi dong.' });
+            return res.status(404).json({ success: false, message: 'KhĂ´ng tĂ¬m tháº¥y há»™i Ä‘á»“ng.' });
         }
 
         res.json({ success: true, data: council });
@@ -140,20 +158,63 @@ const getCouncilById = async (req, res, next) => {
     }
 };
 
+const getCouncilAuditLogs = async (req, res, next) => {
+    try {
+        const councilId = parseInt(req.params.id, 10);
+        if (!Number.isInteger(councilId) || councilId <= 0) {
+            return res.status(400).json({ success: false, message: 'councilId khong hop le.' });
+        }
+
+        const logs = await prisma.auditLog.findMany({
+            where: {
+                entityType: 'Council',
+                entityId: String(councilId),
+            },
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        fullName: true,
+                        code: true,
+                        role: true,
+                    },
+                },
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 200,
+        });
+
+        return res.json({ success: true, data: logs });
+    } catch (error) {
+        next(error);
+    }
+};
+
 const createCouncil = async (req, res, next) => {
     try {
+        const allowManualCreate = process.env.ALLOW_MANUAL_COUNCIL_CREATE === 'true';
+        if (!allowManualCreate) {
+            return res.status(403).json({
+                success: false,
+                message: 'Manual council creation is disabled. Use auto assignment flow.',
+            });
+        }
+
         const { semesterId, name, location, defenseDate, members } = req.body;
 
         if (!semesterId || !name) {
             return res.status(400).json({
                 success: false,
-                message: 'Vui long cung cap hoc ky va ten hoi dong.',
+                message: 'Vui lĂ²ng cung cáº¥p há»c ká»³ vĂ  tĂªn há»™i Ä‘á»“ng.',
             });
         }
 
         const semesterIdInt = parseInt(semesterId, 10);
         const defenseDateValue = defenseDate ? new Date(defenseDate) : null;
         const normalizedMembers = normalizeMemberInput(members || []);
+        if (normalizedMembers.length) {
+            validateCouncilComposition(normalizedMembers);
+        }
 
         const result = await prisma.$transaction(async (tx) => {
             const newCouncil = await tx.council.create({
@@ -196,7 +257,7 @@ const createCouncil = async (req, res, next) => {
 
         res.status(201).json({
             success: true,
-            message: 'Tao hoi dong thanh cong',
+            message: 'Táº¡o há»™i Ä‘á»“ng thĂ nh cĂ´ng',
             data: result.council,
             warnings: result.warnings,
         });
@@ -216,7 +277,7 @@ const updateCouncil = async (req, res, next) => {
 
         const existing = await prisma.council.findUnique({ where: { id: councilId } });
         if (!existing) {
-            return res.status(404).json({ success: false, message: 'Khong tim thay hoi dong.' });
+            return res.status(404).json({ success: false, message: 'KhĂ´ng tĂ¬m tháº¥y há»™i Ä‘á»“ng.' });
         }
 
         const defenseDateValue = defenseDate !== undefined
@@ -237,6 +298,7 @@ const updateCouncil = async (req, res, next) => {
 
             if (members !== undefined) {
                 const normalizedMembers = normalizeMemberInput(members);
+                validateCouncilComposition(normalizedMembers);
                 lecturerIdsForWarning = normalizedMembers.map((member) => member.lecturerId);
 
                 await validateCouncilMembersAgainstAssignedStudents(tx, councilId, lecturerIdsForWarning);
@@ -280,7 +342,7 @@ const updateCouncil = async (req, res, next) => {
 
         res.json({
             success: true,
-            message: 'Cap nhat hoi dong thanh cong.',
+            message: 'Cáº­p nháº­t há»™i Ä‘á»“ng thĂ nh cĂ´ng.',
             warnings: result.warnings,
         });
     } catch (error) {
@@ -299,7 +361,7 @@ const assignRegistrationsToCouncil = async (req, res, next) => {
         if (!Array.isArray(registrationIds) || registrationIds.length === 0) {
             return res.status(400).json({
                 success: false,
-                message: 'Danh sach dang ky (registrationIds) khong hop le.',
+                message: 'Danh sĂ¡ch Ä‘Äƒng kĂ½ (registrationIds) khĂ´ng há»£p lá»‡.',
             });
         }
 
@@ -311,7 +373,7 @@ const assignRegistrationsToCouncil = async (req, res, next) => {
         if (uniqueRegistrationIds.length !== registrationIds.length) {
             return res.status(400).json({
                 success: false,
-                message: 'registrationIds co phan tu khong hop le hoac trung lap.',
+                message: 'registrationIds cĂ³ pháº§n tá»­ khĂ´ng há»£p lá»‡ hoáº·c trĂ¹ng láº·p.',
             });
         }
 
@@ -319,17 +381,19 @@ const assignRegistrationsToCouncil = async (req, res, next) => {
             const council = await tx.council.findUnique({
                 where: { id: councilId },
                 include: {
-                    members: { select: { lecturerId: true } },
+                    members: { select: { lecturerId: true, roleInCouncil: true } },
                     _count: { select: { registrations: true } },
                 },
             });
 
             if (!council) {
-                throw createHttpError(404, 'Khong tim thay hoi dong.');
+                throw createHttpError(404, 'KhĂ´ng tĂ¬m tháº¥y há»™i Ä‘á»“ng.');
             }
 
+            validateCouncilComposition(council.members);
+
             if (council._count.registrations + uniqueRegistrationIds.length > MAX_STUDENTS_PER_COUNCIL) {
-                throw createHttpError(400, `Hoi dong toi da ${MAX_STUDENTS_PER_COUNCIL} sinh vien.`);
+                throw createHttpError(400, `Há»™i Ä‘á»“ng tá»‘i Ä‘a ${MAX_STUDENTS_PER_COUNCIL} sinh viĂªn.`);
             }
 
             const registrations = await tx.topicRegistration.findMany({
@@ -341,14 +405,14 @@ const assignRegistrationsToCouncil = async (req, res, next) => {
             });
 
             if (registrations.length !== uniqueRegistrationIds.length) {
-                throw createHttpError(400, 'Co registration khong ton tai.');
+                throw createHttpError(400, 'CĂ³ registration khĂ´ng tá»“n táº¡i.');
             }
 
             const alreadyAssigned = registrations.find((registration) => registration.councilId !== null);
             if (alreadyAssigned) {
                 throw createHttpError(
                     400,
-                    `Sinh vien ${alreadyAssigned.student.fullName} (${alreadyAssigned.student.code}) da thuoc hoi dong khac.`,
+                    `Sinh viĂªn ${alreadyAssigned.student.fullName} (${alreadyAssigned.student.code}) Ä‘Ă£ thuá»™c há»™i Ä‘á»“ng khĂ¡c.`,
                 );
             }
 
@@ -357,7 +421,7 @@ const assignRegistrationsToCouncil = async (req, res, next) => {
             if (conflict) {
                 throw createHttpError(
                     400,
-                    `Conflict of interest: Khong the gan sinh vien ${conflict.student.fullName} (${conflict.student.code}) vao hoi dong co giang vien huong dan de tai "${conflict.topic.title}".`,
+                    `Conflict of interest: KhĂ´ng thá»ƒ gĂ¡n sinh viĂªn ${conflict.student.fullName} (${conflict.student.code}) vĂ o há»™i Ä‘á»“ng cĂ³ giáº£ng viĂªn hÆ°á»›ng dáº«n Ä‘á» tĂ i "${conflict.topic.title}".`,
                 );
             }
 
@@ -378,7 +442,45 @@ const assignRegistrationsToCouncil = async (req, res, next) => {
 
         res.json({
             success: true,
-            message: `Da phan cong ${uniqueRegistrationIds.length} sinh vien vao hoi dong.`,
+            message: `ÄĂ£ phĂ¢n cĂ´ng ${uniqueRegistrationIds.length} sinh viĂªn vĂ o há»™i Ä‘á»“ng.`,
+        });
+    } catch (error) {
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({ success: false, message: error.message });
+        }
+        next(error);
+    }
+};
+
+const autoAssignRegistrationsToCouncils = async (req, res, next) => {
+    try {
+        const semesterId = parseInt(req.body?.semesterId || req.query?.semesterId, 10);
+        if (!Number.isInteger(semesterId) || semesterId <= 0) {
+            return res.status(400).json({ success: false, message: 'semesterId khong hop le.' });
+        }
+
+        const result = await runAutoCouncilSetupForSemester(semesterId);
+
+        await auditLog(
+            req.user.id,
+            'AUTO_ASSIGN_COUNCIL',
+            'Council',
+            null,
+            {
+                semesterId: result.semesterId,
+                totalUnassigned: result.totalUnassigned,
+                assigned: result.assigned,
+                skipped: result.skipped.length,
+                createdCouncils: result.createdCouncils,
+                updatedCouncils: result.updatedCouncils,
+            },
+            getRequestIp(req),
+        );
+
+        return res.json({
+            success: true,
+            message: `Da tu dong phan cong ${result.assigned}/${result.totalUnassigned} sinh vien.`,
+            data: result,
         });
     } catch (error) {
         if (error.statusCode) {
@@ -392,16 +494,29 @@ const removeRegistrationFromCouncil = async (req, res, next) => {
     try {
         const { id } = req.params;
         const { registrationId } = req.body;
+        const councilId = parseInt(id, 10);
+        const registrationIdInt = parseInt(registrationId, 10);
 
-        await prisma.topicRegistration.updateMany({
+        const result = await prisma.topicRegistration.updateMany({
             where: {
-                id: parseInt(registrationId, 10),
-                councilId: parseInt(id, 10),
+                id: registrationIdInt,
+                councilId,
             },
             data: { councilId: null },
         });
 
-        res.json({ success: true, message: 'Da go sinh vien khoi hoi dong.' });
+        if (result.count > 0) {
+            await auditLog(
+                req.user.id,
+                'REMOVE_REGISTRATION_FROM_COUNCIL',
+                'Council',
+                councilId,
+                { registrationId: registrationIdInt },
+                getRequestIp(req),
+            );
+        }
+
+        res.json({ success: true, message: 'ÄĂ£ gá»¡ sinh viĂªn khá»i há»™i Ä‘á»“ng.' });
     } catch (error) {
         next(error);
     }
@@ -418,13 +533,13 @@ const deleteCouncil = async (req, res, next) => {
         });
 
         if (!existing) {
-            return res.status(404).json({ success: false, message: 'Khong tim thay hoi dong.' });
+            return res.status(404).json({ success: false, message: 'KhĂ´ng tĂ¬m tháº¥y há»™i Ä‘á»“ng.' });
         }
 
         if (existing._count.registrations > 0) {
             return res.status(400).json({
                 success: false,
-                message: 'Khong the xoa hoi dong da co sinh vien duoc phan cong.',
+                message: 'KhĂ´ng thá»ƒ xĂ³a há»™i Ä‘á»“ng Ä‘Ă£ cĂ³ sinh viĂªn Ä‘Æ°á»£c phĂ¢n cĂ´ng.',
             });
         }
 
@@ -433,7 +548,16 @@ const deleteCouncil = async (req, res, next) => {
             await tx.council.delete({ where: { id: parsedId } });
         });
 
-        res.json({ success: true, message: 'Da xoa hoi dong.' });
+        await auditLog(
+            req.user.id,
+            'DELETE_COUNCIL',
+            'Council',
+            parsedId,
+            { hadRegistrations: existing._count.registrations },
+            getRequestIp(req),
+        );
+
+        res.json({ success: true, message: 'ÄĂ£ xĂ³a há»™i Ä‘á»“ng.' });
     } catch (error) {
         next(error);
     }
@@ -442,9 +566,12 @@ const deleteCouncil = async (req, res, next) => {
 module.exports = {
     getAllCouncils,
     getCouncilById,
+    getCouncilAuditLogs,
     createCouncil,
     updateCouncil,
     assignRegistrationsToCouncil,
+    autoAssignRegistrationsToCouncils,
     removeRegistrationFromCouncil,
     deleteCouncil,
 };
+

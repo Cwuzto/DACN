@@ -52,7 +52,31 @@ const getAllTopics = async (req, res, next) => {
 
         if (semesterId) conditions.push({ semesterId: parseInt(semesterId, 10) });
         if (mentorId) conditions.push({ mentorId: parseInt(mentorId, 10) });
-        if (search) conditions.push({ title: { contains: search, mode: 'insensitive' } });
+        if (search) {
+            conditions.push({
+                OR: [
+                    { title: { contains: search, mode: 'insensitive' } },
+                    {
+                        registrations: {
+                            some: {
+                                student: {
+                                    fullName: { contains: search, mode: 'insensitive' },
+                                },
+                            },
+                        },
+                    },
+                    {
+                        registrations: {
+                            some: {
+                                student: {
+                                    code: { contains: search, mode: 'insensitive' },
+                                },
+                            },
+                        },
+                    },
+                ],
+            });
+        }
 
         const where = conditions.length > 0 ? { AND: conditions } : {};
 
@@ -63,6 +87,18 @@ const getAllTopics = async (req, res, next) => {
                 mentor: { select: { id: true, fullName: true, code: true, email: true, academicTitle: true } },
                 semester: { select: { id: true, name: true } },
                 _count: { select: { registrations: true } },
+                registrations: {
+                    where: {
+                        status: { not: 'REJECTED' },
+                    },
+                    select: {
+                        id: true,
+                        status: true,
+                        student: { select: { id: true, fullName: true, code: true } },
+                    },
+                    orderBy: { createdAt: 'desc' },
+                    take: 1,
+                },
             },
             orderBy: { createdAt: 'desc' },
         });
@@ -92,15 +128,15 @@ const getTopicById = async (req, res, next) => {
         });
 
         if (!topic) {
-            return res.status(404).json({ success: false, message: 'Khong tim thay de tai.' });
+            return res.status(404).json({ success: false, message: 'Không tìm thấy đề tài.' });
         }
 
         if (req.user.role === 'STUDENT' && topic.status !== 'APPROVED') {
-            return res.status(403).json({ success: false, message: 'Ban khong co quyen xem de tai nay.' });
+            return res.status(403).json({ success: false, message: 'Bạn không có quyền xem đề tài này.' });
         }
 
         if (req.user.role === 'LECTURER' && topic.status === 'DRAFT' && topic.proposedById !== req.user.id) {
-            return res.status(403).json({ success: false, message: 'Ban khong co quyen xem de tai nhap cua nguoi khac.' });
+            return res.status(403).json({ success: false, message: 'Bạn không có quyền xem đề tài nháp của người khác.' });
         }
 
         res.json({ success: true, data: topic });
@@ -116,15 +152,15 @@ const createTopic = async (req, res, next) => {
         const semesterIdInt = parseInt(semesterId, 10);
 
         if (!title || !semesterId) {
-            return res.status(400).json({ success: false, message: 'Vui long nhap ten de tai va chon dot do an.' });
+            return res.status(400).json({ success: false, message: 'Vui lòng nhập tên đề tài và chọn đợt đồ án.' });
         }
         if (!Number.isInteger(semesterIdInt)) {
-            return res.status(400).json({ success: false, message: 'Dot do an khong hop le.' });
+            return res.status(400).json({ success: false, message: 'Đợt đồ án không hợp lệ.' });
         }
 
         const semester = await prisma.semester.findUnique({ where: { id: semesterIdInt }, select: { id: true } });
         if (!semester) {
-            return res.status(404).json({ success: false, message: 'Khong tim thay dot do an.' });
+            return res.status(404).json({ success: false, message: 'Không tìm thấy đợt đồ án.' });
         }
 
         let topicStatus;
@@ -135,23 +171,23 @@ const createTopic = async (req, res, next) => {
             finalMentorId = userId;
         } else if (role === 'STUDENT') {
             if (!mentorId) {
-                return res.status(400).json({ success: false, message: 'Vui long chon giang vien huong dan.' });
+                return res.status(400).json({ success: false, message: 'Vui lòng chọn giảng viên hướng dẫn.' });
             }
             topicStatus = 'PENDING';
             finalMentorId = parseInt(mentorId, 10);
         } else {
             if (!mentorId) {
-                return res.status(400).json({ success: false, message: 'Admin bat buoc chon giang vien huong dan.' });
+                return res.status(400).json({ success: false, message: 'Admin bắt buộc chọn giảng viên hướng dẫn.' });
             }
             if (status && !TOPIC_STATUS_VALUES.includes(status)) {
-                return res.status(400).json({ success: false, message: 'Trang thai de tai khong hop le.' });
+                return res.status(400).json({ success: false, message: 'Trạng thái đề tài không hợp lệ.' });
             }
             topicStatus = status || 'APPROVED';
             finalMentorId = parseInt(mentorId, 10);
         }
 
         if (!Number.isInteger(finalMentorId)) {
-            return res.status(400).json({ success: false, message: 'Giang vien huong dan khong hop le.' });
+            return res.status(400).json({ success: false, message: 'Giảng viên hướng dẫn không hợp lệ.' });
         }
 
         if (role !== 'LECTURER') {
@@ -160,7 +196,7 @@ const createTopic = async (req, res, next) => {
                 select: { id: true, role: true, isActive: true },
             });
             if (!mentor || mentor.role !== 'LECTURER' || !mentor.isActive) {
-                return res.status(400).json({ success: false, message: 'GVHD phai la giang vien dang hoat dong.' });
+                return res.status(400).json({ success: false, message: 'GVHD phải là giảng viên đang hoạt động.' });
             }
         }
 
@@ -183,9 +219,9 @@ const createTopic = async (req, res, next) => {
 
         res.status(201).json({
             success: true,
-            message: topicStatus === 'DRAFT' ? 'Da luu ban nhap.'
-                : topicStatus === 'PENDING' ? 'Da gui de xuat, cho giang vien duyet.'
-                    : 'Tao de tai thanh cong.',
+            message: topicStatus === 'DRAFT' ? 'Đã lưu bản nháp.'
+                : topicStatus === 'PENDING' ? 'Đã gửi đề xuất, chờ giảng viên duyệt.'
+                    : 'Tạo đề tài thành công.',
             data: topic,
         });
     } catch (error) {
@@ -203,11 +239,11 @@ const updateTopic = async (req, res, next) => {
         const existing = await prisma.topic.findUnique({ where: { id: topicId } });
 
         if (!existing) {
-            return res.status(404).json({ success: false, message: 'Khong tim thay de tai.' });
+            return res.status(404).json({ success: false, message: 'Không tìm thấy đề tài.' });
         }
 
         if (role === 'LECTURER' && existing.proposedById !== userId) {
-            return res.status(403).json({ success: false, message: 'Ban chi co the sua de tai do minh tao.' });
+            return res.status(403).json({ success: false, message: 'Bạn chỉ có thể sửa đề tài do mình tạo.' });
         }
 
         const updateData = {};
@@ -218,14 +254,14 @@ const updateTopic = async (req, res, next) => {
         if (role === 'ADMIN' && mentorId) {
             const mentorIdInt = parseInt(mentorId, 10);
             if (!Number.isInteger(mentorIdInt)) {
-                return res.status(400).json({ success: false, message: 'GVHD khong hop le.' });
+                return res.status(400).json({ success: false, message: 'GVHD không hợp lệ.' });
             }
             const mentor = await prisma.user.findUnique({
                 where: { id: mentorIdInt },
                 select: { id: true, role: true, isActive: true },
             });
             if (!mentor || mentor.role !== 'LECTURER' || !mentor.isActive) {
-                return res.status(400).json({ success: false, message: 'GVHD phai la giang vien dang hoat dong.' });
+                return res.status(400).json({ success: false, message: 'GVHD phải là giảng viên đang hoạt động.' });
             }
             updateData.mentorId = mentorIdInt;
         }
@@ -261,8 +297,8 @@ const updateTopic = async (req, res, next) => {
             await safeNotifyMany(
                 affectedRegs.map((reg) => ({
                     userId: reg.studentId,
-                    title: 'De tai da duoc cap nhat',
-                    content: `De tai "${topic.title}" da duoc cap nhat boi giang vien/Admin. Vui long xem lai thong tin moi nhat.`,
+                    title: 'Đề tài đã được cập nhật',
+                    content: `Đề tài "${topic.title}" đã được cập nhật bởi giảng viên/Admin. Vui lòng xem lại thông tin mới nhất.`,
                     type: 'SYSTEM',
                 })),
                 'updateTopic',
@@ -278,7 +314,7 @@ const updateTopic = async (req, res, next) => {
             getRequestIp(req),
         );
 
-        res.json({ success: true, message: 'Cap nhat de tai thanh cong.', data: topic });
+        res.json({ success: true, message: 'Cập nhật đề tài thành công.', data: topic });
     } catch (error) {
         next(error);
     }
@@ -295,20 +331,20 @@ const deleteTopic = async (req, res, next) => {
         });
 
         if (!existing) {
-            return res.status(404).json({ success: false, message: 'Khong tim thay de tai.' });
+            return res.status(404).json({ success: false, message: 'Không tìm thấy đề tài.' });
         }
 
         if (existing._count.registrations > 0) {
-            return res.status(400).json({ success: false, message: 'Khong the xoa de tai da co sinh vien dang ky.' });
+            return res.status(400).json({ success: false, message: 'Không thể xóa đề tài đã có sinh viên đăng ký.' });
         }
 
         if (role !== 'ADMIN' && existing.proposedById !== userId) {
-            return res.status(403).json({ success: false, message: 'Ban chi co the xoa de tai do minh tao.' });
+            return res.status(403).json({ success: false, message: 'Bạn chỉ có thể xóa đề tài do mình tạo.' });
         }
 
         await prisma.topic.delete({ where: { id: parseInt(id, 10) } });
 
-        res.json({ success: true, message: 'Xoa de tai thanh cong.' });
+        res.json({ success: true, message: 'Xóa đề tài thành công.' });
     } catch (error) {
         next(error);
     }
@@ -321,25 +357,25 @@ const changeTopicStatus = async (req, res, next) => {
         const { status, rejectReason } = req.body;
 
         if (!['APPROVED', 'REJECTED'].includes(status)) {
-            return res.status(400).json({ success: false, message: 'Trang thai phai la APPROVED hoac REJECTED.' });
+            return res.status(400).json({ success: false, message: 'Trạng thái phải là APPROVED hoặc REJECTED.' });
         }
 
         if (status === 'REJECTED' && !rejectReason) {
-            return res.status(400).json({ success: false, message: 'Vui long nhap ly do tu choi.' });
+            return res.status(400).json({ success: false, message: 'Vui lòng nhập lý do từ chối.' });
         }
 
         const existing = await prisma.topic.findUnique({ where: { id: topicId } });
 
         if (!existing) {
-            return res.status(404).json({ success: false, message: 'Khong tim thay de tai.' });
+            return res.status(404).json({ success: false, message: 'Không tìm thấy đề tài.' });
         }
 
         if (existing.status !== 'PENDING') {
-            return res.status(400).json({ success: false, message: `Chi duyet/tu choi de tai o trang thai PENDING. Hien: ${existing.status}.` });
+            return res.status(400).json({ success: false, message: `Chỉ duyệt/từ chối đề tài ở trạng thái PENDING. Hiện: ${existing.status}.` });
         }
 
         if (req.user.role === 'LECTURER' && existing.mentorId !== req.user.id) {
-            return res.status(403).json({ success: false, message: 'Ban chi co quyen duyet de tai do minh huong dan.' });
+            return res.status(403).json({ success: false, message: 'Bạn chỉ có quyền duyệt đề tài do mình hướng dẫn.' });
         }
 
         if (status === 'APPROVED') {
@@ -352,7 +388,7 @@ const changeTopicStatus = async (req, res, next) => {
                 },
             });
             if (currentCount >= maxSlots) {
-                return res.status(400).json({ success: false, message: `Giang vien da dat gioi han ${maxSlots} sinh vien huong dan.` });
+                return res.status(400).json({ success: false, message: `Giảng viên đã đạt giới hạn ${maxSlots} sinh viên hướng dẫn.` });
             }
         }
 
@@ -398,7 +434,7 @@ const changeTopicStatus = async (req, res, next) => {
 
         res.json({
             success: true,
-            message: status === 'APPROVED' ? 'Da duyet de tai.' : 'Da tu choi de tai.',
+            message: status === 'APPROVED' ? 'Đã duyệt đề tài.' : 'Đã từ chối đề tài.',
             data: topic,
         });
     } catch (error) {
@@ -417,7 +453,7 @@ const getMentorCapacity = async (req, res, next) => {
         });
 
         if (!mentor) {
-            return res.status(404).json({ success: false, message: 'Khong tim thay giang vien.' });
+            return res.status(404).json({ success: false, message: 'Không tìm thấy giảng viên.' });
         }
 
         const maxSlots = getMentorMaxSlots(mentor.academicTitle);

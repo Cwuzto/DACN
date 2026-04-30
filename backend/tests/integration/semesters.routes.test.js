@@ -114,7 +114,7 @@ describe('Integration - semesters routes', () => {
         expect(res.body.success).toBe(false);
     });
 
-    test('PATCH /api/semesters/:id/registration-toggle returns warning outside recommended window', async () => {
+    test('PATCH /api/semesters/:id/registration-toggle rejects opening outside registration window', async () => {
         prisma.semester.findUnique.mockResolvedValue({
             id: 1,
             name: 'HK Future',
@@ -124,24 +124,15 @@ describe('Integration - semesters routes', () => {
             defenseDate: null,
             registrationOpen: false,
         });
-        prisma.semester.update.mockResolvedValue({
-            id: 1,
-            name: 'HK Future',
-            startDate: new Date('2099-01-10T00:00:00.000Z'),
-            registrationDeadline: new Date('2099-01-20T00:00:00.000Z'),
-            endDate: new Date('2099-06-01T00:00:00.000Z'),
-            defenseDate: null,
-            registrationOpen: true,
-        });
-
         const res = await request(app)
             .patch('/api/semesters/1/registration-toggle')
             .set('Authorization', 'Bearer admin-token')
             .send({ registrationOpen: true });
 
-        expect(res.status).toBe(200);
-        expect(res.body.success).toBe(true);
-        expect(typeof res.body.warning).toBe('string');
-        expect(res.body.warning.length).toBeGreaterThan(0);
+        expect(res.status).toBe(400);
+        expect(res.body.success).toBe(false);
+        expect(typeof res.body.message).toBe('string');
+        expect(res.body.message.length).toBeGreaterThan(0);
+        expect(prisma.semester.update).not.toHaveBeenCalled();
     });
 });

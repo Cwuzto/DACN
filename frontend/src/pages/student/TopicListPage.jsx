@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { message, Modal } from 'antd';
 import { topicService } from '../../services/topicService';
 import registrationService from '../../services/registrationService';

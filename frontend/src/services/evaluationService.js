@@ -53,6 +53,30 @@ const evaluationService = {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi khóa/mở khóa điểm');
         }
     },
+
+    exportScoreSheetPdf: async (registrationId) => {
+        try {
+            return await api.post(`/evaluations/${registrationId}/score-sheet/export-pdf`);
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi xuất PDF bảng điểm');
+        }
+    },
+
+    getScoreSheet: async (registrationId) => {
+        try {
+            return await api.get(`/evaluations/${registrationId}/score-sheet`);
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi tải bảng điểm chi tiết');
+        }
+    },
+
+    saveScoreSheet: async (registrationId, data) => {
+        try {
+            return await api.put(`/evaluations/${registrationId}/score-sheet`, data);
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi lưu bảng điểm chi tiết');
+        }
+    },
 };
 
 export default evaluationService;

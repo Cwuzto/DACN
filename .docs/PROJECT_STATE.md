@@ -2,7 +2,7 @@
 
 ## Trạng thái hiện tại
 
-**Cập nhật lần cuối:** 2026-04-22
+**Cập nhật lần cuối:** 2026-05-01
 
 Dự án đang ở trạng thái **ổn định luồng chính cho 3 vai trò** (`ADMIN`, `LECTURER`, `STUDENT`) theo workflow `TopicRegistration`.
 
@@ -48,6 +48,20 @@ Dự án đang ở trạng thái **ổn định luồng chính cho 3 vai trò** 
 
 - Đã chuẩn hóa rule kiểm tra UTF-8 + chất lượng markdown.
 
+### 5. Đã triển khai backend score-sheet + export PDF thật
+
+- Đã mở API score-sheet:
+  - `GET /api/evaluations/:registrationId/score-sheet`
+  - `PUT /api/evaluations/:registrationId/score-sheet`
+  - `POST /api/evaluations/:registrationId/score-sheet/export-pdf`
+- Đã bổ sung dữ liệu chấm điểm chi tiết theo tiêu chí:
+  - model `DefenseCriterionScore`
+  - field lock/pdf cho `DefenseResult` (`scoreLocked`, `lockedAt`, `lockedBy`, `pdfUrl`, `pdfGeneratedAt`, ...)
+- Đã triển khai render PDF server-side bằng `pdfkit` và upload lên storage qua `UploadService`.
+- Đã cập nhật UI:
+  - Admin có nút export PDF + badge trạng thái khóa điểm/PDF.
+  - Lecturer có nút export PDF trên card chấm điểm.
+
 ---
 
 ## Chất lượng và gate
@@ -58,11 +72,39 @@ Dự án đang ở trạng thái **ổn định luồng chính cho 3 vai trò** 
 
 ---
 
-## Yêu cầu mới đã chốt (chưa triển khai)
+## Yêu cầu mới đã chốt (trạng thái triển khai)
 
-1. Auto-reject đăng ký `PENDING` sau 5 ngày không phản hồi.
-2. Auto-reject `PENDING` khi qua `registrationDeadline`.
-3. Trang "Đề tài của tôi" của lecturer hiển thị tên sinh viên, tìm kiếm theo sinh viên, bỏ filter bản nháp.
-4. Filter mặc định theo đợt hiện tại hoặc đợt gần nhất vừa kết thúc.
-5. Bảng chấm điểm hội đồng online theo barem + xuất PDF.
-6. Nhận diện và giới hạn quyền tài khoản sinh viên đã hoàn thành đồ án.
+1. [x] Auto-reject đăng ký `PENDING` sau 5 ngày không phản hồi.
+2. [x] Auto-reject `PENDING` khi qua `registrationDeadline`.
+3. [x] Trang "Đề tài của tôi" của lecturer hiển thị tên sinh viên, tìm kiếm theo sinh viên, bỏ filter bản nháp.
+4. [x] Filter mặc định theo đợt hiện tại hoặc đợt gần nhất vừa kết thúc.
+5. [x] Bảng chấm điểm hội đồng online theo barem + xuất PDF.
+6. [ ] Nhận diện và giới hạn quyền tài khoản sinh viên đã hoàn thành đồ án.
+
+---
+
+## Định hướng nghiệp vụ mới đã chốt (2026-05-01)
+
+### Bối cảnh mở rộng
+
+- Hệ thống cần hỗ trợ nhiều `Tên đồ án` trong cùng một học kỳ/đợt.
+- Luồng đăng ký đề tài của sinh viên phải phụ thuộc vào môn đồ án mà sinh viên đã đăng ký trước đó.
+
+### Rule nghiệp vụ mới
+
+- Khi vào trang đăng ký đề tài:
+  - học kỳ mặc định là học kỳ mới nhất hiện tại.
+  - sinh viên chọn `Tên đồ án`.
+- Sinh viên chỉ được đăng ký đề tài nếu:
+  - đề tài thuộc đúng `Tên đồ án` đã đăng ký môn trước đó,
+  - và đúng theo học kỳ/đợt tương ứng.
+- Nếu sinh viên chọn `Tên đồ án` khác với môn đã đăng ký:
+  - không cho phép đăng ký,
+  - trả thông báo lỗi rõ ràng.
+
+### Trạng thái triển khai
+
+- Chưa làm import Excel ở giai đoạn này.
+- Trước mắt sẽ:
+  - bổ sung thuộc tính/schema cần thiết,
+  - seed dữ liệu mẫu thủ công để test end-to-end.

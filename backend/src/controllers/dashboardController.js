@@ -1,5 +1,6 @@
 const prisma = require('../config/database');
 const { PENDING_REMINDER_DAYS } = require('../constants/registrationLimits');
+const { getDefaultSemester } = require('../utils/semesterResolver');
 
 const ACTIVE_REGISTRATION_STATUSES = ['APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'DEFENDED', 'COMPLETED'];
 const getPendingCutoffDate = () => {
@@ -7,21 +8,6 @@ const getPendingCutoffDate = () => {
     cutoff.setDate(cutoff.getDate() - PENDING_REMINDER_DAYS);
     return cutoff;
 };
-
-const getActiveSemester = async () => prisma.semester.findFirst({
-    where: {
-        startDate: { lte: new Date() },
-        endDate: { gte: new Date() },
-    },
-    orderBy: { startDate: 'desc' },
-    select: {
-        id: true,
-        name: true,
-        startDate: true,
-        registrationDeadline: true,
-        endDate: true,
-    },
-});
 
 const getDeadlineColor = (dueDate) => {
     if (!dueDate) return '#13C2C2';
@@ -80,25 +66,15 @@ const getSemesterOverview = async (req, res, next) => {
                 where: { id: semesterIdQuery },
             });
         } else {
-            targetSemester = await getActiveSemester();
-            if (!targetSemester?.id) {
-                targetSemester = await prisma.semester.findFirst({
-                    orderBy: { startDate: 'desc' },
-                    select: {
-                        id: true,
-                        name: true,
-                        startDate: true,
-                        registrationDeadline: true,
-                        endDate: true,
-                        registrationOpen: true,
-                        status: true,
-                    },
-                });
-            } else {
-                targetSemester = await prisma.semester.findUnique({
-                    where: { id: targetSemester.id },
-                });
-            }
+            targetSemester = await getDefaultSemester({
+                id: true,
+                name: true,
+                startDate: true,
+                registrationDeadline: true,
+                endDate: true,
+                registrationOpen: true,
+                status: true,
+            });
         }
 
         if (!targetSemester) {
@@ -317,7 +293,13 @@ const getRecentActivities = async (req, res, next) => {
 const getLecturerDashboard = async (req, res, next) => {
     try {
         const mentorId = req.user.id;
-        const activeSemester = await getActiveSemester();
+        const activeSemester = await getDefaultSemester({
+            id: true,
+            name: true,
+            startDate: true,
+            registrationDeadline: true,
+            endDate: true,
+        });
 
         if (!activeSemester) {
             return res.json({
@@ -454,7 +436,13 @@ const getLecturerDashboard = async (req, res, next) => {
 const getStudentDashboard = async (req, res, next) => {
     try {
         const studentId = req.user.id;
-        const activeSemester = await getActiveSemester();
+        const activeSemester = await getDefaultSemester({
+            id: true,
+            name: true,
+            startDate: true,
+            registrationDeadline: true,
+            endDate: true,
+        });
 
         if (!activeSemester) {
             return res.json({

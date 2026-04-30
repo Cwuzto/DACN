@@ -1,4 +1,4 @@
-﻿const prisma = require('../config/database');
+const prisma = require('../config/database');
 
 const auditLog = async (userId, action, entityType, entityId, details = null, ipAddress = null) => {
     try {

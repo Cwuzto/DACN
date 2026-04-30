@@ -6,6 +6,7 @@ import {
     DatePicker,
     Form,
     Input,
+    InputNumber,
     message,
     Modal,
     Row,
@@ -28,6 +29,7 @@ import dayjs from 'dayjs';
 import registrationService from '../../services/registrationService';
 import { semesterService } from '../../services/semesterService';
 import { topicService } from '../../services/topicService';
+import { PROJECT_NAME, buildSemesterName, extractSemesterMeta, formatSemesterLabel } from '../../utils/semesterDisplay';
 
 const statusConfig = {
     ONGOING: { label: 'Đang diễn ra', color: 'green', tw: 'bg-green-100 text-green-700' },
@@ -57,7 +59,7 @@ const getToggleWindowWarning = (period) => {
     const windowEnd = deadline.add(REGISTRATION_TOGGLE_WARNING_WINDOW_DAYS, 'day');
 
     if (now.isBefore(windowStart) || now.isAfter(windowEnd)) {
-        return `Ban dang thay doi ngoai cua so khuyen nghi (${windowStart.format('DD/MM/YYYY')} - ${windowEnd.format('DD/MM/YYYY')}).`;
+        return `Bạn đang thay đổi ngoài khuyến nghị (${windowStart.format('DD/MM/YYYY')} - ${windowEnd.format('DD/MM/YYYY')}).`;
     }
 
     return null;
@@ -218,9 +220,10 @@ function ProjectPeriodPage() {
             }, {});
 
             const mapped = semesterRes.data.map((semester) => ({
+                ...extractSemesterMeta(semester),
                 key: semester.id.toString(),
                 id: semester.id,
-                name: semester.name,
+                name: formatSemesterLabel(semester),
                 code: `HK-${semester.id}`,
                 status: semester.status,
                 registrationOpen:
@@ -325,15 +328,25 @@ function ProjectPeriodPage() {
     const handleAdd = () => {
         setModalMode('add');
         form.resetFields();
-        form.setFieldsValue({ status: 'UPCOMING', registrationOpen: true });
+        form.setFieldsValue({
+            status: 'UPCOMING',
+            registrationOpen: true,
+            projectName: PROJECT_NAME,
+            term: 1,
+            academicStartYear: dayjs().year(),
+        });
         setIsModalVisible(true);
     };
 
     const handleEdit = (period) => {
         setModalMode('edit');
+        const meta = extractSemesterMeta(period.rawData);
+        const startYear = Number.parseInt((meta.academicYear || '').split('-')[0], 10) || dayjs().year();
         form.setFieldsValue({
             id: period.id,
-            name: period.rawData.name,
+            projectName: PROJECT_NAME,
+            term: meta.term,
+            academicStartYear: startYear,
             status: period.rawData.status,
             registrationOpen: period.rawData.registrationOpen,
             startDate: dayjs(period.rawData.startDate),
@@ -351,8 +364,12 @@ function ProjectPeriodPage() {
 
     const handleClone = (period) => {
         setModalMode('add');
+        const meta = extractSemesterMeta(period.rawData);
+        const cloneStartYear = Number.parseInt((meta.academicYear || '').split('-')[0], 10) + 1;
         form.setFieldsValue({
-            name: `${period.rawData.name} (Copy)`,
+            projectName: PROJECT_NAME,
+            term: meta.term,
+            academicStartYear: Number.isInteger(cloneStartYear) ? cloneStartYear : dayjs().year() + 1,
             status: 'UPCOMING',
             registrationOpen: period.rawData.registrationOpen,
             startDate: dayjs(period.rawData.startDate).add(1, 'year'),
@@ -396,7 +413,10 @@ function ProjectPeriodPage() {
         try {
             const values = await form.validateFields();
             const payload = {
-                name: values.name,
+                name: buildSemesterName({
+                    term: values.term,
+                    academicYear: `${values.academicStartYear}-${values.academicStartYear + 1}`,
+                }),
                 status: values.status,
                 registrationOpen: !!values.registrationOpen,
                 startDate: values.startDate.toISOString(),
@@ -429,7 +449,7 @@ function ProjectPeriodPage() {
                 <div>
                     <h2 className="text-2xl font-black text-slate-900">Quản lý Đợt Đồ án</h2>
                     <p className="text-sm text-slate-500 mt-1">
-                        Thiết lập khung thời gian và cấu hình hệ thống cho toàn trường.
+                        Tên đồ án: <b>{PROJECT_NAME}</b>. Hiển thị theo đợt đồ án mới nhất (gắn với học kỳ, năm học).
                     </p>
                 </div>
                 <button
@@ -450,7 +470,7 @@ function ProjectPeriodPage() {
                         <div>
                             <p className="font-bold text-slate-900 cursor-pointer">Cho phép đăng ký đề tài</p>
                             <p className="text-xs text-slate-500 mt-0.5">
-                                Bật/tắt đăng ký theo học kỳ đang chọn ở cột bên phải.
+                                Bật/tắt đăng ký theo đợt đồ án đang chọn ở cột bên phải.
                             </p>
                         </div>
                     </div>
@@ -531,18 +551,36 @@ function ProjectPeriodPage() {
                         <Input />
                     </Form.Item>
                     <Row gutter={16}>
-                        <Col span={24}>
+                        <Col span={12}>
                             <Form.Item
-                                name="name"
-                                label="Tên đợt đồ án"
-                                rules={[
-                                    {
-                                        required: true,
-                                        message: 'Nhập tên đợt (VD: Đồ án HK1 2024.1)',
-                                    },
-                                ]}
+                                name="projectName"
+                                label="Tên đồ án"
+                                initialValue={PROJECT_NAME}
                             >
-                                <Input placeholder="VD: Đồ án tốt nghiệp - HK1 2024-2025" />
+                                <Input disabled />
+                            </Form.Item>
+                        </Col>
+                        <Col span={6}>
+                            <Form.Item
+                                name="term"
+                                label="Học kỳ"
+                                rules={[{ required: true, message: 'Chọn học kỳ' }]}
+                            >
+                                <Select
+                                    options={[
+                                        { value: 1, label: 'Học kỳ 1' },
+                                        { value: 2, label: 'Học kỳ 2' },
+                                    ]}
+                                />
+                            </Form.Item>
+                        </Col>
+                        <Col span={6}>
+                            <Form.Item
+                                name="academicStartYear"
+                                label="Năm học bắt đầu"
+                                rules={[{ required: true, message: 'Nhập năm bắt đầu' }]}
+                            >
+                                <InputNumber min={2000} max={2100} style={{ width: '100%' }} />
                             </Form.Item>
                         </Col>
                     </Row>
