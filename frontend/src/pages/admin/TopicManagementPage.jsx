@@ -236,6 +236,22 @@ function TopicManagementPage() {
             ) : <span className="text-slate-400">-</span>,
         },
         {
+            title: 'Tên đồ án',
+            key: 'projectName',
+            width: 120,
+            render: () => <span className="text-sm">{PROJECT_NAME}</span>,
+        },
+        {
+            title: 'Đợt đồ án',
+            key: 'semester',
+            width: 180,
+            render: (_, record) => (
+                <span className="text-sm">
+                    {record.semester ? formatSemesterLabel(record.semester) : '—'}
+                </span>
+            ),
+        },
+        {
             title: 'Người đề xuất',
             dataIndex: 'proposedBy',
             key: 'proposedBy',

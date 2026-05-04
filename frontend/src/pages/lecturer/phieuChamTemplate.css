@@ -1,0 +1,90 @@
+﻿/* CSS Reset & Base */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 11pt;
+  line-height: 1.3;
+  color: #000;
+  background-color: #f0f0f0;
+}
+
+.page {
+  width: 210mm;
+  min-height: 297mm;
+  padding: 20mm 15mm;
+  background-color: white;
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  margin: 20px auto;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  text-align: center;
+}
+.header-left, .header-right { flex: 1; }
+.header-left { font-weight: bold; }
+.header-right .republic { font-weight: bold; }
+.header-right .independence { font-weight: bold; text-decoration: underline; }
+.header-right .date { font-style: italic; margin-top: 5px; font-weight: normal; }
+
+.document-title { text-align: center; margin: 20px 0; }
+.document-title h1 { font-size: 14pt; text-transform: uppercase; margin-bottom: 5px; }
+.document-title p { font-style: italic; }
+
+.info-section { margin-bottom: 15px; line-height: 1.6; }
+.info-row { display: flex; flex-wrap: wrap; }
+.info-row > div { margin-right: 20px; }
+
+.rubric-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 15px;
+  font-size: 10pt;
+}
+.rubric-table th, .rubric-table td {
+  border: 1px solid #000;
+  padding: 5px;
+  vertical-align: top;
+}
+.rubric-table th {
+  text-align: center;
+  font-weight: bold;
+  vertical-align: middle;
+}
+.text-center { text-align: center; }
+
+.footer-note { font-style: italic; font-weight: bold; margin-bottom: 30px; font-size: 10pt; }
+.signature-section { display: flex; justify-content: flex-end; margin-top: 20px; }
+.signature-box { text-align: center; width: 250px; }
+.signature-box .title { font-weight: bold; }
+.signature-box .sub { font-style: italic; margin-bottom: 80px; }
+.signature-box .name { font-weight: bold; }
+
+.score-input {
+  width: 100%;
+  border: 1px solid #666;
+  font-family: inherit;
+  font-size: 10pt;
+  padding: 2px 4px;
+}
+
+.sheet-actions {
+  width: 210mm;
+  margin: 0 auto;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+@media print {
+  body { background-color: white; }
+  .page { margin: 0; box-shadow: none; border: none; padding: 0; width: 100%; }
+  .sheet-actions { display: none; }
+}

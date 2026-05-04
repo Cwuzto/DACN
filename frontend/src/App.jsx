@@ -23,6 +23,7 @@ const CouncilAssignmentPage = lazy(() => import('./pages/admin/CouncilAssignment
 const ProjectOversightPage = lazy(() => import('./pages/admin/ProjectOversightPage'));
 const GradingDefensePage = lazy(() => import('./pages/admin/GradingDefensePage'));
 const NotificationCenterPage = lazy(() => import('./pages/admin/NotificationCenterPage'));
+const ProjectEnrollmentPage = lazy(() => import('./pages/admin/ProjectEnrollmentPage'));
 
 // Lecturer pages
 const LecturerDashboardPage = lazy(() => import('./pages/lecturer/LecturerDashboardPage'));
@@ -30,6 +31,7 @@ const LecturerTopicManagementPage = lazy(() => import('./pages/lecturer/TopicMan
 const TopicApprovalPage = lazy(() => import('./pages/lecturer/TopicApprovalPage'));
 const ProgressTrackingPage = lazy(() => import('./pages/lecturer/ProgressTrackingPage'));
 const GradingPage = lazy(() => import('./pages/lecturer/GradingPage'));
+const LecturerGradingSheetPage = lazy(() => import('./pages/lecturer/LecturerGradingSheetPage'));
 
 // Student pages
 const StudentDashboardPage = lazy(() => import('./pages/student/StudentDashboardPage'));
@@ -83,6 +85,7 @@ function App() {
                                 <Route path="oversight" element={<ProjectOversightPage />} />
                                 <Route path="grading" element={<GradingDefensePage />} />
                                 <Route path="councils" element={<CouncilAssignmentPage />} />
+                                <Route path="project-enrollments" element={<ProjectEnrollmentPage />} />
                                 <Route path="notifications" element={<NotificationCenterPage />} />
                                 <Route path="profile" element={<ProfilePage />} />
                             </Route>
@@ -96,6 +99,7 @@ function App() {
                                 <Route path="approvals" element={<TopicApprovalPage />} />
                                 <Route path="progress" element={<ProgressTrackingPage />} />
                                 <Route path="grading" element={<GradingPage />} />
+                                <Route path="grading/sheet/:registrationId" element={<LecturerGradingSheetPage />} />
                                 <Route path="notifications" element={<NotificationsPage />} />
                                 <Route path="profile" element={<ProfilePage />} />
                             </Route>

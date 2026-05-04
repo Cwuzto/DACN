@@ -8,6 +8,13 @@ jest.mock('../../src/config/database', () => ({
     topic: {
         create: jest.fn(),
     },
+    topicRegistration: {
+        findFirst: jest.fn(),
+    },
+    projectCatalog: {
+        findUnique: jest.fn(),
+        findFirst: jest.fn(),
+    },
 }));
 
 const prisma = require('../../src/config/database');
@@ -18,6 +25,9 @@ describe('topicController.createTopic', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         prisma.semester.findUnique.mockResolvedValue({ id: 9 });
+        prisma.projectCatalog.findFirst.mockResolvedValue({ id: 1 });
+        prisma.projectCatalog.findUnique.mockResolvedValue({ id: 1, isActive: true });
+        prisma.topicRegistration.findFirst.mockResolvedValue(null);
     });
 
     test('auto-assigns mentorId to lecturer user id', async () => {
@@ -36,6 +46,7 @@ describe('topicController.createTopic', () => {
                 semesterId: 9,
                 mentorId: 9999,
                 status: 'APPROVED',
+                projectCatalogId: 1,
             },
         });
         const res = createMockRes();
@@ -48,6 +59,7 @@ describe('topicController.createTopic', () => {
                 data: expect.objectContaining({
                     proposedById: 77,
                     mentorId: 77,
+                    projectCatalogId: 1,
                     status: 'APPROVED',
                 }),
             })
@@ -63,6 +75,7 @@ describe('topicController.createTopic', () => {
                 title: 'Do an admin tao',
                 semesterId: 9,
                 status: 'APPROVED',
+                projectCatalogId: 1,
             },
         });
         const res = createMockRes();
@@ -89,6 +102,7 @@ describe('topicController.createTopic', () => {
                 semesterId: 9,
                 mentorId: 999,
                 status: 'APPROVED',
+                projectCatalogId: 1,
             },
         });
         const res = createMockRes();
@@ -97,6 +111,28 @@ describe('topicController.createTopic', () => {
         await topicController.createTopic(req, res, next);
 
         expect(res.status).toHaveBeenCalledWith(400);
+        expect(prisma.topic.create).not.toHaveBeenCalled();
+        expect(next).not.toHaveBeenCalled();
+    });
+
+    test('rejects student create when account is restricted after completion', async () => {
+        prisma.topicRegistration.findFirst.mockResolvedValueOnce({ id: 1000 });
+
+        const req = createMockReq({
+            user: { id: 20, role: 'STUDENT' },
+            body: {
+                title: 'De xuat moi',
+                semesterId: 9,
+                mentorId: 999,
+                projectCatalogId: 1,
+            },
+        });
+        const res = createMockRes();
+        const next = createNext();
+
+        await topicController.createTopic(req, res, next);
+
+        expect(res.status).toHaveBeenCalledWith(403);
         expect(prisma.topic.create).not.toHaveBeenCalled();
         expect(next).not.toHaveBeenCalled();
     });

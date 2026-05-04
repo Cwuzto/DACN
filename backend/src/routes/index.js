@@ -12,6 +12,7 @@ const councilRoutes = require('./councilRoutes');
 const dashboardRoutes = require('./dashboardRoutes');
 const evaluationRoutes = require('./evaluationRoutes');
 const notificationRoutes = require('./notificationRoutes');
+const projectEnrollmentRoutes = require('./projectEnrollmentRoutes');
 
 // Đăng ký routes
 router.use('/auth', authRoutes);
@@ -25,6 +26,7 @@ router.use('/councils', councilRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/evaluations', evaluationRoutes);
 router.use('/notifications', notificationRoutes);
+router.use('/project-enrollments', projectEnrollmentRoutes);
 
 // Health check
 router.get('/health', (req, res) => {

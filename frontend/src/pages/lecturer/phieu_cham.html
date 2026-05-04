@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phiếu Đánh Giá Báo Cáo Tốt Nghiệp</title>
+    <style>
+        /* CSS Reset & Base */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: 'Times New Roman', Times, serif; /* Chuẩn văn bản hành chính */
+            font-size: 11pt;
+            line-height: 1.3;
+            color: #000;
+            background-color: #f0f0f0;
+            display: flex;
+            justify-content: center;
+        }
+        
+        /* A4 Page Container */
+        .page {
+            width: 210mm;
+            min-height: 297mm;
+            padding: 20mm 15mm;
+            background-color: white;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            margin: 20px 0;
+        }
+
+        /* Header Section */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .header-left, .header-right {
+            flex: 1;
+        }
+        .header-left {
+            font-weight: bold;
+        }
+        .header-right .republic {
+            font-weight: bold;
+        }
+        .header-right .independence {
+            font-weight: bold;
+            text-decoration: underline;
+        }
+        .header-right .date {
+            font-style: italic;
+            margin-top: 5px;
+            font-weight: normal;
+        }
+
+        /* Title Section */
+        .document-title {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .document-title h1 {
+            font-size: 14pt;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+        .document-title p {
+            font-style: italic;
+        }
+
+        /* Info Section */
+        .info-section {
+            margin-bottom: 15px;
+            line-height: 1.6;
+        }
+        .info-row {
+            display: flex;
+            flex-wrap: wrap;
+        }
+        .info-row > div {
+            margin-right: 20px;
+        }
+
+        /* Table Section */
+        .rubric-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+            font-size: 10pt;
+        }
+        .rubric-table th, .rubric-table td {
+            border: 1px solid #000;
+            padding: 5px;
+            vertical-align: top;
+        }
+        .rubric-table th {
+            text-align: center;
+            font-weight: bold;
+            vertical-align: middle;
+        }
+        .text-center { text-align: center; }
+        
+        /* Footer & Signature Section */
+        .footer-note {
+            font-style: italic;
+            font-weight: bold;
+            margin-bottom: 30px;
+            font-size: 10pt;
+        }
+        .signature-section {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+        .signature-box {
+            text-align: center;
+            width: 250px;
+        }
+        .signature-box .title {
+            font-weight: bold;
+        }
+        .signature-box .sub {
+            font-style: italic;
+            margin-bottom: 80px; /* Space for signature */
+        }
+        .signature-box .name {
+            font-weight: bold;
+        }
+
+        /* Print Specific Styles */
+        @media print {
+            body { background-color: white; }
+            .page { margin: 0; box-shadow: none; border: none; padding: 0; width: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="page">
+    <header class="header">
+        <div class="header-left">
+            <div>TRƯỜNG ĐẠI HỌC THỦ DẦU MỘT</div>
+            <div>VIỆN CÔNG NGHỆ SỐ</div>
+            <div>CHƯƠNG TRÌNH CNTT</div>
+            <div style="margin-top: 5px; font-weight: normal;">BCTN-06-2022</div>
+        </div>
+        <div class="header-right">
+            <div class="republic">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
+            <div class="independence">Độc lập - Tự do - Hạnh phúc</div>
+            <div class="date">Thành phố Hồ Chí Minh, ngày 15 tháng 12 năm 2025</div>
+        </div>
+    </header>
+
+    <main>
+        <section class="document-title">
+            <h1>PHIẾU ĐÁNH GIÁ BÁO CÁO TỐT NGHIỆP</h1>
+            <p>(Dùng cho thành viên Hội đồng chấm báo cáo tốt nghiệp)</p>
+        </section>
+
+        <section class="info-section">
+            <div class="info-row">
+                <div style="flex: 2;"><strong>1. Họ và tên người chấm:</strong> ThS. Võ Quốc Lương</div>
+                <div style="flex: 1;"><strong>Chức danh trong HĐ:</strong> Chủ tịch</div>
+            </div>
+            <div class="info-row">
+                <div style="flex: 2;"><strong>2. Họ tên sinh viên:</strong> Trần Quang Nhanh</div>
+                <div style="flex: 1;"><strong>Mã số SV:</strong> 2124802010474</div>
+            </div>
+            <div class="info-row">
+                <div><strong>3. Lớp:</strong> D21CNTT01</div>
+                <div><strong>Khóa học:</strong> D21</div>
+                <div><strong>Ngành:</strong> Công nghệ thông tin</div>
+            </div>
+            <div class="info-row">
+                <div><strong>4. Tên đề tài:</strong> Xây dựng website quản lý đề cương cho trường đại học Thủ Dầu Một</div>
+            </div>
+        </section>
+
+        <section class="table-section">
+            <table class="rubric-table">
+                <section class="table-section">
+            <table class="rubric-table">
+                <!-- Sử dụng colgroup để quản lý Clean Code cho kích thước cột -->
+                <colgroup>
+                    <col style="width: 4%;">  <!-- Cột 1: STT / Tiêu chí -->
+                    <col style="width: 14%;"> <!-- Cột 2: Nội dung tiêu chí -->
+                    <col style="width: 5%;">  <!-- Cột 3: Điểm tối đa -->
+                    <col style="width: 6%;">  <!-- Cột 4: CLO -->
+                    <col style="width: 15%;"> <!-- Cột 5: TỐT -->
+                    <col style="width: 15%;"> <!-- Cột 6: KHÁ -->
+                    <col style="width: 15%;"> <!-- Cột 7: TRUNG BÌNH -->
+                    <col style="width: 15%;"> <!-- Cột 8: KÉM -->
+                    <col style="width: 11%;"> <!-- Cột 9: Điểm đánh giá (Đã mở rộng) -->
+                </colgroup>
+                
+                <thead>
+                    <tr>
+                        <th rowspan="2">STT</th>
+                        <th rowspan="2">Tiêu chí đánh giá</th>
+                        <th rowspan="2">Điểm tối đa</th>
+                        <th rowspan="2">CLO liên quan</th>
+                        <th colspan="4">Các cấp độ đánh giá</th>
+                        <th rowspan="2">Điểm đánh giá</th>
+                    </tr>
+                    <tr>
+                        <th>TỐT<br>(85%-100%)</th>
+                        <th>KHÁ<br>(70%-84%)</th>
+                        <th>TRUNG BÌNH<br>(50%-69%)</th>
+                        <th>KÉM<br>(Dưới 50%)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Giữ nguyên toàn bộ phần <tbody> ở mã cũ của bạn -->
+                <tbody>
+                    <tr>
+                        <td rowspan="3" class="text-center"><strong>Tiêu chí 1:<br>Hình thức</strong></td>
+                        <td>Cấu trúc</td>
+                        <td class="text-center">0.5</td>
+                        <td class="text-center">CELO5<br>CELO6</td>
+                        <td>Cấu trúc hợp lí, bố cục chặt chẽ, đúng quy định</td>
+                        <td>Cấu trúc hợp lý, bố cục một số chỗ không chặt chẽ, đúng quy định</td>
+                        <td>Cấu trúc chưa hợp lí, bố cục chưa chặt chẽ, đúng quy định</td>
+                        <td>Cấu trúc chưa hợp lí, bố cục không đúng quy định</td>
+                        <td></td>
+                    </tr>
+                    <tr>
+                        <td>Trích dẫn hình thức trình bày</td>
+                        <td class="text-center">0.25</td>
+                        <td class="text-center">CELO5</td>
+                        <td>Trích dẫn, sắp xếp tài liệu tham khảo đúng quy định; hình vẽ, bảng biểu hợp lý.</td>
+                        <td>Trích dẫn đúng quy định, sắp xếp tài liệu tham khảo đúng quy định; hình vẽ, bảng biểu chưa hợp lý.</td>
+                        <td>Trích dẫn và trình bày tài liệu tham khảo đúng quy định nhưng không rõ ràng.</td>
+                        <td>Trích dẫn và trình bày tài liệu tham khảo không đúng quy định, không rõ ràng.</td>
+                        <td></td>
+                    </tr>
+                    <tr>
+                        <td>Ngôn ngữ</td>
+                        <td class="text-center">0.25</td>
+                        <td class="text-center">CELO2</td>
+                        <td>Ngôn ngữ trong sáng, chính xác, mạch lạc, không có lỗi chính tả, in ấn.</td>
+                        <td>Ngôn ngữ trong sáng, không có lỗi chính tả, in ấn nhưng còn một số chỗ sử dụng từ chưa chính xác.</td>
+                        <td>Ngôn ngữ mạch lạc, nhưng nhiều chỗ không chính xác, có lỗi chính tả, lỗi in ấn.</td>
+                        <td>Ngôn ngữ không mạch lạc, chính xác, không rõ ràng, có lỗi chính tả, in ấn.</td>
+                        <td></td>
+                    </tr>
+
+                    <tr>
+                        <td rowspan="4" class="text-center"><strong>Tiêu chí 2:<br>Nội dung</strong></td>
+                        <td>Đặt vấn đề, tổng quan tình hình nghiên cứu</td>
+                        <td class="text-center">1.0</td>
+                        <td class="text-center">CELO4</td>
+                        <td>Nêu được tính cấp thiết của đề tài, xác định mục tiêu, nhiệm vụ, tổng quan tốt.</td>
+                        <td>Nêu được tính cấp thiết của đề tài, xác định mục tiêu, nhiệm vụ chưa hợp lí, tổng quan tốt.</td>
+                        <td>Nêu được tính cấp thiết, không xác định được mục tiêu, nhiệm vụ, tổng quan chưa tốt.</td>
+                        <td>Không nêu được tính cấp thiết, không xác định được mục tiêu, tổng quan sơ sài.</td>
+                        <td></td>
+                    </tr>
+                    <tr>
+                        <td>Phương pháp nghiên cứu</td>
+                        <td class="text-center">0.5</td>
+                        <td class="text-center">CELO1<br>CELO2<br>CELO4</td>
+                        <td>Xác định và vận dụng các phương pháp nghiên cứu phù hợp với toàn bộ nội dung.</td>
+                        <td>Xác định và vận dụng các phương pháp nghiên cứu chỉ phù hợp một số nội dung.</td>
+                        <td>Xác định được phương pháp; phù hợp một phần với nội dung nghiên cứu.</td>
+                        <td>Không xác định được phương pháp nghiên cứu.</td>
+                        <td></td>
+                    </tr>
+                    <tr>
+                        <td>Nội dung nghiên cứu</td>
+                        <td class="text-center">2.5</td>
+                        <td class="text-center">CELO1<br>CELO2</td>
+                        <td>Đúng yêu cầu đề tài, nhận xét xác đáng, phân tích, tổng hợp tốt.</td>
+                        <td>Đúng yêu cầu đề tài, nhận xét xác đáng, phân tích, tổng hợp khá.</td>
+                        <td>Đúng yêu cầu đề tài, không có phân tích, tổng hợp.</td>
+                        <td>Không đúng yêu cầu đề tài, không có phân tích, tổng hợp.</td>
+                        <td></td>
+                    </tr>
+                    <tr>
+                        <td>Kết quả nghiên cứu</td>
+                        <td class="text-center">1.0</td>
+                        <td class="text-center">CELO3</td>
+                        <td>Đáp ứng chuẩn đầu ra, chính xác, phát hiện và giải quyết vấn đề tốt, có giá trị thực tiễn.</td>
+                        <td>Đáp ứng chuẩn đầu ra, chính xác, phát hiện và giải quyết vấn đề khá.</td>
+                        <td>Đáp ứng chuẩn đầu ra, chính xác, phát hiện và giải quyết vấn đề, ít có giá trị thực tiễn.</td>
+                        <td>Không đáp ứng chuẩn đầu ra.</td>
+                        <td></td>
+                    </tr>
+
+                    <tr>
+                        <td rowspan="3" class="text-center"><strong>Tiêu chí 3:<br>Tính ứng dụng và triển vọng</strong></td>
+                        <td>Tính mới và tính thời sự</td>
+                        <td class="text-center">0.25</td>
+                        <td class="text-center">CELO3</td>
+                        <td>Đề tài có cái mới và mang tính thời sự.</td>
+                        <td>Đề tài có cái mới, ít mang tính thời sự.</td>
+                        <td>Đề tài ít có cái mới, không có tính thời sự.</td>
+                        <td>Không có cái mới; không có tính thời sự.</td>
+                        <td></td>
+                    </tr>
+                    <tr>
+                        <td>Tính ứng dụng</td>
+                        <td class="text-center">0.5</td>
+                        <td class="text-center">CELO3</td>
+                        <td>Đề tài mang tính ứng dụng cao.</td>
+                        <td>Đề tài mang tính ứng dụng khá.</td>
+                        <td>Đề tài có mang tính ứng dụng.</td>
+                        <td>Không mang tính ứng dụng.</td>
+                        <td></td>
+                    </tr>
+                    <tr>
+                        <td>Đề tài có bài báo</td>
+                        <td class="text-center">0.25</td>
+                        <td class="text-center">CELO3<br>CELO6</td>
+                        <td>Có bài báo từ cấp trường trở lên, có phản biện.</td>
+                        <td>Có bài báo từ cấp trường trở lên, không có phản biện.</td>
+                        <td>Có bài báo ở cấp Khoa, có phản biện.</td>
+                        <td>Không có bài báo.</td>
+                        <td></td>
+                    </tr>
+
+                    <tr>
+                        <td rowspan="4" class="text-center"><strong>Tiêu chí 4:<br>Phần trình bày báo cáo</strong></td>
+                        <td>Khả năng trình bày và hình thức</td>
+                        <td class="text-center">0.5</td>
+                        <td class="text-center">CELO5</td>
+                        <td>Trình bày lưu loát, trôi chảy, đúng thời gian; Màu sắc trang nhã, rõ ràng.</td>
+                        <td>Trình bày lưu loát, đúng thời gian; Màu sắc trang nhã, hiệu ứng chưa phù hợp.</td>
+                        <td>Trình bày không lưu loát, đúng thời gian; Màu sắc trang nhã, hiệu ứng chưa phù hợp.</td>
+                        <td>Trình bày không lưu loát, không rõ ràng; Màu sắc, cỡ chữ khó nhìn.</td>
+                        <td></td>
+                    </tr>
+                    <tr>
+                        <td>Thái độ, cách ứng xử, bản lĩnh</td>
+                        <td class="text-center">0.5</td>
+                        <td class="text-center">CELO5</td>
+                        <td>Tôn trọng hội đồng, ứng xử văn minh, bản lĩnh tự tin trước câu hỏi.</td>
+                        <td>Tôn trọng hội đồng, ứng xử văn minh, chưa tự tin trước câu hỏi.</td>
+                        <td>Tôn trọng hội đồng, ứng xử chưa lịch sự, chưa tự tin trước câu hỏi.</td>
+                        <td>Thiếu tôn trọng hội đồng, ứng xử chưa lịch sự, không tự tin.</td>
+                        <td></td>
+                    </tr>
+                    <tr>
+                        <td>Nội dung trình bày</td>
+                        <td class="text-center">1.0</td>
+                        <td class="text-center">CELO1</td>
+                        <td>Bám sát cuốn BCTN, tóm tắt được các nội dung cơ bản; ngắn gọn.</td>
+                        <td>Bám sát cuốn BCTN; tóm tắt được các nội dung cơ bản; chưa ngắn gọn.</td>
+                        <td>Bám sát cuốn BCTN; chưa tóm tắt được các nội dung cơ bản; chưa ngắn gọn.</td>
+                        <td>Chưa bám sát cuốn BCTN, chưa tóm tắt được nội dung, chưa ngắn gọn.</td>
+                        <td></td>
+                    </tr>
+                    <tr>
+                        <td>Trả lời các câu hỏi</td>
+                        <td class="text-center">1.0</td>
+                        <td class="text-center">CELO2<br>CELO5</td>
+                        <td>Thuyết phục; đúng trọng tâm, chứng minh vấn đề liên quan; có giải thích mở rộng.</td>
+                        <td>Thuyết phục; đúng trọng tâm; chứng minh vấn đề liên quan; không có giải thích mở rộng.</td>
+                        <td>Thuyết phục; đúng trọng tâm; chưa chứng minh rõ vấn đề; không có giải thích.</td>
+                        <td>Chưa thuyết phục; không đúng trọng tâm; chưa chứng minh rõ vấn đề; không giải thích.</td>
+                        <td></td>
+                    </tr>
+
+                    <tr>
+                        <td colspan="2" class="text-center"><strong>Tổng số điểm</strong></td>
+                        <td class="text-center"><strong>10.0</strong></td>
+                        <td colspan="5"></td>
+                        <td></td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <p class="footer-note">LƯU Ý: Các khoa, chương trình đào tạo căn cứ tính đặc thù của ngành có thể điều chỉnh nội hàm trong cột "Các cấp độ đánh giá" của Rubric cho phù hợp.</p>
+        </section>
+
+        <section class="signature-section">
+            <div class="signature-box">
+                <div class="title">NGƯỜI ĐÁNH GIÁ</div>
+                <div class="sub">(Ký và ghi rõ họ tên)</div>
+                <div class="name">ThS. Võ Quốc Lương</div>
+            </div>
+        </section>
+    </main>
+</div>
+
+</body>
+</html>

@@ -2,15 +2,37 @@ const prisma = require('../config/database');
 const { getMentorMaxSlots } = require('../constants/mentorCapacity');
 const { auditLog } = require('../services/auditLogService');
 const { safeNotifyMany } = require('../services/notificationService');
+const { hasCompletedGraduationProject, STUDENT_RESTRICTION_MESSAGE } = require('../utils/studentAccountRestriction');
 
 const TOPIC_STATUS_VALUES = ['DRAFT', 'PENDING', 'APPROVED', 'REJECTED'];
 const ACTIVE_REGISTRATION_STATUSES = ['PENDING', 'APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'DEFENDED', 'COMPLETED'];
 const getRequestIp = (req) => req.ip || req.headers['x-forwarded-for'] || null;
+const DEFAULT_PROJECT_CATALOG_CODE = 'DATN';
+
+const resolveProjectCatalogId = async (projectCatalogIdInput) => {
+    const parsed = parseInt(projectCatalogIdInput, 10);
+    if (Number.isInteger(parsed)) {
+        const found = await prisma.projectCatalog.findUnique({
+            where: { id: parsed },
+            select: { id: true, isActive: true },
+        });
+        if (!found || !found.isActive) return null;
+        return found.id;
+    }
+
+    const fallback = await prisma.projectCatalog.findFirst({
+        where: { code: DEFAULT_PROJECT_CATALOG_CODE, isActive: true },
+        select: { id: true },
+    });
+    return fallback?.id || null;
+};
 
 const getAllTopics = async (req, res, next) => {
     try {
         const { role, id: userId } = req.user;
-        const { status, semesterId, mentorId, search } = req.query;
+        const {
+            status, semesterId, mentorId, projectCatalogId, search,
+        } = req.query;
 
         const conditions = [];
 
@@ -52,6 +74,7 @@ const getAllTopics = async (req, res, next) => {
 
         if (semesterId) conditions.push({ semesterId: parseInt(semesterId, 10) });
         if (mentorId) conditions.push({ mentorId: parseInt(mentorId, 10) });
+        if (projectCatalogId) conditions.push({ projectCatalogId: parseInt(projectCatalogId, 10) });
         if (search) {
             conditions.push({
                 OR: [
@@ -86,6 +109,7 @@ const getAllTopics = async (req, res, next) => {
                 proposedBy: { select: { id: true, fullName: true, code: true, email: true, role: true } },
                 mentor: { select: { id: true, fullName: true, code: true, email: true, academicTitle: true } },
                 semester: { select: { id: true, name: true } },
+                projectCatalog: { select: { id: true, code: true, name: true } },
                 _count: { select: { registrations: true } },
                 registrations: {
                     where: {
@@ -147,9 +171,16 @@ const getTopicById = async (req, res, next) => {
 
 const createTopic = async (req, res, next) => {
     try {
-        const { title, description, semesterId, mentorId, status } = req.body;
+        const { title, description, semesterId, mentorId, status, projectCatalogId } = req.body;
         const { role, id: userId } = req.user;
         const semesterIdInt = parseInt(semesterId, 10);
+
+        if (role === 'STUDENT') {
+            const restricted = await hasCompletedGraduationProject(userId);
+            if (restricted) {
+                return res.status(403).json({ success: false, message: STUDENT_RESTRICTION_MESSAGE });
+            }
+        }
 
         if (!title || !semesterId) {
             return res.status(400).json({ success: false, message: 'Vui lòng nhập tên đề tài và chọn đợt đồ án.' });
@@ -161,6 +192,11 @@ const createTopic = async (req, res, next) => {
         const semester = await prisma.semester.findUnique({ where: { id: semesterIdInt }, select: { id: true } });
         if (!semester) {
             return res.status(404).json({ success: false, message: 'Không tìm thấy đợt đồ án.' });
+        }
+
+        const finalProjectCatalogId = await resolveProjectCatalogId(projectCatalogId);
+        if (!finalProjectCatalogId) {
+            return res.status(400).json({ success: false, message: 'TĂªn Ä‘á»“ Ă¡n khĂ´ng há»£p lá»‡ hoáº·c chÆ°a Ä‘Æ°á»£c ká­ch hoáº¡t.' });
         }
 
         let topicStatus;
@@ -205,6 +241,7 @@ const createTopic = async (req, res, next) => {
                 title,
                 description: description || null,
                 semesterId: semesterIdInt,
+                projectCatalogId: finalProjectCatalogId,
                 proposedById: userId,
                 mentorId: finalMentorId,
                 maxStudents: 1,
@@ -214,6 +251,7 @@ const createTopic = async (req, res, next) => {
                 proposedBy: { select: { id: true, fullName: true, code: true } },
                 mentor: { select: { id: true, fullName: true, code: true } },
                 semester: { select: { id: true, name: true } },
+                projectCatalog: { select: { id: true, code: true, name: true } },
             },
         });
 

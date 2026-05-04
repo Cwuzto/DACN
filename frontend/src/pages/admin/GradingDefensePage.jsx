@@ -22,10 +22,10 @@ import userService from '../../services/userService';
 import { PROJECT_NAME, formatSemesterLabel } from '../../utils/semesterDisplay';
 
 const TABS = [
-    { key: 'PENDING_ASSIGNMENT', label: 'Chờ phân công', color: 'orange' },
+    { key: 'PENDING_ASSIGNMENT', label: 'Chờ phĂ¢n cĂ´ng', color: 'orange' },
     { key: 'ASSIGNED_COUNCIL', label: 'Đã phân công HĐ', color: 'blue' },
     { key: 'AWAITING_GRADING', label: 'Chờ nhập điểm', color: 'gold' },
-    { key: 'COMPLETED', label: 'Hoàn tất', color: 'green' },
+    { key: 'COMPLETED', label: 'HoĂ n tất', color: 'green' },
 ];
 
 const GRADING_BADGE = {
@@ -35,10 +35,22 @@ const GRADING_BADGE = {
 
 const LEVEL_OPTIONS = [
     { value: 'TOT', label: 'Tốt (85%-100%)', ratio: 0.925 },
-    { value: 'KHA', label: 'Khá (70%-84%)', ratio: 0.77 },
+    { value: 'KHA', label: 'KhĂ¡ (70%-84%)', ratio: 0.77 },
     { value: 'TRUNG_BINH', label: 'Trung bình (50%-69%)', ratio: 0.595 },
     { value: 'KEM', label: 'Kém (<50%)', ratio: 0.25 },
 ];
+const ROLE_LABELS = {
+    CHAIRMAN: 'Chủ tịch',
+    SECRETARY: 'Thư ký',
+    REVIEWER: 'Ủy viên',
+};
+
+const LEVEL_TEXT_MAP = {
+    TOT: 'Tot (85%-100%)',
+    KHA: 'Kha (70%-84%)',
+    TRUNG_BINH: 'Trung binh (50%-69%)',
+    KEM: 'Kem (<50%)',
+};
 
 const getLevelByScore = (score, maxScore) => {
     if (!Number.isFinite(score) || !Number.isFinite(maxScore) || maxScore <= 0) return null;
@@ -109,6 +121,9 @@ function GradingDefensePage() {
     const [scoreSheetRows, setScoreSheetRows] = useState([]);
     const [generalComment, setGeneralComment] = useState('');
     const [scoreLocked, setScoreLocked] = useState(false);
+    const [selectedEvaluatorId, setSelectedEvaluatorId] = useState(null);
+    const [memberScoreOptions, setMemberScoreOptions] = useState([]);
+    const [currentEvaluatorInfo, setCurrentEvaluatorInfo] = useState(null);
 
     useEffect(() => {
         semesterService.getAll()
@@ -170,7 +185,7 @@ function GradingDefensePage() {
                     }
                 }
             } catch (err) {
-                message.error(err?.message || 'Không thể tải dữ liệu');
+                message.error(err?.message || 'KhĂ´ng thể tải dữ liệu');
             } finally {
                 setLoading(false);
                 setRefreshing(false);
@@ -186,7 +201,7 @@ function GradingDefensePage() {
 
     const handleRemindGrading = async () => {
         if (!selectedRowKeys.length) {
-            message.warning('Vui lòng chọn ít nhất 1 dòng');
+            message.warning('Vui lĂ²ng chọn Ă­t nhất 1 dĂ²ng');
             return;
         }
 
@@ -204,7 +219,7 @@ function GradingDefensePage() {
         }
     };
 
-    const handleScoreLock = async (registrationId, action) => {
+    const handleScoreLock = useCallback(async (registrationId, action) => {
         try {
             setLockingId(registrationId);
             const res = await evaluationService.setDefenseScoreLock(registrationId, action);
@@ -213,13 +228,13 @@ function GradingDefensePage() {
                 fetchData(true);
             }
         } catch (err) {
-            message.error(err?.message || 'Thao tác thất bại');
+            message.error(err?.message || 'Thao tĂ¡c thất bại');
         } finally {
             setLockingId(null);
         }
-    };
+    }, [fetchData]);
 
-    const handleExportPdf = async (registrationId) => {
+    const handleExportPdf = useCallback(async (registrationId) => {
         try {
             setExportingId(registrationId);
             const res = await evaluationService.exportScoreSheetPdf(registrationId);
@@ -235,38 +250,86 @@ function GradingDefensePage() {
         } finally {
             setExportingId(null);
         }
+    }, [fetchData]);
+
+    const handleExportPdfForSelectedEvaluator = async () => {
+        if (!scoreSheetRegistration?.id || !selectedEvaluatorId) {
+            message.warning('Vui lòng chọn thành viên hội đồng trước khi xuất PDF.');
+            return;
+        }
+        try {
+            setExportingId(scoreSheetRegistration.id);
+            const res = await evaluationService.exportScoreSheetPdf(scoreSheetRegistration.id, {
+                evaluatorId: selectedEvaluatorId,
+            });
+            if (res.success) {
+                message.success(res.message || 'Đã xuất PDF theo thành viên đang chọn.');
+                if (res.data?.pdfUrl) window.open(res.data.pdfUrl, '_blank');
+                fetchData(true);
+            }
+        } catch (err) {
+            message.error(err?.message || 'Không thể xuất PDF theo thành viên đã chọn');
+        } finally {
+            setExportingId(null);
+        }
     };
 
-    const openScoreSheetModal = async (registrationId) => {
+    const loadScoreSheet = useCallback(async (registrationId, evaluatorId = undefined) => {
+        const params = evaluatorId ? { evaluatorId } : {};
+        const res = await evaluationService.getScoreSheet(registrationId, params);
+        if (!res.success) return null;
+
+        const payload = res.data || {};
+        const rubric = payload.rubric?.criteria || [];
+        const scoreMap = new Map((payload.scores || []).map((s) => [s.criterionCode, s]));
+        const rows = rubric.map((criterion) => {
+            const current = scoreMap.get(criterion.code);
+            const currentScore = Number.isFinite(Number(current?.score)) ? Number(current.score) : null;
+            return {
+                criterionCode: criterion.code,
+                criterionLabel: criterion.label,
+                maxScore: criterion.maxScore,
+                score: currentScore,
+                level: getLevelByScore(currentScore, criterion.maxScore),
+                comment: current?.comment || '',
+            };
+        });
+
+        const normalizedOptions = (payload.memberScores || []).map((m) => ({
+            value: m.evaluatorId,
+            label: `${m.evaluatorName || `GV ${m.evaluatorId}`} (${m.finalScore ?? 'Chua cham'})`,
+        }));
+
+        setScoreSheetRegistration(payload.registration || null);
+        setScoreSheetRows(rows);
+        setGeneralComment(payload.defenseResult?.comments || '');
+        setScoreLocked(Boolean(payload.scoreLocked));
+        setSelectedEvaluatorId(payload.currentEvaluator?.id || evaluatorId || null);
+        setCurrentEvaluatorInfo(payload.currentEvaluator || null);
+        setMemberScoreOptions(normalizedOptions);
+        return payload;
+    }, []);
+
+    const openScoreSheetModal = useCallback(async (registrationId) => {
         try {
             setScoreModalOpen(true);
             setScoreModalLoading(true);
-            const res = await evaluationService.getScoreSheet(registrationId);
-            if (!res.success) return;
-
-            const payload = res.data || {};
-            const rubric = payload.rubric?.criteria || [];
-            const scoreMap = new Map((payload.scores || []).map((s) => [s.criterionCode, s]));
-            const rows = rubric.map((criterion) => {
-                const current = scoreMap.get(criterion.code);
-                const currentScore = Number.isFinite(Number(current?.score)) ? Number(current.score) : null;
-                return {
-                    criterionCode: criterion.code,
-                    criterionLabel: criterion.label,
-                    maxScore: criterion.maxScore,
-                    score: currentScore,
-                    level: getLevelByScore(currentScore, criterion.maxScore),
-                    comment: current?.comment || '',
-                };
-            });
-
-            setScoreSheetRegistration(payload.registration || null);
-            setScoreSheetRows(rows);
-            setGeneralComment(payload.defenseResult?.comments || '');
-            setScoreLocked(Boolean(payload.scoreLocked));
+            await loadScoreSheet(registrationId);
         } catch (err) {
             message.error(err?.message || 'Không thể tải bảng điểm chi tiết');
             setScoreModalOpen(false);
+        } finally {
+            setScoreModalLoading(false);
+        }
+    }, [loadScoreSheet]);
+
+    const onChangeSelectedEvaluator = async (evaluatorId) => {
+        if (!scoreSheetRegistration?.id || !evaluatorId) return;
+        try {
+            setScoreModalLoading(true);
+            await loadScoreSheet(scoreSheetRegistration.id, evaluatorId);
+        } catch (err) {
+            message.error(err?.message || 'Khong the tai phieu cua nguoi cham da chon');
         } finally {
             setScoreModalLoading(false);
         }
@@ -311,6 +374,7 @@ function GradingDefensePage() {
                     comment: row.comment?.trim() || undefined,
                 })),
                 generalComment: generalComment?.trim() || undefined,
+                evaluatorId: selectedEvaluatorId || undefined,
             };
 
             const res = await evaluationService.saveScoreSheet(scoreSheetRegistration.id, payload);
@@ -329,7 +393,7 @@ function GradingDefensePage() {
     const columns = useMemo(() => {
         const base = [
             {
-                title: 'Sinh viên',
+                title: 'Sinh viĂªn',
                 key: 'student',
                 width: 200,
                 render: (_, r) => (
@@ -367,6 +431,22 @@ function GradingDefensePage() {
                 ),
             },
             {
+                title: 'TĂªn đồ Ă¡n',
+                key: 'projectName',
+                width: 130,
+                render: () => <span className="text-sm">{PROJECT_NAME}</span>,
+            },
+            {
+                title: 'Đợt đồ Ă¡n',
+                key: 'semester',
+                width: 170,
+                render: (_, r) => (
+                    <span className="text-sm">
+                        {r.semester ? formatSemesterLabel(r.semester) : '—'}
+                    </span>
+                ),
+            },
+            {
                 title: 'GVHD',
                 key: 'mentor',
                 width: 170,
@@ -380,7 +460,7 @@ function GradingDefensePage() {
                     r.council ? (
                         <Tag color="blue">{r.council.name}</Tag>
                     ) : (
-                        <span className="text-slate-400 text-xs italic">Chưa phân công</span>
+                        <span className="text-slate-400 text-xs italic">Chưa phĂ¢n cĂ´ng</span>
                     ),
             },
             {
@@ -392,7 +472,7 @@ function GradingDefensePage() {
                 ),
             },
             {
-                title: 'Trạng thái chấm',
+                title: 'Trạng thĂ¡i chấm',
                 key: 'gradingStatus',
                 width: 130,
                 align: 'center',
@@ -409,7 +489,7 @@ function GradingDefensePage() {
                 render: (_, r) => (
                     r.scoreLocked
                         ? <Tag color="green">Đã khóa</Tag>
-                        : <Tag color="orange">Chưa khóa</Tag>
+                        : <Tag color="orange">Chưa khĂ³a</Tag>
                 ),
             },
             {
@@ -470,7 +550,7 @@ function GradingDefensePage() {
                                 onClick={() => handleScoreLock(r.registrationId, 'UNLOCK')}
                                 className="text-xs border-orange-200 text-orange-600 bg-orange-50/50 hover:border-orange-300"
                             >
-                                Mở khóa
+                                Mở khĂ³a
                             </Button>
                         );
                     }
@@ -491,7 +571,7 @@ function GradingDefensePage() {
         }
 
         return base;
-    }, [activeTab, exportingId, lockingId]);
+    }, [activeTab, exportingId, lockingId, handleExportPdf, handleScoreLock, openScoreSheetModal]);
 
     const rowSelection = activeTab === 'AWAITING_GRADING' || activeTab === 'ASSIGNED_COUNCIL'
         ? {
@@ -534,7 +614,7 @@ function GradingDefensePage() {
     const statsData = useMemo(
         () => [
             {
-                title: 'Chờ phân công',
+                title: 'Chờ phĂ¢n cĂ´ng',
                 value: meta.counts?.PENDING_ASSIGNMENT ?? 0,
                 icon: 'hourglass_top',
                 iconBg: 'bg-orange-50',
@@ -555,7 +635,7 @@ function GradingDefensePage() {
                 iconColor: 'text-amber-600',
             },
             {
-                title: 'Hoàn tất',
+                title: 'HoĂ n tất',
                 value: meta.counts?.COMPLETED ?? 0,
                 icon: 'task_alt',
                 iconBg: 'bg-green-50',
@@ -587,77 +667,10 @@ function GradingDefensePage() {
         return map[activeTab];
     }, [activeTab]);
 
-    const baremColumns = [
-        {
-            title: 'Tiêu chí',
-            dataIndex: 'criterionLabel',
-            key: 'criterionLabel',
-            width: 280,
-            render: (text, row, index) => (
-                <div>
-                    <div className="font-semibold text-slate-800">{index + 1}. {text}</div>
-                    <div className="text-xs text-slate-500">Mã: {row.criterionCode}</div>
-                </div>
-            ),
-        },
-        {
-            title: 'Điểm tối đa',
-            dataIndex: 'maxScore',
-            key: 'maxScore',
-            width: 100,
-            align: 'center',
-            render: (value) => <span className="font-semibold">{value}</span>,
-        },
-        {
-            title: 'Mức đánh giá',
-            key: 'level',
-            width: 220,
-            render: (_, row) => (
-                <Select
-                    className="w-full"
-                    value={row.level}
-                    onChange={(value) => onLevelChange(row.criterionCode, value)}
-                    options={LEVEL_OPTIONS}
-                    disabled={scoreLocked}
-                    allowClear
-                />
-            ),
-        },
-        {
-            title: 'Điểm đạt',
-            key: 'score',
-            width: 130,
-            render: (_, row) => (
-                <InputNumber
-                    className="w-full"
-                    min={0}
-                    max={row.maxScore}
-                    step={0.01}
-                    precision={2}
-                    value={row.score}
-                    onChange={(value) => onScoreChange(row.criterionCode, value)}
-                    disabled={scoreLocked}
-                />
-            ),
-        },
-        {
-            title: 'Nhận xét',
-            key: 'comment',
-            render: (_, row) => (
-                <Input
-                    value={row.comment}
-                    onChange={(e) => onCommentChange(row.criterionCode, e.target.value)}
-                    placeholder="Nhận xét ngắn"
-                    disabled={scoreLocked}
-                />
-            ),
-        },
-    ];
-
     return (
         <div className="py-2">
             <PageHeader
-                title="Quản lý Hội đồng bảo vệ"
+                title="Quản lĂ½ Há»™i đồng bảo vệ"
                 subtitle="Trung tâm điều phối phân công hội đồng, theo dõi chấm điểm và khóa kết quả bảo vệ theo từng workflow stage."
             />
 
@@ -697,7 +710,7 @@ function GradingDefensePage() {
                 <div className="grid grid-cols-1 lg:grid-cols-15 gap-3 mb-4">
                     <div className="lg:col-span-4">
                         <Input
-                            placeholder="Tìm SV, mã SV hoặc đề tài..."
+                            placeholder="Tìm SV, mĂ£ SV hoặc đề tĂ i..."
                             prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
                             value={searchText}
                             onChange={(e) => setSearchText(e.target.value)}
@@ -707,7 +720,7 @@ function GradingDefensePage() {
                     <div className="lg:col-span-3">
                         <Select
                             className="w-full"
-                            placeholder="Tên đồ án"
+                            placeholder="TĂªn đồ Ă¡n"
                             options={projectOptions}
                             value={selectedProjectName}
                             onChange={setSelectedProjectName}
@@ -716,7 +729,7 @@ function GradingDefensePage() {
                     <div className="lg:col-span-3">
                         <Select
                             className="w-full"
-                            placeholder="Đợt đồ án"
+                            placeholder="Đợt đồ Ă¡n"
                             options={semesterOptions}
                             value={selectedSemesterId}
                             onChange={(value) => {
@@ -755,7 +768,7 @@ function GradingDefensePage() {
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                     <Space>
                         <Button icon={<ReloadOutlined />} loading={refreshing} onClick={() => fetchData(true)}>
-                            Làm mới
+                            LĂ m má»›i
                         </Button>
                     </Space>
 
@@ -798,10 +811,41 @@ function GradingDefensePage() {
             >
                 {scoreSheetRegistration && (
                     <div className="mb-3 text-sm text-slate-600">
-                        <div><b>Sinh viên:</b> {scoreSheetRegistration.student?.fullName} ({scoreSheetRegistration.student?.code})</div>
+                        <div><b>Sinh viĂªn:</b> {scoreSheetRegistration.student?.fullName} ({scoreSheetRegistration.student?.code})</div>
+                        <div><b>Ngành học:</b> {scoreSheetRegistration.student?.department || '—'}</div>
                         <div><b>Đề tài:</b> {scoreSheetRegistration.topic?.title}</div>
                     </div>
                 )}
+
+                <div className="mb-3 grid grid-cols-1 lg:grid-cols-12 gap-3">
+                    <div className="lg:col-span-7">
+                        <div className="text-xs text-slate-500 mb-1">Phiếu chấm của thành viên hội đồng</div>
+                        <Select
+                            className="w-full"
+                            value={selectedEvaluatorId}
+                            options={memberScoreOptions}
+                            onChange={onChangeSelectedEvaluator}
+                            placeholder="Chọn thành viên hội đồng"
+                            showSearch
+                            optionFilterProp="label"
+                        />
+                    </div>
+                    <div className="lg:col-span-5 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded p-2">
+                        <div><b>Họ tên người chấm:</b> {currentEvaluatorInfo?.fullName || '—'}</div>
+                        <div><b>Chức danh trong HĐ:</b> {ROLE_LABELS[currentEvaluatorInfo?.roleInCouncil] || currentEvaluatorInfo?.roleInCouncil || '—'}</div>
+                    </div>
+                </div>
+
+                <div className="mb-3 flex justify-end">
+                    <Button
+                        icon={<DownloadOutlined />}
+                        loading={exportingId === scoreSheetRegistration?.id}
+                        onClick={handleExportPdfForSelectedEvaluator}
+                        disabled={!selectedEvaluatorId}
+                    >
+                        Xuất PDF theo người chấm đang chọn
+                    </Button>
+                </div>
 
                 {scoreLocked && (
                     <div className="mb-3 text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded p-2">
@@ -809,15 +853,81 @@ function GradingDefensePage() {
                     </div>
                 )}
 
-                <Table
-                    loading={scoreModalLoading}
-                    columns={baremColumns}
-                    dataSource={scoreSheetRows}
-                    rowKey="criterionCode"
-                    pagination={false}
-                    size="small"
-                    scroll={{ x: 1100 }}
-                />
+                <div className="overflow-x-auto border border-slate-300 rounded-md">
+                    <table className="w-full min-w-[1200px] border-collapse text-xs">
+                        <thead>
+                            <tr className="bg-slate-100">
+                                <th className="border border-slate-300 p-2 text-center align-middle" rowSpan={2}>STT</th>
+                                <th className="border border-slate-300 p-2 text-center align-middle" rowSpan={2}>Tieu chi danh gia</th>
+                                <th className="border border-slate-300 p-2 text-center align-middle" rowSpan={2}>Diem toi da</th>
+                                <th className="border border-slate-300 p-2 text-center align-middle" colSpan={4}>Cac cap do danh gia</th>
+                                <th className="border border-slate-300 p-2 text-center align-middle" rowSpan={2}>Muc danh gia</th>
+                                <th className="border border-slate-300 p-2 text-center align-middle" rowSpan={2}>Diem danh gia</th>
+                            </tr>
+                            <tr className="bg-slate-50">
+                                <th className="border border-slate-300 p-2 text-center">Tot<br />85%-100%</th>
+                                <th className="border border-slate-300 p-2 text-center">Kha<br />70%-84%</th>
+                                <th className="border border-slate-300 p-2 text-center">Trung binh<br />50%-69%</th>
+                                <th className="border border-slate-300 p-2 text-center">Kem<br />&lt;50%</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {scoreSheetRows.map((row, index) => (
+                                <tr key={row.criterionCode}>
+                                    <td className="border border-slate-300 p-2 align-top text-center">{index + 1}</td>
+                                    <td className="border border-slate-300 p-2 align-top">
+                                        <div className="font-semibold">{row.criterionLabel}</div>
+                                        <div className="text-[11px] text-slate-500">{row.criterionCode}</div>
+                                    </td>
+                                    <td className="border border-slate-300 p-2 align-top text-center font-semibold">{row.maxScore}</td>
+                                    <td className="border border-slate-300 p-2 align-top text-slate-500">Dat muc Tot</td>
+                                    <td className="border border-slate-300 p-2 align-top text-slate-500">Dat muc Kha</td>
+                                    <td className="border border-slate-300 p-2 align-top text-slate-500">Dat muc Trung binh</td>
+                                    <td className="border border-slate-300 p-2 align-top text-slate-500">Dat muc Kem</td>
+                                    <td className="border border-slate-300 p-2 align-top">
+                                        <Select
+                                            className="w-full"
+                                            value={row.level}
+                                            onChange={(value) => onLevelChange(row.criterionCode, value)}
+                                            options={LEVEL_OPTIONS}
+                                            disabled={scoreLocked}
+                                            allowClear
+                                        />
+                                        <div className="mt-1 text-[11px] text-slate-500">
+                                            {row.level ? LEVEL_TEXT_MAP[row.level] : 'Chua chon'}
+                                        </div>
+                                    </td>
+                                    <td className="border border-slate-300 p-2 align-top">
+                                        <InputNumber
+                                            className="w-full"
+                                            min={0}
+                                            max={row.maxScore}
+                                            step={0.01}
+                                            precision={2}
+                                            value={row.score}
+                                            onChange={(value) => onScoreChange(row.criterionCode, value)}
+                                            disabled={scoreLocked}
+                                        />
+                                        <Input
+                                            className="mt-1"
+                                            value={row.comment}
+                                            onChange={(e) => onCommentChange(row.criterionCode, e.target.value)}
+                                            placeholder="Nhan xet ngan"
+                                            disabled={scoreLocked}
+                                        />
+                                    </td>
+                                </tr>
+                            ))}
+                            <tr className="bg-slate-50">
+                                <td className="border border-slate-300 p-2 font-bold text-right" colSpan={2}>Tong so diem</td>
+                                <td className="border border-slate-300 p-2 font-bold text-center">10.0</td>
+                                <td className="border border-slate-300 p-2" colSpan={5} />
+                                <td className="border border-slate-300 p-2 font-bold text-center">{totalScore}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
 
                 <div className="mt-3 grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
                     <div className="lg:col-span-9">
@@ -825,7 +935,7 @@ function GradingDefensePage() {
                             rows={3}
                             value={generalComment}
                             onChange={(e) => setGeneralComment(e.target.value)}
-                            placeholder="Nhận xét chung"
+                            placeholder="Nhận xĂ©t chung"
                             disabled={scoreLocked}
                         />
                     </div>
@@ -842,3 +952,4 @@ function GradingDefensePage() {
 }
 
 export default GradingDefensePage;
+

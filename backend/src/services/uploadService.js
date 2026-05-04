@@ -11,6 +11,28 @@ const sanitizeFileName = (fileName = 'file') => fileName
 const randomSuffix = () => Math.random().toString(36).slice(2, 10);
 
 class UploadService {
+    static async ensureBucket(supabase) {
+        const { data: buckets, error: listError } = await supabase.storage.listBuckets();
+        if (listError) throw listError;
+
+        const existingBucket = (buckets || []).find((bucket) => bucket.name === DEFAULT_BUCKET);
+        if (existingBucket) {
+            if (existingBucket.public !== true) {
+                const { error: updateError } = await supabase.storage.updateBucket(DEFAULT_BUCKET, {
+                    public: true,
+                });
+                if (updateError) throw updateError;
+            }
+            return;
+        }
+
+        const { error: createError } = await supabase.storage.createBucket(DEFAULT_BUCKET, {
+            public: true,
+        });
+        if (createError && !String(createError.message || '').toLowerCase().includes('already exists')) {
+            throw createError;
+        }
+    }
     /**
      * Upload file tu buffer len Supabase Storage
      * @param {Buffer} fileBuffer
@@ -20,9 +42,10 @@ class UploadService {
      */
     static async uploadBuffer(fileBuffer, folder = 'general', mimeType = 'application/octet-stream', originalName = 'file') {
         const supabase = getSupabaseClient();
+        await UploadService.ensureBucket(supabase);
         const timestamp = Date.now();
         const cleanedName = sanitizeFileName(originalName || 'file');
-        const objectPath = `dacn/${folder}/${timestamp}-${randomSuffix()}-${cleanedName}`;
+        const objectPath = `${folder}/${timestamp}-${randomSuffix()}-${cleanedName}`;
 
         const { error: uploadError } = await supabase.storage
             .from(DEFAULT_BUCKET)

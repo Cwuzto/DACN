@@ -40,6 +40,7 @@ const NAV_CONFIG = {
             { path: '/admin/users', icon: 'group', label: 'Người dùng' },
             { path: '/admin/project-periods', icon: 'calendar_month', label: 'Đợt đồ án' },
             { path: '/admin/topics', icon: 'description', label: 'Đề tài' },
+            { path: '/admin/project-enrollments', icon: 'playlist_add_check', label: 'Gán môn đồ án' },
             { path: '/admin/oversight', icon: 'policy', label: 'Giám sát đề tài' },
             { path: '/admin/councils', icon: 'groups', label: 'Phân công Hội đồng' },
             { path: '/admin/grading', icon: 'rate_review', label: 'Chấm bảo vệ' },

@@ -79,7 +79,7 @@ Dự án đang ở trạng thái **ổn định luồng chính cho 3 vai trò** 
 3. [x] Trang "Đề tài của tôi" của lecturer hiển thị tên sinh viên, tìm kiếm theo sinh viên, bỏ filter bản nháp.
 4. [x] Filter mặc định theo đợt hiện tại hoặc đợt gần nhất vừa kết thúc.
 5. [x] Bảng chấm điểm hội đồng online theo barem + xuất PDF.
-6. [ ] Nhận diện và giới hạn quyền tài khoản sinh viên đã hoàn thành đồ án.
+6. [x] Nhận diện và giới hạn quyền tài khoản sinh viên đã hoàn thành đồ án.
 
 ---
 
@@ -108,3 +108,97 @@ Dự án đang ở trạng thái **ổn định luồng chính cho 3 vai trò** 
 - Trước mắt sẽ:
   - bổ sung thuộc tính/schema cần thiết,
   - seed dữ liệu mẫu thủ công để test end-to-end.
+
+
+### 6. Đã triển khai giới hạn quyền tài khoản sinh viên đã hoàn thành đồ án
+
+- Backend đã chặn sinh viên đã có đăng ký ở trạng thái `DEFENDED`/`COMPLETED` khỏi luồng đăng ký và đề xuất đề tài mới.
+- API enrollments trả thêm cờ `accountRestricted` và `accountRestrictionReason` để frontend hiển thị rõ lý do.
+- Admin User Management đã hiển thị trạng thái restricted trên danh sách người dùng.
+
+### 7. Cập nhật bổ sung (2026-05-01)
+
+- Đã hoàn tất filter admin theo trạng thái `accountRestricted` trên `GET /api/users` (`true/false`).
+- Đã cập nhật UI Admin User Management để lọc sinh viên theo 2 trạng thái:
+  - `SV đã hoàn thành đồ án`
+  - `SV bình thường`
+- Đã nâng cấp UI chấm điểm của `LECTURER` sang luồng score-sheet theo barem tiêu chí:
+  - dùng `GET/PUT /api/evaluations/:registrationId/score-sheet`,
+  - không còn nhập điểm tổng trực tiếp ở card cũ,
+  - vẫn hỗ trợ export PDF từ dữ liệu score-sheet thật.
+- Đã bổ sung migration Prisma chính thức cho score-sheet/PDF:
+  - `20260501113000_add_defense_scoresheet_schema`
+  - chuẩn hóa các cột `score_locked`, `locked_at`, `locked_by`, `pdf_url`, `pdf_generated_at`, `score_rubric_version`
+  - thêm bảng `defense_criterion_scores` + FK/unique.
+- Đã rollout migration trên DB dùng chung:
+  - `npm --prefix backend run db:deploy`: PASS
+  - `npm --prefix backend run db:status`: `Database schema is up to date!`
+- Đã đồng bộ hiển thị `Tên đồ án` / `Đợt đồ án` trên các màn admin điều phối chính:
+  - Admin Grading Defense
+  - Project Oversight
+  - Topic Management
+- Đã nâng cấp màn đối soát dữ liệu nâng cao ở Admin Project Enrollment:
+  - phân loại rõ `registration` lệch rule theo nguyên nhân,
+  - hỗ trợ thao tác sửa nhanh:
+    - gán `Tên đồ án` cho `topic` đang thiếu `projectCatalogId`,
+    - backfill `enrollment` khớp cho `registration` thiếu enrollment.
+- Đã dọn luồng chấm điểm tổng cũ (legacy) để tránh quay lại kiến trúc cũ:
+  - gỡ API `POST /api/evaluations/defense-result`,
+  - gỡ handler backend `submitDefenseResult`,
+  - gỡ method frontend `evaluationService.submitDefenseResult`.
+- Gate sau thay đổi đều PASS:
+  - `node scripts/check-utf8.js`
+  - `node scripts/check-md-quality.js`
+  - `node scripts/regression-check.js`
+  - `npm --prefix backend test -- --runInBand`
+  - `npm --prefix frontend run build`
+
+## Cập nhật bổ sung (2026-05-01)
+
+- Đã triển khai mô hình phiếu chấm theo từng thành viên hội đồng:
+  - `DefenseMemberScore`
+  - `DefenseMemberCriterionScore`
+- Đã chốt cách tính điểm bảo vệ cuối:
+  - trung bình cộng điểm hệ 10 của các thành viên hội đồng đã nộp phiếu.
+- Đã nâng cấp màn Admin Grading:
+  - chọn phiếu theo từng giảng viên hội đồng trong modal,
+  - xuất PDF theo người chấm đang chọn.
+- Đã bổ sung thông tin trên phiếu/PDF:
+  - Họ tên người chấm,
+  - Chức danh trong HĐ,
+  - Ngành học (dưới dòng tên + MSSV).
+- Đã fix lỗi export PDF `Bucket not found`:
+  - `UploadService` tự kiểm tra/tạo bucket Supabase trước khi upload.
+- Đã rollout migration trên DB:
+  - `20260501194000_add_defense_member_scores`
+  - `npm --prefix backend run db:status`: `Database schema is up to date!`
+- Đã vá an toàn tương thích:
+  - nếu backend chưa migrate/client chưa reload thì API trả `409` có thông báo hướng dẫn, tránh crash.
+- Đã sửa encoding màn `GradingDefensePage`:
+  - text tiếng Việt hiển thị đúng,
+  - frontend build PASS.
+
+## Cập nhật bổ sung (2026-05-02)
+
+- Đã chuyển luồng chấm điểm `LECTURER` sang trang phiếu chấm riêng:
+  - route: `/lecturer/grading/sheet/:registrationId`
+  - mở tab mới từ danh sách chấm điểm.
+- Đã đồng bộ biểu mẫu theo file gốc `frontend/src/pages/lecturer/phieu_cham.html`:
+  - dùng template gốc để render UI,
+  - thay các trường thông tin động theo sinh viên/người chấm,
+  - ô điểm trong bảng được thay bằng input tương tác.
+- Đã cập nhật quy tắc nhập điểm:
+  - bước tăng điểm `step = 0.05`.
+- Đã chuyển backend export PDF dùng cùng 1 template với frontend:
+  - `backend/src/services/scoreSheetPdfService.js` đọc trực tiếp `phieu_cham.html`.
+- Đã fix lỗi storage bucket Supabase:
+  - đảm bảo bucket tồn tại và public trước khi tạo public URL.
+- Đã fix lỗi PDF mất lề trang / dư trang trắng cuối:
+  - bỏ cấu hình gây tràn page theo print mode,
+  - dùng `@page` + `preferCSSPageSize` để giữ bố cục ổn định.
+
+## Gate sau cập nhật (2026-05-02)
+
+- `npm --prefix frontend run build`: PASS
+- `npm --prefix backend test -- --runInBand`: PASS
+- `node scripts/check-utf8.js`: PASS
