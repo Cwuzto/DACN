@@ -28,6 +28,10 @@ function TopicListPage() {
     const [registering, setRegistering] = useState(false);
     const [currentSemesterId, setCurrentSemesterId] = useState(null);
     const [currentSemester, setCurrentSemester] = useState(null);
+    const [myProjectEnrollments, setMyProjectEnrollments] = useState([]);
+    const [selectedProjectCatalogId, setSelectedProjectCatalogId] = useState(null);
+    const [accountRestricted, setAccountRestricted] = useState(false);
+    const [accountRestrictionReason, setAccountRestrictionReason] = useState('');
     const [mentors, setMentors] = useState([]);
 
     const [proposeForm, setProposeForm] = useState({ title: '', mentorId: '', description: '' });
@@ -86,17 +90,23 @@ function TopicListPage() {
         if (!currentSemesterId) {
             setTopics([]);
             setMyRegistration(null);
+            setMyProjectEnrollments([]);
+            setSelectedProjectCatalogId(null);
+            setAccountRestricted(false);
+            setAccountRestrictionReason('');
             return;
         }
 
         setLoading(true);
         try {
             const params = { semesterId: currentSemesterId };
+            if (selectedProjectCatalogId) params.projectCatalogId = selectedProjectCatalogId;
             if (searchText) params.search = searchText;
 
-            const [topicRes, regRes] = await Promise.all([
+            const [topicRes, regRes, enrollRes] = await Promise.all([
                 topicService.getAll(params),
                 registrationService.getMyRegistration({ semesterId: currentSemesterId }),
+                registrationService.getMyProjectEnrollments({ semesterId: currentSemesterId }),
             ]);
 
             if (topicRes.success) {
@@ -110,12 +120,27 @@ function TopicListPage() {
             if (regRes.success) {
                 setMyRegistration(regRes.data);
             }
+
+            if (enrollRes.success) {
+                const activeEnrollments = (enrollRes.data || []).filter(
+                    (row) => row.status === 'ACTIVE' && row.projectCatalog?.isActive,
+                );
+                setMyProjectEnrollments(activeEnrollments);
+                setAccountRestricted(Boolean(enrollRes.meta?.accountRestricted));
+                setAccountRestrictionReason(enrollRes.meta?.accountRestrictionReason || '');
+
+                const activeCatalogIds = activeEnrollments.map((row) => row.projectCatalogId);
+                setSelectedProjectCatalogId((prev) => {
+                    if (prev && activeCatalogIds.includes(prev)) return prev;
+                    return activeCatalogIds[0] || null;
+                });
+            }
         } catch (error) {
-            message.error(error?.message || 'Không thể tải danh sách đề tài.');
+            message.error(error?.message || 'Khong the tai danh sach de tai.');
         } finally {
             setLoading(false);
         }
-    }, [currentSemesterId, searchText]);
+    }, [currentSemesterId, searchText, selectedProjectCatalogId]);
 
     useEffect(() => {
         fetchContextData();
@@ -154,6 +179,8 @@ function TopicListPage() {
     const hasExistingRegistration = Boolean(myRegistration && myRegistration.status !== 'REJECTED');
     const registrationWindow = getRegistrationWindowState();
     const isRegistrationBlocked = !registrationWindow.canRegister;
+    const hasAnyEligibleProject = myProjectEnrollments.length > 0;
+    const registrationBlockedByProjectEnrollment = !accountRestricted && (!hasAnyEligibleProject || !selectedProjectCatalogId);
 
     const confirmRegister = (topic) => {
         if (!currentSemesterId) {
@@ -168,6 +195,20 @@ function TopicListPage() {
 
         if (hasExistingRegistration) {
             message.warning('Bạn đã đăng ký đề tài rồi. Chỉ có thể đổi khi bị từ chối.');
+            return;
+        }
+
+        if (registrationBlockedByProjectEnrollment) {
+            message.warning('Ban chua co mon do an hop le trong dot hien tai.');
+            return;
+        }
+        if (accountRestricted) {
+            message.warning(accountRestrictionReason || 'Tai khoan da hoan thanh do an, khong the dang ky moi.');
+            return;
+        }
+
+        if (topic.projectCatalogId !== selectedProjectCatalogId) {
+            message.warning('De tai khong thuoc ten do an ban da chon.');
             return;
         }
 
@@ -210,6 +251,15 @@ function TopicListPage() {
             return;
         }
 
+        if (registrationBlockedByProjectEnrollment) {
+            message.warning('Ban chua co mon do an hop le trong dot hien tai.');
+            return;
+        }
+        if (accountRestricted) {
+            message.warning(accountRestrictionReason || 'Tai khoan da hoan thanh do an, khong the de xuat de tai moi.');
+            return;
+        }
+
         try {
             setSubmittingPropose(true);
             const response = await topicService.create({
@@ -217,6 +267,7 @@ function TopicListPage() {
                 description: proposeForm.description,
                 mentorId: proposeForm.mentorId,
                 semesterId: currentSemesterId,
+                projectCatalogId: selectedProjectCatalogId,
             });
 
             if (response.success) {
@@ -284,6 +335,40 @@ function TopicListPage() {
                                     Tìm kiếm
                                 </button>
                             </form>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-600 mb-2">Chon ten do an da dang ky</label>
+                                    <select
+                                        className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-primary outline-none"
+                                        value={selectedProjectCatalogId || ''}
+                                        onChange={(e) => setSelectedProjectCatalogId(e.target.value ? Number(e.target.value) : null)}
+                                    >
+                                        {myProjectEnrollments.length === 0 && <option value="">Chua co mon do an hop le</option>}
+                                        {myProjectEnrollments.map((row) => (
+                                            <option key={row.id} value={row.projectCatalogId}>
+                                                {row.projectCatalog?.name || 'Do an'}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="flex items-end">
+                                    <div className="text-xs text-slate-500">
+                                        Dot hien tai: <b>{currentSemester?.name || 'N/A'}</b>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {registrationBlockedByProjectEnrollment && (
+                                <div className="p-4 rounded-xl border border-red-200 bg-red-50 text-red-700 text-sm font-medium">
+                                    Ban chua duoc gan mon do an hop le trong dot hien tai, nen khong the dang ky de tai.
+                                </div>
+                            )}
+                            {accountRestricted && (
+                                <div className="p-4 rounded-xl border border-red-200 bg-red-50 text-red-700 text-sm font-medium">
+                                    {accountRestrictionReason || 'Tai khoan da hoan thanh do an tot nghiep, khong the dang ky/de xuat de tai moi.'}
+                                </div>
+                            )}
 
                             {isRegistrationBlocked && (
                                 <div className="p-4 rounded-xl border border-amber-200 bg-amber-50 text-amber-700 text-sm font-medium">
@@ -372,7 +457,7 @@ function TopicListPage() {
                                                     <button
                                                         onClick={() => confirmRegister(topic)}
                                                         className="mt-6 w-full py-2.5 bg-primary hover:bg-primary/90 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2 disabled:bg-slate-300 disabled:text-slate-600 disabled:cursor-not-allowed"
-                                                        disabled={hasExistingRegistration || isRegistrationBlocked}
+                                                        disabled={hasExistingRegistration || isRegistrationBlocked || registrationBlockedByProjectEnrollment || accountRestricted}
                                                     >
                                                         {hasExistingRegistration
                                                             ? 'Bạn đã có đề tài'
@@ -398,6 +483,10 @@ function TopicListPage() {
                             {hasExistingRegistration ? (
                                 <div className="p-4 bg-emerald-50 text-emerald-700 rounded-lg text-center font-medium">
                                     Bạn đã đăng ký một đề tài. Không thể đề xuất thêm.
+                                </div>
+                            ) : accountRestricted ? (
+                                <div className="p-4 bg-red-50 text-red-700 rounded-lg text-center font-medium">
+                                    {accountRestrictionReason || 'Tai khoan da hoan thanh do an tot nghiep, khong the de xuat de tai moi.'}
                                 </div>
                             ) : isRegistrationBlocked ? (
                                 <div className="p-4 bg-amber-50 text-amber-700 rounded-lg text-center font-medium">

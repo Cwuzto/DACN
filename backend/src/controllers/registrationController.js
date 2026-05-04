@@ -4,6 +4,7 @@ const { PENDING_REMINDER_DAYS } = require('../constants/registrationLimits');
 const { auditLog } = require('../services/auditLogService');
 const { safeNotify } = require('../services/notificationService');
 const { getDefaultSemester } = require('../utils/semesterResolver');
+const { hasCompletedGraduationProject, STUDENT_RESTRICTION_MESSAGE } = require('../utils/studentAccountRestriction');
 
 const SERIALIZATION_ERROR_CODE = 'P2034';
 const MENTOR_ACTIVE_REGISTRATION_STATUSES = ['PENDING', 'APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'DEFENDED', 'COMPLETED'];
@@ -42,6 +43,11 @@ const registerTopic = async (req, res, next) => {
         const { topicId, semesterId } = req.body;
         const topicIdInt = parseInt(topicId, 10);
         const semesterIdInt = parseInt(semesterId, 10);
+        const restricted = await hasCompletedGraduationProject(studentId);
+
+        if (restricted) {
+            return res.status(403).json({ success: false, message: STUDENT_RESTRICTION_MESSAGE });
+        }
 
         if (!topicId || !semesterId) {
             return res.status(400).json({ success: false, message: 'Vui lòng chọn đề tài và đợt đồ án.' });
@@ -110,6 +116,7 @@ const registerTopic = async (req, res, next) => {
                 include: {
                     mentor: { select: { id: true, academicTitle: true } },
                     _count: { select: { registrations: true } },
+                    projectCatalog: { select: { id: true, name: true } },
                 },
             });
 
@@ -119,6 +126,27 @@ const registerTopic = async (req, res, next) => {
 
             if (topic.semesterId !== semesterIdInt) {
                 throw createHttpError(400, 'Đề tài không thuộc đợt đăng ký hiện tại.');
+            }
+
+            if (!topic.projectCatalogId) {
+                throw createHttpError(400, 'Đề tài chưa được gắn tên đồ án. Vui lòng liên hệ quản trị viên.');
+            }
+
+            const enrollment = await tx.studentProjectEnrollment.findFirst({
+                where: {
+                    studentId,
+                    semesterId: semesterIdInt,
+                    projectCatalogId: topic.projectCatalogId,
+                    status: 'ACTIVE',
+                },
+                select: { id: true },
+            });
+
+            if (!enrollment) {
+                throw createHttpError(
+                    400,
+                    `Bạn chưa đăng ký môn "${topic.projectCatalog?.name || 'đồ án này'}" trong đợt hiện tại nên không thể đăng ký đề tài.`,
+                );
             }
 
             if (topic._count.registrations >= 1) {
@@ -145,7 +173,13 @@ const registerTopic = async (req, res, next) => {
                     status: 'PENDING',
                 },
                 include: {
-                    topic: { select: { title: true, mentor: { select: { fullName: true } } } },
+                    topic: {
+                        select: {
+                            title: true,
+                            mentor: { select: { fullName: true } },
+                            projectCatalog: { select: { id: true, name: true } },
+                        },
+                    },
                 },
             });
 
@@ -193,6 +227,7 @@ const getMyRegistration = async (req, res, next) => {
         const studentId = req.user.id;
         const semesterIdQuery = req.query.semesterId ? parseInt(req.query.semesterId, 10) : null;
         let targetSemesterId = semesterIdQuery;
+        const restricted = await hasCompletedGraduationProject(studentId);
 
         if (!targetSemesterId) {
             const defaultSemester = await getDefaultSemester({ id: true });
@@ -233,6 +268,59 @@ const getMyRegistration = async (req, res, next) => {
         }
 
         res.json({ success: true, data: registration });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * GET /api/registrations/my-project-enrollments
+ */
+const getMyProjectEnrollments = async (req, res, next) => {
+    try {
+        const studentId = req.user.id;
+        const semesterIdQuery = req.query.semesterId ? parseInt(req.query.semesterId, 10) : null;
+        let targetSemesterId = semesterIdQuery;
+        const restricted = await hasCompletedGraduationProject(studentId);
+
+        if (!targetSemesterId) {
+            const defaultSemester = await getDefaultSemester({ id: true });
+            targetSemesterId = defaultSemester?.id || null;
+        }
+
+        if (!targetSemesterId) {
+            return res.json({
+                success: true,
+                data: [],
+                meta: {
+                    semesterId: null,
+                    accountRestricted: restricted,
+                    accountRestrictionReason: restricted ? STUDENT_RESTRICTION_MESSAGE : null,
+                },
+                message: 'Hiện chưa có đợt đồ án hoạt động.',
+            });
+        }
+
+        const rows = await prisma.studentProjectEnrollment.findMany({
+            where: {
+                studentId,
+                semesterId: targetSemesterId,
+            },
+            include: {
+                projectCatalog: { select: { id: true, code: true, name: true, isActive: true } },
+            },
+            orderBy: { createdAt: 'asc' },
+        });
+
+        res.json({
+            success: true,
+            data: rows,
+            meta: {
+                semesterId: targetSemesterId,
+                accountRestricted: restricted,
+                accountRestrictionReason: restricted ? STUDENT_RESTRICTION_MESSAGE : null,
+            },
+        });
     } catch (error) {
         next(error);
     }
@@ -742,6 +830,7 @@ const cancelRegistration = async (req, res, next) => {
 module.exports = {
     registerTopic,
     getMyRegistration,
+    getMyProjectEnrollments,
     getAllRegistrations,
     handleRegistration,
     dropRegistration,

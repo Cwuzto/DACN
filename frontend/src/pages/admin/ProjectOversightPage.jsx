@@ -232,6 +232,22 @@ function ProjectOversightPage() {
             ),
         },
         {
+            title: 'Tên đồ án',
+            key: 'projectName',
+            width: 120,
+            render: () => <span className="text-sm">{PROJECT_NAME}</span>,
+        },
+        {
+            title: 'Đợt đồ án',
+            key: 'semester',
+            width: 180,
+            render: (_, record) => (
+                <span className="text-sm">
+                    {record.semester ? formatSemesterLabel(record.semester) : '—'}
+                </span>
+            ),
+        },
+        {
             title: 'Sinh viên',
             dataIndex: 'students',
             key: 'students',

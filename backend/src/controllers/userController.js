@@ -1,5 +1,6 @@
 const bcrypt = require('bcryptjs');
 const prisma = require('../config/database');
+const { COMPLETED_GRADUATION_STATUSES } = require('../utils/studentAccountRestriction');
 
 const generateUserCode = async (role) => {
     let prefix = 'US';
@@ -50,7 +51,7 @@ const generateUserCode = async (role) => {
  */
 const getAllUsers = async (req, res, next) => {
     try {
-        const { role, search, status, page = 1, limit = 10 } = req.query;
+        const { role, search, status, accountRestricted, page = 1, limit = 10 } = req.query;
         const skip = (parseInt(page) - 1) * parseInt(limit);
 
         const conditions = [];
@@ -73,6 +74,30 @@ const getAllUsers = async (req, res, next) => {
                     { code: { contains: search, mode: 'insensitive' } },
                 ],
             });
+        }
+
+        const parsedAccountRestricted =
+            accountRestricted === 'true' ? true : accountRestricted === 'false' ? false : null;
+        const shouldFilterByAccountRestricted = parsedAccountRestricted !== null;
+        const canApplyRestrictedFilter = !role || role === 'STUDENT';
+        if (shouldFilterByAccountRestricted && canApplyRestrictedFilter) {
+            conditions.push(
+                parsedAccountRestricted
+                    ? {
+                          registrations: {
+                              some: {
+                                  status: { in: COMPLETED_GRADUATION_STATUSES },
+                              },
+                          },
+                      }
+                    : {
+                          registrations: {
+                              none: {
+                                  status: { in: COMPLETED_GRADUATION_STATUSES },
+                              },
+                          },
+                      }
+            );
         }
 
         const where = conditions.length > 0 ? { AND: conditions } : {};
@@ -100,9 +125,31 @@ const getAllUsers = async (req, res, next) => {
             prisma.user.count({ where }),
         ]);
 
+        let usersWithFlags = users;
+        if (users.length > 0) {
+            const studentIds = users.filter((u) => u.role === 'STUDENT').map((u) => u.id);
+            if (studentIds.length > 0) {
+                const completedRegs = await prisma.topicRegistration.findMany({
+                    where: {
+                        studentId: { in: studentIds },
+                        status: { in: COMPLETED_GRADUATION_STATUSES },
+                    },
+                    select: { studentId: true },
+                    distinct: ['studentId'],
+                });
+                const completedStudentSet = new Set(completedRegs.map((row) => row.studentId));
+                usersWithFlags = users.map((u) => ({
+                    ...u,
+                    accountRestricted: u.role === 'STUDENT' ? completedStudentSet.has(u.id) : false,
+                }));
+            } else {
+                usersWithFlags = users.map((u) => ({ ...u, accountRestricted: false }));
+            }
+        }
+
         res.json({
             success: true,
-            data: users,
+            data: usersWithFlags,
             pagination: {
                 total,
                 page: parseInt(page),

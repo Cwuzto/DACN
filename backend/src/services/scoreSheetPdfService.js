@@ -1,86 +1,100 @@
-const PDFDocument = require('pdfkit');
+﻿const fs = require('fs');
+const path = require('path');
 
-const fmtDateTime = (value) => {
-    if (!value) return 'N/A';
-    return new Date(value).toLocaleString('vi-VN');
+const TEMPLATE_PATH = path.resolve(__dirname, '../../../frontend/src/pages/lecturer/phieu_cham.html');
+
+const escapeHtml = (value) => String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+const roleLabelMap = {
+    CHAIRMAN: 'Chu tich',
+    SECRETARY: 'Thu ky',
+    REVIEWER: 'Uy vien',
 };
 
-const drawRow = (doc, cols, y, heights = 22) => {
-    let x = 50;
-    for (const col of cols) {
-        doc.rect(x, y, col.width, heights).stroke();
-        doc.fontSize(col.fontSize || 10).text(String(col.text ?? ''), x + 4, y + 6, {
-            width: col.width - 8,
-            align: col.align || 'left',
-        });
-        x += col.width;
+const seedReplacements = ({ registration, scorerInfo }) => ([
+    ['ThS. VĂµ Quá»‘c LÆ°Æ¡ng', scorerInfo.name || ''],
+    ['Chá»§ tá»‹ch', roleLabelMap[scorerInfo.roleInCouncil] || scorerInfo.roleInCouncil || ''],
+    ['Tráº§n Quang Nhanh', registration?.student?.fullName || ''],
+    ['2124802010474', registration?.student?.code || ''],
+    ['D21CNTT01', registration?.student?.className || registration?.student?.class || ''],
+    ['D21', registration?.student?.course || registration?.student?.cohort || ''],
+    ['CĂ´ng nghá»‡ thĂ´ng tin', registration?.student?.department || ''],
+    ['XĂ¢y dá»±ng website quáº£n lĂ½ Ä‘á» cÆ°Æ¡ng cho trÆ°á»ng Ä‘áº¡i há»c Thá»§ Dáº§u Má»™t', registration?.topic?.title || ''],
+]);
+
+const buildA4ScoreSheetHtml = ({ registration, defenseResult, scorerInfo = {} }) => {
+    const template = fs.readFileSync(TEMPLATE_PATH, 'utf8');
+    const criteria = defenseResult.criterionScores || [];
+    const totalRaw = criteria.reduce((sum, row) => sum + (Number(row.score) || 0), 0);
+
+    let html = template;
+    for (const [src, target] of seedReplacements({ registration, scorerInfo })) {
+        html = html.split(src).join(escapeHtml(target));
     }
-};
 
-const generateScoreSheetPdfBuffer = async ({ registration, defenseResult, rubricVersion = 'v1' }) => new Promise((resolve, reject) => {
-    try {
-        const doc = new PDFDocument({ size: 'A4', margin: 50 });
-        const chunks = [];
-
-        doc.on('data', (chunk) => chunks.push(chunk));
-        doc.on('end', () => resolve(Buffer.concat(chunks)));
-        doc.on('error', reject);
-
-        const criteria = defenseResult.criterionScores || [];
-        const totalRaw = criteria.reduce((sum, row) => sum + (row.score || 0), 0);
-
-        doc.fontSize(14).font('Helvetica-Bold').text('PHIẾU CHẤM BẢO VỆ ĐỒ ÁN', { align: 'center' });
-        doc.moveDown(0.5);
-        doc.fontSize(10).font('Helvetica').text(`Rubric: ${rubricVersion}`);
-        doc.text(`Thời gian xuất: ${fmtDateTime(new Date())}`);
-        doc.moveDown(0.5);
-
-        doc.font('Helvetica-Bold').text('Thông tin sinh viên / đề tài');
-        doc.font('Helvetica');
-        doc.text(`Sinh viên: ${registration.student?.fullName || 'N/A'} (${registration.student?.code || 'N/A'})`);
-        doc.text(`Đề tài: ${registration.topic?.title || 'N/A'}`);
-        doc.text(`Hội đồng: ${registration.council?.name || 'N/A'}`);
-        doc.text(`Ngày bảo vệ: ${registration.council?.defenseDate ? fmtDateTime(registration.council.defenseDate) : 'N/A'}`);
-        doc.moveDown(0.8);
-
-        doc.font('Helvetica-Bold').text('Bảng điểm chi tiết');
-        let y = doc.y + 6;
-        drawRow(doc, [
-            { text: 'Tiêu chí', width: 210, align: 'left' },
-            { text: 'Điểm tối đa', width: 90, align: 'center' },
-            { text: 'Điểm đạt', width: 80, align: 'center' },
-            { text: 'Nhận xét', width: 115, align: 'left' },
-        ], y, 24);
-
-        y += 24;
-        for (const row of criteria) {
-            drawRow(doc, [
-                { text: row.criterionLabel || row.criterionCode, width: 210 },
-                { text: row.maxScore, width: 90, align: 'center' },
-                { text: row.score, width: 80, align: 'center' },
-                { text: row.comment || '', width: 115 },
-            ], y, 28);
-            y += 28;
+    let scoreIdx = 0;
+    html = html.replace(/<td><\/td>/g, () => {
+        if (scoreIdx < criteria.length) {
+            const value = criteria[scoreIdx]?.score;
+            scoreIdx += 1;
+            return `<td class=\"text-center\">${escapeHtml(value ?? '')}</td>`;
         }
+        return `<td class=\"text-center\"><strong>${totalRaw.toFixed(2)}</strong></td>`;
+    });
 
-        y += 8;
-        doc.font('Helvetica-Bold').text(`Tổng điểm hệ 100: ${totalRaw}`, 50, y);
-        doc.text(`Tổng điểm hệ 10: ${defenseResult.finalScore ?? 'N/A'}`, 50, y + 18);
+    // Keep side white margins when rendering PDF via print mode.
+    html = html.replace(
+        '</head>',
+        `<style>
+            @page { size: A4; margin: 10mm 12mm; }
+            @media print {
+                body {
+                    background: #fff !important;
+                    display: block !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                }
+                .page {
+                    width: auto !important;
+                    min-height: auto !important;
+                    height: auto !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    box-shadow: none !important;
+                    border: none !important;
+                }
+            }
+        </style></head>`,
+    );
 
-        y += 44;
-        doc.font('Helvetica').text(`Nhận xét chung: ${defenseResult.comments || 'N/A'}`, 50, y, { width: 495 });
+    return html;
+};
 
-        y += 48;
-        doc.text(`Người khóa điểm: ${defenseResult.lockedByUser?.fullName || 'N/A'}`);
-        doc.text(`Thời gian khóa: ${fmtDateTime(defenseResult.lockedAt)}`);
-        doc.text(`Cập nhật bởi: ${defenseResult.evaluator?.fullName || 'N/A'}`);
-
-        doc.end();
-    } catch (error) {
-        reject(error);
+const generateByPuppeteer = async (html) => {
+    const puppeteer = require('puppeteer');
+    const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+    try {
+        const page = await browser.newPage();
+        await page.setContent(html, { waitUntil: 'networkidle0' });
+        return await page.pdf({
+            format: 'A4',
+            printBackground: true,
+            preferCSSPageSize: true,
+            margin: { top: '0mm', right: '0mm', bottom: '0mm', left: '0mm' },
+        });
+    } finally {
+        await browser.close();
     }
-});
+};
+
+const generateScoreSheetPdfBuffer = async (params) => generateByPuppeteer(buildA4ScoreSheetHtml(params));
 
 module.exports = {
+    buildA4ScoreSheetHtml,
     generateScoreSheetPdfBuffer,
 };

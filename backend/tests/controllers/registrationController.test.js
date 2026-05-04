@@ -12,6 +12,9 @@ jest.mock('../../src/config/database', () => ({
     topic: {
         findUnique: jest.fn(),
     },
+    studentProjectEnrollment: {
+        findFirst: jest.fn(),
+    },
     semester: {
         findUnique: jest.fn(),
     },
@@ -57,11 +60,14 @@ describe('registrationController', () => {
             title: 'Do an AI',
             semesterId: 9,
             mentorId: 77,
+            projectCatalogId: 1,
             status: 'APPROVED',
             maxStudents: 1,
             mentor: { id: 77, academicTitle: 'TIEN_SI' },
+            projectCatalog: { id: 1, name: 'Do an tot nghiep' },
             _count: { registrations: 0 },
         });
+        prisma.studentProjectEnrollment.findFirst.mockResolvedValue({ id: 7001 });
         getMentorMaxSlots.mockReturnValue(15);
         prisma.topicRegistration.count.mockResolvedValue(3);
         prisma.topicRegistration.create.mockResolvedValue({
@@ -104,6 +110,96 @@ describe('registrationController', () => {
             registrationDeadline: new Date('2099-12-31T23:59:59.000Z'),
             registrationOpen: false,
         });
+
+        const req = createMockReq({
+            user: { id: 5, fullName: 'Nguyen Van A', code: 'SV005' },
+            body: { topicId: 100, semesterId: 9 },
+        });
+        const res = createMockRes();
+        const next = createNext();
+
+        await registerTopic(req, res, next);
+
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(prisma.topicRegistration.create).not.toHaveBeenCalled();
+        expect(next).not.toHaveBeenCalled();
+    });
+
+    test('registerTopic rejects when student account is restricted after completion', async () => {
+        prisma.topicRegistration.findFirst.mockResolvedValueOnce({ id: 999 });
+
+        const req = createMockReq({
+            user: { id: 5, fullName: 'Nguyen Van A', code: 'SV005' },
+            body: { topicId: 100, semesterId: 9 },
+        });
+        const res = createMockRes();
+        const next = createNext();
+
+        await registerTopic(req, res, next);
+
+        expect(res.status).toHaveBeenCalledWith(403);
+        expect(prisma.semester.findUnique).not.toHaveBeenCalled();
+        expect(prisma.topicRegistration.create).not.toHaveBeenCalled();
+        expect(next).not.toHaveBeenCalled();
+    });
+
+    test('registerTopic rejects when student has no matching project enrollment', async () => {
+        prisma.semester.findUnique.mockResolvedValue({
+            id: 9,
+            startDate: new Date('2026-01-01T00:00:00.000Z'),
+            registrationDeadline: new Date('2099-12-31T23:59:59.000Z'),
+            registrationOpen: true,
+        });
+        prisma.topicRegistration.findUnique.mockResolvedValue(null);
+        prisma.topic.findUnique.mockResolvedValue({
+            id: 100,
+            title: 'Do an AI',
+            semesterId: 9,
+            mentorId: 77,
+            projectCatalogId: 2,
+            status: 'APPROVED',
+            maxStudents: 1,
+            mentor: { id: 77, academicTitle: 'TIEN_SI' },
+            projectCatalog: { id: 2, name: 'Do an B' },
+            _count: { registrations: 0 },
+        });
+        prisma.studentProjectEnrollment.findFirst.mockResolvedValue(null);
+
+        const req = createMockReq({
+            user: { id: 5, fullName: 'Nguyen Van A', code: 'SV005' },
+            body: { topicId: 100, semesterId: 9 },
+        });
+        const res = createMockRes();
+        const next = createNext();
+
+        await registerTopic(req, res, next);
+
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(prisma.topicRegistration.create).not.toHaveBeenCalled();
+        expect(next).not.toHaveBeenCalled();
+    });
+
+    test('registerTopic rejects when enrollment exists but in different semester', async () => {
+        prisma.semester.findUnique.mockResolvedValue({
+            id: 9,
+            startDate: new Date('2026-01-01T00:00:00.000Z'),
+            registrationDeadline: new Date('2099-12-31T23:59:59.000Z'),
+            registrationOpen: true,
+        });
+        prisma.topicRegistration.findUnique.mockResolvedValue(null);
+        prisma.topic.findUnique.mockResolvedValue({
+            id: 100,
+            title: 'Do an AI',
+            semesterId: 9,
+            mentorId: 77,
+            projectCatalogId: 2,
+            status: 'APPROVED',
+            maxStudents: 1,
+            mentor: { id: 77, academicTitle: 'TIEN_SI' },
+            projectCatalog: { id: 2, name: 'Do an B' },
+            _count: { registrations: 0 },
+        });
+        prisma.studentProjectEnrollment.findFirst.mockResolvedValue(null);
 
         const req = createMockReq({
             user: { id: 5, fullName: 'Nguyen Van A', code: 'SV005' },

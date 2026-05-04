@@ -1,5 +1,5 @@
 const express = require('express');
-const { body, param } = require('express-validator');
+const { body, param, query } = require('express-validator');
 const router = express.Router();
 const evaluationController = require('../controllers/evaluationController');
 const { authenticate, authorize } = require('../middlewares/auth');
@@ -18,6 +18,7 @@ router.get(
     authorize('LECTURER', 'ADMIN'),
     [
         param('registrationId').isInt({ min: 1 }).withMessage('registrationId phai la so nguyen duong.'),
+        query('evaluatorId').optional().isInt({ min: 1 }).withMessage('evaluatorId phai la so nguyen duong.'),
         validateRequest,
     ],
     evaluationController.getScoreSheet,
@@ -33,6 +34,7 @@ router.put(
         body('scores.*.score').isFloat({ min: 0 }).withMessage('score phai la so hop le.'),
         body('scores.*.comment').optional({ nullable: true }).isString(),
         body('generalComment').optional({ nullable: true }).isString(),
+        body('evaluatorId').optional().isInt({ min: 1 }).withMessage('evaluatorId phai la so nguyen duong.'),
         validateRequest,
     ],
     evaluationController.saveScoreSheet,
@@ -43,13 +45,12 @@ router.post(
     authorize('LECTURER', 'ADMIN'),
     [
         param('registrationId').isInt({ min: 1 }).withMessage('registrationId phai la so nguyen duong.'),
+        query('evaluatorId').optional().isInt({ min: 1 }).withMessage('evaluatorId phai la so nguyen duong.'),
+        body('evaluatorId').optional().isInt({ min: 1 }).withMessage('evaluatorId phai la so nguyen duong.'),
         validateRequest,
     ],
     evaluationController.exportScoreSheetPdf,
 );
-
-// GV/Admin nhap diem bao ve + anh bang cham
-router.post('/defense-result', authorize('LECTURER', 'ADMIN'), evaluationController.submitDefenseResult);
 
 // Admin defense center
 router.get('/admin-defense-center', authorize('ADMIN'), evaluationController.getAdminDefenseCenter);

@@ -160,9 +160,26 @@ async function clearNonUserData() {
     prisma.councilMember.deleteMany(),
     prisma.council.deleteMany(),
     prisma.topic.deleteMany(),
+    prisma.studentProjectEnrollment.deleteMany(),
+    prisma.projectCatalog.deleteMany(),
     prisma.semester.deleteMany(),
     prisma.user.deleteMany(),
   ]);
+}
+
+async function createProjectCatalogs() {
+  const rows = [
+    { code: "DATN", name: "Đồ án tốt nghiệp", isActive: true },
+    { code: "DO_AN_A", name: "Đồ án A", isActive: true },
+    { code: "DO_AN_B", name: "Đồ án B", isActive: true },
+  ];
+
+  const catalogs = [];
+  for (const row of rows) {
+    const created = await prisma.projectCatalog.create({ data: row });
+    catalogs.push(created);
+  }
+  return catalogs;
 }
 
 async function createSemesters() {
@@ -227,7 +244,9 @@ function buildTopicTitle(index) {
   return `${keyword} ${scope}`;
 }
 
-async function createTopicsForSemester({ semester, lecturerIds, approvedCount, pendingCount, rejectedCount, startIndex }) {
+async function createTopicsForSemester({
+  semester, lecturerIds, approvedCount, pendingCount, rejectedCount, startIndex, projectCatalogId,
+}) {
   const topics = [];
   const total = approvedCount + pendingCount + rejectedCount;
 
@@ -246,6 +265,7 @@ async function createTopicsForSemester({ semester, lecturerIds, approvedCount, p
     const topic = await prisma.topic.create({
       data: {
         semesterId: semester.id,
+        projectCatalogId,
         title: buildTopicTitle(topicIndex),
         description: `Đề tài tập trung vào bài toán thực tế, có mock API, dashboard quản trị và bộ tiêu chí đánh giá rõ ràng. Biên số: DT-${semester.id}-${String(i + 1).padStart(3, "0")}.`,
         proposedById: mentorId,
@@ -508,6 +528,8 @@ async function seedBusinessData() {
   const allUserIds = users.map((u) => u.id);
 
   const semesters = await createSemesters();
+  const projectCatalogs = await createProjectCatalogs();
+  const defaultProjectCatalog = projectCatalogs.find((item) => item.code === "DATN") || projectCatalogs[0];
 
   const semesterPlans = [
     { semester: semesters[0], topics: { approved: 26, pending: 3, rejected: 4 }, registrations: 24, profile: () => 100 },
@@ -534,11 +556,23 @@ async function seedBusinessData() {
       pendingCount: plan.topics.pending,
       rejectedCount: plan.topics.rejected,
       startIndex: topicStartIndex,
+      projectCatalogId: defaultProjectCatalog.id,
     });
     topicStartIndex += topics.length;
 
     const approvedTopics = topics.filter((topic) => topic.status === "APPROVED");
     const semesterStudents = studentIds.slice((s * 18) % studentIds.length).concat(studentIds.slice(0, (s * 18) % studentIds.length));
+
+    await prisma.studentProjectEnrollment.createMany({
+      data: semesterStudents.map((studentId) => ({
+        studentId,
+        semesterId: plan.semester.id,
+        projectCatalogId: defaultProjectCatalog.id,
+        status: "ACTIVE",
+        source: "SEED",
+      })),
+      skipDuplicates: true,
+    });
 
     const baseRegistrations = await createRegistrationsAndProgress({
       semester: plan.semester,
@@ -586,6 +620,7 @@ async function seedBusinessData() {
 
   return {
     semesters: semesters.length,
+    projectCatalogs: projectCatalogs.length,
     tasks: createdTasks,
     submissions: createdSubmissions,
     milestones: createdMilestones,
@@ -606,6 +641,8 @@ async function main() {
   const counts = {
     users: await prisma.user.count(),
     semesters: await prisma.semester.count(),
+    projectCatalogs: await prisma.projectCatalog.count(),
+    studentProjectEnrollments: await prisma.studentProjectEnrollment.count(),
     topics: await prisma.topic.count(),
     registrations: await prisma.topicRegistration.count(),
     tasks: await prisma.task.count(),

@@ -19,6 +19,16 @@ router.get(
 );
 
 router.get(
+    '/my-project-enrollments',
+    [
+        authorize('STUDENT'),
+        query('semesterId').optional().isInt({ min: 1 }).withMessage('semesterId phai la so nguyen duong.'),
+        validateRequest,
+    ],
+    registrationController.getMyProjectEnrollments,
+);
+
+router.get(
     '/',
     [
         authorize('ADMIN', 'LECTURER'),

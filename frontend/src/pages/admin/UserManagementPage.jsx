@@ -29,6 +29,7 @@ function UserManagementPage() {
     const [searchText, setSearchText] = useState('');
     const [activeRole, setActiveRole] = useState('LECTURER');
     const [statusFilter, setStatusFilter] = useState(null);
+    const [accountRestrictedFilter, setAccountRestrictedFilter] = useState(null);
     const [roleCounts, setRoleCounts] = useState({ ADMIN: 0, LECTURER: 0, STUDENT: 0 });
 
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -59,6 +60,9 @@ function UserManagementPage() {
             const params = { page, limit, role: activeRole };
             if (searchText) params.search = searchText;
             if (statusFilter) params.status = statusFilter;
+            if (activeRole === 'STUDENT' && accountRestrictedFilter !== null) {
+                params.accountRestricted = accountRestrictedFilter;
+            }
 
             const response = await userService.getUsers(params);
             if (response.success) {
@@ -74,10 +78,15 @@ function UserManagementPage() {
         } finally {
             setLoading(false);
         }
-    }, [searchText, activeRole, statusFilter]);
+    }, [searchText, activeRole, statusFilter, accountRestrictedFilter]);
 
     useEffect(() => { fetchUsers(); }, [fetchUsers]);
     useEffect(() => { fetchRoleCounts(); }, [fetchRoleCounts]);
+    useEffect(() => {
+        if (activeRole !== 'STUDENT') {
+            setAccountRestrictedFilter(null);
+        }
+    }, [activeRole]);
 
     const handleSearch = (value) => setSearchText(value);
 
@@ -204,6 +213,16 @@ function UserManagementPage() {
             ),
         },
         {
+            title: 'Giới hạn đồ án', key: 'accountRestricted', width: 160,
+            render: (_, record) => {
+                if (record.role !== 'STUDENT') return <span className="text-slate-300">—</span>;
+                if (record.accountRestricted) {
+                    return <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700">Đã hoàn thành</span>;
+                }
+                return <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">Bình thường</span>;
+            },
+        },
+        {
             title: 'Hành động', key: 'actions', width: 140, align: 'right',
             render: (_, record) => {
                 const items = [
@@ -304,6 +323,19 @@ function UserManagementPage() {
                             onChange={(value) => setStatusFilter(value || null)}
                             options={[{ label: 'Hoạt động', value: 'active' }, { label: 'Bị khóa', value: 'locked' }]}
                         />
+                        {activeRole === 'STUDENT' && (
+                            <Select
+                                placeholder="Tr?ng th?i ?? ?n"
+                                style={{ minWidth: 210 }}
+                                allowClear
+                                value={accountRestrictedFilter}
+                                onChange={(value) => setAccountRestrictedFilter(value ?? null)}
+                                options={[
+                                    { label: 'SV ?? ho?n th?nh ?? ?n', value: 'true' },
+                                    { label: 'SV b?nh th??ng', value: 'false' },
+                                ]}
+                            />
+                        )}
                     </div>
                     <Tooltip title="Làm mới">
                         <Button icon={<ReloadOutlined />} onClick={() => { fetchUsers(pagination.current, pagination.pageSize); fetchRoleCounts(); }} />

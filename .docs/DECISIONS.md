@@ -194,3 +194,81 @@ Tài liệu lưu các quyết định kỹ thuật/nghiệp vụ quan trọng đ
 - P0: schema + backend validation + seed + test.
 - P1: UI student/admin + đối soát dữ liệu.
 - P2: chuẩn bị metadata phục vụ import Excel trong pha tiếp theo.
+
+---
+
+## 2026-05-01 - Chuẩn hóa migration Prisma, không phụ thuộc `db push`
+
+**Quyết định**
+
+- Bổ sung migration SQL chính thức cho score-sheet/PDF:
+  - thêm cột lock/pdf/rubric cho `defense_results`,
+  - thêm bảng `defense_criterion_scores` + ràng buộc FK/unique.
+- Chuẩn hóa script backend cho team:
+  - `npm run db:deploy`
+  - `npm run db:status`
+- Không dùng `db push` như luồng mặc định khi có thay đổi schema nghiệp vụ.
+
+**Ảnh hưởng**
+
+- Giảm drift schema giữa máy dev.
+- Dễ rollout nhất quán qua `migrate deploy` trên môi trường dùng chung.
+- Các thay đổi schema score-sheet/PDF đã có lịch sử migration truy vết được.
+
+## 2026-05-01 - Chốt mô hình 3 phiếu chấm hội đồng + điểm cuối theo trung bình
+
+**Quyết định**
+
+- Mỗi thành viên hội đồng có một phiếu chấm riêng, lưu theo cặp `(registrationId, evaluatorId)`.
+- Dùng thêm bảng chi tiết tiêu chí cho từng phiếu:
+  - `DefenseMemberScore`
+  - `DefenseMemberCriterionScore`
+- Điểm bảo vệ cuối cùng của sinh viên được tính bằng trung bình cộng điểm hệ 10 của các thành viên hội đồng đã nộp phiếu.
+- Admin được chọn xem/sửa phiếu theo từng thành viên và export PDF theo đúng người chấm được chọn.
+
+**Ảnh hưởng**
+
+- Tăng tính minh bạch: truy vết được từng phiếu chấm theo thành viên.
+- Giảm tranh chấp điểm: tách rõ điểm cá nhân và điểm cuối tổng hợp.
+- Cần đảm bảo migration + restart backend sau rollout để tránh lệch Prisma Client.
+
+---
+
+## 2026-05-01 - Chốt xử lý lỗi export PDF do Supabase bucket
+
+**Quyết định**
+
+- `UploadService` phải kiểm tra bucket tồn tại trước upload.
+- Nếu bucket chưa tồn tại thì tự tạo bucket public rồi tiếp tục upload.
+
+**Ảnh hưởng**
+
+- Loại bỏ lỗi runtime `Bucket not found` trong luồng xuất PDF.
+- Giảm phụ thuộc thao tác cấu hình thủ công trên môi trường mới.
+
+---
+
+## 2026-05-02 - Chốt dùng 1 template HTML gốc cho cả chấm online và export PDF
+
+**Quyết định**
+
+- Dùng file `frontend/src/pages/lecturer/phieu_cham.html` làm template nguồn duy nhất.
+- FE trang chấm điểm render trực tiếp từ template này và inject dữ liệu động.
+- BE export PDF đọc chính template này để render PDF, không duy trì template riêng khác.
+
+**Ảnh hưởng**
+
+- Giảm lệch bố cục giữa màn hình chấm điểm và file PDF xuất ra.
+- Tăng khả năng bảo trì (1 nguồn template thay đổi là cả FE/BE đồng bộ).
+- Cần giữ kỷ luật cập nhật template có kiểm thử xuất PDF ngay sau mỗi thay đổi.
+
+## 2026-05-02 - Chốt quy tắc nhập điểm ở phiếu chấm
+
+**Quyết định**
+
+- Ô điểm trong phiếu chấm dùng `input[type=number]` với `step=0.05`.
+
+**Ảnh hưởng**
+
+- Phù hợp yêu cầu chấm điểm chi tiết hơn so với step lớn hơn.
+- Cần đảm bảo backend validate vẫn nằm trong giới hạn `maxScore` từng tiêu chí.

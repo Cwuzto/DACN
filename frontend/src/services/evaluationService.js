@@ -14,14 +14,6 @@ const evaluationService = {
         }
     },
 
-    submitDefenseResult: async (data) => {
-        try {
-            return await api.post('/evaluations/defense-result', data);
-        } catch (error) {
-            throw wrapServiceError(error, 'Đã xảy ra lỗi khi lưu kết quả bảo vệ');
-        }
-    },
-
     getMyGrades: async () => {
         try {
             return await api.get('/evaluations/my-grades');
@@ -54,17 +46,17 @@ const evaluationService = {
         }
     },
 
-    exportScoreSheetPdf: async (registrationId) => {
+    exportScoreSheetPdf: async (registrationId, data = {}) => {
         try {
-            return await api.post(`/evaluations/${registrationId}/score-sheet/export-pdf`);
+            return await api.post(`/evaluations/${registrationId}/score-sheet/export-pdf`, data);
         } catch (error) {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi xuất PDF bảng điểm');
         }
     },
 
-    getScoreSheet: async (registrationId) => {
+    getScoreSheet: async (registrationId, params = {}) => {
         try {
-            return await api.get(`/evaluations/${registrationId}/score-sheet`);
+            return await api.get(`/evaluations/${registrationId}/score-sheet`, { params });
         } catch (error) {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi tải bảng điểm chi tiết');
         }

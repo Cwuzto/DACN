@@ -23,11 +23,14 @@ model User {
   councilMembers       CouncilMember[]
   defenseResults       DefenseResult[]     @relation("DefenseEvaluator")
   lockedDefenseResults DefenseResult[]     @relation("DefenseScoreLocker")
+  evaluatedMemberScores DefenseMemberScore[] @relation("DefenseMemberScoreEvaluator")
+  lockedMemberScores    DefenseMemberScore[] @relation("DefenseMemberScoreLocker")
   notifications        Notification[]
   submissions          Submission[]
   mentoredTopics       Topic[]             @relation("MentoredBy")
   proposedTopics       Topic[]             @relation("ProposedBy")
   registrations        TopicRegistration[]
+  projectEnrollments   StudentProjectEnrollment[]
   auditLogs            AuditLog[]
 
   @@map("users")
@@ -47,6 +50,7 @@ model Semester {
   updatedAt            DateTime       @updatedAt @map("updated_at")
   councils             Council[]
   topics               Topic[]
+  projectEnrollments   StudentProjectEnrollment[]
 
   @@map("semesters")
 }
@@ -54,6 +58,7 @@ model Semester {
 model Topic {
   id            Int                 @id @default(autoincrement())
   semesterId    Int                 @map("semester_id")
+  projectCatalogId Int?             @map("project_catalog_id")
   title         String
   description   String?
   proposedById  Int                 @map("proposed_by_id")
@@ -66,6 +71,7 @@ model Topic {
   mentor        User                @relation("MentoredBy", fields: [mentorId], references: [id])
   proposedBy    User                @relation("ProposedBy", fields: [proposedById], references: [id])
   semester      Semester            @relation(fields: [semesterId], references: [id])
+  projectCatalog ProjectCatalog?    @relation(fields: [projectCatalogId], references: [id])
   registrations TopicRegistration[]
 
   @@map("topics")
@@ -88,6 +94,7 @@ model TopicRegistration {
   tasks         Task[]
   milestones    Milestone[]
   defenseResult DefenseResult?
+  memberScores  DefenseMemberScore[]
 
   @@unique([studentId, semesterId])
   @@map("topic_registrations")
@@ -190,6 +197,45 @@ model DefenseResult {
   @@map("defense_results")
 }
 
+model DefenseMemberScore {
+  id                 Int                            @id @default(autoincrement())
+  registrationId     Int                            @map("registration_id")
+  evaluatorId        Int                            @map("evaluator_id")
+  finalScore         Float?                         @map("final_score")
+  comments           String?
+  scoreRubricVersion String                         @default("v1") @map("score_rubric_version")
+  scoreLocked        Boolean                        @default(false) @map("score_locked")
+  lockedAt           DateTime?                      @map("locked_at")
+  lockedBy           Int?                           @map("locked_by")
+  pdfUrl             String?                        @map("pdf_url")
+  pdfGeneratedAt     DateTime?                      @map("pdf_generated_at")
+  createdAt          DateTime                       @default(now()) @map("created_at")
+  updatedAt          DateTime                       @updatedAt @map("updated_at")
+  registration       TopicRegistration              @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  evaluator          User                           @relation("DefenseMemberScoreEvaluator", fields: [evaluatorId], references: [id])
+  lockedByUser       User?                          @relation("DefenseMemberScoreLocker", fields: [lockedBy], references: [id])
+  criterionScores    DefenseMemberCriterionScore[]
+
+  @@unique([registrationId, evaluatorId])
+  @@map("defense_member_scores")
+}
+
+model DefenseMemberCriterionScore {
+  id                 Int               @id @default(autoincrement())
+  defenseMemberScoreId Int             @map("defense_member_score_id")
+  criterionCode      String            @map("criterion_code")
+  criterionLabel     String            @map("criterion_label")
+  maxScore           Float             @map("max_score")
+  score              Float
+  comment            String?
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
+  defenseMemberScore DefenseMemberScore @relation(fields: [defenseMemberScoreId], references: [id], onDelete: Cascade)
+
+  @@unique([defenseMemberScoreId, criterionCode])
+  @@map("defense_member_criterion_scores")
+}
+
 model DefenseCriterionScore {
   id              Int           @id @default(autoincrement())
   defenseResultId Int           @map("defense_result_id")
@@ -234,6 +280,38 @@ model AuditLog {
   @@index([userId, createdAt])
   @@index([action, entityType, createdAt])
   @@map("audit_logs")
+}
+
+model ProjectCatalog {
+  id               Int                        @id @default(autoincrement())
+  code             String                     @unique
+  name             String
+  isActive         Boolean                    @default(true) @map("is_active")
+  createdAt        DateTime                   @default(now()) @map("created_at")
+  updatedAt        DateTime                   @updatedAt @map("updated_at")
+  topics           Topic[]
+  enrollments      StudentProjectEnrollment[]
+
+  @@map("project_catalogs")
+}
+
+model StudentProjectEnrollment {
+  id               Int                            @id @default(autoincrement())
+  studentId        Int                            @map("student_id")
+  semesterId       Int                            @map("semester_id")
+  projectCatalogId Int                            @map("project_catalog_id")
+  status           StudentProjectEnrollmentStatus @default(ACTIVE)
+  source           EnrollmentSource               @default(SEED)
+  importBatchId    String?                        @map("import_batch_id")
+  createdAt        DateTime                       @default(now()) @map("created_at")
+  updatedAt        DateTime                       @updatedAt @map("updated_at")
+  student          User                           @relation(fields: [studentId], references: [id])
+  semester         Semester                       @relation(fields: [semesterId], references: [id])
+  projectCatalog   ProjectCatalog                 @relation(fields: [projectCatalogId], references: [id])
+
+  @@unique([studentId, semesterId, projectCatalogId])
+  @@index([studentId, semesterId, status])
+  @@map("student_project_enrollments")
 }
 
 enum UserRole {
@@ -304,4 +382,15 @@ enum NotificationType {
   REGISTRATION
   SUBMISSION
   DEFENSE
+}
+
+enum StudentProjectEnrollmentStatus {
+  ACTIVE
+  CANCELLED
+}
+
+enum EnrollmentSource {
+  SEED
+  MANUAL
+  EXCEL
 }

@@ -14,6 +14,14 @@ const registrationService = {
         }
     },
 
+    getMyProjectEnrollments: async (params = {}) => {
+        try {
+            return await api.get('/registrations/my-project-enrollments', { params });
+        } catch (error) {
+            throw wrapServiceError(error, 'Da xay ra loi khi tai danh sach mon do an da dang ky');
+        }
+    },
+
     getAllRegistrations: async (params = {}) => {
         try {
             return await api.get('/registrations', { params });

@@ -8,6 +8,7 @@ jest.mock('../../src/config/database', () => ({
         findFirst: jest.fn(),
     },
     topicRegistration: {
+        findFirst: jest.fn(),
         findUnique: jest.fn(),
         findMany: jest.fn(),
         count: jest.fn(),
@@ -17,6 +18,9 @@ jest.mock('../../src/config/database', () => ({
     },
     topic: {
         findUnique: jest.fn(),
+    },
+    studentProjectEnrollment: {
+        findFirst: jest.fn(),
     },
     notification: {
         create: jest.fn(),
@@ -50,6 +54,7 @@ describe('Integration - registrations routes', () => {
         process.env.JWT_SECRET = 'integration-secret';
         prisma.semester.findFirst.mockResolvedValue({ id: 9 });
         prisma.task.groupBy.mockResolvedValue([]);
+        prisma.topicRegistration.findFirst.mockResolvedValue(null);
 
         jwt.verify.mockImplementation((token) => {
             if (token === 'student-token') return { userId: 5, role: 'STUDENT' };
@@ -97,11 +102,14 @@ describe('Integration - registrations routes', () => {
             title: 'Do an AI',
             semesterId: 9,
             mentorId: 77,
+            projectCatalogId: 1,
             status: 'APPROVED',
             maxStudents: 2,
             mentor: { id: 77, academicTitle: 'TIEN_SI' },
+            projectCatalog: { id: 1, name: 'Do an tot nghiep' },
             _count: { registrations: 0 },
         });
+        prisma.studentProjectEnrollment.findFirst.mockResolvedValue({ id: 7001 });
         getMentorMaxSlots.mockReturnValue(15);
         prisma.topicRegistration.count.mockResolvedValue(1);
         prisma.topicRegistration.create.mockResolvedValue({
@@ -128,6 +136,68 @@ describe('Integration - registrations routes', () => {
             registrationDeadline: new Date('2099-12-31T23:59:59.000Z'),
             registrationOpen: false,
         });
+
+        const res = await request(app)
+            .post('/api/registrations')
+            .set('Authorization', 'Bearer student-token')
+            .send({ topicId: 100, semesterId: 9 });
+
+        expect(res.status).toBe(400);
+        expect(res.body.success).toBe(false);
+    });
+
+    test('POST /api/registrations rejects when student has not enrolled project catalog', async () => {
+        prisma.semester.findUnique.mockResolvedValue({
+            id: 9,
+            startDate: new Date('2020-01-01T00:00:00.000Z'),
+            registrationDeadline: new Date('2099-12-31T23:59:59.000Z'),
+            registrationOpen: true,
+        });
+        prisma.topicRegistration.findUnique.mockResolvedValue(null);
+        prisma.topic.findUnique.mockResolvedValue({
+            id: 100,
+            title: 'Do an AI',
+            semesterId: 9,
+            mentorId: 77,
+            projectCatalogId: 2,
+            status: 'APPROVED',
+            maxStudents: 2,
+            mentor: { id: 77, academicTitle: 'TIEN_SI' },
+            projectCatalog: { id: 2, name: 'Do an B' },
+            _count: { registrations: 0 },
+        });
+        prisma.studentProjectEnrollment.findFirst.mockResolvedValue(null);
+
+        const res = await request(app)
+            .post('/api/registrations')
+            .set('Authorization', 'Bearer student-token')
+            .send({ topicId: 100, semesterId: 9 });
+
+        expect(res.status).toBe(400);
+        expect(res.body.success).toBe(false);
+    });
+
+    test('POST /api/registrations rejects when enrollment exists but not for requested semester', async () => {
+        prisma.semester.findUnique.mockResolvedValue({
+            id: 9,
+            startDate: new Date('2020-01-01T00:00:00.000Z'),
+            registrationDeadline: new Date('2099-12-31T23:59:59.000Z'),
+            registrationOpen: true,
+        });
+        prisma.topicRegistration.findUnique.mockResolvedValue(null);
+        prisma.topic.findUnique.mockResolvedValue({
+            id: 100,
+            title: 'Do an AI',
+            semesterId: 9,
+            mentorId: 77,
+            projectCatalogId: 2,
+            status: 'APPROVED',
+            maxStudents: 2,
+            mentor: { id: 77, academicTitle: 'TIEN_SI' },
+            projectCatalog: { id: 2, name: 'Do an B' },
+            _count: { registrations: 0 },
+        });
+        prisma.studentProjectEnrollment.findFirst.mockResolvedValue(null);
 
         const res = await request(app)
             .post('/api/registrations')
