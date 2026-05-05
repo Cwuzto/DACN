@@ -15,9 +15,9 @@ router.get(
     '/grading-students',
     authorize('LECTURER', 'ADMIN'),
     [
-        query('semesterId').optional().isInt({ min: 1 }).withMessage('semesterId phai la so nguyen duong.'),
-        query('projectCatalogId').optional().isInt({ min: 1 }).withMessage('projectCatalogId phai la so nguyen duong.'),
-        query('councilId').optional().isInt({ min: 1 }).withMessage('councilId phai la so nguyen duong.'),
+        query('semesterId').optional().isInt({ min: 1 }).withMessage('semesterId phải là số nguyên dương.'),
+        query('projectCatalogId').optional().isInt({ min: 1 }).withMessage('projectCatalogId phải là số nguyên dương.'),
+        query('councilId').optional().isInt({ min: 1 }).withMessage('councilId phải là số nguyên dương.'),
         validateRequest,
     ],
     evaluationController.getGradingStudents,
@@ -27,8 +27,8 @@ router.get(
     '/:registrationId/score-sheet',
     authorize('LECTURER', 'ADMIN'),
     [
-        param('registrationId').isInt({ min: 1 }).withMessage('registrationId phai la so nguyen duong.'),
-        query('evaluatorId').optional().isInt({ min: 1 }).withMessage('evaluatorId phai la so nguyen duong.'),
+        param('registrationId').isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
+        query('evaluatorId').optional().isInt({ min: 1 }).withMessage('evaluatorId phải là số nguyên dương.'),
         validateRequest,
     ],
     evaluationController.getScoreSheet,
@@ -38,13 +38,13 @@ router.put(
     '/:registrationId/score-sheet',
     authorize('LECTURER', 'ADMIN'),
     [
-        param('registrationId').isInt({ min: 1 }).withMessage('registrationId phai la so nguyen duong.'),
-        body('scores').isArray({ min: 1 }).withMessage('scores phai la mang co it nhat 1 phan tu.'),
-        body('scores.*.criterionCode').isString().trim().notEmpty().withMessage('criterionCode la bat buoc.'),
-        body('scores.*.score').isFloat({ min: 0 }).withMessage('score phai la so hop le.'),
+        param('registrationId').isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
+        body('scores').isArray({ min: 1 }).withMessage('scores phải là mảng có ít nhất 1 phần tử.'),
+        body('scores.*.criterionCode').isString().trim().notEmpty().withMessage('criterionCode là bắt buộc.'),
+        body('scores.*.score').isFloat({ min: 0 }).withMessage('score phải là số hợp lệ.'),
         body('scores.*.comment').optional({ nullable: true }).isString(),
         body('generalComment').optional({ nullable: true }).isString(),
-        body('evaluatorId').optional().isInt({ min: 1 }).withMessage('evaluatorId phai la so nguyen duong.'),
+        body('evaluatorId').optional().isInt({ min: 1 }).withMessage('evaluatorId phải là số nguyên dương.'),
         validateRequest,
     ],
     evaluationController.saveScoreSheet,
@@ -54,9 +54,9 @@ router.post(
     '/:registrationId/score-sheet/export-pdf',
     authorize('LECTURER', 'ADMIN'),
     [
-        param('registrationId').isInt({ min: 1 }).withMessage('registrationId phai la so nguyen duong.'),
-        query('evaluatorId').optional().isInt({ min: 1 }).withMessage('evaluatorId phai la so nguyen duong.'),
-        body('evaluatorId').optional().isInt({ min: 1 }).withMessage('evaluatorId phai la so nguyen duong.'),
+        param('registrationId').isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
+        query('evaluatorId').optional().isInt({ min: 1 }).withMessage('evaluatorId phải là số nguyên dương.'),
+        body('evaluatorId').optional().isInt({ min: 1 }).withMessage('evaluatorId phải là số nguyên dương.'),
         validateRequest,
     ],
     evaluationController.exportScoreSheetPdf,
@@ -70,10 +70,10 @@ router.post(
     [
         body('registrationIds')
             .isArray({ min: 1 })
-            .withMessage('registrationIds phai la mang co it nhat 1 phan tu.'),
+            .withMessage('registrationIds phải là mảng có ít nhất 1 phần tử.'),
         body('registrationIds.*')
             .isInt({ min: 1 })
-            .withMessage('Moi registrationId phai la so nguyen duong.'),
+            .withMessage('Mỗi registrationId phải là số nguyên dương.'),
         validateRequest,
     ],
     evaluationController.remindDefenseGrading,
@@ -82,8 +82,8 @@ router.patch(
     '/admin-defense-center/:id/score-lock',
     authorize('ADMIN'),
     [
-        param('id').isInt({ min: 1 }).withMessage('id phai la so nguyen duong.'),
-        body('action').isIn(['LOCK', 'UNLOCK']).withMessage('action phai la LOCK hoac UNLOCK.'),
+        param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
+        body('action').isIn(['LOCK', 'UNLOCK']).withMessage('action phải là LOCK hoặc UNLOCK.'),
         validateRequest,
     ],
     evaluationController.setDefenseScoreLock,

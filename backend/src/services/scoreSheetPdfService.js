@@ -11,9 +11,9 @@ const escapeHtml = (value) => String(value ?? '')
     .replace(/'/g, '&#39;');
 
 const roleLabelMap = {
-    CHAIRMAN: 'Chu tich',
-    SECRETARY: 'Thu ky',
-    REVIEWER: 'Uy vien',
+    CHAIRMAN: 'Chủ tịch',
+    SECRETARY: 'Thư ký',
+    REVIEWER: 'Ủy viên',
 };
 
 const buildA4ScoreSheetHtml = ({ registration, defenseResult, scorerInfo = {} }) => {
