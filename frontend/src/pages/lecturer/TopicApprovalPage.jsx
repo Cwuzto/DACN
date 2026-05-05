@@ -68,7 +68,7 @@ function TopicApprovalPage() {
     const handleApproveRegistration = (record) => {
         Modal.confirm({
             title: 'Xác nhận duyệt đăng ký',
-            content: `Duyệt ${record.student?.fullName || 'sinh vien'} vao de tai "${record.topic?.title || ''}"?`,
+            content: `Duyệt ${record.student?.fullName || 'sinh viên'} vào đề tài "${record.topic?.title || ''}"?`,
             okText: 'Duyệt',
             cancelText: 'Hủy',
             onOk: async () => {
@@ -114,7 +114,7 @@ function TopicApprovalPage() {
 
     const registrationColumns = [
         {
-            title: 'Sinh vien',
+            title: 'Sinh viên',
             dataIndex: 'student',
             key: 'student',
             width: 250,
@@ -123,18 +123,18 @@ function TopicApprovalPage() {
                     <Tag icon={<UserOutlined />} className="!px-2 !py-1 !text-xs">
                         {student?.code || 'N/A'}
                     </Tag>
-                    <Text strong>{student?.fullName || 'Sinh vien'}</Text>
+                    <Text strong>{student?.fullName || 'Sinh viên'}</Text>
                 </Flex>
             ),
         },
         {
-            title: 'De tai',
+            title: 'Đề tài',
             dataIndex: ['topic', 'title'],
             key: 'topic',
             render: (title) => <Text strong className="text-slate-800">{title || 'N/A'}</Text>,
         },
         {
-            title: 'Ngay dang ky',
+            title: 'Ngày đăng ký',
             dataIndex: 'createdAt',
             key: 'createdAt',
             width: 160,
@@ -146,7 +146,7 @@ function TopicApprovalPage() {
             ),
         },
         {
-            title: 'Trang thai',
+            title: 'Trạng thái',
             dataIndex: 'status',
             key: 'status',
             width: 120,
@@ -177,7 +177,7 @@ function TopicApprovalPage() {
                             setRejectModalOpen(true);
                         }}
                     >
-                        Tu choi
+                        Từ chối
                     </Button>
                 </div>
             ),
@@ -187,8 +187,8 @@ function TopicApprovalPage() {
     return (
         <div className="py-2">
             <PageHeader
-                title="Duyệt dang ky de tai"
-                subtitle="X? l? nhanh c?c y?u c?u ??ng k? ?? t?i c?a sinh vi?n"
+                title="Duyệt đăng ký đề tài"
+                subtitle="Xem nhanh các yêu cầu đăng ký đề tài của sinh viên"
                 actions={pendingRegistrations.length > 0 ? <Badge count={pendingRegistrations.length} /> : null}
             />
 
@@ -203,7 +203,7 @@ function TopicApprovalPage() {
                     <Input
                         value={searchText}
                         onChange={(event) => setSearchText(event.target.value)}
-                        placeholder="Tim theo ten SV, ma SV hoac ten de tai..."
+                        placeholder="Tìm theo tên SV, mã SV hoặc tên đề tài..."
                         prefix={<SearchOutlined className="text-slate-400" />}
                         allowClear
                     />
@@ -217,12 +217,12 @@ function TopicApprovalPage() {
                     size="middle"
                     loading={loading}
                     rowClassName={(_, index) => (index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50')}
-                    locale={{ emptyText: 'Không có dang ky de tai cho duyet' }}
+                    locale={{ emptyText: 'Không có đăng ký đề tài cho duyệt' }}
                 />
             </Card>
 
             <Modal
-                title="Tu choi dang ky"
+                title="Từ chối đăng ký"
                 open={rejectModalOpen}
                 onCancel={() => {
                     setRejectModalOpen(false);
@@ -231,18 +231,18 @@ function TopicApprovalPage() {
                 }}
                 onOk={handleReject}
                 confirmLoading={submitting}
-                okText="Tu choi"
+                okText="Từ chối"
                 cancelText="Hủy"
                 okButtonProps={{ danger: true }}
             >
                 <Text>
-                    Nhap ly do tu choi cho sinh vien <b>{rejectingRecord?.student?.fullName || ''}</b>:
+                    Nhập lý do từ chối cho sinh viên <b>{rejectingRecord?.student?.fullName || ''}</b>:
                 </Text>
                 <TextArea
                     rows={4}
                     value={rejectReason}
                     onChange={(event) => setRejectReason(event.target.value)}
-                    placeholder="Ly do tu choi..."
+                    placeholder="Lý do từ chối..."
                     style={{ marginTop: 12 }}
                 />
             </Modal>
