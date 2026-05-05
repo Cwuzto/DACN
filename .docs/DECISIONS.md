@@ -272,3 +272,8 @@ Tài liệu lưu các quyết định kỹ thuật/nghiệp vụ quan trọng đ
 
 - Phù hợp yêu cầu chấm điểm chi tiết hơn so với step lớn hơn.
 - Cần đảm bảo backend validate vẫn nằm trong giới hạn `maxScore` từng tiêu chí.
+
+## 2026-05-06 - 
+**Quyết định**
+- Mọi file tài liệu lưu dưới UTF-8 không BOM.
+**Ảnh hưởng**

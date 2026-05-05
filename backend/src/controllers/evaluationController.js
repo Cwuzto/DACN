@@ -191,28 +191,65 @@ const getMyGrades = async (req, res, next) => {
 const getGradingStudents = async (req, res, next) => {
     try {
         const { role, id: userId } = req.user;
-        const { semesterId } = req.query;
+        const { semesterId, projectCatalogId, councilId } = req.query;
 
         const where = {
             status: { in: ['DEFENDED', 'COMPLETED', 'SUBMITTED'] },
         };
 
         if (role === 'LECTURER') {
-            where.topic = { mentorId: userId };
+            where.council = {
+                members: {
+                    some: { lecturerId: userId },
+                },
+            };
         }
 
-        if (semesterId) where.semesterId = parseInt(semesterId, 10);
+        const parsedSemesterId = parsePositiveInt(semesterId);
+        if (parsedSemesterId) where.semesterId = parsedSemesterId;
+
+        const parsedCouncilId = parsePositiveInt(councilId);
+        if (parsedCouncilId) where.councilId = parsedCouncilId;
+
+        const parsedProjectCatalogId = parsePositiveInt(projectCatalogId);
+        if (parsedProjectCatalogId) {
+            where.topic = {
+                ...(where.topic || {}),
+                projectCatalogId: parsedProjectCatalogId,
+            };
+        }
 
         const registrations = await prisma.topicRegistration.findMany({
             where,
             include: {
                 student: { select: { id: true, fullName: true, code: true } },
-                topic: { select: { id: true, title: true } },
+                topic: {
+                    select: {
+                        id: true,
+                        title: true,
+                        projectCatalogId: true,
+                        projectCatalog: { select: { id: true, code: true, name: true } },
+                        semester: { select: { id: true, name: true, status: true } },
+                    },
+                },
                 defenseResult: true,
                 ...(supportsMemberScoresModel
                     ? { memberScores: { select: { finalScore: true, scoreLocked: true } } }
                     : {}),
-                council: { select: { name: true, defenseDate: true } },
+                council: {
+                    select: {
+                        id: true,
+                        name: true,
+                        defenseDate: true,
+                        members: {
+                            select: {
+                                lecturerId: true,
+                                roleInCouncil: true,
+                                lecturer: { select: { fullName: true, code: true } },
+                            },
+                        },
+                    },
+                },
             },
             orderBy: { createdAt: 'desc' },
         });

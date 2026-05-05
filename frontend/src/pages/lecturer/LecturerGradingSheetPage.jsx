@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button, message } from 'antd';
 import evaluationService from '../../services/evaluationService';
@@ -19,7 +19,12 @@ const MAX_MAP = {
   PRESENTATION_SKILL: 0.5, ATTITUDE: 0.5, PRESENTATION_CONTENT: 1.0, QA_RESPONSE: 1.0,
 };
 
-const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const escapeHtml = (value) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
 
 export default function LecturerGradingSheetPage() {
   const { registrationId } = useParams();
@@ -72,19 +77,18 @@ export default function LecturerGradingSheetPage() {
     if (!registration) return templateHtmlRaw;
     let html = templateHtmlRaw;
 
-    const replacements = [
-      ['ThS. VĂµ Quá»‘c LÆ°Æ¡ng', currentEvaluator?.fullName || ''],
-      ['Chá»§ tá»‹ch', ROLE_LABELS[currentEvaluator?.roleInCouncil] || currentEvaluator?.roleInCouncil || ''],
-      ['Tráº§n Quang Nhanh', registration?.student?.fullName || ''],
-      ['2124802010474', registration?.student?.code || ''],
-      ['D21CNTT01', registration?.student?.className || registration?.student?.class || ''],
-      ['D21', registration?.student?.course || registration?.student?.cohort || ''],
-      ['CĂ´ng nghá»‡ thĂ´ng tin', registration?.student?.department || ''],
-      ['XĂ¢y dá»±ng website quáº£n lĂ½ Ä‘á» cÆ°Æ¡ng cho trÆ°á»ng Ä‘áº¡i há»c Thá»§ Dáº§u Má»™t', registration?.topic?.title || ''],
-    ];
-
-    replacements.forEach(([oldText, newText]) => {
-      html = html.replace(new RegExp(escapeRegExp(oldText), 'g'), newText);
+    const tokenMap = {
+      EVALUATOR_NAME: currentEvaluator?.fullName || '',
+      COUNCIL_ROLE: ROLE_LABELS[currentEvaluator?.roleInCouncil] || currentEvaluator?.roleInCouncil || '',
+      STUDENT_NAME: registration?.student?.fullName || '',
+      STUDENT_CODE: registration?.student?.code || '',
+      STUDENT_CLASS: registration?.student?.className || registration?.student?.class || '',
+      STUDENT_COHORT: registration?.student?.course || registration?.student?.cohort || '',
+      STUDENT_DEPARTMENT: registration?.student?.department || '',
+      TOPIC_TITLE: registration?.topic?.title || '',
+    };
+    Object.entries(tokenMap).forEach(([key, value]) => {
+      html = html.replaceAll(`{{${key}}}`, escapeHtml(value));
     });
 
     let idx = 0;

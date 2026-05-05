@@ -25,7 +25,7 @@ const NAV_CONFIG = {
             { path: '/lecturer/topics', icon: 'folder_open', label: 'Đề tài của tôi' },
             { path: '/lecturer/approvals', icon: 'fact_check', label: 'Duyệt đề tài' },
             { path: '/lecturer/progress', icon: 'trending_up', label: 'Theo dõi tiến độ' },
-            { path: '/lecturer/grading', icon: 'rate_review', label: 'Chấm điểm' },
+            { path: '/lecturer/grading', icon: 'rate_review', label: 'Hội đồng chấm điểm' },
         ],
         bottomItems: [
             { path: '/lecturer/notifications', icon: 'notifications', label: 'Thông báo' },

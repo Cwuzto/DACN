@@ -202,3 +202,12 @@ Dự án đang ở trạng thái **ổn định luồng chính cho 3 vai trò** 
 - `npm --prefix frontend run build`: PASS
 - `npm --prefix backend test -- --runInBand`: PASS
 - `node scripts/check-utf8.js`: PASS
+
+## Cập nhật bổ sung 2026-05-06 (append)
+- Đã hoàn thiện luồng thông báo khi sinh viên nộp bài để giảng viên nhận thông báo ngay.
+- Đã bổ sung scheduler thông báo task sắp quá hạn/quá hạn:
+  - Sắp quá hạn: gửi cho giảng viên.
+  - Quá hạn: gửi cho giảng viên và sinh viên.
+- Đã chuẩn hóa lưu trữ file nộp trên Supabase Storage theo cây thư mục nghiệp vụ `submissions/{hoc-ky}/{ten-do-an}/{ma-sinh-vien}/{task-id}/...`.
+- Trang nộp báo cáo của sinh viên đã hiển thị thêm giảng viên hướng dẫn.
+- Các trang admin/lecturer đang được rà tiếp để đồng bộ text tiếng Việt và loại bỏ lỗi mojibake còn sót.

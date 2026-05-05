@@ -19,6 +19,11 @@ const writeTemplates = (templates) => {
 
 const listTemplates = () => readTemplates();
 
+const getTemplateByKey = (templateKey) => {
+    if (!templateKey) return null;
+    return readTemplates().find((item) => item.key === templateKey) || null;
+};
+
 const updateTemplate = (templateKey, payload) => {
     const templates = readTemplates();
     const index = templates.findIndex((item) => item.key === templateKey);
@@ -40,5 +45,6 @@ const updateTemplate = (templateKey, payload) => {
 
 module.exports = {
     listTemplates,
+    getTemplateByKey,
     updateTemplate,
 };

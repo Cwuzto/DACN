@@ -22,10 +22,10 @@ import userService from '../../services/userService';
 import { PROJECT_NAME, formatSemesterLabel } from '../../utils/semesterDisplay';
 
 const TABS = [
-    { key: 'PENDING_ASSIGNMENT', label: 'Chờ phĂ¢n cĂ´ng', color: 'orange' },
+    { key: 'PENDING_ASSIGNMENT', label: 'Chờ phân công', color: 'orange' },
     { key: 'ASSIGNED_COUNCIL', label: 'Đã phân công HĐ', color: 'blue' },
     { key: 'AWAITING_GRADING', label: 'Chờ nhập điểm', color: 'gold' },
-    { key: 'COMPLETED', label: 'HoĂ n tất', color: 'green' },
+    { key: 'COMPLETED', label: 'Hoàn tất', color: 'green' },
 ];
 
 const GRADING_BADGE = {
@@ -35,7 +35,7 @@ const GRADING_BADGE = {
 
 const LEVEL_OPTIONS = [
     { value: 'TOT', label: 'Tốt (85%-100%)', ratio: 0.925 },
-    { value: 'KHA', label: 'KhĂ¡ (70%-84%)', ratio: 0.77 },
+    { value: 'KHA', label: 'Khá (70%-84%)', ratio: 0.77 },
     { value: 'TRUNG_BINH', label: 'Trung bình (50%-69%)', ratio: 0.595 },
     { value: 'KEM', label: 'Kém (<50%)', ratio: 0.25 },
 ];
@@ -185,7 +185,7 @@ function GradingDefensePage() {
                     }
                 }
             } catch (err) {
-                message.error(err?.message || 'KhĂ´ng thể tải dữ liệu');
+                message.error(err?.message || 'Không thể tải dữ liệu');
             } finally {
                 setLoading(false);
                 setRefreshing(false);
@@ -201,7 +201,7 @@ function GradingDefensePage() {
 
     const handleRemindGrading = async () => {
         if (!selectedRowKeys.length) {
-            message.warning('Vui lĂ²ng chọn Ă­t nhất 1 dĂ²ng');
+            message.warning('Vui lòng chọn ít nhất 1 dòng');
             return;
         }
 
@@ -228,7 +228,7 @@ function GradingDefensePage() {
                 fetchData(true);
             }
         } catch (err) {
-            message.error(err?.message || 'Thao tĂ¡c thất bại');
+            message.error(err?.message || 'Thao tác thất bại');
         } finally {
             setLockingId(null);
         }
@@ -393,7 +393,7 @@ function GradingDefensePage() {
     const columns = useMemo(() => {
         const base = [
             {
-                title: 'Sinh viĂªn',
+                title: 'Sinh viên',
                 key: 'student',
                 width: 200,
                 render: (_, r) => (
@@ -431,13 +431,13 @@ function GradingDefensePage() {
                 ),
             },
             {
-                title: 'TĂªn đồ Ă¡n',
+                title: 'Tên đồ án',
                 key: 'projectName',
                 width: 130,
                 render: () => <span className="text-sm">{PROJECT_NAME}</span>,
             },
             {
-                title: 'Đợt đồ Ă¡n',
+                title: 'Đợt đồ án',
                 key: 'semester',
                 width: 170,
                 render: (_, r) => (
@@ -460,7 +460,7 @@ function GradingDefensePage() {
                     r.council ? (
                         <Tag color="blue">{r.council.name}</Tag>
                     ) : (
-                        <span className="text-slate-400 text-xs italic">Chưa phĂ¢n cĂ´ng</span>
+                        <span className="text-slate-400 text-xs italic">Chưa phân công</span>
                     ),
             },
             {
@@ -472,7 +472,7 @@ function GradingDefensePage() {
                 ),
             },
             {
-                title: 'Trạng thĂ¡i chấm',
+                title: 'Trạng thái chấm',
                 key: 'gradingStatus',
                 width: 130,
                 align: 'center',
@@ -489,7 +489,7 @@ function GradingDefensePage() {
                 render: (_, r) => (
                     r.scoreLocked
                         ? <Tag color="green">Đã khóa</Tag>
-                        : <Tag color="orange">Chưa khĂ³a</Tag>
+                        : <Tag color="orange">Chưa khóa</Tag>
                 ),
             },
             {
@@ -550,7 +550,7 @@ function GradingDefensePage() {
                                 onClick={() => handleScoreLock(r.registrationId, 'UNLOCK')}
                                 className="text-xs border-orange-200 text-orange-600 bg-orange-50/50 hover:border-orange-300"
                             >
-                                Mở khĂ³a
+                                Mở khóa
                             </Button>
                         );
                     }
@@ -614,7 +614,7 @@ function GradingDefensePage() {
     const statsData = useMemo(
         () => [
             {
-                title: 'Chờ phĂ¢n cĂ´ng',
+                title: 'Chờ phân công',
                 value: meta.counts?.PENDING_ASSIGNMENT ?? 0,
                 icon: 'hourglass_top',
                 iconBg: 'bg-orange-50',
@@ -635,7 +635,7 @@ function GradingDefensePage() {
                 iconColor: 'text-amber-600',
             },
             {
-                title: 'HoĂ n tất',
+                title: 'Hoàn tất',
                 value: meta.counts?.COMPLETED ?? 0,
                 icon: 'task_alt',
                 iconBg: 'bg-green-50',
@@ -670,7 +670,7 @@ function GradingDefensePage() {
     return (
         <div className="py-2">
             <PageHeader
-                title="Quản lĂ½ Há»™i đồng bảo vệ"
+                title="Quản lý Hội đồng bảo vệ"
                 subtitle="Trung tâm điều phối phân công hội đồng, theo dõi chấm điểm và khóa kết quả bảo vệ theo từng workflow stage."
             />
 
@@ -710,7 +710,7 @@ function GradingDefensePage() {
                 <div className="grid grid-cols-1 lg:grid-cols-15 gap-3 mb-4">
                     <div className="lg:col-span-4">
                         <Input
-                            placeholder="Tìm SV, mĂ£ SV hoặc đề tĂ i..."
+                            placeholder="Tìm SV, mã SV hoặc đề tài..."
                             prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
                             value={searchText}
                             onChange={(e) => setSearchText(e.target.value)}
@@ -720,7 +720,7 @@ function GradingDefensePage() {
                     <div className="lg:col-span-3">
                         <Select
                             className="w-full"
-                            placeholder="TĂªn đồ Ă¡n"
+                            placeholder="Tên đồ án"
                             options={projectOptions}
                             value={selectedProjectName}
                             onChange={setSelectedProjectName}
@@ -729,7 +729,7 @@ function GradingDefensePage() {
                     <div className="lg:col-span-3">
                         <Select
                             className="w-full"
-                            placeholder="Đợt đồ Ă¡n"
+                            placeholder="Đợt đồ án"
                             options={semesterOptions}
                             value={selectedSemesterId}
                             onChange={(value) => {
@@ -768,7 +768,7 @@ function GradingDefensePage() {
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                     <Space>
                         <Button icon={<ReloadOutlined />} loading={refreshing} onClick={() => fetchData(true)}>
-                            LĂ m má»›i
+                            Làm mới
                         </Button>
                     </Space>
 
@@ -811,7 +811,7 @@ function GradingDefensePage() {
             >
                 {scoreSheetRegistration && (
                     <div className="mb-3 text-sm text-slate-600">
-                        <div><b>Sinh viĂªn:</b> {scoreSheetRegistration.student?.fullName} ({scoreSheetRegistration.student?.code})</div>
+                        <div><b>Sinh viên:</b> {scoreSheetRegistration.student?.fullName} ({scoreSheetRegistration.student?.code})</div>
                         <div><b>Ngành học:</b> {scoreSheetRegistration.student?.department || '—'}</div>
                         <div><b>Đề tài:</b> {scoreSheetRegistration.topic?.title}</div>
                     </div>
@@ -935,7 +935,7 @@ function GradingDefensePage() {
                             rows={3}
                             value={generalComment}
                             onChange={(e) => setGeneralComment(e.target.value)}
-                            placeholder="Nhận xĂ©t chung"
+                            placeholder="Nhận xét chung"
                             disabled={scoreLocked}
                         />
                     </div>
@@ -952,4 +952,3 @@ function GradingDefensePage() {
 }
 
 export default GradingDefensePage;
-

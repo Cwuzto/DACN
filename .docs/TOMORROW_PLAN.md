@@ -49,3 +49,8 @@ Chuyển sang pha P2: chuẩn bị dữ liệu và quy trình cho import enrollm
 1. Chạy smoke test E2E với 2-3 hồ sơ mẫu trên luồng mới.
 2. Chốt lại `ONLINE_GRADING_PDF_SPEC.md` theo cơ chế template chung.
 3. Nếu còn lệch bố cục in trên máy thực tế: tinh chỉnh thông số `@page` trong 1 batch nhỏ.
+
+## Cập nhật bổ sung 2026-05-06 (append)
+1. Chốt toàn bộ lỗi tiếng Việt hiển thị ở các trang admin/lecturer ưu tiên.
+2. Chạy lại smoke test cho các luồng đã đổi nghiệp vụ task review.
+3. Theo dõi job thông báo deadline trong ít nhất 1 chu kỳ để xác nhận hành vi gửi thực tế.

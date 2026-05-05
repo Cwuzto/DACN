@@ -343,6 +343,9 @@ const getLecturerDashboard = async (req, res, next) => {
             prisma.submission.findMany({
                 where: {
                     feedback: null,
+                    task: {
+                        status: 'SUBMITTED',
+                    },
                     registration: {
                         semesterId: activeSemester.id,
                         topic: { mentorId },

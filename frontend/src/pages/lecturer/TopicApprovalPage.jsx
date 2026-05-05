@@ -1,17 +1,36 @@
-import { useState, useEffect } from 'react';
-import { Card, Table, Tag, Button, Badge, Modal, Input, message, Typography, Flex } from 'antd';
-import { CheckOutlined, CloseOutlined, UserOutlined } from '@ant-design/icons';
+import { useEffect, useMemo, useState } from 'react';
+import {
+    Badge,
+    Button,
+    Card,
+    Flex,
+    Input,
+    Modal,
+    Table,
+    Tag,
+    Typography,
+    message,
+} from 'antd';
+import {
+    CheckOutlined,
+    CloseOutlined,
+    ReloadOutlined,
+    SearchOutlined,
+    UserOutlined,
+} from '@ant-design/icons';
 import dayjs from 'dayjs';
 import registrationService from '../../services/registrationService';
 import PageHeader from '../../components/common/PageHeader';
 import StatusBadge from '../../components/common/StatusBadge';
 
-const { TextArea } = Input;
 const { Text } = Typography;
+const { TextArea } = Input;
 
 function TopicApprovalPage() {
     const [pendingRegistrations, setPendingRegistrations] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [searchText, setSearchText] = useState('');
+
     const [rejectModalOpen, setRejectModalOpen] = useState(false);
     const [rejectingRecord, setRejectingRecord] = useState(null);
     const [rejectReason, setRejectReason] = useState('');
@@ -29,16 +48,29 @@ function TopicApprovalPage() {
                 setPendingRegistrations(registrationRes.data || []);
             }
         } catch (error) {
-            message.error(`Lỗi khi tải danh sách chờ duyệt: ${error?.message || 'Unknown error'}`);
+            message.error(error?.message || 'Không thể tải danh sách chờ duyệt');
         } finally {
             setLoading(false);
         }
     };
 
+    const filteredRegistrations = useMemo(() => {
+        const keyword = searchText.trim().toLowerCase();
+        if (!keyword) return pendingRegistrations;
+        return pendingRegistrations.filter((record) => {
+            const studentName = record.student?.fullName?.toLowerCase() || '';
+            const studentCode = record.student?.code?.toLowerCase() || '';
+            const topicTitle = record.topic?.title?.toLowerCase() || '';
+            return studentName.includes(keyword) || studentCode.includes(keyword) || topicTitle.includes(keyword);
+        });
+    }, [pendingRegistrations, searchText]);
+
     const handleApproveRegistration = (record) => {
         Modal.confirm({
             title: 'Xác nhận duyệt đăng ký',
-            content: `Duyệt sinh viên ${record.student?.fullName || ''} vào đề tài "${record.topic?.title || ''}"?`,
+            content: `Duyệt ${record.student?.fullName || 'sinh vien'} vao de tai "${record.topic?.title || ''}"?`,
+            okText: 'Duyệt',
+            cancelText: 'Hủy',
             onOk: async () => {
                 try {
                     const res = await registrationService.handleRegistration(record.id, 'APPROVE');
@@ -82,36 +114,61 @@ function TopicApprovalPage() {
 
     const registrationColumns = [
         {
-            title: 'Sinh viên đăng ký', dataIndex: 'student', key: 'student', width: 230,
+            title: 'Sinh vien',
+            dataIndex: 'student',
+            key: 'student',
+            width: 250,
             render: (student) => (
                 <Flex gap={8} align="center">
-                    <Tag icon={<UserOutlined />}>{student?.code || 'N/A'}</Tag>
-                    <Text strong>{student?.fullName || 'Sinh viên'}</Text>
+                    <Tag icon={<UserOutlined />} className="!px-2 !py-1 !text-xs">
+                        {student?.code || 'N/A'}
+                    </Tag>
+                    <Text strong>{student?.fullName || 'Sinh vien'}</Text>
                 </Flex>
             ),
         },
         {
-            title: 'Đề tài', dataIndex: ['topic', 'title'], key: 'topic',
-            render: (title) => <Text strong style={{ fontSize: 13 }}>{title || 'N/A'}</Text>,
+            title: 'De tai',
+            dataIndex: ['topic', 'title'],
+            key: 'topic',
+            render: (title) => <Text strong className="text-slate-800">{title || 'N/A'}</Text>,
         },
         {
-            title: 'Ngày đăng ký', dataIndex: 'createdAt', key: 'createdAt', width: 120,
-            render: (text) => <Text type="secondary">{dayjs(text).format('DD/MM/YYYY')}</Text>,
+            title: 'Ngay dang ky',
+            dataIndex: 'createdAt',
+            key: 'createdAt',
+            width: 160,
+            render: (text) => (
+                <Flex vertical gap={0}>
+                    <Text>{dayjs(text).format('DD/MM/YYYY')}</Text>
+                    <Text type="secondary" className="text-xs">{dayjs(text).format('HH:mm')}</Text>
+                </Flex>
+            ),
         },
         {
-            title: 'Trạng thái', dataIndex: 'status', key: 'status', width: 120,
+            title: 'Trang thai',
+            dataIndex: 'status',
+            key: 'status',
+            width: 120,
             render: (status) => <StatusBadge status={status} />,
         },
         {
-            title: 'Hành động', key: 'action', width: 160, align: 'center',
+            title: 'Thao tác',
+            key: 'action',
+            width: 190,
+            align: 'right',
             render: (_, record) => (
-                <div className="flex flex-wrap items-center justify-end gap-2">
-                    <Button size="small" className="text-xs font-medium border-green-200 text-green-700 shadow-sm bg-green-50/50 hover:text-green-800 hover:border-green-300 hover:bg-green-100" icon={<CheckOutlined />} onClick={() => handleApproveRegistration(record)}>
+                <div className="flex items-center justify-end gap-2">
+                    <Button
+                        size="small"
+                        type="primary"
+                        icon={<CheckOutlined />}
+                        onClick={() => handleApproveRegistration(record)}
+                    >
                         Duyệt
                     </Button>
                     <Button
                         size="small"
-                        className="text-xs font-medium border-red-200 text-red-600 shadow-sm bg-red-50/50 hover:text-red-700 hover:border-red-300 hover:bg-red-100"
                         danger
                         icon={<CloseOutlined />}
                         onClick={() => {
@@ -120,7 +177,7 @@ function TopicApprovalPage() {
                             setRejectModalOpen(true);
                         }}
                     >
-                        Từ chối
+                        Tu choi
                     </Button>
                 </div>
             ),
@@ -128,27 +185,44 @@ function TopicApprovalPage() {
     ];
 
     return (
-        <div>
+        <div className="py-2">
             <PageHeader
-                title="Duyệt đăng ký đề tài"
-                subtitle="Xử lý các đăng ký đề tài chờ duyệt của sinh viên"
+                title="Duyệt dang ky de tai"
+                subtitle="X? l? nhanh c?c y?u c?u ??ng k? ?? t?i c?a sinh vi?n"
                 actions={pendingRegistrations.length > 0 ? <Badge count={pendingRegistrations.length} /> : null}
             />
 
-            <Card title={`Đăng ký đề tài chờ duyệt (${pendingRegistrations.length})`} style={{ borderRadius: 10 }} styles={{ body: { padding: 0 } }}>
+            <Card className="!rounded-2xl" styles={{ body: { padding: 16 } }}>
+                <div className="flex flex-col gap-3 mb-3">
+                    <div className="flex items-center justify-between gap-3">
+                        <div className="text-sm font-semibold text-slate-800">
+                            Danh s?ch ch? duy?t ({filteredRegistrations.length}/{pendingRegistrations.length})
+                        </div>
+                        <Button icon={<ReloadOutlined />} onClick={fetchData}>Làm mới</Button>
+                    </div>
+                    <Input
+                        value={searchText}
+                        onChange={(event) => setSearchText(event.target.value)}
+                        placeholder="Tim theo ten SV, ma SV hoac ten de tai..."
+                        prefix={<SearchOutlined className="text-slate-400" />}
+                        allowClear
+                    />
+                </div>
+
                 <Table
-                    dataSource={pendingRegistrations}
+                    dataSource={filteredRegistrations}
                     rowKey="id"
                     columns={registrationColumns}
-                    pagination={{ pageSize: 8 }}
+                    pagination={{ pageSize: 8, showSizeChanger: false }}
                     size="middle"
                     loading={loading}
-                    locale={{ emptyText: 'Không có đăng ký đề tài chờ duyệt' }}
+                    rowClassName={(_, index) => (index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50')}
+                    locale={{ emptyText: 'Không có dang ky de tai cho duyet' }}
                 />
             </Card>
 
             <Modal
-                title="Từ chối đăng ký"
+                title="Tu choi dang ky"
                 open={rejectModalOpen}
                 onCancel={() => {
                     setRejectModalOpen(false);
@@ -157,17 +231,18 @@ function TopicApprovalPage() {
                 }}
                 onOk={handleReject}
                 confirmLoading={submitting}
-                okText="Từ chối"
+                okText="Tu choi"
+                cancelText="Hủy"
                 okButtonProps={{ danger: true }}
             >
                 <Text>
-                    Nhập lý do từ chối đăng ký của sinh viên {rejectingRecord?.student?.fullName || ''}:
+                    Nhap ly do tu choi cho sinh vien <b>{rejectingRecord?.student?.fullName || ''}</b>:
                 </Text>
                 <TextArea
                     rows={4}
                     value={rejectReason}
                     onChange={(event) => setRejectReason(event.target.value)}
-                    placeholder="Lý do..."
+                    placeholder="Ly do tu choi..."
                     style={{ marginTop: 12 }}
                 />
             </Modal>

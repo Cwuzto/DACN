@@ -41,5 +41,5 @@ export const buildSemesterName = ({ term, academicYear }) => {
 
 export const formatSemesterLabel = (semester) => {
     const { term, academicYear } = extractSemesterMeta(semester);
-    return `Học kỳ ${term} - Năm học ${academicYear}`;
+    return `Hoc ky ${term} - ${academicYear}`;
 };

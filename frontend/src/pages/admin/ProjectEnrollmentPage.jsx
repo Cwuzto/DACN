@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button, Form, message, Modal, Popconfirm, Select, Space, Table, Tag } from 'antd';
+import { UploadOutlined } from '@ant-design/icons';
 
 import PageHeader from '../../components/common/PageHeader';
 import projectEnrollmentService from '../../services/projectEnrollmentService';
@@ -33,6 +34,20 @@ function ProjectEnrollmentPage() {
     const [topicFixCatalogId, setTopicFixCatalogId] = useState(null);
 
     const [form] = Form.useForm();
+
+    const handleAssignByExcelPlaceholder = () => {
+        message.info('Tính năng gán bằng Excel đang thực hiện');
+    };
+
+    const renderEnrollmentStatus = (status) => (
+        status === 'ACTIVE' ? <Tag color="green">Đang hiệu lực</Tag> : <Tag color="default">Đã hủy</Tag>
+    );
+
+    const renderEnrollmentSource = (source) => {
+        if (source === 'MANUAL') return <Tag color="blue">Thủ công</Tag>;
+        if (source === 'EXCEL') return <Tag color="purple">Excel</Tag>;
+        return <Tag>{source || 'Khác'}</Tag>;
+    };
 
     const fetchMeta = useCallback(async () => {
         try {
@@ -299,20 +314,20 @@ function ProjectEnrollmentPage() {
             key: 'student',
             render: (_, row) => (
                 <div>
-                    <div className="font-semibold text-slate-900">{row.student?.fullName || 'N/A'}</div>
-                    <div className="text-xs text-slate-500">{row.student?.code || 'N/A'}</div>
+                    <div className="font-semibold text-slate-900">{row.student?.fullName || 'Chưa có'}</div>
+                    <div className="text-xs text-slate-500">{row.student?.code || 'Chưa có mã'}</div>
                 </div>
             ),
         },
         {
             title: 'Đợt đồ án',
             key: 'semester',
-            render: (_, row) => <span>{row.semester?.name || 'N/A'}</span>,
+            render: (_, row) => <span>{row.semester?.name || 'Chưa có'}</span>,
         },
         {
             title: 'Tên đồ án',
             key: 'catalog',
-            render: (_, row) => <span>{row.projectCatalog?.name || 'N/A'}</span>,
+            render: (_, row) => <span>{row.projectCatalog?.name || 'Chưa có'}</span>,
         },
         {
             title: 'Trạng thái',
@@ -320,9 +335,7 @@ function ProjectEnrollmentPage() {
             key: 'status',
             width: 120,
             align: 'center',
-            render: (status) => (
-                status === 'ACTIVE' ? <Tag color="green">ACTIVE</Tag> : <Tag color="default">CANCELLED</Tag>
-            ),
+            render: renderEnrollmentStatus,
         },
         {
             title: 'Nguồn',
@@ -330,7 +343,7 @@ function ProjectEnrollmentPage() {
             key: 'source',
             width: 120,
             align: 'center',
-            render: (source) => <Tag>{source}</Tag>,
+            render: renderEnrollmentSource,
         },
         {
             title: 'Hành động',
@@ -352,20 +365,20 @@ function ProjectEnrollmentPage() {
                 key: 'student',
                 render: (_, row) => (
                     <div>
-                        <div className="font-semibold text-slate-900">{row.student?.fullName || 'N/A'}</div>
-                        <div className="text-xs text-slate-500">{row.student?.code || 'N/A'}</div>
-                    </div>
-                ),
-            },
+                    <div className="font-semibold text-slate-900">{row.student?.fullName || 'Chưa có'}</div>
+                    <div className="text-xs text-slate-500">{row.student?.code || 'Chưa có mã'}</div>
+                </div>
+            ),
+        },
             {
                 title: 'Đợt đồ án',
                 key: 'semester',
-                render: (_, row) => <span>{row.semester?.name || 'N/A'}</span>,
+                render: (_, row) => <span>{row.semester?.name || 'Chưa có'}</span>,
             },
             {
                 title: 'Tên đồ án',
                 key: 'catalog',
-                render: (_, row) => <span>{row.projectCatalog?.name || 'N/A'}</span>,
+                render: (_, row) => <span>{row.projectCatalog?.name || 'Chưa có'}</span>,
             },
         ],
         topicsMissingProjectCatalog: [
@@ -374,7 +387,7 @@ function ProjectEnrollmentPage() {
             {
                 title: 'Đợt đồ án',
                 key: 'semester',
-                render: (_, row) => <span>{row.semester?.name || 'N/A'}</span>,
+                render: (_, row) => <span>{row.semester?.name || 'Chưa có'}</span>,
             },
             {
                 title: 'Hành động',
@@ -395,8 +408,8 @@ function ProjectEnrollmentPage() {
                 key: 'student',
                 render: (_, row) => (
                     <div>
-                        <div className="font-semibold text-slate-900">{row.student?.fullName || 'N/A'}</div>
-                        <div className="text-xs text-slate-500">{row.student?.code || 'N/A'}</div>
+                        <div className="font-semibold text-slate-900">{row.student?.fullName || 'Chưa có'}</div>
+                        <div className="text-xs text-slate-500">{row.student?.code || 'Chưa có mã'}</div>
                     </div>
                 ),
             },
@@ -405,7 +418,7 @@ function ProjectEnrollmentPage() {
                 key: 'topic',
                 render: (_, row) => (
                     <div>
-                        <div className="font-semibold text-slate-900">{row.topic?.title || 'N/A'}</div>
+                        <div className="font-semibold text-slate-900">{row.topic?.title || 'Chưa có'}</div>
                         <div className="text-xs text-slate-500">
                             {row.topic?.projectCatalog?.name || 'Thiếu projectCatalog'}
                         </div>
@@ -441,10 +454,10 @@ function ProjectEnrollmentPage() {
                             loading={fixing}
                             onClick={() => handleBackfillEnrollment(row)}
                         >
-                            Backfill enrollment
+                            Bổ sung gán
                         </Button>
                     ) : (
-                        <span className="text-xs text-slate-400">Cần sửa Topic trước</span>
+                        <span className="text-xs text-slate-400">Cần sửa đề tài trước</span>
                     )
                 ),
             },
@@ -456,11 +469,31 @@ function ProjectEnrollmentPage() {
             <PageHeader
                 title="Gán Môn Đồ Án"
                 subtitle="Quản lý danh sách sinh viên đủ điều kiện đăng ký đề tài theo từng đợt và tên đồ án."
+                actions={(
+                    <Button icon={<UploadOutlined />} onClick={handleAssignByExcelPlaceholder}>
+                        Gán bằng Excel
+                    </Button>
+                )}
             />
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <p className="text-xs font-semibold text-slate-500">Tổng gán hiện tại</p>
+                    <p className="text-2xl font-black text-slate-900 mt-1">{rows.length}</p>
+                </div>
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                    <p className="text-xs font-semibold text-emerald-700">Đang hiệu lực</p>
+                    <p className="text-2xl font-black text-emerald-700 mt-1">{rows.filter((r) => r.status === 'ACTIVE').length}</p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs font-semibold text-slate-600">Sinh viên đã chọn</p>
+                    <p className="text-2xl font-black text-slate-900 mt-1">{selectedStudentIds.length}</p>
+                </div>
+            </div>
 
             <div className="bg-white rounded-xl border border-slate-200 p-4">
                 <Form form={form} layout="vertical" onFinish={handleAssignSingle}>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
                         <Form.Item name="semesterId" label="Đợt đồ án" rules={[{ required: true }]}>
                             <Select
                                 options={semesterOptions}
@@ -486,7 +519,7 @@ function ProjectEnrollmentPage() {
                         </Form.Item>
                         <div className="flex items-end gap-2 pb-1">
                             <Button type="primary" htmlType="submit" loading={saving}>Gán 1 sinh viên</Button>
-                            <Button onClick={handleAssignBulk} loading={saving}>Gán hàng loạt đã chọn</Button>
+                            <Button onClick={handleAssignBulk} loading={saving}>Gán ds đã chọn</Button>
                         </div>
                     </div>
                 </Form>
@@ -517,9 +550,9 @@ function ProjectEnrollmentPage() {
             </div>
 
             <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-4">
-                <h3 className="text-lg font-bold text-slate-900">Đối soát dữ liệu rule mới</h3>
+                <h3 className="text-lg font-bold text-slate-900">Đối soát dữ liệu theo quy tắc mới</h3>
                 <p className="text-sm text-slate-600">
-                    Kiểm tra nhanh các bản ghi có nguy cơ lệch với rule đăng ký theo tên đồ án.
+                    Kiểm tra nhanh các bản ghi có nguy cơ lệch với quy tắc đăng ký theo tên đồ án.
                 </p>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -530,13 +563,13 @@ function ProjectEnrollmentPage() {
                         </div>
                     </div>
                     <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-                        <div className="text-xs text-red-700 font-semibold">Topic thiếu projectCatalogId</div>
+                        <div className="text-xs text-red-700 font-semibold">Đề tài thiếu tên đồ án</div>
                         <div className="text-2xl font-black text-red-800 mt-1">
                             {audit.topicsMissingProjectCatalog.length}
                         </div>
                     </div>
                     <div className="rounded-lg border border-orange-200 bg-orange-50 p-3">
-                        <div className="text-xs text-orange-700 font-semibold">Registration lệch rule mới</div>
+                        <div className="text-xs text-orange-700 font-semibold">Đăng ký lệch quy tắc mới</div>
                         <div className="text-2xl font-black text-orange-800 mt-1">
                             {audit.registrationsRuleMismatch.length}
                         </div>
@@ -545,7 +578,7 @@ function ProjectEnrollmentPage() {
 
                 <Space direction="vertical" className="w-full" size="middle">
                     <div>
-                        <div className="font-semibold mb-2 text-slate-800">1) Enrollment chưa đăng ký đề tài</div>
+                        <div className="font-semibold mb-2 text-slate-800">1) Gán đồ án chưa đăng ký đề tài</div>
                         <Table
                             rowKey="id"
                             loading={auditLoading}
@@ -555,7 +588,7 @@ function ProjectEnrollmentPage() {
                         />
                     </div>
                     <div>
-                        <div className="font-semibold mb-2 text-slate-800">2) Topic thiếu projectCatalogId</div>
+                        <div className="font-semibold mb-2 text-slate-800">2) Đề tài thiếu tên đồ án</div>
                         <Table
                             rowKey="id"
                             loading={auditLoading}
@@ -565,7 +598,7 @@ function ProjectEnrollmentPage() {
                         />
                     </div>
                     <div>
-                        <div className="font-semibold mb-2 text-slate-800">3) Registration lệch rule enrollment</div>
+                        <div className="font-semibold mb-2 text-slate-800">3) Đăng ký lệch quy tắc gán</div>
                         <Table
                             rowKey="id"
                             loading={auditLoading}
@@ -578,7 +611,7 @@ function ProjectEnrollmentPage() {
             </div>
 
             <Modal
-                title="Gán Tên đồ án cho Topic"
+                title="Gán tên đồ án cho đề tài"
                 open={topicFixModalOpen}
                 onCancel={() => setTopicFixModalOpen(false)}
                 onOk={handleFixTopicCatalog}
@@ -589,7 +622,7 @@ function ProjectEnrollmentPage() {
             >
                 <div className="space-y-3">
                     <div className="text-sm text-slate-600">
-                        Topic: <span className="font-semibold text-slate-900">{topicToFix?.title || 'N/A'}</span>
+                        Đề tài: <span className="font-semibold text-slate-900">{topicToFix?.title || 'Chưa có'}</span>
                     </div>
                     <Select
                         className="w-full"

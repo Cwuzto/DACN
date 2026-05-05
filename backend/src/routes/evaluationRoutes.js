@@ -11,7 +11,17 @@ router.use(authenticate);
 router.get('/my-grades', authorize('STUDENT'), evaluationController.getMyGrades);
 
 // GV/Admin xem danh sach SV can cham diem
-router.get('/grading-students', authorize('LECTURER', 'ADMIN'), evaluationController.getGradingStudents);
+router.get(
+    '/grading-students',
+    authorize('LECTURER', 'ADMIN'),
+    [
+        query('semesterId').optional().isInt({ min: 1 }).withMessage('semesterId phai la so nguyen duong.'),
+        query('projectCatalogId').optional().isInt({ min: 1 }).withMessage('projectCatalogId phai la so nguyen duong.'),
+        query('councilId').optional().isInt({ min: 1 }).withMessage('councilId phai la so nguyen duong.'),
+        validateRequest,
+    ],
+    evaluationController.getGradingStudents,
+);
 
 router.get(
     '/:registrationId/score-sheet',

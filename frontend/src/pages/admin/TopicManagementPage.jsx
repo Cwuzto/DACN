@@ -25,6 +25,7 @@ function TopicManagementPage() {
     const [semesters, setSemesters] = useState([]);
     const [activeSemesterId, setActiveSemesterId] = useState(null);
     const [selectedProjectName, setSelectedProjectName] = useState(PROJECT_NAME);
+    const [semesterFilter, setSemesterFilter] = useState('all');
     const [mentors, setMentors] = useState([]);
 
     const [formModalOpen, setFormModalOpen] = useState(false);
@@ -204,6 +205,9 @@ function TopicManagementPage() {
 
     const pendingCount = topics.filter((t) => t.status === 'PENDING').length;
     const projectOptions = [{ value: PROJECT_NAME, label: PROJECT_NAME }];
+    const filteredTopics = topics.filter((topic) => (
+        semesterFilter === 'all' ? true : topic.semesterId === semesterFilter
+    ));
 
     const tabItems = [
         { key: 'all', label: 'Tất cả đề tài' },
@@ -212,7 +216,7 @@ function TopicManagementPage() {
     ];
 
     const columns = [
-        { title: 'STT', dataIndex: 'stt', key: 'stt', width: 60, align: 'center' },
+        { title: 'STT', dataIndex: 'stt', key: 'stt', width: 64, align: 'center' },
         {
             title: 'Tên đề tài',
             dataIndex: 'title',
@@ -238,13 +242,13 @@ function TopicManagementPage() {
         {
             title: 'Tên đồ án',
             key: 'projectName',
-            width: 120,
+            width: 140,
             render: () => <span className="text-sm">{PROJECT_NAME}</span>,
         },
         {
             title: 'Đợt đồ án',
             key: 'semester',
-            width: 180,
+            width: 220,
             render: (_, record) => (
                 <span className="text-sm">
                     {record.semester ? formatSemesterLabel(record.semester) : '—'}
@@ -258,26 +262,19 @@ function TopicManagementPage() {
             render: (u) => <span className="text-sm">{u?.fullName || '-'}</span>,
         },
         {
-            title: 'Đã ĐK',
-            key: 'registered',
-            width: 80,
-            align: 'center',
-            render: (_, record) => <span className="text-xs bg-slate-100 px-2 py-0.5 rounded">{record._count?.registrations || 0}/1</span>,
-        },
-        {
             title: 'Trạng thái',
             dataIndex: 'status',
             key: 'status',
-            width: 130,
+            width: 140,
             render: (status) => <StatusBadge status={status} />,
         },
         {
-            title: 'Hành động',
+            title: 'Thao tác',
             key: 'action',
-            width: 180,
+            width: 220,
             align: 'center',
             render: (_, record) => (
-                <div className="flex flex-wrap items-center justify-end gap-2">
+                <div className="flex flex-wrap items-center justify-end gap-2 min-w-[200px]">
                     <Button size="small" className="text-xs font-medium border-slate-200 text-slate-700 shadow-sm hover:text-primary hover:border-primary hover:bg-slate-50" icon={<EyeOutlined />} onClick={() => handleViewDetail(record.id)}>Xem</Button>
                     {record.status === 'DRAFT' && <Button size="small" className="text-xs font-medium border-slate-200 text-slate-700 shadow-sm hover:text-primary hover:border-primary hover:bg-slate-50" icon={<EditOutlined />} onClick={() => openFormModal(record)}>Sửa</Button>}
                     {record.status === 'PENDING' && (
@@ -314,18 +311,18 @@ function TopicManagementPage() {
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                 <Tabs activeKey={activeTab} onChange={handleTabChange} items={tabItems} style={{ padding: '0 24px' }} tabBarStyle={{ marginBottom: 0 }} />
 
-                <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
-                    <Space>
+                <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3 px-6 py-4">
+                    <Space wrap size={10}>
                         <Select
                             value={selectedProjectName}
                             onChange={setSelectedProjectName}
-                            style={{ width: 200 }}
+                            style={{ width: 220 }}
                             options={projectOptions}
                         />
                         <Select
                             value={statusFilter === 'all' && activeTab === 'all' ? 'all' : statusFilter}
                             onChange={(v) => { setStatusFilter(v); setActiveTab('all'); }}
-                            style={{ width: 180 }}
+                            style={{ width: 200 }}
                             options={[
                                 { value: 'all', label: 'Tất cả trạng thái' },
                                 { value: 'DRAFT', label: 'Bản nháp' },
@@ -334,23 +331,34 @@ function TopicManagementPage() {
                                 { value: 'REJECTED', label: 'Từ chối' },
                             ]}
                         />
+                        <Select
+                            value={semesterFilter}
+                            onChange={setSemesterFilter}
+                            style={{ width: 260 }}
+                            options={[
+                                { value: 'all', label: 'Tất cả học kỳ' },
+                                ...semesters,
+                            ]}
+                        />
                     </Space>
                     <Input
                         placeholder="Tìm đề tài..."
                         prefix={<SearchOutlined />}
                         value={searchText}
                         onChange={(e) => setSearchText(e.target.value)}
-                        style={{ width: 320 }}
+                        style={{ width: '100%', maxWidth: 360 }}
                         allowClear
                     />
                 </div>
 
                 <Table
-                    dataSource={topics}
+                    dataSource={filteredTopics}
                     columns={columns}
                     loading={loading}
                     pagination={{ pageSize: 10, showTotal: (total, range) => `${range[0]}-${range[1]} / ${total} đề tài`, showSizeChanger: false }}
                     size="middle"
+                    tableLayout="fixed"
+                    scroll={{ x: 1280 }}
                 />
             </div>
 
