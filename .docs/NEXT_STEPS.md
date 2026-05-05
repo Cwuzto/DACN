@@ -74,3 +74,14 @@ npm --prefix frontend run build
   - xuất PDF,
   - đối chiếu với template gốc.
 - [ ] Cập nhật `.docs/ONLINE_GRADING_PDF_SPEC.md` theo cơ chế template chung FE/BE.
+
+## Cập nhật bổ sung 2026-05-06 (append)
+### Việc ưu tiên ngay sau phiên này
+- [ ] Rà và fix dứt điểm lỗi text/encoding ở các trang trọng yếu:
+  - Admin: Người dùng, Giám sát đề tài, Chấm bảo vệ.
+  - Lecturer: Duyệt đề tài, Hội đồng chấm điểm.
+- [ ] Smoke test luồng tiến độ task:
+  - Đạt -> confirm,
+  - Không đạt -> nhập nhận xét + hạn nộp mới,
+  - sinh viên nộp lại.
+- [ ] Kiểm tra thực tế job deadline notification trên dữ liệu hiện tại để xác nhận không gửi trùng.

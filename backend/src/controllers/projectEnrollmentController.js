@@ -22,11 +22,17 @@ const listStudentProjectEnrollments = async (req, res, next) => {
         const semesterId = parsePositiveInt(req.query.semesterId);
         const studentId = parsePositiveInt(req.query.studentId);
         const projectCatalogId = parsePositiveInt(req.query.projectCatalogId);
+        const source = ['SEED', 'MANUAL', 'EXCEL'].includes(req.query.source) ? req.query.source : null;
+        const importBatchId = typeof req.query.importBatchId === 'string' && req.query.importBatchId.trim()
+            ? req.query.importBatchId.trim()
+            : null;
 
         const where = {};
         if (semesterId) where.semesterId = semesterId;
         if (studentId) where.studentId = studentId;
         if (projectCatalogId) where.projectCatalogId = projectCatalogId;
+        if (source) where.source = source;
+        if (importBatchId) where.importBatchId = importBatchId;
 
         const rows = await prisma.studentProjectEnrollment.findMany({
             where,
@@ -56,7 +62,7 @@ const bulkUpsertStudentProjectEnrollments = async (req, res, next) => {
             semesterId: parsePositiveInt(item.semesterId),
             projectCatalogId: parsePositiveInt(item.projectCatalogId),
             status: item.status === 'CANCELLED' ? 'CANCELLED' : 'ACTIVE',
-            source: item.source === 'MANUAL' || item.source === 'EXCEL' ? item.source : 'MANUAL',
+            source: item.source === 'MANUAL' || item.source === 'EXCEL' || item.source === 'SEED' ? item.source : 'MANUAL',
             importBatchId: item.importBatchId || null,
         }));
 

@@ -1,18 +1,42 @@
 [
   {
     "key": "MIDTERM_REMINDER",
-    "name": "Nhac nho nop bao cao giua ky",
-    "title": "[Quan trong] Nhac nho nop bao cao giua ky",
-    "content": "Han cuoi nop bao cao giua ky la {DEADLINE}. Vui long nop dung han qua he thong.",
+    "name": "Nhắc nhở nộp báo cáo giữa kỳ",
+    "title": "[Quan trọng] Nhắc nhở nộp báo cáo giữa kỳ",
+    "content": "Hạn cuối nộp báo cáo giữa kỳ là {DEADLINE}. Vui lòng nộp đúng hạn qua hệ thống.",
     "autoTrigger": "7_DAYS_BEFORE_MIDTERM",
     "isActive": true
   },
   {
     "key": "TOPIC_APPROVAL_RESULT",
-    "name": "Thong bao ket qua duyet de tai",
-    "title": "Ket qua duyet de tai",
-    "content": "De tai {TOPIC_NAME} cua ban da duoc {STATUS}.",
+    "name": "Thông báo kết quả duyệt đề tài",
+    "title": "Kết quả duyệt đề tài",
+    "content": "Đề tài {TOPIC_NAME} của bạn đã được {STATUS}.",
     "autoTrigger": "ON_TOPIC_APPROVED",
+    "isActive": true
+  },
+  {
+    "key": "TASK_UPCOMING_DEADLINE",
+    "name": "Cảnh báo task sắp quá hạn (giảng viên)",
+    "title": "Task sắp quá hạn",
+    "content": "Nhiệm vụ \"{TASK_TITLE}\" sắp đến hạn vào {DUE_AT}.",
+    "autoTrigger": "TASK_DUE_WITHIN_24H",
+    "isActive": true
+  },
+  {
+    "key": "TASK_OVERDUE_LECTURER",
+    "name": "Cảnh báo task quá hạn (giảng viên)",
+    "title": "Task đã quá hạn",
+    "content": "Nhiệm vụ \"{TASK_TITLE}\" đã quá hạn từ {DUE_AT}.",
+    "autoTrigger": "TASK_OVERDUE_DAILY",
+    "isActive": true
+  },
+  {
+    "key": "TASK_OVERDUE_STUDENT",
+    "name": "Cảnh báo task quá hạn (sinh viên)",
+    "title": "Nhiệm vụ đã quá hạn",
+    "content": "Nhiệm vụ \"{TASK_TITLE}\" đã quá hạn từ {DUE_AT}. Vui lòng nộp bài sớm.",
+    "autoTrigger": "TASK_OVERDUE_DAILY",
     "isActive": true
   }
 ]

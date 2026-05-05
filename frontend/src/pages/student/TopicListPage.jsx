@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { message, Modal } from 'antd';
 import { topicService } from '../../services/topicService';
 import registrationService from '../../services/registrationService';
@@ -101,7 +101,6 @@ function TopicListPage() {
         try {
             const params = { semesterId: currentSemesterId };
             if (selectedProjectCatalogId) params.projectCatalogId = selectedProjectCatalogId;
-            if (searchText) params.search = searchText;
 
             const [topicRes, regRes, enrollRes] = await Promise.all([
                 topicService.getAll(params),
@@ -136,11 +135,11 @@ function TopicListPage() {
                 });
             }
         } catch (error) {
-            message.error(error?.message || 'Khong the tai danh sach de tai.');
+            message.error(error?.message || 'Không thể tải danh sách đề tài.');
         } finally {
             setLoading(false);
         }
-    }, [currentSemesterId, searchText, selectedProjectCatalogId]);
+    }, [currentSemesterId, selectedProjectCatalogId]);
 
     useEffect(() => {
         fetchContextData();
@@ -152,8 +151,26 @@ function TopicListPage() {
 
     const handleSearchSubmit = (event) => {
         event.preventDefault();
-        fetchTopicsAndRegistration();
+        setSearchText((prev) => prev.replace(/\s+/g, ' ').trim());
     };
+
+    const normalizedSearch = useMemo(
+        () => searchText.replace(/\s+/g, ' ').trim().toLowerCase(),
+        [searchText],
+    );
+
+    const filteredTopics = useMemo(() => {
+        if (!normalizedSearch) return topics;
+
+        const tokens = normalizedSearch.split(' ').filter(Boolean);
+        if (tokens.length === 0) return topics;
+
+        return topics.filter((topic) => {
+            const title = (topic.title || '').toLowerCase();
+            // Match only when the title contains all keyword tokens.
+            return tokens.every((token) => title.includes(token));
+        });
+    }, [topics, normalizedSearch]);
 
     const toggleSave = (id, event) => {
         if (event) event.stopPropagation();
@@ -199,16 +216,16 @@ function TopicListPage() {
         }
 
         if (registrationBlockedByProjectEnrollment) {
-            message.warning('Ban chua co mon do an hop le trong dot hien tai.');
+            message.warning('Bạn chưa có môn đồ án hợp lệ trong đợt hiện tại.');
             return;
         }
         if (accountRestricted) {
-            message.warning(accountRestrictionReason || 'Tai khoan da hoan thanh do an, khong the dang ky moi.');
+            message.warning(accountRestrictionReason || 'Tài khoản đã hoàn thành đồ án, không thể đăng ký mới.');
             return;
         }
 
         if (topic.projectCatalogId !== selectedProjectCatalogId) {
-            message.warning('De tai khong thuoc ten do an ban da chon.');
+            message.warning('Đề tài không thuộc tên đồ án bạn đã chọn.');
             return;
         }
 
@@ -252,11 +269,11 @@ function TopicListPage() {
         }
 
         if (registrationBlockedByProjectEnrollment) {
-            message.warning('Ban chua co mon do an hop le trong dot hien tai.');
+            message.warning('Bạn chưa có môn đồ án hợp lệ trong đợt hiện tại.');
             return;
         }
         if (accountRestricted) {
-            message.warning(accountRestrictionReason || 'Tai khoan da hoan thanh do an, khong the de xuat de tai moi.');
+            message.warning(accountRestrictionReason || 'Tài khoản đã hoàn thành đồ án, không thể đề xuất đề tài mới.');
             return;
         }
 
@@ -338,16 +355,16 @@ function TopicListPage() {
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-600 mb-2">Chon ten do an da dang ky</label>
+                                    <label className="block text-xs font-bold text-slate-600 mb-2">Chọn tên đồ án đã đăng ký</label>
                                     <select
                                         className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-primary outline-none"
                                         value={selectedProjectCatalogId || ''}
                                         onChange={(e) => setSelectedProjectCatalogId(e.target.value ? Number(e.target.value) : null)}
                                     >
-                                        {myProjectEnrollments.length === 0 && <option value="">Chua co mon do an hop le</option>}
+                                        {myProjectEnrollments.length === 0 && <option value="">Chưa có môn đồ án hợp lệ</option>}
                                         {myProjectEnrollments.map((row) => (
                                             <option key={row.id} value={row.projectCatalogId}>
-                                                {row.projectCatalog?.name || 'Do an'}
+                                                {row.projectCatalog?.name || 'Đồ án'}
                                             </option>
                                         ))}
                                     </select>
@@ -361,12 +378,12 @@ function TopicListPage() {
 
                             {registrationBlockedByProjectEnrollment && (
                                 <div className="p-4 rounded-xl border border-red-200 bg-red-50 text-red-700 text-sm font-medium">
-                                    Ban chua duoc gan mon do an hop le trong dot hien tai, nen khong the dang ky de tai.
+                                    Bạn chưa được gắn môn đồ án hợp lệ trong đợt hiện tại, nên không thể đăng ký đề tài.
                                 </div>
                             )}
                             {accountRestricted && (
                                 <div className="p-4 rounded-xl border border-red-200 bg-red-50 text-red-700 text-sm font-medium">
-                                    {accountRestrictionReason || 'Tai khoan da hoan thanh do an tot nghiep, khong the dang ky/de xuat de tai moi.'}
+                                    {accountRestrictionReason || 'Tài khoản đã hoàn thành đồ án tốt nghiệp, không thể đăng ký/de xuất đề tài mới.'}
                                 </div>
                             )}
 
@@ -380,7 +397,7 @@ function TopicListPage() {
                                 <div className="flex justify-center items-center py-20">
                                     <div className="animate-spin rounded-full h-10 w-10 border-4 border-primary border-t-transparent"></div>
                                 </div>
-                            ) : topics.length === 0 ? (
+                            ) : filteredTopics.length === 0 ? (
                                 <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
                                     <div className="size-16 bg-slate-100 rounded-full flex justify-center items-center mx-auto mb-4">
                                         <span className="material-symbols-outlined text-slate-400 text-3xl">search_off</span>
@@ -390,7 +407,7 @@ function TopicListPage() {
                                 </div>
                             ) : (
                                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                                    {topics.map((topic) => {
+                                    {filteredTopics.map((topic) => {
                                         const registrationsCount = topic._count?.registrations || 0;
                                         const maxStudents = 1;
                                         const isFull = registrationsCount >= maxStudents;

@@ -131,7 +131,13 @@ const submitTask = async (req, res, next) => {
 
         const task = await prisma.task.findUnique({
             where: { id: taskId },
-            include: { registration: true },
+            include: {
+                registration: {
+                    include: {
+                        topic: { select: { mentorId: true } },
+                    },
+                },
+            },
         });
 
         if (!task) return res.status(404).json({ success: false, message: 'Nhiệm vụ không tồn tại.' });
@@ -195,6 +201,19 @@ const submitTask = async (req, res, next) => {
             where: { id: taskId },
             data: { status: 'SUBMITTED' },
         });
+
+        if (task.registration?.topic?.mentorId) {
+            await safeNotify(
+                {
+                    userId: task.registration.topic.mentorId,
+                    title: 'Sinh vien vua nop bai',
+                    content: `Sinh vien vua nop bai cho nhiem vu: ${task.title}`,
+                    type: 'SUBMISSION',
+                    referenceUrl: '/lecturer/progress',
+                },
+                'submitTaskNotifyMentor',
+            );
+        }
 
         res.json({
             success: true,
@@ -289,7 +308,7 @@ const gradeSubmission = async (req, res, next) => {
 const updateTaskStatus = async (req, res, next) => {
     try {
         const taskId = parseInt(req.params.id, 10);
-        const { status } = req.body;
+        const { status, dueDate, reviewComment } = req.body;
         const { role, id: userId } = req.user;
         const allowedStatuses = ['OPEN', 'IN_PROGRESS', 'SUBMITTED', 'REVISION', 'COMPLETED', 'OVERDUE'];
 
@@ -322,21 +341,134 @@ const updateTaskStatus = async (req, res, next) => {
             return res.status(403).json({ success: false, message: 'Bạn không có quyền cập nhật nhiệm vụ này.' });
         }
 
+        const nextDueDate = dueDate ? new Date(dueDate) : null;
+        if (dueDate && Number.isNaN(nextDueDate.getTime())) {
+            return res.status(400).json({ success: false, message: 'dueDate khong hop le.' });
+        }
+
+        if (status === 'REVISION' && !nextDueDate) {
+            return res.status(400).json({ success: false, message: 'Khong dat yeu cau can han nop moi.' });
+        }
+
+        const updateData = { status };
+        if (dueDate) updateData.dueDate = nextDueDate;
+
         const updatedTask = await prisma.task.update({
             where: { id: taskId },
-            data: { status },
+            data: updateData,
         });
+
+        if (reviewComment && task.registration?.studentId) {
+            const dueDateText = updateData.dueDate
+                ? new Date(updateData.dueDate).toLocaleString('vi-VN')
+                : (task.dueDate ? new Date(task.dueDate).toLocaleString('vi-VN') : 'khong co');
+            await safeNotify(
+                {
+                    userId: task.registration.studentId,
+                    title: status === 'REVISION' ? 'Nhiem vu can lam lai' : 'Nhiem vu dat yeu cau',
+                    content: status === 'REVISION'
+                        ? `Nhiem vu "${task.title}" duoc danh gia khong dat. Han nop moi: ${dueDateText}. Nhan xet: ${reviewComment}`
+                        : `Nhiem vu "${task.title}" duoc danh gia dat. Nhan xet: ${reviewComment}`,
+                    type: 'TASK_REMINDER',
+                },
+                'updateTaskStatusReview',
+            );
+        }
 
         await auditLog(
             userId,
             'UPDATE_TASK_STATUS',
             'Task',
             taskId,
-            { previousStatus: task.status, nextStatus: status, byRole: role },
+            { previousStatus: task.status, nextStatus: status, byRole: role, dueDate: updateData.dueDate || null, reviewComment: reviewComment || null },
             getRequestIp(req),
         );
 
         res.json({ success: true, message: 'Cập nhật trạng thái nhiệm vụ thành công.', data: updatedTask });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// POST /api/tasks/remind
+// LECTURER/Admin nhac nop bai hang loat cho task qua han/chua nop
+const remindTasks = async (req, res, next) => {
+    try {
+        const { taskIds, message: customMessage } = req.body;
+        const { role, id: userId } = req.user;
+
+        if (!Array.isArray(taskIds) || taskIds.length === 0) {
+            return res.status(400).json({ success: false, message: 'Vui long truyen danh sach taskIds.' });
+        }
+
+        const uniqueTaskIds = Array.from(
+            new Set(
+                taskIds
+                    .map((id) => parseInt(id, 10))
+                    .filter((id) => Number.isInteger(id)),
+            ),
+        );
+
+        if (uniqueTaskIds.length === 0) {
+            return res.status(400).json({ success: false, message: 'taskIds khong hop le.' });
+        }
+
+        const tasks = await prisma.task.findMany({
+            where: { id: { in: uniqueTaskIds } },
+            include: {
+                registration: {
+                    include: {
+                        topic: { select: { mentorId: true } },
+                    },
+                },
+            },
+        });
+
+        if (!tasks.length) {
+            return res.status(404).json({ success: false, message: 'Khong tim thay task nao phu hop.' });
+        }
+
+        const unauthorized = role === 'LECTURER'
+            ? tasks.filter((task) => task.registration?.topic?.mentorId !== userId)
+            : [];
+        if (unauthorized.length > 0) {
+            return res.status(403).json({ success: false, message: 'Ban khong co quyen nhac nop cho mot so task.' });
+        }
+
+        let sent = 0;
+        let skipped = 0;
+        const now = new Date();
+
+        for (const task of tasks) {
+            if (['COMPLETED', 'SUBMITTED'].includes(task.status)) {
+                skipped += 1;
+                continue;
+            }
+
+            const dueDateText = task.dueDate
+                ? new Date(task.dueDate).toLocaleString('vi-VN')
+                : 'khong co han nop';
+            const content = customMessage?.trim()
+                || `Nhac nop nhiem vu "${task.title}" (han: ${dueDateText}). Vui long cap nhat va nop bai som.`;
+
+            await safeNotify(
+                {
+                    userId: task.registration.studentId,
+                    title: 'Nhac nop nhiem vu',
+                    content,
+                    type: 'TASK_REMINDER',
+                    createdAt: now,
+                },
+                'remindTasks',
+            );
+            sent += 1;
+        }
+
+        return res.json({
+            success: true,
+            message: `Da gui nhac nop cho ${sent} nhiem vu.`,
+            data: { requested: uniqueTaskIds.length, sent, skipped },
+        });
     } catch (error) {
         next(error);
     }
@@ -348,4 +480,5 @@ module.exports = {
     submitTask,
     gradeSubmission,
     updateTaskStatus,
+    remindTasks,
 };

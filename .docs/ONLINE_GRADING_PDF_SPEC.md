@@ -240,3 +240,10 @@ Chi tiết log tối thiểu:
 4. [x] Cập nhật UI export PDF (admin/lecturer) + trạng thái khóa điểm/PDF trên admin.
 5. [ ] Cập nhật UI nhập điểm theo barem đầy đủ (theo tiêu chí).
 6. [ ] Chốt migration chuẩn + full regression test trước khi merge.
+
+## Cập nhật bổ sung 2026-05-06 (append)
+- Xác nhận luồng chấm điểm online vẫn giữ mô hình score-sheet + export PDF.
+- Cần bổ sung thêm checklist regression cho các case:
+  - đổi người chấm trong hội đồng,
+  - khóa/mở khóa điểm,
+  - export PDF lặp lại.

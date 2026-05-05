@@ -92,6 +92,7 @@ function App() {
                         </Route>
 
                         <Route element={<ProtectedRoute allowedRoles={['LECTURER']} />}>
+                            <Route path="/lecturer/grading/sheet/:registrationId" element={<LecturerGradingSheetPage />} />
                             <Route path="/lecturer" element={<LecturerLayout />}>
                                 <Route index element={<Navigate to="dashboard" replace />} />
                                 <Route path="dashboard" element={<LecturerDashboardPage />} />
@@ -99,7 +100,6 @@ function App() {
                                 <Route path="approvals" element={<TopicApprovalPage />} />
                                 <Route path="progress" element={<ProgressTrackingPage />} />
                                 <Route path="grading" element={<GradingPage />} />
-                                <Route path="grading/sheet/:registrationId" element={<LecturerGradingSheetPage />} />
                                 <Route path="notifications" element={<NotificationsPage />} />
                                 <Route path="profile" element={<ProfilePage />} />
                             </Route>

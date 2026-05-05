@@ -1,14 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
     Alert,
+    Card,
     Button,
     Dropdown,
+    Empty,
+    List,
     Input,
     message,
     Modal,
+    Tag,
     Select,
+    Spin,
     Space,
     Table,
+    Typography,
     Timeline,
 } from 'antd';
 import {
@@ -26,11 +32,42 @@ import { topicService } from '../../services/topicService';
 import registrationService from '../../services/registrationService';
 import { semesterService } from '../../services/semesterService';
 import userService from '../../services/userService';
+import taskService from '../../services/taskService';
 import PageHeader from '../../components/common/PageHeader';
 import StatusBadge from '../../components/common/StatusBadge';
 import StatCard from '../../components/common/StatCard';
 import { STATUS_MAP } from '../../components/common/statusMap';
-import { PROJECT_NAME, formatSemesterLabel } from '../../utils/semesterDisplay';
+import { formatSemesterLabel } from '../../utils/semesterDisplay';
+const { Text } = Typography;
+const pickNearestLatestSemesterId = (semesterList = []) => {
+    if (!Array.isArray(semesterList) || semesterList.length === 0) return null;
+
+    const now = dayjs();
+    const scored = semesterList
+        .map((semester) => {
+            const start = semester?.startDate ? dayjs(semester.startDate) : null;
+            const deadline = semester?.registrationDeadline ? dayjs(semester.registrationDeadline) : null;
+
+            const latestPoint =
+                (start && start.isValid() && start.valueOf())
+                || (deadline && deadline.isValid() && deadline.valueOf())
+                || 0;
+
+            const distanceToNow = Math.abs((latestPoint || now.valueOf()) - now.valueOf());
+
+            return {
+                semester,
+                latestPoint,
+                distanceToNow,
+            };
+        })
+        .sort((a, b) => {
+            if (a.distanceToNow !== b.distanceToNow) return a.distanceToNow - b.distanceToNow;
+            return b.latestPoint - a.latestPoint;
+        });
+
+    return scored[0]?.semester?.id || null;
+};
 
 function ProjectOversightPage() {
     const [loading, setLoading] = useState(true);
@@ -41,7 +78,7 @@ function ProjectOversightPage() {
     const [searchText, setSearchText] = useState('');
     const [statusFilter, setStatusFilter] = useState(null);
     const [semesterFilter, setSemesterFilter] = useState(null);
-    const [selectedProjectName, setSelectedProjectName] = useState(PROJECT_NAME);
+    const [projectNameFilter, setProjectNameFilter] = useState(null);
 
     const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
     const [auditTopic, setAuditTopic] = useState(null);
@@ -49,6 +86,11 @@ function ProjectOversightPage() {
     const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
     const [transferTopic, setTransferTopic] = useState(null);
     const [transferLecturerId, setTransferLecturerId] = useState(null);
+    const [isProgressModalOpen, setIsProgressModalOpen] = useState(false);
+    const [progressTopic, setProgressTopic] = useState(null);
+    const [progressRegistrationId, setProgressRegistrationId] = useState(null);
+    const [progressTasks, setProgressTasks] = useState([]);
+    const [progressLoading, setProgressLoading] = useState(false);
 
     const fetchData = async () => {
         setLoading(true);
@@ -74,6 +116,29 @@ function ProjectOversightPage() {
     useEffect(() => {
         fetchData();
     }, []);
+
+    const currentSemesters = useMemo(() => {
+        const now = dayjs();
+        return semesters.filter((semester) => {
+            const start = semester?.startDate ? dayjs(semester.startDate) : null;
+            const end = semester?.endDate ? dayjs(semester.endDate) : null;
+            if (!start || !end || !start.isValid() || !end.isValid()) return false;
+            return (now.isAfter(start) || now.isSame(start)) && (now.isBefore(end) || now.isSame(end));
+        });
+    }, [semesters]);
+
+    useEffect(() => {
+        if (!currentSemesters.length) {
+            setSemesterFilter(null);
+            return;
+        }
+
+        const stillExists = currentSemesters.some((semester) => semester.id === semesterFilter);
+        if (semesterFilter && stillExists) return;
+
+        const nearestLatestSemesterId = pickNearestLatestSemesterId(currentSemesters);
+        setSemesterFilter(nearestLatestSemesterId);
+    }, [currentSemesters, semesterFilter]);
 
     const registrationMap = useMemo(
         () =>
@@ -109,9 +174,12 @@ function ProjectOversightPage() {
                 item.mentor?.fullName?.toLowerCase().includes(keyword);
             const matchStatus = statusFilter ? item.status === statusFilter : true;
             const matchSemester = semesterFilter ? item.semesterId === semesterFilter : true;
-            return matchSearch && matchStatus && matchSemester;
+            const matchProjectName = projectNameFilter
+                ? (item.projectCatalog?.name || '') === projectNameFilter
+                : true;
+            return matchSearch && matchStatus && matchSemester && matchProjectName;
         });
-    }, [tableData, searchText, statusFilter, semesterFilter]);
+    }, [tableData, searchText, statusFilter, semesterFilter, projectNameFilter]);
 
     const scopedRegistrations = useMemo(
         () => (semesterFilter ? registrations.filter((item) => item.semesterId === semesterFilter) : registrations),
@@ -211,39 +279,127 @@ function ProjectOversightPage() {
         }
     };
 
+    const openProgressModal = (record) => {
+        const registrationEvents = record.registrationEvents || [];
+        const firstRegistrationId = registrationEvents[0]?.id || null;
+        setProgressTopic(record);
+        setProgressRegistrationId(firstRegistrationId);
+        setProgressTasks([]);
+        setIsProgressModalOpen(true);
+    };
+
+    const loadProgressTasks = async (registrationId) => {
+        if (!registrationId) {
+            setProgressTasks([]);
+            return;
+        }
+        try {
+            setProgressLoading(true);
+            const res = await taskService.getTasksByRegistration(registrationId);
+            setProgressTasks(res?.data || []);
+        } catch (error) {
+            message.error(error?.message || 'Không thể tải chi tiết tiến độ');
+            setProgressTasks([]);
+        } finally {
+            setProgressLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (!isProgressModalOpen) return;
+        loadProgressTasks(progressRegistrationId);
+    }, [isProgressModalOpen, progressRegistrationId]);
+
+    const progressStats = useMemo(() => {
+        const total = progressTasks.length;
+        const submitted = progressTasks.filter((task) => task.status === 'SUBMITTED').length;
+        const completed = progressTasks.filter((task) => task.status === 'COMPLETED').length;
+        const overdue = progressTasks.filter((task) => {
+            if (!task?.dueDate) return false;
+            return new Date(task.dueDate).getTime() < Date.now() && !['COMPLETED', 'SUBMITTED'].includes(task.status);
+        }).length;
+        const progress = total ? Math.round(((submitted + completed) / (2 * total)) * 100) : 0;
+        return { total, submitted, completed, overdue, progress };
+    }, [progressTasks]);
+
+    const progressTimelineItems = useMemo(() => {
+        return progressTasks
+            .flatMap((task) => {
+                const submissions = task.submissions || [];
+                const latest = submissions.length ? submissions[submissions.length - 1] : null;
+                const base = [
+                    {
+                        color: 'blue',
+                        time: task.createdAt || task.updatedAt,
+                        children: (
+                            <>
+                                <Text className="text-xs text-slate-400">{dayjs(task.createdAt || task.updatedAt).format('DD/MM/YYYY HH:mm')}</Text>
+                                <div className="text-sm font-medium">Giao task: {task.title}</div>
+                            </>
+                        ),
+                    },
+                ];
+                if (latest) {
+                    base.push({
+                        color: 'green',
+                        time: latest.submittedAt || latest.createdAt,
+                        children: (
+                            <>
+                                <Text className="text-xs text-slate-400">{dayjs(latest.submittedAt || latest.createdAt).format('DD/MM/YYYY HH:mm')}</Text>
+                                <div className="text-sm font-medium">Sinh viên nộp: {task.title}</div>
+                            </>
+                        ),
+                    });
+                }
+                return base;
+            })
+            .sort((a, b) => new Date(b.time || 0) - new Date(a.time || 0))
+            .map(({ children, color }) => ({ children, color }));
+    }, [progressTasks]);
+
     const columns = [
+        {
+            title: 'STT',
+            key: 'index',
+            width: 72,
+            align: 'center',
+            render: (_, __, index) => (
+                <span className="text-xs font-semibold text-slate-500">{index + 1}</span>
+            ),
+        },
         {
             title: 'Mã & Đề tài',
             dataIndex: 'title',
             key: 'title',
-            width: 360,
+            width: 420,
             render: (text, record) => (
-                <div>
-                    <div className="font-bold text-slate-900 leading-tight mb-1">{text}</div>
-                    <code className="text-xs bg-slate-100 px-1 py-0.5 rounded text-primary">{record.code}</code>
+                <div className="space-y-1">
+                    <div className="font-semibold text-slate-900 leading-6">{text}</div>
+                    <code className="text-[11px] bg-slate-100 px-2 py-0.5 rounded text-primary">{record.code}</code>
                 </div>
             ),
         },
         {
             title: 'GV hướng dẫn',
             key: 'lecturer',
+            width: 220,
             render: (_, record) => (
-                <span className="text-sm font-medium text-slate-700">{record.mentor?.fullName || 'Chưa gán'}</span>
+                <span className="text-sm font-medium text-slate-700">{record.mentor?.fullName || 'Chua gan'}</span>
             ),
         },
         {
             title: 'Tên đồ án',
             key: 'projectName',
-            width: 120,
-            render: () => <span className="text-sm">{PROJECT_NAME}</span>,
+            width: 150,
+            render: (_, record) => <span className="text-sm">{record.projectCatalog?.name || 'N/A'}</span>,
         },
         {
             title: 'Đợt đồ án',
             key: 'semester',
-            width: 180,
+            width: 220,
             render: (_, record) => (
                 <span className="text-sm">
-                    {record.semester ? formatSemesterLabel(record.semester) : '—'}
+                    {record.semester ? formatSemesterLabel(record.semester) : 'â€”'}
                 </span>
             ),
         },
@@ -251,6 +407,7 @@ function ProjectOversightPage() {
             title: 'Sinh viên',
             dataIndex: 'students',
             key: 'students',
+            width: 260,
             render: (students) =>
                 students.length > 0 ? (
                     <div className="flex flex-col gap-1">
@@ -275,9 +432,9 @@ function ProjectOversightPage() {
             render: (status) => <StatusBadge status={status} />,
         },
         {
-            title: 'Can thiệp (Admin)',
+            title: 'Can thiệp',
             key: 'actions',
-            width: 160,
+            width: 150,
             align: 'right',
             render: (_, record) => {
                 const menuItems = [];
@@ -314,6 +471,11 @@ function ProjectOversightPage() {
                 });
                 menuItems.push({ type: 'divider' });
                 menuItems.push({
+                    key: 'PROGRESS',
+                    icon: <HistoryOutlined style={{ color: '#722ed1' }} />,
+                    label: 'Xem tiến độ',
+                });
+                menuItems.push({
                     key: 'AUDIT',
                     icon: <HistoryOutlined style={{ color: 'blue' }} />,
                     label: 'Xem thay đổi',
@@ -323,6 +485,7 @@ function ProjectOversightPage() {
                     if (key === 'REJECT') handleReject(record);
                     if (key === 'APPROVE' || key === 'ACTIVATE') handleApprove(record);
                     if (key === 'TRANSFER') openTransferModal(record);
+                    if (key === 'PROGRESS') openProgressModal(record);
                     if (key === 'AUDIT') {
                         setAuditTopic(record);
                         setIsAuditModalOpen(true);
@@ -343,11 +506,16 @@ function ProjectOversightPage() {
         label: `${lecturer.fullName} (${lecturer.code})`,
     }));
 
-    const semesterOptions = semesters.map((semester) => ({
+    const semesterOptions = currentSemesters.map((semester) => ({
         value: semester.id,
         label: formatSemesterLabel(semester),
     }));
-    const projectOptions = [{ value: PROJECT_NAME, label: PROJECT_NAME }];
+    const projectNameOptions = Array.from(new Set(tableData.map((item) => item.projectCatalog?.name).filter(Boolean)))
+        .sort((a, b) => a.localeCompare(b, 'vi'))
+        .map((name) => ({
+            value: name,
+            label: name,
+        }));
 
     const auditItems = useMemo(() => {
         if (!auditTopic) return [];
@@ -392,11 +560,11 @@ function ProjectOversightPage() {
 
     return (
         <div className="py-2">
-            <PageHeader title="Giám sát" subtitle="Theo dõi toàn bộ đề tài và xử lý nhanh các trường hợp cần can thiệp." />
+            <PageHeader title="Giám sát đề tài" subtitle="Theo dõi toàn bộ đề tài, tiến độ sinh viên và xử lý nhanh các trường hợp cần can thiệp." />
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-4">
-                <StatCard icon="pending_actions" iconBg="bg-amber-50" iconColor="text-amber-600" label="Đăng ký chờ duyệt" value={warningStats.pendingRegistrations} />
-                <StatCard icon="group_off" iconBg="bg-orange-50" iconColor="text-orange-600" label="Chưa phân hội đồng" value={warningStats.unassignedCouncil} />
+                <StatCard icon="pending_actions" iconBg="bg-amber-50" iconColor="text-amber-600" label="Đang ký chờ duyệt" value={warningStats.pendingRegistrations} />
+                <StatCard icon="group_off" iconBg="bg-orange-50" iconColor="text-orange-600" label="Chưa phân hồi đồng" value={warningStats.unassignedCouncil} />
                 <StatCard icon="assignment_late" iconBg="bg-red-50" iconColor="text-red-600" label="SV có nhiệm vụ quá hạn" value={warningStats.overdueTaskRegistrations} />
                 <StatCard icon="event_upcoming" iconBg="bg-blue-50" iconColor="text-blue-600" label="Kỳ sắp đóng đăng ký (7 ngày)" value={warningStats.closingSoonSemesters.length} />
             </div>
@@ -406,7 +574,7 @@ function ProjectOversightPage() {
                     <Alert
                         showIcon
                         type="warning"
-                        message={`Có ${warningStats.pendingRegistrations} đăng ký đang chờ duyệt`}
+                        message={`Co ${warningStats.pendingRegistrations} đăng ký đang chờ duyệt`}
                         description="Nên xử lý sớm để tránh nghẽn tiến độ giao nhiệm vụ cho sinh viên."
                     />
                 )}
@@ -414,7 +582,7 @@ function ProjectOversightPage() {
                     <Alert
                         showIcon
                         type="warning"
-                        message={`Có ${warningStats.unassignedCouncil} đăng ký chưa phân hội đồng`}
+                        message={`Co ${warningStats.unassignedCouncil} đăng ký chưa được phân hội đồng`}
                         description="Ưu tiên phân hội đồng cho các nhóm đủ điều kiện để tránh trễ lịch bảo vệ."
                     />
                 )}
@@ -422,7 +590,7 @@ function ProjectOversightPage() {
                     <Alert
                         showIcon
                         type="error"
-                        message={`Có ${warningStats.overdueTaskRegistrations} sinh viên đang có nhiệm vụ quá hạn`}
+                        message={`Co ${warningStats.overdueTaskRegistrations} sinh viên đang có nhiệm vụ quá hạn`}
                         description="Nên phối hợp giảng viên xử lý quá hạn hoặc cập nhật lại mốc nhiệm vụ."
                     />
                 )}
@@ -433,7 +601,7 @@ function ProjectOversightPage() {
                         message="Có học kỳ sắp đến hạn đóng đăng ký"
                         description={warningStats.closingSoonSemesters
                             .map((item) => `${item.name} (${dayjs(item.registrationDeadline).format('DD/MM/YYYY')})`)
-                            .join(' • ')}
+                            .join(' â€¢ ')}
                     />
                 )}
                 {warningStats.registrationStillOpenButExpired.length > 0 && (
@@ -442,26 +610,35 @@ function ProjectOversightPage() {
                         type="error"
                         message="Phát hiện học kỳ quá hạn nhưng vẫn mở đăng ký"
                         description={warningStats.registrationStillOpenButExpired
-                            .map((item) => `${item.name} (hạn: ${dayjs(item.registrationDeadline).format('DD/MM/YYYY')})`)
-                            .join(' • ')}
+                            .map((item) => `${item.name} (han: ${dayjs(item.registrationDeadline).format('DD/MM/YYYY')})`)
+                            .join(' â€¢ ')}
                     />
                 )}
             </div>
 
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex flex-wrap items-center gap-3 flex-1">
+            <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white shadow-sm p-4 mb-4">
+                <div className="flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <div className="text-sm font-semibold text-slate-900">Bộ lọc giám sát</div>
+                            <div className="text-xs text-slate-500">Lọc nhanh theo học kỳ, trạng thái, giảng viên và mã đề tài</div>
+                        </div>
+                        <Space>
+                            <Button onClick={fetchData}>Làm mới</Button>
+                        </Space>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
                         <Input
-                            placeholder="Tìm mã, tên đề tài, hoặc giảng viên..."
+                            placeholder="Tìm mã, tên đồ án, hoặc giảng viên..."
                             prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
-                            style={{ maxWidth: 360, minWidth: 240 }}
+                            className="w-full"
                             value={searchText}
                             onChange={(event) => setSearchText(event.target.value)}
                             allowClear
                         />
                         <Select
                             placeholder="Trạng thái đề tài"
-                            style={{ minWidth: 180 }}
+                            className="w-full"
                             allowClear
                             value={statusFilter}
                             onChange={(value) => setStatusFilter(value || null)}
@@ -472,32 +649,41 @@ function ProjectOversightPage() {
                         />
                         <Select
                             placeholder="Tên đồ án"
-                            style={{ minWidth: 180 }}
-                            value={selectedProjectName}
-                            onChange={setSelectedProjectName}
-                            options={projectOptions}
+                            className="w-full"
+                            allowClear
+                            showSearch
+                            optionFilterProp="label"
+                            value={projectNameFilter}
+                            onChange={(value) => setProjectNameFilter(value || null)}
+                            options={projectNameOptions}
                         />
                         <Select
                             placeholder="Đợt đồ án"
-                            style={{ minWidth: 220 }}
+                            className="w-full"
                             allowClear
                             value={semesterFilter}
                             onChange={(value) => setSemesterFilter(value || null)}
                             options={semesterOptions}
                         />
                     </div>
-                    <Space>
-                        <Button onClick={fetchData}>Làm mới</Button>
-                    </Space>
+                    <div className="flex items-center justify-between gap-3">
+                        <span className="text-xs text-slate-600">
+                            Kết quả: <b>{filteredTopics.length}</b> / {tableData.length} đề tài
+                        </span>
+                        <span className="text-xs text-slate-500">Học kỳ: chỉ hiển thị học kỳ đang diễn ra</span>
+                    </div>
                 </div>
             </div>
 
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                 <Table
                     loading={loading}
                     dataSource={filteredTopics}
                     rowKey="id"
                     columns={columns}
+                    scroll={{ x: 1380 }}
+                    rowClassName={(_, index) => (index % 2 === 0 ? 'bg-white' : 'bg-slate-50/45')}
+                    className="[&_.ant-table-thead_th]:!bg-slate-100 [&_.ant-table-thead_th]:!text-slate-700 [&_.ant-table-thead_th]:!font-semibold [&_.ant-table-cell]:!align-top"
                     pagination={{ pageSize: 10, showSizeChanger: true }}
                     size="middle"
                 />
@@ -510,6 +696,7 @@ function ProjectOversightPage() {
                 onOk={handleTransfer}
                 okText="Lưu thay đổi"
                 cancelText="Hủy"
+                width={560}
             >
                 {transferTopic && (
                     <div className="space-y-4 pt-4">
@@ -545,8 +732,85 @@ function ProjectOversightPage() {
                 footer={null}
                 width={520}
             >
-                <div className="pt-6">
+                <div className="pt-4">
                     <Timeline items={auditItems} />
+                </div>
+            </Modal>
+
+            <Modal
+                title={`Tiến độ đề tài: ${progressTopic?.code || ''}`}
+                open={isProgressModalOpen}
+                onCancel={() => setIsProgressModalOpen(false)}
+                footer={null}
+                width={980}
+            >
+                <div className="space-y-4 pt-2">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <Card size="small" className="border-slate-200">
+                            <div className="text-xs uppercase tracking-wide text-slate-500 mb-1">Đề tài</div>
+                            <div className="font-semibold text-slate-900">{progressTopic?.title || 'N/A'}</div>
+                        </Card>
+                        <Card size="small" className="border-slate-200">
+                            <div className="text-xs uppercase tracking-wide text-slate-500 mb-1">Sinh viên</div>
+                            <div className="font-semibold text-slate-900">
+                                {progressTopic?.registrationEvents?.[0]?.student?.fullName || 'N/A'}
+                            </div>
+                            <div className="text-xs text-slate-500">
+                                {progressTopic?.registrationEvents?.[0]?.student?.code || 'N/A'}
+                            </div>
+                        </Card>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                        <Tag>Tổng task: {progressStats.total}</Tag>
+                        <Tag color="blue">Đã nộp: {progressStats.submitted}</Tag>
+                        <Tag color="success">Hoàn thành: {progressStats.completed}</Tag>
+                        <Tag color={progressStats.overdue > 0 ? 'error' : 'default'}>Quá hạn: {progressStats.overdue}</Tag>
+                        <Tag color="processing">Tiến độ: {progressStats.progress}%</Tag>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                        <Card className="lg:col-span-2 border-slate-200" size="small" title="Danh sách task">
+                            <Spin spinning={progressLoading}>
+                                {!progressTasks.length ? (
+                                    <Empty description="Chưa có task" />
+                                ) : (
+                                    <List
+                                        dataSource={progressTasks}
+                                        renderItem={(task) => {
+                                            const submissions = task.submissions || [];
+                                            const latest = submissions.length ? submissions[submissions.length - 1] : null;
+                                            return (
+                                                <List.Item>
+                                                    <div className="w-full">
+                                                        <div className="font-medium text-slate-900">{task.title}</div>
+                                                        <div className="text-xs text-slate-500">
+                                                            Hạn nộp: {task.dueDate ? dayjs(task.dueDate).format('DD/MM/YYYY HH:mm') : 'Không có'}
+                                                        </div>
+                                                        <div className="mt-1">
+                                                            <Tag>{task.status}</Tag>
+                                                            {latest ? (
+                                                                <Tag color="blue">Đã nộp: {latest.fileName || 'File'}</Tag>
+                                                            ) : (
+                                                                <Tag>Chưa nộp</Tag>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </List.Item>
+                                            );
+                                        }}
+                                    />
+                                )}
+                            </Spin>
+                        </Card>
+                        <Card size="small" className="border-slate-200" title="Lịch sử trao đổi">
+                            {progressTimelineItems.length ? (
+                                <Timeline items={progressTimelineItems} />
+                            ) : (
+                                <Empty description="Chưa có lịch sử" />
+                            )}
+                        </Card>
+                    </div>
                 </div>
             </Modal>
         </div>
@@ -554,3 +818,4 @@ function ProjectOversightPage() {
 }
 
 export default ProjectOversightPage;
+

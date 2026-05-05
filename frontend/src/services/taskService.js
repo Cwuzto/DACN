@@ -1,4 +1,4 @@
-import api from './api';
+﻿import api from './api';
 
 const wrapServiceError = (error, fallbackMessage) => {
     if (error?.success === false) return error;
@@ -22,9 +22,12 @@ const taskService = {
         }
     },
 
-    updateTaskStatus: async (taskId, status) => {
+    updateTaskStatus: async (taskId, payload) => {
         try {
-            return await api.patch(`/tasks/${taskId}/status`, { status });
+            if (typeof payload === 'string') {
+                return await api.patch(`/tasks/${taskId}/status`, { status: payload });
+            }
+            return await api.patch(`/tasks/${taskId}/status`, payload);
         } catch (error) {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi cập nhật trạng thái task');
         }
@@ -43,6 +46,14 @@ const taskService = {
             return await api.post(`/tasks/submission/${submissionId}/grade`, gradeData);
         } catch (error) {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi chấm điểm');
+        }
+    },
+
+    remindTasks: async ({ taskIds, message }) => {
+        try {
+            return await api.post('/tasks/remind', { taskIds, message });
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi gửi nhắc nộp');
         }
     },
 };

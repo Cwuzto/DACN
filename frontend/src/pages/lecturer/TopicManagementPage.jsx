@@ -1,18 +1,29 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-    Card, Table, Tag, Button, Input, Select, Space,
-    Tooltip, Modal, Form, message, Popconfirm,
+    Alert,
+    Button,
+    Card,
+    Form,
+    Input,
+    message,
+    Modal,
+    Segmented,
+    Select,
+    Space,
+    Table,
+    Tag,
+    Typography,
 } from 'antd';
-import {
-    PlusOutlined, SearchOutlined, EyeOutlined, EditOutlined, DeleteOutlined, SendOutlined,
-} from '@ant-design/icons';
+import { PlusOutlined, SearchOutlined, SendOutlined, SortAscendingOutlined } from '@ant-design/icons';
 import { topicService } from '../../services/topicService';
 import { semesterService } from '../../services/semesterService';
 import useAuthStore from '../../stores/authStore';
 import PageHeader from '../../components/common/PageHeader';
 import StatusBadge from '../../components/common/StatusBadge';
+import StatCard from '../../components/common/StatCard';
 import { PROJECT_NAME, formatSemesterLabel } from '../../utils/semesterDisplay';
 
+const { Text } = Typography;
 const { TextArea } = Input;
 
 function TopicManagementPage() {
@@ -23,30 +34,34 @@ function TopicManagementPage() {
     const [selectedProjectName, setSelectedProjectName] = useState(PROJECT_NAME);
     const [searchText, setSearchText] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
+    const [sortBy, setSortBy] = useState('newest');
     const [formModalOpen, setFormModalOpen] = useState(false);
     const [editingTopic, setEditingTopic] = useState(null);
     const [submitting, setSubmitting] = useState(false);
     const [form] = Form.useForm();
 
     const fetchTopics = useCallback(async () => {
+        if (!user?.id) {
+            setLoading(false);
+            return;
+        }
         setLoading(true);
         try {
-            const params = { mentorId: user?.id };
-            if (statusFilter !== 'all') params.status = statusFilter;
-            if (searchText) params.search = searchText;
-            const res = await topicService.getAll(params);
+            const res = await topicService.getAll({ mentorId: user.id });
             const ownTopics = (res.data || []).filter(
-                (topic) => topic.proposedById === user?.id || topic.proposedBy?.id === user?.id,
+                (topic) => topic.proposedById === user.id || topic.proposedBy?.id === user.id,
             );
-            setTopics(ownTopics.map((t, i) => ({ ...t, key: t.id, stt: i + 1 })));
+            setTopics(ownTopics.map((topic, i) => ({ ...topic, key: topic.id, stt: i + 1 })));
         } catch {
             message.error('Không thể tải danh sách đề tài.');
         } finally {
             setLoading(false);
         }
-    }, [statusFilter, searchText, user]);
+    }, [user]);
 
-    useEffect(() => { fetchTopics(); }, [fetchTopics]);
+    useEffect(() => {
+        fetchTopics();
+    }, [fetchTopics]);
 
     useEffect(() => {
         const fetchSemesters = async () => {
@@ -55,16 +70,89 @@ function TopicManagementPage() {
                 if (!res.success) return;
                 const options = (res.data || []).map((semester) => ({
                     value: semester.id,
-                    label: formatSemesterLabel(semester),
+                    label: semester.name || formatSemesterLabel(semester),
+                    startDate: semester.startDate,
+                    endDate: semester.endDate,
+                    registrationDeadline: semester.registrationDeadline,
+                    status: semester.status,
                 }));
                 setSemesterOptions(options);
             } catch {
                 message.error('Không thể tải danh sách học kỳ.');
             }
         };
-
         fetchSemesters();
     }, []);
+
+    const normalizedSearch = useMemo(
+        () => searchText.replace(/\s+/g, ' ').trim().toLowerCase(),
+        [searchText],
+    );
+
+    const filteredTopics = useMemo(() => {
+        return topics.filter((topic) => {
+            if (statusFilter !== 'all' && topic.status !== statusFilter) return false;
+            if (!normalizedSearch) return true;
+
+            const title = (topic.title || '').toLowerCase();
+            const student = (topic.registrations?.[0]?.student?.fullName || '').toLowerCase();
+            const studentCode = (topic.registrations?.[0]?.student?.code || '').toLowerCase();
+            const tokens = normalizedSearch.split(' ').filter(Boolean);
+            return tokens.every((token) => (
+                title.includes(token) || student.includes(token) || studentCode.includes(token)
+            ));
+        });
+    }, [topics, normalizedSearch, statusFilter]);
+
+    const sortedTopics = useMemo(() => {
+        const list = [...filteredTopics];
+        const hasStudent = (topic) => Number(Boolean(topic.registrations?.[0]?.student));
+        switch (sortBy) {
+        case 'title_asc':
+            list.sort((a, b) => (a.title || '').localeCompare(b.title || '', 'vi'));
+            break;
+        case 'title_desc':
+            list.sort((a, b) => (b.title || '').localeCompare(a.title || '', 'vi'));
+            break;
+        case 'status':
+            list.sort((a, b) => (a.status || '').localeCompare(b.status || '', 'vi'));
+            break;
+        case 'student_desc':
+            list.sort((a, b) => hasStudent(b) - hasStudent(a));
+            break;
+        case 'student_asc':
+            list.sort((a, b) => hasStudent(a) - hasStudent(b));
+            break;
+        case 'oldest':
+            list.sort((a, b) => Number(a.id) - Number(b.id));
+            break;
+        case 'newest':
+        default:
+            list.sort((a, b) => Number(b.id) - Number(a.id));
+            break;
+        }
+        return list.map((topic, index) => ({ ...topic, stt: index + 1 }));
+    }, [filteredTopics, sortBy]);
+
+    const upcomingSemesterOptions = useMemo(() => {
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+
+        return semesterOptions
+            .filter((semester) => {
+                if (!semester.registrationDeadline) return false;
+                const deadlineTime = new Date(semester.registrationDeadline).getTime();
+                return Number.isFinite(deadlineTime) && deadlineTime >= today;
+            })
+            .sort((a, b) => new Date(a.registrationDeadline).getTime() - new Date(b.registrationDeadline).getTime());
+    }, [semesterOptions]);
+
+    const stats = useMemo(() => {
+        const total = topics.length;
+        const approved = topics.filter((t) => t.status === 'APPROVED').length;
+        const withStudent = topics.filter((t) => Boolean(t.registrations?.[0]?.student)).length;
+        return { total, approved, withStudent };
+    }, [topics]);
 
     const openFormModal = (topic = null) => {
         setEditingTopic(topic);
@@ -76,10 +164,12 @@ function TopicManagementPage() {
             });
         } else {
             form.resetFields();
-            form.setFieldsValue({ semesterId: semesterOptions[0]?.value });
+            form.setFieldsValue({ semesterId: upcomingSemesterOptions[0]?.value });
         }
         setFormModalOpen(true);
     };
+
+    const hasUpcomingSemester = upcomingSemesterOptions.length > 0;
 
     const handleSaveDraft = async () => {
         try {
@@ -120,147 +210,127 @@ function TopicManagementPage() {
         }
     };
 
-    const handleSendForApproval = async (id) => {
-        try {
-            await topicService.update(id, { status: 'APPROVED' });
-            message.success('Đã phát hành đề tài.');
-            fetchTopics();
-        } catch (err) {
-            message.error(err?.message || 'Có lỗi xảy ra.');
-        }
-    };
-
-    const handleDelete = async (id) => {
-        try {
-            await topicService.delete(id);
-            message.success('Đã xóa bản nháp.');
-            fetchTopics();
-        } catch (err) {
-            message.error(err?.message || 'Không thể xóa.');
-        }
-    };
-
     const columns = [
-        { title: 'STT', dataIndex: 'stt', key: 'stt', width: 60, align: 'center' },
+        { title: 'STT', dataIndex: 'stt', key: 'stt', width: 72, align: 'center' },
         {
-            title: 'Tên đề tài', dataIndex: 'title', key: 'title',
+            title: 'Tên đề tài',
+            dataIndex: 'title',
+            key: 'title',
+            width: '46%',
             render: (text, record) => (
                 <div>
-                    <span className="text-sm font-bold text-slate-900">{text}</span>
-                    <div><span className="text-xs text-slate-400">Mã: DT-{String(record.id).padStart(3, '0')}</span></div>
+                    <div className="text-sm font-semibold text-slate-900">{text}</div>
+                    <Text type="secondary" style={{ fontSize: 12 }}>Mã: DT-{String(record.id).padStart(3, '0')}</Text>
                 </div>
             ),
         },
         {
-            title: 'Sinh viên đăng ký', key: 'registrations', width: 260,
+            title: 'Sinh viên đăng ký',
+            key: 'registrations',
+            width: '34%',
             render: (_, record) => {
-                const latestRegistration = record.registrations?.[0];
-                const student = latestRegistration?.student;
-                if (!student) {
-                    return <Tag color="default">Chưa có</Tag>;
-                }
-
+                const student = record.registrations?.[0]?.student;
+                if (!student) return <Tag color="default">Chưa có</Tag>;
                 return (
-                    <div className="text-sm">
-                        <div className="font-semibold text-slate-800">{student.fullName}</div>
-                        <div className="text-xs text-slate-500">{student.code}</div>
+                    <div>
+                        <div className="text-sm font-medium text-slate-800">{student.fullName}</div>
+                        <Text type="secondary" style={{ fontSize: 12 }}>{student.code}</Text>
                     </div>
                 );
             },
         },
         {
-            title: 'Trạng thái', dataIndex: 'status', key: 'status', width: 130,
+            title: 'Trạng thái',
+            dataIndex: 'status',
+            key: 'status',
+            width: '20%',
             render: (status) => <StatusBadge status={status} />,
         },
-        {
-            title: 'Hành động', key: 'action', width: 180, align: 'center',
-            render: (_, record) => (
-                <div className="flex flex-wrap items-center justify-end gap-2">
-                    <Button size="small" className="text-xs font-medium border-slate-200 text-slate-700 shadow-sm hover:text-primary hover:border-primary hover:bg-slate-50" icon={<EyeOutlined />}>Xem</Button>
-                    {['DRAFT', 'REJECTED'].includes(record.status) && (
-                        <>
-                            <Button size="small" className="text-xs font-medium border-slate-200 text-slate-700 shadow-sm hover:text-primary hover:border-primary hover:bg-slate-50" icon={<EditOutlined />} onClick={() => openFormModal(record)}>Sửa</Button>
-                            <Popconfirm title="Phát hành đề tài này?" onConfirm={() => handleSendForApproval(record.id)}>
-                                <Button size="small" className="text-xs font-medium border-purple-200 text-purple-700 shadow-sm bg-purple-50/50 hover:text-purple-800 hover:border-purple-300 hover:bg-purple-100" icon={<SendOutlined />}>Gửi đi</Button>
-                            </Popconfirm>
-                        </>
-                    )}
-                    {record.status === 'DRAFT' && (
-                        <Popconfirm title="Xóa bản nháp này?" onConfirm={() => handleDelete(record.id)}>
-                            <Button size="small" className="text-xs font-medium border-red-200 text-red-600 shadow-sm bg-red-50/50 hover:text-red-700 hover:border-red-300 hover:bg-red-100" icon={<DeleteOutlined />}>Xóa</Button>
-                        </Popconfirm>
-                    )}
-                </div>
-            ),
-        },
     ];
-    const projectOptions = [{ value: PROJECT_NAME, label: PROJECT_NAME }];
-
-    if (statusFilter === 'REJECTED' || topics.some((t) => t.status === 'REJECTED')) {
-        const rejectCol = {
-            title: 'Lý do từ chối', dataIndex: 'rejectReason', key: 'rejectReason', width: 240,
-            render: (text) => (text ? <span className="text-xs text-red-500">{text}</span> : '-'),
-        };
-        if (!columns.find((c) => c.key === 'rejectReason')) {
-            columns.splice(columns.length - 1, 0, rejectCol);
-        }
-    }
 
     return (
         <div>
             <PageHeader
                 title="Quản lý đề tài"
-                subtitle="Danh sách đề tài do bạn đề xuất và quản lý"
-                actions={
-                    <button onClick={() => openFormModal()} className="inline-flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-lg font-bold text-sm hover:bg-primary-800 transition-colors">
-                        <span className="material-symbols-outlined text-[18px]">add</span>
+                subtitle="Theo dõi vòng đời đề tài của bạn: nháp, phát hành, bị từ chối và trạng thái đăng ký"
+                actions={(
+                    <Button type="primary" icon={<PlusOutlined />} onClick={() => openFormModal()}>
                         Đề xuất đề tài mới
-                    </button>
-                }
+                    </Button>
+                )}
             />
 
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
-                    <Space>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <StatCard icon="list_alt" iconBg="bg-slate-100" iconColor="text-slate-700" label="Tổng đề tài" value={stats.total} />
+                <StatCard icon="task_alt" iconBg="bg-emerald-50" iconColor="text-emerald-700" label="Đã duyệt" value={stats.approved} />
+                <StatCard icon="person_check" iconBg="bg-blue-50" iconColor="text-blue-700" label="Có sinh viên đăng ký" value={stats.withStudent} />
+            </div>
+
+            <Card
+                bordered={false}
+                style={{ borderRadius: 12 }}
+                title="Danh sách đề tài"
+                extra={(
+                    <Space wrap>
                         <Select
                             value={selectedProjectName}
                             onChange={setSelectedProjectName}
-                            style={{ width: 200 }}
-                            options={projectOptions}
+                            style={{ width: 180 }}
+                            options={[{ value: PROJECT_NAME, label: PROJECT_NAME }]}
                         />
-                        <Select
+                        <Segmented
                             value={statusFilter}
                             onChange={setStatusFilter}
-                            style={{ width: 180 }}
                             options={[
-                                { value: 'all', label: 'Tất cả trạng thái' },
-                                { value: 'APPROVED', label: 'Đã duyệt' },
-                                { value: 'REJECTED', label: 'Từ chối' },
+                                { label: 'Tất cả', value: 'all' },
+                                { label: 'Nháp', value: 'DRAFT' },
+                                { label: 'Đã duyệt', value: 'APPROVED' },
+                                { label: 'Từ chối', value: 'REJECTED' },
+                            ]}
+                        />
+                        <Input
+                            placeholder="Tìm đề tài / sinh viên đăng ký..."
+                            prefix={<SearchOutlined />}
+                            value={searchText}
+                            onChange={(e) => setSearchText(e.target.value)}
+                            style={{ width: 280 }}
+                            allowClear
+                        />
+                        <Select
+                            value={sortBy}
+                            onChange={setSortBy}
+                            style={{ width: 220 }}
+                            prefix={<SortAscendingOutlined />}
+                            options={[
+                                { value: 'newest', label: 'Mới nhất' },
+                                { value: 'oldest', label: 'Cũ nhất' },
+                                { value: 'title_asc', label: 'Tên đề tài A → Z' },
+                                { value: 'title_desc', label: 'Tên đề tài Z → A' },
+                                { value: 'status', label: 'Theo trạng thái' },
+                                { value: 'student_desc', label: 'Có SV đăng ký trước' },
+                                { value: 'student_asc', label: 'Chưa có SV đăng ký trước' },
                             ]}
                         />
                     </Space>
-                    <Input
-                        placeholder="Tìm đề tài hoặc sinh viên đăng ký..."
-                        prefix={<SearchOutlined />}
-                        value={searchText}
-                        onChange={(e) => setSearchText(e.target.value)}
-                        style={{ width: 300 }}
-                        allowClear
-                    />
-                </div>
+                )}
+            >
                 <Table
-                    dataSource={topics}
+                    dataSource={sortedTopics}
                     columns={columns}
                     loading={loading}
-                    pagination={{ pageSize: 10 }}
+                    pagination={{ pageSize: 10, showSizeChanger: false }}
                     size="middle"
+                    tableLayout="fixed"
+                    rowKey="id"
+                    locale={{ emptyText: 'Chưa có đề tài phù hợp bộ lọc hiện tại.' }}
                 />
-            </div>
+            </Card>
 
             <Modal
                 title={editingTopic ? 'Chỉnh sửa đề tài' : 'Đề xuất đề tài mới'}
                 open={formModalOpen}
                 onCancel={() => setFormModalOpen(false)}
+                width={640}
                 footer={(
                     <div className="flex items-center justify-between">
                         <Button onClick={() => setFormModalOpen(false)}>Hủy</Button>
@@ -271,17 +341,29 @@ function TopicManagementPage() {
                                 onClick={handlePublishTopic}
                                 loading={submitting}
                                 icon={<SendOutlined />}
-                                style={{ background: '#722ed1', borderColor: '#722ed1' }}
+                                disabled={!hasUpcomingSemester}
                             >
                                 Phát hành
                             </Button>
                         </Space>
                     </div>
                 )}
-                width={600}
             >
                 <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-                    <Form.Item name="title" label="Tên đề tài" rules={[{ required: true, message: 'Vui lòng nhập tên đề tài' }]}>
+                    {!hasUpcomingSemester && (
+                        <Alert
+                            type="warning"
+                            showIcon
+                            message="Hiện không có học kỳ còn hạn đăng ký để đề xuất đề tài."
+                            description="Bạn vẫn có thể lưu nháp, nhưng chỉ có thể phát hành khi học kỳ chưa tới hạn đăng ký."
+                            style={{ marginBottom: 16 }}
+                        />
+                    )}
+                    <Form.Item
+                        name="title"
+                        label="Tên đề tài"
+                        rules={[{ required: true, message: 'Vui lòng nhập tên đề tài' }]}
+                    >
                         <Input placeholder="Nhập tên đề tài" />
                     </Form.Item>
                     <Form.Item name="description" label="Mô tả chi tiết">
@@ -291,8 +373,16 @@ function TopicManagementPage() {
                         <Form.Item label="Tên đồ án">
                             <Input value={PROJECT_NAME} disabled />
                         </Form.Item>
-                        <Form.Item name="semesterId" label="Đợt đồ án" rules={[{ required: true }]}>
-                            <Select placeholder="Chọn đợt đồ án" options={semesterOptions} />
+                        <Form.Item
+                            name="semesterId"
+                            label="Học kỳ"
+                            rules={[{ required: true, message: 'Vui lòng chọn học kỳ' }]}
+                        >
+                            <Select
+                                placeholder="Chọn học kỳ còn hạn đăng ký"
+                                options={upcomingSemesterOptions}
+                                notFoundContent="Không có học kỳ còn hạn đăng ký"
+                            />
                         </Form.Item>
                     </div>
                 </Form>

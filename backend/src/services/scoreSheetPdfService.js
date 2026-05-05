@@ -16,25 +16,24 @@ const roleLabelMap = {
     REVIEWER: 'Uy vien',
 };
 
-const seedReplacements = ({ registration, scorerInfo }) => ([
-    ['ThS. VĂµ Quá»‘c LÆ°Æ¡ng', scorerInfo.name || ''],
-    ['Chá»§ tá»‹ch', roleLabelMap[scorerInfo.roleInCouncil] || scorerInfo.roleInCouncil || ''],
-    ['Tráº§n Quang Nhanh', registration?.student?.fullName || ''],
-    ['2124802010474', registration?.student?.code || ''],
-    ['D21CNTT01', registration?.student?.className || registration?.student?.class || ''],
-    ['D21', registration?.student?.course || registration?.student?.cohort || ''],
-    ['CĂ´ng nghá»‡ thĂ´ng tin', registration?.student?.department || ''],
-    ['XĂ¢y dá»±ng website quáº£n lĂ½ Ä‘á» cÆ°Æ¡ng cho trÆ°á»ng Ä‘áº¡i há»c Thá»§ Dáº§u Má»™t', registration?.topic?.title || ''],
-]);
-
 const buildA4ScoreSheetHtml = ({ registration, defenseResult, scorerInfo = {} }) => {
     const template = fs.readFileSync(TEMPLATE_PATH, 'utf8');
     const criteria = defenseResult.criterionScores || [];
     const totalRaw = criteria.reduce((sum, row) => sum + (Number(row.score) || 0), 0);
 
     let html = template;
-    for (const [src, target] of seedReplacements({ registration, scorerInfo })) {
-        html = html.split(src).join(escapeHtml(target));
+    const tokenMap = {
+        EVALUATOR_NAME: scorerInfo.name || '',
+        COUNCIL_ROLE: roleLabelMap[scorerInfo.roleInCouncil] || scorerInfo.roleInCouncil || '',
+        STUDENT_NAME: registration?.student?.fullName || '',
+        STUDENT_CODE: registration?.student?.code || '',
+        STUDENT_CLASS: registration?.student?.className || registration?.student?.class || '',
+        STUDENT_COHORT: registration?.student?.course || registration?.student?.cohort || '',
+        STUDENT_DEPARTMENT: registration?.student?.department || '',
+        TOPIC_TITLE: registration?.topic?.title || '',
+    };
+    for (const [key, value] of Object.entries(tokenMap)) {
+        html = html.split(`{{${key}}}`).join(escapeHtml(value));
     }
 
     let scoreIdx = 0;
@@ -67,6 +66,12 @@ const buildA4ScoreSheetHtml = ({ registration, defenseResult, scorerInfo = {} })
                     padding: 0 !important;
                     box-shadow: none !important;
                     border: none !important;
+                }
+                thead { display: table-row-group !important; }
+                tr, td, th { break-inside: avoid; page-break-inside: avoid; }
+                .footer-note, .signature-section {
+                    break-inside: avoid !important;
+                    page-break-inside: avoid !important;
                 }
             }
         </style></head>`,

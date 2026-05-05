@@ -9,6 +9,17 @@ const sanitizeFileName = (fileName = 'file') => fileName
     .replace(/^-|-$/g, '');
 
 const randomSuffix = () => Math.random().toString(36).slice(2, 10);
+const sanitizePathSegment = (value = 'unknown') => String(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '') || 'unknown';
+
+const sanitizeFolderPath = (folderPath = 'general') => String(folderPath)
+    .split('/')
+    .filter(Boolean)
+    .map((part) => sanitizePathSegment(part))
+    .join('/');
 
 class UploadService {
     static async ensureBucket(supabase) {
@@ -45,7 +56,8 @@ class UploadService {
         await UploadService.ensureBucket(supabase);
         const timestamp = Date.now();
         const cleanedName = sanitizeFileName(originalName || 'file');
-        const objectPath = `${folder}/${timestamp}-${randomSuffix()}-${cleanedName}`;
+        const safeFolder = sanitizeFolderPath(folder) || 'general';
+        const objectPath = `${safeFolder}/${timestamp}-${randomSuffix()}-${cleanedName}`;
 
         const { error: uploadError } = await supabase.storage
             .from(DEFAULT_BUCKET)

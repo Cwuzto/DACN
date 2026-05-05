@@ -107,6 +107,8 @@ Khi kết thúc phiên có thay đổi đáng kể, cần cập nhật:
 3. **Bắt buộc lưu file text bằng UTF-8 không BOM**
    - Áp dụng cho `.md`, `.js`, `.jsx`, `.json`, `.prisma`, `.yml`, ...
    - Không dùng `UTF-8 with BOM`.
+   - Khi tạo/sửa file bằng tool hoặc editor, **luôn** save trực tiếp ở `UTF-8 (no BOM)` ngay từ lần ghi đầu tiên.
+   - Sau khi hoàn tất chỉnh sửa, nên chạy `node scripts/check-utf8.js` để xác nhận không phát sinh lỗi encoding/mojibake.
 
 4. **Cảnh báo sớm khi ngữ cảnh chat sắp đầy**
    - Agent phải chủ động cảnh báo để người dùng mở cửa sổ chat mới khi cần.

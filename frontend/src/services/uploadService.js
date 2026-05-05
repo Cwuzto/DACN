@@ -6,11 +6,15 @@ const wrapServiceError = (error, fallbackMessage) => {
 };
 
 const uploadService = {
-    uploadFile: async (file, folder = 'general') => {
+    uploadFile: async (file, folder = 'general', metadata = {}) => {
         try {
             const formData = new FormData();
             formData.append('file', file);
             formData.append('folder', folder);
+            Object.entries(metadata || {}).forEach(([key, value]) => {
+                if (value === undefined || value === null || value === '') return;
+                formData.append(key, String(value));
+            });
 
             return await api.post('/upload', formData, {
                 headers: {

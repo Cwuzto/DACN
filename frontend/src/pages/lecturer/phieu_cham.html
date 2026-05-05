@@ -102,18 +102,21 @@
             vertical-align: middle;
         }
         .text-center { text-align: center; }
+        .table-section { margin-top: 2px; }
         
         /* Footer & Signature Section */
         .footer-note {
             font-style: italic;
             font-weight: bold;
-            margin-bottom: 30px;
+            margin-bottom: 12px;
             font-size: 10pt;
         }
         .signature-section {
             display: flex;
             justify-content: flex-end;
-            margin-top: 20px;
+            margin-top: 8px;
+            break-inside: avoid;
+            page-break-inside: avoid;
         }
         .signature-box {
             text-align: center;
@@ -134,6 +137,9 @@
         @media print {
             body { background-color: white; }
             .page { margin: 0; box-shadow: none; border: none; padding: 0; width: 100%; }
+            thead { display: table-row-group !important; }
+            tr, td, th { break-inside: avoid; page-break-inside: avoid; }
+            .footer-note, .signature-section { break-inside: avoid; page-break-inside: avoid; }
         }
     </style>
 </head>
@@ -162,26 +168,24 @@
 
         <section class="info-section">
             <div class="info-row">
-                <div style="flex: 2;"><strong>1. Họ và tên người chấm:</strong> ThS. Võ Quốc Lương</div>
-                <div style="flex: 1;"><strong>Chức danh trong HĐ:</strong> Chủ tịch</div>
+                <div style="flex: 2;"><strong>1. Họ và tên người chấm:</strong> {{EVALUATOR_NAME}}</div>
+                <div style="flex: 1;"><strong>Chức danh trong HĐ:</strong> {{COUNCIL_ROLE}}</div>
             </div>
             <div class="info-row">
-                <div style="flex: 2;"><strong>2. Họ tên sinh viên:</strong> Trần Quang Nhanh</div>
-                <div style="flex: 1;"><strong>Mã số SV:</strong> 2124802010474</div>
+                <div style="flex: 2;"><strong>2. Họ tên sinh viên:</strong> {{STUDENT_NAME}}</div>
+                <div style="flex: 1;"><strong>Mã số SV:</strong> {{STUDENT_CODE}}</div>
             </div>
             <div class="info-row">
-                <div><strong>3. Lớp:</strong> D21CNTT01</div>
-                <div><strong>Khóa học:</strong> D21</div>
-                <div><strong>Ngành:</strong> Công nghệ thông tin</div>
+                <div><strong>3. Lớp:</strong> {{STUDENT_CLASS}}</div>
+                <div><strong>Khóa học:</strong> {{STUDENT_COHORT}}</div>
+                <div><strong>Ngành:</strong> {{STUDENT_DEPARTMENT}}</div>
             </div>
             <div class="info-row">
-                <div><strong>4. Tên đề tài:</strong> Xây dựng website quản lý đề cương cho trường đại học Thủ Dầu Một</div>
+                <div><strong>4. Tên đề tài:</strong> {{TOPIC_TITLE}}</div>
             </div>
         </section>
 
         <section class="table-section">
-            <table class="rubric-table">
-                <section class="table-section">
             <table class="rubric-table">
                 <!-- Sử dụng colgroup để quản lý Clean Code cho kích thước cột -->
                 <colgroup>
@@ -212,8 +216,6 @@
                         <th>KÉM<br>(Dưới 50%)</th>
                     </tr>
                 </thead>
-                <tbody>
-                    <!-- Giữ nguyên toàn bộ phần <tbody> ở mã cũ của bạn -->
                 <tbody>
                     <tr>
                         <td rowspan="3" class="text-center"><strong>Tiêu chí 1:<br>Hình thức</strong></td>
@@ -379,7 +381,7 @@
             <div class="signature-box">
                 <div class="title">NGƯỜI ĐÁNH GIÁ</div>
                 <div class="sub">(Ký và ghi rõ họ tên)</div>
-                <div class="name">ThS. Võ Quốc Lương</div>
+                <div class="name">{{EVALUATOR_NAME}}</div>
             </div>
         </section>
     </main>
