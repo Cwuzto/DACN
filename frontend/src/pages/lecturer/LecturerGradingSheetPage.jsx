@@ -63,7 +63,7 @@ export default function LecturerGradingSheetPage() {
         setCurrentEvaluator(payload.currentEvaluator || null);
         setScoreLocked(Boolean(payload.scoreLocked));
       } catch (e) {
-        message.error(e.message || 'Khong the tai phieu cham');
+        message.error(e.message || 'Không thể tải phiếu chấm');
       } finally {
         setLoading(false);
       }
@@ -106,16 +106,16 @@ export default function LecturerGradingSheetPage() {
 
   const save = async () => {
     if (rows.some((r) => r.score === null || r.score === undefined || Number.isNaN(Number(r.score)))) {
-      message.warning('Vui long nhap day du diem cho tat ca tieu chi');
+      message.warning('Vui lòng nhập đầy đủ điểm cho tất cả tiêu chí');
       return;
     }
     try {
       setSaving(true);
       const payload = { scores: rows.map((r) => ({ criterionCode: r.criterionCode, score: Number(r.score) })) };
       const res = await evaluationService.saveScoreSheet(registrationId, payload);
-      if (res.success) message.success('Da luu phieu cham');
+      if (res.success) message.success('Đã lưu phiếu chấm');
     } catch (e) {
-      message.error(e.message || 'Khong the luu phieu cham');
+      message.error(e.message || 'Không thể lưu phiếu chấm');
     } finally {
       setSaving(false);
     }
@@ -126,11 +126,11 @@ export default function LecturerGradingSheetPage() {
       setExporting(true);
       const res = await evaluationService.exportScoreSheetPdf(registrationId);
       if (res.success) {
-        message.success('Da xuat PDF');
+        message.success('Đã xuất PDF');
         if (res.data?.pdfUrl) window.open(res.data.pdfUrl, '_blank');
       }
     } catch (e) {
-      message.error(e.message || 'Khong the xuat PDF');
+      message.error(e.message || 'Không thể xuất PDF');
     } finally {
       setExporting(false);
     }
@@ -141,9 +141,9 @@ export default function LecturerGradingSheetPage() {
   return (
     <div className="p-4 bg-slate-100 min-h-screen">
       <div className="max-w-[1100px] mx-auto mb-3 flex justify-end gap-2">
-        <Button onClick={() => navigate('/lecturer/grading')}>Quay lai</Button>
-        <Button type="primary" onClick={save} loading={saving} disabled={scoreLocked}>Luu phieu</Button>
-        <Button onClick={exportPdf} loading={exporting}>Xuat PDF</Button>
+        <Button onClick={() => navigate('/lecturer/grading')}>Quay lại</Button>
+        <Button type="primary" onClick={save} loading={saving} disabled={scoreLocked}>Lưu phiếu</Button>
+        <Button onClick={exportPdf} loading={exporting}>Xuất PDF</Button>
       </div>
       <div className="max-w-[1100px] mx-auto bg-white" dangerouslySetInnerHTML={{ __html: renderedHtml }} />
     </div>

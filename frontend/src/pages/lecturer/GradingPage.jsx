@@ -198,7 +198,7 @@ function GradingPage() {
             if (!map.has(r.council.id)) {
                 map.set(r.council.id, {
                     id: r.council.id,
-                    name: r.council.name || `Hoi dong ${r.council.id}`,
+                    name: r.council.name || `Hội đồng ${r.council.id}`,
                     defenseDate: r.council.defenseDate || null,
                     count: 0,
                 });
@@ -228,19 +228,19 @@ function GradingPage() {
 
     return (
         <div className="py-2">
-            <PageHeader title="Hoi dong cham diem" subtitle="Loc theo hoc phan/hoc ky, chon hoi dong, sau do cham diem cho sinh vien thuoc hoi dong." />
+            <PageHeader title="Hội đồng chấm điểm" subtitle="ọc theo học phần/học kỳ, chọn hội đồng, sau đó chấm điểm cho sinh viên thuộc hội đồng." />
 
             <div className="bg-white border border-slate-200 rounded-xl p-4 mb-6 grid grid-cols-1 md:grid-cols-3 gap-3">
                 <Select
                     allowClear
-                    placeholder="Loc theo hoc ky"
+                    placeholder="Lọc theo học kỳ"
                     value={selectedSemesterId}
                     onChange={setSelectedSemesterId}
                     options={semesterOptions}
                 />
                 <Select
                     allowClear
-                    placeholder="Loc theo hoc phan do an"
+                    placeholder="Lọc theo học phần đồ án"
                     value={selectedProjectCatalogId}
                     onChange={setSelectedProjectCatalogId}
                     options={projectCatalogOptions}
@@ -249,9 +249,9 @@ function GradingPage() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-                <StatCard icon="group_work" iconBg="bg-amber-100" iconColor="text-amber-600" label="So hoi dong" value={councils.length} />
-                <StatCard icon="task_alt" iconBg="bg-emerald-100" iconColor="text-emerald-600" label="Da cham" value={`${scoredStudents} / ${totalStudents}`} />
-                <StatCard icon="group" iconBg="bg-blue-100" iconColor="text-blue-600" label="SV trong hoi dong" value={totalStudents} />
+                <StatCard icon="group_work" iconBg="bg-amber-100" iconColor="text-amber-600" label="Số hội đồng" value={councils.length} />
+                <StatCard icon="task_alt" iconBg="bg-emerald-100" iconColor="text-emerald-600" label="Đã chấm" value={`${scoredStudents} / ${totalStudents}`} />
+                <StatCard icon="group" iconBg="bg-blue-100" iconColor="text-blue-600" label="SV trong hội đồng" value={totalStudents} />
             </div>
 
             {loading ? <PageLoader /> : (
@@ -264,12 +264,12 @@ function GradingPage() {
                                 className={`text-left rounded-xl border p-4 ${selectedCouncilId === council.id ? 'border-primary bg-blue-50' : 'border-slate-200 bg-white'}`}
                             >
                                 <div className="font-bold text-slate-900">{council.name}</div>
-                                <div className="text-xs text-slate-500 mt-1">So SV bao ve: {council.count}</div>
+                                <div className="text-xs text-slate-500 mt-1">Số SV bảo vệ: {council.count}</div>
                             </button>
                         ))}
                     </div>
 
-                    {!councils.length && <div className="text-sm text-slate-500">Không có hoi dong phu hop bo loc.</div>}
+                    {!councils.length && <div className="text-sm text-slate-500">Không có hội đồng phù hợp với bộ lọc.</div>}
 
                     {currentCouncilRegistrations.map((registration) => (
                         <div key={registration.id} className="relative">

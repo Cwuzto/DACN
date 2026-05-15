@@ -196,7 +196,7 @@ function TopicApprovalPage() {
                 <div className="flex flex-col gap-3 mb-3">
                     <div className="flex items-center justify-between gap-3">
                         <div className="text-sm font-semibold text-slate-800">
-                            Danh s?ch ch? duy?t ({filteredRegistrations.length}/{pendingRegistrations.length})
+                            Danh sách chờ duyệt ({filteredRegistrations.length}/{pendingRegistrations.length})
                         </div>
                         <Button icon={<ReloadOutlined />} onClick={fetchData}>Làm mới</Button>
                     </div>

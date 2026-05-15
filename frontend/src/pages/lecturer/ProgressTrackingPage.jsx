@@ -249,10 +249,10 @@ function ProgressTrackingPage() {
                         ? { ...task, status: nextStatus, dueDate: nextDueDate || task.dueDate }
                         : task
                 )));
-                message.success('Da cap nhat trang thai nhiem vu');
+                message.success('Đã cập nhật trạng thái nhiệm vụ');
             }
         } catch (error) {
-            message.error(error?.message || 'Khong the cap nhat trang thai nhiem vu');
+            message.error(error?.message || 'Không thể cập nhật trạng thái nhiệm vụ');
         } finally {
             setUpdatingTaskId(null);
         }
@@ -324,12 +324,12 @@ function ProgressTrackingPage() {
 
     const openTaskReviewModal = (task, decision) => {
         if (decision === 'COMPLETED') {
-            const studentName = selectedRegistration?.student?.fullName || 'Sinh vien';
+            const studentName = selectedRegistration?.student?.fullName || 'Sinh viên';
             Modal.confirm({
-                title: 'Xac nhan danh gia dat',
-                content: `Ban chac chan danh gia task "${task.title}" cua ${studentName} la DAT? Sau khi xac nhan, task se duoc danh dau hoan thanh.`,
-                okText: 'Xac nhan',
-                cancelText: 'Huy',
+                title: 'Xác nhận đánh giá đạt',
+                content: `Bạn chắc chắn đánh giá task "${task.title}" của ${studentName} là ĐẠT? Sau khi xác nhận, task sẽ được đánh dấu hoàn thành.`,
+                okText: 'Xác nhận',
+                cancelText: 'Hủy',
                 onOk: async () => {
                     await handleUpdateTaskStatus(task.id, { status: 'COMPLETED' });
                 },
@@ -490,7 +490,7 @@ function ProgressTrackingPage() {
                             ]}
                         />
                         <Select
-                            placeholder="Hoc ky hien tai"
+                            placeholder="Học kỳ hiện tại"
                             allowClear
                             value={semesterFilter}
                             onChange={(value) => setSemesterFilter(value || null)}
@@ -498,7 +498,7 @@ function ProgressTrackingPage() {
                             options={currentSemesterOptions}
                         />
                         <Select
-                            placeholder="Ten do an"
+                            placeholder="Tên đồ án"
                             allowClear
                             showSearch
                             optionFilterProp="label"
@@ -602,7 +602,7 @@ function ProgressTrackingPage() {
             </Modal>
 
             <Modal
-                title="Danh gia giai doan"
+                title="Đánh giá giai đoạn"
                 open={reviewModalOpen}
                 onCancel={() => setReviewModalOpen(false)}
                 footer={null}
@@ -613,20 +613,20 @@ function ProgressTrackingPage() {
                         type="warning"
                         showIcon
                         style={{ marginBottom: 12 }}
-                        message='Danh gia hien tai: "Khong dat". Sinh vien phai sua va nop lai theo han moi.'
+                        message='Đánh giá hiện tại: "Không đạt". Sinh viên phải sửa và nộp lại theo hạn mới.'
                     />
 
-                    <Form.Item name="reviewComment" label="Ly do va yeu cau sua (Bat buoc)" rules={[{ required: true, message: 'Vui long nhap ly do/nhan xet' }]}>
-                        <Input.TextArea rows={4} placeholder="Nhap chi tiet nhan xet va cac diem can khac phuc..." />
+                    <Form.Item name="reviewComment" label="Lý do và yêu cầu sửa (Bắt buộc)" rules={[{ required: true, message: 'Vui lòng nhập lý do/nhận xét' }]}>
+                        <Input.TextArea rows={4} placeholder="Nhập chi tiết nhận xét và các điểm cần khắc phục..." />
                     </Form.Item>
 
-                    <Form.Item name="newDueDate" label="Han nop moi (Bat buoc)" rules={[{ required: true, message: 'Vui long chon han nop moi' }]}>
+                    <Form.Item name="newDueDate" label="Hạn nộp mới (Bắt buộc)" rules={[{ required: true, message: 'Vui lòng chọn hạn nộp mới' }]}>
                         <DatePicker showTime format="DD/MM/YYYY HH:mm" style={{ width: '100%' }} />
                     </Form.Item>
 
                     <Flex justify="flex-end" gap={12}>
-                        <Button onClick={() => setReviewModalOpen(false)}>Huy</Button>
-                        <Button type="primary" htmlType="submit" loading={!!updatingTaskId}>Gui ket qua</Button>
+                        <Button onClick={() => setReviewModalOpen(false)}>ủy</Button>
+                        <Button type="primary" htmlType="submit" loading={!!updatingTaskId}>Gửi kết quả</Button>
                     </Flex>
                 </Form>
             </Modal>
