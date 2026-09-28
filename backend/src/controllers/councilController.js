@@ -1,4 +1,4 @@
-﻿const prisma = require('../config/database');
+const prisma = require('../config/database');
 const { MAX_STUDENTS_PER_COUNCIL } = require('../constants/councilLimits');
 const { auditLog } = require('../services/auditLogService');
 const { runAutoCouncilSetupForSemester } = require('../services/councilAutoSetupService');
@@ -19,13 +19,13 @@ const normalizeMemberInput = (members = []) => {
 
     const invalid = normalized.find((member) => !Number.isInteger(member.lecturerId));
     if (invalid) {
-        throw createHttpError(400, 'LecturerId trong members khĂ´ng há»£p lá»‡.');
+        throw createHttpError(400, 'LecturerId trong members không hợp lệ.');
     }
 
     const seen = new Set();
     for (const member of normalized) {
         if (seen.has(member.lecturerId)) {
-            throw createHttpError(400, 'Danh sĂ¡ch members Ä‘ang cĂ³ giáº£ng viĂªn bá»‹ trĂ¹ng láº·p.');
+            throw createHttpError(400, 'Danh sách members đang có giảng viên bị trùng lặp.');
         }
         seen.add(member.lecturerId);
     }
@@ -34,19 +34,19 @@ const normalizeMemberInput = (members = []) => {
 };
 const validateCouncilComposition = (members = []) => {
     if (!Array.isArray(members) || members.length !== 3) {
-        throw createHttpError(400, 'Má»—i há»™i Ä‘á»“ng pháº£i cĂ³ Ä‘Ăºng 3 giáº£ng viĂªn.');
+        throw createHttpError(400, 'Mỗi hội đồng phải có đúng 3 giảng viên.');
     }
 
     const roleSet = new Set(members.map((member) => member.roleInCouncil));
     const expectedRoles = ['CHAIRMAN', 'SECRETARY', 'REVIEWER'];
     for (const role of expectedRoles) {
         if (!roleSet.has(role)) {
-            throw createHttpError(400, 'Há»™i Ä‘á»“ng pháº£i Ä‘á»§ 3 vai trĂ²: CHAIRMAN, SECRETARY, REVIEWER.');
+            throw createHttpError(400, 'Hội đồng phải đủ 3 vai trò: CHAIRMAN, SECRETARY, REVIEWER.');
         }
     }
 
     if (roleSet.size !== 3) {
-        throw createHttpError(400, 'Má»—i vai trĂ² chá»‰ Ä‘Æ°á»£c cĂ³ 1 giáº£ng viĂªn.');
+        throw createHttpError(400, 'Mỗi vai trò chỉ được có 1 giảng viên.');
     }
 };
 
@@ -71,7 +71,7 @@ const findScheduleWarnings = async (tx, { semesterId, councilId, defenseDate, le
     });
 
     return conflictingMembers.map((member) => (
-        `Cáº£nh bĂ¡o: Giáº£ng viĂªn ${member.lecturer.fullName} Ä‘Ă£ tham gia há»™i Ä‘á»“ng #${member.council.id} (${member.council.name}) cĂ¹ng defenseDate.`
+        `Cảnh báo: Giảng viên ${member.lecturer.fullName} đã tham gia hội đồng #${member.council.id} (${member.council.name}) cùng defenseDate.`
     ));
 };
 
@@ -94,16 +94,19 @@ const validateCouncilMembersAgainstAssignedStudents = async (tx, councilId, lect
     if (conflict) {
         throw createHttpError(
             400,
-            `Conflict of interest: Giáº£ng viĂªn hÆ°á»›ng dáº«n khĂ´ng Ä‘Æ°á»£c cháº¥m sinh viĂªn ${conflict.student.fullName} (${conflict.student.code}) vá»›i Ä‘á» tĂ i "${conflict.topic.title}".`,
+            `Conflict of interest: Giảng viên hướng dẫn không được chấm sinh viên ${conflict.student.fullName} (${conflict.student.code}) với đề tài "${conflict.topic.title}".`,
         );
     }
 };
 
 const getAllCouncils = async (req, res, next) => {
     try {
-        const { semesterId } = req.query;
+        const { semesterId, councilType } = req.query;
         const where = {};
         if (semesterId) where.semesterId = parseInt(semesterId, 10);
+        if (councilType && ['OUTLINE_REVIEW', 'DEFENSE_COUNCIL'].includes(councilType)) {
+            where.councilType = councilType;
+        }
 
         const councils = await prisma.council.findMany({
             where,
@@ -115,13 +118,26 @@ const getAllCouncils = async (req, res, next) => {
                     },
                 },
                 _count: {
-                    select: { registrations: true },
+                    select: { registrations: true, outlineRegistrations: true, defenseRegistrations: true },
                 },
             },
             orderBy: { id: 'desc' },
         });
 
-        res.json({ success: true, data: councils });
+        const normalizedCouncils = councils.map((c) => {
+            const studentCount = c.councilType === 'OUTLINE_REVIEW'
+                ? (c._count.outlineRegistrations || 0)
+                : (c._count.defenseRegistrations || c._count.registrations || 0);
+            return {
+                ...c,
+                _count: {
+                    ...c._count,
+                    registrations: studentCount,
+                },
+            };
+        });
+
+        res.json({ success: true, data: normalizedCouncils });
     } catch (error) {
         next(error);
     }
@@ -141,18 +157,42 @@ const getCouncilById = async (req, res, next) => {
                 },
                 registrations: {
                     include: {
-                        topic: { select: { title: true } },
-                        student: { select: { fullName: true, code: true } },
+                        topic: { select: { id: true, title: true, mentorId: true, mentor: { select: { id: true, fullName: true } } } },
+                        student: { select: { id: true, fullName: true, code: true, email: true } },
+                    },
+                },
+                outlineRegistrations: {
+                    include: {
+                        topic: { select: { id: true, title: true, mentorId: true, mentor: { select: { id: true, fullName: true } } } },
+                        student: { select: { id: true, fullName: true, code: true, email: true } },
+                    },
+                },
+                defenseRegistrations: {
+                    include: {
+                        topic: { select: { id: true, title: true, mentorId: true, mentor: { select: { id: true, fullName: true } } } },
+                        student: { select: { id: true, fullName: true, code: true, email: true } },
+                        defenseResult: true,
+                        memberScores: true,
                     },
                 },
             },
         });
 
         if (!council) {
-            return res.status(404).json({ success: false, message: 'KhĂ´ng tĂ¬m tháº¥y há»™i Ä‘á»“ng.' });
+            return res.status(404).json({ success: false, message: 'Không tìm thấy hội đồng.' });
         }
 
-        res.json({ success: true, data: council });
+        const effectiveRegistrations = council.councilType === 'OUTLINE_REVIEW'
+            ? council.outlineRegistrations
+            : (council.defenseRegistrations?.length > 0 ? council.defenseRegistrations : council.registrations);
+
+        res.json({
+            success: true,
+            data: {
+                ...council,
+                registrations: effectiveRegistrations,
+            },
+        });
     } catch (error) {
         next(error);
     }
@@ -162,7 +202,7 @@ const getCouncilAuditLogs = async (req, res, next) => {
     try {
         const councilId = parseInt(req.params.id, 10);
         if (!Number.isInteger(councilId) || councilId <= 0) {
-            return res.status(400).json({ success: false, message: 'councilId khong hop le.' });
+            return res.status(400).json({ success: false, message: 'councilId không hợp lệ.' });
         }
 
         const logs = await prisma.auditLog.findMany({
@@ -192,20 +232,12 @@ const getCouncilAuditLogs = async (req, res, next) => {
 
 const createCouncil = async (req, res, next) => {
     try {
-        const allowManualCreate = process.env.ALLOW_MANUAL_COUNCIL_CREATE === 'true';
-        if (!allowManualCreate) {
-            return res.status(403).json({
-                success: false,
-                message: 'Manual council creation is disabled. Use auto assignment flow.',
-            });
-        }
-
-        const { semesterId, name, location, defenseDate, members } = req.body;
+        const { semesterId, name, councilType, location, defenseDate, members } = req.body;
 
         if (!semesterId || !name) {
             return res.status(400).json({
                 success: false,
-                message: 'Vui lĂ²ng cung cáº¥p há»c ká»³ vĂ  tĂªn há»™i Ä‘á»“ng.',
+                message: 'Vui lòng cung cấp học kỳ và tên hội đồng.',
             });
         }
 
@@ -216,11 +248,15 @@ const createCouncil = async (req, res, next) => {
             validateCouncilComposition(normalizedMembers);
         }
 
+        const validCouncilTypes = ['OUTLINE_REVIEW', 'DEFENSE_COUNCIL'];
+        const councilTypeValue = councilType && validCouncilTypes.includes(councilType) ? councilType : 'DEFENSE_COUNCIL';
+
         const result = await prisma.$transaction(async (tx) => {
             const newCouncil = await tx.council.create({
                 data: {
                     semesterId: semesterIdInt,
                     name,
+                    councilType: councilTypeValue,
                     location,
                     defenseDate: defenseDateValue,
                 },
@@ -257,7 +293,7 @@ const createCouncil = async (req, res, next) => {
 
         res.status(201).json({
             success: true,
-            message: 'Táº¡o há»™i Ä‘á»“ng thĂ nh cĂ´ng',
+            message: 'Tạo hội đồng thành công',
             data: result.council,
             warnings: result.warnings,
         });
@@ -273,11 +309,11 @@ const updateCouncil = async (req, res, next) => {
     try {
         const { id } = req.params;
         const councilId = parseInt(id, 10);
-        const { name, location, defenseDate, members } = req.body;
+        const { name, councilType, location, defenseDate, members } = req.body;
 
         const existing = await prisma.council.findUnique({ where: { id: councilId } });
         if (!existing) {
-            return res.status(404).json({ success: false, message: 'KhĂ´ng tĂ¬m tháº¥y há»™i Ä‘á»“ng.' });
+            return res.status(404).json({ success: false, message: 'Không tìm thấy hội đồng.' });
         }
 
         const defenseDateValue = defenseDate !== undefined
@@ -289,6 +325,7 @@ const updateCouncil = async (req, res, next) => {
                 where: { id: councilId },
                 data: {
                     name,
+                    ...(councilType !== undefined && { councilType }),
                     location,
                     defenseDate: defenseDateValue,
                 },
@@ -342,7 +379,7 @@ const updateCouncil = async (req, res, next) => {
 
         res.json({
             success: true,
-            message: 'Cáº­p nháº­t há»™i Ä‘á»“ng thĂ nh cĂ´ng.',
+            message: 'Cập nhật hội đồng thành công.',
             warnings: result.warnings,
         });
     } catch (error) {
@@ -361,7 +398,7 @@ const assignRegistrationsToCouncil = async (req, res, next) => {
         if (!Array.isArray(registrationIds) || registrationIds.length === 0) {
             return res.status(400).json({
                 success: false,
-                message: 'Danh sĂ¡ch Ä‘Äƒng kĂ½ (registrationIds) khĂ´ng há»£p lá»‡.',
+                message: 'Danh sách đăng ký (registrationIds) không hợp lệ.',
             });
         }
 
@@ -373,7 +410,7 @@ const assignRegistrationsToCouncil = async (req, res, next) => {
         if (uniqueRegistrationIds.length !== registrationIds.length) {
             return res.status(400).json({
                 success: false,
-                message: 'registrationIds cĂ³ pháº§n tá»­ khĂ´ng há»£p lá»‡ hoáº·c trĂ¹ng láº·p.',
+                message: 'registrationIds có phần tử không hợp lệ hoặc trùng lặp.',
             });
         }
 
@@ -382,18 +419,22 @@ const assignRegistrationsToCouncil = async (req, res, next) => {
                 where: { id: councilId },
                 include: {
                     members: { select: { lecturerId: true, roleInCouncil: true } },
-                    _count: { select: { registrations: true } },
+                    _count: { select: { registrations: true, outlineRegistrations: true, defenseRegistrations: true } },
                 },
             });
 
             if (!council) {
-                throw createHttpError(404, 'KhĂ´ng tĂ¬m tháº¥y há»™i Ä‘á»“ng.');
+                throw createHttpError(404, 'Không tìm thấy hội đồng.');
             }
 
             validateCouncilComposition(council.members);
 
-            if (council._count.registrations + uniqueRegistrationIds.length > MAX_STUDENTS_PER_COUNCIL) {
-                throw createHttpError(400, `Há»™i Ä‘á»“ng tá»‘i Ä‘a ${MAX_STUDENTS_PER_COUNCIL} sinh viĂªn.`);
+            const currentStudentCount = council.councilType === 'OUTLINE_REVIEW'
+                ? (council._count.outlineRegistrations || 0)
+                : (council._count.defenseRegistrations || council._count.registrations || 0);
+
+            if (currentStudentCount + uniqueRegistrationIds.length > MAX_STUDENTS_PER_COUNCIL) {
+                throw createHttpError(400, `Hội đồng tối đa ${MAX_STUDENTS_PER_COUNCIL} sinh viên.`);
             }
 
             const registrations = await tx.topicRegistration.findMany({
@@ -405,14 +446,21 @@ const assignRegistrationsToCouncil = async (req, res, next) => {
             });
 
             if (registrations.length !== uniqueRegistrationIds.length) {
-                throw createHttpError(400, 'CĂ³ registration khĂ´ng tá»“n táº¡i.');
+                throw createHttpError(400, 'Có đăng ký không tồn tại.');
             }
 
-            const alreadyAssigned = registrations.find((registration) => registration.councilId !== null);
+            let alreadyAssigned;
+            if (council.councilType === 'OUTLINE_REVIEW') {
+                alreadyAssigned = registrations.find((registration) => Boolean(registration.outlineCouncilId));
+            } else {
+                alreadyAssigned = registrations.find((registration) => Boolean(registration.defenseCouncilId));
+            }
+
             if (alreadyAssigned) {
+                const councilTypeName = council.councilType === 'OUTLINE_REVIEW' ? 'xét duyệt đề cương' : 'chấm bảo vệ';
                 throw createHttpError(
                     400,
-                    `Sinh viĂªn ${alreadyAssigned.student.fullName} (${alreadyAssigned.student.code}) Ä‘Ă£ thuá»™c há»™i Ä‘á»“ng khĂ¡c.`,
+                    `Sinh viên ${alreadyAssigned.student.fullName} (${alreadyAssigned.student.code}) đã thuộc hội đồng ${councilTypeName} khác.`,
                 );
             }
 
@@ -421,13 +469,42 @@ const assignRegistrationsToCouncil = async (req, res, next) => {
             if (conflict) {
                 throw createHttpError(
                     400,
-                    `Conflict of interest: KhĂ´ng thá»ƒ gĂ¡n sinh viĂªn ${conflict.student.fullName} (${conflict.student.code}) vĂ o há»™i Ä‘á»“ng cĂ³ giáº£ng viĂªn hÆ°á»›ng dáº«n Ä‘á» tĂ i "${conflict.topic.title}".`,
+                    `Conflict of interest: Không thể gán sinh viên ${conflict.student.fullName} (${conflict.student.code}) vào hội đồng có giảng viên hướng dẫn đề tài "${conflict.topic.title}".`,
                 );
+            }
+
+            if (council.councilType === 'DEFENSE_COUNCIL') {
+                const bm04Tasks = await tx.task.findMany({
+                    where: {
+                        registrationId: { in: uniqueRegistrationIds },
+                        taskType: 'BM04',
+                    },
+                    select: { registrationId: true, status: true },
+                });
+                const bm04ByReg = new Map(bm04Tasks.map((t) => [t.registrationId, t.status]));
+                for (const reg of registrations) {
+                    const bm04Status = bm04ByReg.get(reg.id);
+                    if (!bm04Status || bm04Status !== 'COMPLETED') {
+                        throw createHttpError(
+                            400,
+                            `Sinh viên ${reg.student.fullName} (${reg.student.code}) chưa hoàn thành biểu mẫu BM04 nên chưa đủ điều kiện bảo vệ hội đồng.`,
+                        );
+                    }
+                }
+            }
+
+            const updateData = {};
+            if (council.councilType === 'OUTLINE_REVIEW') {
+                updateData.outlineCouncilId = councilId;
+                updateData.outlineReviewStatus = 'PENDING';
+            } else {
+                updateData.defenseCouncilId = councilId;
+                updateData.councilId = councilId;
             }
 
             await tx.topicRegistration.updateMany({
                 where: { id: { in: uniqueRegistrationIds } },
-                data: { councilId },
+                data: updateData,
             });
         });
 
@@ -442,7 +519,7 @@ const assignRegistrationsToCouncil = async (req, res, next) => {
 
         res.json({
             success: true,
-            message: `ÄĂ£ phĂ¢n cĂ´ng ${uniqueRegistrationIds.length} sinh viĂªn vĂ o há»™i Ä‘á»“ng.`,
+            message: `Đã phân công ${uniqueRegistrationIds.length} sinh viên vào hội đồng.`,
         });
     } catch (error) {
         if (error.statusCode) {
@@ -497,12 +574,29 @@ const removeRegistrationFromCouncil = async (req, res, next) => {
         const councilId = parseInt(id, 10);
         const registrationIdInt = parseInt(registrationId, 10);
 
+        const council = await prisma.council.findUnique({
+            where: { id: councilId },
+            select: { id: true, councilType: true },
+        });
+
+        if (!council) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy hội đồng.' });
+        }
+
+        const where = { id: registrationIdInt };
+        const updateData = {};
+        if (council.councilType === 'OUTLINE_REVIEW') {
+            where.outlineCouncilId = councilId;
+            updateData.outlineCouncilId = null;
+        } else {
+            where.OR = [{ defenseCouncilId: councilId }, { councilId }];
+            updateData.defenseCouncilId = null;
+            updateData.councilId = null;
+        }
+
         const result = await prisma.topicRegistration.updateMany({
-            where: {
-                id: registrationIdInt,
-                councilId,
-            },
-            data: { councilId: null },
+            where,
+            data: updateData,
         });
 
         if (result.count > 0) {
@@ -516,7 +610,7 @@ const removeRegistrationFromCouncil = async (req, res, next) => {
             );
         }
 
-        res.json({ success: true, message: 'ÄĂ£ gá»¡ sinh viĂªn khá»i há»™i Ä‘á»“ng.' });
+        res.json({ success: true, message: 'Đã gỡ sinh viên khỏi hội đồng.' });
     } catch (error) {
         next(error);
     }
@@ -533,13 +627,13 @@ const deleteCouncil = async (req, res, next) => {
         });
 
         if (!existing) {
-            return res.status(404).json({ success: false, message: 'KhĂ´ng tĂ¬m tháº¥y há»™i Ä‘á»“ng.' });
+            return res.status(404).json({ success: false, message: 'Không tìm thấy hội đồng.' });
         }
 
         if (existing._count.registrations > 0) {
             return res.status(400).json({
                 success: false,
-                message: 'KhĂ´ng thá»ƒ xĂ³a há»™i Ä‘á»“ng Ä‘Ă£ cĂ³ sinh viĂªn Ä‘Æ°á»£c phĂ¢n cĂ´ng.',
+                message: 'Không thể xóa hội đồng đã có sinh viên được phân công.',
             });
         }
 
@@ -557,7 +651,7 @@ const deleteCouncil = async (req, res, next) => {
             getRequestIp(req),
         );
 
-        res.json({ success: true, message: 'ÄĂ£ xĂ³a há»™i Ä‘á»“ng.' });
+        res.json({ success: true, message: 'Đã xóa hội đồng.' });
     } catch (error) {
         next(error);
     }

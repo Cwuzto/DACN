@@ -1,4 +1,4 @@
-﻿const prisma = require('../config/database');
+const prisma = require('../config/database');
 const { MAX_STUDENTS_PER_COUNCIL } = require('../constants/councilLimits');
 
 const ROLE_ORDER = ['CHAIRMAN', 'SECRETARY', 'REVIEWER'];
@@ -39,7 +39,7 @@ const pickThreeLecturers = (lecturers, excludedMentorIds, lecturerLoads) => {
 
 const ensureCouncilsForSemester = async (tx, semester, councilCountTarget) => {
     const existingCouncils = await tx.council.findMany({
-        where: { semesterId: semester.id },
+        where: { semesterId: semester.id, councilType: 'DEFENSE_COUNCIL' },
         orderBy: { id: 'asc' },
     });
 
@@ -52,6 +52,7 @@ const ensureCouncilsForSemester = async (tx, semester, councilCountTarget) => {
             data: {
                 semesterId: semester.id,
                 name: `${COUNCIL_NAME_PREFIX} ${nextIndex}`,
+                councilType: 'DEFENSE_COUNCIL',
                 location: null,
                 defenseDate: semester.defenseDate || null,
             },
@@ -123,7 +124,7 @@ const assignMembersForSemesterCouncils = async (tx, semesterId, lecturers) => {
 
 const autoAssignRegistrationsForSemester = async (tx, semesterId) => {
     const councils = await tx.council.findMany({
-        where: { semesterId },
+        where: { semesterId, councilType: 'DEFENSE_COUNCIL' },
         include: {
             members: { select: { lecturerId: true, roleInCouncil: true } },
             registrations: { select: { id: true } },
@@ -147,11 +148,16 @@ const autoAssignRegistrationsForSemester = async (tx, semesterId) => {
         where: {
             semesterId,
             councilId: null,
+            defenseCouncilId: null,
             status: { in: DEFENSE_ASSIGNMENT_STATUSES },
         },
         include: {
             student: { select: { fullName: true, code: true } },
             topic: { select: { title: true, mentorId: true } },
+            tasks: {
+                where: { taskType: 'BM04' },
+                select: { id: true, status: true },
+            },
         },
         orderBy: { id: 'asc' },
     });
@@ -160,6 +166,19 @@ const autoAssignRegistrationsForSemester = async (tx, semesterId) => {
     const skipped = [];
 
     for (const registration of unassigned) {
+        const bm04Task = registration.tasks?.[0];
+        const isBm04Completed = bm04Task && bm04Task.status === 'COMPLETED';
+        if (!isBm04Completed) {
+            skipped.push({
+                registrationId: registration.id,
+                student: registration.student?.fullName || null,
+                code: registration.student?.code || null,
+                topic: registration.topic?.title || null,
+                reason: 'Chưa hoàn thành biểu mẫu BM04 (chưa đủ điều kiện bảo vệ hội đồng).',
+            });
+            continue;
+        }
+
         usableCouncils.sort((a, b) => a.currentCount - b.currentCount || a.id - b.id);
         let placed = false;
 
@@ -169,7 +188,10 @@ const autoAssignRegistrationsForSemester = async (tx, semesterId) => {
 
             await tx.topicRegistration.update({
                 where: { id: registration.id },
-                data: { councilId: council.id },
+                data: {
+                    councilId: council.id,
+                    defenseCouncilId: council.id,
+                },
             });
             council.currentCount += 1;
             assigned += 1;

@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
     Table, Button, Input, Select, Tabs, Badge, Tooltip, Modal, Form, Space,
-    Popconfirm, message,
+    Popconfirm, message, Tag,
 } from 'antd';
 import {
     SearchOutlined, EyeOutlined, EditOutlined, DeleteOutlined,
-    CheckCircleOutlined, CloseCircleOutlined, SendOutlined,
+    CheckCircleOutlined, CloseCircleOutlined, SendOutlined, PlusOutlined,
+    UserOutlined, BookOutlined,
 } from '@ant-design/icons';
 import { topicService } from '../../services/topicService';
 import { semesterService } from '../../services/semesterService';
@@ -157,7 +158,7 @@ function TopicManagementPage() {
     const handleApprove = async (id) => {
         try {
             await topicService.changeStatus(id, { status: 'APPROVED' });
-            message.success('Đã duyệt đề tài.');
+            message.success('Đã duyệt đề tài thành công.');
             fetchTopics();
         } catch (err) {
             message.error(err?.message || 'Không thể duyệt đề tài.');
@@ -210,21 +211,42 @@ function TopicManagementPage() {
     ));
 
     const tabItems = [
-        { key: 'all', label: 'Tất cả đề tài' },
-        { key: 'pending', label: <Badge count={pendingCount} size="small" offset={[10, 0]}>Chờ phê duyệt</Badge> },
+        { key: 'all', label: `Tất cả đề tài (${topics.length})` },
+        {
+            key: 'pending',
+            label: (
+                <div className="flex items-center gap-1.5">
+                    <span>Chờ phê duyệt</span>
+                    {pendingCount > 0 && (
+                        <span className="bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full">
+                            {pendingCount}
+                        </span>
+                    )}
+                </div>
+            ),
+        },
         { key: 'draft', label: 'Bản nháp' },
     ];
 
     const columns = [
-        { title: 'STT', dataIndex: 'stt', key: 'stt', width: 64, align: 'center' },
+        { title: 'STT', dataIndex: 'stt', key: 'stt', width: 60, align: 'center' },
         {
             title: 'Tên đề tài',
             dataIndex: 'title',
             key: 'title',
             render: (text, record) => (
-                <div>
-                    <a className="text-primary font-bold hover:underline cursor-pointer" onClick={() => handleViewDetail(record.id)}>{text}</a>
-                    <p className="text-xs text-slate-400 mt-0.5">Mã: DT-{String(record.id).padStart(3, '0')} | Tối đa: 1 sinh viên</p>
+                <div className="space-y-0.5">
+                    <a
+                        className="text-[#1E3A5F] font-bold hover:underline cursor-pointer text-sm leading-snug block"
+                        onClick={() => handleViewDetail(record.id)}
+                    >
+                        {text}
+                    </a>
+                    <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                        <span>Mã: <strong>DT-{String(record.id).padStart(3, '0')}</strong></span>
+                        <span>•</span>
+                        <span>Quy mô: 1 sinh viên</span>
+                    </div>
                 </div>
             ),
         },
@@ -232,34 +254,28 @@ function TopicManagementPage() {
             title: 'GVHD',
             dataIndex: 'mentor',
             key: 'mentor',
+            width: 200,
             render: (mentor) => mentor ? (
-                <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center text-white text-[10px] font-bold">{mentor.fullName?.[0]}</div>
-                    <span className="text-sm font-medium">{mentor.fullName}</span>
+                <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-xs font-bold shrink-0">
+                        {mentor.fullName?.[0]?.toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                        <span className="text-xs font-bold text-slate-800 block truncate">{mentor.fullName}</span>
+                        <span className="text-[10px] text-slate-400 block font-mono">{mentor.code || ''}</span>
+                    </div>
                 </div>
-            ) : <span className="text-slate-400">-</span>,
-        },
-        {
-            title: 'Tên đồ án',
-            key: 'projectName',
-            width: 140,
-            render: () => <span className="text-sm">{PROJECT_NAME}</span>,
+            ) : <span className="text-slate-400 text-xs italic">Chưa phân GVHD</span>,
         },
         {
             title: 'Đợt đồ án',
             key: 'semester',
-            width: 220,
+            width: 200,
             render: (_, record) => (
-                <span className="text-sm">
+                <span className="text-xs font-medium text-slate-700">
                     {record.semester ? formatSemesterLabel(record.semester) : '—'}
                 </span>
             ),
-        },
-        {
-            title: 'Người đề xuất',
-            dataIndex: 'proposedBy',
-            key: 'proposedBy',
-            render: (u) => <span className="text-sm">{u?.fullName || '-'}</span>,
         },
         {
             title: 'Trạng thái',
@@ -271,23 +287,57 @@ function TopicManagementPage() {
         {
             title: 'Thao tác',
             key: 'action',
-            width: 220,
+            width: 190,
             align: 'center',
             render: (_, record) => (
-                <div className="flex flex-wrap items-center justify-end gap-2 min-w-[200px]">
-                    <Button size="small" className="text-xs font-medium border-slate-200 text-slate-700 shadow-sm hover:text-primary hover:border-primary hover:bg-slate-50" icon={<EyeOutlined />} onClick={() => handleViewDetail(record.id)}>Xem</Button>
-                    {record.status === 'DRAFT' && <Button size="small" className="text-xs font-medium border-slate-200 text-slate-700 shadow-sm hover:text-primary hover:border-primary hover:bg-slate-50" icon={<EditOutlined />} onClick={() => openFormModal(record)}>Sửa</Button>}
+                <div className="flex items-center justify-end gap-1.5">
+                    <Button
+                        size="small"
+                        icon={<EyeOutlined />}
+                        onClick={() => handleViewDetail(record.id)}
+                    >
+                        Xem
+                    </Button>
+                    {record.status === 'DRAFT' && (
+                        <Button
+                            size="small"
+                            icon={<EditOutlined />}
+                            onClick={() => openFormModal(record)}
+                        >
+                            Sửa
+                        </Button>
+                    )}
                     {record.status === 'PENDING' && (
                         <>
-                            <Popconfirm title="Duyệt đề tài này?" onConfirm={() => handleApprove(record.id)}>
-                                <Button size="small" className="text-xs font-medium border-green-200 text-green-700 shadow-sm bg-green-50/50 hover:text-green-800 hover:border-green-300 hover:bg-green-100" icon={<CheckCircleOutlined />}>Duyệt</Button>
+                            <Popconfirm
+                                title="Phê duyệt đề tài này?"
+                                onConfirm={() => handleApprove(record.id)}
+                                okText="Duyệt"
+                                cancelText="Hủy"
+                            >
+                                <Button size="small" type="primary" icon={<CheckCircleOutlined />} className="bg-emerald-600 hover:bg-emerald-700 border-0">
+                                    Duyệt
+                                </Button>
                             </Popconfirm>
-                            <Button size="small" className="text-xs font-medium border-red-200 text-red-600 shadow-sm bg-red-50/50 hover:text-red-700 hover:border-red-300 hover:bg-red-100" icon={<CloseCircleOutlined />} onClick={() => { setRejectingTopicId(record.id); setRejectModalOpen(true); }}>Từ chối</Button>
+                            <Button
+                                size="small"
+                                danger
+                                icon={<CloseCircleOutlined />}
+                                onClick={() => { setRejectingTopicId(record.id); setRejectModalOpen(true); }}
+                            >
+                                Từ chối
+                            </Button>
                         </>
                     )}
                     {record.status === 'DRAFT' && (
-                        <Popconfirm title="Xóa bản nháp này?" onConfirm={() => handleDelete(record.id)}>
-                            <Button size="small" className="text-xs font-medium border-red-200 text-red-600 shadow-sm bg-red-50/50 hover:text-red-700 hover:border-red-300 hover:bg-red-100" icon={<DeleteOutlined />}>Xóa</Button>
+                        <Popconfirm
+                            title="Xóa bản nháp này?"
+                            onConfirm={() => handleDelete(record.id)}
+                            okText="Xóa"
+                            cancelText="Hủy"
+                            okButtonProps={{ danger: true }}
+                        >
+                            <Button size="small" danger icon={<DeleteOutlined />} />
                         </Popconfirm>
                     )}
                 </div>
@@ -296,33 +346,43 @@ function TopicManagementPage() {
     ];
 
     return (
-        <div className="py-2">
+        <div className="py-2 space-y-6">
             <PageHeader
-                title="Quản lý đề tài"
-                subtitle="Duyệt, tạo và quản lý đề tài đồ án"
+                title="Quản lý Đề tài"
+                subtitle="Phê duyệt, chỉnh sửa và quản lý danh mục đề tài đồ án tốt nghiệp"
                 actions={
-                    <button onClick={() => openFormModal()} className="inline-flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-lg font-bold text-sm hover:bg-primary-800 transition-colors">
-                        <span className="material-symbols-outlined text-[18px]">add</span>
+                    <Button
+                        type="primary"
+                        icon={<PlusOutlined />}
+                        onClick={() => openFormModal()}
+                    >
                         Thêm đề tài mới
-                    </button>
+                    </Button>
                 }
             />
 
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <Tabs activeKey={activeTab} onChange={handleTabChange} items={tabItems} style={{ padding: '0 24px' }} tabBarStyle={{ marginBottom: 0 }} />
+            <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden">
+                <Tabs
+                    activeKey={activeTab}
+                    onChange={handleTabChange}
+                    items={tabItems}
+                    style={{ padding: '0 20px' }}
+                    tabBarStyle={{ marginBottom: 0 }}
+                />
 
-                <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3 px-6 py-4">
-                    <Space wrap size={10}>
+                {/* Filter Toolbar */}
+                <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3 p-4 bg-slate-50/50 border-b border-slate-100">
+                    <div className="flex flex-wrap items-center gap-3">
                         <Select
                             value={selectedProjectName}
                             onChange={setSelectedProjectName}
-                            style={{ width: 220 }}
+                            style={{ width: 180 }}
                             options={projectOptions}
                         />
                         <Select
                             value={statusFilter === 'all' && activeTab === 'all' ? 'all' : statusFilter}
                             onChange={(v) => { setStatusFilter(v); setActiveTab('all'); }}
-                            style={{ width: 200 }}
+                            style={{ width: 170 }}
                             options={[
                                 { value: 'all', label: 'Tất cả trạng thái' },
                                 { value: 'DRAFT', label: 'Bản nháp' },
@@ -334,19 +394,19 @@ function TopicManagementPage() {
                         <Select
                             value={semesterFilter}
                             onChange={setSemesterFilter}
-                            style={{ width: 260 }}
+                            style={{ width: 230 }}
                             options={[
-                                { value: 'all', label: 'Tất cả học kỳ' },
+                                { value: 'all', label: 'Tất cả đợt đồ án' },
                                 ...semesters,
                             ]}
                         />
-                    </Space>
+                    </div>
                     <Input
-                        placeholder="Tìm đề tài..."
-                        prefix={<SearchOutlined />}
+                        placeholder="Tìm kiếm đề tài..."
+                        prefix={<SearchOutlined style={{ color: '#94a3b8' }} />}
                         value={searchText}
                         onChange={(e) => setSearchText(e.target.value)}
-                        style={{ width: '100%', maxWidth: 360 }}
+                        style={{ width: '100%', maxWidth: 320 }}
                         allowClear
                     />
                 </div>
@@ -355,71 +415,136 @@ function TopicManagementPage() {
                     dataSource={filteredTopics}
                     columns={columns}
                     loading={loading}
-                    pagination={{ pageSize: 10, showTotal: (total, range) => `${range[0]}-${range[1]} / ${total} đề tài`, showSizeChanger: false }}
+                    pagination={{
+                        pageSize: 10,
+                        showTotal: (total, range) => `${range[0]}-${range[1]} của ${total} đề tài`,
+                        showSizeChanger: true,
+                    }}
                     size="middle"
-                    tableLayout="fixed"
-                    scroll={{ x: 1280 }}
+                    locale={{
+                        emptyText: (
+                            <div className="py-12 text-center text-slate-400">
+                                <span className="material-symbols-outlined text-4xl mb-2 text-slate-300 block">description</span>
+                                Không có đề tài nào phù hợp với bộ lọc hiện tại.
+                            </div>
+                        ),
+                    }}
                 />
             </div>
 
+            {/* Form Modal */}
             <Modal
-                title={editingTopic ? 'Chỉnh sửa bản nháp' : 'Thêm đề tài mới'}
+                title={editingTopic ? 'Chỉnh sửa bản nháp đề tài' : 'Thêm đề tài mới'}
                 open={formModalOpen}
                 onCancel={() => setFormModalOpen(false)}
-                footer={<div className="flex justify-between"><Button onClick={() => setFormModalOpen(false)}>Hủy</Button><Space><Button onClick={handleSaveDraft} loading={submitting}>Lưu nháp</Button><Button type="primary" onClick={handleCreateApproved} loading={submitting} icon={editingTopic ? <SendOutlined /> : undefined}>{editingTopic ? 'Gửi duyệt' : 'Tạo đề tài'}</Button></Space></div>}
-                width={600}
+                footer={
+                    <div className="flex justify-between items-center">
+                        <Button onClick={() => setFormModalOpen(false)}>Hủy</Button>
+                        <Space>
+                            <Button onClick={handleSaveDraft} loading={submitting}>Lưu bản nháp</Button>
+                            <Button type="primary" onClick={handleCreateApproved} loading={submitting} icon={editingTopic ? <SendOutlined /> : undefined}>
+                                {editingTopic ? 'Gửi duyệt' : 'Khởi tạo đề tài'}
+                            </Button>
+                        </Space>
+                    </div>
+                }
+                width={650}
+                destroyOnClose
             >
                 <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-                    <Form.Item name="title" label="Tên đề tài" rules={[{ required: true, message: 'Nhập tên đề tài' }]}><Input placeholder="Nhập tên đề tài" /></Form.Item>
-                    <Form.Item name="description" label="Mô tả"><TextArea rows={4} placeholder="Mô tả chi tiết đề tài" /></Form.Item>
-                    <div className="grid grid-cols-3 gap-4">
+                    <Form.Item name="title" label="Tên đề tài" rules={[{ required: true, message: 'Vui lòng nhập tên đề tài' }]}>
+                        <Input placeholder="Nhập tên đề tài đầy đủ..." />
+                    </Form.Item>
+                    <Form.Item name="description" label="Mô tả mục tiêu & phạm vi">
+                        <TextArea rows={4} placeholder="Mô tả chi tiết nội dung, mục tiêu nghiên cứu..." />
+                    </Form.Item>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <Form.Item label="Tên đồ án">
                             <Input value={PROJECT_NAME} disabled />
                         </Form.Item>
-                        <Form.Item name="semesterId" label="Đợt đồ án" rules={[{ required: true, message: 'Chọn đợt' }]}><Select placeholder="Chọn đợt" options={semesters} /></Form.Item>
-                        <Form.Item name="mentorId" label="GVHD" rules={[{ required: true, message: 'Chọn giảng viên hướng dẫn' }]}>
+                        <Form.Item name="semesterId" label="Đợt đồ án" rules={[{ required: true, message: 'Chọn đợt' }]}>
+                            <Select placeholder="Chọn đợt" options={semesters} />
+                        </Form.Item>
+                        <Form.Item name="mentorId" label="GVHD" rules={[{ required: true, message: 'Chọn giảng viên' }]}>
                             <Select placeholder="Chọn GVHD" options={mentors} showSearch optionFilterProp="label" />
                         </Form.Item>
                     </div>
                 </Form>
             </Modal>
 
+            {/* Modal Từ Chối */}
             <Modal
                 title="Từ chối đề tài"
                 open={rejectModalOpen}
                 onCancel={() => { setRejectModalOpen(false); setRejectReason(''); }}
                 onOk={handleReject}
                 confirmLoading={submitting}
-                okText="Từ chối"
+                okText="Xác nhận từ chối"
                 okButtonProps={{ danger: true }}
             >
-                <p className="text-sm mb-3">Vui lòng nhập lý do từ chối đề tài:</p>
-                <TextArea rows={3} value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} placeholder="Nhập lý do..." />
+                <p className="text-xs text-slate-500 mb-2">Vui lòng nhập lý do từ chối để gửi thông báo cho người đề xuất:</p>
+                <TextArea rows={3} value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} placeholder="Nhập lý do cụ thể..." />
             </Modal>
 
-            <Modal title="Chi tiết đề tài" open={detailModalOpen} onCancel={() => setDetailModalOpen(false)} footer={null} width={700}>
+            {/* Modal Chi Tiết */}
+            <Modal
+                title="Chi tiết đề tài"
+                open={detailModalOpen}
+                onCancel={() => setDetailModalOpen(false)}
+                footer={null}
+                width={700}
+                destroyOnClose
+            >
                 {detailTopic && (
-                    <div className="mt-4">
-                        <h3 className="text-lg font-bold text-slate-900">{detailTopic.title}</h3>
-                        <p className="text-sm text-slate-500 mt-2">{detailTopic.description || 'Chưa có mô tả.'}</p>
-                        <div className="grid grid-cols-2 gap-3 mt-4">
-                            <div><span className="text-xs font-bold text-slate-500">Trạng thái: </span><StatusBadge status={detailTopic.status} /></div>
-                            <div><span className="text-xs font-bold text-slate-500">Số sinh viên tối đa: </span><span className="text-sm">1</span></div>
-                            <div><span className="text-xs font-bold text-slate-500">GVHD: </span><span className="text-sm">{detailTopic.mentor?.fullName}</span></div>
-                            <div><span className="text-xs font-bold text-slate-500">Người đề xuất: </span><span className="text-sm">{detailTopic.proposedBy?.fullName}</span></div>
-                            <div><span className="text-xs font-bold text-slate-500">Đợt đồ án: </span><span className="text-sm">{detailTopic.semester?.name}</span></div>
+                    <div className="space-y-4 pt-2">
+                        <div>
+                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Tên đề tài</span>
+                            <h3 className="text-base font-black text-slate-900 mt-1">{detailTopic.title}</h3>
                         </div>
+                        <div>
+                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Mô tả</span>
+                            <p className="text-xs text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-100 mt-1 leading-relaxed">
+                                {detailTopic.description || 'Chưa có mô tả chi tiết.'}
+                            </p>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                            <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                                <span className="text-[11px] text-slate-400 block font-semibold">Trạng thái</span>
+                                <div className="mt-1"><StatusBadge status={detailTopic.status} /></div>
+                            </div>
+                            <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                                <span className="text-[11px] text-slate-400 block font-semibold">GVHD</span>
+                                <span className="text-xs font-bold text-slate-800 mt-1 block truncate">
+                                    {detailTopic.mentor?.fullName || 'Chưa có'}
+                                </span>
+                            </div>
+                            <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                                <span className="text-[11px] text-slate-400 block font-semibold">Đợt đồ án</span>
+                                <span className="text-xs font-bold text-slate-800 mt-1 block truncate">
+                                    {detailTopic.semester?.name || 'N/A'}
+                                </span>
+                            </div>
+                        </div>
+
                         {detailTopic.rejectReason && (
-                            <div className="mt-4 p-3 bg-red-50 rounded-lg border border-red-100"><span className="text-xs font-bold text-red-600">Lý do từ chối: </span><span className="text-sm text-red-700">{detailTopic.rejectReason}</span></div>
+                            <div className="p-3 bg-rose-50 rounded-lg border border-rose-200">
+                                <span className="text-xs font-bold text-rose-700 block">Lý do từ chối:</span>
+                                <span className="text-xs text-rose-800 mt-0.5 block">{detailTopic.rejectReason}</span>
+                            </div>
                         )}
+
                         {detailTopic.registrations?.length > 0 && (
-                            <div className="mt-4">
-                                <p className="text-sm font-bold text-slate-700 mb-2">Sinh viên đã đăng ký ({detailTopic.registrations.length}):</p>
+                            <div className="pt-2 border-t border-slate-100">
+                                <span className="text-xs font-bold text-slate-700 block mb-2">
+                                    Sinh viên đã đăng ký ({detailTopic.registrations.length}):
+                                </span>
                                 {detailTopic.registrations.map((registration) => (
-                                    <div key={registration.id} className="bg-slate-50 rounded-lg p-3 mt-2 text-sm">
-                                        <span className="font-bold">{registration.student?.fullName || 'Sinh viên'}</span>
-                                        <span className="text-slate-500"> ({registration.student?.code || 'N/A'})</span>
-                                        <span className="ml-2 text-xs px-2 py-0.5 rounded bg-slate-200 text-slate-700">{registration.status}</span>
+                                    <div key={registration.id} className="bg-slate-50 rounded-lg p-3 flex items-center justify-between text-xs border border-slate-100">
+                                        <div>
+                                            <span className="font-bold text-slate-900">{registration.student?.fullName || 'Sinh viên'}</span>
+                                            <span className="text-slate-400 ml-1.5 font-mono">({registration.student?.code || 'N/A'})</span>
+                                        </div>
+                                        <Tag color="blue">{registration.status}</Tag>
                                     </div>
                                 ))}
                             </div>

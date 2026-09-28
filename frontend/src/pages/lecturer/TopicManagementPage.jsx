@@ -1,20 +1,28 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-    Alert,
     Button,
-    Card,
     Form,
     Input,
     message,
     Modal,
-    Segmented,
     Select,
     Space,
     Table,
     Tag,
-    Typography,
+    Tooltip,
+    Dropdown,
 } from 'antd';
-import { PlusOutlined, SearchOutlined, SendOutlined, SortAscendingOutlined } from '@ant-design/icons';
+import {
+    PlusOutlined,
+    SearchOutlined,
+    SendOutlined,
+    EditOutlined,
+    DeleteOutlined,
+    MoreOutlined,
+    CheckCircleOutlined,
+    ClockCircleOutlined,
+    ReloadOutlined,
+} from '@ant-design/icons';
 import { topicService } from '../../services/topicService';
 import { semesterService } from '../../services/semesterService';
 import useAuthStore from '../../stores/authStore';
@@ -23,8 +31,15 @@ import StatusBadge from '../../components/common/StatusBadge';
 import StatCard from '../../components/common/StatCard';
 import { PROJECT_NAME, formatSemesterLabel } from '../../utils/semesterDisplay';
 
-const { Text } = Typography;
 const { TextArea } = Input;
+
+const STATUS_TABS = [
+    { key: 'all', label: 'Tất cả' },
+    { key: 'APPROVED', label: 'Đã duyệt' },
+    { key: 'PENDING', label: 'Chờ duyệt' },
+    { key: 'DRAFT', label: 'Bản nháp' },
+    { key: 'REJECTED', label: 'Bị từ chối' },
+];
 
 function TopicManagementPage() {
     const user = useAuthStore((s) => s.user);
@@ -84,6 +99,13 @@ function TopicManagementPage() {
         fetchSemesters();
     }, []);
 
+    const maxQuota = useMemo(() => {
+        if (user?.maxStudents) return Number(user.maxStudents);
+        if (user?.academicTitle === 'PHO_GIAO_SU') return 20;
+        if (user?.academicTitle === 'TIEN_SI') return 15;
+        return 10;
+    }, [user]);
+
     const normalizedSearch = useMemo(
         () => searchText.replace(/\s+/g, ' ').trim().toLowerCase(),
         [searchText],
@@ -114,14 +136,8 @@ function TopicManagementPage() {
         case 'title_desc':
             list.sort((a, b) => (b.title || '').localeCompare(a.title || '', 'vi'));
             break;
-        case 'status':
-            list.sort((a, b) => (a.status || '').localeCompare(b.status || '', 'vi'));
-            break;
         case 'student_desc':
             list.sort((a, b) => hasStudent(b) - hasStudent(a));
-            break;
-        case 'student_asc':
-            list.sort((a, b) => hasStudent(a) - hasStudent(b));
             break;
         case 'oldest':
             list.sort((a, b) => Number(a.id) - Number(b.id));
@@ -134,24 +150,12 @@ function TopicManagementPage() {
         return list.map((topic, index) => ({ ...topic, stt: index + 1 }));
     }, [filteredTopics, sortBy]);
 
-    const upcomingSemesterOptions = useMemo(() => {
-        const now = new Date();
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-
-        return semesterOptions
-            .filter((semester) => {
-                if (!semester.registrationDeadline) return false;
-                const deadlineTime = new Date(semester.registrationDeadline).getTime();
-                return Number.isFinite(deadlineTime) && deadlineTime >= today;
-            })
-            .sort((a, b) => new Date(a.registrationDeadline).getTime() - new Date(b.registrationDeadline).getTime());
-    }, [semesterOptions]);
-
     const stats = useMemo(() => {
         const total = topics.length;
         const approved = topics.filter((t) => t.status === 'APPROVED').length;
+        const pending = topics.filter((t) => t.status === 'PENDING').length;
         const withStudent = topics.filter((t) => Boolean(t.registrations?.[0]?.student)).length;
-        return { total, approved, withStudent };
+        return { total, approved, pending, withStudent };
     }, [topics]);
 
     const openFormModal = (topic = null) => {
@@ -164,43 +168,24 @@ function TopicManagementPage() {
             });
         } else {
             form.resetFields();
-            form.setFieldsValue({ semesterId: upcomingSemesterOptions[0]?.value });
+            if (semesterOptions.length > 0) {
+                form.setFieldsValue({ semesterId: semesterOptions[0].value });
+            }
         }
         setFormModalOpen(true);
     };
 
-    const hasUpcomingSemester = upcomingSemesterOptions.length > 0;
-
-    const handleSaveDraft = async () => {
+    const handleSaveTopic = async (statusTarget) => {
         try {
             const values = await form.validateFields();
             setSubmitting(true);
             if (editingTopic) {
-                await topicService.update(editingTopic.id, { ...values, status: 'DRAFT' });
-                message.success('Đã lưu bản nháp.');
+                await topicService.update(editingTopic.id, { ...values, status: statusTarget });
+                message.success(statusTarget === 'APPROVED' ? 'Đã cập nhật đề tài.' : 'Đã lưu bản nháp.');
             } else {
-                await topicService.create({ ...values, status: 'DRAFT' });
-                message.success('Đã lưu bản nháp đề tài.');
+                await topicService.create({ ...values, status: statusTarget });
+                message.success(statusTarget === 'APPROVED' ? 'Đã tạo và gửi duyệt đề tài.' : 'Đã lưu bản nháp đề tài.');
             }
-            setFormModalOpen(false);
-            fetchTopics();
-        } catch (err) {
-            if (err?.message) message.error(err.message);
-        } finally {
-            setSubmitting(false);
-        }
-    };
-
-    const handlePublishTopic = async () => {
-        try {
-            const values = await form.validateFields();
-            setSubmitting(true);
-            if (editingTopic) {
-                await topicService.update(editingTopic.id, { ...values, status: 'APPROVED' });
-            } else {
-                await topicService.create({ ...values, status: 'APPROVED' });
-            }
-            message.success('Đã phát hành đề tài.');
             setFormModalOpen(false);
             fetchTopics();
         } catch (err) {
@@ -211,30 +196,46 @@ function TopicManagementPage() {
     };
 
     const columns = [
-        { title: 'STT', dataIndex: 'stt', key: 'stt', width: 72, align: 'center' },
         {
-            title: 'Tên đề tài',
+            title: 'Mã & Tên đề tài',
             dataIndex: 'title',
             key: 'title',
-            width: '46%',
+            width: '42%',
             render: (text, record) => (
-                <div>
-                    <div className="text-sm font-semibold text-slate-900">{text}</div>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Mã: DT-{String(record.id).padStart(3, '0')}</Text>
+                <div className="space-y-1">
+                    <Tooltip title={text}>
+                        <div className="text-sm font-bold text-slate-900 line-clamp-2 leading-snug">{text}</div>
+                    </Tooltip>
+                    <div className="flex items-center gap-2">
+                        <code className="text-[11px] font-mono bg-slate-100 text-primary font-bold px-1.5 py-0.2 rounded">
+                            DT-{String(record.id).padStart(3, '0')}
+                        </code>
+                        <span className="text-xs text-slate-400 font-medium">
+                            {record.semester?.name || 'Học kỳ'}
+                        </span>
+                    </div>
                 </div>
             ),
         },
         {
-            title: 'Sinh viên đăng ký',
+            title: 'Sinh viên thực hiện',
             key: 'registrations',
-            width: '34%',
+            width: '28%',
             render: (_, record) => {
                 const student = record.registrations?.[0]?.student;
-                if (!student) return <Tag color="default">Chưa có</Tag>;
+                if (!student) {
+                    return <span className="text-xs text-slate-400 italic">Chưa có sinh viên</span>;
+                }
+                const initials = student.fullName ? student.fullName.trim().split(' ').slice(-1)[0][0]?.toUpperCase() : 'S';
                 return (
-                    <div>
-                        <div className="text-sm font-medium text-slate-800">{student.fullName}</div>
-                        <Text type="secondary" style={{ fontSize: 12 }}>{student.code}</Text>
+                    <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center text-xs shrink-0 border border-emerald-200">
+                            {initials}
+                        </div>
+                        <div className="min-w-0">
+                            <div className="text-xs font-bold text-slate-800 truncate">{student.fullName}</div>
+                            <span className="text-[11px] font-mono text-slate-500">{student.code}</span>
+                        </div>
                     </div>
                 );
             },
@@ -243,147 +244,233 @@ function TopicManagementPage() {
             title: 'Trạng thái',
             dataIndex: 'status',
             key: 'status',
-            width: '20%',
+            width: 140,
             render: (status) => <StatusBadge status={status} />,
+        },
+        {
+            title: 'Thao tác',
+            key: 'actions',
+            width: 100,
+            align: 'right',
+            render: (_, record) => {
+                const items = [
+                    {
+                        key: 'edit',
+                        icon: <EditOutlined />,
+                        label: 'Chỉnh sửa đề tài',
+                        onClick: () => openFormModal(record),
+                    },
+                ];
+
+                if (record.status === 'DRAFT') {
+                    items.push({
+                        key: 'publish',
+                        icon: <SendOutlined />,
+                        label: 'Gửi duyệt đề tài',
+                        onClick: async () => {
+                            try {
+                                await topicService.update(record.id, { status: 'PENDING' });
+                                message.success('Đã gửi đề tài lên ban chủ nhiệm.');
+                                fetchTopics();
+                            } catch (e) {
+                                message.error(e?.message || 'Không thể gửi duyệt đề tài');
+                            }
+                        },
+                    });
+                }
+
+                return (
+                    <Dropdown menu={{ items }} trigger={['click']} placement="bottomRight">
+                        <Button size="small" className="text-xs font-semibold text-slate-700 hover:text-primary">
+                            Thao tác <MoreOutlined />
+                        </Button>
+                    </Dropdown>
+                );
+            },
         },
     ];
 
     return (
-        <div>
+        <div className="py-2 space-y-5">
             <PageHeader
-                title="Quản lý đề tài"
-                subtitle="Theo dõi vòng đời đề tài của bạn: nháp, phát hành, bị từ chối và trạng thái đăng ký"
-                actions={(
-                    <Button type="primary" icon={<PlusOutlined />} onClick={() => openFormModal()}>
-                        Đề xuất đề tài mới
-                    </Button>
-                )}
+                breadcrumb={[
+                    { label: 'Cổng Giảng viên' },
+                    { label: 'Hướng dẫn & Đề tài' },
+                    { label: 'Đề tài của tôi' },
+                ]}
+                title="Quản lý Đề tài Hướng dẫn"
+                subtitle="Đề xuất các đề tài đồ án mới, theo dõi trạng thái phê duyệt của Viện và giám sát sinh viên đã đăng ký."
+                tags={[
+                    { label: `Quota Hướng dẫn: ${stats.withStudent}/${maxQuota} SV`, color: stats.withStudent >= maxQuota ? 'red' : 'green' },
+                ]}
+                actions={
+                    <Space>
+                        <Button icon={<ReloadOutlined />} onClick={fetchTopics}>
+                            Làm mới
+                        </Button>
+                        <Button type="primary" icon={<PlusOutlined />} onClick={() => openFormModal()}>
+                            Đề xuất đề tài mới
+                        </Button>
+                    </Space>
+                }
             />
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                <StatCard icon="list_alt" iconBg="bg-slate-100" iconColor="text-slate-700" label="Tổng đề tài" value={stats.total} />
-                <StatCard icon="task_alt" iconBg="bg-emerald-50" iconColor="text-emerald-700" label="Đã duyệt" value={stats.approved} />
-                <StatCard icon="person_check" iconBg="bg-blue-50" iconColor="text-blue-700" label="Có sinh viên đăng ký" value={stats.withStudent} />
+            {/* 4 StatCards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <StatCard
+                    icon="folder_open"
+                    iconBg="bg-blue-50"
+                    iconColor="text-blue-600"
+                    label="Tổng số đề tài"
+                    value={stats.total}
+                />
+                <StatCard
+                    icon="task_alt"
+                    iconBg="bg-emerald-50"
+                    iconColor="text-emerald-600"
+                    label="Đề tài đã duyệt"
+                    value={stats.approved}
+                />
+                <StatCard
+                    icon="hourglass_top"
+                    iconBg="bg-amber-50"
+                    iconColor="text-amber-600"
+                    label="Đang chờ duyệt"
+                    value={stats.pending}
+                />
+                <StatCard
+                    icon="person_check"
+                    iconBg="bg-purple-50"
+                    iconColor="text-purple-600"
+                    label="Sinh viên đã nhận"
+                    value={`${stats.withStudent} / ${maxQuota}`}
+                />
             </div>
 
-            <Card
-                bordered={false}
-                style={{ borderRadius: 12 }}
-                title="Danh sách đề tài"
-                extra={(
-                    <Space wrap>
-                        <Select
-                            value={selectedProjectName}
-                            onChange={setSelectedProjectName}
-                            style={{ width: 180 }}
-                            options={[{ value: PROJECT_NAME, label: PROJECT_NAME }]}
-                        />
-                        <Segmented
-                            value={statusFilter}
-                            onChange={setStatusFilter}
-                            options={[
-                                { label: 'Tất cả', value: 'all' },
-                                { label: 'Nháp', value: 'DRAFT' },
-                                { label: 'Đã duyệt', value: 'APPROVED' },
-                                { label: 'Từ chối', value: 'REJECTED' },
-                            ]}
-                        />
+            {/* Main Content Card */}
+            <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-4 lg:p-6 space-y-4">
+                {/* Status Segmented Tabs */}
+                <div className="flex flex-wrap items-center gap-1 border-b border-slate-100 pb-3">
+                    {STATUS_TABS.map((tab) => {
+                        const isSelected = statusFilter === tab.key;
+                        const count = tab.key === 'all'
+                            ? topics.length
+                            : topics.filter((t) => t.status === tab.key).length;
+                        return (
+                            <button
+                                key={tab.key}
+                                onClick={() => setStatusFilter(tab.key)}
+                                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                                    isSelected
+                                        ? 'bg-[#1E3A5F] text-white shadow-xs'
+                                        : 'text-slate-600 hover:bg-slate-100'
+                                }`}
+                            >
+                                <span>{tab.label}</span>
+                                <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                                    isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'
+                                }`}>
+                                    {count}
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
+
+                {/* Filter Toolbar */}
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                    <div className="sm:col-span-8">
                         <Input
-                            placeholder="Tìm đề tài / sinh viên đăng ký..."
-                            prefix={<SearchOutlined />}
+                            placeholder="Tìm kiếm theo tên đề tài hoặc sinh viên thực hiện..."
+                            prefix={<SearchOutlined className="text-slate-400" />}
                             value={searchText}
                             onChange={(e) => setSearchText(e.target.value)}
-                            style={{ width: 280 }}
                             allowClear
+                            className="w-full"
                         />
+                    </div>
+                    <div className="sm:col-span-4">
                         <Select
+                            className="w-full"
                             value={sortBy}
                             onChange={setSortBy}
-                            style={{ width: 220 }}
-                            prefix={<SortAscendingOutlined />}
                             options={[
-                                { value: 'newest', label: 'Mới nhất' },
-                                { value: 'oldest', label: 'Cũ nhất' },
-                                { value: 'title_asc', label: 'Tên đề tài A → Z' },
-                                { value: 'title_desc', label: 'Tên đề tài Z → A' },
-                                { value: 'status', label: 'Theo trạng thái' },
-                                { value: 'student_desc', label: 'Có SV đăng ký trước' },
-                                { value: 'student_asc', label: 'Chưa có SV đăng ký trước' },
+                                { value: 'newest', label: 'Mới nhất trước' },
+                                { value: 'oldest', label: 'Cũ nhất trước' },
+                                { value: 'title_asc', label: 'Tên đề tài (A-Z)' },
+                                { value: 'student_desc', label: 'Đã có sinh viên trước' },
                             ]}
                         />
-                    </Space>
-                )}
-            >
-                <Table
-                    dataSource={sortedTopics}
-                    columns={columns}
-                    loading={loading}
-                    pagination={{ pageSize: 10, showSizeChanger: false }}
-                    size="middle"
-                    tableLayout="fixed"
-                    rowKey="id"
-                    locale={{ emptyText: 'Chưa có đề tài phù hợp bộ lọc hiện tại.' }}
-                />
-            </Card>
+                    </div>
+                </div>
 
+                {/* Table */}
+                <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+                    <Table
+                        dataSource={sortedTopics}
+                        columns={columns}
+                        rowKey="id"
+                        loading={loading}
+                        pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (t) => `Tổng ${t} đề tài` }}
+                        size="middle"
+                        scroll={{ x: 900 }}
+                    />
+                </div>
+            </div>
+
+            {/* Modal Form Thêm/Sửa Đề tài */}
             <Modal
-                title={editingTopic ? 'Chỉnh sửa đề tài' : 'Đề xuất đề tài mới'}
+                title={
+                    <div className="text-base font-bold text-slate-900">
+                        {editingTopic ? 'Chỉnh sửa Đề tài' : 'Đề xuất Đề tài Mới'}
+                    </div>
+                }
                 open={formModalOpen}
                 onCancel={() => setFormModalOpen(false)}
-                width={640}
-                footer={(
-                    <div className="flex items-center justify-between">
+                footer={
+                    <Space className="pt-3">
                         <Button onClick={() => setFormModalOpen(false)}>Hủy</Button>
-                        <Space>
-                            <Button onClick={handleSaveDraft} loading={submitting}>Lưu nháp</Button>
-                            <Button
-                                type="primary"
-                                onClick={handlePublishTopic}
-                                loading={submitting}
-                                icon={<SendOutlined />}
-                                disabled={!hasUpcomingSemester}
-                            >
-                                Phát hành
-                            </Button>
-                        </Space>
-                    </div>
-                )}
+                        <Button loading={submitting} onClick={() => handleSaveTopic('DRAFT')}>
+                            Lưu bản nháp
+                        </Button>
+                        <Button type="primary" loading={submitting} onClick={() => handleSaveTopic('APPROVED')}>
+                            Lưu và công khai
+                        </Button>
+                    </Space>
+                }
+                width={650}
+                centered
+                destroyOnClose
             >
-                <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-                    {!hasUpcomingSemester && (
-                        <Alert
-                            type="warning"
-                            showIcon
-                            message="Hiện không có học kỳ còn hạn đăng ký để đề xuất đề tài."
-                            description="Bạn vẫn có thể lưu nháp, nhưng chỉ có thể phát hành khi học kỳ chưa tới hạn đăng ký."
-                            style={{ marginBottom: 16 }}
-                        />
-                    )}
+                <Form form={form} layout="vertical" className="pt-2">
+                    <Form.Item
+                        name="semesterId"
+                        label={<span className="text-xs font-bold text-slate-700">Đợt đồ án (Học kỳ)</span>}
+                        rules={[{ required: true, message: 'Vui lòng chọn học kỳ!' }]}
+                    >
+                        <Select placeholder="Chọn đợt đồ án" options={semesterOptions} />
+                    </Form.Item>
+
                     <Form.Item
                         name="title"
-                        label="Tên đề tài"
-                        rules={[{ required: true, message: 'Vui lòng nhập tên đề tài' }]}
+                        label={<span className="text-xs font-bold text-slate-700">Tên đề tài</span>}
+                        rules={[{ required: true, message: 'Vui lòng nhập tên đề tài!' }]}
                     >
-                        <Input placeholder="Nhập tên đề tài" />
+                        <Input placeholder="Nhập tên đề tài nghiên cứu hoặc ứng dụng..." maxLength={255} />
                     </Form.Item>
-                    <Form.Item name="description" label="Mô tả chi tiết">
-                        <TextArea rows={4} placeholder="Mô tả nội dung, phạm vi, công nghệ sử dụng..." />
+
+                    <Form.Item
+                        name="description"
+                        label={<span className="text-xs font-bold text-slate-700">Mục tiêu & Yêu cầu đầu ra</span>}
+                    >
+                        <TextArea
+                            rows={5}
+                            placeholder="Mô tả mục tiêu nghiên cứu, phạm vi sản phẩm và công nghệ dự kiến..."
+                        />
                     </Form.Item>
-                    <div className="grid grid-cols-2 gap-4">
-                        <Form.Item label="Tên đồ án">
-                            <Input value={PROJECT_NAME} disabled />
-                        </Form.Item>
-                        <Form.Item
-                            name="semesterId"
-                            label="Học kỳ"
-                            rules={[{ required: true, message: 'Vui lòng chọn học kỳ' }]}
-                        >
-                            <Select
-                                placeholder="Chọn học kỳ còn hạn đăng ký"
-                                options={upcomingSemesterOptions}
-                                notFoundContent="Không có học kỳ còn hạn đăng ký"
-                            />
-                        </Form.Item>
+
+                    <div className="text-xs text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                        💡 Mỗi đề tài chỉ nhận tối đa <b>1 sinh viên</b>. Hạn mức hướng dẫn của bạn là <b>{maxQuota} sinh viên</b> trong học kỳ này.
                     </div>
                 </Form>
             </Modal>

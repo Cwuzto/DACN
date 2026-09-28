@@ -1,9 +1,19 @@
-import { useState, useEffect } from 'react';
-import { message } from 'antd';
+import { useState, useEffect, useMemo } from 'react';
+import { message, Table, Tag, Tooltip, Progress, Button, Space } from 'antd';
 import { useNavigate } from 'react-router-dom';
+import {
+    PlusOutlined,
+    CheckCircleOutlined,
+    ClockCircleOutlined,
+    NotificationOutlined,
+    RightOutlined,
+    ArrowRightOutlined,
+    EditOutlined,
+} from '@ant-design/icons';
+import dayjs from 'dayjs';
+
 import dashboardService from '../../services/dashboardService';
 import useAuthStore from '../../stores/authStore';
-import dayjs from 'dayjs';
 import PageHeader from '../../components/common/PageHeader';
 import StatCard from '../../components/common/StatCard';
 import PageLoader from '../../components/common/PageLoader';
@@ -17,7 +27,7 @@ function LecturerDashboardPage() {
         activeTopics: 0,
         studentGroups: 0,
         completedRegistrations: 0,
-        pendingFeedback: 0
+        pendingFeedback: 0,
     });
     const [recentSubmissions, setRecentSubmissions] = useState([]);
     const [timelineEvents, setTimelineEvents] = useState([]);
@@ -27,12 +37,12 @@ function LecturerDashboardPage() {
             setLoading(true);
             const res = await dashboardService.getLecturerStats();
             if (res.success) {
-                setStats(res.data.stats);
+                setStats(res.data.stats || {});
                 setRecentSubmissions(res.data.recentSubmissions || []);
                 setTimelineEvents(res.data.timelineEvents || []);
             }
         } catch (error) {
-            message.error(error.message || 'Lỗi tải dashboard');
+            message.error(error.message || 'Lỗi tải dashboard giảng viên');
         } finally {
             setLoading(false);
         }
@@ -41,6 +51,13 @@ function LecturerDashboardPage() {
     useEffect(() => {
         fetchDashboardInfo();
     }, []);
+
+    const maxQuota = useMemo(() => {
+        if (user?.maxStudents) return Number(user.maxStudents);
+        if (user?.academicTitle === 'PHO_GIAO_SU') return 20;
+        if (user?.academicTitle === 'TIEN_SI') return 15;
+        return 10;
+    }, [user]);
 
     if (loading) {
         return <PageLoader />;
@@ -52,197 +69,271 @@ function LecturerDashboardPage() {
 
     const feedbackHandledPercent = stats.studentGroups > 0
         ? Math.max(0, Math.min(100, Math.round(((stats.studentGroups - stats.pendingFeedback) / stats.studentGroups) * 100)))
-        : 0;
+        : 100;
 
-    const upcomingDeadlinePercent = stats.studentGroups > 0
-        ? Math.max(0, Math.min(100, Math.round((timelineEvents.length / stats.studentGroups) * 100)))
-        : 0;
+    const academicTitleLabel = {
+        THAC_SI: 'Thạc sĩ',
+        TIEN_SI: 'Tiến sĩ',
+        PHO_GIAO_SU: 'Phó Giáo sư',
+    }[user?.academicTitle] || 'Giảng viên';
 
-    const statCards = [
-        { label: 'Đang hướng dẫn', value: stats.activeTopics, icon: 'group', bgColor: 'bg-blue-50', iconColor: 'text-blue-600' },
-        { label: 'Sinh viên đang hướng dẫn', value: stats.studentGroups, icon: 'person_add', bgColor: 'bg-green-50', iconColor: 'text-green-600', valueColor: 'text-green-600' },
-        { label: 'Đồ án hoàn thành', value: stats.completedRegistrations, icon: 'verified', bgColor: 'bg-purple-50', iconColor: 'text-purple-600' },
-        { label: 'Phản hồi chờ xử lý', value: stats.pendingFeedback, icon: 'chat_bubble', bgColor: 'bg-orange-50', iconColor: 'text-orange-600', valueColor: 'text-orange-600' },
+    const recentColumns = [
+        {
+            title: 'Sinh viên',
+            key: 'student',
+            width: 220,
+            render: (_, item) => {
+                const initials = (item.studentName || 'SV').trim().split(' ').slice(-1)[0][0]?.toUpperCase();
+                return (
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center text-xs shrink-0 border border-blue-200">
+                            {initials}
+                        </div>
+                        <div className="min-w-0">
+                            <p className="text-sm font-bold text-slate-900 leading-snug truncate">{item.studentName}</p>
+                            <code className="text-[11px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded mt-0.5 inline-block">
+                                {item.studentCode || item.groupName || 'SV'}
+                            </code>
+                        </div>
+                    </div>
+                );
+            },
+        },
+        {
+            title: 'Đề tài đồ án',
+            dataIndex: 'topicTitle',
+            key: 'topicTitle',
+            ellipsis: true,
+            render: (title) => (
+                <Tooltip title={title}>
+                    <span className="text-sm font-semibold text-slate-800 line-clamp-2">{title}</span>
+                </Tooltip>
+            ),
+        },
+        {
+            title: 'Giai đoạn / Nhiệm vụ',
+            dataIndex: 'taskTitle',
+            key: 'taskTitle',
+            width: 170,
+            render: (taskTitle) => (
+                <span className="text-xs font-semibold px-2.5 py-1 bg-slate-100 text-slate-700 rounded-md border border-slate-200 inline-block">
+                    {taskTitle || 'Báo cáo tiến độ'}
+                </span>
+            ),
+        },
+        {
+            title: 'Trạng thái',
+            key: 'status',
+            width: 120,
+            align: 'center',
+            render: () => (
+                <span className="inline-flex items-center gap-1.5 py-0.5 px-2.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                    Mới nộp
+                </span>
+            ),
+        },
+        {
+            title: 'Thao tác',
+            key: 'action',
+            width: 100,
+            align: 'right',
+            render: () => (
+                <Button
+                    size="small"
+                    type="link"
+                    icon={<EditOutlined />}
+                    onClick={() => navigate('/lecturer/progress')}
+                    className="font-bold text-xs"
+                >
+                    Đánh giá
+                </Button>
+            ),
+        },
     ];
 
     return (
-        <div className="py-2">
+        <div className="py-2 space-y-5">
             <PageHeader
-                title="Bảng điều khiển Giảng viên"
-                subtitle={`Xin chào, ${user?.fullName || 'Giảng viên'}`}
+                breadcrumb={[
+                    { label: 'Cổng Giảng viên' },
+                    { label: 'Bảng điều khiển' },
+                ]}
+                title={`Xin chào, ${academicTitleLabel} ${user?.fullName || ''}`}
+                subtitle="Theo dõi tiến độ hướng dẫn đồ án, tiếp nhận bài nộp của sinh viên và quản lý hạn mức quota đào tạo."
+                tags={[
+                    { label: `Học vị: ${academicTitleLabel}`, color: 'blue' },
+                    { label: `Quota: ${stats.studentGroups}/${maxQuota} SV`, color: stats.studentGroups >= maxQuota ? 'red' : 'green' },
+                ]}
                 actions={
-                    <>
-                        <button
+                    <Space>
+                        <Button
+                            type="primary"
+                            icon={<PlusOutlined />}
                             onClick={() => navigate('/lecturer/topics')}
-                            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-bold shadow-sm hover:bg-primary/90 transition-all"
                         >
-                            <span className="material-symbols-outlined text-[20px]">add</span>
-                            <span>Tạo đồ án mới</span>
-                        </button>
-                        <button
+                            Tạo đề tài mới
+                        </Button>
+                        <Button
+                            icon={<CheckCircleOutlined />}
                             onClick={() => navigate('/lecturer/approvals')}
-                            className="flex items-center gap-2 px-4 py-2 border border-slate-200 bg-white rounded-lg text-sm font-bold shadow-sm hover:bg-slate-50 transition-all relative"
+                            className="relative"
                         >
-                            <span>Phê duyệt đăng ký</span>
+                            Duyệt sinh viên
                             {stats.pendingFeedback > 0 && (
-                                <span className="flex items-center justify-center bg-red-500 text-white text-[10px] w-5 h-5 rounded-full absolute -top-2 -right-2 border-2 border-white">
+                                <span className="ml-1 px-1.5 py-0.2 bg-rose-500 text-white rounded-full text-[10px] font-bold">
                                     {stats.pendingFeedback}
                                 </span>
                             )}
-                        </button>
-                    </>
+                        </Button>
+                    </Space>
                 }
             />
 
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                {statCards.map((card, index) => (
-                    <StatCard key={index} {...card} />
-                ))}
+            {/* 4 StatCards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <StatCard
+                    icon="folder_open"
+                    iconBg="bg-blue-50"
+                    iconColor="text-blue-600"
+                    label="Đề tài đang mở"
+                    value={stats.activeTopics}
+                />
+                <StatCard
+                    icon="group"
+                    iconBg="bg-emerald-50"
+                    iconColor="text-emerald-600"
+                    label="Sinh viên đang hướng dẫn"
+                    value={`${stats.studentGroups} / ${maxQuota}`}
+                />
+                <StatCard
+                    icon="verified"
+                    iconBg="bg-purple-50"
+                    iconColor="text-purple-600"
+                    label="Đồ án hoàn thành"
+                    value={stats.completedRegistrations}
+                />
+                <StatCard
+                    icon="chat_bubble"
+                    iconBg="bg-amber-50"
+                    iconColor="text-amber-600"
+                    label="Bài nộp chờ phản hồi"
+                    value={stats.pendingFeedback}
+                />
             </div>
 
-            {/* Main Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-10 gap-8">
-                {/* Table Section (70%) */}
-                <div className="lg:col-span-7 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-                        <h3 className="font-bold text-slate-900">Bài nộp cần phản hồi gần đây</h3>
-                        <button className="text-primary text-xs font-bold hover:underline" onClick={() => navigate('/lecturer/progress')}>
-                            Xem tất cả
-                        </button>
+            {/* Main Content Grid (7/3) */}
+            <div className="grid grid-cols-1 lg:grid-cols-10 gap-5">
+                {/* Left 7 Cols: Recent Submissions */}
+                <div className="lg:col-span-7 bg-white rounded-xl border border-slate-200/80 shadow-sm p-4 lg:p-6 space-y-4">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                        <div>
+                            <h3 className="font-bold text-slate-900 text-base">Bài nộp cần phản hồi gần đây</h3>
+                            <p className="text-xs text-slate-500">Các nhiệm vụ và biểu mẫu sinh viên vừa nộp cần giảng viên kiểm duyệt</p>
+                        </div>
+                        <Button
+                            type="link"
+                            onClick={() => navigate('/lecturer/progress')}
+                            className="font-bold text-xs p-0 flex items-center gap-1"
+                        >
+                            Xem tất cả <RightOutlined className="text-[10px]" />
+                        </Button>
                     </div>
 
-                    {recentSubmissions.length === 0 ? (
-                        <div className="p-12 text-center">
-                            <span className="material-symbols-outlined text-4xl text-slate-300 mb-4 block">inbox</span>
-                            <p className="text-slate-500 font-medium">Không có bài nộp nào đang chờ phản hồi</p>
-                        </div>
-                    ) : (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left">
-                                <thead className="bg-slate-50 text-slate-500 text-[11px] font-bold uppercase tracking-wider">
-                                    <tr>
-                                        <th className="px-6 py-4">Sinh viên</th>
-                                        <th className="px-6 py-4">Đề tài đồ án</th>
-                                        <th className="px-6 py-4 text-center">Giai đoạn</th>
-                                        <th className="px-6 py-4">Trạng thái</th>
-                                        <th className="px-6 py-4 text-right">Hành động</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {recentSubmissions.map((item, index) => {
-                                        const colors = ['bg-blue-100 text-blue-700', 'bg-orange-100 text-orange-700', 'bg-pink-100 text-pink-700', 'bg-emerald-100 text-emerald-700'];
-                                        const initials = (item.studentName || 'SV').split(' ').map(w => w[0]).join('').slice(-2).toUpperCase();
-                                        return (
-                                            <tr key={item.id || index} className="hover:bg-slate-50 transition-colors">
-                                                <td className="px-6 py-4">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className={`w-8 h-8 rounded-full ${colors[index % colors.length]} flex items-center justify-center font-bold text-xs`}>
-                                                            {initials}
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-sm font-bold">{item.studentName}</p>
-                                                            <p className="text-[11px] text-slate-500">Mã SV: {item.groupName}</p>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <p className="text-sm text-slate-700 max-w-xs truncate">{item.topicTitle}</p>
-                                                </td>
-                                                <td className="px-6 py-4 text-center">
-                                                    <span className="text-xs font-bold px-2 py-1 bg-slate-100 rounded">{item.taskTitle || 'N/A'}</span>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <span className="inline-flex items-center gap-1.5 py-0.5 px-2 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
-                                                        <span className="w-1.5 h-1.5 rounded-full bg-orange-600"></span>
-                                                        Mới nộp
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4 text-right">
-                                                    <button
-                                                        className="p-1 hover:bg-slate-100 rounded transition-colors"
-                                                        onClick={() => navigate('/lecturer/progress')}
-                                                    >
-                                                        <span className="material-symbols-outlined text-[18px] text-slate-400">edit</span>
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
+                    <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+                        <Table
+                            dataSource={recentSubmissions}
+                            columns={recentColumns}
+                            rowKey={(r, idx) => r.id || idx}
+                            pagination={false}
+                            size="middle"
+                            locale={{
+                                emptyText: (
+                                    <div className="py-8 text-center text-slate-400">
+                                        <span className="material-symbols-outlined text-4xl mb-2 block">task_alt</span>
+                                        <p className="text-sm font-medium">Hiện không có bài nộp nào đang chờ phản hồi</p>
+                                    </div>
+                                ),
+                            }}
+                        />
+                    </div>
                 </div>
 
-                {/* Right Sidebar Section (30%) */}
-                <div className="lg:col-span-3 space-y-8">
-                    {/* Deadlines */}
-                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                        <div className="p-6 border-b border-slate-100">
-                            <h3 className="font-bold text-slate-900 flex items-center gap-2">
-                                <span className="material-symbols-outlined text-red-500">notification_important</span>
-                                Sắp tới hạn
-                            </h3>
+                {/* Right 3 Cols: Deadlines & Overall Stats */}
+                <div className="lg:col-span-3 space-y-5">
+                    {/* Upcoming Deadlines */}
+                    <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-5 space-y-3">
+                        <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                            <span className="material-symbols-outlined text-rose-500 text-[20px]">notification_important</span>
+                            <h3 className="font-bold text-slate-900 text-sm">Mốc thời gian sắp tới</h3>
                         </div>
-                        <div className="p-6 space-y-4">
-                            {timelineEvents.length === 0 ? (
-                                <p className="text-slate-500 text-sm text-center py-4">Không có mốc thời gian sắp tới</p>
-                            ) : (
-                                timelineEvents.slice(0, 3).map((evt, index) => {
-                                    const isUrgent = evt.color === 'red';
-                                    const borderColor = isUrgent ? 'border-red-500' : 'border-orange-500';
-                                    const bgColor = isUrgent ? 'bg-red-50' : 'bg-orange-50';
-                                    const textColor = isUrgent ? 'text-red-700' : 'text-orange-700';
-                                    const labelColor = isUrgent ? 'text-red-600' : 'text-orange-600';
-                                    const labelBg = isUrgent ? 'border-red-100' : 'border-orange-100';
 
+                        {timelineEvents.length === 0 ? (
+                            <p className="text-slate-400 text-xs text-center py-4">Không có mốc sự kiện nào sắp tới</p>
+                        ) : (
+                            <div className="space-y-2.5">
+                                {timelineEvents.slice(0, 3).map((evt, idx) => {
+                                    const isUrgent = evt.color === 'red';
                                     return (
-                                        <div key={index} className={`p-3 ${bgColor} border-l-4 ${borderColor} rounded-r-lg`}>
-                                            <div className="flex justify-between items-start mb-1">
-                                                <p className={`text-xs font-bold ${textColor} uppercase`}>{evt.title}</p>
-                                                <span className={`text-[10px] ${labelColor} font-bold bg-white px-1.5 py-0.5 rounded border ${labelBg}`}>
+                                        <div
+                                            key={idx}
+                                            className={`p-3 rounded-xl border text-xs space-y-1 ${
+                                                isUrgent
+                                                    ? 'bg-rose-50/70 border-rose-200 text-rose-900'
+                                                    : 'bg-amber-50/70 border-amber-200 text-amber-900'
+                                            }`}
+                                        >
+                                            <div className="flex items-center justify-between font-bold">
+                                                <span className="truncate pr-2">{evt.title}</span>
+                                                <span className="text-[10px] font-mono px-1.5 py-0.2 bg-white rounded border border-current shrink-0">
                                                     {dayjs(evt.date).format('DD/MM')}
                                                 </span>
                                             </div>
-                                            <p className="text-xs text-slate-500 mt-1 italic">{evt.desc}</p>
+                                            <p className="text-[11px] opacity-80 leading-relaxed line-clamp-2">{evt.desc}</p>
                                         </div>
                                     );
-                                })
-                            )}
-                        </div>
+                                })}
+                            </div>
+                        )}
                     </div>
 
-                    {/* Stats/Progress */}
-                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden p-6">
-                        <h3 className="font-bold text-slate-900 mb-6">Thống kê hướng dẫn</h3>
-                        <div className="space-y-4">
+                    {/* Mentorship Stats Progress */}
+                    <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-5 space-y-4">
+                        <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                            <span className="material-symbols-outlined text-indigo-600 text-[20px]">donut_large</span>
+                            <h3 className="font-bold text-slate-900 text-sm">Tiến độ hướng dẫn</h3>
+                        </div>
+
+                        <div className="space-y-3.5">
                             <div>
-                                <div className="flex justify-between text-xs mb-1.5">
-                                    <span className="text-slate-500 font-medium">Tỷ lệ hoàn thành đồ án</span>
-                                    <span className="text-primary font-bold">{completionPercent}%</span>
+                                <div className="flex justify-between text-xs mb-1 font-medium">
+                                    <span className="text-slate-600">Hoàn thành đồ án</span>
+                                    <span className="font-bold text-blue-600">{completionPercent}%</span>
                                 </div>
-                                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                                    <div className="bg-primary h-full rounded-full" style={{ width: `${completionPercent}%` }}></div>
-                                </div>
+                                <Progress percent={completionPercent} strokeColor="#1E3A5F" showInfo={false} size="small" />
                             </div>
+
                             <div>
-                                <div className="flex justify-between text-xs mb-1.5">
-                                    <span className="text-slate-500 font-medium">Tỷ lệ đã phản hồi bài nộp</span>
-                                    <span className="text-green-600 font-bold">{feedbackHandledPercent}%</span>
+                                <div className="flex justify-between text-xs mb-1 font-medium">
+                                    <span className="text-slate-600">Đã phản hồi bài nộp</span>
+                                    <span className="font-bold text-emerald-600">{feedbackHandledPercent}%</span>
                                 </div>
-                                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                                    <div className="bg-green-500 h-full rounded-full" style={{ width: `${feedbackHandledPercent}%` }}></div>
-                                </div>
+                                <Progress percent={feedbackHandledPercent} strokeColor="#10B981" showInfo={false} size="small" />
                             </div>
+
                             <div>
-                                <div className="flex justify-between text-xs mb-1.5">
-                                    <span className="text-slate-500 font-medium">Mức độ deadline sắp tới</span>
-                                    <span className="text-purple-600 font-bold">{upcomingDeadlinePercent}%</span>
+                                <div className="flex justify-between text-xs mb-1 font-medium">
+                                    <span className="text-slate-600">Hạn mức sinh viên đã nhận</span>
+                                    <span className="font-bold text-purple-600">
+                                        {Math.round((stats.studentGroups / maxQuota) * 100)}%
+                                    </span>
                                 </div>
-                                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                                    <div className="bg-purple-500 h-full rounded-full" style={{ width: `${upcomingDeadlinePercent}%` }}></div>
-                                </div>
+                                <Progress
+                                    percent={Math.round((stats.studentGroups / maxQuota) * 100)}
+                                    strokeColor="#7C3AED"
+                                    showInfo={false}
+                                    size="small"
+                                />
                             </div>
                         </div>
                     </div>

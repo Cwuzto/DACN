@@ -1,5 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button, Input, InputNumber, Modal, Select, Space, Table, Tabs, Tag, Tooltip, message } from 'antd';
+import {
+    Button,
+    Input,
+    InputNumber,
+    Modal,
+    Select,
+    Space,
+    Table,
+    Tabs,
+    Tag,
+    Tooltip,
+    message,
+    Dropdown,
+} from 'antd';
 import {
     CheckCircleOutlined,
     ClockCircleOutlined,
@@ -11,6 +24,10 @@ import {
     SearchOutlined,
     TeamOutlined,
     UnlockOutlined,
+    WarningOutlined,
+    EllipsisOutlined,
+    EditOutlined,
+    EyeOutlined,
 } from '@ant-design/icons';
 
 import PageHeader from '../../components/common/PageHeader';
@@ -22,10 +39,10 @@ import userService from '../../services/userService';
 import { PROJECT_NAME, formatSemesterLabel } from '../../utils/semesterDisplay';
 
 const TABS = [
-    { key: 'PENDING_ASSIGNMENT', label: 'Chờ phân công', color: 'orange' },
-    { key: 'ASSIGNED_COUNCIL', label: 'Đã phân công HĐ', color: 'blue' },
-    { key: 'AWAITING_GRADING', label: 'Chờ nhập điểm', color: 'gold' },
-    { key: 'COMPLETED', label: 'Hoàn tất', color: 'green' },
+    { key: 'PENDING_ASSIGNMENT', label: 'Chờ phân công', color: 'orange', countKey: 'PENDING_ASSIGNMENT' },
+    { key: 'ASSIGNED_COUNCIL', label: 'Đã phân công HĐ', color: 'blue', countKey: 'ASSIGNED_COUNCIL' },
+    { key: 'AWAITING_GRADING', label: 'Chờ nhập điểm', color: 'gold', countKey: 'AWAITING_GRADING' },
+    { key: 'COMPLETED', label: 'Hoàn tất', color: 'green', countKey: 'COMPLETED' },
 ];
 
 const GRADING_BADGE = {
@@ -39,17 +56,19 @@ const LEVEL_OPTIONS = [
     { value: 'TRUNG_BINH', label: 'Trung bình (50%-69%)', ratio: 0.595 },
     { value: 'KEM', label: 'Kém (<50%)', ratio: 0.25 },
 ];
+
 const ROLE_LABELS = {
     CHAIRMAN: 'Chủ tịch',
     SECRETARY: 'Thư ký',
-    REVIEWER: 'Ủy viên',
+    REVIEWER: 'Phản biện',
+    MEMBER: 'Ủy viên',
 };
 
 const LEVEL_TEXT_MAP = {
-    TOT: 'Tot (85%-100%)',
-    KHA: 'Kha (70%-84%)',
-    TRUNG_BINH: 'Trung binh (50%-69%)',
-    KEM: 'Kem (<50%)',
+    TOT: 'Tốt (85%-100%)',
+    KHA: 'Khá (70%-84%)',
+    TRUNG_BINH: 'Trung bình (50%-69%)',
+    KEM: 'Kém (<50%)',
 };
 
 const getLevelByScore = (score, maxScore) => {
@@ -201,7 +220,7 @@ function GradingDefensePage() {
 
     const handleRemindGrading = async () => {
         if (!selectedRowKeys.length) {
-            message.warning('Vui lòng chọn ít nhất 1 dòng');
+            message.warning('Vui lòng chọn ít nhất 1 dòng hồ sơ');
             return;
         }
 
@@ -224,7 +243,7 @@ function GradingDefensePage() {
             setLockingId(registrationId);
             const res = await evaluationService.setDefenseScoreLock(registrationId, action);
             if (res.success) {
-                message.success(res.message || (action === 'LOCK' ? 'Đã khóa điểm' : 'Đã mở khóa điểm'));
+                message.success(res.message || (action === 'LOCK' ? 'Đã khóa điểm bảo vệ' : 'Đã mở khóa điểm bảo vệ'));
                 fetchData(true);
             }
         } catch (err) {
@@ -297,7 +316,7 @@ function GradingDefensePage() {
 
         const normalizedOptions = (payload.memberScores || []).map((m) => ({
             value: m.evaluatorId,
-            label: `${m.evaluatorName || `GV ${m.evaluatorId}`} (${m.finalScore ?? 'Chua cham'})`,
+            label: `${m.evaluatorName || `GV ${m.evaluatorId}`} (${m.finalScore ?? 'Chưa chấm'})`,
         }));
 
         setScoreSheetRegistration(payload.registration || null);
@@ -329,7 +348,7 @@ function GradingDefensePage() {
             setScoreModalLoading(true);
             await loadScoreSheet(scoreSheetRegistration.id, evaluatorId);
         } catch (err) {
-            message.error(err?.message || 'Khong the tai phieu cua nguoi cham da chon');
+            message.error(err?.message || 'Không thể tải phiếu của người chấm đã chọn');
         } finally {
             setScoreModalLoading(false);
         }
@@ -395,177 +414,212 @@ function GradingDefensePage() {
             {
                 title: 'Sinh viên',
                 key: 'student',
-                width: 200,
+                width: 210,
+                render: (_, r) => {
+                    const initials = r.student?.fullName
+                        ? r.student.fullName.trim().split(' ').slice(-1)[0][0]?.toUpperCase()
+                        : 'S';
+                    return (
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-800 font-bold flex items-center justify-center text-xs shrink-0 border border-blue-200">
+                                {initials}
+                            </div>
+                            <div className="min-w-0">
+                                <div className="font-bold text-slate-900 leading-snug truncate">
+                                    {r.student?.fullName || '—'}
+                                </div>
+                                {r.student?.code && (
+                                    <code className="text-[11px] font-mono bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded mt-0.5 inline-block">
+                                        {r.student.code}
+                                    </code>
+                                )}
+                            </div>
+                        </div>
+                    );
+                },
+            },
+            {
+                title: 'Đề tài & GVHD',
+                key: 'topic',
+                width: 320,
                 render: (_, r) => (
-                    <div>
-                        <div className="font-semibold text-slate-900 leading-tight">{r.student?.fullName || '—'}</div>
-                        {r.student?.code && (
-                            <code className="text-[11px] bg-slate-100 px-1.5 py-0.5 rounded mt-0.5 inline-block">
-                                {r.student.code}
-                            </code>
-                        )}
+                    <div className="space-y-1">
+                        <Tooltip title={r.topic?.title}>
+                            <div className="font-semibold text-slate-800 line-clamp-2 text-sm leading-snug">
+                                {r.topic?.title || '—'}
+                            </div>
+                        </Tooltip>
+                        <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                            <span className="font-medium text-slate-600">GVHD:</span>
+                            <span>{r.mentor?.fullName || 'Chưa phân công'}</span>
+                        </div>
                     </div>
                 ),
+            },
+            {
+                title: 'Hội đồng bảo vệ',
+                key: 'council',
+                width: 220,
+                render: (_, r) => {
+                    if (!r.council) {
+                        return <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-200">Chưa gán HĐ</span>;
+                    }
+                    return (
+                        <div className="space-y-1">
+                            <Tag color="blue" className="font-semibold m-0 text-xs">
+                                {r.council.name}
+                            </Tag>
+                            <div className="text-[11px] text-slate-500 flex items-center gap-2">
+                                <span>{fmtDate(r.council?.defenseDate || r.semester?.defenseDate)}</span>
+                                {r.council?.location && <span>• {r.council.location}</span>}
+                            </div>
+                        </div>
+                    );
+                },
+            },
+            {
+                title: 'Điểm thành viên',
+                key: 'memberScores',
+                width: 210,
+                render: (_, r) => {
+                    const memberScores = r.memberScores || [];
+                    const scores = memberScores.map((m) => Number(m.finalScore)).filter((n) => Number.isFinite(n));
+                    const discrepancy = scores.length >= 2 ? Math.max(...scores) - Math.min(...scores) : 0;
+                    const hasDiscrepancy = discrepancy >= 2.0;
+
+                    if (!memberScores.length) {
+                        return <span className="text-xs text-slate-400 italic">Chưa có điểm</span>;
+                    }
+
+                    return (
+                        <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-1">
+                                {memberScores.map((m, idx) => (
+                                    <Tag
+                                        key={idx}
+                                        className="text-[11px] m-0 border-slate-200"
+                                        color={m.finalScore !== null && m.finalScore !== undefined ? 'default' : 'orange'}
+                                    >
+                                        <span className="text-slate-500 font-mono mr-1">
+                                            {m.evaluator?.fullName ? m.evaluator.fullName.split(' ').slice(-1)[0] : `GV${idx + 1}`}:
+                                        </span>
+                                        <b className="text-slate-900">{m.finalScore ?? '—'}</b>
+                                    </Tag>
+                                ))}
+                            </div>
+                            {hasDiscrepancy && (
+                                <Tooltip title={`Điểm giữa các thành viên chênh lệch ${discrepancy.toFixed(1)}đ (>= 2.0đ). Cần hội đồng hội ý thống nhất điểm!`}>
+                                    <div className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">
+                                        <WarningOutlined /> Lệch {discrepancy.toFixed(1)}đ
+                                    </div>
+                                </Tooltip>
+                            )}
+                        </div>
+                    );
+                },
             },
             {
                 title: 'Điểm cuối',
                 key: 'finalScore',
                 width: 100,
                 align: 'center',
-                render: (_, r) =>
-                    r.finalScore !== null && r.finalScore !== undefined ? (
-                        <span className="font-black text-base text-primary">{r.finalScore}</span>
-                    ) : (
-                        <span className="text-slate-300">—</span>
-                    ),
+                render: (_, r) => {
+                    if (r.finalScore === null || r.finalScore === undefined) {
+                        return <span className="text-slate-300 font-bold">—</span>;
+                    }
+                    const num = Number(r.finalScore);
+                    let colorClass = 'text-blue-600';
+                    if (num >= 8.5) colorClass = 'text-emerald-600';
+                    else if (num < 5.0) colorClass = 'text-rose-600';
+
+                    return (
+                        <div className="text-center">
+                            <span className={`font-black text-lg ${colorClass}`}>{num.toFixed(1)}</span>
+                            <div className="text-[10px] text-slate-400 font-medium">Thang 10</div>
+                        </div>
+                    );
+                },
             },
             {
-                title: 'Đề tài',
-                key: 'topic',
-                width: 280,
-                ellipsis: { showTitle: false },
-                render: (_, r) => (
-                    <Tooltip title={r.topic?.title}>
-                        <span className="text-sm text-slate-600 line-clamp-2">{r.topic?.title || '—'}</span>
-                    </Tooltip>
-                ),
-            },
-            {
-                title: 'Tên đồ án',
-                key: 'projectName',
-                width: 130,
-                render: () => <span className="text-sm">{PROJECT_NAME}</span>,
-            },
-            {
-                title: 'Đợt đồ án',
-                key: 'semester',
-                width: 170,
-                render: (_, r) => (
-                    <span className="text-sm">
-                        {r.semester ? formatSemesterLabel(r.semester) : '—'}
-                    </span>
-                ),
-            },
-            {
-                title: 'GVHD',
-                key: 'mentor',
-                width: 170,
-                render: (_, r) => <span className="text-sm">{r.mentor?.fullName || '—'}</span>,
-            },
-            {
-                title: 'Hội đồng',
-                key: 'council',
-                width: 170,
-                render: (_, r) =>
-                    r.council ? (
-                        <Tag color="blue">{r.council.name}</Tag>
-                    ) : (
-                        <span className="text-slate-400 text-xs italic">Chưa phân công</span>
-                    ),
-            },
-            {
-                title: 'Lịch bảo vệ',
-                key: 'defenseDate',
-                width: 130,
-                render: (_, r) => (
-                    <span className="text-sm">{fmtDate(r.council?.defenseDate || r.semester?.defenseDate)}</span>
-                ),
-            },
-            {
-                title: 'Trạng thái chấm',
-                key: 'gradingStatus',
+                title: 'Trạng thái',
+                key: 'status',
                 width: 130,
                 align: 'center',
                 render: (_, r) => {
                     const badge = GRADING_BADGE[r.gradingStatus] || GRADING_BADGE.PENDING;
-                    return <Tag color={badge.color}>{badge.text}</Tag>;
+                    return (
+                        <div className="flex flex-col items-center gap-1">
+                            <Tag color={badge.color} className="m-0 font-medium text-xs">
+                                {badge.text}
+                            </Tag>
+                            {r.scoreLocked ? (
+                                <Tag color="green" className="m-0 text-[10px]">
+                                    <LockOutlined className="mr-0.5" /> Đã khóa
+                                </Tag>
+                            ) : (
+                                <Tag color="default" className="m-0 text-[10px] text-slate-500">
+                                    <UnlockOutlined className="mr-0.5" /> Chưa khóa
+                                </Tag>
+                            )}
+                        </div>
+                    );
                 },
-            },
-            {
-                title: 'Khóa điểm',
-                key: 'scoreLocked',
-                width: 120,
-                align: 'center',
-                render: (_, r) => (
-                    r.scoreLocked
-                        ? <Tag color="green">Đã khóa</Tag>
-                        : <Tag color="orange">Chưa khóa</Tag>
-                ),
             },
             {
                 title: 'Cập nhật',
                 key: 'lastUpdated',
-                width: 140,
+                width: 130,
                 render: (_, r) => <span className="text-xs text-slate-500">{fmtDateTime(r.lastUpdatedAt)}</span>,
             },
         ];
 
         if (activeTab === 'AWAITING_GRADING' || activeTab === 'COMPLETED') {
             base.push({
-                title: 'Barem',
-                key: 'scoresheet',
-                width: 120,
-                align: 'center',
-                render: (_, r) => (
-                    <Button
-                        size="small"
-                        onClick={() => openScoreSheetModal(r.registrationId)}
-                        className="text-xs border-indigo-200 text-indigo-700 bg-indigo-50/50 hover:border-indigo-300"
-                    >
-                        {r.finalScore === null || r.finalScore === undefined ? 'Chấm điểm' : 'Sửa điểm'}
-                    </Button>
-                ),
-            });
-
-            base.push({
-                title: 'PDF',
-                key: 'pdfExport',
-                width: 90,
-                align: 'center',
-                render: (_, r) => (
-                    <Button
-                        size="small"
-                        icon={<DownloadOutlined />}
-                        loading={exportingId === r.registrationId}
-                        onClick={() => handleExportPdf(r.registrationId)}
-                        className="text-xs border-blue-200 text-blue-700 bg-blue-50/50 hover:border-blue-300"
-                    >
-                        PDF
-                    </Button>
-                ),
-            });
-
-            base.push({
-                title: '',
+                title: 'Thao tác',
                 key: 'actions',
-                width: 120,
+                width: 140,
                 align: 'right',
                 render: (_, r) => {
-                    if (activeTab === 'COMPLETED') {
-                        return (
-                            <Button
-                                size="small"
-                                icon={<UnlockOutlined />}
-                                loading={lockingId === r.registrationId}
-                                onClick={() => handleScoreLock(r.registrationId, 'UNLOCK')}
-                                className="text-xs border-orange-200 text-orange-600 bg-orange-50/50 hover:border-orange-300"
-                            >
-                                Mở khóa
-                            </Button>
-                        );
-                    }
+                    const menuItems = [
+                        {
+                            key: 'scoresheet',
+                            icon: <EditOutlined />,
+                            label: r.finalScore === null || r.finalScore === undefined ? 'Chấm điểm barem' : 'Xem & Sửa điểm',
+                            onClick: () => openScoreSheetModal(r.registrationId),
+                        },
+                        {
+                            key: 'pdf',
+                            icon: <DownloadOutlined />,
+                            label: 'Xuất PDF bảng điểm',
+                            disabled: exportingId === r.registrationId,
+                            onClick: () => handleExportPdf(r.registrationId),
+                        },
+                        { type: 'divider' },
+                        activeTab === 'COMPLETED'
+                            ? {
+                                key: 'unlock',
+                                icon: <UnlockOutlined />,
+                                label: 'Mở khóa điểm',
+                                danger: true,
+                                disabled: lockingId === r.registrationId,
+                                onClick: () => handleScoreLock(r.registrationId, 'UNLOCK'),
+                            }
+                            : {
+                                key: 'lock',
+                                icon: <LockOutlined />,
+                                label: 'Khóa kết quả điểm',
+                                disabled: r.gradingStatus !== 'GRADED' || lockingId === r.registrationId,
+                                onClick: () => handleScoreLock(r.registrationId, 'LOCK'),
+                            },
+                    ];
 
-                    return r.gradingStatus === 'GRADED' ? (
-                        <Button
-                            size="small"
-                            icon={<LockOutlined />}
-                            loading={lockingId === r.registrationId}
-                            onClick={() => handleScoreLock(r.registrationId, 'LOCK')}
-                            className="text-xs border-green-200 text-green-700 bg-green-50/50 hover:border-green-300"
-                        >
-                            Khóa điểm
-                        </Button>
-                    ) : null;
+                    return (
+                        <Dropdown menu={{ items: menuItems }} trigger={['click']} placement="bottomRight">
+                            <Button size="small" className="text-xs font-semibold text-slate-700 hover:text-primary">
+                                Thao tác <EllipsisOutlined />
+                            </Button>
+                        </Dropdown>
+                    );
                 },
             });
         }
@@ -583,11 +637,13 @@ function GradingDefensePage() {
     const tabItems = TABS.map((t) => ({
         key: t.key,
         label: (
-            <span>
+            <span className="flex items-center gap-1.5 font-medium">
                 {t.label}
-                <Tag color={t.color} className="ml-2 rounded-full text-xs font-bold" style={{ marginInlineStart: 8 }}>
-                    {meta.counts?.[t.key] ?? 0}
-                </Tag>
+                <span className={`px-2 py-0.2 rounded-full text-xs font-bold ${
+                    activeTab === t.key ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600'
+                }`}>
+                    {meta.counts?.[t.countKey] ?? 0}
+                </span>
             </span>
         ),
     }));
@@ -595,10 +651,6 @@ function GradingDefensePage() {
     const semesterOptions = useMemo(
         () => semesters.map((semester) => ({ value: semester.id, label: formatSemesterLabel(semester) })),
         [semesters]
-    );
-    const projectOptions = useMemo(
-        () => [{ value: PROJECT_NAME, label: PROJECT_NAME }],
-        []
     );
 
     const councilOptions = useMemo(
@@ -611,119 +663,151 @@ function GradingDefensePage() {
         [mentors]
     );
 
-    const statsData = useMemo(
-        () => [
-            {
-                title: 'Chờ phân công',
-                value: meta.counts?.PENDING_ASSIGNMENT ?? 0,
-                icon: 'hourglass_top',
-                iconBg: 'bg-orange-50',
-                iconColor: 'text-orange-600',
-            },
-            {
-                title: 'Đã phân công hội đồng',
-                value: meta.counts?.ASSIGNED_COUNCIL ?? 0,
-                icon: 'groups',
-                iconBg: 'bg-blue-50',
-                iconColor: 'text-blue-600',
-            },
-            {
-                title: 'Chờ nhập điểm',
-                value: meta.counts?.AWAITING_GRADING ?? 0,
-                icon: 'rate_review',
-                iconBg: 'bg-amber-50',
-                iconColor: 'text-amber-600',
-            },
-            {
-                title: 'Hoàn tất',
-                value: meta.counts?.COMPLETED ?? 0,
-                icon: 'task_alt',
-                iconBg: 'bg-green-50',
-                iconColor: 'text-green-600',
-            },
-        ],
-        [meta.counts]
-    );
-
     const stageDescription = useMemo(() => {
         const map = {
             PENDING_ASSIGNMENT: {
-                icon: <ClockCircleOutlined className="text-orange-500" />,
-                text: 'Danh sách hồ sơ đã đủ điều kiện nhưng chưa gán hội đồng.',
+                icon: <ClockCircleOutlined className="text-orange-500 text-base" />,
+                title: 'Chờ phân công hội đồng',
+                text: 'Hồ sơ sinh viên đã đủ điều kiện bảo vệ nhưng chưa được gán vào hội đồng chấm chính thức.',
             },
             ASSIGNED_COUNCIL: {
-                icon: <TeamOutlined className="text-blue-500" />,
-                text: 'Đã có hội đồng, chờ đến lịch hoặc đang trong phiên bảo vệ.',
+                icon: <TeamOutlined className="text-blue-500 text-base" />,
+                title: 'Đã phân công hội đồng',
+                text: 'Hồ sơ đã được xếp lịch bảo vệ, đang chờ đến phiên bảo vệ hoặc đang diễn ra tại phòng chấm.',
             },
             AWAITING_GRADING: {
-                icon: <FileDoneOutlined className="text-amber-500" />,
-                text: 'Đã bảo vệ xong, hội đồng cần nhập điểm và hoàn tất biên bản.',
+                icon: <FileDoneOutlined className="text-amber-500 text-base" />,
+                title: 'Chờ nhập điểm & Thống nhất biên bản',
+                text: 'Phiên bảo vệ đã hoàn tất, các thành viên hội đồng cần nhập điểm theo barem đánh giá trực tuyến.',
             },
             COMPLETED: {
-                icon: <CheckCircleOutlined className="text-green-600" />,
-                text: 'Điểm đã hoàn tất, có thể mở khóa khi cần điều chỉnh.',
+                icon: <CheckCircleOutlined className="text-emerald-600 text-base" />,
+                title: 'Đã hoàn tất kết quả bảo vệ',
+                text: 'Kết quả điểm đã được tổng hợp và khóa an toàn. Admin có quyền mở khóa khi cần điều chỉnh biên bản.',
             },
         };
-        return map[activeTab];
+        return map[activeTab] || map.PENDING_ASSIGNMENT;
     }, [activeTab]);
 
     return (
-        <div className="py-2">
+        <div className="py-2 space-y-5">
             <PageHeader
-                title="Quản lý Hội đồng bảo vệ"
-                subtitle="Trung tâm điều phối phân công hội đồng, theo dõi chấm điểm và khóa kết quả bảo vệ theo từng workflow stage."
+                breadcrumb={[
+                    { label: 'Quản trị hệ thống' },
+                    { label: 'Hội đồng & Đánh giá' },
+                    { label: 'Trung tâm Chấm bảo vệ' },
+                ]}
+                title="Trung tâm Chấm bảo vệ"
+                subtitle="Điều phối phân công hội đồng, giám sát nhập điểm barem 3 thành viên và quản lý khóa kết quả bảo vệ khóa luận."
+                tags={[
+                    { label: PROJECT_NAME, color: 'blue' },
+                    ...(meta.targetSemester ? [{ label: `Đợt: ${meta.targetSemester.name}`, color: 'geekblue' }] : []),
+                ]}
+                actions={
+                    <Space>
+                        <Button
+                            icon={<ReloadOutlined />}
+                            loading={refreshing}
+                            onClick={() => fetchData(true)}
+                        >
+                            Làm mới
+                        </Button>
+                        {(activeTab === 'AWAITING_GRADING' || activeTab === 'ASSIGNED_COUNCIL') && (
+                            <Button
+                                type="primary"
+                                icon={<NotificationOutlined />}
+                                loading={reminding}
+                                disabled={!selectedRowKeys.length}
+                                onClick={handleRemindGrading}
+                            >
+                                Nhắc chấm điểm {selectedRowKeys.length > 0 && `(${selectedRowKeys.length})`}
+                            </Button>
+                        )}
+                    </Space>
+                }
             />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-5">
-                {statsData.map((card) => (
-                    <StatCard
-                        key={card.title}
-                        icon={card.icon}
-                        iconBg={card.iconBg}
-                        iconColor={card.iconColor}
-                        label={card.title}
-                        value={card.value}
-                    />
-                ))}
+            {/* 4 StatCards with Click to Switch Tabs */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                <StatCard
+                    icon="hourglass_top"
+                    iconBg="bg-orange-50"
+                    iconColor="text-orange-600"
+                    label="Chờ phân công"
+                    value={meta.counts?.PENDING_ASSIGNMENT ?? 0}
+                    active={activeTab === 'PENDING_ASSIGNMENT'}
+                    onClick={() => setActiveTab('PENDING_ASSIGNMENT')}
+                />
+                <StatCard
+                    icon="groups"
+                    iconBg="bg-blue-50"
+                    iconColor="text-blue-600"
+                    label="Đã phân công HĐ"
+                    value={meta.counts?.ASSIGNED_COUNCIL ?? 0}
+                    active={activeTab === 'ASSIGNED_COUNCIL'}
+                    onClick={() => setActiveTab('ASSIGNED_COUNCIL')}
+                />
+                <StatCard
+                    icon="rate_review"
+                    iconBg="bg-amber-50"
+                    iconColor="text-amber-600"
+                    label="Chờ nhập điểm"
+                    value={meta.counts?.AWAITING_GRADING ?? 0}
+                    active={activeTab === 'AWAITING_GRADING'}
+                    onClick={() => setActiveTab('AWAITING_GRADING')}
+                />
+                <StatCard
+                    icon="task_alt"
+                    iconBg="bg-emerald-50"
+                    iconColor="text-emerald-600"
+                    label="Hoàn tất"
+                    value={meta.counts?.COMPLETED ?? 0}
+                    active={activeTab === 'COMPLETED'}
+                    onClick={() => setActiveTab('COMPLETED')}
+                />
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 lg:p-6">
-                <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
-                    <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
-                        {stageDescription.icon}
-                        <span>{stageDescription.text}</span>
+            {/* Main Content Card */}
+            <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-4 lg:p-6 space-y-4">
+                {/* Stage Notification Banner */}
+                <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-white shadow-xs border border-slate-200 flex items-center justify-center shrink-0">
+                            {stageDescription.icon}
+                        </div>
+                        <div>
+                            <div className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                                {stageDescription.title}
+                            </div>
+                            <div className="text-xs text-slate-600 font-medium">
+                                {stageDescription.text}
+                            </div>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-slate-500">
-                        <span>Tổng hồ sơ:</span>
-                        <span className="font-black text-slate-800 text-sm">{meta.total ?? data.length}</span>
+                    <div className="text-xs font-semibold text-slate-500 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shrink-0">
+                        Hồ sơ đợt này: <b className="text-slate-900">{meta.total ?? data.length}</b>
                     </div>
                 </div>
 
-                {meta.targetSemester && (
-                    <div className="text-xs text-slate-500 mb-4">
-                        Đợt hiện tại: <span className="font-bold text-slate-700">{meta.targetSemester.name}</span>
-                    </div>
-                )}
+                {/* Tabs */}
+                <Tabs
+                    activeKey={activeTab}
+                    onChange={(key) => setActiveTab(key)}
+                    items={tabItems}
+                    size="middle"
+                    className="border-b border-slate-100"
+                />
 
-                <Tabs activeKey={activeTab} onChange={(key) => setActiveTab(key)} items={tabItems} size="large" />
-
-                <div className="grid grid-cols-1 lg:grid-cols-15 gap-3 mb-4">
+                {/* Unified Filter Toolbar */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 pt-1">
                     <div className="lg:col-span-4">
                         <Input
-                            placeholder="Tìm SV, mã SV hoặc đề tài..."
-                            prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
+                            placeholder="Tìm sinh viên, mã SV hoặc tên đề tài..."
+                            prefix={<SearchOutlined className="text-slate-400" />}
                             value={searchText}
                             onChange={(e) => setSearchText(e.target.value)}
                             allowClear
-                        />
-                    </div>
-                    <div className="lg:col-span-3">
-                        <Select
                             className="w-full"
-                            placeholder="Tên đồ án"
-                            options={projectOptions}
-                            value={selectedProjectName}
-                            onChange={setSelectedProjectName}
                         />
                     </div>
                     <div className="lg:col-span-3">
@@ -742,7 +826,7 @@ function GradingDefensePage() {
                     <div className="lg:col-span-3">
                         <Select
                             className="w-full"
-                            placeholder="Hội đồng"
+                            placeholder="Lọc theo Hội đồng"
                             options={councilOptions}
                             value={selectedCouncilId}
                             onChange={setSelectedCouncilId}
@@ -765,61 +849,70 @@ function GradingDefensePage() {
                     </div>
                 </div>
 
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                    <Space>
-                        <Button icon={<ReloadOutlined />} loading={refreshing} onClick={() => fetchData(true)}>
-                            Làm mới
-                        </Button>
-                    </Space>
-
-                    {(activeTab === 'AWAITING_GRADING' || activeTab === 'ASSIGNED_COUNCIL') && (
-                        <Button
-                            type="primary"
-                            icon={<NotificationOutlined />}
-                            loading={reminding}
-                            disabled={!selectedRowKeys.length}
-                            onClick={handleRemindGrading}
-                        >
-                            Nhắc chấm điểm {selectedRowKeys.length > 0 && `(${selectedRowKeys.length})`}
-                        </Button>
-                    )}
-                </div>
-
-                <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm mt-2">
+                {/* Data Table */}
+                <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs mt-3">
                     <Table
                         loading={loading}
                         columns={columns}
                         dataSource={data}
                         rowKey="registrationId"
                         rowSelection={rowSelection}
-                        pagination={{ pageSize: 15, showSizeChanger: true, showTotal: (t) => `${t} kết quả` }}
+                        pagination={{
+                            pageSize: 12,
+                            showSizeChanger: true,
+                            showTotal: (total) => `Tổng số ${total} hồ sơ`,
+                        }}
                         size="middle"
-                        scroll={{ x: 1300 }}
+                        scroll={{ x: 1280 }}
                     />
                 </div>
             </div>
 
+            {/* Score Sheet Rubric Modal */}
             <Modal
-                title="Chấm điểm theo barem"
+                title={
+                    <div className="flex items-center gap-2 text-base font-bold text-slate-900">
+                        <FileDoneOutlined className="text-primary" />
+                        Phiếu Chấm Điểm Barem Trực Tuyến
+                    </div>
+                }
                 open={scoreModalOpen}
                 onCancel={() => setScoreModalOpen(false)}
-                width={1200}
+                width={1100}
                 okText="Lưu bảng điểm"
                 onOk={handleSaveScoreSheet}
                 okButtonProps={{ loading: scoreSaving, disabled: scoreModalLoading || scoreLocked }}
                 cancelText="Đóng"
+                centered
             >
                 {scoreSheetRegistration && (
-                    <div className="mb-3 text-sm text-slate-600">
-                        <div><b>Sinh viên:</b> {scoreSheetRegistration.student?.fullName} ({scoreSheetRegistration.student?.code})</div>
-                        <div><b>Ngành học:</b> {scoreSheetRegistration.student?.department || '—'}</div>
-                        <div><b>Đề tài:</b> {scoreSheetRegistration.topic?.title}</div>
+                    <div className="mb-4 bg-slate-50 p-3.5 rounded-xl border border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-slate-700">
+                        <div>
+                            <span className="text-slate-500 block">Sinh viên:</span>
+                            <b className="text-slate-900 text-sm">
+                                {scoreSheetRegistration.student?.fullName}
+                            </b>
+                            <span className="ml-1 text-slate-500 font-mono">
+                                ({scoreSheetRegistration.student?.code})
+                            </span>
+                        </div>
+                        <div>
+                            <span className="text-slate-500 block">Ngành học:</span>
+                            <b>{scoreSheetRegistration.student?.department || 'Công nghệ Thông tin'}</b>
+                        </div>
+                        <div>
+                            <span className="text-slate-500 block">Đề tài khóa luận:</span>
+                            <b className="line-clamp-2 text-slate-900">{scoreSheetRegistration.topic?.title}</b>
+                        </div>
                     </div>
                 )}
 
-                <div className="mb-3 grid grid-cols-1 lg:grid-cols-12 gap-3">
+                {/* Member Evaluator Selector */}
+                <div className="mb-4 grid grid-cols-1 lg:grid-cols-12 gap-3 items-center">
                     <div className="lg:col-span-7">
-                        <div className="text-xs text-slate-500 mb-1">Phiếu chấm của thành viên hội đồng</div>
+                        <div className="text-xs font-semibold text-slate-600 mb-1.5">
+                            Chọn thành viên hội đồng chấm điểm:
+                        </div>
                         <Select
                             className="w-full"
                             value={selectedEvaluatorId}
@@ -830,14 +923,15 @@ function GradingDefensePage() {
                             optionFilterProp="label"
                         />
                     </div>
-                    <div className="lg:col-span-5 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded p-2">
-                        <div><b>Họ tên người chấm:</b> {currentEvaluatorInfo?.fullName || '—'}</div>
-                        <div><b>Chức danh trong HĐ:</b> {ROLE_LABELS[currentEvaluatorInfo?.roleInCouncil] || currentEvaluatorInfo?.roleInCouncil || '—'}</div>
+                    <div className="lg:col-span-5 bg-blue-50/60 border border-blue-200 rounded-lg p-2.5 text-xs text-slate-700">
+                        <div><b>Giảng viên chấm:</b> {currentEvaluatorInfo?.fullName || '—'}</div>
+                        <div><b>Vai trò trong HĐ:</b> {ROLE_LABELS[currentEvaluatorInfo?.roleInCouncil] || currentEvaluatorInfo?.roleInCouncil || '—'}</div>
                     </div>
                 </div>
 
                 <div className="mb-3 flex justify-end">
                     <Button
+                        size="small"
                         icon={<DownloadOutlined />}
                         loading={exportingId === scoreSheetRegistration?.id}
                         onClick={handleExportPdfForSelectedEvaluator}
@@ -848,43 +942,34 @@ function GradingDefensePage() {
                 </div>
 
                 {scoreLocked && (
-                    <div className="mb-3 text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded p-2">
-                        Bảng điểm đang ở trạng thái khóa, cần mở khóa trước khi chỉnh sửa.
+                    <div className="mb-4 text-xs font-medium text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center gap-2">
+                        <LockOutlined className="text-amber-600" />
+                        Bảng điểm này hiện đang ở trạng thái khóa. Vui lòng mở khóa trước khi điều chỉnh điểm số.
                     </div>
                 )}
 
-                <div className="overflow-x-auto border border-slate-300 rounded-md">
-                    <table className="w-full min-w-[1200px] border-collapse text-xs">
+                {/* Rubric Evaluation Table */}
+                <div className="overflow-x-auto border border-slate-200 rounded-xl mb-4">
+                    <table className="w-full min-w-[900px] border-collapse text-xs">
                         <thead>
-                            <tr className="bg-slate-100">
-                                <th className="border border-slate-300 p-2 text-center align-middle" rowSpan={2}>STT</th>
-                                <th className="border border-slate-300 p-2 text-center align-middle" rowSpan={2}>Tieu chi danh gia</th>
-                                <th className="border border-slate-300 p-2 text-center align-middle" rowSpan={2}>Diem toi da</th>
-                                <th className="border border-slate-300 p-2 text-center align-middle" colSpan={4}>Cac cap do danh gia</th>
-                                <th className="border border-slate-300 p-2 text-center align-middle" rowSpan={2}>Muc danh gia</th>
-                                <th className="border border-slate-300 p-2 text-center align-middle" rowSpan={2}>Diem danh gia</th>
-                            </tr>
-                            <tr className="bg-slate-50">
-                                <th className="border border-slate-300 p-2 text-center">Tot<br />85%-100%</th>
-                                <th className="border border-slate-300 p-2 text-center">Kha<br />70%-84%</th>
-                                <th className="border border-slate-300 p-2 text-center">Trung binh<br />50%-69%</th>
-                                <th className="border border-slate-300 p-2 text-center">Kem<br />&lt;50%</th>
+                            <tr className="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider text-[11px]">
+                                <th className="border-b border-r border-slate-200 p-2.5 text-center w-12">STT</th>
+                                <th className="border-b border-r border-slate-200 p-2.5 text-left">Tiêu chí đánh giá</th>
+                                <th className="border-b border-r border-slate-200 p-2.5 text-center w-24">Điểm max</th>
+                                <th className="border-b border-r border-slate-200 p-2.5 text-center w-48">Mức đánh giá</th>
+                                <th className="border-b border-slate-200 p-2.5 text-center w-40">Điểm chấm</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody className="divide-y divide-slate-200">
                             {scoreSheetRows.map((row, index) => (
-                                <tr key={row.criterionCode}>
-                                    <td className="border border-slate-300 p-2 align-top text-center">{index + 1}</td>
-                                    <td className="border border-slate-300 p-2 align-top">
-                                        <div className="font-semibold">{row.criterionLabel}</div>
-                                        <div className="text-[11px] text-slate-500">{row.criterionCode}</div>
+                                <tr key={row.criterionCode} className="hover:bg-slate-50/60">
+                                    <td className="p-2.5 text-center text-slate-500 font-mono border-r border-slate-200">{index + 1}</td>
+                                    <td className="p-2.5 border-r border-slate-200">
+                                        <div className="font-semibold text-slate-800">{row.criterionLabel}</div>
+                                        <div className="text-[11px] text-slate-400 font-mono">{row.criterionCode}</div>
                                     </td>
-                                    <td className="border border-slate-300 p-2 align-top text-center font-semibold">{row.maxScore}</td>
-                                    <td className="border border-slate-300 p-2 align-top text-slate-500">Dat muc Tot</td>
-                                    <td className="border border-slate-300 p-2 align-top text-slate-500">Dat muc Kha</td>
-                                    <td className="border border-slate-300 p-2 align-top text-slate-500">Dat muc Trung binh</td>
-                                    <td className="border border-slate-300 p-2 align-top text-slate-500">Dat muc Kem</td>
-                                    <td className="border border-slate-300 p-2 align-top">
+                                    <td className="p-2.5 text-center font-bold text-slate-700 border-r border-slate-200">{row.maxScore}</td>
+                                    <td className="p-2.5 border-r border-slate-200">
                                         <Select
                                             className="w-full"
                                             value={row.level}
@@ -892,57 +977,68 @@ function GradingDefensePage() {
                                             options={LEVEL_OPTIONS}
                                             disabled={scoreLocked}
                                             allowClear
+                                            placeholder="Chọn mức..."
+                                            size="small"
                                         />
-                                        <div className="mt-1 text-[11px] text-slate-500">
-                                            {row.level ? LEVEL_TEXT_MAP[row.level] : 'Chua chon'}
+                                        <div className="mt-1 text-[11px] text-slate-400">
+                                            {row.level ? LEVEL_TEXT_MAP[row.level] : 'Chưa xếp mức'}
                                         </div>
                                     </td>
-                                    <td className="border border-slate-300 p-2 align-top">
+                                    <td className="p-2.5 space-y-1">
                                         <InputNumber
-                                            className="w-full"
+                                            className="w-full font-bold"
                                             min={0}
                                             max={row.maxScore}
-                                            step={0.01}
+                                            step={0.05}
                                             precision={2}
                                             value={row.score}
                                             onChange={(value) => onScoreChange(row.criterionCode, value)}
                                             disabled={scoreLocked}
+                                            size="small"
                                         />
                                         <Input
-                                            className="mt-1"
                                             value={row.comment}
                                             onChange={(e) => onCommentChange(row.criterionCode, e.target.value)}
-                                            placeholder="Nhan xet ngan"
+                                            placeholder="Ghi chú tiêu chí"
                                             disabled={scoreLocked}
+                                            size="small"
                                         />
                                     </td>
                                 </tr>
                             ))}
-                            <tr className="bg-slate-50">
-                                <td className="border border-slate-300 p-2 font-bold text-right" colSpan={2}>Tong so diem</td>
-                                <td className="border border-slate-300 p-2 font-bold text-center">10.0</td>
-                                <td className="border border-slate-300 p-2" colSpan={5} />
-                                <td className="border border-slate-300 p-2 font-bold text-center">{totalScore}</td>
+                            <tr className="bg-slate-50 font-bold">
+                                <td className="p-2.5 text-right uppercase tracking-wider text-slate-600 border-r border-slate-200" colSpan={2}>
+                                    Tổng điểm đánh giá
+                                </td>
+                                <td className="p-2.5 text-center text-slate-900 border-r border-slate-200">10.0</td>
+                                <td className="p-2.5 border-r border-slate-200" />
+                                <td className="p-2.5 text-center font-black text-primary text-base">
+                                    {totalScore}
+                                </td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
 
-
-                <div className="mt-3 grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
+                {/* Comment & Total Card */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
                     <div className="lg:col-span-9">
+                        <div className="text-xs font-semibold text-slate-600 mb-1">Nhận xét chung của hội đồng:</div>
                         <Input.TextArea
                             rows={3}
                             value={generalComment}
                             onChange={(e) => setGeneralComment(e.target.value)}
-                            placeholder="Nhận xét chung"
+                            placeholder="Nhập nhận xét tổng thể về kết quả nghiên cứu, sản phẩm và phần trả lời của sinh viên..."
                             disabled={scoreLocked}
                         />
                     </div>
                     <div className="lg:col-span-3">
-                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-center">
-                            <div className="text-xs text-slate-500">Tổng điểm</div>
-                            <div className="text-2xl font-black text-primary">{totalScore}/10</div>
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-center">
+                            <div className="text-xs uppercase tracking-wider font-bold text-slate-500">Tổng điểm</div>
+                            <div className="text-3xl font-black text-primary mt-1">{totalScore}</div>
+                            <div className="text-xs font-semibold text-slate-500 mt-1">
+                                {totalScore >= 8.5 ? 'Xuất sắc / Giỏi' : totalScore >= 7.0 ? 'Khá' : totalScore >= 5.0 ? 'Trung bình' : 'Chưa đạt'}
+                            </div>
                         </div>
                     </div>
                 </div>

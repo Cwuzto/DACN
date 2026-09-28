@@ -52,9 +52,11 @@ describe('authController.login', () => {
 
         await login(req, res, next);
 
-        expect(prisma.user.findUnique).toHaveBeenCalledWith({
-            where: { email: 'missing@example.com' },
-        });
+        expect(prisma.user.findUnique).toHaveBeenCalledWith(
+            expect.objectContaining({
+                where: { email: 'missing@example.com' },
+            })
+        );
         expect(res.status).toHaveBeenCalledWith(401);
         expect(next).not.toHaveBeenCalled();
     });

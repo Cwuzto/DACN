@@ -5,6 +5,8 @@ node_modules/
 .env
 .env.local
 .env.production
+mcp_config.json
+.agents/mcp_config.json
 
 # Build
 dist/
@@ -33,3 +35,15 @@ tree.txt
 
 # Temp docs
 .tmp_*.md
+
+#AI
+.agents/
+AGENTS.md
+CLAUDE.md
+
+#docs
+docs/
+.docs/
+
+# markdown file
+PROJECT_OVERVIEW.md

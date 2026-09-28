@@ -6,6 +6,53 @@ datasource db {
   provider = "postgresql"
 }
 
+model Permission {
+  id       Int                         @id @default(autoincrement())
+  code     String                      @unique
+  label    String
+  module   String
+  groups   PermissionGroupPermission[]
+
+  @@index([module])
+  @@map("permissions")
+}
+
+model PermissionGroup {
+  id          Int                         @id @default(autoincrement())
+  name        String                      @unique
+  code        String                      @unique
+  description String?
+  isSystem    Boolean                     @default(false) @map("is_system")
+  createdAt   DateTime                    @default(now()) @map("created_at")
+  updatedAt   DateTime                    @updatedAt @map("updated_at")
+  permissions PermissionGroupPermission[]
+  users       UserPermissionGroup[]
+
+  @@map("permission_groups")
+}
+
+model PermissionGroupPermission {
+  permissionGroupId Int @map("permission_group_id")
+  permissionId      Int @map("permission_id")
+  permissionGroup   PermissionGroup @relation(fields: [permissionGroupId], references: [id], onDelete: Cascade)
+  permission        Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([permissionGroupId, permissionId])
+  @@index([permissionId])
+  @@map("permission_group_permissions")
+}
+
+model UserPermissionGroup {
+  userId            Int @map("user_id")
+  permissionGroupId Int @map("permission_group_id")
+  user              User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permissionGroup   PermissionGroup @relation(fields: [permissionGroupId], references: [id], onDelete: Cascade)
+
+  @@id([userId, permissionGroupId])
+  @@index([permissionGroupId])
+  @@map("user_permission_groups")
+}
+
 model User {
   id                   Int                 @id @default(autoincrement())
   email                String              @unique
@@ -24,7 +71,7 @@ model User {
   defenseResults       DefenseResult[]     @relation("DefenseEvaluator")
   lockedDefenseResults DefenseResult[]     @relation("DefenseScoreLocker")
   evaluatedMemberScores DefenseMemberScore[] @relation("DefenseMemberScoreEvaluator")
-  lockedMemberScores    DefenseMemberScore[] @relation("DefenseMemberScoreLocker")
+  lockedMemberScores   DefenseMemberScore[] @relation("DefenseMemberScoreLocker")
   notifications        Notification[]
   submissions          Submission[]
   mentoredTopics       Topic[]             @relation("MentoredBy")
@@ -32,6 +79,10 @@ model User {
   registrations        TopicRegistration[]
   projectEnrollments   StudentProjectEnrollment[]
   auditLogs            AuditLog[]
+  permissionGroups     UserPermissionGroup[]
+  announcements        PublicAnnouncement[]
+  meetingLogsCreated   MeetingLog[]
+  reviewedArchives     ProjectArchive[]
 
   @@map("users")
 }
@@ -81,37 +132,75 @@ model TopicRegistration {
   id            Int                @id @default(autoincrement())
   topicId       Int                @map("topic_id")
   studentId     Int                @map("student_id")
-  semesterId    Int                @map("semester_id")
-  status        RegistrationStatus @default(PENDING)
-  rejectReason  String?            @map("reject_reason")
-  councilId     Int?               @map("council_id")
-  createdAt     DateTime           @default(now()) @map("created_at")
-  updatedAt     DateTime           @updatedAt @map("updated_at")
-  topic         Topic              @relation(fields: [topicId], references: [id])
-  student       User               @relation(fields: [studentId], references: [id])
-  council       Council?           @relation(fields: [councilId], references: [id])
+  semesterId          Int                  @map("semester_id")
+  status              RegistrationStatus   @default(PENDING)
+  rejectReason        String?              @map("reject_reason")
+  councilId           Int?                 @map("council_id")
+  outlineCouncilId    Int?                 @map("outline_council_id")
+  defenseCouncilId    Int?                 @map("defense_council_id")
+  outlineReviewStatus OutlineReviewStatus? @default(PENDING) @map("outline_review_status")
+  outlineFeedback     String?              @map("outline_feedback")
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+  topic               Topic                @relation(fields: [topicId], references: [id])
+  student             User                 @relation(fields: [studentId], references: [id])
+  council             Council?             @relation("CouncilLegacy", fields: [councilId], references: [id])
+  outlineCouncil      Council?             @relation("OutlineCouncil", fields: [outlineCouncilId], references: [id])
+  defenseCouncil      Council?             @relation("DefenseCouncil", fields: [defenseCouncilId], references: [id])
   submissions   Submission[]
   tasks         Task[]
-  milestones    Milestone[]
+  meetingLogs   MeetingLog[]
   defenseResult DefenseResult?
   memberScores  DefenseMemberScore[]
+  archive       ProjectArchive?
 
   @@unique([studentId, semesterId])
   @@map("topic_registrations")
 }
 
-model Milestone {
-  id             Int               @id @default(autoincrement())
-  registrationId Int               @map("registration_id")
-  title          String
-  dueDate        DateTime?         @map("due_date")
-  status         MilestoneStatus   @default(PENDING)
-  feedback       String?
-  completedAt    DateTime?         @map("completed_at")
-  createdAt      DateTime          @default(now()) @map("created_at")
-  registration   TopicRegistration @relation(fields: [registrationId], references: [id])
+model MeetingLog {
+  id                 Int               @id @default(autoincrement())
+  registrationId     Int               @map("registration_id")
+  meetingDate        DateTime          @default(now()) @map("meeting_date")
+  meetingType        String            @default("LAB") @map("meeting_type")
+  studentWorkSummary String            @db.Text @map("student_work_summary")
+  nextPlan           String?           @db.Text @map("next_plan")
+  supervisorNotes    String?           @db.Text @map("supervisor_notes")
+  createdBy          Int               @map("created_by")
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
 
-  @@map("milestones")
+  registration       TopicRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  creator            User              @relation(fields: [createdBy], references: [id])
+
+  @@index([registrationId, meetingDate])
+  @@map("meeting_logs")
+}
+
+model ProjectArchive {
+  id             Int               @id @default(autoincrement())
+  registrationId Int               @unique @map("registration_id")
+  reportFileUrl  String?           @map("report_file_url")
+  reportFileName String?           @map("report_file_name")
+  slideFileUrl   String?           @map("slide_file_url")
+  slideFileName  String?           @map("slide_file_name")
+  sourceCodeUrl  String?           @map("source_code_url")
+  demoVideoUrl   String?           @map("demo_video_url")
+  bm03FileUrl    String?           @map("bm03_file_url")
+  bm04FileUrl    String?           @map("bm04_file_url")
+  summary        String?           @db.Text
+  status         ArchiveStatus     @default(SUBMITTED)
+  reviewedBy     Int?              @map("reviewed_by")
+  reviewerNotes  String?           @db.Text @map("reviewer_notes")
+  submittedAt    DateTime          @default(now()) @map("submitted_at")
+  reviewedAt     DateTime?         @map("reviewed_at")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+
+  registration   TopicRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  reviewer       User?             @relation(fields: [reviewedBy], references: [id])
+
+  @@map("project_archives")
 }
 
 model Task {
@@ -119,12 +208,16 @@ model Task {
   registrationId Int               @map("registration_id")
   title          String
   content        String?
+  taskType       TaskType          @default(GENERIC) @map("task_type")
   dueDate        DateTime?         @map("due_date")
   status         TaskStatus        @default(OPEN)
+  isBypassed     Boolean           @default(false) @map("is_bypassed")
+  bypassReason   String?           @map("bypass_reason")
+  bypassedBy     Int?              @map("bypassed_by")
   createdAt      DateTime          @default(now()) @map("created_at")
   updatedAt      DateTime          @updatedAt @map("updated_at")
   submissions    Submission[]
-  registration   TopicRegistration @relation(fields: [registrationId], references: [id])
+  registration   TopicRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
 
   @@map("tasks")
 }
@@ -151,13 +244,16 @@ model Council {
   id            Int                 @id @default(autoincrement())
   semesterId    Int                 @map("semester_id")
   name          String
+  councilType   CouncilType         @default(DEFENSE_COUNCIL) @map("council_type")
   location      String?
   defenseDate   DateTime?           @map("defense_date")
   createdAt     DateTime            @default(now()) @map("created_at")
   updatedAt     DateTime            @updatedAt @map("updated_at")
-  members       CouncilMember[]
-  semester      Semester            @relation(fields: [semesterId], references: [id])
-  registrations TopicRegistration[]
+  members              CouncilMember[]
+  semester             Semester            @relation(fields: [semesterId], references: [id])
+  registrations        TopicRegistration[] @relation("CouncilLegacy")
+  outlineRegistrations TopicRegistration[] @relation("OutlineCouncil")
+  defenseRegistrations TopicRegistration[] @relation("DefenseCouncil")
 
   @@map("councils")
 }
@@ -314,6 +410,23 @@ model StudentProjectEnrollment {
   @@map("student_project_enrollments")
 }
 
+model PublicAnnouncement {
+  id          Int      @id @default(autoincrement())
+  title       String
+  content     String?  @db.Text
+  category    String?  @default("ANNOUNCEMENT")
+  fileUrl     String?  @map("file_url")
+  fileName    String?  @map("file_name")
+  isPinned    Boolean  @default(false) @map("is_pinned")
+  isPublished Boolean  @default(true) @map("is_published")
+  authorId    Int?     @map("author_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  author      User?    @relation(fields: [authorId], references: [id])
+
+  @@map("public_announcements")
+}
+
 enum UserRole {
   ADMIN
   LECTURER
@@ -353,12 +466,6 @@ enum RegistrationStatus {
   WITHDRAWN
 }
 
-enum MilestoneStatus {
-  PENDING
-  PASSED
-  FAILED
-}
-
 enum TaskStatus {
   OPEN
   IN_PROGRESS
@@ -393,4 +500,33 @@ enum EnrollmentSource {
   SEED
   MANUAL
   EXCEL
+}
+
+enum TaskType {
+  BM01
+  BM02
+  BM03_CHECKPOINT_1
+  BM03_CHECKPOINT_2
+  BM03_CHECKPOINT
+  REPORT_DRAFT
+  BM04
+  GENERIC
+}
+
+enum CouncilType {
+  OUTLINE_REVIEW
+  DEFENSE_COUNCIL
+}
+
+enum OutlineReviewStatus {
+  PENDING
+  PASSED
+  REVISION_REQUIRED
+  FAILED
+}
+
+enum ArchiveStatus {
+  SUBMITTED
+  APPROVED
+  REVISION_REQUIRED
 }

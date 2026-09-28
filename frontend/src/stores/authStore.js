@@ -7,7 +7,7 @@ import { create } from 'zustand';
  * - token: JWT token
  * - isAuthenticated: đã đăng nhập hay chưa
  */
-const useAuthStore = create((set) => ({
+const useAuthStore = create((set, get) => ({
     user: JSON.parse(localStorage.getItem('user')) || null,
     token: localStorage.getItem('token') || null,
     isAuthenticated: !!localStorage.getItem('token'),
@@ -32,5 +32,17 @@ const useAuthStore = create((set) => ({
         set({ user: updatedUser });
     },
 }));
+
+export const hasPermission = (code) => {
+    const user = useAuthStore.getState().user;
+    if (!user || !Array.isArray(user.permissions)) return false;
+    return user.permissions.includes(code);
+};
+
+export const hasRole = (...roles) => {
+    const user = useAuthStore.getState().user;
+    if (!user || !user.role) return false;
+    return roles.includes(user.role);
+};
 
 export default useAuthStore;

@@ -13,8 +13,22 @@ import {
     Space,
     Table,
     Tooltip,
+    Tag,
+    Segmented,
+    Progress,
 } from 'antd';
-import { CalendarOutlined, DeleteOutlined, EditOutlined, LinkOutlined, TeamOutlined } from '@ant-design/icons';
+import {
+    CalendarOutlined,
+    DeleteOutlined,
+    EditOutlined,
+    LinkOutlined,
+    TeamOutlined,
+    PlusOutlined,
+    HistoryOutlined,
+    UserOutlined,
+    CheckCircleOutlined,
+    ThunderboltOutlined,
+} from '@ant-design/icons';
 import dayjs from 'dayjs';
 
 import councilService from '../../services/councilService';
@@ -32,6 +46,7 @@ function CouncilAssignmentPage() {
     const [unassignedRegistrations, setUnassignedRegistrations] = useState([]);
     const [selectedSemester, setSelectedSemester] = useState(null);
     const [selectedProjectName, setSelectedProjectName] = useState(PROJECT_NAME);
+    const [councilTypeFilter, setCouncilTypeFilter] = useState('ALL');
     const [loading, setLoading] = useState(false);
     const [submitLoading, setSubmitLoading] = useState(false);
 
@@ -39,6 +54,12 @@ function CouncilAssignmentPage() {
     const [isMemberModalVisible, setIsMemberModalVisible] = useState(false);
     const [isAssignModalVisible, setIsAssignModalVisible] = useState(false);
     const [isDetailModalVisible, setIsDetailModalVisible] = useState(false);
+
+    // Batch Bypass states
+    const [isBatchBypassModalVisible, setIsBatchBypassModalVisible] = useState(false);
+    const [outlineRegistrationsToBypass, setOutlineRegistrationsToBypass] = useState([]);
+    const [selectedRegistrationsToBypass, setSelectedRegistrationsToBypass] = useState([]);
+    const [bypassReasonInput, setBypassReasonInput] = useState('Được miễn thẩm định đề cương theo quyết định đợt của Viện / Khoa (Đề tài NCKH nghiệm thu)');
     const [isLogModalVisible, setIsLogModalVisible] = useState(false);
 
     const [editingCouncil, setEditingCouncil] = useState(null);
@@ -117,10 +138,20 @@ function CouncilAssignmentPage() {
         }
     };
 
+    const showCreateModal = () => {
+        setEditingCouncil(null);
+        councilForm.resetFields();
+        councilForm.setFieldsValue({
+            councilType: 'DEFENSE_COUNCIL',
+        });
+        setIsCouncilModalVisible(true);
+    };
+
     const showEditModal = (council) => {
         setEditingCouncil(council);
         councilForm.setFieldsValue({
             name: council.name,
+            councilType: council.councilType || 'DEFENSE_COUNCIL',
             location: council.location,
             defenseDate: council.defenseDate ? dayjs(council.defenseDate) : null,
         });
@@ -144,6 +175,7 @@ function CouncilAssignmentPage() {
             const payload = {
                 semesterId: selectedSemester,
                 name: values.name,
+                councilType: values.councilType || 'DEFENSE_COUNCIL',
                 location: values.location,
                 defenseDate: values.defenseDate ? values.defenseDate.toISOString() : null,
             };
@@ -216,6 +248,7 @@ function CouncilAssignmentPage() {
             const response = await registrationService.getAllRegistrations({
                 semesterId: selectedSemester,
                 unassignedCouncilOnly: true,
+                councilType: council.councilType,
             });
             if (response.success) setUnassignedRegistrations(response.data);
             setIsAssignModalVisible(true);
@@ -236,6 +269,49 @@ function CouncilAssignmentPage() {
             fetchCouncils();
         } catch (error) {
             message.error(error.message || 'Lỗi phân công');
+        } finally {
+            setSubmitLoading(false);
+        }
+    };
+
+    const showBatchBypassModal = async () => {
+        if (!selectedSemester) return message.warning('Vui lòng chọn đợt đồ án');
+        setSelectedRegistrationsToBypass([]);
+        try {
+            setLoading(true);
+            const response = await registrationService.getAllRegistrations({
+                semesterId: selectedSemester,
+                unassignedCouncilOnly: true,
+                councilType: 'OUTLINE_REVIEW',
+            });
+            if (response.success) {
+                setOutlineRegistrationsToBypass(response.data || []);
+            }
+            setIsBatchBypassModalVisible(true);
+        } catch {
+            message.error('Lỗi khi tải danh sách sinh viên chưa thẩm định đề cương');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleConfirmBatchBypass = async () => {
+        if (!selectedRegistrationsToBypass.length) {
+            return message.warning('Vui lòng chọn ít nhất 1 sinh viên/đề tài cần miễn thẩm định');
+        }
+        if (!bypassReasonInput.trim()) {
+            return message.warning('Vui lòng nhập lý do miễn thẩm định');
+        }
+        try {
+            setSubmitLoading(true);
+            const res = await registrationService.batchBypassOutlineReview(selectedRegistrationsToBypass, bypassReasonInput.trim());
+            if (res.success) {
+                message.success(res.message || 'Miễn thẩm định đề cương hàng loạt thành công');
+                setIsBatchBypassModalVisible(false);
+                fetchCouncils();
+            }
+        } catch (err) {
+            message.error(err.message || 'Lỗi khi miễn thẩm định đề cương');
         } finally {
             setSubmitLoading(false);
         }
@@ -265,6 +341,7 @@ function CouncilAssignmentPage() {
             message.error(error.message || 'Lỗi khi gỡ sinh viên');
         }
     };
+
     const showLogModal = async (council) => {
         try {
             setLogCouncil(council);
@@ -302,9 +379,15 @@ function CouncilAssignmentPage() {
         () => semesters.map((semester) => ({ value: semester.id, label: formatSemesterLabel(semester) })),
         [semesters],
     );
+
     const unassignedRegistrationOptions = useMemo(
         () => unassignedRegistrations
-            .filter((registration) => registration?.councilId == null)
+            .filter((registration) => {
+                if (assigningCouncil?.councilType === 'OUTLINE_REVIEW') {
+                    return !registration?.outlineCouncilId;
+                }
+                return !registration?.defenseCouncilId && !registration?.councilId;
+            })
             .map((registration) => ({
                 value: registration.id,
                 label: `${registration.student?.fullName || 'N/A'} - ${registration.student?.code || 'N/A'}`,
@@ -318,8 +401,13 @@ function CouncilAssignmentPage() {
                     </div>
                 ),
             })),
-        [unassignedRegistrations],
+        [unassignedRegistrations, assigningCouncil],
     );
+
+    const filteredCouncils = useMemo(() => {
+        if (councilTypeFilter === 'ALL') return councils;
+        return councils.filter((c) => c.councilType === councilTypeFilter);
+    }, [councils, councilTypeFilter]);
 
     const columns = [
         {
@@ -327,24 +415,52 @@ function CouncilAssignmentPage() {
             dataIndex: 'name',
             key: 'name',
             render: (text, record) => (
-                <div>
-                    <p className="font-bold text-slate-900">{text}</p>
-                    <p className="text-xs text-slate-400">{record.location || 'Chưa xếp phòng'}</p>
+                <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-slate-900 text-sm">{text}</span>
+                        <Tag
+                            color={record.councilType === 'OUTLINE_REVIEW' ? 'purple' : 'blue'}
+                            className="text-[11px] font-semibold px-2 py-0.5 rounded-full"
+                        >
+                            {record.councilType === 'OUTLINE_REVIEW' ? 'Xét duyệt đề cương' : 'Chấm bảo vệ'}
+                        </Tag>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                        <span className="material-symbols-outlined text-[14px]">room</span>
+                        <span>{record.location || 'Chưa xếp phòng'}</span>
+                    </div>
                 </div>
             ),
         },
         {
-            title: 'Thành viên',
+            title: 'Thành phần Hội đồng',
             key: 'members',
             render: (_, record) => {
                 const chairman = record.members?.find((member) => member.roleInCouncil === 'CHAIRMAN')?.lecturer?.fullName;
                 const secretary = record.members?.find((member) => member.roleInCouncil === 'SECRETARY')?.lecturer?.fullName;
                 const reviewer = record.members?.find((member) => member.roleInCouncil === 'REVIEWER')?.lecturer?.fullName;
+                const isComplete = (record.members?.length || 0) === 3;
+
                 return (
-                    <div className="text-xs leading-5">
-                        <div><b>CT:</b> {chairman || 'Chưa có'}</div>
-                        <div><b>TK:</b> {secretary || 'Chưa có'}</div>
-                        <div><b>PB:</b> {reviewer || 'Chưa có'}</div>
+                    <div className="text-xs space-y-1">
+                        <div className="flex items-center gap-1.5">
+                            <span className="bg-blue-100 text-blue-800 text-[10px] font-bold px-1.5 py-0.2 rounded">CT</span>
+                            <span className={chairman ? 'font-medium text-slate-800' : 'text-slate-400 italic'}>
+                                {chairman || 'Chưa phân công'}
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                            <span className="bg-cyan-100 text-cyan-800 text-[10px] font-bold px-1.5 py-0.2 rounded">TK</span>
+                            <span className={secretary ? 'font-medium text-slate-800' : 'text-slate-400 italic'}>
+                                {secretary || 'Chưa phân công'}
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                            <span className="bg-purple-100 text-purple-800 text-[10px] font-bold px-1.5 py-0.2 rounded">PB</span>
+                            <span className={reviewer ? 'font-medium text-slate-800' : 'text-slate-400 italic'}>
+                                {reviewer || 'Chưa phân công'}
+                            </span>
+                        </div>
                     </div>
                 );
             },
@@ -353,35 +469,57 @@ function CouncilAssignmentPage() {
             title: 'Ngày bảo vệ',
             dataIndex: 'defenseDate',
             key: 'defenseDate',
+            width: 140,
             render: (value) => (
-                <div className="flex items-center gap-1.5">
-                    <CalendarOutlined style={{ color: '#8c8c8c' }} />
-                    <span className="text-sm">{value ? dayjs(value).format('DD/MM/YYYY') : 'Chưa xếp'}</span>
+                <div className="flex items-center gap-1.5 text-xs font-medium text-slate-700">
+                    <CalendarOutlined className="text-slate-400" />
+                    <span>{value ? dayjs(value).format('DD/MM/YYYY') : 'Chưa xếp'}</span>
                 </div>
             ),
         },
         {
-            title: 'SV Bảo vệ',
+            title: 'Quy mô SV',
             key: 'registrationCount',
             align: 'center',
-            render: (_, record) => <span className="font-bold text-slate-900">{record._count?.registrations || 0}</span>,
+            width: 130,
+            render: (_, record) => {
+                const count = record._count?.registrations || 0;
+                return (
+                    <div className="space-y-1">
+                        <span className="font-black text-slate-900 text-sm">{count} SV</span>
+                        <div className="w-16 mx-auto bg-slate-100 rounded-full h-1.5">
+                            <div
+                                className="bg-[#1E3A5F] h-1.5 rounded-full"
+                                style={{ width: `${Math.min(100, (count / 10) * 100)}%` }}
+                            />
+                        </div>
+                    </div>
+                );
+            },
         },
         {
             title: 'Phân công',
             key: 'assign',
             align: 'center',
+            width: 200,
             render: (_, record) => {
                 const hasEnoughMembers = (record.members?.length || 0) === 3;
                 return (
                     <Space size="small">
-                        <Tooltip title="Phân công giảng viên vào vai trò hội đồng">
+                        <Tooltip title="Phân công 3 giảng viên vào hội đồng">
                             <Button size="small" icon={<TeamOutlined />} onClick={() => showMemberModal(record)}>
                                 Thành viên
                             </Button>
                         </Tooltip>
-                        <Tooltip title={hasEnoughMembers ? 'Gán sinh viên bảo vệ' : 'Cần phân công đủ 3 vai trò trước'}>
-                            <Button type="dashed" size="small" icon={<LinkOutlined />} onClick={() => showAssignModal(record)} disabled={!hasEnoughMembers}>
-                                SV
+                        <Tooltip title={hasEnoughMembers ? 'Gán sinh viên vào hội đồng' : 'Cần đủ 3 giảng viên trước'}>
+                            <Button
+                                type="dashed"
+                                size="small"
+                                icon={<LinkOutlined />}
+                                onClick={() => showAssignModal(record)}
+                                disabled={!hasEnoughMembers}
+                            >
+                                Gán SV
                             </Button>
                         </Tooltip>
                         <Button size="small" onClick={() => showDetailModal(record.id)}>DS SV</Button>
@@ -392,21 +530,21 @@ function CouncilAssignmentPage() {
         {
             title: 'Hành động',
             key: 'action',
-            width: 120,
+            width: 150,
             align: 'center',
             render: (_, record) => (
-                <div className="flex flex-wrap items-center justify-end gap-2">
-                    <Button size="small" onClick={() => showLogModal(record)}>Lịch sử</Button>
-                    <Button size="small" icon={<EditOutlined />} onClick={() => showEditModal(record)}>Sửa</Button>
+                <div className="flex items-center justify-end gap-1.5">
+                    <Button size="small" icon={<HistoryOutlined />} onClick={() => showLogModal(record)} />
+                    <Button size="small" icon={<EditOutlined />} onClick={() => showEditModal(record)} />
                     <Popconfirm
-                        title="Xóa hội đồng?"
-                        description="Bạn có chắc muốn xóa?"
+                        title="Xóa hội đồng này?"
+                        description="Chỉ xóa được nếu hội đồng chưa có sinh viên nào."
                         onConfirm={() => handleDeleteCouncil(record.id)}
                         okText="Xóa"
                         cancelText="Hủy"
                         okButtonProps={{ danger: true }}
                     >
-                        <Button size="small" danger icon={<DeleteOutlined />} disabled={record._count?.registrations > 0}>Xóa</Button>
+                        <Button size="small" danger icon={<DeleteOutlined />} disabled={record._count?.registrations > 0} />
                     </Popconfirm>
                 </div>
             ),
@@ -414,22 +552,22 @@ function CouncilAssignmentPage() {
     ];
 
     const statsData = [
-        { title: 'Tổng Hội đồng', value: councils.length, icon: 'groups_3', iconBg: 'bg-blue-50', iconColor: 'text-blue-600' },
-        { title: 'Tổng thành viên HĐ', value: councils.reduce((sum, council) => sum + (council.members?.length || 0), 0), icon: 'how_to_reg', iconBg: 'bg-green-50', iconColor: 'text-green-600' },
-        { title: 'SV được phân công', value: councils.reduce((sum, council) => sum + (council._count?.registrations || 0), 0), icon: 'assignment', iconBg: 'bg-purple-50', iconColor: 'text-purple-600' },
+        { label: 'Tổng số Hội đồng', value: councils.length, icon: 'groups_3', iconBg: 'bg-blue-50', iconColor: 'text-blue-600' },
+        { label: 'Tổng thành viên HĐ', value: councils.reduce((sum, council) => sum + (council.members?.length || 0), 0), icon: 'how_to_reg', iconBg: 'bg-emerald-50', iconColor: 'text-emerald-600' },
+        { label: 'SV đã xếp Hội đồng', value: councils.reduce((sum, council) => sum + (council._count?.registrations || 0), 0), icon: 'assignment_turned_in', iconBg: 'bg-purple-50', iconColor: 'text-purple-600' },
     ];
 
     return (
-        <div className="py-2">
+        <div className="py-2 space-y-6">
             <PageHeader
                 title="Phân công Hội đồng"
-                subtitle={`${PROJECT_NAME} - theo đợt đồ án mới nhất (gắn với học kỳ, năm học)`}
-                actions={(
-                    <>
+                subtitle="Quản lý thành lập hội đồng xét duyệt đề cương (BM01) và hội đồng chấm bảo vệ khóa luận"
+                actions={
+                    <div className="flex items-center gap-3 flex-wrap">
                         <Select
                             value={selectedProjectName}
                             onChange={setSelectedProjectName}
-                            style={{ width: 220 }}
+                            style={{ width: 190 }}
                             options={projectOptions}
                         />
                         <Select
@@ -440,46 +578,115 @@ function CouncilAssignmentPage() {
                             loading={semesters.length === 0}
                             placeholder="Chọn đợt đồ án"
                         />
-                        <Button type="primary" onClick={handleAutoAssign} loading={submitLoading} disabled={!selectedSemester}>
-                            Phân công tự động
+                        <Button
+                            type="primary"
+                            icon={<PlusOutlined />}
+                            onClick={showCreateModal}
+                            disabled={!selectedSemester}
+                        >
+                            Tạo Hội đồng mới
                         </Button>
-                    </>
-                )}
+                        <Button
+                            onClick={handleAutoAssign}
+                            loading={submitLoading}
+                            disabled={!selectedSemester}
+                            icon={<span className="material-symbols-outlined text-[16px]">smart_toy</span>}
+                        >
+                            Tự động phân công
+                        </Button>
+                    </div>
+                }
             />
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+            {/* 3 Metrics Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {statsData.map((card, idx) => (
-                    <StatCard key={idx} icon={card.icon} iconBg={card.iconBg} iconColor={card.iconColor} label={card.title} value={card.value} />
+                    <StatCard key={idx} {...card} />
                 ))}
             </div>
 
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <Table dataSource={councils} columns={columns} pagination={{ pageSize: 10 }} rowKey="id" loading={loading} size="middle" />
+            {/* Councils Table Container */}
+            <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden">
+                <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50/50">
+                    <div className="flex items-center gap-3 flex-wrap">
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Phân loại Hội đồng:</span>
+                        <Segmented
+                            value={councilTypeFilter}
+                            onChange={setCouncilTypeFilter}
+                            options={[
+                                { label: `Tất cả (${councils.length})`, value: 'ALL' },
+                                { label: 'Xét duyệt đề cương (BM01)', value: 'OUTLINE_REVIEW' },
+                                { label: 'Chấm bảo vệ (DEFENSE)', value: 'DEFENSE_COUNCIL' },
+                            ]}
+                        />
+                        {councilTypeFilter === 'OUTLINE_REVIEW' && (
+                            <Button
+                                icon={<ThunderboltOutlined className="text-amber-500" />}
+                                onClick={showBatchBypassModal}
+                                size="middle"
+                                className="font-semibold text-xs border-amber-300 text-amber-700 hover:text-amber-600 bg-amber-50"
+                            >
+                                Miễn thẩm định hàng loạt
+                            </Button>
+                        )}
+                    </div>
+                    <span className="text-xs text-slate-400 font-medium">
+                        Hiển thị {filteredCouncils.length} hội đồng
+                    </span>
+                </div>
+
+                <Table
+                    dataSource={filteredCouncils}
+                    columns={columns}
+                    pagination={{ pageSize: 10, showSizeChanger: true }}
+                    rowKey="id"
+                    loading={loading}
+                    size="middle"
+                    locale={{
+                        emptyText: (
+                            <div className="py-12 text-center text-slate-400">
+                                <span className="material-symbols-outlined text-4xl mb-2 text-slate-300 block">groups</span>
+                                Chưa có hội đồng nào được tạo trong đợt này.
+                            </div>
+                        ),
+                    }}
+                />
             </div>
 
+            {/* Modal Tạo/Sửa Hội đồng */}
             <Modal
                 title={editingCouncil ? 'Chỉnh sửa thông tin hội đồng' : 'Tạo hội đồng mới'}
                 open={isCouncilModalVisible}
                 onOk={handleSaveCouncil}
                 onCancel={() => setIsCouncilModalVisible(false)}
                 confirmLoading={submitLoading}
-                width={700}
+                width={650}
                 destroyOnClose
             >
                 <Form form={councilForm} layout="vertical" style={{ marginTop: 16 }}>
                     <div className="grid grid-cols-6 gap-4">
-                        <div className="col-span-3">
-                            <Form.Item name="name" label="Tên hội đồng" rules={[{ required: true, message: 'Nhập tên' }]}>
+                        <div className="col-span-4">
+                            <Form.Item name="name" label="Tên hội đồng" rules={[{ required: true, message: 'Nhập tên hội đồng' }]}>
                                 <Input placeholder="VD: Hội đồng CNTT - 01" />
                             </Form.Item>
                         </div>
-                        <div className="col-span-1">
-                            <Form.Item name="location" label="Phòng">
-                                <Input placeholder="P.301" />
+                        <div className="col-span-2">
+                            <Form.Item name="councilType" label="Loại hội đồng" rules={[{ required: true, message: 'Chọn loại hội đồng' }]}>
+                                <Select
+                                    options={[
+                                        { label: 'Chấm bảo vệ', value: 'DEFENSE_COUNCIL' },
+                                        { label: 'Xét duyệt đề cương', value: 'OUTLINE_REVIEW' },
+                                    ]}
+                                />
                             </Form.Item>
                         </div>
-                        <div className="col-span-2">
-                            <Form.Item name="defenseDate" label="Ngày bảo vệ">
+                        <div className="col-span-3">
+                            <Form.Item name="location" label="Phòng họp / Phòng bảo vệ">
+                                <Input placeholder="VD: P.301, Nhà C" />
+                            </Form.Item>
+                        </div>
+                        <div className="col-span-3">
+                            <Form.Item name="defenseDate" label="Ngày tổ chức">
                                 <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
                             </Form.Item>
                         </div>
@@ -487,8 +694,9 @@ function CouncilAssignmentPage() {
                 </Form>
             </Modal>
 
+            {/* Modal Phân công 3 Thành viên */}
             <Modal
-                title={`Phân công thành viên - ${memberCouncil?.name || ''}`}
+                title={`Phân công 3 Thành viên - ${memberCouncil?.name || ''}`}
                 open={isMemberModalVisible}
                 onOk={handleSaveMembers}
                 onCancel={() => setIsMemberModalVisible(false)}
@@ -496,23 +704,27 @@ function CouncilAssignmentPage() {
                 width={720}
                 destroyOnClose
             >
-                <Form form={memberForm} layout="vertical" style={{ marginTop: 12 }}>
-                    <div className="grid grid-cols-3 gap-4">
+                <p className="text-xs text-slate-500 mb-4">
+                    Hội đồng theo quy chế gồm 3 giảng viên độc lập (Chủ tịch, Thư ký, Phản biện). Không được trùng lặp.
+                </p>
+                <Form form={memberForm} layout="vertical">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <Form.Item name="chairman" label="Chủ tịch HĐ" rules={[{ required: true, message: 'Chọn chủ tịch' }]}>
                             <Select showSearch placeholder="Chọn giảng viên" optionFilterProp="label" options={lecturerOptions} />
                         </Form.Item>
                         <Form.Item name="secretary" label="Thư ký HĐ" rules={[{ required: true, message: 'Chọn thư ký' }]}>
                             <Select showSearch placeholder="Chọn giảng viên" optionFilterProp="label" options={lecturerOptions} />
                         </Form.Item>
-                        <Form.Item name="reviewer" label="Phản biện" rules={[{ required: true, message: 'Chọn phản biện' }]}>
+                        <Form.Item name="reviewer" label="Phản biện HĐ" rules={[{ required: true, message: 'Chọn phản biện' }]}>
                             <Select showSearch placeholder="Chọn giảng viên" optionFilterProp="label" options={lecturerOptions} />
                         </Form.Item>
                     </div>
                 </Form>
             </Modal>
 
+            {/* Modal Gán Sinh viên */}
             <Modal
-                title={`Phân công SV vào "${assigningCouncil?.name}"`}
+                title={`Phân công SV vào ${assigningCouncil?.councilType === 'OUTLINE_REVIEW' ? 'HĐ Xét duyệt đề cương' : 'HĐ Chấm bảo vệ'} "${assigningCouncil?.name || ''}"`}
                 open={isAssignModalVisible}
                 onOk={handleAssignRegistrations}
                 onCancel={() => setIsAssignModalVisible(false)}
@@ -520,11 +732,18 @@ function CouncilAssignmentPage() {
                 width={700}
                 destroyOnClose
             >
-                <p className="text-sm text-slate-500 mb-4">Chọn các sinh viên chưa được phân công hội đồng.</p>
+                <div className="mb-4">
+                    <p className="text-sm text-slate-700 font-medium">
+                        Chọn sinh viên để phân công vào {assigningCouncil?.councilType === 'OUTLINE_REVIEW' ? 'Hội đồng xét duyệt đề cương (BM01)' : 'Hội đồng chấm bảo vệ khóa luận'}.
+                    </p>
+                    <p className="text-xs text-slate-400 mt-1">
+                        (Chỉ hiển thị sinh viên chưa được phân công vào hội đồng loại này trong học kỳ)
+                    </p>
+                </div>
                 <Select
                     mode="multiple"
                     style={{ width: '100%' }}
-                    placeholder="Chọn sinh viên"
+                    placeholder="Chọn sinh viên..."
                     value={selectedRegistrationsToAssign}
                     onChange={setSelectedRegistrationsToAssign}
                     optionLabelProp="label"
@@ -534,8 +753,9 @@ function CouncilAssignmentPage() {
                 />
             </Modal>
 
+            {/* Modal Danh sách Sinh viên trong HĐ */}
             <Modal
-                title={`Danh sách sinh viên - ${detailCouncil?.name || ''}`}
+                title={`Danh sách sinh viên - ${detailCouncil?.name || ''} (${detailCouncil?.councilType === 'OUTLINE_REVIEW' ? 'Xét duyệt đề cương' : 'Chấm bảo vệ'})`}
                 open={isDetailModalVisible}
                 onCancel={() => setIsDetailModalVisible(false)}
                 footer={null}
@@ -544,7 +764,7 @@ function CouncilAssignmentPage() {
             >
                 <List
                     dataSource={detailCouncil?.registrations || []}
-                    locale={{ emptyText: 'Chưa có sinh viên được phân công.' }}
+                    locale={{ emptyText: 'Chưa có sinh viên được phân công vào hội đồng này.' }}
                     renderItem={(registration) => (
                         <List.Item
                             actions={[
@@ -554,19 +774,32 @@ function CouncilAssignmentPage() {
                                     onConfirm={() => handleRemoveRegistration(detailCouncil.id, registration.id)}
                                     okText="Gỡ"
                                     cancelText="Hủy"
+                                    okButtonProps={{ danger: true }}
                                 >
                                     <Button size="small" danger>Gỡ</Button>
                                 </Popconfirm>,
                             ]}
                         >
                             <List.Item.Meta
-                                title={`${registration.student?.fullName || 'N/A'} (${registration.student?.code || 'N/A'})`}
-                                description={registration.topic?.title || 'Không có đề tài'}
+                                avatar={
+                                    <div className="w-8 h-8 rounded-lg bg-[#1E3A5F]/10 text-[#1E3A5F] flex items-center justify-center font-bold text-xs">
+                                        {registration.student?.fullName?.[0]?.toUpperCase()}
+                                    </div>
+                                }
+                                title={
+                                    <span className="font-bold text-slate-900">
+                                        {registration.student?.fullName || 'N/A'}
+                                        <span className="text-slate-400 font-normal font-mono ml-2">({registration.student?.code || 'N/A'})</span>
+                                    </span>
+                                }
+                                description={<span className="text-xs text-slate-500">{registration.topic?.title || 'Không có đề tài'}</span>}
                             />
                         </List.Item>
                     )}
                 />
             </Modal>
+
+            {/* Modal Lịch sử thao tác */}
             <Modal
                 title={`Lịch sử thao tác - ${logCouncil?.name || ''}`}
                 open={isLogModalVisible}
@@ -577,24 +810,21 @@ function CouncilAssignmentPage() {
             >
                 <List
                     dataSource={councilLogs}
-                    locale={{ emptyText: 'Chưa có log cho hội đồng này.' }}
+                    locale={{ emptyText: 'Chưa có nhật ký ghi nhận cho hội đồng này.' }}
                     renderItem={(item) => (
                         <List.Item>
                             <Descriptions column={1} size="small" bordered style={{ width: '100%' }}>
                                 <Descriptions.Item label="Thao tác">
-                                    {actionTextMap[item.action] || item.action}
+                                    <span className="font-bold text-slate-900">{actionTextMap[item.action] || item.action}</span>
                                 </Descriptions.Item>
-                                <Descriptions.Item label="Người thao tác">
-                                    {item.user?.fullName || 'N/A'} {item.user?.code ? `(${item.user.code})` : ''}
-                                </Descriptions.Item>
-                                <Descriptions.Item label="Vai trò">
-                                    {item.user?.role || 'N/A'}
+                                <Descriptions.Item label="Người thực hiện">
+                                    {item.user?.fullName || 'N/A'} {item.user?.code ? `(${item.user.code})` : ''} - <Tag>{item.user?.role || 'N/A'}</Tag>
                                 </Descriptions.Item>
                                 <Descriptions.Item label="Thời gian">
                                     {item.createdAt ? dayjs(item.createdAt).format('DD/MM/YYYY HH:mm:ss') : 'N/A'}
                                 </Descriptions.Item>
                                 <Descriptions.Item label="Chi tiết">
-                                    <pre className="whitespace-pre-wrap text-xs bg-slate-50 rounded p-2 border border-slate-100">
+                                    <pre className="whitespace-pre-wrap text-xs bg-slate-50 rounded p-2 border border-slate-100 font-mono">
                                         {JSON.stringify(item.details || {}, null, 2)}
                                     </pre>
                                 </Descriptions.Item>
@@ -602,6 +832,94 @@ function CouncilAssignmentPage() {
                         </List.Item>
                     )}
                 />
+            </Modal>
+
+            {/* Modal Miễn thẩm định đề cương hàng loạt */}
+            <Modal
+                title={
+                    <div className="flex items-center gap-2 text-base font-bold text-slate-800">
+                        <ThunderboltOutlined className="text-amber-500 text-lg" />
+                        <span>Miễn Thẩm Định Đề Cương Hàng Loạt (Bypass BM01-BM02)</span>
+                    </div>
+                }
+                open={isBatchBypassModalVisible}
+                onOk={handleConfirmBatchBypass}
+                confirmLoading={submitLoading}
+                okText={`Xác nhận Miễn Thẩm Định (${selectedRegistrationsToBypass.length})`}
+                cancelText="Đóng"
+                okButtonProps={{
+                    className: 'bg-amber-600 hover:bg-amber-500 font-semibold',
+                    disabled: selectedRegistrationsToBypass.length === 0,
+                }}
+                onCancel={() => setIsBatchBypassModalVisible(false)}
+                width={850}
+            >
+                <div className="space-y-4 py-2">
+                    <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg text-xs text-amber-900 leading-relaxed">
+                        <span className="font-bold">Đặc quyền Quản trị viên / Viện Trưởng:</span> Chọn các sinh viên/đề tài để bỏ qua bước thẩm định BM01-BM02. Các đề tài được chọn sẽ chuyển thẳng sang trạng thái <strong>Đang thực hiện (IN_PROGRESS)</strong> và tự động sinh mốc BM03.
+                    </div>
+
+                    <div>
+                        <div className="text-xs font-bold text-slate-700 mb-2">
+                            Danh sách sinh viên chưa thẩm định đề cương ({outlineRegistrationsToBypass.length}):
+                        </div>
+                        <Table
+                            dataSource={outlineRegistrationsToBypass}
+                            rowKey="id"
+                            size="small"
+                            pagination={{ pageSize: 5 }}
+                            rowSelection={{
+                                selectedRowKeys: selectedRegistrationsToBypass,
+                                onChange: (selectedKeys) => setSelectedRegistrationsToBypass(selectedKeys),
+                            }}
+                            columns={[
+                                {
+                                    title: 'Sinh viên',
+                                    key: 'student',
+                                    width: 220,
+                                    render: (_, r) => (
+                                        <div>
+                                            <div className="font-semibold text-slate-800">{r.student?.fullName}</div>
+                                            <div className="text-xs text-slate-400 font-mono">{r.student?.code}</div>
+                                        </div>
+                                    ),
+                                },
+                                {
+                                    title: 'Tên đề tài',
+                                    key: 'topic',
+                                    render: (_, r) => (
+                                        <span className="font-medium text-slate-800 text-xs">
+                                            {r.topic?.title || '—'}
+                                        </span>
+                                    ),
+                                },
+                                {
+                                    title: 'GVHD',
+                                    key: 'mentor',
+                                    width: 180,
+                                    render: (_, r) => (
+                                        <span className="text-xs text-slate-600">
+                                            {r.topic?.mentor?.fullName || '—'}
+                                        </span>
+                                    ),
+                                },
+                            ]}
+                            locale={{ emptyText: 'Không có sinh viên nào chưa thẩm định đề cương trong đợt này.' }}
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                            Lý do miễn thẩm định chung (*):
+                        </label>
+                        <Input.TextArea
+                            rows={2}
+                            value={bypassReasonInput}
+                            onChange={(e) => setBypassReasonInput(e.target.value)}
+                            placeholder="Nhập lý do miễn thẩm định đề cương cho các đề tài đã chọn..."
+                        />
+                    </div>
+                </div>
             </Modal>
         </div>
     );

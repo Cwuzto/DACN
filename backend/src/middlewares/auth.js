@@ -30,6 +30,13 @@ const authenticate = async (req, res, next) => {
                 role: true,
                 department: true,
                 isActive: true,
+                permissionGroups: {
+                    include: {
+                        permissionGroup: {
+                            include: { permissions: { include: { permission: true } } },
+                        },
+                    },
+                },
             },
         });
 
@@ -40,8 +47,19 @@ const authenticate = async (req, res, next) => {
             });
         }
 
-        // Gắn thông tin user vào request để các handler sau dùng
-        req.user = user;
+        const permissionSet = new Set();
+        (user.permissionGroups || []).forEach(({ permissionGroup }) => {
+            (permissionGroup?.permissions || []).forEach(({ permission }) => {
+                if (permission?.code) permissionSet.add(permission.code);
+            });
+        });
+        req.user = {
+            ...user,
+            permissionGroups: (user.permissionGroups || [])
+                .map(({ permissionGroup }) => permissionGroup?.code)
+                .filter(Boolean),
+            permissions: [...permissionSet],
+        };
         next();
     } catch (error) {
         if (error.name === 'TokenExpiredError') {
@@ -81,4 +99,62 @@ const authorize = (...roles) => {
     };
 };
 
-module.exports = { authenticate, authorize };
+const authorizePermission = (...permissionCodes) => {
+    return (req, res, next) => {
+        if (!req.user) {
+            return res.status(401).json({ success: false, message: 'Chưa xác thực.' });
+        }
+        const permissions = req.user.permissions || [];
+        if (!permissionCodes.some((code) => permissions.includes(code))) {
+            return res.status(403).json({ success: false, message: 'Bạn không có quyền thực hiện thao tác này.' });
+        }
+        next();
+    };
+};
+
+const optionalAuthenticate = async (req, res, next) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return next();
+        }
+        const token = authHeader.split(' ')[1];
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const user = await prisma.user.findUnique({
+            where: { id: decoded.userId },
+            select: {
+                id: true,
+                email: true,
+                fullName: true,
+                code: true,
+                role: true,
+                department: true,
+                isActive: true,
+                permissionGroups: {
+                    include: {
+                        permissionGroup: {
+                            include: { permissions: { include: { permission: true } } },
+                        },
+                    },
+                },
+            },
+        });
+        if (user && user.isActive) {
+            const permissionSet = new Set();
+            user.permissionGroups.forEach(({ permissionGroup }) => {
+                permissionGroup.permissions.forEach(({ permission }) => permissionSet.add(permission.code));
+            });
+            req.user = {
+                ...user,
+                permissionGroups: user.permissionGroups.map(({ permissionGroup }) => permissionGroup.code),
+                permissions: [...permissionSet],
+            };
+        }
+        next();
+    } catch {
+        next();
+    }
+};
+
+module.exports = { authenticate, optionalAuthenticate, authorize, authorizePermission };
+

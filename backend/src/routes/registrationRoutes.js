@@ -41,6 +41,10 @@ router.get(
             .optional()
             .isIn(['true', 'false'])
             .withMessage('unassignedCouncilOnly chỉ nhận true/false.'),
+        query('councilType')
+            .optional()
+            .isIn(['OUTLINE_REVIEW', 'DEFENSE_COUNCIL'])
+            .withMessage('councilType không hợp lệ.'),
         query('stalePendingOnly')
             .optional()
             .isIn(['true', 'false'])
@@ -110,6 +114,54 @@ router.patch(
         validateRequest,
     ],
     registrationController.forceDecisionRegistration,
+);
+
+router.patch(
+    '/:id/outline-review',
+    [
+        authorize('ADMIN', 'LECTURER'),
+        param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
+        body('status').optional().isIn(['PENDING', 'PASSED', 'REVISION_REQUIRED', 'FAILED']).withMessage('status không hợp lệ.'),
+        body('feedback').optional({ nullable: true }).isString(),
+        validateRequest,
+    ],
+    registrationController.updateOutlineReview,
+);
+
+router.post(
+    '/:id/bm04-review',
+    [
+        authorize('ADMIN', 'LECTURER'),
+        param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
+        body('decision').isIn(['AGREED', 'DISAGREED']).withMessage('decision bắt buộc và phải là AGREED hoặc DISAGREED.'),
+        body('feedback').optional({ nullable: true }).isString(),
+        body('score').optional({ nullable: true }).isFloat({ min: 0, max: 10 }).withMessage('score phải từ 0 đến 10.'),
+        validateRequest,
+    ],
+    registrationController.reviewBM04,
+);
+
+router.post(
+    '/batch-bypass-outline',
+    [
+        authorize('ADMIN'),
+        body('registrationIds').isArray({ min: 1 }).withMessage('registrationIds phải là mảng có ít nhất 1 phần tử.'),
+        body('registrationIds.*').isInt({ min: 1 }).withMessage('Mỗi registrationId phải là số nguyên dương.'),
+        body('reason').optional({ nullable: true }).isString().trim(),
+        validateRequest,
+    ],
+    registrationController.batchBypassOutlineReview,
+);
+
+router.post(
+    '/:id/bypass-outline',
+    [
+        authorize('ADMIN'),
+        param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
+        body('reason').isString().trim().isLength({ min: 1 }).withMessage('reason bắt buộc và không được để trống.'),
+        validateRequest,
+    ],
+    registrationController.bypassOutlineReview,
 );
 
 router.delete(

@@ -23,21 +23,26 @@ import {
     DeleteOutlined,
     EditOutlined,
     EyeOutlined,
+    PlusOutlined,
+    CalendarOutlined,
+    CheckCircleOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
 import registrationService from '../../services/registrationService';
 import { semesterService } from '../../services/semesterService';
 import { topicService } from '../../services/topicService';
+import PageHeader from '../../components/common/PageHeader';
 import { PROJECT_NAME, buildSemesterName, extractSemesterMeta, formatSemesterLabel } from '../../utils/semesterDisplay';
 
 const statusConfig = {
-    ONGOING: { label: 'Đang diễn ra', color: 'green', tw: 'bg-green-100 text-green-700' },
-    REGISTRATION: { label: 'Đang đăng ký', color: 'orange', tw: 'bg-orange-100 text-orange-700' },
-    UPCOMING: { label: 'Sắp tới', color: 'blue', tw: 'bg-blue-100 text-blue-700' },
-    DEFENSE: { label: 'Bảo vệ', color: 'purple', tw: 'bg-purple-100 text-purple-700' },
-    COMPLETED: { label: 'Hoàn thành', color: 'default', tw: 'bg-slate-100 text-slate-600' },
+    ONGOING: { label: 'Đang diễn ra', color: 'green', tw: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+    REGISTRATION: { label: 'Đang đăng ký', color: 'orange', tw: 'bg-amber-50 text-amber-700 border-amber-200' },
+    UPCOMING: { label: 'Sắp tới', color: 'blue', tw: 'bg-blue-50 text-blue-700 border-blue-200' },
+    DEFENSE: { label: 'Bảo vệ', color: 'purple', tw: 'bg-purple-50 text-purple-700 border-purple-200' },
+    COMPLETED: { label: 'Hoàn thành', color: 'default', tw: 'bg-slate-100 text-slate-600 border-slate-200' },
 };
+
 const REGISTRATION_TOGGLE_WARNING_WINDOW_DAYS = 14;
 
 const getToggleWindowWarning = (period) => {
@@ -78,13 +83,13 @@ function PeriodTimeline({ milestones, status }) {
     }
 
     const colorHexMap = {
-        green: '#52c41a',
-        orange: '#fa8c16',
-        blue: '#003366',
-        purple: '#722ed1',
-        default: '#8c8c8c',
+        green: '#10B981',
+        orange: '#F59E0B',
+        blue: '#2563EB',
+        purple: '#7C3AED',
+        default: '#64748B',
     };
-    const activeHex = colorHexMap[statusConfig[status]?.color] || '#003366';
+    const activeHex = colorHexMap[statusConfig[status]?.color] || '#1E3A5F';
 
     return (
         <ConfigProvider theme={{ token: { colorPrimary: activeHex } }}>
@@ -94,12 +99,12 @@ function PeriodTimeline({ milestones, status }) {
                 current={currentStep}
                 status={stepStatus}
                 items={milestones.map((milestone) => ({
-                    title: <span className="text-xs font-medium">{milestone.title}</span>,
+                    title: <span className="text-xs font-semibold text-slate-700">{milestone.title}</span>,
                     description: milestone.date ? (
-                        <span className="text-[11px] text-slate-400">{milestone.date}</span>
+                        <span className="text-[11px] text-slate-400 font-medium">{milestone.date}</span>
                     ) : null,
                 }))}
-                style={{ width: '100%', maxWidth: 600, margin: '0 auto' }}
+                style={{ width: '100%', maxWidth: 580, margin: '0 auto' }}
             />
         </ConfigProvider>
     );
@@ -111,70 +116,70 @@ function PeriodCard({ period, onEdit, onDelete, onClone }) {
 
     return (
         <div
-            className={`bg-white rounded-xl border border-slate-200 shadow-sm p-6 hover:shadow-md transition-all ${
-                isCompleted ? 'opacity-75' : ''
+            className={`bg-white rounded-xl border border-slate-200/80 shadow-sm p-5 hover:shadow-md transition-all duration-200 ${
+                isCompleted ? 'opacity-80 bg-slate-50/40' : ''
             }`}
         >
-            <div className="flex flex-wrap items-center justify-between gap-6">
-                <div className="w-60 shrink-0 space-y-2">
-                    <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold ${cfg.tw}`}>
-                        {cfg.label}
-                    </span>
-                    <h4 className="text-lg font-black text-slate-900">{period.name}</h4>
-                    <p className="text-xs text-slate-400">Mã đợt: {period.code}</p>
+            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
+                {/* Period Identity */}
+                <div className="w-full xl:w-64 shrink-0 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold border ${cfg.tw}`}>
+                            {cfg.label}
+                        </span>
+                        {period.registrationOpen && (
+                            <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                Đang mở ĐK
+                            </span>
+                        )}
+                    </div>
+                    <h4 className="text-base font-black text-slate-900 leading-snug">{period.name}</h4>
+                    <p className="text-xs text-slate-400 font-medium">Mã đợt: {period.code}</p>
                 </div>
 
-                <div className="flex-1 flex items-center justify-center min-w-[500px]">
+                {/* Progress Steps Timeline */}
+                <div className="flex-1 w-full overflow-x-auto py-2">
                     <PeriodTimeline milestones={period.milestones} status={period.status} />
                 </div>
 
-                <div className="w-48 shrink-0 flex flex-col items-end gap-3">
+                {/* Stats & Actions Strip */}
+                <div className="w-full xl:w-56 shrink-0 flex xl:flex-col items-center xl:items-end justify-between xl:justify-center gap-3 pt-3 xl:pt-0 border-t xl:border-t-0 border-slate-100">
                     {period.status === 'UPCOMING' ? (
-                        <p className="text-xs text-slate-400 italic">Chưa có dữ liệu thống kê</p>
+                        <p className="text-xs text-slate-400 italic">Chưa mở đợt</p>
                     ) : isCompleted ? (
-                        <p className="text-xs text-slate-400 italic">Đã lưu trữ</p>
+                        <p className="text-xs text-slate-400 italic">Đã kết thúc & lưu trữ</p>
                     ) : (
-                        <div className="flex items-center gap-3 text-xs">
-                            <span>
-                                <strong>{period.topics}</strong> đề tài
+                        <div className="flex items-center gap-2 text-xs bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
+                            <span className="text-slate-600">
+                                <strong className="text-slate-900">{period.topics}</strong> đề tài
                             </span>
-                            <span className="text-slate-300">|</span>
-                            <span>
-                                <strong>{period.students}</strong> SV
+                            <span className="text-slate-300">•</span>
+                            <span className="text-slate-600">
+                                <strong className="text-blue-600">{period.students}</strong> SV
                             </span>
                         </div>
                     )}
 
-                    <Space>
+                    <Space size="small">
                         <Tooltip title="Sao chép cấu hình">
                             <Button
-                                type="text"
                                 icon={<CopyOutlined />}
                                 size="small"
                                 onClick={() => onClone(period)}
                             />
                         </Tooltip>
                         {!isCompleted && (
-                            <Tooltip title="Chỉnh sửa">
+                            <Tooltip title="Chỉnh sửa đợt">
                                 <Button
-                                    type="text"
                                     icon={<EditOutlined />}
                                     size="small"
                                     onClick={() => onEdit(period)}
                                 />
                             </Tooltip>
                         )}
-                        <Button
-                            type={isCompleted ? 'text' : 'default'}
-                            size="small"
-                            icon={isCompleted ? <EyeOutlined /> : <ArrowRightOutlined />}
-                        >
-                            {isCompleted ? 'Xem lại' : 'Chi tiết'}
-                        </Button>
                         {!isCompleted && (
-                            <Tooltip title="Xóa">
+                            <Tooltip title="Xóa đợt">
                                 <Button
-                                    type="text"
                                     danger
                                     icon={<DeleteOutlined />}
                                     size="small"
@@ -390,16 +395,16 @@ function ProjectPeriodPage() {
 
     const handleDelete = (id) => {
         Modal.confirm({
-            title: 'Xác nhận xóa',
-            content: 'Chỉ xóa được nếu chưa có dữ liệu liên kết.',
-            okText: 'Xóa',
+            title: 'Xác nhận xóa đợt đồ án',
+            content: 'Hành động này chỉ xóa được nếu đợt chưa có sinh viên đăng ký đề tài hoặc phân công hội đồng.',
+            okText: 'Xóa đợt',
             okType: 'danger',
             cancelText: 'Hủy',
             onOk: async () => {
                 try {
                     const response = await semesterService.delete(id);
                     if (response.success) {
-                        message.success('Xóa thành công');
+                        message.success('Đã xóa đợt đồ án');
                         fetchSemesters();
                     }
                 } catch (error) {
@@ -434,7 +439,7 @@ function ProjectPeriodPage() {
                     : await semesterService.update(values.id, payload);
 
             if (response.success) {
-                message.success(modalMode === 'add' ? 'Tạo thành công' : 'Cập nhật thành công');
+                message.success(modalMode === 'add' ? 'Khởi tạo đợt thành công' : 'Cập nhật đợt thành công');
                 setIsModalVisible(false);
                 fetchSemesters();
             }
@@ -444,63 +449,65 @@ function ProjectPeriodPage() {
     };
 
     return (
-        <div className="py-2">
-            <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-                <div>
-                    <h2 className="text-2xl font-black text-slate-900">Quản lý Đợt Đồ án</h2>
-                    <p className="text-sm text-slate-500 mt-1">
-                        Tên đồ án: <b>{PROJECT_NAME}</b>. Hiển thị theo đợt đồ án mới nhất (gắn với học kỳ, năm học).
-                    </p>
-                </div>
-                <button
-                    onClick={handleAdd}
-                    className="inline-flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-lg font-bold text-sm hover:bg-primary-800 transition-colors"
-                >
-                    <span className="material-symbols-outlined text-[18px]">add</span>
-                    Tạo đợt mới
-                </button>
-            </div>
+        <div className="py-2 space-y-6">
+            <PageHeader
+                title="Quản lý Đợt Đồ án"
+                subtitle={`Cấu hình học kỳ và các mốc thời gian quan trọng (${PROJECT_NAME})`}
+                actions={
+                    <Button
+                        type="primary"
+                        icon={<PlusOutlined />}
+                        onClick={handleAdd}
+                    >
+                        Tạo đợt đồ án mới
+                    </Button>
+                }
+            />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-orange-50 text-orange-600 rounded-lg flex items-center justify-center">
-                            <span className="material-symbols-outlined">edit_notifications</span>
+            {/* Registration Quick Switch Card */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-5 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3.5">
+                        <div className="w-10 h-10 bg-amber-50 text-amber-600 rounded-lg flex items-center justify-center shrink-0">
+                            <span className="material-symbols-outlined text-[20px]">edit_notifications</span>
                         </div>
                         <div>
-                            <p className="font-bold text-slate-900 cursor-pointer">Cho phép đăng ký đề tài</p>
-                            <p className="text-xs text-slate-500 mt-0.5">
-                                Bật/tắt đăng ký theo đợt đồ án đang chọn ở cột bên phải.
+                            <p className="text-sm font-bold text-slate-900">Cho phép đăng ký đề tài</p>
+                            <p className="text-xs text-slate-400 mt-0.5">
+                                Bật/tắt mở cổng đăng ký cho học kỳ đang chọn.
                             </p>
                         </div>
                     </div>
-                    <Switch
-                        checked={!!selectedPeriod?.registrationOpen}
-                        onChange={handleRegistrationToggle}
-                        loading={updatingToggle}
-                        disabled={!selectedPeriod}
-                    />
-                    {selectedPeriod && (
-                        <span
-                            className={`ml-2 text-xs font-bold px-2 py-1 rounded-full ${
-                                selectedPeriod.registrationOpen
-                                    ? 'bg-green-100 text-green-700'
-                                    : 'bg-red-100 text-red-700'
-                            }`}
-                        >
-                            {selectedPeriod.registrationOpen ? 'Đang mở' : 'Đang đóng'}
-                        </span>
-                    )}
+                    <div className="flex items-center gap-2.5 shrink-0">
+                        <Switch
+                            checked={!!selectedPeriod?.registrationOpen}
+                            onChange={handleRegistrationToggle}
+                            loading={updatingToggle}
+                            disabled={!selectedPeriod}
+                        />
+                        {selectedPeriod && (
+                            <span
+                                className={`text-xs font-bold px-2 py-0.5 rounded-full border ${
+                                    selectedPeriod.registrationOpen
+                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                        : 'bg-rose-50 text-rose-700 border-rose-200'
+                                }`}
+                            >
+                                {selectedPeriod.registrationOpen ? 'Đang mở' : 'Đang đóng'}
+                            </span>
+                        )}
+                    </div>
                 </div>
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center">
-                            <span className="material-symbols-outlined">dashboard_customize</span>
+
+                <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-5 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3.5">
+                        <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center shrink-0">
+                            <span className="material-symbols-outlined text-[20px]">dashboard_customize</span>
                         </div>
                         <div>
-                            <p className="font-bold text-slate-900">Học kỳ đang chọn</p>
-                            <p className="text-xs text-slate-500 mt-0.5">
-                                Dùng để cấu hình trạng thái mở/đóng đăng ký.
+                            <p className="text-sm font-bold text-slate-900">Học kỳ đang chọn</p>
+                            <p className="text-xs text-slate-400 mt-0.5">
+                                Cấu hình áp dụng cho đợt được chọn này.
                             </p>
                         </div>
                     </div>
@@ -513,30 +520,45 @@ function ProjectPeriodPage() {
                 </div>
             </div>
 
-            <h3 className="text-lg font-black text-slate-900 mb-4">Danh sách Đợt Đồ án</h3>
-            <Spin spinning={loading}>
-                <div className="space-y-4 mb-10 min-h-[200px]">
-                    {periods.length === 0 && !loading ? (
-                        <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
-                            <span className="material-symbols-outlined text-4xl text-slate-300 mb-3 block">
-                                event_busy
-                            </span>
-                            <p className="text-slate-500">Chưa có đợt đồ án nào.</p>
-                        </div>
-                    ) : (
-                        periods.map((period) => (
-                            <PeriodCard
-                                key={period.key}
-                                period={period}
-                                onEdit={handleEdit}
-                                onDelete={handleDelete}
-                                onClone={handleClone}
-                            />
-                        ))
-                    )}
+            {/* List of Period Cards */}
+            <div className="space-y-4">
+                <div className="flex items-center justify-between pb-1">
+                    <h3 className="text-base font-bold text-slate-900">
+                        Danh sách Các Đợt Đồ Án
+                    </h3>
+                    <span className="text-xs text-slate-400 font-medium">
+                        Tổng cộng: {periods.length} đợt
+                    </span>
                 </div>
-            </Spin>
 
+                <Spin spinning={loading}>
+                    <div className="space-y-4 min-h-[160px]">
+                        {periods.length === 0 && !loading ? (
+                            <div className="bg-white rounded-xl border border-slate-200/80 p-12 text-center">
+                                <span className="material-symbols-outlined text-4xl text-slate-300 mb-2 block">
+                                    event_busy
+                                </span>
+                                <p className="text-sm text-slate-500 font-medium">Chưa có đợt đồ án nào được khởi tạo.</p>
+                                <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd} className="mt-4">
+                                    Tạo đợt đầu tiên
+                                </Button>
+                            </div>
+                        ) : (
+                            periods.map((period) => (
+                                <PeriodCard
+                                    key={period.key}
+                                    period={period}
+                                    onEdit={handleEdit}
+                                    onDelete={handleDelete}
+                                    onClone={handleClone}
+                                />
+                            ))
+                        )}
+                    </div>
+                </Spin>
+            </div>
+
+            {/* Modal Form */}
             <Modal
                 title={modalMode === 'add' ? 'Tạo đợt đồ án mới' : 'Cập nhật đợt đồ án'}
                 open={isModalVisible}
@@ -545,6 +567,7 @@ function ProjectPeriodPage() {
                 okText={modalMode === 'add' ? 'Lưu và khởi tạo' : 'Cập nhật'}
                 cancelText="Hủy"
                 width={700}
+                destroyOnClose
             >
                 <Form form={form} layout="vertical" name="project_period_form" style={{ marginTop: 16 }}>
                     <Form.Item name="id" hidden>
@@ -552,20 +575,12 @@ function ProjectPeriodPage() {
                     </Form.Item>
                     <Row gutter={16}>
                         <Col span={12}>
-                            <Form.Item
-                                name="projectName"
-                                label="Tên đồ án"
-                                initialValue={PROJECT_NAME}
-                            >
+                            <Form.Item name="projectName" label="Tên đồ án" initialValue={PROJECT_NAME}>
                                 <Input disabled />
                             </Form.Item>
                         </Col>
                         <Col span={6}>
-                            <Form.Item
-                                name="term"
-                                label="Học kỳ"
-                                rules={[{ required: true, message: 'Chọn học kỳ' }]}
-                            >
+                            <Form.Item name="term" label="Học kỳ" rules={[{ required: true, message: 'Chọn học kỳ' }]}>
                                 <Select
                                     options={[
                                         { value: 1, label: 'Học kỳ 1' },
@@ -575,22 +590,14 @@ function ProjectPeriodPage() {
                             </Form.Item>
                         </Col>
                         <Col span={6}>
-                            <Form.Item
-                                name="academicStartYear"
-                                label="Năm học bắt đầu"
-                                rules={[{ required: true, message: 'Nhập năm bắt đầu' }]}
-                            >
+                            <Form.Item name="academicStartYear" label="Năm học bắt đầu" rules={[{ required: true, message: 'Nhập năm bắt đầu' }]}>
                                 <InputNumber min={2000} max={2100} style={{ width: '100%' }} />
                             </Form.Item>
                         </Col>
                     </Row>
                     <Row gutter={16}>
                         <Col span={12}>
-                            <Form.Item
-                                name="status"
-                                label="Trạng thái học kỳ"
-                                rules={[{ required: true, message: 'Chọn trạng thái học kỳ' }]}
-                            >
+                            <Form.Item name="status" label="Trạng thái học kỳ" rules={[{ required: true, message: 'Chọn trạng thái học kỳ' }]}>
                                 <Select
                                     options={[
                                         { value: 'UPCOMING', label: 'Sắp tới' },
@@ -603,22 +610,14 @@ function ProjectPeriodPage() {
                             </Form.Item>
                         </Col>
                         <Col span={12}>
-                            <Form.Item
-                                name="registrationOpen"
-                                label="Mở đăng ký"
-                                valuePropName="checked"
-                            >
+                            <Form.Item name="registrationOpen" label="Mở đăng ký đề tài" valuePropName="checked">
                                 <Switch />
                             </Form.Item>
                         </Col>
                     </Row>
                     <Row gutter={16}>
                         <Col span={12}>
-                            <Form.Item
-                                name="registrationDeadline"
-                                label="Ngày đóng đăng ký đề tài"
-                                rules={[{ required: true, message: 'Chọn ngày' }]}
-                            >
+                            <Form.Item name="registrationDeadline" label="Ngày đóng đăng ký đề tài" rules={[{ required: true, message: 'Chọn ngày' }]}>
                                 <DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} />
                             </Form.Item>
                         </Col>
@@ -635,23 +634,15 @@ function ProjectPeriodPage() {
                             </Form.Item>
                         </Col>
                     </Row>
-                    <hr className="my-4 border-slate-100" />
+                    <hr className="my-3 border-slate-100" />
                     <Row gutter={16}>
                         <Col span={12}>
-                            <Form.Item
-                                name="startDate"
-                                label="Ngày khai mạc đợt"
-                                rules={[{ required: true, message: 'Chọn ngày' }]}
-                            >
+                            <Form.Item name="startDate" label="Ngày khai mạc đợt" rules={[{ required: true, message: 'Chọn ngày' }]}>
                                 <DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} />
                             </Form.Item>
                         </Col>
                         <Col span={12}>
-                            <Form.Item
-                                name="endDate"
-                                label="Ngày kết thúc đợt"
-                                rules={[{ required: true, message: 'Chọn ngày' }]}
-                            >
+                            <Form.Item name="endDate" label="Ngày kết thúc đợt" rules={[{ required: true, message: 'Chọn ngày' }]}>
                                 <DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} />
                             </Form.Item>
                         </Col>
