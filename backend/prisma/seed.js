@@ -1,4 +1,4 @@
-﻿require("dotenv").config();
+require("dotenv").config();
 
 const bcrypt = require("bcryptjs");
 const { PrismaClient } = require("@prisma/client");
@@ -155,7 +155,7 @@ async function clearNonUserData() {
     prisma.defenseResult.deleteMany(),
     prisma.submission.deleteMany(),
     prisma.task.deleteMany(),
-    prisma.milestone.deleteMany(),
+    prisma.meetingLog.deleteMany(),
     prisma.topicRegistration.deleteMany(),
     prisma.councilMember.deleteMany(),
     prisma.council.deleteMany(),
@@ -349,17 +349,17 @@ async function addRejectedOrWithdrawnCases({ semester, approvedTopics, studentId
 async function createTasksMilestonesSubmissions({ semester, registrationEntries }) {
   let createdTasks = 0;
   let createdSubmissions = 0;
-  let createdMilestones = 0;
+  let createdMeetingLogs = 0;
 
   for (let i = 0; i < registrationEntries.length; i += 1) {
     const { registration, progress, studentId } = registrationEntries[i];
 
     const taskTemplates = [
-      { title: "Khảo sát yêu cầu", delta: -35, status: progress >= 40 ? "COMPLETED" : "IN_PROGRESS" },
-      { title: "Thiết kế kiến trúc và CSDL", delta: -20, status: progress >= 55 ? "COMPLETED" : "IN_PROGRESS" },
-      { title: "Xây dựng module chính", delta: -8, status: progress >= 70 ? "SUBMITTED" : "IN_PROGRESS" },
-      { title: "Kiểm thử và tinh chỉnh", delta: 3, status: progress >= 85 ? "COMPLETED" : progress >= 60 ? "IN_PROGRESS" : "OPEN" },
-      { title: "Báo cáo tổng kết", delta: 10, status: progress >= 90 ? "SUBMITTED" : "OPEN" },
+      { title: "BM01 - Đề cương chi tiết đồ án", taskType: "BM01", delta: -35, status: progress >= 40 ? "COMPLETED" : "IN_PROGRESS" },
+      { title: "BM02 - Phiếu giao nhiệm vụ đồ án", taskType: "BM02", delta: -20, status: progress >= 55 ? "COMPLETED" : "IN_PROGRESS" },
+      { title: "BM03 - Tiến độ đợt 1 (Tuần 6)", taskType: "BM03_CHECKPOINT_1", delta: -8, status: progress >= 70 ? "COMPLETED" : "IN_PROGRESS" },
+      { title: "BM03 - Tiến độ đợt 2 (Tuần 10)", taskType: "BM03_CHECKPOINT_2", delta: 3, status: progress >= 85 ? "COMPLETED" : progress >= 60 ? "IN_PROGRESS" : "OPEN" },
+      { title: "Báo cáo toàn văn bản thảo", taskType: "REPORT_DRAFT", delta: 10, status: progress >= 90 ? "SUBMITTED" : "OPEN" },
     ];
 
     for (let t = 0; t < taskTemplates.length; t += 1) {
@@ -368,8 +368,9 @@ async function createTasksMilestonesSubmissions({ semester, registrationEntries 
       const task = await prisma.task.create({
         data: {
           registrationId: registration.id,
-          title: `${template.title} - Task ${t + 1}`,
-          content: "Cần có tài liệu minh chứng, commit rõ ràng và video demo ngắn cho từng mốc.",
+          title: template.title,
+          content: "Thực hiện theo đúng quy chuẩn biểu mẫu học vụ và nộp đúng hạn.",
+          taskType: template.taskType,
           dueDate,
           status: template.status,
         },
@@ -394,29 +395,27 @@ async function createTasksMilestonesSubmissions({ semester, registrationEntries 
       }
     }
 
-    const milestoneTemplates = [
-      { title: "Mốc 1 - Phân tích bài toán", offset: -25, gate: 35 },
-      { title: "Mốc 2 - Bản chạy thử", offset: -5, gate: 65 },
-      { title: "Mốc 3 - Hoàn thiện bảo vệ", offset: 12, gate: 90 },
-    ];
-
-    for (const milestoneTemplate of milestoneTemplates) {
-      const passed = progress >= milestoneTemplate.gate;
-      await prisma.milestone.create({
-        data: {
-          registrationId: registration.id,
-          title: milestoneTemplate.title,
-          dueDate: shiftDays(semester.midtermReportDate || semester.startDate, milestoneTemplate.offset),
-          status: passed ? "PASSED" : "PENDING",
-          feedback: passed ? "Đạt yêu cầu của hội đồng hướng dẫn." : null,
-          completedAt: passed ? shiftDays(semester.startDate, 40) : null,
-        },
-      });
-      createdMilestones += 1;
+    // Seed realistic meeting logs
+    if (["IN_PROGRESS", "SUBMITTED", "DEFENDED", "COMPLETED"].includes(registration.status)) {
+      const meetingCount = progress >= 70 ? 4 : 2;
+      for (let m = 0; m < meetingCount; m += 1) {
+        await prisma.meetingLog.create({
+          data: {
+            registrationId: registration.id,
+            meetingDate: shiftDays(semester.startDate, 14 * (m + 1)),
+            meetingType: m % 2 === 0 ? "LAB" : "ONLINE",
+            studentWorkSummary: `Báo cáo tiến độ tuần ${m * 2 + 2}: Đã hoàn thành các mục nghiên cứu và module ${m + 1}.`,
+            nextPlan: `Kế hoạch tuần tiếp theo: Tích hợp API và kiểm thử tính năng ${m + 2}.`,
+            supervisorNotes: "Tiến độ đạt yêu cầu. Cần chú ý thêm về tính bảo mật và chuẩn mã hóa UTF-8.",
+            createdBy: registration.mentorId || 2,
+          },
+        });
+        createdMeetingLogs += 1;
+      }
     }
   }
 
-  return { createdTasks, createdSubmissions, createdMilestones };
+  return { createdTasks, createdSubmissions, createdMeetingLogs };
 }
 
 async function createCouncilsAndResults({ semester, lecturerIds, registrations, createDefenseResult }) {
@@ -603,7 +602,7 @@ async function seedBusinessData() {
     });
     createdTasks += taskStats.createdTasks;
     createdSubmissions += taskStats.createdSubmissions;
-    createdMilestones += taskStats.createdMilestones;
+    createdMeetingLogs += taskStats.createdMeetingLogs;
 
     const councilStats = await createCouncilsAndResults({
       semester: plan.semester,
@@ -623,7 +622,7 @@ async function seedBusinessData() {
     projectCatalogs: projectCatalogs.length,
     tasks: createdTasks,
     submissions: createdSubmissions,
-    milestones: createdMilestones,
+    meetingLogs: createdMeetingLogs,
     councils: councilsCreated,
     councilMembers: membersCreated,
     defenseResults: defenseResultsCreated,
@@ -631,10 +630,13 @@ async function seedBusinessData() {
   };
 }
 
+const { seedPermissionCatalog } = require("../src/services/permissionService");
+
 async function main() {
   console.log("[seed] Start seeding realistic demo data...");
 
   await clearNonUserData();
+  await seedPermissionCatalog();
   await upsertUsers();
   const generated = await seedBusinessData();
 
@@ -647,7 +649,7 @@ async function main() {
     registrations: await prisma.topicRegistration.count(),
     tasks: await prisma.task.count(),
     submissions: await prisma.submission.count(),
-    milestones: await prisma.milestone.count(),
+    meetingLogs: await prisma.meetingLog.count(),
     councils: await prisma.council.count(),
     councilMembers: await prisma.councilMember.count(),
     defenseResults: await prisma.defenseResult.count(),

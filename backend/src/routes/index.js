@@ -13,6 +13,10 @@ const dashboardRoutes = require('./dashboardRoutes');
 const evaluationRoutes = require('./evaluationRoutes');
 const notificationRoutes = require('./notificationRoutes');
 const projectEnrollmentRoutes = require('./projectEnrollmentRoutes');
+const permissionRoutes = require('./permissionRoutes');
+const announcementRoutes = require('./announcementRoutes');
+const meetingLogRoutes = require('./meetingLogRoutes');
+const archiveRoutes = require('./archiveRoutes');
 
 // Đăng ký routes
 router.use('/auth', authRoutes);
@@ -27,6 +31,10 @@ router.use('/dashboard', dashboardRoutes);
 router.use('/evaluations', evaluationRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/project-enrollments', projectEnrollmentRoutes);
+router.use('/permissions', permissionRoutes);
+router.use('/announcements', announcementRoutes);
+router.use('/archives', archiveRoutes);
+router.use('/', meetingLogRoutes);
 
 // Health check
 router.get('/health', (req, res) => {

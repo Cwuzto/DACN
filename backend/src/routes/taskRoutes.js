@@ -1,4 +1,4 @@
-﻿const express = require('express');
+const express = require('express');
 const router = express.Router();
 const taskController = require('../controllers/taskController');
 const { authenticate, authorize } = require('../middlewares/auth');
@@ -10,6 +10,7 @@ router.get('/registration/:id', taskController.getTasksByRegistration);
 router.post('/:id/submit', authorize('STUDENT'), taskController.submitTask);
 router.post('/submission/:id/grade', authorize('LECTURER', 'ADMIN'), taskController.gradeSubmission);
 router.patch('/:id/status', authorize('LECTURER', 'ADMIN'), taskController.updateTaskStatus);
+router.post('/:id/bypass', authorize('LECTURER', 'ADMIN'), taskController.bypassTask);
 router.post('/remind', authorize('LECTURER', 'ADMIN'), taskController.remindTasks);
 
 module.exports = router;

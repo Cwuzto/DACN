@@ -10,12 +10,15 @@ const getRequestIp = (req) => req.ip || req.headers['x-forwarded-for'] || null;
 // LECTURER giao task cho sinh vien
 const createTask = async (req, res, next) => {
     try {
-        const { registrationId, title, content, dueDate } = req.body;
+        const { registrationId, title, content, taskType, dueDate } = req.body;
         const mentorId = req.user.id;
 
         if (!registrationId || !title) {
             return res.status(400).json({ success: false, message: 'Thiếu registrationId hoặc title.' });
         }
+
+        const validTaskTypes = ['BM01', 'BM02', 'BM03_CHECKPOINT_1', 'BM03_CHECKPOINT_2', 'BM03_CHECKPOINT', 'REPORT_DRAFT', 'BM04', 'GENERIC'];
+        const taskTypeValue = taskType && validTaskTypes.includes(taskType) ? taskType : 'GENERIC';
 
         const registration = await prisma.topicRegistration.findUnique({
             where: { id: parseInt(registrationId, 10) },
@@ -38,6 +41,7 @@ const createTask = async (req, res, next) => {
                 registrationId: parseInt(registrationId, 10),
                 title,
                 content,
+                taskType: taskTypeValue,
                 dueDate: dueDate ? new Date(dueDate) : null,
                 status: 'OPEN',
             },
@@ -95,18 +99,76 @@ const getTasksByRegistration = async (req, res, next) => {
             return res.status(403).json({ success: false, message: 'Bạn không phải giảng viên hướng dẫn của sinh viên này.' });
         }
 
-        const tasks = await prisma.task.findMany({
+        let tasks = await prisma.task.findMany({
             where: { registrationId },
             include: {
                 submissions: {
                     include: {
                         student: { select: { fullName: true, code: true } },
                     },
-                    orderBy: { submittedAt: 'asc' },
+                    orderBy: { submittedAt: 'desc' },
                 },
             },
-            orderBy: [{ dueDate: 'asc' }, { createdAt: 'asc' }],
+            orderBy: [{ createdAt: 'asc' }, { dueDate: 'asc' }],
         });
+
+        // Auto-initialize standard BM tasks if none exist and registration is active
+        if (tasks.length === 0 && ['APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'DEFENDED', 'COMPLETED'].includes(registration.status)) {
+            const standardTasksData = [
+                {
+                    registrationId,
+                    title: 'BM01 - Đề cương chi tiết đồ án',
+                    content: 'Nộp đề cương chi tiết đồ án gồm: mục tiêu, phạm vi nghiên cứu, phương pháp/công nghệ và kế hoạch thực hiện.',
+                    taskType: 'BM01',
+                    status: 'OPEN',
+                },
+                {
+                    registrationId,
+                    title: 'BM02 - Phiếu giao nhiệm vụ đồ án',
+                    content: 'Nộp phiếu giao nhiệm vụ đồ án chính thức có đầy đủ nội dung chi tiết và xác nhận từ GVHD.',
+                    taskType: 'BM02',
+                    status: 'OPEN',
+                },
+                {
+                    registrationId,
+                    title: 'BM03 - Báo cáo tiến độ Đợt 1 (Tuần 6)',
+                    content: 'Báo cáo tiến độ thực hiện đồ án đợt 1: khối lượng công việc hoàn thành (mục tiêu >= 40%), khó khăn vướng mắc và kế hoạch giai đoạn tiếp theo.',
+                    taskType: 'BM03_CHECKPOINT_1',
+                    status: 'OPEN',
+                },
+                {
+                    registrationId,
+                    title: 'BM03 - Báo cáo tiến độ Đợt 2 (Tuần 10)',
+                    content: 'Báo cáo tiến độ thực hiện đồ án đợt 2: hoàn thiện sản phẩm và bản thảo báo cáo (mục tiêu >= 80%).',
+                    taskType: 'BM03_CHECKPOINT_2',
+                    status: 'OPEN',
+                },
+                {
+                    registrationId,
+                    title: 'Báo cáo toàn văn bản thảo (Thuyết minh đồ án)',
+                    content: 'Nộp toàn văn báo cáo thuyết minh đồ án và liên kết sản phẩm/mã nguồn để GVHD thẩm định trước bảo vệ.',
+                    taskType: 'REPORT_DRAFT',
+                    status: 'OPEN',
+                },
+            ];
+
+            await prisma.task.createMany({
+                data: standardTasksData,
+            });
+
+            tasks = await prisma.task.findMany({
+                where: { registrationId },
+                include: {
+                    submissions: {
+                        include: {
+                            student: { select: { fullName: true, code: true } },
+                        },
+                        orderBy: { submittedAt: 'desc' },
+                    },
+                },
+                orderBy: [{ createdAt: 'asc' }],
+            });
+        }
 
         res.json({ success: true, data: tasks });
     } catch (error) {
@@ -155,6 +217,49 @@ const submitTask = async (req, res, next) => {
                 success: false,
                 message: 'Nhiệm vụ đang chờ giảng viên nhận xét. Vui lòng đợi phản hồi trước khi nộp lại.',
             });
+        }
+
+        // Sequential validation for standard BM workflow with bypass support
+        if (task.taskType === 'BM02') {
+            const bm01Task = await prisma.task.findFirst({
+                where: { registrationId: task.registrationId, taskType: 'BM01' },
+            });
+            if (bm01Task && bm01Task.status !== 'COMPLETED' && !bm01Task.isBypassed) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Bạn cần hoàn thành hoặc được miễn duyệt BM01 (Đề cương) trước khi nộp BM02.',
+                });
+            }
+        } else if (task.taskType === 'BM03_CHECKPOINT_1' || task.taskType === 'BM03_CHECKPOINT') {
+            const bm02Task = await prisma.task.findFirst({
+                where: { registrationId: task.registrationId, taskType: 'BM02' },
+            });
+            if (bm02Task && bm02Task.status !== 'COMPLETED' && !bm02Task.isBypassed) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Bạn cần hoàn thành hoặc được miễn duyệt BM02 (Giao nhiệm vụ) trước khi nộp BM03.',
+                });
+            }
+        } else if (task.taskType === 'BM03_CHECKPOINT_2') {
+            const cp1Task = await prisma.task.findFirst({
+                where: { registrationId: task.registrationId, taskType: { in: ['BM03_CHECKPOINT_1', 'BM03_CHECKPOINT'] } },
+            });
+            if (cp1Task && cp1Task.status !== 'COMPLETED' && !cp1Task.isBypassed) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Bạn cần hoàn thành Báo cáo tiến độ Đợt 1 trước khi nộp Đợt 2.',
+                });
+            }
+        } else if (task.taskType === 'REPORT_DRAFT' || task.taskType === 'BM04') {
+            const cp2Task = await prisma.task.findFirst({
+                where: { registrationId: task.registrationId, taskType: { in: ['BM03_CHECKPOINT_2', 'BM03_CHECKPOINT_1', 'BM03_CHECKPOINT'] } },
+            });
+            if (cp2Task && cp2Task.status !== 'COMPLETED' && !cp2Task.isBypassed) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Bạn cần hoàn thành các mốc báo cáo tiến độ trước khi nộp Báo cáo bản thảo.',
+                });
+            }
         }
 
         const submissionCount = await prisma.submission.count({
@@ -206,8 +311,8 @@ const submitTask = async (req, res, next) => {
             await safeNotify(
                 {
                     userId: task.registration.topic.mentorId,
-                    title: 'Sinh vien vua nop bai',
-                    content: `Sinh vien vua nop bai cho nhiem vu: ${task.title}`,
+                    title: 'Sinh viên vừa nộp bài',
+                    content: `Sinh viên vừa nộp bài cho nhiệm vụ: ${task.title}`,
                     type: 'SUBMISSION',
                     referenceUrl: '/lecturer/progress',
                 },
@@ -271,13 +376,28 @@ const gradeSubmission = async (req, res, next) => {
             data: { status: normalizedDecision },
         });
 
+        // Trigger registration status progression on task completion
+        if (normalizedDecision === 'COMPLETED') {
+            if (submission.task.taskType === 'BM01' && submission.task.registration?.status === 'APPROVED') {
+                await prisma.topicRegistration.update({
+                    where: { id: submission.registrationId },
+                    data: { status: 'IN_PROGRESS' },
+                });
+            } else if (submission.task.taskType === 'BM04') {
+                await prisma.topicRegistration.update({
+                    where: { id: submission.registrationId },
+                    data: { status: 'SUBMITTED' },
+                });
+            }
+        }
+
         await safeNotify(
             {
                 userId: submission.submittedBy,
                 title: 'Giảng viên đã nhận xét',
                 content: normalizedDecision === 'REVISION'
                     ? `Báo cáo "${submission.task.title}" cần chỉnh sửa và nộp lại theo nhận xét của giảng viên.`
-                    : `Giảng viên đã nhận xét báo cáo cho nhiệm vụ: ${submission.task.title}`,
+                    : `Giảng viên đã nhận xét và duyệt báo cáo cho nhiệm vụ: ${submission.task.title}`,
                 type: 'SUBMISSION',
             },
             'gradeSubmission',
@@ -296,7 +416,7 @@ const gradeSubmission = async (req, res, next) => {
             success: true,
             message: normalizedDecision === 'REVISION'
                 ? 'Đã lưu nhận xét và yêu cầu sinh viên chỉnh sửa.'
-                : 'Đã lưu nhận xét.',
+                : 'Đã lưu nhận xét và phê duyệt thành công.',
             data: updatedSubmission,
         });
     } catch (error) {
@@ -474,6 +594,92 @@ const remindTasks = async (req, res, next) => {
     }
 };
 
+// POST /api/tasks/:id/bypass
+const bypassTask = async (req, res, next) => {
+    try {
+        const taskId = parseInt(req.params.id, 10);
+        const { reason } = req.body;
+        const { id: userId, role } = req.user;
+
+        if (!Number.isInteger(taskId) || taskId <= 0) {
+            return res.status(400).json({ success: false, message: 'ID task không hợp lệ.' });
+        }
+
+        const task = await prisma.task.findUnique({
+            where: { id: taskId },
+            include: {
+                registration: {
+                    include: {
+                        topic: { select: { mentorId: true, title: true } },
+                    },
+                },
+            },
+        });
+
+        if (!task) {
+            return res.status(404).json({ success: false, message: 'Nhiệm vụ không tồn tại.' });
+        }
+
+        if (role !== 'ADMIN' && task.registration?.topic?.mentorId !== userId) {
+            return res.status(403).json({
+                success: false,
+                message: 'Chỉ Giảng viên hướng dẫn hoặc Quản trị viên mới có quyền miễn thẩm định (Bypass).',
+            });
+        }
+
+        // Only allow bypass for soft gates
+        if (!['BM01', 'BM02'].includes(task.taskType)) {
+            return res.status(400).json({
+                success: false,
+                message: `Chỉ cho phép miễn thẩm định đối với các biểu mẫu đầu vào (BM01, BM02). Nhiệm vụ loại ${task.taskType} là chốt chặn bắt buộc không thể bỏ qua.`,
+            });
+        }
+
+        const updated = await prisma.task.update({
+            where: { id: taskId },
+            data: {
+                status: 'COMPLETED',
+                isBypassed: true,
+                bypassReason: reason ? reason.trim() : 'Miễn thẩm định theo quy định của đề tài / đợt đồ án',
+                bypassedBy: userId,
+            },
+        });
+
+        // Transition registration to IN_PROGRESS if currently APPROVED
+        if (task.registration?.status === 'APPROVED') {
+            await prisma.topicRegistration.update({
+                where: { id: task.registrationId },
+                data: { status: 'IN_PROGRESS' },
+            });
+        }
+
+        // Notify student
+        await safeNotify({
+            userId: task.registration.studentId,
+            title: 'Nhiệm vụ đã được miễn thẩm định (Bypass)',
+            content: `Nhiệm vụ "${task.title}" đã được GVHD/Admin xác nhận miễn thẩm định. Lý do: ${updated.bypassReason}`,
+            type: 'TASK_REMINDER',
+        }, 'bypassTask');
+
+        await auditLog(
+            userId,
+            'BYPASS_TASK',
+            'Task',
+            taskId,
+            { registrationId: task.registrationId, taskType: task.taskType, reason: updated.bypassReason },
+            getRequestIp(req),
+        );
+
+        res.json({
+            success: true,
+            message: `Đã xác nhận miễn thẩm định (Bypass) cho nhiệm vụ ${task.title}.`,
+            data: updated,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     createTask,
     getTasksByRegistration,
@@ -481,4 +687,5 @@ module.exports = {
     gradeSubmission,
     updateTaskStatus,
     remindTasks,
+    bypassTask,
 };

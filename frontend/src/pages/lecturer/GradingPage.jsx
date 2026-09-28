@@ -1,7 +1,6 @@
 import { useMemo, useState, useEffect, useCallback } from 'react';
-import { message, Tooltip, Button, Select } from 'antd';
-import { EyeOutlined } from '@ant-design/icons';
-import { ReloadOutlined } from '@ant-design/icons';
+import { message, Tooltip, Button, Select, Tag } from 'antd';
+import { EyeOutlined, ReloadOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import evaluationService from '../../services/evaluationService';
 import PageHeader from '../../components/common/PageHeader';
@@ -38,41 +37,121 @@ const pickNearestLatestSemesterId = (semesterList = []) => {
         });
     return scored[0]?.semester?.id || null;
 };
-
-function GradingCard({ registration, onOpenScoreSheet, onExportPdf }) {
+function GradingCard({ registration, onOpenScoreSheet, onExportPdf, exporting }) {
     const student = registration.student;
-    const hasScore = registration.finalScore !== null && registration.finalScore !== undefined;
+    const council = registration.council;
+    const memberScores = registration.memberScores || [];
+    const gradedCount = memberScores.filter((m) => m.finalScore !== null && m.finalScore !== undefined).length;
+    const finalScore = registration.defenseResult?.finalScore ?? registration.finalScore ?? null;
+    const hasScore = finalScore !== null && finalScore !== undefined;
+
+    const roleLabels = {
+        CHAIRMAN: 'Chủ tịch',
+        SECRETARY: 'Thư ký',
+        REVIEWER: 'Ủy viên',
+    };
 
     return (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-4">
-            <div className="p-5 border-b border-slate-100">
-                <h4 className="text-base font-bold text-slate-900">{registration.topic?.title}</h4>
-                <p className="text-xs text-slate-500 mt-1">
-                    {registration.topic?.projectCatalog?.name || 'Học phần chưa xác định'} | {registration.topic?.semester?.name || 'Học kỳ'}
-                </p>
-            </div>
-            <div className="p-5 flex items-center justify-between gap-4">
-                <div>
-                    <p className="text-sm font-bold text-slate-900">{student?.fullName}</p>
-                    <p className="text-xs text-slate-500 font-mono">{student?.code}</p>
+        <div className="bg-white rounded-xl border border-slate-200/90 shadow-sm overflow-hidden mb-4 hover:border-blue-300 hover:shadow-md transition-all">
+            <div className="p-5 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-slate-50/50">
+                <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-base font-bold text-slate-900">{registration.topic?.title || 'Chưa có tên đề tài'}</span>
+                        {council?.councilType && (
+                            <Tag color={council.councilType === 'OUTLINE_REVIEW' ? 'purple' : 'blue'} className="font-medium">
+                                {council.councilType === 'OUTLINE_REVIEW' ? 'HĐ Đề cương' : 'HĐ Bảo vệ'}
+                            </Tag>
+                        )}
+                        {hasScore ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                Đã hoàn thành
+                            </span>
+                        ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                                Đang chấm điểm
+                            </span>
+                        )}
+                    </div>
+                    <p className="text-xs text-slate-500 flex items-center gap-2">
+                        <span>{registration.topic?.projectCatalog?.name || 'Đồ án tốt nghiệp'}</span>
+                        <span>•</span>
+                        <span className="font-medium text-slate-700">{council?.name || 'Chưa gán HĐ'}</span>
+                        {council?.location && <span className="text-slate-400">({council.location})</span>}
+                    </p>
                 </div>
-                <div className="flex gap-3">
-                    <button
+
+                <div className="flex items-center gap-4">
+                    <div className="text-right">
+                        <div className="text-xs text-slate-500 font-medium">
+                            Tiến độ HĐ: <strong className="text-slate-800">{gradedCount}/3 thành viên</strong>
+                        </div>
+                        {hasScore ? (
+                            <div className="text-base font-black text-emerald-600">
+                                Điểm TB: {Number(finalScore).toFixed(2)}/10
+                            </div>
+                        ) : (
+                            <div className="text-xs text-amber-600 font-semibold mt-0.5">Chưa có điểm tổng</div>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            <div className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="space-y-2">
+                    <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-sm">
+                            {student?.fullName ? student.fullName.charAt(0).toUpperCase() : 'S'}
+                        </div>
+                        <div>
+                            <p className="text-sm font-bold text-slate-900 leading-none">{student?.fullName || 'Sinh viên'}</p>
+                            <p className="text-xs text-slate-500 font-mono mt-1">MSSV: {student?.code || 'N/A'}</p>
+                        </div>
+                    </div>
+
+                    {memberScores.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-2 pt-1">
+                            {memberScores.map((m, idx) => (
+                                <span
+                                    key={idx}
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs bg-slate-50 text-slate-700 border border-slate-200"
+                                >
+                                    <span className="font-semibold text-slate-600">
+                                        {roleLabels[m.role] || m.role}:
+                                    </span>
+                                    <span className={m.finalScore !== null && m.finalScore !== undefined ? 'font-bold text-blue-600' : 'text-slate-400 italic'}>
+                                        {m.finalScore !== null && m.finalScore !== undefined ? Number(m.finalScore).toFixed(2) : 'Chưa chấm'}
+                                    </span>
+                                </span>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                        type="primary"
                         onClick={() => onOpenScoreSheet(registration)}
-                        className="px-4 py-2.5 rounded-lg text-sm font-bold border border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100"
+                        className="rounded-lg font-medium"
                     >
-                        {hasScore ? 'Mở phiếu chấm' : 'Chấm điểm trên phiếu'}
-                    </button>
-                    <button
+                        {hasScore ? 'Xem / Cập nhật phiếu chấm' : 'Chấm điểm 14 tiêu chí'}
+                    </Button>
+                    <Button
                         onClick={() => onExportPdf(registration)}
-                        disabled={!hasScore}
-                        className="px-4 py-2.5 rounded-lg text-sm font-bold border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 disabled:opacity-50"
+                        disabled={!hasScore || exporting}
+                        loading={exporting}
+                        className="rounded-lg font-medium"
                     >
                         Xuất PDF
-                    </button>
+                    </Button>
                     {registration.defenseResult?.pdfUrl && (
                         <Tooltip title="Xem PDF đã xuất">
-                            <Button icon={<EyeOutlined />} onClick={() => window.open(registration.defenseResult.pdfUrl, '_blank')}>Xem PDF</Button>
+                            <Button
+                                icon={<EyeOutlined />}
+                                onClick={() => window.open(registration.defenseResult.pdfUrl, '_blank')}
+                                className="rounded-lg"
+                            >
+                                Xem PDF
+                            </Button>
                         </Tooltip>
                     )}
                 </div>
@@ -227,57 +306,122 @@ function GradingPage() {
     const scoredStudents = currentCouncilRegistrations.filter((r) => r.gradingStatus === 'GRADED').length;
 
     return (
-        <div className="py-2">
-            <PageHeader title="Hội đồng chấm điểm" subtitle="ọc theo học phần/học kỳ, chọn hội đồng, sau đó chấm điểm cho sinh viên thuộc hội đồng." />
+        <div className="py-2 space-y-5">
+            <PageHeader
+                breadcrumb={[
+                    { label: 'Cổng Giảng viên' },
+                    { label: 'Hội đồng & Chấm điểm' },
+                    { label: 'Chấm điểm sinh viên' },
+                ]}
+                title="Hội đồng Chấm điểm & Đánh giá"
+                subtitle="Lọc theo học kỳ, học phần đồ án và lựa chọn hội đồng để thực hiện đánh giá theo 14 tiêu chí hoặc xuất PDF bảng điểm."
+                tags={[
+                    { label: `Số hội đồng: ${councils.length}`, color: 'blue' },
+                    { label: `Đã chấm: ${scoredStudents}/${totalStudents}`, color: scoredStudents === totalStudents && totalStudents > 0 ? 'green' : 'gold' },
+                ]}
+            />
 
-            <div className="bg-white border border-slate-200 rounded-xl p-4 mb-6 grid grid-cols-1 md:grid-cols-3 gap-3">
-                <Select
-                    allowClear
-                    placeholder="Lọc theo học kỳ"
-                    value={selectedSemesterId}
-                    onChange={setSelectedSemesterId}
-                    options={semesterOptions}
-                />
-                <Select
-                    allowClear
-                    placeholder="Lọc theo học phần đồ án"
-                    value={selectedProjectCatalogId}
-                    onChange={setSelectedProjectCatalogId}
-                    options={projectCatalogOptions}
-                />
-                <Button icon={<ReloadOutlined />} onClick={fetchGradingStudents} />
+            <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-sm flex flex-col md:flex-row items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto flex-1">
+                    <Select
+                        allowClear
+                        placeholder="Lọc theo học kỳ"
+                        value={selectedSemesterId}
+                        onChange={setSelectedSemesterId}
+                        options={semesterOptions}
+                        className="w-full sm:w-64"
+                    />
+                    <Select
+                        allowClear
+                        placeholder="Lọc theo học phần đồ án"
+                        value={selectedProjectCatalogId}
+                        onChange={setSelectedProjectCatalogId}
+                        options={projectCatalogOptions}
+                        className="w-full sm:w-72"
+                    />
+                </div>
+                <Button icon={<ReloadOutlined />} onClick={fetchGradingStudents}>
+                    Làm mới
+                </Button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-                <StatCard icon="group_work" iconBg="bg-amber-100" iconColor="text-amber-600" label="Số hội đồng" value={councils.length} />
-                <StatCard icon="task_alt" iconBg="bg-emerald-100" iconColor="text-emerald-600" label="Đã chấm" value={`${scoredStudents} / ${totalStudents}`} />
-                <StatCard icon="group" iconBg="bg-blue-100" iconColor="text-blue-600" label="SV trong hội đồng" value={totalStudents} />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <StatCard icon="group_work" iconBg="bg-amber-50" iconColor="text-amber-600" label="Số hội đồng phụ trách" value={councils.length} />
+                <StatCard icon="task_alt" iconBg="bg-emerald-50" iconColor="text-emerald-600" label="Đã hoàn thành chấm" value={`${scoredStudents} / ${totalStudents}`} />
+                <StatCard icon="group" iconBg="bg-blue-50" iconColor="text-blue-600" label="SV trong hội đồng" value={totalStudents} />
             </div>
 
             {loading ? <PageLoader /> : (
-                <>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
-                        {councils.map((council) => (
-                            <button
-                                key={council.id}
-                                onClick={() => setSelectedCouncilId(council.id)}
-                                className={`text-left rounded-xl border p-4 ${selectedCouncilId === council.id ? 'border-primary bg-blue-50' : 'border-slate-200 bg-white'}`}
-                            >
-                                <div className="font-bold text-slate-900">{council.name}</div>
-                                <div className="text-xs text-slate-500 mt-1">Số SV bảo vệ: {council.count}</div>
-                            </button>
-                        ))}
-                    </div>
-
-                    {!councils.length && <div className="text-sm text-slate-500">Không có hội đồng phù hợp với bộ lọc.</div>}
-
-                    {currentCouncilRegistrations.map((registration) => (
-                        <div key={registration.id} className="relative">
-                            {exportingId === registration.id && <div className="absolute right-4 top-4 text-xs text-slate-500">Dang xuat PDF...</div>}
-                            <GradingCard registration={registration} onOpenScoreSheet={handleOpenSheet} onExportPdf={handleExportPdf} />
+                <div className="space-y-4">
+                    {councils.length > 0 && (
+                        <div>
+                            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                                Danh sách Hội đồng (Chọn để xem sinh viên)
+                            </h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                                {councils.map((council) => {
+                                    const isSelected = selectedCouncilId === council.id;
+                                    return (
+                                        <div
+                                            key={council.id}
+                                            onClick={() => setSelectedCouncilId(council.id)}
+                                            className={`cursor-pointer rounded-xl border p-4 transition-all duration-150 ${
+                                                isSelected
+                                                    ? 'border-blue-600 bg-blue-50/50 shadow-sm ring-2 ring-blue-500/20'
+                                                    : 'border-slate-200/80 bg-white hover:border-slate-300 hover:shadow-xs'
+                                            }`}
+                                        >
+                                            <div className="flex items-start justify-between gap-2">
+                                                <span className={`font-bold text-sm ${isSelected ? 'text-blue-900' : 'text-slate-800'}`}>
+                                                    {council.name}
+                                                </span>
+                                                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                                                    isSelected ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'
+                                                }`}>
+                                                    {council.count} sinh viên
+                                                </span>
+                                            </div>
+                                            {council.defenseDate && (
+                                                <p className="text-xs text-slate-500 mt-2 flex items-center gap-1">
+                                                    <span className="material-symbols-outlined text-sm">calendar_today</span>
+                                                    Ngày bảo vệ: {dayjs(council.defenseDate).format('DD/MM/YYYY')}
+                                                </p>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
-                    ))}
-                </>
+                    )}
+
+                    {!councils.length ? (
+                        <div className="bg-white rounded-xl border border-slate-200/80 p-8 text-center text-slate-500 shadow-sm">
+                            <span className="material-symbols-outlined text-4xl text-slate-300 mb-2">event_busy</span>
+                            <p className="text-sm font-medium">Không có hội đồng nào phù hợp với bộ lọc hiện tại.</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-3 pt-2">
+                            <div className="flex items-center justify-between pb-1">
+                                <h3 className="text-sm font-bold text-slate-800">
+                                    Sinh viên báo cáo trong hội đồng
+                                </h3>
+                                <span className="text-xs text-slate-500">
+                                    Tổng số: <b className="text-slate-700">{currentCouncilRegistrations.length}</b> sinh viên
+                                </span>
+                            </div>
+
+                            {currentCouncilRegistrations.map((registration) => (
+                                <GradingCard
+                                    key={registration.id}
+                                    registration={registration}
+                                    onOpenScoreSheet={handleOpenSheet}
+                                    onExportPdf={handleExportPdf}
+                                    exporting={exportingId === registration.id}
+                                />
+                            ))}
+                        </div>
+                    )}
+                </div>
             )}
         </div>
     );

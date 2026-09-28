@@ -1,12 +1,39 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { message, Modal } from 'antd';
+import { useNavigate } from 'react-router-dom';
+import {
+    Alert,
+    Button,
+    Empty,
+    Flex,
+    Form,
+    Input,
+    Modal,
+    Segmented,
+    Select,
+    Tag,
+    Tooltip,
+    message,
+} from 'antd';
+import {
+    ArrowRightOutlined,
+    CheckCircleOutlined,
+    HeartFilled,
+    HeartOutlined,
+    InfoCircleOutlined,
+    PlusOutlined,
+    SearchOutlined,
+    UserOutlined,
+} from '@ant-design/icons';
 import { topicService } from '../../services/topicService';
 import registrationService from '../../services/registrationService';
 import { semesterService } from '../../services/semesterService';
+import PageHeader from '../../components/common/PageHeader';
+import PageLoader from '../../components/common/PageLoader';
 
 const ACTIVE_STATUSES = ['REGISTRATION', 'ONGOING', 'DEFENSE'];
 
 function TopicListPage() {
+    const navigate = useNavigate();
     const [topics, setTopics] = useState([]);
     const [loading, setLoading] = useState(false);
     const [searchText, setSearchText] = useState('');
@@ -39,21 +66,21 @@ function TopicListPage() {
 
     const getRegistrationWindowState = useCallback(() => {
         if (!currentSemester) {
-            return { canRegister: false, reason: 'Chưa có học kỳ để đăng ký.' };
+            return { canRegister: false, reason: 'Chưa có học kỳ hoạt động để đăng ký.' };
         }
 
         if (!currentSemester.registrationOpen) {
-            return { canRegister: false, reason: 'Học kỳ này đang đóng đăng ký.' };
+            return { canRegister: false, reason: 'Học kỳ này hiện đang đóng đăng ký đề tài.' };
         }
 
         const now = new Date();
 
         if (currentSemester.startDate && now < new Date(currentSemester.startDate)) {
-            return { canRegister: false, reason: 'Chưa đến thời gian mở đăng ký.' };
+            return { canRegister: false, reason: 'Chưa đến thời gian mở đợt đăng ký.' };
         }
 
         if (currentSemester.registrationDeadline && now > new Date(currentSemester.registrationDeadline)) {
-            return { canRegister: false, reason: 'Học kỳ đã quá hạn đăng ký.' };
+            return { canRegister: false, reason: 'Đợt đăng ký đề tài đã kết thúc.' };
         }
 
         return { canRegister: true, reason: '' };
@@ -149,11 +176,6 @@ function TopicListPage() {
         fetchTopicsAndRegistration();
     }, [fetchTopicsAndRegistration]);
 
-    const handleSearchSubmit = (event) => {
-        event.preventDefault();
-        setSearchText((prev) => prev.replace(/\s+/g, ' ').trim());
-    };
-
     const normalizedSearch = useMemo(
         () => searchText.replace(/\s+/g, ' ').trim().toLowerCase(),
         [searchText],
@@ -167,8 +189,8 @@ function TopicListPage() {
 
         return topics.filter((topic) => {
             const title = (topic.title || '').toLowerCase();
-            // Match only when the title contains all keyword tokens.
-            return tokens.every((token) => title.includes(token));
+            const mentorName = (topic.mentor?.fullName || '').toLowerCase();
+            return tokens.every((token) => title.includes(token) || mentorName.includes(token));
         });
     }, [topics, normalizedSearch]);
 
@@ -250,8 +272,8 @@ function TopicListPage() {
         }
     };
 
-    const handleProposeSubmit = async (event) => {
-        event.preventDefault();
+    const handleProposeSubmit = async (e) => {
+        e?.preventDefault();
 
         if (!currentSemesterId) {
             message.warning('Chưa có đợt đồ án hoạt động để đề xuất đề tài.');
@@ -288,7 +310,7 @@ function TopicListPage() {
             });
 
             if (response.success) {
-                message.success('Đã gửi đề xuất. Vui lòng chờ giảng viên duyệt.');
+                message.success('Đã gửi đề xuất đề tài thành công. Vui lòng chờ giảng viên xem xét.');
                 setProposeForm({ title: '', mentorId: '', description: '' });
                 setActiveTab('list');
                 fetchTopicsAndRegistration();
@@ -312,177 +334,224 @@ function TopicListPage() {
     };
 
     return (
-        <div className="py-2">
-            <div className="mb-8">
-                <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">Đăng ký đề tài</h1>
-                <p className="mt-2 text-slate-600">Chọn đề tài hoặc đề xuất đề tài mới</p>
-            </div>
+        <div className="py-2 space-y-6">
+            <PageHeader
+                breadcrumb={[
+                    { label: 'Cổng Sinh viên' },
+                    { label: 'Khóa luận & Đồ án' },
+                    { label: 'Đăng ký đề tài' },
+                ]}
+                title="Đăng ký Đề tài Khóa luận"
+                subtitle="Duyệt danh sách đề tài mở từ giảng viên hoặc gửi hồ sơ đề xuất hướng nghiên cứu mới."
+                tags={[
+                    { label: currentSemester?.name || 'Học kỳ', color: 'blue' },
+                    {
+                        label: isRegistrationBlocked ? 'Đang đóng đăng ký' : 'Đang mở đăng ký',
+                        color: isRegistrationBlocked ? 'default' : 'green',
+                    },
+                ]}
+            />
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                <div className="lg:col-span-8 space-y-6">
-                    <div className="bg-white p-1 rounded-xl shadow-sm border border-slate-200 flex w-full">
-                        <button
-                            className={`flex-1 py-2.5 px-4 text-sm font-bold rounded-lg transition-all ${activeTab === 'list' ? 'bg-primary text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'}`}
-                            onClick={() => setActiveTab('list')}
-                        >
-                            Chọn đề tài có sẵn
-                        </button>
-                        <button
-                            className={`flex-1 py-2.5 px-4 text-sm font-bold rounded-lg transition-all ${activeTab === 'propose' ? 'bg-primary text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'}`}
-                            onClick={() => setActiveTab('propose')}
-                        >
-                            Đề xuất đề tài mới
-                        </button>
+            {/* Registration Window Alerts */}
+            {registrationBlockedByProjectEnrollment && (
+                <Alert
+                    type="error"
+                    showIcon
+                    message="Chưa có môn đồ án hợp lệ"
+                    description="Bạn chưa được gán môn đồ án tốt nghiệp trong đợt học kỳ này, do đó chưa đủ điều kiện đăng ký đề tài."
+                />
+            )}
+            {accountRestricted && (
+                <Alert
+                    type="warning"
+                    showIcon
+                    message="Tài khoản đã hoàn tất đồ án"
+                    description={accountRestrictionReason || 'Bạn đã hoàn thành đồ án tốt nghiệp nên không thể thực hiện đăng ký mới.'}
+                />
+            )}
+            {!registrationBlockedByProjectEnrollment && !accountRestricted && isRegistrationBlocked && (
+                <Alert
+                    type="info"
+                    showIcon
+                    message="Thông báo thời gian đăng ký"
+                    description={registrationWindow.reason}
+                />
+            )}
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                {/* Main Content Area (8 Cols) */}
+                <div className="lg:col-span-8 space-y-4">
+                    {/* Navigation Tab Segmented */}
+                    <div className="bg-white rounded-xl border border-slate-200/90 shadow-sm p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <Segmented
+                            size="large"
+                            value={activeTab}
+                            onChange={setActiveTab}
+                            options={[
+                                { label: 'Chọn đề tài có sẵn', value: 'list' },
+                                { label: 'Đề xuất đề tài mới', value: 'propose' },
+                            ]}
+                        />
+                        <div className="text-xs text-slate-500">
+                            Số lượng hiển thị: <b className="text-slate-800">{filteredTopics.length}</b> đề tài
+                        </div>
                     </div>
 
                     {activeTab === 'list' && (
                         <>
-                            <form onSubmit={handleSearchSubmit} className="flex flex-col sm:flex-row gap-3">
-                                <div className="relative flex-1">
-                                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
-                                    <input
-                                        className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all"
-                                        placeholder="Tìm kiếm đề tài, giảng viên..."
-                                        type="text"
-                                        value={searchText}
-                                        onChange={(e) => setSearchText(e.target.value)}
-                                    />
-                                </div>
-                                <button type="submit" className="flex items-center justify-center gap-2 px-6 py-2.5 bg-white border border-slate-200 rounded-xl font-medium text-sm text-slate-700 hover:bg-slate-50 transition-colors">
-                                    Tìm kiếm
-                                </button>
-                            </form>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-600 mb-2">Chọn tên đồ án đã đăng ký</label>
-                                    <select
-                                        className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-primary outline-none"
-                                        value={selectedProjectCatalogId || ''}
-                                        onChange={(e) => setSelectedProjectCatalogId(e.target.value ? Number(e.target.value) : null)}
-                                    >
-                                        {myProjectEnrollments.length === 0 && <option value="">Chưa có môn đồ án hợp lệ</option>}
-                                        {myProjectEnrollments.map((row) => (
-                                            <option key={row.id} value={row.projectCatalogId}>
-                                                {row.projectCatalog?.name || 'Đồ án'}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div className="flex items-end">
-                                    <div className="text-xs text-slate-500">
-                                        Dot hien tai: <b>{currentSemester?.name || 'N/A'}</b>
-                                    </div>
-                                </div>
+                            {/* Search and Filter Toolbar */}
+                            <div className="bg-white rounded-xl border border-slate-200/90 shadow-sm p-4 flex flex-col sm:flex-row items-center gap-3">
+                                <Input
+                                    placeholder="Tìm theo tên đề tài, giảng viên..."
+                                    prefix={<SearchOutlined />}
+                                    allowClear
+                                    value={searchText}
+                                    onChange={(e) => setSearchText(e.target.value)}
+                                    className="w-full sm:flex-1"
+                                    size="middle"
+                                />
+                                <Select
+                                    placeholder="Tên môn đồ án"
+                                    value={selectedProjectCatalogId}
+                                    onChange={(val) => setSelectedProjectCatalogId(val)}
+                                    className="w-full sm:w-64"
+                                    options={myProjectEnrollments.map((row) => ({
+                                        value: row.projectCatalogId,
+                                        label: row.projectCatalog?.name || 'Đồ án',
+                                    }))}
+                                    notFoundContent="Chưa có môn đồ án"
+                                />
                             </div>
 
-                            {registrationBlockedByProjectEnrollment && (
-                                <div className="p-4 rounded-xl border border-red-200 bg-red-50 text-red-700 text-sm font-medium">
-                                    Bạn chưa được gắn môn đồ án hợp lệ trong đợt hiện tại, nên không thể đăng ký đề tài.
-                                </div>
-                            )}
-                            {accountRestricted && (
-                                <div className="p-4 rounded-xl border border-red-200 bg-red-50 text-red-700 text-sm font-medium">
-                                    {accountRestrictionReason || 'Tài khoản đã hoàn thành đồ án tốt nghiệp, không thể đăng ký/de xuất đề tài mới.'}
-                                </div>
-                            )}
-
-                            {isRegistrationBlocked && (
-                                <div className="p-4 rounded-xl border border-amber-200 bg-amber-50 text-amber-700 text-sm font-medium">
-                                    {registrationWindow.reason}
-                                </div>
-                            )}
-
+                            {/* Topics Grid */}
                             {loading ? (
-                                <div className="flex justify-center items-center py-20">
-                                    <div className="animate-spin rounded-full h-10 w-10 border-4 border-primary border-t-transparent"></div>
-                                </div>
+                                <PageLoader />
                             ) : filteredTopics.length === 0 ? (
-                                <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
-                                    <div className="size-16 bg-slate-100 rounded-full flex justify-center items-center mx-auto mb-4">
-                                        <span className="material-symbols-outlined text-slate-400 text-3xl">search_off</span>
-                                    </div>
-                                    <h3 className="font-bold text-lg mb-2">Không tìm thấy đề tài</h3>
-                                    <p className="text-slate-500">Vui lòng thử với từ khóa khác.</p>
+                                <div className="bg-white rounded-xl border border-slate-200/90 shadow-sm p-12 text-center">
+                                    <Empty description="Không tìm thấy đề tài nào phù hợp với bộ lọc." />
                                 </div>
                             ) : (
-                                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {filteredTopics.map((topic) => {
                                         const registrationsCount = topic._count?.registrations || 0;
                                         const maxStudents = 1;
                                         const isFull = registrationsCount >= maxStudents;
-                                        const percent = maxStudents > 0 ? (registrationsCount / maxStudents) * 100 : 0;
                                         const isSaved = savedIds.includes(topic.id);
                                         const isMyTopic = myRegistration?.topicId === topic.id && myRegistration?.status !== 'REJECTED';
 
                                         return (
-                                            <div key={topic.id} className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm hover:shadow-md transition-shadow relative">
-                                                <div className="flex justify-between items-start mb-3">
-                                                    {isFull ? (
-                                                        <span className="px-2 py-1 bg-red-100 text-red-700 text-[10px] font-bold uppercase rounded">Đã đủ chỗ</span>
-                                                    ) : (
-                                                        <span className="px-2 py-1 bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase rounded">Còn chỗ</span>
-                                                    )}
-                                                    <span className="text-xs font-medium text-slate-500">Mã: DT-{String(topic.id).padStart(3, '0')}</span>
-                                                </div>
+                                            <div
+                                                key={topic.id}
+                                                className="bg-white rounded-xl border border-slate-200/90 shadow-sm hover:shadow-md hover:border-blue-300 transition-all p-5 flex flex-col justify-between"
+                                            >
+                                                <div className="space-y-3">
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="flex items-center gap-2">
+                                                            {isFull ? (
+                                                                <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                                                                    Đã đủ sinh viên
+                                                                </span>
+                                                            ) : (
+                                                                <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                                    Còn chỗ đăng ký
+                                                                </span>
+                                                            )}
+                                                            <span className="text-xs font-mono text-slate-400">
+                                                                DT-{String(topic.id).padStart(3, '0')}
+                                                            </span>
+                                                        </div>
 
-                                                <h3
-                                                    className="font-bold text-slate-900 leading-snug min-h-[3rem] cursor-pointer hover:text-primary transition-colors pr-8"
-                                                    onClick={() => handleViewDetail(topic.id)}
-                                                >
-                                                    {topic.title}
-                                                </h3>
-
-                                                <button
-                                                    onClick={(event) => toggleSave(topic.id, event)}
-                                                    className="absolute top-12 right-4 p-1 text-slate-400 hover:text-red-500 transition-colors"
-                                                >
-                                                    <span className={`material-symbols-outlined text-[22px] ${isSaved ? 'text-red-500 fill-current' : ''}`}>
-                                                        favorite
-                                                    </span>
-                                                </button>
-
-                                                <div className="mt-4 flex items-center gap-3">
-                                                    <div className="size-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                                                        <span className="material-symbols-outlined text-[18px]">account_circle</span>
+                                                        <button
+                                                            onClick={(e) => toggleSave(topic.id, e)}
+                                                            className="text-slate-400 hover:text-rose-500 transition-colors p-1"
+                                                            title={isSaved ? 'Bỏ lưu' : 'Lưu đề tài'}
+                                                        >
+                                                            {isSaved ? (
+                                                                <HeartFilled className="text-rose-500 text-base" />
+                                                            ) : (
+                                                                <HeartOutlined className="text-base" />
+                                                            )}
+                                                        </button>
                                                     </div>
-                                                    <div>
-                                                        <p className="text-sm font-semibold">{topic.mentor?.fullName || 'Chưa phân công'}</p>
-                                                    </div>
-                                                </div>
 
-                                                <div className="mt-5 space-y-2">
-                                                    <div className="flex justify-between text-xs font-medium">
-                                                        <span className="text-slate-600">Số lượng sinh viên</span>
-                                                        <span className={isFull ? 'text-red-600' : 'text-primary'}>{registrationsCount}/{maxStudents} SV</span>
-                                                    </div>
-                                                    <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                                                        <div className={`${isFull ? 'bg-red-500' : 'bg-primary'} h-full rounded-full transition-all`} style={{ width: `${percent}%` }}></div>
-                                                    </div>
-                                                </div>
-
-                                                {isMyTopic ? (
-                                                    <button className="mt-6 w-full py-2.5 bg-emerald-50 text-emerald-600 font-bold rounded-lg border border-emerald-200 flex items-center justify-center gap-2 cursor-default">
-                                                        <span className="material-symbols-outlined text-[20px]">check_circle</span>
-                                                        Đề tài đang chọn
-                                                    </button>
-                                                ) : isFull ? (
-                                                    <button className="mt-6 w-full py-2.5 bg-slate-100 text-slate-400 font-bold rounded-lg cursor-not-allowed">
-                                                        Đã hết chỗ
-                                                    </button>
-                                                ) : (
-                                                    <button
-                                                        onClick={() => confirmRegister(topic)}
-                                                        className="mt-6 w-full py-2.5 bg-primary hover:bg-primary/90 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2 disabled:bg-slate-300 disabled:text-slate-600 disabled:cursor-not-allowed"
-                                                        disabled={hasExistingRegistration || isRegistrationBlocked || registrationBlockedByProjectEnrollment || accountRestricted}
+                                                    <h3
+                                                        onClick={() => handleViewDetail(topic.id)}
+                                                        className="font-bold text-slate-900 text-sm leading-snug cursor-pointer hover:text-blue-600 transition-colors line-clamp-2 min-h-[2.5rem]"
                                                     >
-                                                        {hasExistingRegistration
-                                                            ? 'Bạn đã có đề tài'
-                                                            : isRegistrationBlocked
-                                                                ? 'Đăng ký đang đóng'
-                                                                : 'Đăng ký đề tài'}
-                                                    </button>
-                                                )}
+                                                        {topic.title}
+                                                    </h3>
+
+                                                    {/* Mentor info */}
+                                                    <div className="flex items-center gap-2.5 pt-1">
+                                                        <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-xs">
+                                                            {topic.mentor?.fullName ? topic.mentor.fullName.charAt(0) : <UserOutlined />}
+                                                        </div>
+                                                        <div className="text-xs">
+                                                            <p className="font-semibold text-slate-800 leading-tight">
+                                                                {topic.mentor?.fullName || 'Chưa phân công'}
+                                                            </p>
+                                                            <p className="text-slate-400 font-mono">
+                                                                {topic.mentor?.code || 'GVHD'}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Student quota indicator */}
+                                                    <div className="space-y-1.5 pt-1">
+                                                        <div className="flex justify-between text-xs font-medium">
+                                                            <span className="text-slate-500">Chỉ tiêu sinh viên</span>
+                                                            <span className={isFull ? 'text-rose-600 font-bold' : 'text-blue-600 font-bold'}>
+                                                                {registrationsCount}/{maxStudents} SV
+                                                            </span>
+                                                        </div>
+                                                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                                                            <div
+                                                                className={`h-full rounded-full transition-all ${isFull ? 'bg-rose-500' : 'bg-blue-600'}`}
+                                                                style={{ width: `${(registrationsCount / maxStudents) * 100}%` }}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Action Buttons */}
+                                                <div className="pt-4 mt-3 border-t border-slate-100 flex items-center gap-2">
+                                                    <Button
+                                                        size="middle"
+                                                        onClick={() => handleViewDetail(topic.id)}
+                                                        className="flex-1"
+                                                    >
+                                                        Chi tiết
+                                                    </Button>
+
+                                                    {isMyTopic ? (
+                                                        <Button
+                                                            size="middle"
+                                                            type="primary"
+                                                            className="flex-1 !bg-emerald-600 !border-emerald-600"
+                                                            icon={<CheckCircleOutlined />}
+                                                        >
+                                                            Đã chọn
+                                                        </Button>
+                                                    ) : isFull ? (
+                                                        <Button
+                                                            size="middle"
+                                                            disabled
+                                                            className="flex-1"
+                                                        >
+                                                            Đã đủ chỗ
+                                                        </Button>
+                                                    ) : (
+                                                        <Button
+                                                            size="middle"
+                                                            type="primary"
+                                                            onClick={() => confirmRegister(topic)}
+                                                            disabled={hasExistingRegistration || isRegistrationBlocked || registrationBlockedByProjectEnrollment || accountRestricted}
+                                                            className="flex-1 font-medium"
+                                                        >
+                                                            {hasExistingRegistration ? 'Đã có đề tài' : 'Đăng ký'}
+                                                        </Button>
+                                                    )}
+                                                </div>
                                             </div>
                                         );
                                     })}
@@ -492,111 +561,162 @@ function TopicListPage() {
                     )}
 
                     {activeTab === 'propose' && (
-                        <div className="bg-white border border-slate-200 rounded-2xl p-6 lg:p-8 shadow-sm space-y-6">
-                            <div className="text-center mb-6">
-                                <h2 className="text-xl font-bold">Đề xuất đề tài mới</h2>
-                                <p className="text-slate-500 mt-1 text-sm">Điền thông tin chi tiết về ý tưởng nghiên cứu bạn muốn thực hiện</p>
+                        <div className="bg-white rounded-xl border border-slate-200/90 shadow-sm p-6 lg:p-8 space-y-6">
+                            <div>
+                                <h3 className="text-base font-bold text-slate-900">Đề xuất Đề tài mới</h3>
+                                <p className="text-xs text-slate-500 mt-0.5">
+                                    Điền thông tin ý tưởng nghiên cứu của bạn và gửi cho giảng viên mong muốn phê duyệt.
+                                </p>
                             </div>
+
                             {hasExistingRegistration ? (
-                                <div className="p-4 bg-emerald-50 text-emerald-700 rounded-lg text-center font-medium">
-                                    Bạn đã đăng ký một đề tài. Không thể đề xuất thêm.
-                                </div>
+                                <Alert
+                                    type="info"
+                                    showIcon
+                                    message="Bạn đã đăng ký đề tài"
+                                    description="Hệ thống quy định mỗi sinh viên chỉ thực hiện 1 đề tài trong một học kỳ. Bạn không thể gửi thêm đề xuất mới."
+                                />
                             ) : accountRestricted ? (
-                                <div className="p-4 bg-red-50 text-red-700 rounded-lg text-center font-medium">
-                                    {accountRestrictionReason || 'Tai khoan da hoan thanh do an tot nghiep, khong the de xuat de tai moi.'}
-                                </div>
+                                <Alert
+                                    type="warning"
+                                    showIcon
+                                    message="Tài khoản đã hoàn tất đồ án"
+                                    description={accountRestrictionReason || 'Không thể đề xuất đề tài mới.'}
+                                />
                             ) : isRegistrationBlocked ? (
-                                <div className="p-4 bg-amber-50 text-amber-700 rounded-lg text-center font-medium">
-                                    {registrationWindow.reason}
-                                </div>
+                                <Alert
+                                    type="warning"
+                                    showIcon
+                                    message="Đợt đăng ký đang đóng"
+                                    description={registrationWindow.reason}
+                                />
                             ) : (
-                                <form className="space-y-6" onSubmit={handleProposeSubmit}>
+                                <form className="space-y-4" onSubmit={handleProposeSubmit}>
                                     <div>
-                                        <label className="block text-sm font-bold mb-2">Tên đề tài đề xuất</label>
-                                        <input
+                                        <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                                            Tên đề tài đề xuất <span className="text-rose-500">*</span>
+                                        </label>
+                                        <Input
                                             required
-                                            className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:ring-2 focus:ring-primary outline-none"
-                                            placeholder="Ví dụ: Nghiên cứu ứng dụng AR trong giáo dục..."
-                                            type="text"
+                                            size="large"
+                                            placeholder="Ví dụ: Xây dựng hệ thống nhận diện điểm danh thông minh..."
                                             value={proposeForm.title}
-                                            onChange={(event) => setProposeForm({ ...proposeForm, title: event.target.value })}
+                                            onChange={(e) => setProposeForm({ ...proposeForm, title: e.target.value })}
                                         />
                                     </div>
+
                                     <div>
-                                        <label className="block text-sm font-bold mb-2">Giảng viên hướng dẫn mong muốn</label>
-                                        <select
-                                            required
-                                            className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:ring-2 focus:ring-primary outline-none appearance-none"
-                                            value={proposeForm.mentorId}
-                                            onChange={(event) => setProposeForm({ ...proposeForm, mentorId: event.target.value })}
-                                        >
-                                            <option value="">Chọn giảng viên...</option>
-                                            {mentors.map((mentor) => (
-                                                <option key={mentor.id} value={mentor.id}>{mentor.fullName} ({mentor.code})</option>
-                                            ))}
-                                        </select>
+                                        <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                                            Giảng viên hướng dẫn mong muốn <span className="text-rose-500">*</span>
+                                        </label>
+                                        <Select
+                                            size="large"
+                                            showSearch
+                                            optionFilterProp="label"
+                                            className="w-full"
+                                            placeholder="Chọn giảng viên hướng dẫn..."
+                                            value={proposeForm.mentorId || undefined}
+                                            onChange={(val) => setProposeForm({ ...proposeForm, mentorId: val })}
+                                            options={mentors.map((m) => ({
+                                                value: m.id,
+                                                label: `${m.fullName} (${m.code || 'GV'})`,
+                                            }))}
+                                        />
                                     </div>
+
                                     <div>
-                                        <label className="block text-sm font-bold mb-2">Mô tả chi tiết ý tưởng</label>
-                                        <textarea
+                                        <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                                            Mô tả mục tiêu và nội dung nghiên cứu <span className="text-rose-500">*</span>
+                                        </label>
+                                        <Input.TextArea
                                             required
-                                            className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:ring-2 focus:ring-primary outline-none"
-                                            placeholder="Trình bày lý do, mục tiêu nghiên cứu và công nghệ sẽ áp dụng..."
-                                            rows="5"
+                                            rows={5}
+                                            placeholder="Nêu rõ lý do chọn đề tài, mục tiêu cần đạt, phương pháp công nghệ áp dụng..."
                                             value={proposeForm.description}
-                                            onChange={(event) => setProposeForm({ ...proposeForm, description: event.target.value })}
-                                        ></textarea>
+                                            onChange={(e) => setProposeForm({ ...proposeForm, description: e.target.value })}
+                                        />
                                     </div>
-                                    <div className="flex gap-4 pt-2">
-                                        <button disabled={submittingPropose} className="flex-1 py-3 bg-primary hover:bg-primary/90 text-white font-bold rounded-xl transition-all disabled:bg-slate-300 disabled:cursor-not-allowed" type="submit">
-                                            {submittingPropose ? 'Đang gửi...' : 'Gửi đề xuất'}
-                                        </button>
-                                    </div>
+
+                                    <Button
+                                        type="primary"
+                                        size="large"
+                                        htmlType="submit"
+                                        loading={submittingPropose}
+                                        block
+                                        className="font-medium mt-2"
+                                    >
+                                        Gửi đề xuất cho Giảng viên
+                                    </Button>
                                 </form>
                             )}
                         </div>
                     )}
                 </div>
 
-                <div className="lg:col-span-4 space-y-6">
-                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                        <div className="p-5 border-b border-slate-200 bg-slate-50/50">
-                            <div className="flex items-center gap-2">
-                                <span className="material-symbols-outlined text-primary">app_registration</span>
-                                <h2 className="text-lg font-bold">Trạng thái đăng ký</h2>
-                            </div>
+                {/* Right Column (4 Cols): Registration Status */}
+                <div className="lg:col-span-4 space-y-4">
+                    <div className="bg-white rounded-xl border border-slate-200/90 shadow-sm overflow-hidden">
+                        <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                            <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                                <span className="material-symbols-outlined text-blue-600 text-base">how_to_reg</span>
+                                Hồ sơ Đăng ký của bạn
+                            </h3>
                         </div>
+
                         <div className="p-5">
                             {myRegistration ? (
-                                <div className={`relative pl-4 border-l-2 ${['APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'DEFENDED', 'COMPLETED'].includes(myRegistration.status) ? 'border-emerald-500' : myRegistration.status === 'REJECTED' ? 'border-red-500' : 'border-amber-500'}`}>
-                                    <div className="flex justify-between items-start mb-2">
-                                        <h4 className="text-sm font-bold text-slate-900 leading-tight">
-                                            {myRegistration.topic?.title || 'Chưa rõ tên đề tài'}
-                                        </h4>
-                                        <span className={`flex-shrink-0 ml-3 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs text-slate-400">Trạng thái</span>
+                                        <Tag color={
                                             ['APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'DEFENDED', 'COMPLETED'].includes(myRegistration.status)
-                                                ? 'bg-emerald-100 text-emerald-700'
+                                                ? 'success'
                                                 : myRegistration.status === 'REJECTED'
-                                                    ? 'bg-red-100 text-red-700'
-                                                    : 'bg-amber-100 text-amber-700'
-                                        }`}>
+                                                    ? 'error'
+                                                    : 'warning'
+                                        }>
                                             {renderRegistrationStatusLabel(myRegistration.status)}
-                                        </span>
+                                        </Tag>
                                     </div>
-                                    <p className="text-xs text-slate-500">Giảng viên: {myRegistration.topic?.mentor?.fullName || '-'}</p>
+
+                                    <div>
+                                        <p className="text-xs text-slate-400">Đề tài</p>
+                                        <p className="text-sm font-bold text-slate-900 leading-snug mt-0.5">
+                                            {myRegistration.topic?.title || 'Chưa rõ tên đề tài'}
+                                        </p>
+                                    </div>
+
+                                    <div>
+                                        <p className="text-xs text-slate-400">Giảng viên hướng dẫn</p>
+                                        <p className="text-xs font-semibold text-slate-800 mt-0.5">
+                                            {myRegistration.topic?.mentor?.fullName || 'Chưa phân công'}
+                                        </p>
+                                    </div>
 
                                     {myRegistration.status === 'REJECTED' && myRegistration.rejectReason && (
-                                        <div className="mt-3 p-2 bg-red-50 text-red-600 text-xs rounded border border-red-100 italic">
-                                            Lý do: {myRegistration.rejectReason}
+                                        <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800">
+                                            <p className="font-bold">Lý do từ chối:</p>
+                                            <p className="mt-0.5">{myRegistration.rejectReason}</p>
+                                        </div>
+                                    )}
+
+                                    {['APPROVED', 'IN_PROGRESS'].includes(myRegistration.status) && (
+                                        <div className="pt-2">
+                                            <Button
+                                                type="primary"
+                                                block
+                                                icon={<ArrowRightOutlined />}
+                                                onClick={() => navigate('/student/submissions')}
+                                            >
+                                                Nộp báo cáo BM
+                                            </Button>
                                         </div>
                                     )}
                                 </div>
                             ) : (
-                                <div className="text-center py-6 text-slate-500">
-                                    <div className="size-12 bg-slate-100 rounded-full flex justify-center items-center mx-auto mb-3">
-                                        <span className="material-symbols-outlined text-slate-400">hourglass_empty</span>
-                                    </div>
-                                    <p className="text-sm">Bạn chưa đăng ký đề tài nào.</p>
+                                <div className="text-center py-6 space-y-2 text-slate-400 text-xs">
+                                    <span className="material-symbols-outlined text-3xl text-slate-300">drafts</span>
+                                    <p>Bạn chưa đăng ký đề tài nào trong đợt này.</p>
                                 </div>
                             )}
                         </div>
@@ -604,53 +724,71 @@ function TopicListPage() {
                 </div>
             </div>
 
-            {detailTopic && (
-                <Modal
-                    title={<span className="font-bold text-lg">Chi tiết đề tài</span>}
-                    open={detailModalOpen}
-                    onCancel={() => setDetailModalOpen(false)}
-                    footer={null}
-                    width={650}
-                    className="tailwind-modal"
-                >
-                    <div className="mt-4 space-y-4">
-                        <h3 className="text-xl font-bold text-primary">{detailTopic.title}</h3>
-                        <p className="text-slate-600 text-sm leading-relaxed bg-slate-50 p-4 rounded-lg border border-slate-100 whitespace-pre-line">
-                            {detailTopic.description || 'Không có mô tả chi tiết cho đề tài này.'}
-                        </p>
-                    </div>
-                </Modal>
-            )}
-
+            {/* Topic Details Modal */}
             <Modal
-                title={<span className="font-bold flex items-center gap-2"><span className="material-symbols-outlined text-primary">app_registration</span> Xác nhận đăng ký</span>}
+                title={<span className="font-bold text-slate-900">Chi tiết đề tài khóa luận</span>}
+                open={detailModalOpen}
+                onCancel={() => setDetailModalOpen(false)}
+                footer={[
+                    <Button key="close" onClick={() => setDetailModalOpen(false)}>
+                        Đóng
+                    </Button>,
+                    !hasExistingRegistration && detailTopic && (
+                        <Button
+                            key="register"
+                            type="primary"
+                            onClick={() => {
+                                setDetailModalOpen(false);
+                                confirmRegister(detailTopic);
+                            }}
+                            disabled={isRegistrationBlocked || registrationBlockedByProjectEnrollment || accountRestricted}
+                        >
+                            Đăng ký đề tài này
+                        </Button>
+                    ),
+                ]}
+                width={640}
+            >
+                {detailTopic && (
+                    <div className="space-y-4 py-3">
+                        <div>
+                            <span className="text-xs font-mono text-slate-400">DT-{String(detailTopic.id).padStart(3, '0')}</span>
+                            <h2 className="text-lg font-bold text-slate-900 mt-1">{detailTopic.title}</h2>
+                        </div>
+
+                        <div className="bg-slate-50 p-3 rounded-lg border border-slate-200/70 text-xs space-y-1">
+                            <p><b>GVHD:</b> {detailTopic.mentor?.fullName} ({detailTopic.mentor?.email || 'N/A'})</p>
+                            <p><b>Chuyên ngành:</b> {detailTopic.projectCatalog?.name || 'Đồ án tốt nghiệp'}</p>
+                        </div>
+
+                        <div>
+                            <h4 className="text-xs font-bold text-slate-700 uppercase mb-1.5">Mô tả và Yêu cầu nghiên cứu:</h4>
+                            <div className="text-xs text-slate-600 bg-white p-4 rounded-lg border border-slate-200 whitespace-pre-line leading-relaxed">
+                                {detailTopic.description || 'Chưa có thông tin mô tả chi tiết cho đề tài này.'}
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </Modal>
+
+            {/* Confirm Registration Modal */}
+            <Modal
+                title={<span className="font-bold text-slate-900">Xác nhận đăng ký đề tài</span>}
                 open={confirmModalOpen}
                 onCancel={() => setConfirmModalOpen(false)}
-                footer={null}
+                onOk={executeRegister}
+                confirmLoading={registering}
+                okText="Xác nhận đăng ký"
+                cancelText="Hủy bỏ"
                 width={500}
             >
-                <div className="py-4">
-                    <p className="text-slate-600 mb-4">Bạn có chắc chắn muốn đăng ký đề tài này?</p>
-                    <div className="p-4 bg-primary/5 rounded-xl border border-primary/20 mb-6">
-                        <p className="font-bold text-primary mb-1">{topicToRegister?.title}</p>
-                        <p className="text-sm text-slate-600 flex items-center gap-1.5"><span className="material-symbols-outlined text-[16px]">person</span> GVHD: {topicToRegister?.mentor?.fullName}</p>
-                    </div>
-                    <div className="flex gap-3 justify-end">
-                        <button
-                            className="px-5 py-2 rounded-lg font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
-                            onClick={() => setConfirmModalOpen(false)}
-                            disabled={registering}
-                        >
-                            Hủy bỏ
-                        </button>
-                        <button
-                            className="px-5 py-2 rounded-lg font-semibold bg-primary text-white hover:bg-primary/90 transition-colors flex items-center gap-2"
-                            onClick={executeRegister}
-                            disabled={registering}
-                        >
-                            {registering ? <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span> : null}
-                            Xác nhận đăng ký
-                        </button>
+                <div className="py-3 space-y-3">
+                    <p className="text-xs text-slate-600">
+                        Bạn có chắc chắn muốn đăng ký đề tài sau đây không?
+                    </p>
+                    <div className="p-3.5 bg-blue-50/70 rounded-xl border border-blue-200/80 space-y-1 text-xs">
+                        <p className="font-bold text-blue-900 text-sm">{topicToRegister?.title}</p>
+                        <p className="text-slate-600">GVHD: <b>{topicToRegister?.mentor?.fullName}</b></p>
                     </div>
                 </div>
             </Modal>

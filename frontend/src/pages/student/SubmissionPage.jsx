@@ -1,381 +1,516 @@
 import { useState, useEffect, useMemo } from 'react';
-import { message } from 'antd';
-import uploadService from '../../services/uploadService';
+import { Button, Card, Divider, Empty, Steps, Tag, Typography, message, Tooltip, Alert } from 'antd';
+import {
+    CheckCircleOutlined,
+    ClockCircleOutlined,
+    EditOutlined,
+    ExclamationCircleOutlined,
+    FileTextOutlined,
+    LockOutlined,
+    ReloadOutlined,
+    UploadOutlined,
+    UserOutlined,
+    TeamOutlined,
+    CalendarOutlined,
+    SafetyCertificateOutlined,
+    CloseCircleOutlined,
+} from '@ant-design/icons';
+import dayjs from 'dayjs';
 import taskService from '../../services/taskService';
 import registrationService from '../../services/registrationService';
+import meetingLogService from '../../services/meetingLogService';
+import PageHeader from '../../components/common/PageHeader';
+import PageLoader from '../../components/common/PageLoader';
+import HybridBMFormModal from '../../components/forms/HybridBMFormModal';
+import BMSubmissionViewer from '../../components/forms/BMSubmissionViewer';
 
-const statusConfig = {
-    OPEN: { label: 'Chưa nộp', colorClass: 'bg-amber-100 text-amber-700 border-amber-200', icon: <span className="material-symbols-outlined text-[16px]">schedule</span> },
-    IN_PROGRESS: { label: 'Đang làm', colorClass: 'bg-blue-100 text-blue-700 border-blue-200', icon: <span className="material-symbols-outlined text-[16px]">pending_actions</span> },
-    REVISION: { label: 'Cần sửa', colorClass: 'bg-orange-100 text-orange-700 border-orange-200', icon: <span className="material-symbols-outlined text-[16px]">edit_note</span> },
-    SUBMITTED: { label: 'Đã nộp', colorClass: 'bg-indigo-100 text-indigo-700 border-indigo-200', icon: <span className="material-symbols-outlined text-[16px]">task_alt</span> },
-    COMPLETED: { label: 'Đã chấm', colorClass: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: <span className="material-symbols-outlined text-[16px]">verified</span> },
-    OVERDUE: { label: 'Trễ hạn', colorClass: 'bg-red-100 text-red-700 border-red-200', icon: <span className="material-symbols-outlined text-[16px]">error</span> },
+const { Title, Text, Paragraph } = Typography;
+
+const BM_STEPS = [
+    { key: 'REGISTRATION', title: '1. Đăng ký', shortTitle: 'Đăng ký', desc: 'Duyệt đề tài' },
+    { key: 'BM01', title: '2. BM01', shortTitle: 'BM01', desc: 'Đề cương chi tiết' },
+    { key: 'BM02', title: '3. BM02', shortTitle: 'BM02', desc: 'Giao nhiệm vụ' },
+    { key: 'BM03', title: '4. BM03', shortTitle: 'BM03', desc: 'Tiến độ & Nhật ký' },
+    { key: 'BM04', title: '5. Thẩm định', shortTitle: 'Đánh giá GVHD', desc: 'Cho ra bảo vệ' },
+];
+
+const statusBadgeConfig = {
+    OPEN: { text: 'Chưa nộp', color: 'default', icon: <ClockCircleOutlined /> },
+    IN_PROGRESS: { text: 'Đang thực hiện', color: 'processing', icon: <ClockCircleOutlined /> },
+    SUBMITTED: { text: 'Chờ GV duyệt', color: 'warning', icon: <ClockCircleOutlined /> },
+    REVISION: { text: 'Yêu cầu sửa', color: 'error', icon: <ExclamationCircleOutlined /> },
+    COMPLETED: { text: 'Đã phê duyệt', color: 'success', icon: <CheckCircleOutlined /> },
+    LOCKED: { text: 'Đang khóa', color: 'default', icon: <LockOutlined /> },
 };
 
-const ACTIVE_REG_STATUSES = ['APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'DEFENDED', 'COMPLETED'];
-
-const getLateInfo = (dueDate, submittedAt) => {
-    if (!dueDate || !submittedAt) return { isLate: false, daysLate: 0 };
-    const due = new Date(dueDate);
-    const submitted = new Date(submittedAt);
-    const diffMs = submitted.getTime() - due.getTime();
-    if (diffMs <= 0) return { isLate: false, daysLate: 0 };
-    return { isLate: true, daysLate: Math.floor(diffMs / (1000 * 60 * 60 * 24)) };
-};
-
-function SubmissionPage() {
-    const [subList, setSubList] = useState([]);
+export default function SubmissionPage() {
     const [registration, setRegistration] = useState(null);
+    const [tasks, setTasks] = useState([]);
+    const [meetingLogs, setMeetingLogs] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [uploadingObj, setUploadingObj] = useState({});
-    const [submissionContent, setSubmissionContent] = useState({});
-    const [taskFilter, setTaskFilter] = useState('ALL');
 
-    const canSubmit = registration && ACTIVE_REG_STATUSES.includes(registration.status);
+    // Modal state
+    const [modalVisible, setModalVisible] = useState(false);
+    const [activeTask, setActiveTask] = useState(null);
+    const [submitting, setSubmitting] = useState(false);
 
     useEffect(() => {
         fetchData();
     }, []);
-
-    const effectiveTasks = useMemo(() => subList.map((task) => {
-        const dueDate = task.dueDate ? new Date(task.dueDate) : null;
-        const isOverdue = dueDate && dueDate.getTime() < Date.now() && ['OPEN', 'IN_PROGRESS'].includes(task.status);
-        return { ...task, _effectiveStatus: isOverdue ? 'OVERDUE' : task.status };
-    }), [subList]);
-
-    const visibleTasks = useMemo(() => {
-        if (taskFilter === 'ALL') return effectiveTasks;
-        return effectiveTasks.filter((task) => task._effectiveStatus === taskFilter);
-    }, [effectiveTasks, taskFilter]);
-
-    const totalTasks = effectiveTasks.length;
-    const submittedTasks = effectiveTasks.filter((t) => ['SUBMITTED', 'COMPLETED'].includes(t._effectiveStatus)).length;
-    const completedTasks = effectiveTasks.filter((t) => t._effectiveStatus === 'COMPLETED').length;
-    const openTasks = effectiveTasks.filter((t) => ['OPEN', 'IN_PROGRESS', 'REVISION'].includes(t._effectiveStatus)).length;
-    const revisionTasks = effectiveTasks.filter((t) => t._effectiveStatus === 'REVISION').length;
-    const overdueTasks = effectiveTasks.filter((t) => t._effectiveStatus === 'OVERDUE').length;
-    const progressPercent = totalTasks > 0 ? Math.round((submittedTasks / totalTasks) * 100) : 0;
 
     const fetchData = async () => {
         try {
             setLoading(true);
             const regRes = await registrationService.getMyRegistration();
             if (regRes.success && regRes.data) {
-                setRegistration(regRes.data);
+                const regData = regRes.data;
+                setRegistration(regData);
 
-                const taskRes = await taskService.getTasksByRegistration(regRes.data.id);
+                // Load tasks
+                const taskRes = await taskService.getTasksByRegistration(regData.id);
                 if (taskRes.success) {
-                    setSubList(taskRes.data || []);
+                    setTasks(taskRes.data || []);
+                }
+
+                // Load meeting logs
+                const logRes = await meetingLogService.getMeetingLogs(regData.id);
+                if (logRes.success) {
+                    setMeetingLogs(logRes.data || []);
                 }
             } else {
                 setRegistration(null);
-                setSubList([]);
+                setTasks([]);
+                setMeetingLogs([]);
             }
         } catch (error) {
-            message.error(error?.message || 'Không thể tải dữ liệu nộp báo cáo.');
+            message.error(error?.message || 'Không thể tải dữ liệu nộp biểu mẫu.');
         } finally {
             setLoading(false);
         }
     };
 
-    const handleFileChange = async (e, taskId) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+    // Helper map of task by taskType
+    const taskByType = useMemo(() => {
+        const map = {};
+        tasks.forEach((t) => {
+            map[t.taskType] = t;
+        });
+        return map;
+    }, [tasks]);
 
-        if (!canSubmit) {
-            message.warning('Đăng ký của bạn chưa ở trạng thái cho phép nộp báo cáo.');
-            return;
+    // Check sequential lock status with bypass support
+    const isStepLocked = (taskType) => {
+        if (!registration || !['APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'DEFENDED', 'COMPLETED'].includes(registration.status)) {
+            return true;
         }
-
-        setUploadingObj((prev) => ({ ...prev, [taskId]: true }));
-        try {
-            const res = await uploadService.uploadFile(file, 'submissions', { taskId });
-            if (!res?.success || !res?.data?.url) {
-                throw new Error(res?.message || 'Upload failed');
-            }
-
-            setSubList((prev) =>
-                prev.map((task) => {
-                    if (task.id === taskId) {
-                        return {
-                            ...task,
-                            _tempFile: {
-                                name: file.name,
-                                size: `${(file.size / 1024 / 1024).toFixed(2)} MB`,
-                                date: new Date().toLocaleDateString('vi-VN'),
-                                url: res.data.url,
-                            },
-                        };
-                    }
-                    return task;
-                })
-            );
-
-            message.success(`${file.name} tải lên thành công. Vui lòng bấm "Chốt nộp báo cáo".`);
-        } catch (err) {
-            message.error(err?.message || `${file.name} tải lên thất bại.`);
-        } finally {
-            setUploadingObj((prev) => ({ ...prev, [taskId]: false }));
-            e.target.value = null;
+        if (taskType === 'BM01') return false;
+        if (taskType === 'BM02') {
+            const bm01 = taskByType.BM01;
+            return !bm01 || (!bm01.isBypassed && bm01.status !== 'COMPLETED');
         }
+        if (taskType === 'BM03_CHECKPOINT_1' || taskType === 'BM03_CHECKPOINT') {
+            const bm02 = taskByType.BM02;
+            return !bm02 || (!bm02.isBypassed && bm02.status !== 'COMPLETED');
+        }
+        if (taskType === 'BM03_CHECKPOINT_2') {
+            const cp1 = taskByType.BM03_CHECKPOINT_1 || taskByType.BM03_CHECKPOINT;
+            return !cp1 || (!cp1.isBypassed && cp1.status !== 'COMPLETED');
+        }
+        if (taskType === 'REPORT_DRAFT') {
+            const cp2 = taskByType.BM03_CHECKPOINT_2;
+            return !cp2 || (!cp2.isBypassed && cp2.status !== 'COMPLETED');
+        }
+        return false;
     };
 
-    const handleSubmit = async (taskId) => {
-        const task = subList.find((t) => t.id === taskId);
-        if (!task) return;
+    // Calculate current active step index in the 5-step process
+    const currentStepIndex = useMemo(() => {
+        if (!registration) return 0;
+        if (['SUBMITTED', 'DEFENDED', 'COMPLETED'].includes(registration.status)) return 4;
+        
+        const report = taskByType.REPORT_DRAFT;
+        const cp2 = taskByType.BM03_CHECKPOINT_2;
+        const cp1 = taskByType.BM03_CHECKPOINT_1 || taskByType.BM03_CHECKPOINT;
+        const bm02 = taskByType.BM02;
+        const bm01 = taskByType.BM01;
 
-        const content = (submissionContent[taskId] || '').trim();
-        const fileUrl = task?._tempFile?.url || null;
-        const fileName = task?._tempFile?.name || null;
+        if (report?.status === 'COMPLETED' || report?.isBypassed) return 4;
+        if (cp2?.status === 'COMPLETED' || cp2?.isBypassed || cp1?.status === 'COMPLETED') return 3;
+        if (bm02?.status === 'COMPLETED' || bm02?.isBypassed) return 3;
+        if (bm01?.status === 'COMPLETED' || bm01?.isBypassed) return 2;
+        if (['APPROVED', 'IN_PROGRESS'].includes(registration.status)) return 1;
+        return 0;
+    }, [registration, taskByType]);
 
-        if (!content && !fileUrl) {
-            message.warning('Vui lòng nhập nội dung hoặc tải tệp trước khi nộp.');
+    const handleOpenSubmitModal = (task) => {
+        if (task.isBypassed) {
+            message.info('Nhiệm vụ này đã được miễn thẩm định (Bypass).');
             return;
         }
+        if (isStepLocked(task.taskType)) {
+            message.warning('Vui lòng hoàn thành và chờ duyệt biểu mẫu trước đó.');
+            return;
+        }
+        setActiveTask(task);
+        setModalVisible(true);
+    };
 
+    const handleSubmitForm = async (payload) => {
+        if (!activeTask) return;
         try {
-            setUploadingObj((prev) => ({ ...prev, [`submit_${taskId}`]: true }));
-            const response = await taskService.submitTask(taskId, {
-                content: content || null,
-                fileUrl,
-                fileName,
-            });
-
-            if (response.success) {
-                message.success('Nộp bài thành công!');
-                setSubmissionContent((prev) => {
-                    const next = { ...prev };
-                    delete next[taskId];
-                    return next;
-                });
+            setSubmitting(true);
+            const res = await taskService.submitTask(activeTask.id, payload);
+            if (res.success) {
+                message.success('Nộp biểu mẫu thành công!');
+                setModalVisible(false);
                 fetchData();
+            } else {
+                message.error(res.message || 'Không thể nộp biểu mẫu.');
             }
         } catch (error) {
-            message.error(error?.message || 'Lỗi khi nộp bài');
+            message.error(error?.message || 'Có lỗi xảy ra khi nộp bài.');
         } finally {
-            setUploadingObj((prev) => ({ ...prev, [`submit_${taskId}`]: false }));
+            setSubmitting(false);
         }
     };
 
-    const removeTempFile = (taskId) => {
-        setSubList((prev) =>
-            prev.map((task) => {
-                if (task.id === taskId) {
-                    const newTask = { ...task };
-                    delete newTask._tempFile;
-                    return newTask;
-                }
-                return task;
-            })
-        );
-    };
+    // Filter out any legacy BM04 from student submit tasks
+    const studentTasks = useMemo(() => {
+        return tasks.filter((t) => t.taskType !== 'BM04');
+    }, [tasks]);
 
-    if (loading) {
-        return (
-            <div className="flex justify-center items-center min-h-[60vh]">
-                <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div>
-            </div>
-        );
-    }
+    if (loading) return <PageLoader />;
 
     if (!registration) {
         return (
-            <div className="py-2">
-                <div className="mb-8">
-                    <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">Nộp Báo Cáo</h1>
-                </div>
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-12 flex flex-col items-center justify-center text-center">
-                    <div className="size-20 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-6">
-                        <span className="material-symbols-outlined text-4xl">folder_off</span>
-                    </div>
-                    <h2 className="text-xl font-bold mb-2">Chưa đăng ký đề tài</h2>
-                    <p className="text-slate-500 max-w-md">Bạn cần đăng ký đề tài và đợi giảng viên duyệt trước khi có thể xem yêu cầu nộp báo cáo.</p>
+            <div className="py-6 space-y-6">
+                <PageHeader
+                    breadcrumb={[
+                        { label: 'Cổng Sinh viên' },
+                        { label: 'Học vụ & Biểu mẫu' },
+                    ]}
+                    title="Nộp Biểu Mẫu & Báo Cáo Tiến Độ"
+                    subtitle="Theo dõi tiến độ, nộp biểu mẫu chuẩn hóa BM01 - BM03 và xem nhật ký làm việc với GVHD."
+                />
+                <div className="bg-white rounded-xl border border-slate-200/90 shadow-sm p-12 text-center">
+                    <Empty
+                        description={
+                            <div className="space-y-2">
+                                <p className="text-slate-600 font-medium">Bạn chưa đăng ký hoặc chưa được duyệt đề tài đồ án nào trong học kỳ này.</p>
+                                <p className="text-xs text-slate-400">Vui lòng vào mục "Danh sách đề tài" để chọn hoặc đề xuất đề tài trước.</p>
+                            </div>
+                        }
+                    />
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="py-2">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-                <div>
-                    <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">Quản lý Nộp Báo Cáo</h1>
-                    <p className="mt-2 text-slate-600 flex items-center gap-2">
-                        <span className="material-symbols-outlined text-[18px]">menu_book</span>
-                        Đề tài: <strong className="text-slate-900">{registration.topic?.title || 'Chưa rõ tên đề tài'}</strong>
-                    </p>
-                    <p className="mt-1 text-slate-600 flex items-center gap-2">
-                        <span className="material-symbols-outlined text-[18px]">school</span>
-                        Giảng viên hướng dẫn: <strong className="text-slate-900">{registration.topic?.mentor?.fullName || 'Chưa cập nhật'}</strong>
-                    </p>
+        <div className="py-4 space-y-6">
+            <PageHeader
+                breadcrumb={[
+                    { label: 'Cổng Sinh viên' },
+                    { label: 'Học vụ & Biểu mẫu' },
+                    { label: 'Tiến độ đồ án' },
+                ]}
+                title="Quy Trình Biểu Mẫu & Tiến Độ Thực Hiện"
+                subtitle="Theo dõi lộ trình học vụ, nộp biểu mẫu tuần tự và kiểm tra biên bản làm việc định kỳ với GVHD."
+                tags={[
+                    { label: `Đề tài: ${registration.topic?.title}`, color: 'blue' },
+                    { label: `GVHD: ${registration.topic?.mentor?.fullName || 'N/A'}`, color: 'cyan' },
+                ]}
+                actions={
+                    <Button icon={<ReloadOutlined />} onClick={fetchData}>
+                        Làm mới
+                    </Button>
+                }
+            />
+
+            {/* Stepper Card */}
+            <div className="bg-white rounded-xl border border-slate-200/90 shadow-sm p-6 space-y-4">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-b border-slate-100 pb-4">
+                    <div>
+                        <span className="text-xs font-bold uppercase tracking-wider text-blue-700 bg-blue-50 px-2 py-0.5 rounded">
+                            QUY TRÌNH HỌC VỤ BẮT BUỘC
+                        </span>
+                        <h2 className="text-lg font-bold text-slate-900 mt-1">
+                            {registration.topic?.title || 'Đề tài Đồ án tốt nghiệp'}
+                        </h2>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-500">Trạng thái hiện tại:</span>
+                        <Tag color="processing" className="font-semibold">{registration.status}</Tag>
+                    </div>
+                </div>
+
+                <div className="py-3 overflow-x-auto">
+                    <Steps
+                        current={currentStepIndex}
+                        items={BM_STEPS.map((step, idx) => {
+                            let status = 'wait';
+                            if (idx < currentStepIndex) status = 'finish';
+                            else if (idx === currentStepIndex) status = 'process';
+
+                            return {
+                                title: <span className="font-semibold text-xs md:text-sm">{step.shortTitle}</span>,
+                                description: <span className="text-xs text-slate-400">{step.desc}</span>,
+                                status,
+                            };
+                        })}
+                    />
                 </div>
             </div>
 
-            {!canSubmit && (
-                <div className="mb-6 p-4 rounded-xl border border-amber-200 bg-amber-50 text-amber-700 text-sm font-medium">
-                    Đăng ký hiện tại của bạn là <strong>{registration.status}</strong>. Chỉ có thể nộp báo cáo khi đề tài đã được duyệt hoặc đang thực hiện.
-                </div>
-            )}
-
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-8 lg:flex lg:items-center lg:justify-between lg:gap-12">
-                <div className="flex-1 mb-6 lg:mb-0">
-                    <div className="flex justify-between items-end mb-2">
-                        <span className="text-sm font-bold text-slate-600 uppercase tracking-wider">Tiến độ nộp báo cáo</span>
-                        <span className="text-xl font-black text-primary">{progressPercent}%</span>
+            {/* Task List */}
+            <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h3 className="text-sm font-bold text-slate-800">Danh sách biểu mẫu nhiệm vụ</h3>
+                        <p className="text-xs text-slate-500">Mô hình Hybrid: Điền thông tin cấu trúc + Tệp đính kèm bản scan/PDF</p>
                     </div>
-                    <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-primary rounded-full transition-all duration-1000 ease-out" style={{ width: `${progressPercent}%` }}></div>
-                    </div>
+                    <span className="text-xs text-slate-500 font-medium">
+                        Tổng số: <b className="text-slate-700">{studentTasks.length}</b> nhiệm vụ
+                    </span>
                 </div>
 
-                <div className="flex gap-4 sm:gap-8 overflow-x-auto pb-2 lg:pb-0 hide-scrollbar">
-                    <div className="text-center px-4 shrink-0"><span className="block text-3xl font-black text-slate-800 mb-1">{totalTasks}</span><span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Tổng cộng</span></div>
-                    <div className="w-px h-12 bg-slate-200 self-center shrink-0"></div>
-                    <div className="text-center px-4 shrink-0"><span className="block text-3xl font-black text-amber-500 mb-1">{openTasks}</span><span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Chờ nộp</span></div>
-                    <div className="text-center px-4 shrink-0"><span className="block text-3xl font-black text-red-500 mb-1">{overdueTasks}</span><span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Quá hạn</span></div>
-                    <div className="text-center px-4 shrink-0"><span className="block text-3xl font-black text-indigo-500 mb-1">{submittedTasks - completedTasks}</span><span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Đã nộp</span></div>
-                    <div className="text-center px-4 shrink-0"><span className="block text-3xl font-black text-emerald-500 mb-1">{completedTasks}</span><span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Đã chấm</span></div>
-                </div>
-            </div>
-
-            <div className="mb-6 flex flex-wrap gap-2">
-                {[
-                    { key: 'ALL', label: `Tất cả (${totalTasks})` },
-                    { key: 'OPEN', label: `Chưa nộp (${openTasks})` },
-                    { key: 'REVISION', label: `Cần sửa (${revisionTasks})` },
-                    { key: 'OVERDUE', label: `Quá hạn (${overdueTasks})` },
-                    { key: 'SUBMITTED', label: `Đã nộp (${submittedTasks - completedTasks})` },
-                    { key: 'COMPLETED', label: `Đã chấm (${completedTasks})` },
-                ].map((item) => (
-                    <button key={item.key} onClick={() => setTaskFilter(item.key)} className={`px-3 py-1.5 rounded-full text-sm font-semibold border transition-colors ${taskFilter === item.key ? 'bg-primary text-white border-primary' : 'bg-white text-slate-600 border-slate-200 hover:border-primary/40'}`}>
-                        {item.label}
-                    </button>
-                ))}
-            </div>
-
-            <div className="space-y-6">
-                {visibleTasks.length === 0 ? (
-                    <div className="bg-slate-50 rounded-2xl border border-slate-200 border-dashed p-12 flex flex-col items-center justify-center text-center">
-                        <div className="size-16 rounded-full bg-white shadow-sm flex items-center justify-center text-slate-400 mb-4"><span className="material-symbols-outlined text-3xl">assignment</span></div>
-                        <h3 className="font-bold text-lg mb-2 text-slate-700">Không có nhiệm vụ phù hợp bộ lọc</h3>
-                        <p className="text-slate-500 text-sm max-w-xs">Bạn có thể đổi bộ lọc để xem các nhiệm vụ khác.</p>
+                {studentTasks.length === 0 ? (
+                    <div className="bg-white rounded-xl border border-slate-200/90 shadow-sm p-8 text-center">
+                        <Empty description="Chưa có biểu mẫu nào được khởi tạo cho đề tài này." />
                     </div>
-                ) : visibleTasks.map((task) => {
-                    const cfg = statusConfig[task._effectiveStatus] || { colorClass: 'bg-slate-100 text-slate-700', icon: <span className="material-symbols-outlined text-[16px]">info</span>, label: task._effectiveStatus };
-                    const isUploading = uploadingObj[task.id];
-                    const isSubmitting = uploadingObj[`submit_${task.id}`];
-                    const submissions = task.submissions || [];
-                    const lastSubmission = submissions.length > 0 ? submissions[submissions.length - 1] : null;
-                    const lateInfo = lastSubmission ? getLateInfo(task.dueDate, lastSubmission.submittedAt) : { isLate: false, daysLate: 0 };
-                    const canResubmit = ['OPEN', 'IN_PROGRESS', 'REVISION', 'OVERDUE'].includes(task._effectiveStatus) && canSubmit;
+                ) : (
+                    studentTasks.map((task) => {
+                        const isBypassed = task.isBypassed;
+                        const locked = !isBypassed && isStepLocked(task.taskType);
+                        const effectiveStatus = isBypassed ? 'COMPLETED' : locked ? 'LOCKED' : task.status;
+                        const badge = isBypassed
+                            ? { text: 'Miễn thẩm định', color: 'purple', icon: <CheckCircleOutlined /> }
+                            : (statusBadgeConfig[effectiveStatus] || statusBadgeConfig.OPEN);
+                        const submissions = task.submissions || [];
+                        const lastSubmission = submissions.length > 0 ? submissions[0] : null;
+                        const canSubmit = !locked && !isBypassed && ['OPEN', 'IN_PROGRESS', 'REVISION'].includes(task.status);
+                        const isOverdue = !isBypassed && task.dueDate && new Date(task.dueDate).getTime() < Date.now() && task.status !== 'COMPLETED';
 
-                    return (
-                        <div key={task.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col lg:flex-row">
-                            <div className="p-6 lg:p-8 lg:w-3/5 border-b lg:border-b-0 lg:border-r border-slate-200">
-                                <div className="flex items-start gap-4 mb-6">
-                                    <div className={`mt-1 shrink-0 px-2.5 py-1 rounded-md text-xs font-bold border flex items-center gap-1.5 ${cfg.colorClass}`}>{cfg.icon}{cfg.label}</div>
-                                    <div>
-                                        <h3 className="text-xl font-bold text-slate-900 mb-2 leading-tight">{task.title}</h3>
-                                        <p className="text-sm text-slate-600 mb-3">{task.content}</p>
-                                        <div className="flex items-center gap-2 text-sm text-slate-500 bg-slate-50 w-fit px-3 py-1.5 rounded-lg border border-slate-100">
-                                            <span className="material-symbols-outlined text-[16px]">schedule</span>
-                                            Hạn nộp: <strong className="text-slate-700">{task.dueDate ? new Date(task.dueDate).toLocaleString('vi-VN') : 'Không có hạn'}</strong>
+                        return (
+                            <div
+                                key={task.id}
+                                className={`bg-white rounded-xl border transition-all duration-150 overflow-hidden shadow-sm ${
+                                    isBypassed
+                                        ? 'border-purple-200 bg-purple-50/20'
+                                        : locked
+                                            ? 'border-slate-200/60 bg-slate-50/40 opacity-75'
+                                            : isOverdue
+                                                ? 'border-rose-200 hover:border-rose-300'
+                                                : 'border-slate-200/90 hover:border-blue-300'
+                                }`}
+                            >
+                                <div className="p-5 md:p-6 flex flex-col lg:flex-row gap-5 justify-between">
+                                    {/* Left: Task Info */}
+                                    <div className="flex-1 space-y-3">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <Tag color={badge.color} icon={badge.icon} className="font-semibold text-xs">
+                                                {badge.text}
+                                            </Tag>
+                                            {task.taskType && (
+                                                <Tag color="blue" className="font-mono text-xs">
+                                                    {task.taskType}
+                                                </Tag>
+                                            )}
+                                            {task.dueDate && !isBypassed && (
+                                                <span className={`text-xs flex items-center gap-1 ${isOverdue ? 'text-rose-600 font-bold' : 'text-slate-500'}`}>
+                                                    <ClockCircleOutlined />
+                                                    Hạn nộp: {dayjs(task.dueDate).format('DD/MM/YYYY HH:mm')}
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        <h4 className="text-base font-bold text-slate-900 leading-snug">
+                                            {task.title}
+                                        </h4>
+
+                                        {task.content && (
+                                            <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                                {task.content}
+                                            </p>
+                                        )}
+
+                                        {isBypassed && (
+                                            <div className="bg-purple-50 border border-purple-200/70 p-3 rounded-lg text-xs text-purple-800">
+                                                <strong>Xác nhận miễn thẩm định (Bypass):</strong> {task.bypassReason || 'Được miễn theo phê duyệt của Ban Quản Trị / GVHD.'}
+                                            </div>
+                                        )}
+
+                                        {/* Action Buttons */}
+                                        <div className="pt-1 flex items-center gap-2 flex-wrap">
+                                            {isBypassed ? (
+                                                <span className="inline-flex items-center gap-1.5 text-xs text-purple-700 bg-purple-100/70 px-3 py-1.5 rounded-lg font-medium">
+                                                    <CheckCircleOutlined />
+                                                    Đã được miễn làm bước này
+                                                </span>
+                                            ) : locked ? (
+                                                <span className="inline-flex items-center gap-1.5 text-xs text-slate-400 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200/70">
+                                                    <LockOutlined />
+                                                    Cần hoàn thành biểu mẫu trước để mở khóa
+                                                </span>
+                                            ) : canSubmit ? (
+                                                <Button
+                                                    type="primary"
+                                                    icon={<UploadOutlined />}
+                                                    onClick={() => handleOpenSubmitModal(task)}
+                                                    className="font-medium"
+                                                >
+                                                    {task.status === 'REVISION' ? 'Nộp lại biểu mẫu' : 'Nộp biểu mẫu'}
+                                                </Button>
+                                            ) : task.status === 'SUBMITTED' ? (
+                                                <Button
+                                                    onClick={() => handleOpenSubmitModal(task)}
+                                                    icon={<EditOutlined />}
+                                                    className="text-xs font-medium"
+                                                >
+                                                    Cập nhật bài nộp
+                                                </Button>
+                                            ) : null}
+                                        </div>
+                                    </div>
+
+                                    {/* Right: Submission & Feedback Preview */}
+                                    <div className="lg:w-5/12 bg-slate-50/80 rounded-xl p-4 border border-slate-200/70 flex flex-col justify-between">
+                                        <div>
+                                            <div className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+                                                <FileTextOutlined className="text-blue-600" />
+                                                Bài nộp gần nhất & Đánh giá
+                                            </div>
+                                            <BMSubmissionViewer submission={lastSubmission} showFeedback={true} />
                                         </div>
                                     </div>
                                 </div>
-
-                                {canResubmit && (
-                                    <div className="mt-6 mb-4">
-                                        <label className="block text-sm font-semibold text-slate-700 mb-2">Nội dung báo cáo</label>
-                                        <textarea className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:ring-2 focus:ring-primary outline-none" rows="3" placeholder="Mô tả ngắn nội dung bạn nộp (tùy chọn nếu đã có file)..." value={submissionContent[task.id] || ''} onChange={(event) => setSubmissionContent((prev) => ({ ...prev, [task.id]: event.target.value }))} />
-                                    </div>
-                                )}
-
-                                {canResubmit && (
-                                    <div className="mt-8">
-                                        {!task._tempFile ? (
-                                            <label className="relative flex flex-col items-center justify-center w-full h-40 border-2 border-slate-300 border-dashed rounded-xl cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors group">
-                                                <div className="flex flex-col items-center justify-center pt-5 pb-6 px-4 text-center">
-                                                    {isUploading ? (
-                                                        <>
-                                                            <div className="animate-spin rounded-full h-8 w-8 border-4 border-primary border-t-transparent mb-3"></div>
-                                                            <p className="text-sm text-slate-500 font-semibold mb-1">Đang tải lên...</p>
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <span className="material-symbols-outlined text-4xl text-slate-400 group-hover:text-primary transition-colors mb-3">cloud_upload</span>
-                                                            <p className="text-sm text-slate-700 font-bold mb-1"><span className="text-primary">Click để tải lên</span> hoặc kéo thả file vào đây</p>
-                                                            <p className="text-xs text-slate-500">Hỗ trợ PDF, DOCX, ZIP (tối đa 20MB)</p>
-                                                        </>
-                                                    )}
-                                                </div>
-                                                <input type="file" className="hidden" disabled={isUploading} onChange={(e) => handleFileChange(e, task.id)} accept=".pdf,.doc,.docx,.zip,.rar" />
-                                            </label>
-                                        ) : (
-                                            <div className="bg-primary/5 border border-primary/20 rounded-xl p-5">
-                                                <div className="flex items-center justify-between gap-4 mb-4">
-                                                    <div className="flex items-center gap-4 min-w-0">
-                                                        <div className="size-12 bg-white rounded-lg shadow-sm border border-slate-200 flex items-center justify-center shrink-0"><span className="material-symbols-outlined text-2xl text-primary">description</span></div>
-                                                        <div className="min-w-0">
-                                                            <h4 className="font-bold text-slate-900 truncate">{task._tempFile.name}</h4>
-                                                            <p className="text-xs text-slate-500">{task._tempFile.size} • Sẵn sàng nộp</p>
-                                                        </div>
-                                                    </div>
-                                                    <button onClick={() => removeTempFile(task.id)} className="size-8 rounded-full bg-white text-slate-400 hover:text-red-500 shadow-sm border border-slate-200 flex items-center justify-center shrink-0 transition-colors" title="Hủy" disabled={isSubmitting}><span className="material-symbols-outlined text-[18px]">close</span></button>
-                                                </div>
-
-                                                <button onClick={() => handleSubmit(task.id)} disabled={isSubmitting} className="w-full py-3 bg-primary hover:bg-primary/90 text-white font-bold rounded-lg flex items-center justify-center gap-2 shadow-sm transition-all">
-                                                    {isSubmitting ? <><span className="material-symbols-outlined animate-spin text-[20px]">progress_activity</span> Đang xử lý...</> : <><span className="material-symbols-outlined text-[20px]">send</span> {lastSubmission ? 'Nộp lại báo cáo' : 'Chốt nộp báo cáo'}</>}
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
                             </div>
+                        );
+                    })
+                )}
+            </div>
 
-                            <div className="p-6 lg:p-8 lg:w-2/5 bg-slate-50/50 flex flex-col">
-                                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4 flex items-center gap-2"><span className="material-symbols-outlined text-[18px]">history</span>Lịch sử & Phản hồi</h3>
-                                <div className="flex-1 space-y-4">
-                                    {lastSubmission ? (
-                                        <>
-                                            <div className="text-xs text-slate-500">Tổng số lần nộp: <strong>{submissions.length}</strong></div>
-                                            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-                                                <div className="flex items-start justify-between gap-3">
-                                                    <div className="flex gap-3 min-w-0">
-                                                        <div className="size-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0"><span className="material-symbols-outlined">check_circle</span></div>
-                                                        <div className="min-w-0">
-                                                            <p className="text-sm font-bold text-slate-900 truncate" title={lastSubmission.fileName || 'Tài liệu đã nộp'}>{lastSubmission.fileName || 'Bài nộp không kèm tệp'}</p>
-                                                            <p className="text-xs text-slate-500 mt-0.5">Nộp lúc: {new Date(lastSubmission.submittedAt).toLocaleString('vi-VN')}</p>
-                                                        </div>
-                                                    </div>
-                                                    {lastSubmission.fileUrl && <a href={lastSubmission.fileUrl} target="_blank" rel="noopener noreferrer" className="size-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center shrink-0 transition-colors" title="Tải xuống"><span className="material-symbols-outlined text-[18px]">download</span></a>}
-                                                </div>
-                                                {lastSubmission.content && <div className="mt-3 text-sm text-slate-600 bg-slate-50 rounded-lg p-3">{lastSubmission.content}</div>}
-                                                {lateInfo.isLate && <div className="mt-3 inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-semibold border border-red-200 bg-red-50 text-red-700"><span className="material-symbols-outlined text-[14px]">warning</span>Nộp trễ {lateInfo.daysLate} ngày</div>}
-                                            </div>
+            {/* Sổ Nhật Ký Buổi Gặp Gỡ GVHD */}
+            <div className="bg-white rounded-xl border border-slate-200/90 shadow-sm p-6 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                    <div className="flex items-center gap-2">
+                        <TeamOutlined className="text-blue-600 text-lg" />
+                        <div>
+                            <h3 className="text-sm font-bold text-slate-800">Sổ Nhật Ký Làm Việc & Gặp Gỡ GVHD</h3>
+                            <p className="text-xs text-slate-500">Minh chứng quá trình làm việc định kỳ do Thầy/Cô trực tiếp ghi nhận</p>
+                        </div>
+                    </div>
+                    <Tag color="blue" className="font-semibold text-xs px-2.5 py-1">
+                        Tổng số buổi đã gặp: <strong>{meetingLogs.length}</strong>
+                    </Tag>
+                </div>
 
-                                            {lastSubmission.feedback ? (
-                                                <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 mt-4 relative">
-                                                    <div className="absolute -top-3 left-6"><span className="material-symbols-outlined text-indigo-400 bg-indigo-50 rounded-full">chat_bubble</span></div>
-                                                    <div className="flex justify-between items-center mb-2"><p className="text-xs font-bold text-indigo-800">Nhận xét từ Giảng viên</p><p className="text-[10px] text-indigo-600/70">{new Date(lastSubmission.feedbackAt || Date.now()).toLocaleDateString('vi-VN')}</p></div>
-                                                    <p className="text-sm text-indigo-900 italic leading-relaxed">"{lastSubmission.feedback}"</p>
-                                                </div>
-                                            ) : (
-                                                <div className="text-center py-6 mt-4"><p className="text-sm text-slate-400">Chưa có nhận xét từ giảng viên.</p></div>
-                                            )}
-                                        </>
-                                    ) : (
-                                        <div className="h-full flex flex-col items-center justify-center text-center py-8"><span className="material-symbols-outlined text-4xl text-slate-300 mb-2">hourglass_empty</span><p className="text-sm text-slate-500">Chưa có tài liệu nào được nộp.</p></div>
+                {meetingLogs.length === 0 ? (
+                    <div className="py-6 text-center text-slate-400 text-xs italic">
+                        Chưa có nhật ký buổi gặp nào được ghi nhận. GVHD sẽ cập nhật sau các buổi trao đổi định kỳ tại Lab hoặc Online.
+                    </div>
+                ) : (
+                    <div className="space-y-3 pt-2">
+                        {meetingLogs.map((log, idx) => (
+                            <div key={log.id} className="bg-slate-50/70 border border-slate-200/70 rounded-xl p-4 space-y-2">
+                                <div className="flex items-center justify-between flex-wrap gap-2">
+                                    <div className="flex items-center gap-2">
+                                        <CalendarOutlined className="text-slate-400" />
+                                        <span className="font-bold text-slate-800 text-xs">
+                                            Buổi {meetingLogs.length - idx}: {dayjs(log.meetingDate).format('DD/MM/YYYY')}
+                                        </span>
+                                        <Tag color={log.meetingType === 'LAB' ? 'green' : log.meetingType === 'ONLINE' ? 'blue' : 'orange'} className="text-[11px] font-semibold">
+                                            {log.meetingType === 'LAB' ? 'Trực tiếp tại Lab' : log.meetingType === 'ONLINE' ? 'Họp Online (Meet/Zoom)' : 'Văn phòng bộ môn'}
+                                        </Tag>
+                                    </div>
+                                    <span className="text-[11px] text-slate-400">
+                                        Ghi nhận bởi: {log.creator?.fullName || 'GVHD'}
+                                    </span>
+                                </div>
+
+                                <div className="text-xs text-slate-700 bg-white p-3 rounded-lg border border-slate-200/50 space-y-1">
+                                    <div><strong>Nội dung đã báo cáo:</strong> {log.studentWorkSummary}</div>
+                                    {log.nextPlan && (
+                                        <div><strong>Kế hoạch tiếp theo:</strong> {log.nextPlan}</div>
+                                    )}
+                                    {log.supervisorNotes && (
+                                        <div className="text-blue-700 pt-1 border-t border-slate-100">
+                                            <strong>Dặn dò / Góp ý của Thầy/Cô:</strong> {log.supervisorNotes}
+                                        </div>
                                     )}
                                 </div>
                             </div>
-                        </div>
-                    );
-                })}
+                        ))}
+                    </div>
+                )}
             </div>
+
+            {/* BM04 Gatekeeping Status Card */}
+            <div className="bg-white rounded-xl border border-slate-200/90 shadow-sm p-6 space-y-3">
+                <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                    <SafetyCertificateOutlined className="text-emerald-600 text-lg" />
+                    <div>
+                        <h3 className="text-sm font-bold text-slate-800">Phiếu Nhận Xét BM04 & Quyết Định Ra Bảo Vệ</h3>
+                        <p className="text-xs text-slate-500">Quyết định chốt chặn thẩm định của Giảng viên hướng dẫn để được xếp vào Hội đồng bảo vệ</p>
+                    </div>
+                </div>
+
+                {['SUBMITTED', 'DEFENDED', 'COMPLETED'].includes(registration.status) ? (
+                    <Alert
+                        type="success"
+                        showIcon
+                        icon={<CheckCircleOutlined className="text-lg" />}
+                        message={<span className="font-bold text-emerald-800 text-sm">GVHD ĐÃ DUYỆT ĐỒNG Ý CHO RA BẢO VỆ</span>}
+                        description={
+                            <div className="space-y-1 mt-1 text-xs text-emerald-700">
+                                <p>Đề tài của bạn đã đủ điều kiện học vụ và được chuyển sang Ban Quản Trị Viện để phân công vào Hội đồng bảo vệ tốt nghiệp.</p>
+                                {registration.outlineFeedback && (
+                                    <div className="bg-white/80 p-2.5 rounded border border-emerald-200 mt-2 font-mono whitespace-pre-wrap text-slate-700">
+                                        {registration.outlineFeedback}
+                                    </div>
+                                )}
+                            </div>
+                        }
+                    />
+                ) : registration.status === 'DROPPED' ? (
+                    <Alert
+                        type="error"
+                        showIcon
+                        icon={<CloseCircleOutlined className="text-lg" />}
+                        message={<span className="font-bold text-rose-800 text-sm">GVHD ĐÁNH GIÁ KHÔNG ĐỒNG Ý CHO RA BẢO VỆ</span>}
+                        description={
+                            <div className="space-y-1 mt-1 text-xs text-rose-700">
+                                <p>Tiến độ hoặc chất lượng đề tài chưa đạt yêu cầu để ra Hội đồng bảo vệ đợt này.</p>
+                                {registration.outlineFeedback && (
+                                    <div className="bg-white/80 p-2.5 rounded border border-rose-200 mt-2 whitespace-pre-wrap text-slate-700">
+                                        {registration.outlineFeedback}
+                                    </div>
+                                )}
+                            </div>
+                        }
+                    />
+                ) : (
+                    <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 text-xs text-slate-600 space-y-1.5">
+                        <div className="font-semibold text-slate-700 flex items-center gap-1.5">
+                            <ClockCircleOutlined className="text-amber-500" />
+                            Đang trong giai đoạn thực hiện đồ án
+                        </div>
+                        <p>
+                            GVHD sẽ tổng hợp minh chứng các buổi gặp gỡ định kỳ ({meetingLogs.length} buổi đã ghi nhận) và kết quả các đợt kiểm tra tiến độ để lập Phiếu nhận xét BM04 chính thức trước ngày bảo vệ.
+                        </p>
+                    </div>
+                )}
+            </div>
+
+            {/* Hybrid Form Modal */}
+            <HybridBMFormModal
+                visible={modalVisible}
+                task={activeTask}
+                registration={registration}
+                onClose={() => setModalVisible(false)}
+                onSubmit={handleSubmitForm}
+                submitting={submitting}
+            />
         </div>
     );
 }
-
-export default SubmissionPage;

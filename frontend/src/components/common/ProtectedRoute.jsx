@@ -5,7 +5,7 @@ import useAuthStore from '../../stores/authStore';
  * Component bảo vệ các Route cần đăng nhập và kiểm tra Role.
  * @param {Array} allowedRoles mảng các role được phép truy cập, VD: ['ADMIN', 'LECTURER']
  */
-function ProtectedRoute({ allowedRoles }) {
+function ProtectedRoute({ allowedRoles, requiredPermissions = [] }) {
     const { isAuthenticated, user } = useAuthStore();
 
     // 1. Nếu chưa đăng nhập -> chuyển về trang login
@@ -14,7 +14,10 @@ function ProtectedRoute({ allowedRoles }) {
     }
 
     // 2. Nếu đã đăng nhập nhưng không có quyền truy cập route này
-    if (allowedRoles && !allowedRoles.includes(user.role)) {
+    const hasRequiredPermissions = requiredPermissions.every((permission) =>
+        user.permissions?.includes(permission)
+    );
+    if ((allowedRoles && !allowedRoles.includes(user.role)) || !hasRequiredPermissions) {
         // Tuỳ theo role thực tại để đẩy về đúng dashboard
         if (user.role === 'ADMIN') return <Navigate to="/admin/dashboard" replace />;
         if (user.role === 'LECTURER') return <Navigate to="/lecturer/dashboard" replace />;

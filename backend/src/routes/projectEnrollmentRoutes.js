@@ -1,10 +1,13 @@
-﻿const express = require('express');
+const express = require('express');
 const { body, param, query } = require('express-validator');
 const {
     listProjectCatalogs,
     listStudentProjectEnrollments,
     bulkUpsertStudentProjectEnrollments,
     deleteStudentProjectEnrollment,
+    downloadEnrollmentTemplate,
+    importEnrollmentsExcel,
+    exportEnrollmentsExcel,
 } = require('../controllers/projectEnrollmentController');
 const { authenticate, authorize } = require('../middlewares/auth');
 const { validateRequest } = require('../middlewares/validate');
@@ -14,6 +17,9 @@ const router = express.Router();
 router.use(authenticate, authorize('ADMIN'));
 
 router.get('/catalogs', listProjectCatalogs);
+router.get('/template', downloadEnrollmentTemplate);
+router.post('/import-excel', importEnrollmentsExcel);
+router.get('/export-excel', exportEnrollmentsExcel);
 
 router.get(
     '/',

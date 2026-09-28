@@ -13,6 +13,7 @@ import RouteFallbackHandler from './components/common/RouteFallbackHandler';
 
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
 const ForgotPasswordPage = lazy(() => import('./pages/auth/ForgotPasswordPage'));
+const HomePage = lazy(() => import('./pages/common/HomePage'));
 
 // Admin pages
 const DashboardPage = lazy(() => import('./pages/admin/DashboardPage'));
@@ -24,6 +25,8 @@ const ProjectOversightPage = lazy(() => import('./pages/admin/ProjectOversightPa
 const GradingDefensePage = lazy(() => import('./pages/admin/GradingDefensePage'));
 const NotificationCenterPage = lazy(() => import('./pages/admin/NotificationCenterPage'));
 const ProjectEnrollmentPage = lazy(() => import('./pages/admin/ProjectEnrollmentPage'));
+const PermissionGroupPage = lazy(() => import('./pages/admin/PermissionGroupPage'));
+const AnnouncementManagementPage = lazy(() => import('./pages/admin/AnnouncementManagementPage'));
 
 // Lecturer pages
 const LecturerDashboardPage = lazy(() => import('./pages/lecturer/LecturerDashboardPage'));
@@ -86,6 +89,8 @@ function App() {
                                 <Route path="grading" element={<GradingDefensePage />} />
                                 <Route path="councils" element={<CouncilAssignmentPage />} />
                                 <Route path="project-enrollments" element={<ProjectEnrollmentPage />} />
+                                <Route path="announcements" element={<AnnouncementManagementPage />} />
+                                <Route path="permissions" element={<PermissionGroupPage />} />
                                 <Route path="notifications" element={<NotificationCenterPage />} />
                                 <Route path="profile" element={<ProfilePage />} />
                             </Route>
@@ -118,7 +123,7 @@ function App() {
                         </Route>
 
                         <Route path="/dashboard" element={<RoleDashboardRedirect />} />
-                        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                        <Route path="/" element={<HomePage />} />
                         <Route path="*" element={<RouteFallbackHandler />} />
                     </Routes>
                 </Suspense>

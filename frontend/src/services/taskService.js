@@ -1,4 +1,4 @@
-﻿import api from './api';
+import api from './api';
 
 const wrapServiceError = (error, fallbackMessage) => {
     if (error?.success === false) return error;
@@ -54,6 +54,14 @@ const taskService = {
             return await api.post('/tasks/remind', { taskIds, message });
         } catch (error) {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi gửi nhắc nộp');
+        }
+    },
+
+    bypassTask: async (taskId, { reason } = {}) => {
+        try {
+            return await api.post(`/tasks/${taskId}/bypass`, { reason });
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi miễn thẩm định nhiệm vụ');
         }
     },
 };

@@ -74,6 +74,38 @@ const registrationService = {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi hủy đăng ký');
         }
     },
+
+    updateOutlineReview: async (id, payload) => {
+        try {
+            return await api.patch(`/registrations/${id}/outline-review`, payload);
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi cập nhật kết quả thẩm định đề cương');
+        }
+    },
+
+    reviewBM04: async (id, { decision, feedback, score } = {}) => {
+        try {
+            return await api.post(`/registrations/${id}/bm04-review`, { decision, feedback, score });
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi lập phiếu nhận xét BM04');
+        }
+    },
+
+    bypassOutlineReview: async (id, reason) => {
+        try {
+            return await api.post(`/registrations/${id}/bypass-outline`, { reason });
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi miễn thẩm định đề cương');
+        }
+    },
+
+    batchBypassOutlineReview: async (registrationIds, reason) => {
+        try {
+            return await api.post('/registrations/batch-bypass-outline', { registrationIds, reason });
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi miễn thẩm định đề cương hàng loạt');
+        }
+    },
 };
 
 export default registrationService;

@@ -21,6 +21,13 @@ const login = async (req, res, next) => {
         // 2. Tìm user theo email
         const user = await prisma.user.findUnique({
             where: { email },
+            include: {
+                permissionGroups: {
+                    include: {
+                        permissionGroup: { include: { permissions: { include: { permission: true } } } },
+                    },
+                },
+            },
         });
 
         if (!user) {
@@ -55,6 +62,12 @@ const login = async (req, res, next) => {
         );
 
         // 6. Trả kết quả (không trả passwordHash)
+        const permissions = (user.permissionGroups || []).flatMap((group) =>
+            (group.permissionGroup?.permissions || []).map((item) => item.permission?.code).filter(Boolean)
+        );
+        const groupCodes = (user.permissionGroups || [])
+            .map((group) => group.permissionGroup?.code)
+            .filter(Boolean);
         res.json({
             success: true,
             message: 'Đăng nhập thành công.',
@@ -68,6 +81,8 @@ const login = async (req, res, next) => {
                     role: user.role,
                     department: user.department,
                     avatarUrl: user.avatarUrl,
+                    permissionGroups: groupCodes,
+                    permissions: [...new Set(permissions)],
                 },
             },
         });

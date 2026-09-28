@@ -47,6 +47,7 @@ const canLecturerGradeRegistration = async (lecturerId, registrationId) => {
     const registration = await prisma.topicRegistration.findUnique({
         where: { id: registrationId },
         include: {
+            defenseCouncil: { select: { members: { select: { lecturerId: true } } } },
             council: { select: { members: { select: { lecturerId: true } } } },
             topic: { select: { mentorId: true } },
         },
@@ -54,7 +55,8 @@ const canLecturerGradeRegistration = async (lecturerId, registrationId) => {
 
     if (!registration) return { ok: false, reason: 'not_found' };
 
-    const inCouncil = (registration.council?.members || []).some((m) => m.lecturerId === lecturerId);
+    const effectiveMembers = registration.defenseCouncil?.members || registration.council?.members || [];
+    const inCouncil = effectiveMembers.some((m) => m.lecturerId === lecturerId);
     const isMentor = registration.topic?.mentorId === lecturerId;
 
     return { ok: inCouncil || isMentor, registration };
@@ -62,7 +64,7 @@ const canLecturerGradeRegistration = async (lecturerId, registrationId) => {
 
 const validateAndNormalizeScores = (scores = []) => {
     if (!Array.isArray(scores) || !scores.length) {
-        return { ok: false, message: 'scores pháº£i lĂ  máº£ng cĂ³ Ă­t nháº¥t 1 pháº§n tá»­.' };
+        return { ok: false, message: 'scores phải là mảng có ít nhất 1 phần tử.' };
     }
 
     const criteriaMap = new Map(RUBRIC_V1.criteria.map((c) => [c.code, c]));
@@ -72,13 +74,13 @@ const validateAndNormalizeScores = (scores = []) => {
     for (const item of scores) {
         const criterionCode = String(item?.criterionCode || '').trim();
         if (!criteriaMap.has(criterionCode) || seen.has(criterionCode)) {
-            return { ok: false, message: `criterionCode khĂ´ng há»£p lá»‡ hoáº·c trĂ¹ng láº·p: ${criterionCode || 'N/A'}` };
+            return { ok: false, message: `criterionCode không hợp lệ hoặc trùng lặp: ${criterionCode || 'N/A'}` };
         }
 
         const criterion = criteriaMap.get(criterionCode);
         const parsedScore = Number.parseFloat(item?.score);
         if (!Number.isFinite(parsedScore) || parsedScore < 0 || parsedScore > criterion.maxScore) {
-            return { ok: false, message: `Score cá»§a ${criterionCode} pháº£i náº±m trong [0, ${criterion.maxScore}]` };
+            return { ok: false, message: `Score của ${criterionCode} phải nằm trong [0, ${criterion.maxScore}]` };
         }
 
         normalized.push({
@@ -92,7 +94,7 @@ const validateAndNormalizeScores = (scores = []) => {
     }
 
     if (seen.size !== RUBRIC_V1.criteria.length) {
-        return { ok: false, message: 'scores chÆ°a Ä‘áº§y Ä‘á»§ cĂ¡c tiĂªu chĂ­ trong barem v1.' };
+        return { ok: false, message: 'scores chưa đầy đủ các tiêu chí trong barem v1.' };
     }
 
     const finalScoreRaw = normalized.reduce((sum, row) => sum + row.score, 0);
@@ -139,12 +141,12 @@ const getTargetSemesterForDefenseCenter = async (semesterIdRaw) => {
 
 const resolveDefenseCenterStage = (registration) => {
     if (registration.defenseResult?.finalScore !== null && registration.defenseResult?.finalScore !== undefined) return 'COMPLETED';
-    if (!registration.councilId) return 'PENDING_ASSIGNMENT';
+    const effectiveCouncilId = registration.defenseCouncilId || registration.councilId;
+    if (!effectiveCouncilId) return 'PENDING_ASSIGNMENT';
 
     const now = Date.now();
-    const councilDefenseTime = registration.council?.defenseDate
-        ? new Date(registration.council.defenseDate).getTime()
-        : null;
+    const councilDefenseDate = registration.defenseCouncil?.defenseDate || registration.council?.defenseDate;
+    const councilDefenseTime = councilDefenseDate ? new Date(councilDefenseDate).getTime() : null;
     const semesterDefenseTime = registration.topic?.semester?.defenseDate
         ? new Date(registration.topic.semester.defenseDate).getTime()
         : null;
@@ -166,6 +168,33 @@ const getMyGrades = async (req, res, next) => {
                 topic: {
                     include: { mentor: { select: { fullName: true } } },
                 },
+                council: {
+                    include: {
+                        members: {
+                            include: {
+                                lecturer: { select: { id: true, fullName: true, code: true, academicTitle: true } },
+                            },
+                        },
+                    },
+                },
+                defenseCouncil: {
+                    include: {
+                        members: {
+                            include: {
+                                lecturer: { select: { id: true, fullName: true, code: true, academicTitle: true } },
+                            },
+                        },
+                    },
+                },
+                outlineCouncil: {
+                    include: {
+                        members: {
+                            include: {
+                                lecturer: { select: { id: true, fullName: true, code: true, academicTitle: true } },
+                            },
+                        },
+                    },
+                },
                 defenseResult: {
                     include: { evaluator: { select: { fullName: true, role: true } } },
                 },
@@ -174,6 +203,7 @@ const getMyGrades = async (req, res, next) => {
                         evaluatorId: true,
                         finalScore: true,
                         scoreLocked: true,
+                        comments: true,
                         updatedAt: true,
                         evaluator: { select: { id: true, fullName: true } },
                     },
@@ -198,18 +228,22 @@ const getGradingStudents = async (req, res, next) => {
         };
 
         if (role === 'LECTURER') {
-            where.council = {
-                members: {
-                    some: { lecturerId: userId },
-                },
-            };
+            where.OR = [
+                { council: { members: { some: { lecturerId: userId } } } },
+                { defenseCouncil: { members: { some: { lecturerId: userId } } } },
+            ];
         }
 
         const parsedSemesterId = parsePositiveInt(semesterId);
         if (parsedSemesterId) where.semesterId = parsedSemesterId;
 
         const parsedCouncilId = parsePositiveInt(councilId);
-        if (parsedCouncilId) where.councilId = parsedCouncilId;
+        if (parsedCouncilId) {
+            where.OR = [
+                { councilId: parsedCouncilId },
+                { defenseCouncilId: parsedCouncilId },
+            ];
+        }
 
         const parsedProjectCatalogId = parsePositiveInt(projectCatalogId);
         if (parsedProjectCatalogId) {
@@ -250,15 +284,30 @@ const getGradingStudents = async (req, res, next) => {
                         },
                     },
                 },
+                defenseCouncil: {
+                    select: {
+                        id: true,
+                        name: true,
+                        defenseDate: true,
+                        members: {
+                            select: {
+                                lecturerId: true,
+                                roleInCouncil: true,
+                                lecturer: { select: { fullName: true, code: true } },
+                            },
+                        },
+                    },
+                },
             },
             orderBy: { createdAt: 'desc' },
         });
 
         const enhanced = registrations.map((reg) => ({
             ...reg,
+            council: reg.defenseCouncil || reg.council,
             gradingStatus: supportsMemberScoresModel
-                ? (reg.memberScores?.length ? 'ÄĂ£ cháº¥m' : 'ChÆ°a cháº¥m')
-                : (reg.defenseResult ? 'ÄĂ£ cháº¥m' : 'ChÆ°a cháº¥m'),
+                ? (reg.memberScores?.length ? 'Đã chấm' : 'Chưa chấm')
+                : (reg.defenseResult ? 'Đã chấm' : 'Chưa chấm'),
             finalScore: supportsMemberScoresModel
                 ? (reg.defenseResult?.finalScore ?? computeRegistrationFinalScore(reg.memberScores || []))
                 : (reg.defenseResult?.finalScore ?? null),
@@ -275,18 +324,11 @@ const getGradingStudents = async (req, res, next) => {
 
 const getAdminDefenseCenter = async (req, res, next) => {
     try {
-        const { semesterId, tab, search, councilId, mentorId } = req.query;
+        const { semesterId, councilId, mentorId, search, tab } = req.query;
         const targetSemester = await getTargetSemesterForDefenseCenter(semesterId);
 
         if (!targetSemester) {
-            return res.json({
-                success: true,
-                data: [],
-                meta: {
-                    targetSemester: null,
-                    counts: DEFENSE_CENTER_TABS.reduce((acc, key) => ({ ...acc, [key]: 0 }), {}),
-                },
-            });
+            return res.status(404).json({ success: false, message: 'Khong tim thay hoc ky phu hop.' });
         }
 
         const where = {
@@ -295,7 +337,12 @@ const getAdminDefenseCenter = async (req, res, next) => {
         };
 
         const parsedCouncilId = parsePositiveInt(councilId);
-        if (parsedCouncilId) where.councilId = parsedCouncilId;
+        if (parsedCouncilId) {
+            where.OR = [
+                { councilId: parsedCouncilId },
+                { defenseCouncilId: parsedCouncilId },
+            ];
+        }
 
         const parsedMentorId = parsePositiveInt(mentorId);
         if (parsedMentorId) where.topic = { mentorId: parsedMentorId };
@@ -323,6 +370,21 @@ const getAdminDefenseCenter = async (req, res, next) => {
                     },
                 },
                 council: {
+                    select: {
+                        id: true,
+                        name: true,
+                        location: true,
+                        defenseDate: true,
+                        members: {
+                            select: {
+                                lecturerId: true,
+                                roleInCouncil: true,
+                                lecturer: { select: { fullName: true, code: true } },
+                            },
+                        },
+                    },
+                },
+                defenseCouncil: {
                     select: {
                         id: true,
                         name: true,
@@ -365,7 +427,8 @@ const getAdminDefenseCenter = async (req, res, next) => {
         });
 
         const enriched = rows.map((registration) => {
-            const stage = resolveDefenseCenterStage(registration);
+            const effectiveCouncil = registration.defenseCouncil || registration.council;
+            const stage = resolveDefenseCenterStage({ ...registration, council: effectiveCouncil });
             const gradingStatus = supportsMemberScoresModel
                 ? (registration.memberScores?.length ? 'GRADED' : 'PENDING')
                 : (registration.defenseResult ? 'GRADED' : 'PENDING');
@@ -390,7 +453,7 @@ const getAdminDefenseCenter = async (req, res, next) => {
                 topic: registration.topic,
                 mentor: registration.topic?.mentor || null,
                 semester,
-                council: registration.council,
+                council: effectiveCouncil,
                 defenseResult: registration.defenseResult,
                 memberScores: supportsMemberScoresModel ? (registration.memberScores || []) : [],
                 finalScore: finalScore ?? null,
@@ -428,15 +491,9 @@ const getAdminDefenseCenter = async (req, res, next) => {
 
 const getScoreSheet = async (req, res, next) => {
     try {
-        if (!supportsMemberScoresModel) {
-            return res.status(409).json({
-                success: false,
-                message: 'He thong chua cap nhat schema phieu cham theo thanh vien. Vui long chay prisma migrate deploy va restart backend.',
-            });
-        }
         const registrationId = parsePositiveInt(req.params.registrationId);
         if (!registrationId) {
-            return res.status(400).json({ success: false, message: 'registrationId khĂ´ng há»£p lá»‡.' });
+            return res.status(400).json({ success: false, message: 'registrationId không hợp lệ.' });
         }
 
         const registration = await prisma.topicRegistration.findUnique({
@@ -444,6 +501,17 @@ const getScoreSheet = async (req, res, next) => {
             include: {
                 student: { select: { id: true, fullName: true, code: true, department: true } },
                 topic: { select: { id: true, title: true, mentorId: true } },
+                defenseCouncil: {
+                    include: {
+                        members: {
+                            select: {
+                                lecturerId: true,
+                                roleInCouncil: true,
+                                lecturer: { select: { fullName: true } },
+                            },
+                        },
+                    },
+                },
                 council: {
                     include: {
                         members: {
@@ -466,21 +534,23 @@ const getScoreSheet = async (req, res, next) => {
         });
 
         if (!registration) {
-            return res.status(404).json({ success: false, message: 'KhĂ´ng tĂ¬m tháº¥y Ä‘Äƒng kĂ½.' });
+            return res.status(404).json({ success: false, message: 'Không tìm thấy đăng ký đề tài.' });
         }
 
+        const effectiveCouncil = registration.defenseCouncil || registration.council;
+        const effectiveMembers = effectiveCouncil?.members || [];
         const requestedEvaluatorId = parsePositiveInt(req.query.evaluatorId);
-        const councilMemberIds = new Set((registration.council?.members || []).map((m) => m.lecturerId));
+        const councilMemberIds = new Set(effectiveMembers.map((m) => m.lecturerId));
         const evaluatorId = req.user.role === 'ADMIN' && requestedEvaluatorId && councilMemberIds.has(requestedEvaluatorId)
             ? requestedEvaluatorId
             : req.user.id;
 
         if (req.user.role !== 'ADMIN' && evaluatorId !== req.user.id) {
-            return res.status(403).json({ success: false, message: 'Ban khong co quyen xem phieu diem nay.' });
+            return res.status(403).json({ success: false, message: 'Bạn không có quyền xem phiếu điểm này.' });
         }
 
         const currentMemberScore = (registration.memberScores || []).find((row) => row.evaluatorId === evaluatorId) || null;
-        const roleInCouncil = (registration.council?.members || []).find((m) => m.lecturerId === evaluatorId)?.roleInCouncil || null;
+        const roleInCouncil = effectiveMembers.find((m) => m.lecturerId === evaluatorId)?.roleInCouncil || null;
         const finalScore = registration.defenseResult?.finalScore ?? computeRegistrationFinalScore(registration.memberScores || []);
         const scoreLocked = currentMemberScore?.scoreLocked || false;
 
@@ -492,7 +562,7 @@ const getScoreSheet = async (req, res, next) => {
                     status: registration.status,
                     student: registration.student,
                     topic: registration.topic,
-                    councilId: registration.councilId,
+                    councilId: effectiveCouncil?.id || registration.defenseCouncilId || registration.councilId,
                 },
                 rubric: RUBRIC_V1,
                 scores: currentMemberScore?.criterionScores || [],
@@ -505,7 +575,7 @@ const getScoreSheet = async (req, res, next) => {
                 })),
                 currentEvaluator: {
                     id: evaluatorId,
-                    fullName: (registration.council?.members || []).find((m) => m.lecturerId === evaluatorId)?.lecturer?.fullName || req.user.fullName || null,
+                    fullName: effectiveMembers.find((m) => m.lecturerId === evaluatorId)?.lecturer?.fullName || req.user.fullName || null,
                     roleInCouncil,
                 },
                 finalScore: finalScore ?? null,
@@ -519,15 +589,9 @@ const getScoreSheet = async (req, res, next) => {
 
 const saveScoreSheet = async (req, res, next) => {
     try {
-        if (!supportsMemberScoresModel) {
-            return res.status(409).json({
-                success: false,
-                message: 'He thong chua cap nhat schema phieu cham theo thanh vien. Vui long chay prisma migrate deploy va restart backend.',
-            });
-        }
         const registrationId = parsePositiveInt(req.params.registrationId);
         if (!registrationId) {
-            return res.status(400).json({ success: false, message: 'registrationId khong hop le.' });
+            return res.status(400).json({ success: false, message: 'registrationId không hợp lệ.' });
         }
 
         const { scores, generalComment } = req.body;
@@ -545,7 +609,7 @@ const saveScoreSheet = async (req, res, next) => {
             if (!access.ok) {
                 return res.status(access.reason === 'not_found' ? 404 : 403).json({
                     success: false,
-                    message: access.reason === 'not_found' ? 'Khong tim thay dang ky.' : 'Ban khong co quyen cham diem ho so nay.',
+                    message: access.reason === 'not_found' ? 'Không tìm thấy đăng ký.' : 'Bạn không có quyền chấm điểm hồ sơ này.',
                 });
             }
         }
@@ -558,6 +622,7 @@ const saveScoreSheet = async (req, res, next) => {
                     status: true,
                     studentId: true,
                     topic: { select: { title: true } },
+                    defenseCouncil: { select: { members: { select: { lecturerId: true } } } },
                     council: { select: { members: { select: { lecturerId: true } } } },
                 },
             });
@@ -566,7 +631,8 @@ const saveScoreSheet = async (req, res, next) => {
                 throw new Error('NOT_FOUND_REGISTRATION');
             }
 
-            const councilMemberIdSet = new Set((registration.council?.members || []).map((m) => m.lecturerId));
+            const effectiveMembers = registration.defenseCouncil?.members || registration.council?.members || [];
+            const councilMemberIdSet = new Set(effectiveMembers.map((m) => m.lecturerId));
             if (!councilMemberIdSet.has(evaluatorId)) {
                 throw new Error('EVALUATOR_NOT_IN_COUNCIL');
             }
@@ -620,7 +686,7 @@ const saveScoreSheet = async (req, res, next) => {
                 })),
             });
 
-            const councilMemberIds = [...new Set((registration.council?.members || []).map((m) => m.lecturerId))];
+            const councilMemberIds = [...new Set(effectiveMembers.map((m) => m.lecturerId))];
             const consideredEvaluatorIds = councilMemberIds.length ? councilMemberIds : [evaluatorId];
             const allMemberScores = await tx.defenseMemberScore.findMany({
                 where: {
@@ -698,11 +764,12 @@ const saveScoreSheet = async (req, res, next) => {
         next(error);
     }
 };
+
 const remindDefenseGrading = async (req, res, next) => {
     try {
         const { registrationIds } = req.body;
         if (!Array.isArray(registrationIds) || registrationIds.length === 0) {
-            return res.status(400).json({ success: false, message: 'registrationIds pháº£i lĂ  máº£ng cĂ³ Ă­t nháº¥t 1 pháº§n tá»­.' });
+            return res.status(400).json({ success: false, message: 'registrationIds phải là mảng có ít nhất 1 phần tử.' });
         }
 
         const uniqueIds = [...new Set(
@@ -710,7 +777,7 @@ const remindDefenseGrading = async (req, res, next) => {
         )];
 
         if (uniqueIds.length !== registrationIds.length) {
-            return res.status(400).json({ success: false, message: 'registrationIds cĂ³ pháº§n tá»­ khĂ´ng há»£p lá»‡ hoáº·c trĂ¹ng láº·p.' });
+            return res.status(400).json({ success: false, message: 'registrationIds có phần tử không hợp lệ hoặc trùng lặp.' });
         }
 
         const registrations = await prisma.topicRegistration.findMany({
@@ -721,6 +788,13 @@ const remindDefenseGrading = async (req, res, next) => {
             include: {
                 student: { select: { fullName: true, code: true } },
                 topic: { select: { title: true } },
+                defenseCouncil: {
+                    select: {
+                        id: true,
+                        name: true,
+                        members: { select: { lecturerId: true } },
+                    },
+                },
                 council: {
                     select: {
                         id: true,
@@ -728,7 +802,7 @@ const remindDefenseGrading = async (req, res, next) => {
                         members: { select: { lecturerId: true } },
                     },
                 },
-                ...(supportsMemberScoresModel ? { memberScores: { select: { id: true } } } : { defenseResult: { select: { id: true } } }),
+                memberScores: { select: { id: true } },
             },
         });
 
@@ -736,15 +810,14 @@ const remindDefenseGrading = async (req, res, next) => {
         let skipped = 0;
 
         for (const reg of registrations) {
-            const reachedLimit = supportsMemberScoresModel
-                ? ((reg.memberScores || []).length >= 3)
-                : Boolean(reg.defenseResult);
-            if (!reg.council || reachedLimit) {
+            const effectiveCouncil = reg.defenseCouncil || reg.council;
+            const reachedLimit = (reg.memberScores || []).length >= 3;
+            if (!effectiveCouncil || reachedLimit) {
                 skipped += 1;
                 continue;
             }
 
-            const uniqueLecturers = [...new Set((reg.council.members || []).map((member) => member.lecturerId))];
+            const uniqueLecturers = [...new Set((effectiveCouncil.members || []).map((member) => member.lecturerId))];
             if (!uniqueLecturers.length) {
                 skipped += 1;
                 continue;
@@ -754,8 +827,8 @@ const remindDefenseGrading = async (req, res, next) => {
                 await safeNotify(
                     {
                         userId: lecturerId,
-                        title: 'Nháº¯c nháº­p Ä‘iá»ƒm báº£o vá»‡',
-                        content: `Vui lĂ²ng nháº­p Ä‘iá»ƒm cho sinh viĂªn ${reg.student?.fullName || 'N/A'} (${reg.student?.code || 'N/A'}) - Ä‘á» tĂ i "${reg.topic?.title || 'N/A'}" táº¡i há»™i Ä‘á»“ng ${reg.council.name}.`,
+                        title: 'Nhắc nhập điểm bảo vệ',
+                        content: `Vui lòng nhập điểm cho sinh viên ${reg.student?.fullName || 'N/A'} (${reg.student?.code || 'N/A'}) - đề tài "${reg.topic?.title || 'N/A'}" tại hội đồng ${effectiveCouncil.name}.`,
                         type: 'DEFENSE',
                         referenceUrl: `defense-center:registration:${reg.id}`,
                     },
@@ -787,12 +860,6 @@ const remindDefenseGrading = async (req, res, next) => {
 
 const setDefenseScoreLock = async (req, res, next) => {
     try {
-        if (!supportsMemberScoresModel) {
-            return res.status(409).json({
-                success: false,
-                message: 'He thong chua cap nhat schema phieu cham theo thanh vien. Vui long chay prisma migrate deploy va restart backend.',
-            });
-        }
         const registrationId = parseInt(req.params.id, 10);
         const { action } = req.body;
 
@@ -818,7 +885,9 @@ const setDefenseScoreLock = async (req, res, next) => {
         }
 
         const lockState = action === 'LOCK';
-        const nextStatus = lockState ? 'COMPLETED' : 'DEFENDED';
+        // When locking defense scores, student is DEFENDED and ready for post-defense archiving.
+        // Final COMPLETED status is granted upon post-defense archive approval.
+        const nextStatus = lockState ? 'DEFENDED' : 'SUBMITTED';
 
         const updated = await prisma.$transaction(async (tx) => {
             const updatedRegistration = await tx.topicRegistration.update({
@@ -859,15 +928,9 @@ const setDefenseScoreLock = async (req, res, next) => {
 };
 const exportScoreSheetPdf = async (req, res, next) => {
     try {
-        if (!supportsMemberScoresModel) {
-            return res.status(409).json({
-                success: false,
-                message: 'He thong chua cap nhat schema phieu cham theo thanh vien. Vui long chay prisma migrate deploy va restart backend.',
-            });
-        }
         const registrationId = parsePositiveInt(req.params.registrationId);
         if (!registrationId) {
-            return res.status(400).json({ success: false, message: 'registrationId khong hop le.' });
+            return res.status(400).json({ success: false, message: 'registrationId không hợp lệ.' });
         }
 
         const requestedEvaluatorId = parsePositiveInt(req.body?.evaluatorId || req.query?.evaluatorId);
@@ -877,6 +940,19 @@ const exportScoreSheetPdf = async (req, res, next) => {
             include: {
                 student: { select: { fullName: true, code: true, department: true } },
                 topic: { select: { title: true } },
+                defenseCouncil: {
+                    select: {
+                        name: true,
+                        defenseDate: true,
+                        members: {
+                            select: {
+                                lecturerId: true,
+                                roleInCouncil: true,
+                                lecturer: { select: { fullName: true } },
+                            },
+                        },
+                    },
+                },
                 council: {
                     select: {
                         name: true,
@@ -902,23 +978,24 @@ const exportScoreSheetPdf = async (req, res, next) => {
         });
 
         if (!registration) {
-            return res.status(404).json({ success: false, message: 'Khong tim thay dang ky.' });
+            return res.status(404).json({ success: false, message: 'Không tìm thấy đăng ký đề tài.' });
         }
 
+        const effectiveCouncil = registration.defenseCouncil || registration.council;
         const adminFallbackEvaluatorId = registration.memberScores?.[0]?.evaluatorId || null;
         const evaluatorId = req.user.role === 'ADMIN'
             ? (requestedEvaluatorId || adminFallbackEvaluatorId)
             : req.user.id;
         const memberScore = (registration.memberScores || []).find((row) => row.evaluatorId === evaluatorId);
         if (!memberScore || memberScore.finalScore === null || memberScore.finalScore === undefined) {
-            return res.status(400).json({ success: false, message: 'Ban chua co phieu cham hop le de xuat PDF.' });
+            return res.status(400).json({ success: false, message: 'Bạn chưa có phiếu chấm hợp lệ để xuất PDF.' });
         }
 
-        const roleInCouncil = registration.council?.members?.find((m) => m.lecturerId === evaluatorId)?.roleInCouncil || null;
+        const roleInCouncil = effectiveCouncil?.members?.find((m) => m.lecturerId === evaluatorId)?.roleInCouncil || null;
         const aggregateFinalScore = registration.defenseResult?.finalScore ?? computeRegistrationFinalScore(registration.memberScores || []);
 
         const pdfBuffer = await generateScoreSheetPdfBuffer({
-            registration,
+            registration: { ...registration, council: effectiveCouncil },
             defenseResult: memberScore,
             rubricVersion: memberScore.scoreRubricVersion || RUBRIC_V1.version,
             scorerInfo: {

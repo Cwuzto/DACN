@@ -1,114 +1,38 @@
-# AGENTS.md
+# Quy Chuẩn Hoạt Động Của AI Agent (AGENTS.md)
 
-## Mục đích
-
-File này là hướng dẫn nền cho mọi agent làm việc trong repo `DACN/`.
-Mục tiêu là giúp các phiên làm việc sau:
-
-- hiểu đúng mục đích ban đầu của dự án,
-- không đi lệch hướng nghiệp vụ,
-- không quên tiến độ đang làm,
-- không vô tình khôi phục lại kiến trúc cũ.
+Tài liệu này chứa các quy tắc làm việc và cơ chế tự động hóa theo lệnh cho AI Agent trong repository `DACN`.
 
 ---
 
-## Bối cảnh dự án
+## 1. Cơ Chế Quản Lý Phiên Làm Việc (Session Management)
 
-Đây là dự án **Hệ thống Quản lý Đồ án** cho 3 vai trò:
+### Khi người dùng nói "mở phiên" (Bắt đầu Session mới)
+AI Agent phải tự động thực hiện ngay:
+1. Đọc file **[CLAUDE.md](file:///d:/DACN/CLAUDE.md)** và kiểm tra trạng thái hiện tại của codebase.
+2. Lập Kế hoạch triển khai (Session Plan) cho ngày hôm nay:
+   - Liệt kê các công việc cần làm được chia theo mức độ ưu tiên (`P0`, `P1`,...).
+   - Sắp xếp thứ tự thực hiện rõ ràng, logic (CSDL -> Backend API -> Frontend UI).
+   - Đưa ra các câu hỏi/quyết định cần người dùng xác nhận (nếu có).
 
-- `ADMIN`
-- `LECTURER`
-- `STUDENT`
-
-Mục tiêu sản phẩm:
-
-- quản lý học kỳ / đợt đồ án,
-- quản lý đề tài,
-- đăng ký đề tài,
-- theo dõi tiến độ thực hiện,
-- nộp bài / phản hồi,
-- phân công hội đồng,
-- chấm điểm và lưu kết quả bảo vệ.
-
----
-
-## Trạng thái kiến trúc hiện tại
-
-Project đang ở trạng thái **chuyển tiếp kiến trúc**.
-
-Schema Prisma hiện tại đã đi theo mô hình:
-
-- `TopicRegistration`
-- `Task`
-- `Submission`
-- `Milestone`
-- `Council`
-- `DefenseResult`
-
-Trong codebase vẫn còn một số dấu vết kiến trúc cũ (`group`, `groupMember`, `evaluation`),
-nhưng các phần cũ này **không còn là nguồn sự thật chính**.
+### Khi người dùng nói "end phiên" (Kết thúc Session)
+AI Agent phải tự động cập nhật mục **`Session Update`** trong file **[CLAUDE.md](file:///d:/DACN/CLAUDE.md)** gồm đầy đủ 4 phần:
+1. **Những phần đã hoàn thành**: Liệt kê chi tiết các tính năng, API, màn hình, cấu hình đã làm xong trong session.
+2. **Trạng thái cập nhật của từng phần**: Tình trạng hoạt động (Backend, Frontend, DB, MCP, Test).
+3. **Bước tiếp theo cần làm (Next Session Plan)**: Các đầu việc ưu tiên cho session sau.
+4. **Quyết định quan trọng (Decisions & Rationale)**: Những quyết định kỹ thuật/nghiệp vụ đã đưa ra kèm lý do tại sao.
 
 ---
 
-## Quy tắc làm việc mặc định
+## 2. Quy Tắc Kỹ Thuật Bắt Buộc
 
-1. **Ưu tiên mô hình `TopicRegistration`**
-   - Không chủ động mở rộng lại mô hình `group/groupMember`.
-   - Không viết tính năng mới dựa trên kiến trúc cũ.
-
-2. **Sửa gốc vấn đề trước**
-   - Ưu tiên backend/model/service trước khi chỉnh UI.
-
-3. **Giữ thay đổi nhỏ, chính xác**
-   - Không refactor lan rộng khi chưa cần.
-   - Không đổi tên/đổi cấu trúc ngoài phạm vi cần thiết.
-
-4. **Frontend bám backend thật**
-   - Không duy trì mock data nếu API thật đã có.
-   - Đồng bộ field/contract trước khi chỉnh giao diện.
-
-5. **Mở phiên mới phải đọc trước**
-   - `README.md`
-   - `.docs/PROJECT_STATE.md`
-   - `.docs/NEXT_STEPS.md`
-   - `.docs/DECISIONS.md`
-   - `.docs/TOMORROW_PLAN.md` (nếu còn liên quan)
-
----
-
-## Điều cần tránh
-
-- Không tái đưa `group`, `groupMember`, `evaluation` thành kiến trúc chính khi chưa có quyết định mới.
-- Không giả định frontend đúng chỉ vì UI render được.
-- Không thêm chức năng mới khi các lỗi P0/P1 chưa xử lý.
-- Không dùng NotebookLM làm nguồn nhớ duy nhất; repo mới là nguồn chính.
-
----
-
-## Cách cập nhật sau mỗi phiên
-
-Khi kết thúc phiên có thay đổi đáng kể, cần cập nhật:
-
-- `.docs/PROJECT_STATE.md`: hiện trạng mới nhất
-- `.docs/NEXT_STEPS.md`: việc cần làm tiếp ngay
-- `.docs/DECISIONS.md`: quyết định kỹ thuật/kiến trúc mới (nếu có)
-
----
-
-## Rule bổ sung (2026-04-15)
-
-1. **Bắt buộc kiểm tra UTF-8 trước khi chốt batch**
-   - Chạy: `node scripts/check-utf8.js` (hoặc `node scripts/regression-check.js`).
-
-2. **Bắt buộc kiểm tra chất lượng tiếng Việt trong file `.md`**
-   - Chạy: `node scripts/check-md-quality.js`.
-   - Mục tiêu: phát hiện sớm lỗi `mojibake` và cụm tiếng Việt không dấu bất thường.
-
-3. **Bắt buộc lưu file text bằng UTF-8 không BOM**
-   - Áp dụng cho `.md`, `.js`, `.jsx`, `.json`, `.prisma`, `.yml`, ...
-   - Không dùng `UTF-8 with BOM`.
-   - Khi tạo/sửa file bằng tool hoặc editor, **luôn** save trực tiếp ở `UTF-8 (no BOM)` ngay từ lần ghi đầu tiên.
-   - Sau khi hoàn tất chỉnh sửa, nên chạy `node scripts/check-utf8.js` để xác nhận không phát sinh lỗi encoding/mojibake.
-
-4. **Cảnh báo sớm khi ngữ cảnh chat sắp đầy**
-   - Agent phải chủ động cảnh báo để người dùng mở cửa sổ chat mới khi cần.
+1. **Tuân thủ mô hình `TopicRegistration`**:
+   - Tuyệt đối không khôi phục hoặc phát triển tính năng dựa trên kiến trúc cũ `group/groupMember`.
+   - 1 sinh viên / 1 đề tài (`maxStudents = 1`), 1 GVHD tối đa 10 sinh viên.
+2. **Nguyên tắc "Sửa gốc vấn đề trước"**:
+   - Luôn xử lý từ tầng CSDL/Prisma -> Backend Controller/Service/Route -> rồi mới đến Giao diện Frontend.
+3. **Frontend bám sát Backend thực tế**:
+   - Không duy trì dữ liệu giả (mock data) nếu backend đã có API thực tế.
+4. **Chuẩn mã hóa**:
+   - Tất cả các file (`.md`, `.js`, `.jsx`, `.json`, `.prisma`, `.yml`) phải lưu ở định dạng **UTF-8 (no BOM)**.
+5. **Chủ động cảnh báo ngữ cảnh**:
+   - Khi phiên làm việc kéo dài hoặc ngữ cảnh chat sắp đầy, Agent chủ động nhắc người dùng gõ `end phiên` và mở cửa sổ chat mới.

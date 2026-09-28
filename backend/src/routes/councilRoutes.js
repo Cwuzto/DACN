@@ -15,6 +15,10 @@ router.post(
     [
         body('semesterId').isInt({ min: 1 }).withMessage('semesterId phải là số nguyên dương.'),
         body('name').isString().trim().notEmpty().withMessage('name bắt buộc phải là chuỗi.'),
+        body('councilType')
+            .optional()
+            .isIn(['OUTLINE_REVIEW', 'DEFENSE_COUNCIL'])
+            .withMessage('councilType phải là OUTLINE_REVIEW hoặc DEFENSE_COUNCIL.'),
         body('location').optional({ nullable: true }).isString().withMessage('location phải là chuỗi.'),
         body('defenseDate')
             .optional({ nullable: true })
@@ -40,6 +44,10 @@ router.put(
     [
         param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
         body('name').optional().isString().trim().notEmpty().withMessage('name phải là chuỗi không rỗng.'),
+        body('councilType')
+            .optional()
+            .isIn(['OUTLINE_REVIEW', 'DEFENSE_COUNCIL'])
+            .withMessage('councilType phải là OUTLINE_REVIEW hoặc DEFENSE_COUNCIL.'),
         body('location').optional({ nullable: true }).isString().withMessage('location phải là chuỗi.'),
         body('defenseDate')
             .optional({ nullable: true })
