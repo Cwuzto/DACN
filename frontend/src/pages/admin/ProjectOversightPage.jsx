@@ -238,17 +238,18 @@ function ProjectOversightPage() {
     }, [semesters]);
 
     useEffect(() => {
-        if (!currentSemesters.length) {
+        if (!semesters.length) {
             setSemesterFilter(null);
             return;
         }
 
-        const stillExists = currentSemesters.some((semester) => semester.id === semesterFilter);
+        const listToPick = currentSemesters.length > 0 ? currentSemesters : semesters;
+        const stillExists = listToPick.some((semester) => semester.id === semesterFilter);
         if (semesterFilter && stillExists) return;
 
-        const nearestLatestSemesterId = pickNearestLatestSemesterId(currentSemesters);
+        const nearestLatestSemesterId = computeSemesterClosestToNow(listToPick);
         setSemesterFilter(nearestLatestSemesterId);
-    }, [currentSemesters, semesterFilter]);
+    }, [currentSemesters, semesters, semesterFilter]);
 
     const registrationMap = useMemo(
         () =>
@@ -927,7 +928,7 @@ function ProjectOversightPage() {
         label: `${lecturer.fullName} (${lecturer.code})`,
     }));
 
-    const semesterOptions = currentSemesters.map((semester) => ({
+    const semesterOptions = (currentSemesters.length > 0 ? currentSemesters : semesters).map((semester) => ({
         value: semester.id,
         label: formatSemesterLabel(semester),
     }));
