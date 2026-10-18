@@ -89,4 +89,51 @@ router.patch(
     evaluationController.setDefenseScoreLock,
 );
 
+// BM01 Re-review endpoints
+router.post(
+    '/bm01-resubmit/:registrationId',
+    authorize('STUDENT'),
+    [
+        param('registrationId').isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
+        validateRequest,
+    ],
+    evaluationController.resubmitBM01,
+);
+
+router.post(
+    '/bm01-gvhd-approve/:registrationId',
+    authorize('LECTURER', 'ADMIN'),
+    [
+        param('registrationId').isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
+        validateRequest,
+    ],
+    evaluationController.approveResubmittedBM01,
+);
+
+// BM04 Evaluation endpoints
+router.post(
+    '/bm04-submit',
+    authorize('LECTURER', 'ADMIN'),
+    [
+        body('registrationId').isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
+        body('thesisFormatScore').isString().trim().notEmpty().withMessage('Nhận xét tiêu chí 1 là bắt buộc.'),
+        body('researchContentScore').isString().trim().notEmpty().withMessage('Nhận xét tiêu chí 2 là bắt buộc.'),
+        body('applicabilityScore').isString().trim().notEmpty().withMessage('Nhận xét tiêu chí 3 là bắt buộc.'),
+        body('attitudeScore').isString().trim().notEmpty().withMessage('Nhận xét tiêu chí 4 là bắt buộc.'),
+        body('conclusion').isIn(['AGREED_FOR_DEFENSE', 'NOT_AGREED']).withMessage('conclusion không hợp lệ.'),
+        body('lecturerSignature').isString().trim().notEmpty().withMessage('Chữ ký GVHD là bắt buộc.'),
+        validateRequest,
+    ],
+    evaluationController.submitBM04Evaluation,
+);
+
+router.get(
+    '/bm04/:registrationId',
+    [
+        param('registrationId').isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
+        validateRequest,
+    ],
+    evaluationController.getBM04Evaluation,
+);
+
 module.exports = router;

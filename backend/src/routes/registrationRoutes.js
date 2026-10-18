@@ -164,6 +164,53 @@ router.post(
     registrationController.bypassOutlineReview,
 );
 
+// Nộp BM02 (Đơn đăng ký đề tài chính thức)
+router.post(
+    '/bm02-submit',
+    [
+        authorize('STUDENT'),
+        body('registrationId').isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
+        validateRequest,
+    ],
+    registrationController.submitBM02,
+);
+
+// Điều chỉnh tên đề tài (trong hạn 7 ngày sau Quyết định)
+router.post(
+    '/adjust-title',
+    [
+        authorize('STUDENT'),
+        body('registrationId').isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
+        body('newTitle').isString().trim().notEmpty().withMessage('newTitle không được để trống.'),
+        body('reason').isString().trim().notEmpty().withMessage('reason không được để trống.'),
+        validateRequest,
+    ],
+    registrationController.requestTitleAdjustment,
+);
+
+router.put(
+    '/adjust-title/:id/review',
+    [
+        authorize('LECTURER', 'ADMIN'),
+        param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
+        body('action').isIn(['APPROVE', 'REJECT']).withMessage('action phải là APPROVE hoặc REJECT.'),
+        validateRequest,
+    ],
+    registrationController.reviewTitleAdjustment,
+);
+
+router.get(
+    '/adjust-title/my',
+    authorize('STUDENT'),
+    registrationController.getMyTitleAdjustments,
+);
+
+router.get(
+    '/adjust-title/pending',
+    authorize('LECTURER', 'ADMIN'),
+    registrationController.getPendingTitleAdjustments,
+);
+
 router.delete(
     '/:id',
     [

@@ -365,10 +365,10 @@ const getAllRegistrations = async (req, res, next) => {
         if (unassignedCouncilOnly === 'true') {
             if (councilType === 'OUTLINE_REVIEW') {
                 where.outlineCouncilId = null;
-                where.status = { in: ['APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'DEFENDED', 'COMPLETED'] };
+                where.status = { in: ['REGISTERED', 'BM01_SUBMITTED', 'BM01_NEEDS_REVISION', 'APPROVED', 'IN_PROGRESS'] };
             } else {
                 where.defenseCouncilId = null;
-                where.status = { in: ['SUBMITTED', 'DEFENDED', 'COMPLETED'] };
+                where.status = { in: ['DEFENSE_READY', 'SUBMITTED', 'DEFENDED', 'COMPLETED'] };
             }
         }
 
@@ -386,8 +386,10 @@ const getAllRegistrations = async (req, res, next) => {
                 outlineCouncil: { select: { id: true, name: true, councilType: true, defenseDate: true, location: true } },
                 defenseCouncil: { select: { id: true, name: true, councilType: true, defenseDate: true, location: true } },
                 _count: { select: { submissions: true } },
-                tasks: { select: { id: true, status: true, isBypassed: true } },
+                tasks: { select: { id: true, status: true, isBypassed: true, taskType: true } },
                 meetingLogs: { select: { id: true, meetingDate: true }, orderBy: { meetingDate: 'desc' } },
+                bm04Evaluation: true,
+                titleAdjustments: { orderBy: { requestedAt: 'desc' } },
             },
             orderBy: { createdAt: 'desc' },
         });
@@ -898,21 +900,61 @@ const updateOutlineReview = async (req, res, next) => {
             });
         }
 
-        const updated = await prisma.topicRegistration.update({
-            where: { id: registrationId },
-            data: {
-                ...(status ? { outlineReviewStatus: status } : {}),
-                ...(feedback !== undefined ? { outlineFeedback: feedback } : {}),
-            },
-            include: {
-                student: { select: { id: true, fullName: true, code: true } },
-                outlineCouncil: { select: { id: true, name: true } },
-            },
+        let nextRegistrationStatus = existing.status;
+        if (status === 'PASSED') {
+            nextRegistrationStatus = 'BM01_PASSED';
+        } else if (status === 'REVISION_REQUIRED' || status === 'FAILED') {
+            nextRegistrationStatus = 'BM01_NEEDS_REVISION';
+        }
+
+        const updated = await prisma.$transaction(async (tx) => {
+            const regUpdated = await tx.topicRegistration.update({
+                where: { id: registrationId },
+                data: {
+                    ...(status ? { outlineReviewStatus: status, status: nextRegistrationStatus } : {}),
+                    ...(feedback !== undefined ? { outlineFeedback: feedback } : {}),
+                },
+                include: {
+                    student: { select: { id: true, fullName: true, code: true } },
+                    outlineCouncil: { select: { id: true, name: true } },
+                    topic: { select: { id: true, title: true } },
+                },
+            });
+
+            if (status === 'PASSED') {
+                await tx.task.updateMany({
+                    where: { registrationId, taskType: 'BM01' },
+                    data: { status: 'COMPLETED' },
+                });
+            } else if (status === 'REVISION_REQUIRED') {
+                await tx.task.updateMany({
+                    where: { registrationId, taskType: 'BM01' },
+                    data: { status: 'REVISION' },
+                });
+            }
+
+            return regUpdated;
         });
+
+        if (status && existing.studentId) {
+            await safeNotify(
+                {
+                    userId: existing.studentId,
+                    title: status === 'PASSED' ? 'Đề cương BM01 đã được Hội đồng chấm ĐẠT' : 'Đề cương BM01 cần chỉnh sửa và thẩm định lại',
+                    content: status === 'PASSED'
+                        ? `Hội đồng xét duyệt đề cương đã chấm ĐẠT cho đề tài "${existing.topic?.title || ''}". Bạn có thể tiến hành nộp BM02.`
+                        : `Hội đồng xét duyệt đề cương yêu cầu chỉnh sửa đề cương. Góp ý: ${feedback || 'Vui lòng sửa và nộp lại cho GVHD thẩm định.'}`,
+                    type: 'APPROVAL',
+                },
+                'updateOutlineReview',
+            );
+        }
 
         res.json({
             success: true,
-            message: 'Đã cập nhật kết quả thẩm định đề cương thành công.',
+            message: status === 'PASSED'
+                ? 'Đã ghi nhận kết quả ĐẠT cho đề cương. Đề tài chuyển sang trạng thái BM01_PASSED.'
+                : 'Đã ghi nhận yêu cầu chỉnh sửa đề cương. Đề tài chuyển sang trạng thái BM01_NEEDS_REVISION.',
             data: updated,
         });
     } catch (error) {
@@ -1383,6 +1425,387 @@ const batchBypassOutlineReview = async (req, res, next) => {
     }
 };
 
+/**
+ * POST /api/registrations/bm02-submit
+ * Sinh viên nộp đơn đăng ký đề tài chính thức BM02 sau khi BM01 đã ĐẠT
+ */
+const submitBM02 = async (req, res, next) => {
+    try {
+        const studentId = req.user.id;
+        const { registrationId, officialTitle, content, fileUrl, fileName } = req.body;
+
+        const regIdInt = parseInt(registrationId, 10);
+        if (!Number.isInteger(regIdInt) || regIdInt <= 0) {
+            return res.status(400).json({ success: false, message: 'registrationId không hợp lệ.' });
+        }
+
+        const registration = await prisma.topicRegistration.findUnique({
+            where: { id: regIdInt },
+            include: { topic: true, student: true },
+        });
+
+        if (!registration) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy hồ sơ đăng ký đề tài.' });
+        }
+
+        if (registration.studentId !== studentId) {
+            return res.status(403).json({ success: false, message: 'Bạn không có quyền nộp BM02 cho đề tài này.' });
+        }
+
+        const isBM01Passed = registration.outlineReviewStatus === 'PASSED' || registration.status === 'BM01_PASSED';
+        if (!isBM01Passed) {
+            return res.status(400).json({
+                success: false,
+                message: 'Đề cương BM01 chưa được chấm ĐẠT. Bạn cần hoàn thành xét duyệt BM01 trước khi nộp BM02.',
+            });
+        }
+
+        let bm02Task = await prisma.task.findFirst({
+            where: { registrationId: regIdInt, taskType: 'BM02' },
+        });
+
+        if (!bm02Task) {
+            bm02Task = await prisma.task.create({
+                data: {
+                    registrationId: regIdInt,
+                    title: 'BM02 - Phiếu giao nhiệm vụ đồ án',
+                    content: 'Nộp phiếu giao nhiệm vụ đồ án chính thức có đầy đủ nội dung chi tiết và xác nhận từ GVHD.',
+                    taskType: 'BM02',
+                    status: 'COMPLETED',
+                },
+            });
+        } else {
+            await prisma.task.update({
+                where: { id: bm02Task.id },
+                data: { status: 'COMPLETED' },
+            });
+        }
+
+        const submission = await prisma.submission.create({
+            data: {
+                taskId: bm02Task.id,
+                registrationId: regIdInt,
+                submittedBy: studentId,
+                content: content || null,
+                fileUrl: fileUrl || null,
+                fileName: fileName || null,
+            },
+        });
+
+        if (officialTitle && String(officialTitle).trim()) {
+            await prisma.topic.update({
+                where: { id: registration.topicId },
+                data: { title: String(officialTitle).trim() },
+            });
+        }
+
+        const updated = await prisma.topicRegistration.update({
+            where: { id: regIdInt },
+            data: {
+                status: 'BM02_SUBMITTED',
+            },
+            include: { topic: true },
+        });
+
+        if (registration.topic?.mentorId) {
+            await safeNotify(
+                {
+                    userId: registration.topic.mentorId,
+                    title: 'Sinh viên đã nộp BM02 đăng ký đề tài chính thức',
+                    content: `Sinh viên ${registration.student?.fullName || ''} đã nộp BM02 cho đề tài "${updated.topic.title}". Hồ sơ đang chờ Quyết định giao đề tài của Viện.`,
+                    type: 'SUBMISSION',
+                },
+                'submitBM02',
+            );
+        }
+
+        await auditLog(
+            studentId,
+            'SUBMIT_BM02',
+            'TopicRegistration',
+            regIdInt,
+            { officialTitle: officialTitle || registration.topic.title, submissionId: submission.id },
+            getRequestIp(req),
+        );
+
+        res.json({
+            success: true,
+            message: 'Đã nộp đơn đăng ký đề tài chính thức BM02 thành công. Hồ sơ đang chờ Trưởng Viện ban hành Quyết định.',
+            data: updated,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * POST /api/registrations/adjust-title
+ * Sinh viên gửi yêu cầu điều chỉnh tên đề tài trong thời hạn 7 ngày sau Quyết định của Viện
+ */
+const requestTitleAdjustment = async (req, res, next) => {
+    try {
+        const studentId = req.user.id;
+        const { registrationId, newTitle, reason } = req.body;
+
+        const regIdInt = parseInt(registrationId, 10);
+        if (!Number.isInteger(regIdInt) || regIdInt <= 0) {
+            return res.status(400).json({ success: false, message: 'registrationId không hợp lệ.' });
+        }
+
+        if (!newTitle || !String(newTitle).trim()) {
+            return res.status(400).json({ success: false, message: 'Tên đề tài mới không được để trống.' });
+        }
+
+        if (!reason || !String(reason).trim()) {
+            return res.status(400).json({ success: false, message: 'Lý do xin điều chỉnh tên đề tài là bắt buộc.' });
+        }
+
+        const registration = await prisma.topicRegistration.findUnique({
+            where: { id: regIdInt },
+            include: { topic: true, student: true },
+        });
+
+        if (!registration) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy hồ sơ đăng ký đề tài.' });
+        }
+
+        if (registration.studentId !== studentId) {
+            return res.status(403).json({ success: false, message: 'Bạn không có quyền xin điều chỉnh cho đề tài này.' });
+        }
+
+        if (!registration.decisionDate) {
+            return res.status(400).json({
+                success: false,
+                message: 'Đề tài chưa có Quyết định giao đề tài chính thức từ Viện, chưa thể xin điều chỉnh tên.',
+            });
+        }
+
+        const decisionTime = new Date(registration.decisionDate).getTime();
+        const now = Date.now();
+        const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+        const deadline = new Date(decisionTime + sevenDaysMs);
+
+        if (now > deadline.getTime()) {
+            return res.status(400).json({
+                success: false,
+                message: `Đã quá thời hạn 7 ngày cho phép điều chỉnh tên đề tài (Hạn chót: ${deadline.toLocaleDateString('vi-VN')}).`,
+            });
+        }
+
+        const pendingAdjustment = await prisma.topicTitleAdjustment.findFirst({
+            where: { registrationId: regIdInt, status: 'PENDING' },
+        });
+
+        if (pendingAdjustment) {
+            return res.status(400).json({
+                success: false,
+                message: 'Bạn đã có một đơn xin đổi tên đề tài đang chờ GVHD xét duyệt.',
+            });
+        }
+
+        const adjustment = await prisma.topicTitleAdjustment.create({
+            data: {
+                registrationId: regIdInt,
+                originalTitle: registration.topic.title,
+                newTitle: String(newTitle).trim(),
+                reason: String(reason).trim(),
+                deadline,
+                status: 'PENDING',
+            },
+        });
+
+        if (registration.topic?.mentorId) {
+            await safeNotify(
+                {
+                    userId: registration.topic.mentorId,
+                    title: 'Sinh viên xin điều chỉnh tên đề tài',
+                    content: `Sinh viên ${registration.student?.fullName || ''} đã gửi đơn xin đổi tên đề tài từ "${registration.topic.title}" sang "${newTitle}". Vui lòng xem xét.`,
+                    type: 'APPROVAL',
+                },
+                'requestTitleAdjustment',
+            );
+        }
+
+        await auditLog(
+            studentId,
+            'REQUEST_TITLE_ADJUSTMENT',
+            'TopicTitleAdjustment',
+            adjustment.id,
+            { registrationId: regIdInt, newTitle, reason },
+            getRequestIp(req),
+        );
+
+        res.json({
+            success: true,
+            message: 'Đã gửi đơn xin điều chỉnh tên đề tài thành công. Đang chờ GVHD phê duyệt.',
+            data: adjustment,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * PUT /api/registrations/adjust-title/:id/review
+ * GVHD phê duyệt hoặc từ chối đơn xin đổi tên đề tài
+ */
+const reviewTitleAdjustment = async (req, res, next) => {
+    try {
+        const adjustmentId = parseInt(req.params.id, 10);
+        const { action, rejectionReason } = req.body;
+        const userId = req.user.id;
+        const role = req.user.role;
+
+        if (!Number.isInteger(adjustmentId) || adjustmentId <= 0) {
+            return res.status(400).json({ success: false, message: 'ID đơn điều chỉnh không hợp lệ.' });
+        }
+
+        if (!['APPROVE', 'REJECT'].includes(action)) {
+            return res.status(400).json({ success: false, message: 'action phải là APPROVE hoặc REJECT.' });
+        }
+
+        const adjustment = await prisma.topicTitleAdjustment.findUnique({
+            where: { id: adjustmentId },
+            include: {
+                registration: {
+                    include: { topic: true, student: true },
+                },
+            },
+        });
+
+        if (!adjustment) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy đơn xin điều chỉnh tên đề tài.' });
+        }
+
+        if (adjustment.status !== 'PENDING') {
+            return res.status(400).json({ success: false, message: `Đơn này đã được xử lý (trạng thái: ${adjustment.status}).` });
+        }
+
+        const isMentor = adjustment.registration.topic?.mentorId === userId;
+        const isAdmin = role === 'ADMIN';
+
+        if (!isMentor && !isAdmin) {
+            return res.status(403).json({ success: false, message: 'Chỉ giảng viên hướng dẫn của đề tài mới có quyền duyệt đơn này.' });
+        }
+
+        const isApproved = action === 'APPROVE';
+
+        const updated = await prisma.$transaction(async (tx) => {
+            const adjUpdated = await tx.topicTitleAdjustment.update({
+                where: { id: adjustmentId },
+                data: {
+                    status: isApproved ? 'APPROVED' : 'REJECTED',
+                    reviewedById: userId,
+                    reviewedAt: new Date(),
+                    rejectionReason: !isApproved ? (rejectionReason ? String(rejectionReason).trim() : 'Không đồng ý điều chỉnh') : null,
+                },
+            });
+
+            if (isApproved) {
+                await tx.topicRegistration.update({
+                    where: { id: adjustment.registrationId },
+                    data: { adjustedTitle: adjustment.newTitle },
+                });
+
+                await tx.topic.update({
+                    where: { id: adjustment.registration.topicId },
+                    data: { title: adjustment.newTitle },
+                });
+            }
+
+            return adjUpdated;
+        });
+
+        await safeNotify(
+            {
+                userId: adjustment.registration.studentId,
+                title: isApproved ? 'Đơn xin đổi tên đề tài đã được GVHD duyệt' : 'Đơn xin đổi tên đề tài bị từ chối',
+                content: isApproved
+                    ? `GVHD đã đồng ý đổi tên đề tài của bạn thành: "${adjustment.newTitle}". Tên này sẽ được áp dụng cho toàn bộ giai đoạn sau.`
+                    : `GVHD đã từ chối yêu cầu đổi tên đề tài. Lý do: ${rejectionReason || 'Không chấp thuận'}`,
+                type: 'APPROVAL',
+            },
+            'reviewTitleAdjustment',
+        );
+
+        await auditLog(
+            userId,
+            'REVIEW_TITLE_ADJUSTMENT',
+            'TopicTitleAdjustment',
+            adjustmentId,
+            { action, newTitle: adjustment.newTitle },
+            getRequestIp(req),
+        );
+
+        res.json({
+            success: true,
+            message: isApproved ? 'Đã duyệt thay đổi tên đề tài thành công.' : 'Đã từ chối đơn điều chỉnh tên đề tài.',
+            data: updated,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * GET /api/registrations/adjust-title/my
+ * Sinh viên xem danh sách các yêu cầu điều chỉnh tên đề tài của mình
+ */
+const getMyTitleAdjustments = async (req, res, next) => {
+    try {
+        const studentId = req.user.id;
+        const adjustments = await prisma.topicTitleAdjustment.findMany({
+            where: {
+                registration: { studentId },
+            },
+            include: {
+                reviewedBy: { select: { id: true, fullName: true, email: true } },
+                registration: {
+                    include: { topic: { select: { id: true, title: true } } },
+                },
+            },
+            orderBy: { requestedAt: 'desc' },
+        });
+
+        res.json({ success: true, data: adjustments });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * GET /api/registrations/adjust-title/pending
+ * GVHD xem danh sách các yêu cầu đổi tên đề tài đang chờ duyệt
+ */
+const getPendingTitleAdjustments = async (req, res, next) => {
+    try {
+        const lecturerId = req.user.id;
+        const role = req.user.role;
+
+        const whereClause = { status: 'PENDING' };
+        if (role !== 'ADMIN') {
+            whereClause.registration = { topic: { mentorId: lecturerId } };
+        }
+
+        const adjustments = await prisma.topicTitleAdjustment.findMany({
+            where: whereClause,
+            include: {
+                registration: {
+                    include: {
+                        student: { select: { id: true, fullName: true, code: true, email: true } },
+                        topic: { select: { id: true, title: true } },
+                    },
+                },
+            },
+            orderBy: { requestedAt: 'asc' },
+        });
+
+        res.json({ success: true, data: adjustments });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     registerTopic,
     getMyRegistration,
@@ -1397,4 +1820,9 @@ module.exports = {
     reviewBM04,
     bypassOutlineReview,
     batchBypassOutlineReview,
+    submitBM02,
+    requestTitleAdjustment,
+    reviewTitleAdjustment,
+    getMyTitleAdjustments,
+    getPendingTitleAdjustments,
 };

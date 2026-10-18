@@ -1,4 +1,6 @@
 const prisma = require('../config/database');
+const { safeNotify } = require('../services/notificationService');
+const { auditLog } = require('../services/auditLogService');
 
 const REGISTRATION_TOGGLE_WARNING_WINDOW_DAYS = 14;
 
@@ -319,6 +321,120 @@ const deleteSemester = async (req, res, next) => {
     }
 };
 
+/**
+ * POST /api/semesters/:id/issue-decision
+ * Trưởng Viện / Admin ban hành Quyết định giao đề tài kèm danh sách sinh viên nộp BM02
+ */
+const issuePeriodDecision = async (req, res, next) => {
+    try {
+        const semesterId = parseInt(req.params.id, 10);
+        const { decisionNumber, decisionDate, note } = req.body;
+        const userId = req.user.id;
+
+        if (!Number.isInteger(semesterId) || semesterId <= 0) {
+            return res.status(400).json({ success: false, message: 'ID học kỳ không hợp lệ.' });
+        }
+
+        const semester = await prisma.semester.findUnique({
+            where: { id: semesterId },
+        });
+
+        if (!semester) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy đợt đồ án / học kỳ.' });
+        }
+
+        const eligibleRegistrations = await prisma.topicRegistration.findMany({
+            where: {
+                semesterId,
+                status: { in: ['BM02_SUBMITTED', 'BM01_PASSED', 'APPROVED'] },
+            },
+            include: {
+                student: { select: { id: true, fullName: true, code: true } },
+                topic: { select: { id: true, title: true, mentorId: true } },
+            },
+        });
+
+        if (eligibleRegistrations.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Không có sinh viên nào ở trạng thái đã nộp BM02 để ban hành Quyết định.',
+            });
+        }
+
+        const generatedDecisionNumber = decisionNumber && String(decisionNumber).trim()
+            ? String(decisionNumber).trim()
+            : `QĐ-${semester.name.replace(/\s+/g, '')}-${Date.now().toString().slice(-4)}`;
+        const effectiveDecisionDate = decisionDate ? new Date(decisionDate) : new Date();
+
+        const registrationIds = eligibleRegistrations.map((r) => r.id);
+
+        await prisma.topicRegistration.updateMany({
+            where: { id: { in: registrationIds } },
+            data: {
+                status: 'DECISION_ISSUED',
+                decisionNumber: generatedDecisionNumber,
+                decisionDate: effectiveDecisionDate,
+            },
+        });
+
+        for (const reg of eligibleRegistrations) {
+            const hasBM03 = await prisma.task.findFirst({
+                where: { registrationId: reg.id, taskType: 'BM03_CHECKPOINT_1' },
+            });
+            if (!hasBM03) {
+                await prisma.task.create({
+                    data: {
+                        registrationId: reg.id,
+                        title: 'BM03 - Báo cáo tiến độ Đợt 1 (Tuần 6)',
+                        content: 'Báo cáo tiến độ thực hiện đồ án đợt 1: khối lượng công việc hoàn thành và kế hoạch giai đoạn tiếp theo.',
+                        taskType: 'BM03_CHECKPOINT_1',
+                        status: 'OPEN',
+                    },
+                });
+            }
+        }
+
+        for (const reg of eligibleRegistrations) {
+            await safeNotify(
+                {
+                    userId: reg.studentId,
+                    title: 'Ban hành Quyết định giao đề tài tốt nghiệp',
+                    content: `Viện đã ban hành Quyết định số ${generatedDecisionNumber} giao đề tài "${reg.topic.title}". Bạn có 7 ngày để gửi đơn điều chỉnh tên đề tài nếu cần.`,
+                    type: 'APPROVAL',
+                },
+                'issuePeriodDecision',
+            );
+        }
+
+        await auditLog(
+            userId,
+            'ISSUE_PERIOD_DECISION',
+            'Semester',
+            semesterId,
+            {
+                decisionNumber: generatedDecisionNumber,
+                decisionDate: effectiveDecisionDate,
+                studentCount: registrationIds.length,
+                note: note || null,
+            },
+            req.ip || null,
+        );
+
+        res.json({
+            success: true,
+            message: `Đã ban hành Quyết định số ${generatedDecisionNumber} thành công cho ${registrationIds.length} sinh viên.`,
+            data: {
+                decisionNumber: generatedDecisionNumber,
+                decisionDate: effectiveDecisionDate,
+                studentCount: registrationIds.length,
+                registrationIds,
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     getAllSemesters,
     getSemesterById,
@@ -326,4 +442,5 @@ module.exports = {
     updateSemester,
     toggleSemesterRegistration,
     deleteSemester,
+    issuePeriodDecision,
 };

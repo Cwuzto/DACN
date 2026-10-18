@@ -442,6 +442,7 @@ const assignRegistrationsToCouncil = async (req, res, next) => {
                 include: {
                     student: { select: { fullName: true, code: true } },
                     topic: { select: { title: true, mentorId: true } },
+                    bm04Evaluation: true,
                 },
             });
 
@@ -483,11 +484,14 @@ const assignRegistrationsToCouncil = async (req, res, next) => {
                 });
                 const bm04ByReg = new Map(bm04Tasks.map((t) => [t.registrationId, t.status]));
                 for (const reg of registrations) {
-                    const bm04Status = bm04ByReg.get(reg.id);
-                    if (!bm04Status || bm04Status !== 'COMPLETED') {
+                    const bm04TaskStatus = bm04ByReg.get(reg.id);
+                    const isBM04Agreed = reg.bm04Evaluation?.conclusion === 'AGREED_FOR_DEFENSE'
+                        || reg.status === 'DEFENSE_READY'
+                        || bm04TaskStatus === 'COMPLETED';
+                    if (!isBM04Agreed) {
                         throw createHttpError(
                             400,
-                            `Sinh viên ${reg.student.fullName} (${reg.student.code}) chưa hoàn thành biểu mẫu BM04 nên chưa đủ điều kiện bảo vệ hội đồng.`,
+                            `Sinh viên ${reg.student.fullName} (${reg.student.code}) chưa có kết luận ĐỒNG Ý cho ra bảo vệ tại biểu mẫu BM04 nên chưa đủ điều kiện xếp Hội đồng bảo vệ.`,
                         );
                     }
                 }

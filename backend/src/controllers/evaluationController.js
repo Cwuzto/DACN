@@ -1071,6 +1071,384 @@ const exportScoreSheetPdf = async (req, res, next) => {
         next(error);
     }
 };
+/**
+ * POST /api/evaluations/bm01-resubmit/:registrationId
+ * Sinh viên nộp lại đề cương BM01 đã chỉnh sửa sau khi Hội đồng đánh giá Chưa đạt hoặc Vắng
+ */
+const resubmitBM01 = async (req, res, next) => {
+    try {
+        const registrationId = parseInt(req.params.registrationId, 10);
+        const { content, fileUrl, fileName } = req.body;
+        const studentId = req.user.id;
+
+        if (!Number.isInteger(registrationId) || registrationId <= 0) {
+            return res.status(400).json({ success: false, message: 'registrationId không hợp lệ.' });
+        }
+
+        const registration = await prisma.topicRegistration.findUnique({
+            where: { id: registrationId },
+            include: { topic: true, student: true },
+        });
+
+        if (!registration) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy hồ sơ đăng ký đề tài.' });
+        }
+
+        if (req.user.role === 'STUDENT' && registration.studentId !== studentId) {
+            return res.status(403).json({ success: false, message: 'Bạn không có quyền nộp lại cho đề tài này.' });
+        }
+
+        const eligibleStatuses = ['BM01_NEEDS_REVISION', 'PENDING', 'APPROVED', 'BM01_SUBMITTED'];
+        const isRevisionRequired = registration.outlineReviewStatus === 'REVISION_REQUIRED' || registration.status === 'BM01_NEEDS_REVISION';
+
+        if (!isRevisionRequired && !eligibleStatuses.includes(registration.status)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Chỉ được nộp lại đề cương khi đề cương đang ở trạng thái Cần chỉnh sửa (BM01_NEEDS_REVISION).',
+            });
+        }
+
+        let bm01Task = await prisma.task.findFirst({
+            where: { registrationId, taskType: 'BM01' },
+        });
+
+        if (!bm01Task) {
+            bm01Task = await prisma.task.create({
+                data: {
+                    registrationId,
+                    title: 'BM01 - Đề cương chi tiết đồ án',
+                    content: 'Nộp đề cương chi tiết đồ án gồm: mục tiêu, phạm vi nghiên cứu, phương pháp/công nghệ.',
+                    taskType: 'BM01',
+                    status: 'SUBMITTED',
+                },
+            });
+        } else {
+            await prisma.task.update({
+                where: { id: bm01Task.id },
+                data: { status: 'SUBMITTED' },
+            });
+        }
+
+        const submission = await prisma.submission.create({
+            data: {
+                taskId: bm01Task.id,
+                registrationId,
+                submittedBy: studentId,
+                content: content || null,
+                fileUrl: fileUrl || null,
+                fileName: fileName || null,
+            },
+        });
+
+        await prisma.topicRegistration.update({
+            where: { id: registrationId },
+            data: {
+                status: 'BM01_NEEDS_REVISION',
+                outlineReviewStatus: 'REVISION_REQUIRED',
+            },
+        });
+
+        if (registration.topic?.mentorId) {
+            await safeNotify(
+                {
+                    userId: registration.topic.mentorId,
+                    title: 'Đề cương BM01 đã được sinh viên nộp lại',
+                    content: `Sinh viên ${registration.student?.fullName || ''} đã nộp lại đề cương chỉnh sửa cho đề tài "${registration.topic.title}". Vui lòng thẩm định lại.`,
+                    type: 'SUBMISSION',
+                },
+                'resubmitBM01',
+            );
+        }
+
+        await auditLog(
+            studentId,
+            'RESUBMIT_BM01',
+            'TopicRegistration',
+            registrationId,
+            { submissionId: submission.id },
+            getRequestIp(req),
+        );
+
+        res.json({
+            success: true,
+            message: 'Đã nộp lại đề cương BM01 thành công. Đề cương đang chờ GVHD thẩm định lại.',
+            data: submission,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * POST /api/evaluations/bm01-gvhd-approve/:registrationId
+ * GVHD thẩm định và bấm duyệt ĐẠT đề cương BM01 đã chỉnh sửa
+ */
+const approveResubmittedBM01 = async (req, res, next) => {
+    try {
+        const registrationId = parseInt(req.params.registrationId, 10);
+        const { feedback } = req.body;
+        const userId = req.user.id;
+        const role = req.user.role;
+
+        if (!Number.isInteger(registrationId) || registrationId <= 0) {
+            return res.status(400).json({ success: false, message: 'registrationId không hợp lệ.' });
+        }
+
+        const registration = await prisma.topicRegistration.findUnique({
+            where: { id: registrationId },
+            include: { topic: true, student: true },
+        });
+
+        if (!registration) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy hồ sơ đăng ký đề tài.' });
+        }
+
+        const isMentor = registration.topic?.mentorId === userId;
+        const isAdmin = role === 'ADMIN';
+
+        if (!isMentor && !isAdmin) {
+            return res.status(403).json({
+                success: false,
+                message: 'Chỉ giảng viên hướng dẫn của đề tài này (hoặc Admin) mới có quyền duyệt lại đề cương.',
+            });
+        }
+
+        const updated = await prisma.$transaction(async (tx) => {
+            const regUpdated = await tx.topicRegistration.update({
+                where: { id: registrationId },
+                data: {
+                    status: 'BM01_PASSED',
+                    outlineReviewStatus: 'PASSED',
+                    outlineFeedback: feedback ? String(feedback).trim() : registration.outlineFeedback,
+                },
+            });
+
+            await tx.task.updateMany({
+                where: { registrationId, taskType: 'BM01' },
+                data: { status: 'COMPLETED' },
+            });
+
+            return regUpdated;
+        });
+
+        await safeNotify(
+            {
+                userId: registration.studentId,
+                title: 'Đề cương BM01 đã được GVHD duyệt ĐẠT',
+                content: `GVHD đã duyệt ĐẠT đề cương chỉnh sửa cho đề tài "${registration.topic.title}". Bạn hiện đã đủ điều kiện để nộp BM02 (Phiếu đăng ký đề tài chính thức).`,
+                type: 'APPROVAL',
+            },
+            'approveResubmittedBM01',
+        );
+
+        await auditLog(
+            userId,
+            'APPROVE_RESUBMITTED_BM01',
+            'TopicRegistration',
+            registrationId,
+            { feedback: feedback || null },
+            getRequestIp(req),
+        );
+
+        res.json({
+            success: true,
+            message: 'Đã thẩm định và duyệt ĐẠT đề cương BM01 thành công. Sinh viên đã được mở khóa nộp BM02.',
+            data: updated,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * POST /api/evaluations/bm04-submit
+ * GVHD trực tiếp khởi tạo, chấm 4 tiêu chí, tick Đồng ý/Không đồng ý và ký khóa vĩnh viễn phiếu BM04
+ */
+const submitBM04Evaluation = async (req, res, next) => {
+    try {
+        const {
+            registrationId,
+            thesisFormatScore,
+            researchContentScore,
+            applicabilityScore,
+            attitudeScore,
+            conclusion,
+            generalNotes,
+            lecturerSignature,
+        } = req.body;
+        const userId = req.user.id;
+        const role = req.user.role;
+
+        const regIdInt = parseInt(registrationId, 10);
+        if (!Number.isInteger(regIdInt) || regIdInt <= 0) {
+            return res.status(400).json({ success: false, message: 'registrationId không hợp lệ.' });
+        }
+
+        if (!['AGREED_FOR_DEFENSE', 'NOT_AGREED'].includes(conclusion)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Kết luận BM04 bắt buộc phải là AGREED_FOR_DEFENSE (Đồng ý) hoặc NOT_AGREED (Không đồng ý).',
+            });
+        }
+
+        if (!thesisFormatScore || !researchContentScore || !applicabilityScore || !attitudeScore) {
+            return res.status(400).json({
+                success: false,
+                message: 'Vui lòng điền đầy đủ nhận xét cho cả 4 tiêu chí đánh giá bắt buộc.',
+            });
+        }
+
+        if (!lecturerSignature || !String(lecturerSignature).trim()) {
+            return res.status(400).json({
+                success: false,
+                message: 'Chữ ký xác nhận của GVHD là bắt buộc.',
+            });
+        }
+
+        const registration = await prisma.topicRegistration.findUnique({
+            where: { id: regIdInt },
+            include: { topic: true, student: true, bm04Evaluation: true },
+        });
+
+        if (!registration) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy hồ sơ đăng ký đề tài.' });
+        }
+
+        const isMentor = registration.topic?.mentorId === userId;
+        const isAdmin = role === 'ADMIN';
+
+        if (!isMentor && !isAdmin) {
+            return res.status(403).json({
+                success: false,
+                message: 'Chỉ giảng viên hướng dẫn của đề tài này mới có quyền lập và ký phiếu BM04.',
+            });
+        }
+
+        if (registration.bm04Evaluation && registration.bm04Evaluation.isLocked) {
+            return res.status(400).json({
+                success: false,
+                message: 'Phiếu nhận xét BM04 này đã được ký xác nhận và khóa vĩnh viễn, không thể cập nhật lại.',
+            });
+        }
+
+        const isAgreed = conclusion === 'AGREED_FOR_DEFENSE';
+        const nextStatus = isAgreed ? 'DEFENSE_READY' : 'TERMINATED_FAILED_PROGRESS';
+
+        const result = await prisma.$transaction(async (tx) => {
+            const evaluation = await tx.bM04Evaluation.upsert({
+                where: { registrationId: regIdInt },
+                create: {
+                    registrationId: regIdInt,
+                    semesterId: registration.semesterId,
+                    studentId: registration.studentId,
+                    lecturerId: userId,
+                    thesisFormatScore: String(thesisFormatScore).trim(),
+                    researchContentScore: String(researchContentScore).trim(),
+                    applicabilityScore: String(applicabilityScore).trim(),
+                    attitudeScore: String(attitudeScore).trim(),
+                    conclusion,
+                    generalNotes: generalNotes ? String(generalNotes).trim() : null,
+                    lecturerSignature: String(lecturerSignature).trim(),
+                    signedAt: new Date(),
+                    isLocked: true,
+                },
+                update: {
+                    thesisFormatScore: String(thesisFormatScore).trim(),
+                    researchContentScore: String(researchContentScore).trim(),
+                    applicabilityScore: String(applicabilityScore).trim(),
+                    attitudeScore: String(attitudeScore).trim(),
+                    conclusion,
+                    generalNotes: generalNotes ? String(generalNotes).trim() : null,
+                    lecturerSignature: String(lecturerSignature).trim(),
+                    signedAt: new Date(),
+                    isLocked: true,
+                },
+            });
+
+            await tx.topicRegistration.update({
+                where: { id: regIdInt },
+                data: { status: nextStatus },
+            });
+
+            await tx.task.updateMany({
+                where: { registrationId: regIdInt, taskType: 'BM04' },
+                data: { status: isAgreed ? 'COMPLETED' : 'REVISION' },
+            });
+
+            return evaluation;
+        });
+
+        await safeNotify(
+            {
+                userId: registration.studentId,
+                title: isAgreed ? 'GVHD đã đồng ý cho bạn ra bảo vệ' : 'Kết quả thẩm định BM04: Không đồng ý bảo vệ',
+                content: isAgreed
+                    ? `GVHD đã hoàn tất phiếu nhận xét BM04 và ĐỒNG Ý cho bạn ra bảo vệ đề tài "${registration.topic.title}". Trạng thái: Sẵn sàng bảo vệ.`
+                    : `GVHD đã hoàn tất phiếu nhận xét BM04 với kết luận KHÔNG ĐỒNG Ý cho bảo vệ đề tài "${registration.topic.title}".`,
+                type: 'APPROVAL',
+            },
+            'submitBM04Evaluation',
+        );
+
+        await auditLog(
+            userId,
+            'SUBMIT_BM04_EVALUATION',
+            'BM04Evaluation',
+            result.id,
+            { registrationId: regIdInt, conclusion, isLocked: true },
+            getRequestIp(req),
+        );
+
+        res.json({
+            success: true,
+            message: isAgreed
+                ? 'Đã lập phiếu BM04 và ký khóa thành công. Sinh viên đã tự động chuyển sang trạng thái Sẵn sàng bảo vệ (DEFENSE_READY).'
+                : 'Đã lập phiếu BM04 và ghi nhận kết luận không cho phép bảo vệ.',
+            data: result,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * GET /api/evaluations/bm04/:registrationId
+ * Xem chi tiết phiếu BM04 ở chế độ chỉ đọc
+ */
+const getBM04Evaluation = async (req, res, next) => {
+    try {
+        const registrationId = parseInt(req.params.registrationId, 10);
+        if (!Number.isInteger(registrationId) || registrationId <= 0) {
+            return res.status(400).json({ success: false, message: 'registrationId không hợp lệ.' });
+        }
+
+        const evaluation = await prisma.bM04Evaluation.findUnique({
+            where: { registrationId },
+            include: {
+                student: { select: { id: true, fullName: true, code: true, email: true } },
+                lecturer: { select: { id: true, fullName: true, code: true, email: true, academicTitle: true } },
+                registration: {
+                    include: {
+                        topic: { select: { id: true, title: true } },
+                        semester: { select: { id: true, name: true } },
+                    },
+                },
+            },
+        });
+
+        if (!evaluation) {
+            return res.status(404).json({ success: false, message: 'Chưa có phiếu đánh giá BM04 cho đề tài này.' });
+        }
+
+        res.json({
+            success: true,
+            data: evaluation,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     getMyGrades,
     getGradingStudents,
@@ -1080,6 +1458,10 @@ module.exports = {
     remindDefenseGrading,
     setDefenseScoreLock,
     exportScoreSheetPdf,
+    resubmitBM01,
+    approveResubmittedBM01,
+    submitBM04Evaluation,
+    getBM04Evaluation,
 };
 
 

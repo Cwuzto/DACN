@@ -13,6 +13,12 @@ router.patch(
     authorize('ADMIN'),
     semesterController.toggleSemesterRegistration
 );
+router.post(
+    '/:id/issue-decision',
+    authenticate,
+    authorize('ADMIN'),
+    semesterController.issuePeriodDecision
+);
 router.delete('/:id', authenticate, authorize('ADMIN'), semesterController.deleteSemester);
 
 module.exports = router;
