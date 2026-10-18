@@ -1,5 +1,5 @@
 // src/pages/auth/LoginPage.jsx
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { message, Modal } from 'antd';
 import { ExclamationCircleFilled } from '@ant-design/icons';
@@ -15,18 +15,36 @@ function LoginPage() {
     const navigate = useNavigate();
     const setAuth = useAuthStore((state) => state.setAuth);
 
+    // Tự động nạp email đã lưu nếu người dùng từng chọn Ghi nhớ đăng nhập
+    useEffect(() => {
+        const savedEmail = localStorage.getItem('remembered_email');
+        if (savedEmail) {
+            setEmail(savedEmail);
+            setRemember(true);
+        }
+    }, []);
+
     const onFinish = async (e) => {
         e.preventDefault();
-        if (!email || !password) {
+        const trimmedEmail = email.trim();
+        if (!trimmedEmail || !password) {
             message.error('Vui lòng nhập đầy đủ email và mật khẩu!');
             return;
         }
 
         setLoading(true);
         try {
-            const response = await authService.login(email, password);
+            const response = await authService.login(trimmedEmail, password, remember);
             const { token, user } = response.data;
-            setAuth(token, user);
+
+            // Xử lý ghi nhớ thông tin đăng nhập
+            if (remember) {
+                localStorage.setItem('remembered_email', trimmedEmail);
+            } else {
+                localStorage.removeItem('remembered_email');
+            }
+
+            setAuth(token, user, remember);
             message.success('Đăng nhập thành công!');
 
             if (user.role === 'ADMIN') {

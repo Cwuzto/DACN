@@ -6,9 +6,9 @@ const wrapServiceError = (error, fallbackMessage) => {
 };
 
 export const authService = {
-    login: async (email, password) => {
+    login: async (email, password, remember = false) => {
         try {
-            return await api.post('/auth/login', { email, password });
+            return await api.post('/auth/login', { email, password, remember });
         } catch (error) {
             throw wrapServiceError(error, 'Đăng nhập không thành công');
         }

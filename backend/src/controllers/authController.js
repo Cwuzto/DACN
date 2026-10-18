@@ -8,7 +8,7 @@ const prisma = require('../config/database');
  */
 const login = async (req, res, next) => {
     try {
-        const { email, password } = req.body;
+        const { email, password, remember } = req.body;
 
         // 1. Kiểm tra đầu vào
         if (!email || !password) {
@@ -54,11 +54,16 @@ const login = async (req, res, next) => {
             });
         }
 
-        // 5. Tạo JWT token
+        // 5. Tạo JWT token với thời hạn linh hoạt theo lựa chọn Ghi nhớ
+        const isRemembered = Boolean(remember);
+        const expiresIn = isRemembered
+            ? (process.env.JWT_REMEMBER_EXPIRES_IN || '30d')
+            : (process.env.JWT_EXPIRES_IN || '1d');
+
         const token = jwt.sign(
             { userId: user.id, role: user.role },
             process.env.JWT_SECRET,
-            { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+            { expiresIn }
         );
 
         // 6. Trả kết quả (không trả passwordHash)

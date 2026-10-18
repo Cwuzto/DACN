@@ -17,7 +17,7 @@ const api = axios.create({
 // ============================
 api.interceptors.request.use(
     (config) => {
-        const token = localStorage.getItem('token');
+        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
         }
@@ -39,6 +39,8 @@ api.interceptors.response.use(
             // Token hết hạn hoặc không hợp lệ (không áp dụng cho trang đăng nhập)
             localStorage.removeItem('token');
             localStorage.removeItem('user');
+            sessionStorage.removeItem('token');
+            sessionStorage.removeItem('user');
             window.location.href = '/login';
         }
         return Promise.reject(error.response?.data || error);
