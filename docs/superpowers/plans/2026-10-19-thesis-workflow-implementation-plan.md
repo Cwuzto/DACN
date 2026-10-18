@@ -99,10 +99,11 @@
 
 ## Giai Đoạn 4: Kiểm Thử, Nghiệm Thu & Cập Nhật Tài Liệu (Verification)
 
-- [ ] Chạy `npm run build` trên thư mục `frontend/` để bảo đảm zero lint/build error.
-- [ ] Kiểm thử Backend API luồng tích hợp:
-  - Thử nộp BM02 khi chưa đạt BM01 (phải bị từ chối 400).
-  - Thử nộp đơn đổi tên đề tài sau ngày thứ 8 (phải bị từ chối 400).
-  - Thử đánh giá Checkpoint Không đạt (đề tài phải dừng).
-  - Thử sửa BM04 sau khi đã ký (phải bị chặn).
-- [ ] Cập nhật tài liệu quy tắc [01-business-workflow.md](file:///d:/DACN/.agents/rules/01-business-workflow.md) và [CLAUDE.md](file:///d:/DACN/CLAUDE.md).
+- [x] Chạy `npm run build` trên thư mục `frontend/` để bảo đảm zero lint/build error.
+- [x] Kiểm thử Backend API luồng tích hợp:
+  - [x] Thử nộp BM02 khi chưa đạt BM01 (bị từ chối 400).
+  - [x] Thử nộp đơn đổi tên đề tài sau ngày thứ 8 (bị từ chối 400).
+  - [x] Thử đánh giá Checkpoint Không đạt (đề tài dừng ngay lập tức `TERMINATED_FAILED_PROGRESS`).
+  - [x] Thử sửa BM04 sau khi đã ký (bị chặn 400).
+  - [x] Đánh giá BM04 ĐỒNG Ý (tự động chuyển `DEFENSE_READY` và khóa vĩnh viễn `isLocked: true`).
+- [x] Cập nhật tài liệu quy tắc [01-business-workflow.md](file:///d:/DACN/.agents/rules/01-business-workflow.md) và [CLAUDE.md](file:///d:/DACN/CLAUDE.md).

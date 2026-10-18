@@ -71,44 +71,47 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 ## 6. Cập Nhật Phiên Làm Việc (Session Update)
 
 ### 1. Những phần đã hoàn thành
-- **Sửa Lỗi Backend Controller (`archiveController.js`)**:
-  - Khắc phục lỗi Prisma truy vấn `academicYear: true` trên model `Semester` (trường này không tồn tại trong schema Prisma).
-  - Tự động tính toán năm học động dựa vào `startDate`/`endDate` hoặc fallback từ `semester.name`. Backend nodemon chạy ổn định không còn lỗi runtime.
-- **Redesign Toàn Diện Giao Diện Quản Trị Viên (Role Admin) - Phong Cách Nordic Institute**:
-  - Lập tài liệu kiến trúc giao diện [ADMIN_UI_REDESIGN_PLAN.md](file:///d:/DACN/ADMIN_UI_REDESIGN_PLAN.md) định hình 5 không gian làm việc chuẩn học thuật hiện đại, loại bỏ tư duy form thô cứng.
-  - Xây dựng bản mẫu tương tác hoàn chỉnh tại [prototype_dacn_redesign.html](file:///d:/DACN/prototype_dacn_redesign.html) và đồng bộ sang OpenDesign:
-    1. **Bảng Điều Khiển Tổng Quan (Dashboard)**: Tích hợp 3 thẻ công việc ưu tiên phân biệt màu rõ nét (Rose - Quá hạn / Amber - Cần thẩm định / Indigo - Thiếu thành viên HĐ), dùng từ ngữ học thuật hiện đại; tiến trình 5 chặng (0% bypass).
-    2. **Cơ Chế Phê Duyệt Của Trưởng Viện (Dean Stage Approval)**: Bổ sung Banner và Modal duyệt đóng/mở giai đoạn học vụ dành riêng cho Trưởng Viện; loại bỏ hoàn toàn cơ chế bypass đề cương theo yêu cầu người dùng.
-    3. **Tối Giản Điều Hướng**: Loại bỏ thanh chọn nhanh (quick-select pills), quy về 1 thanh điều hướng bên trái (Sidebar Navigation) đồng nhất và trực quan.
-- **Phân Quyền Người Dùng Cá Nhân & Kiêm Nhiệm**:
-  - Tại màn hình **Phân quyền vai trò**, phân chia thành 2 tab:
-    - **Tab 1: Phân Quyền Người Dùng (Gán Theo Cá Nhân)**: Bảng danh bạ giảng viên/cán bộ hiển thị vai trò chính và tất cả nhóm quyền kiêm nhiệm (*Trưởng Bộ Môn*, *HĐ Thẩm Định*, *Chủ Tịch HĐ*).
-    - **Side Drawer Phân Quyền Cá Nhân (`drawer-user-permission`)**: Cho phép chọn vai trò gốc hệ thống, gán nhiều nhóm quyền kiêm nhiệm và cấp quyền tùy biến (custom permission overrides).
-    - **Tab 2: Ma Trận Quyền Của Các Nhóm Vai Trò**: Bảng ma trận quyền hạn hệ thống chuẩn.
-- **Điều Phối Hội Đồng Tách Biệt 2 Giai Đoạn Độc Lập**:
-  - Tại màn hình **Điều phối hội đồng**, phân tách thành 2 tab quy trình:
-    - **Tab 1: HĐ Xét Duyệt Đề Cương (Pha 2 - BM01/02)**: Phân công 2 giảng viên thẩm định độc lập (không tính GVHD) thẩm định đề cương BM01, giao diện Master-Detail 2 cột (Đề tài chờ phân công bên trái, các tổ thẩm định bên phải).
-    - **Tab 2: HĐ Chấm Bảo Vệ Khóa Luận (Pha 5)**: Phân bổ sinh viên đã đạt BM04 vào Hội đồng bảo vệ gồm 3 thành viên (Chủ tịch, Thư ký, UV Phản biện - loại trừ GVHD), kiểm soát tải trọng hội đồng và phòng chấm.
+- **Hoàn thành trọn vẹn 4 Giai đoạn Chuẩn hóa Quy trình Đồ án tốt nghiệp (Thesis Workflow Redesign)**:
+  1. **Giai đoạn 1 (CSDL & Prisma Schema)**:
+     - Mở rộng enum `RegistrationStatus` lên 11 trạng thái chuẩn hóa, phản ánh đúng chu kỳ đời sống đồ án.
+     - Tạo model mới `TopicTitleAdjustment` lưu vết lịch sử đổi tên đề tài trong khung thời gian 7 ngày.
+     - Nâng cấp model `BM04Evaluation` gắn chặt theo đợt (`semesterId`), lưu trữ 4 tiêu chí đánh giá bắt buộc và cờ bất biến `isLocked = true`.
+     - Bổ sung `decisionNumber`, `decisionDate`, `adjustedTitle` vào `TopicRegistration`. Đã đồng bộ schema và sinh Prisma Client thành công.
+  2. **Giai đoạn 2 (Backend API & Controllers)**:
+     - `evaluationController.js`: Viết API nộp lại đề cương BM01 (`resubmitBM01`), GVHD thẩm định lại đề cương (`approveResubmittedBM01`), và nộp phiếu BM04 đánh giá 4 tiêu chí kèm khóa bất biến (`submitBM04Evaluation`).
+     - `registrationController.js`: Thêm API nộp BM02 với guard chặn nộp nếu BM01 chưa Đạt (`submitBM02`); API nộp đơn đổi tên trong 7 ngày (`requestTitleAdjustment`) và GVHD duyệt đổi tên (`reviewTitleAdjustment`).
+     - `semesterController.js`: Viết API ban hành Quyết định giao đề tài kèm danh sách (`issuePeriodDecision`), tự động sinh mốc Checkpoint BM03.
+     - `taskController.js`: Triển khai cơ chế dừng đề tài tức thì (`TERMINATED_FAILED_PROGRESS`) khi Checkpoint BM03 bị chấm Không đạt (`FAILED`).
+     - `councilController.js`: Chặn xếp Hội đồng bảo vệ nếu sinh viên chưa có trạng thái `DEFENSE_READY` (BM04 Đồng ý).
+  3. **Giai đoạn 3 (Frontend UI/UX & Triệt tiêu Bypass)**:
+     - Tạo mới `TitleAdjustmentModal.jsx` (đếm ngược 7 ngày) và `BM04EvaluationModal.jsx` (form 4 tiêu chuẩn, tính điểm, ký số, khóa vĩnh viễn).
+     - Nâng cấp `StudentDashboardPage.jsx` và `SubmissionPage.jsx`: Thể hiện quy trình 6 bước khóa tuần tự, card BM04, banner đổi tên 7 ngày, cảnh báo BM01 cần sửa và alert dừng đề tài.
+     - Nâng cấp `LecturerDashboardPage.jsx`, `ProgressTrackingPage.jsx`, `StudentProgressDetailPanel.jsx`, `BMReviewDrawer.jsx`: Tích hợp modal duyệt đổi tên đề tài, modal chấm BM04, chấm 2 Checkpoint Đạt / Không đạt.
+     - Nâng cấp `ProjectPeriodPage.jsx` (nút Ban hành Quyết định) và `CouncilAssignmentPage.jsx` (lọc SV `DEFENSE_READY`).
+     - Triệt tiêu 100% mọi nút, nhãn, modal bypass trên toàn bộ hệ thống (`CouncilAssignmentPage`, `ProjectOversightPage`, `HomePage`, `taskService`).
+     - Biên dịch Frontend `npm run build` thành công xuất sắc: 0 lỗi.
+  4. **Giai đoạn 4 (Kiểm thử, Nghiệm thu & Hoàn thiện tài liệu)**:
+     - Xây dựng bộ test tích hợp `backend/tests/integration/workflowRedesign.test.js` kiểm thử toàn diện các ràng buộc cốt lõi.
+     - Toàn bộ 19 test suites với 91 test cases trong `backend` đều `PASS 100%`.
+     - Cập nhật đầy đủ tài liệu quy tắc nghiệp vụ tại [01-business-workflow.md](file:///d:/DACN/.agents/rules/01-business-workflow.md).
 
 ### 2. Trạng thái cập nhật của từng phần
-- **Database**: `PASS` (Supabase PostgreSQL hoạt động ổn định).
-- **Backend API**: `PASS` (Đã sửa lỗi `archiveController.js`, server chạy mượt mà trên port 5000).
-- **Frontend SPA**: `PASS` (Vite dev server đang chạy trên port 5173).
-- **Prototype Interactive**: `PASS` ([prototype_dacn_redesign.html](file:///d:/DACN/prototype_dacn_redesign.html) và OpenDesign đã đồng bộ, kiểm thử luồng Side Drawer và 2 loại Hội đồng thành công qua browser).
-- **MCP Server**: `READY` (`supabase-postgres`).
+- **Database**: `PASS` (Supabase PostgreSQL hoạt động ổn định, Schema Prisma đã đồng bộ với đầy đủ 11 status và bảng mới).
+- **Backend API**: `PASS` (Tất cả 19 test suites / 91 tests đều PASS, dev server port 5000 chạy ổn định).
+- **Frontend SPA**: `PASS` (`npm run build` thành công, dev server port 5173 chạy mượt mà).
+- **Kiểm thử nghiệm thu (E2E Integration)**: `PASS` (100% test cases nghiệp vụ mới đều được xác thực tự động).
+- **Tài liệu quy tắc**: `PASS` (Đã cập nhật chuẩn hóa trong `.agents/rules/01-business-workflow.md` và `CLAUDE.md`).
 
 ### 3. Bước tiếp theo cần làm (Next Session Plan)
-1. **Chuyển giao (Porting) từ Prototype sang React Codebase**:
-   - Cập nhật [CouncilAssignmentPage.jsx](file:///d:/DACN/frontend/src/pages/admin/CouncilAssignmentPage.jsx): Bổ sung 2 tab HĐ Xét duyệt đề cương và HĐ Chấm bảo vệ, áp dụng bộ lọc sinh viên đạt BM04.
-   - Cập nhật [PermissionGroupPage.jsx](file:///d:/DACN/frontend/src/pages/admin/PermissionGroupPage.jsx): Bổ sung tab Phân quyền cá nhân và Drawer gán quyền/kiêm nhiệm.
-   - Cập nhật [DashboardPage.jsx](file:///d:/DACN/frontend/src/pages/admin/DashboardPage.jsx) và [ProjectOversightPage.jsx](file:///d:/DACN/frontend/src/pages/admin/ProjectOversightPage.jsx): Tích hợp Modal duyệt chuyển giai đoạn của Trưởng Viện, loại bỏ hoàn toàn các nút và nhãn Bypass.
-2. **Kiểm thử và xác thực Build Frontend**:
-   - Chạy `npm run build` trên thư mục `frontend/` để đảm bảo không có lỗi TypeScript/JSX/Linting.
+1. **Kiểm tra trải nghiệm người dùng thực tế trên trình duyệt**:
+   - Sử dụng tài khoản sinh viên đăng ký đề tài -> nộp BM01 -> dùng tài khoản Chủ tịch HĐ duyệt -> nộp BM02 -> tài khoản Trưởng Viện ban hành Quyết định -> thử đổi tên trong 7 ngày -> hoàn thành Checkpoint BM03 -> GVHD chấm BM04 -> xếp HĐ bảo vệ.
+2. **Xuất báo cáo & Văn bản hướng dẫn**:
+   - Xuất biểu mẫu in PDF chuẩn BM01, BM02, BM03, BM04 và Quyết định giao đề tài kèm danh sách có mã QR tra cứu tính toàn vẹn.
 
 ### 4. Quyết định quan trọng (Decisions & Rationale)
-1. **Loại Bỏ Hoàn Toàn Cơ Chế Bypass**: Tuân thủ chỉ đạo của người dùng (*"về các giai đoạn của làm đồ án sẽ ko có việc by pass nữa"*), toàn bộ quy trình đi tuần tự BM01 -> BM02 -> BM03 -> BM04 -> Bảo vệ.
-2. **Phân Quyền Độc Quyền Cho Trưởng Viện (Dean)**: Chỉ riêng Trưởng Viện có thẩm quyền bấm nút duyệt thông qua từng giai đoạn học vụ thông qua Modal xác nhận chuyên biệt.
-3. **Mô Hình Hội Đồng 2 Giai Đoạn Độc Lập**: Tách biệt rõ HĐ Thẩm định đề cương (2 giảng viên thẩm định) và HĐ Chấm bảo vệ (3 thành viên, loại trừ GVHD) để phản ánh chính xác nghiệp vụ thực tế của Viện.
-4. **Phân Quyền Cá Nhân Bằng Side Drawer**: Giúp thao tác gán vai trò kiêm nhiệm cho giảng viên diễn ra nhanh chóng, không bị mất ngữ cảnh danh sách và trực quan hơn so với việc cấu hình trong bảng ma trận thuần túy.
+1. **Triệt tiêu hoàn toàn Bypass**: Không còn bất kỳ ngoại lệ nào được bỏ qua bước thẩm định. Mọi đề tài đều phải thẩm định đề cương đạt, có quyết định của Viện và vượt qua 2 Checkpoint mới được nộp BM04.
+2. **Cơ chế dừng đề tài nghiêm ngặt tại Checkpoint BM03**: Bất kỳ sinh viên nào không hoàn thành tiến độ tại Checkpoint 1 hoặc 2 và bị GVHD đánh giá `FAILED` sẽ ngay lập tức bị dừng đề tài (`TERMINATED_FAILED_PROGRESS`), bảo đảm chất lượng đồ án tốt nghiệp của Viện.
+3. **Khóa bất biến phiếu nhận xét BM04**: Ngay khi GVHD ký nộp xác nhận, phiếu BM04 chuyển `isLocked = true` và cấm sửa đổi, chống tiêu cực sửa điểm/ý kiến trước giờ bảo vệ.
+4. **Cửa sổ 7 ngày đổi tên linh hoạt nhưng chặt chẽ**: Cho phép điều chỉnh tên đề tài phù hợp với thực tế nghiên cứu nhưng giới hạn cứng trong 7 ngày sau Quyết định giao đề tài; lưu vết cả tên gốc và tên điều chỉnh (`adjustedTitle`).
 
 

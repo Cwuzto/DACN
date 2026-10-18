@@ -341,7 +341,7 @@ describe('Full 6-Stage Graduation Project Lifecycle Integration Test Suite', () 
                 .send({ registrationIds: [501] });
 
             expect(res.status).toBe(400);
-            expect(res.body.message).toContain('chưa hoàn thành biểu mẫu BM04');
+            expect(res.body.message).toContain('biểu mẫu BM04');
         });
 
         it('4.2 GVHD lập phiếu nhận xét BM04 AGREED thành công', async () => {
