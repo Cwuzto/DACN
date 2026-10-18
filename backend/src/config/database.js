@@ -1,5 +1,7 @@
+require('dotenv').config();
 const { PrismaClient } = require('@prisma/client');
 const { PrismaPg } = require('@prisma/adapter-pg');
+const { Pool } = require('pg');
 
 const DEFAULT_DB_POOL_MAX = 2;
 
@@ -37,7 +39,7 @@ function sanitizeConnectionString(connectionString) {
 const connectionString = sanitizeConnectionString(rawConnectionString);
 
 // Keep pool small by default for Supabase Session Pooler to avoid "max clients reached".
-const adapter = new PrismaPg({
+const pool = new Pool({
     connectionString,
     max: dbPoolMax,
     idleTimeoutMillis: dbPoolIdleTimeout,
@@ -46,6 +48,8 @@ const adapter = new PrismaPg({
         ? { rejectUnauthorized: dbSslRejectUnauthorized }
         : false,
 });
+
+const adapter = new PrismaPg(pool);
 
 const prisma = new PrismaClient({
     adapter,

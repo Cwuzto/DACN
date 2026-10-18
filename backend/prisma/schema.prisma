@@ -83,6 +83,9 @@ model User {
   announcements        PublicAnnouncement[]
   meetingLogsCreated   MeetingLog[]
   reviewedArchives     ProjectArchive[]
+  reviewedAdjustments  TopicTitleAdjustment[] @relation("AdjustTitleReviewer")
+  studentBM04          BM04Evaluation[] @relation("StudentBM04")
+  lecturerBM04         BM04Evaluation[] @relation("LecturerBM04")
 
   @@map("users")
 }
@@ -102,6 +105,7 @@ model Semester {
   councils             Council[]
   topics               Topic[]
   projectEnrollments   StudentProjectEnrollment[]
+  bm04Evaluations      BM04Evaluation[]
 
   @@map("semesters")
 }
@@ -140,6 +144,9 @@ model TopicRegistration {
   defenseCouncilId    Int?                 @map("defense_council_id")
   outlineReviewStatus OutlineReviewStatus? @default(PENDING) @map("outline_review_status")
   outlineFeedback     String?              @map("outline_feedback")
+  decisionNumber      String?              @map("decision_number")
+  decisionDate        DateTime?            @map("decision_date")
+  adjustedTitle       String?              @map("adjusted_title")
   createdAt           DateTime             @default(now()) @map("created_at")
   updatedAt           DateTime             @updatedAt @map("updated_at")
   topic               Topic                @relation(fields: [topicId], references: [id])
@@ -153,6 +160,8 @@ model TopicRegistration {
   defenseResult DefenseResult?
   memberScores  DefenseMemberScore[]
   archive       ProjectArchive?
+  titleAdjustments TopicTitleAdjustment[]
+  bm04Evaluation   BM04Evaluation?
 
   @@unique([studentId, semesterId])
   @@map("topic_registrations")
@@ -455,15 +464,83 @@ enum TopicStatus {
 }
 
 enum RegistrationStatus {
+  REGISTERED
   PENDING
   APPROVED
   REJECTED
+  BM01_SUBMITTED
+  BM01_NEEDS_REVISION
+  BM01_PASSED
+  BM02_SUBMITTED
+  DECISION_ISSUED
   IN_PROGRESS
+  IN_PROGRESS_BM03
+  BM03_PASSED
+  DEFENSE_READY
   SUBMITTED
   DEFENDED
   COMPLETED
   DROPPED
   WITHDRAWN
+  TERMINATED_FAILED_PROGRESS
+}
+
+model TopicTitleAdjustment {
+  id              Int               @id @default(autoincrement())
+  registrationId  Int               @map("registration_id")
+  registration    TopicRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  originalTitle   String            @map("original_title")
+  newTitle        String            @map("new_title")
+  reason          String            @db.Text
+  status          AdjustmentStatus  @default(PENDING)
+  requestedAt     DateTime          @default(now()) @map("requested_at")
+  reviewedAt      DateTime?         @map("reviewed_at")
+  reviewedById    Int?              @map("reviewed_by_id")
+  reviewedBy      User?             @relation("AdjustTitleReviewer", fields: [reviewedById], references: [id])
+  rejectionReason String?           @map("rejection_reason")
+  deadline        DateTime
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  @@index([registrationId])
+  @@map("topic_title_adjustments")
+}
+
+model BM04Evaluation {
+  id                   Int               @id @default(autoincrement())
+  registrationId       Int               @unique @map("registration_id")
+  registration         TopicRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  semesterId           Int               @map("semester_id")
+  semester             Semester          @relation(fields: [semesterId], references: [id])
+  studentId            Int               @map("student_id")
+  student              User              @relation("StudentBM04", fields: [studentId], references: [id])
+  lecturerId           Int               @map("lecturer_id")
+  lecturer             User              @relation("LecturerBM04", fields: [lecturerId], references: [id])
+  thesisFormatScore    String            @db.Text @map("thesis_format_score")
+  researchContentScore String            @db.Text @map("research_content_score")
+  applicabilityScore   String            @db.Text @map("applicability_score")
+  attitudeScore        String            @db.Text @map("attitude_score")
+  conclusion           BM04Conclusion
+  generalNotes         String?           @db.Text @map("general_notes")
+  lecturerSignature    String            @map("lecturer_signature")
+  signedAt             DateTime          @default(now()) @map("signed_at")
+  isLocked             Boolean           @default(true) @map("is_locked")
+  createdAt            DateTime          @default(now()) @map("created_at")
+  updatedAt            DateTime          @updatedAt @map("updated_at")
+
+  @@index([semesterId, studentId])
+  @@map("bm04_evaluations")
+}
+
+enum AdjustmentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum BM04Conclusion {
+  AGREED_FOR_DEFENSE
+  NOT_AGREED
 }
 
 enum TaskStatus {
