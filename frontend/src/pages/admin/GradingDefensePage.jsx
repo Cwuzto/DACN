@@ -740,8 +740,8 @@ function GradingDefensePage() {
                 />
                 <StatCard
                     icon="groups"
-                    iconBg="bg-blue-50"
-                    iconColor="text-blue-600"
+                    iconBg="bg-teal-50"
+                    iconColor="text-teal-700"
                     label="Đã phân công HĐ"
                     value={meta.counts?.ASSIGNED_COUNCIL ?? 0}
                     active={activeTab === 'ASSIGNED_COUNCIL'}
@@ -750,7 +750,7 @@ function GradingDefensePage() {
                 <StatCard
                     icon="rate_review"
                     iconBg="bg-amber-50"
-                    iconColor="text-amber-600"
+                    iconColor="text-amber-700"
                     label="Chờ nhập điểm"
                     value={meta.counts?.AWAITING_GRADING ?? 0}
                     active={activeTab === 'AWAITING_GRADING'}
@@ -759,7 +759,7 @@ function GradingDefensePage() {
                 <StatCard
                     icon="task_alt"
                     iconBg="bg-emerald-50"
-                    iconColor="text-emerald-600"
+                    iconColor="text-emerald-700"
                     label="Hoàn tất"
                     value={meta.counts?.COMPLETED ?? 0}
                     active={activeTab === 'COMPLETED'}
@@ -768,9 +768,9 @@ function GradingDefensePage() {
             </div>
 
             {/* Main Content Card */}
-            <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-4 lg:p-6 space-y-4">
+            <div className="bg-white rounded-lg border border-slate-200 shadow-xs p-4 lg:p-6 space-y-4">
                 {/* Stage Notification Banner */}
-                <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+                <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-slate-50 rounded-lg border border-slate-200">
                     <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-lg bg-white shadow-xs border border-slate-200 flex items-center justify-center shrink-0">
                             {stageDescription.icon}

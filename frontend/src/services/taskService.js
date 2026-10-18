@@ -56,14 +56,6 @@ const taskService = {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi gửi nhắc nộp');
         }
     },
-
-    bypassTask: async (taskId, { reason } = {}) => {
-        try {
-            return await api.post(`/tasks/${taskId}/bypass`, { reason });
-        } catch (error) {
-            throw wrapServiceError(error, 'Đã xảy ra lỗi khi miễn thẩm định nhiệm vụ');
-        }
-    },
 };
 
 export default taskService;

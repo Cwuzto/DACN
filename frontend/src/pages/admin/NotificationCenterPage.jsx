@@ -269,29 +269,29 @@ function NotificationCenterPage() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <StatCard
                     icon="send"
-                    iconBg="bg-blue-50"
-                    iconColor="text-blue-600"
+                    iconBg="bg-teal-50"
+                    iconColor="text-teal-700"
                     label="Tổng số lần gửi broadcast"
                     value={history.length}
                 />
                 <StatCard
                     icon="mark_email_read"
                     iconBg="bg-emerald-50"
-                    iconColor="text-emerald-600"
+                    iconColor="text-emerald-700"
                     label="Tỉ lệ đã đọc trung bình"
                     value={`${averageReadRate}%`}
                 />
                 <StatCard
                     icon="auto_mode"
-                    iconBg="bg-purple-50"
-                    iconColor="text-purple-600"
+                    iconBg="bg-indigo-50"
+                    iconColor="text-indigo-700"
                     label="Template tự động kích hoạt"
                     value={`${activeTemplatesCount} / ${templates.length}`}
                 />
             </div>
 
             {/* Main Content Tabs Card */}
-            <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-lg border border-slate-200 shadow-xs overflow-hidden">
                 <Tabs
                     activeKey={activeTab}
                     onChange={setActiveTab}
@@ -312,7 +312,7 @@ function NotificationCenterPage() {
                                             <Spin size="large" />
                                         </div>
                                     ) : (
-                                        <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+                                        <div className="border border-slate-200 rounded-lg overflow-hidden shadow-xs">
                                             <Table
                                                 columns={columnsHistory}
                                                 dataSource={history}

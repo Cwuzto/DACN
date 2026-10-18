@@ -1,12 +1,19 @@
+import { useState } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
-import { Dropdown } from 'antd';
-import { LogoutOutlined, UserOutlined, SettingOutlined } from '@ant-design/icons';
+import { Dropdown, Drawer, Badge, Button } from 'antd';
+import {
+    LogoutOutlined,
+    UserOutlined,
+    SettingOutlined,
+    MenuOutlined,
+    BellOutlined,
+} from '@ant-design/icons';
 import useAuthStore from '../../stores/authStore';
 
 // Mapping role -> nav items + role label
 const NAV_CONFIG = {
     STUDENT: {
-        label: 'Hệ thống Sinh viên',
+        label: 'Cổng Sinh viên',
         basePath: '/student',
         sections: [
             {
@@ -30,7 +37,7 @@ const NAV_CONFIG = {
         ],
     },
     LECTURER: {
-        label: 'Hệ thống Giảng viên',
+        label: 'Cổng Giảng viên',
         basePath: '/lecturer',
         sections: [
             {
@@ -44,7 +51,7 @@ const NAV_CONFIG = {
                 items: [
                     { path: '/lecturer/topics', icon: 'folder_open', label: 'Đề tài của tôi' },
                     { path: '/lecturer/approvals', icon: 'fact_check', label: 'Phê duyệt sinh viên' },
-                    { path: '/lecturer/progress', icon: 'trending_up', label: 'Theo dõi tiến độ' },
+                    { path: '/lecturer/progress', icon: 'trending_up', label: 'Theo dõi tiến độ BM' },
                 ],
             },
             {
@@ -108,6 +115,7 @@ function AppLayout({ role }) {
     const navigate = useNavigate();
     const location = useLocation();
     const { user, logout } = useAuthStore();
+    const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
 
     const config = NAV_CONFIG[role] || NAV_CONFIG.STUDENT;
 
@@ -120,10 +128,10 @@ function AppLayout({ role }) {
 
     const roleLabel = role === 'ADMIN' ? 'Quản trị viên' : role === 'LECTURER' ? 'Giảng viên' : 'Sinh viên';
 
-    // Flatten all items for mobile nav
-    const allNavItems = config.sections
-        ? config.sections.flatMap((sec) => sec.items)
-        : (config.items || []);
+    const handleNavigate = (path) => {
+        navigate(path);
+        setMobileDrawerOpen(false);
+    };
 
     const userMenuItems = [
         {
@@ -150,187 +158,207 @@ function AppLayout({ role }) {
         },
     ];
 
-    return (
-        <div className="flex min-h-screen bg-[#F8FAFC]">
-            {/* Sidebar */}
-            <aside className="hidden md:flex w-64 flex-col border-r border-slate-200/80 bg-white shrink-0 fixed inset-y-0 left-0 z-20 shadow-[1px_0_10px_rgba(0,0,0,0.02)]">
-                {/* Logo & Institution Brand */}
-                <div className="p-5 flex items-center gap-3 border-b border-slate-100 bg-white">
-                    <div className="w-10 h-10 bg-[#1E3A5F] rounded-xl flex items-center justify-center text-white shrink-0 shadow-sm">
-                        <span className="material-symbols-outlined text-[22px]">school</span>
-                    </div>
-                    <div className="min-w-0">
-                        <h1 className="font-bold text-sm text-[#1E3A5F] leading-tight truncate">
-                            Viện Công nghệ Số
-                        </h1>
-                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider truncate">
-                            TDMU Thesis Portal
-                        </p>
-                    </div>
+    // Navigation Menu Content Component (shared by desktop sidebar & mobile drawer)
+    const NavContent = () => (
+        <div className="flex flex-col h-full bg-white select-none">
+            {/* Institutional Brand Header */}
+            <div className="p-4 border-b border-slate-100 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-[#0F766E] text-white flex items-center justify-center font-bold text-lg shadow-sm shrink-0">
+                    <span className="material-symbols-outlined text-[20px]">school</span>
                 </div>
+                <div className="min-w-0">
+                    <h2 className="font-bold text-sm text-slate-900 leading-tight truncate">
+                        Viện Công nghệ Số
+                    </h2>
+                    <p className="text-[10px] font-semibold text-teal-700 uppercase tracking-wider truncate">
+                        TDMU THESIS PORTAL
+                    </p>
+                </div>
+            </div>
 
-                {/* Main Nav */}
-                <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200">
-                    {config.sections ? (
-                        config.sections.map((section, sIdx) => (
-                            <div key={sIdx} className="mb-4">
-                                <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
-                                    {section.title}
-                                </p>
-                                <div className="space-y-0.5">
-                                    {section.items.map((item) => {
-                                        const active = isActive(item.path);
-                                        return (
-                                            <a
-                                                key={item.path}
-                                                onClick={() => navigate(item.path)}
-                                                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-150 cursor-pointer ${
-                                                    active
-                                                        ? 'bg-[#1E3A5F]/10 text-[#1E3A5F] font-bold border-l-4 border-[#1E3A5F] pl-2'
-                                                        : 'text-slate-600 hover:bg-slate-50 hover:text-[#1E3A5F] font-medium'
-                                                }`}
-                                            >
-                                                <span className={`material-symbols-outlined text-[19px] ${active ? 'text-[#1E3A5F]' : 'text-slate-400'}`}>
-                                                    {item.icon}
-                                                </span>
-                                                <span className="truncate">{item.label}</span>
-                                            </a>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        ))
-                    ) : (
-                        <>
-                            <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">
-                                {config.label}
+            {/* Menu Links */}
+            <nav className="flex-1 px-3 py-4 space-y-4 overflow-y-auto">
+                {config.sections ? (
+                    config.sections.map((section, sIdx) => (
+                        <div key={sIdx} className="space-y-1">
+                            <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                                {section.title}
                             </p>
                             <div className="space-y-0.5">
-                                {config.items.map((item) => {
+                                {section.items.map((item) => {
                                     const active = isActive(item.path);
                                     return (
-                                        <a
+                                        <button
                                             key={item.path}
-                                            onClick={() => navigate(item.path)}
-                                            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-150 cursor-pointer ${
+                                            onClick={() => handleNavigate(item.path)}
+                                            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium transition-all text-left ${
                                                 active
-                                                    ? 'bg-primary/10 text-primary font-bold border-l-4 border-primary pl-2'
-                                                    : 'text-slate-600 hover:bg-slate-50 hover:text-primary font-medium'
+                                                    ? 'bg-[#F0FDFA] text-[#0F766E] font-semibold border-r-2 border-[#0F766E]'
+                                                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                                             }`}
                                         >
-                                            <span className={`material-symbols-outlined text-[20px] ${active ? 'text-primary' : 'text-slate-400'}`}>
+                                            <span className={`material-symbols-outlined text-[18px] ${active ? 'text-[#0F766E]' : 'text-slate-400'}`}>
                                                 {item.icon}
                                             </span>
                                             <span className="truncate">{item.label}</span>
-                                        </a>
-                                    );
-                                })}
-                            </div>
-                        </>
-                    )}
-
-                    {config.instituteItems && user?.permissionGroups?.includes('VIEN_TRUONG') && (
-                        <div className="mt-4 pt-3 border-t border-slate-100">
-                            <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
-                                Quản lý Viện
-                            </p>
-                            <div className="space-y-0.5">
-                                {config.instituteItems.map((item) => {
-                                    const active = isActive(item.path);
-                                    return (
-                                        <a
-                                            key={item.path}
-                                            onClick={() => navigate(item.path)}
-                                            className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-150 cursor-pointer ${
-                                                active
-                                                    ? 'bg-primary/10 text-primary font-bold border-l-4 border-primary pl-2'
-                                                    : 'text-slate-600 hover:bg-slate-50 hover:text-primary font-medium'
-                                            }`}
-                                        >
-                                            <span className="material-symbols-outlined text-[19px]">{item.icon}</span>
-                                            <span className="truncate">{item.label}</span>
-                                        </a>
+                                        </button>
                                     );
                                 })}
                             </div>
                         </div>
-                    )}
+                    ))
+                ) : (
+                    <div className="space-y-1">
+                        {config.items?.map((item) => {
+                            const active = isActive(item.path);
+                            return (
+                                <button
+                                    key={item.path}
+                                    onClick={() => handleNavigate(item.path)}
+                                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium transition-all text-left ${
+                                        active
+                                            ? 'bg-[#F0FDFA] text-[#0F766E] font-semibold border-r-2 border-[#0F766E]'
+                                            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                                    }`}
+                                >
+                                    <span className={`material-symbols-outlined text-[18px] ${active ? 'text-[#0F766E]' : 'text-slate-400'}`}>
+                                        {item.icon}
+                                    </span>
+                                    <span className="truncate">{item.label}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
 
-                    {/* Bottom Settings Items */}
-                    {config.bottomItems && config.bottomItems.length > 0 && (
-                        <div className="pt-3 mt-4 border-t border-slate-100">
-                            {config.bottomItems.map((item) => {
-                                const active = isActive(item.path);
-                                return (
-                                    <a
-                                        key={item.path}
-                                        onClick={() => navigate(item.path)}
-                                        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-150 cursor-pointer ${
-                                            active
-                                                ? 'bg-primary/10 text-primary font-bold'
-                                                : 'text-slate-600 hover:bg-slate-50 hover:text-primary font-medium'
-                                        }`}
-                                    >
-                                        <span className="material-symbols-outlined text-[19px] text-slate-400">
-                                            {item.icon}
-                                        </span>
-                                        <span className="truncate">{item.label}</span>
-                                    </a>
-                                );
-                            })}
-                        </div>
-                    )}
-                </nav>
+                {/* Institute Extra Items */}
+                {config.instituteItems && user?.permissionGroups?.includes('VIEN_TRUONG') && (
+                    <div className="pt-2 border-t border-slate-100 space-y-1">
+                        <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                            Quản lý Viện
+                        </p>
+                        {config.instituteItems.map((item) => {
+                            const active = isActive(item.path);
+                            return (
+                                <button
+                                    key={item.path}
+                                    onClick={() => handleNavigate(item.path)}
+                                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium transition-all text-left ${
+                                        active
+                                            ? 'bg-[#F0FDFA] text-[#0F766E] font-semibold border-r-2 border-[#0F766E]'
+                                            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                                    }`}
+                                >
+                                    <span className="material-symbols-outlined text-[18px]">{item.icon}</span>
+                                    <span className="truncate">{item.label}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
 
-                {/* Sidebar Footer Logout */}
-                <div className="p-3 border-t border-slate-100 bg-slate-50/50">
-                    <button
-                        onClick={handleLogout}
-                        className="flex w-full items-center justify-center gap-2 px-3 py-2 bg-white text-slate-700 border border-slate-200/80 rounded-lg text-xs font-bold hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 transition-all duration-150"
-                    >
-                        <span className="material-symbols-outlined text-[16px]">logout</span>
-                        <span>Đăng xuất</span>
-                    </button>
-                </div>
+                {/* Bottom Items */}
+                {config.bottomItems && config.bottomItems.length > 0 && (
+                    <div className="pt-2 border-t border-slate-100 space-y-1">
+                        {config.bottomItems.map((item) => {
+                            const active = isActive(item.path);
+                            return (
+                                <button
+                                    key={item.path}
+                                    onClick={() => handleNavigate(item.path)}
+                                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium transition-all text-left ${
+                                        active
+                                            ? 'bg-[#F0FDFA] text-[#0F766E] font-semibold'
+                                            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                                    }`}
+                                >
+                                    <span className="material-symbols-outlined text-[18px] text-slate-400">
+                                        {item.icon}
+                                    </span>
+                                    <span className="truncate">{item.label}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
+            </nav>
+
+            {/* Sidebar Bottom Footer */}
+            <div className="p-3 border-t border-slate-100 bg-slate-50/50">
+                <button
+                    onClick={handleLogout}
+                    className="flex w-full items-center justify-center gap-2 px-3 py-1.5 bg-white text-slate-700 border border-slate-200 rounded-md text-xs font-medium hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 transition-all"
+                >
+                    <span className="material-symbols-outlined text-[16px]">logout</span>
+                    <span>Đăng xuất</span>
+                </button>
+            </div>
+        </div>
+    );
+
+    return (
+        <div className="flex min-h-screen bg-[#F4F6F8]">
+            {/* Desktop Fixed Sidebar (width 256px) */}
+            <aside className="hidden lg:flex w-64 flex-col border-r border-slate-200/80 bg-white shrink-0 fixed inset-y-0 left-0 z-20 shadow-[1px_0_3px_rgba(0,0,0,0.02)]">
+                <NavContent />
             </aside>
 
-            {/* Main Content Area */}
-            <div className="flex-1 flex flex-col min-w-0 md:ml-64">
-                {/* Top Navbar Header */}
-                <header className="h-16 border-b border-slate-200/80 bg-white/95 backdrop-blur-md flex items-center justify-between px-4 lg:px-8 shrink-0 sticky top-0 z-10">
+            {/* Mobile / Tablet Ant Design Drawer (solves the 5-item cutoff bug) */}
+            <Drawer
+                placement="left"
+                onClose={() => setMobileDrawerOpen(false)}
+                open={mobileDrawerOpen}
+                styles={{ body: { padding: 0 } }}
+                width={280}
+            >
+                <NavContent />
+            </Drawer>
+
+            {/* Main Workspace Layout */}
+            <div className="flex-1 flex flex-col min-w-0 lg:ml-64">
+                {/* Clean Nordic Header (height 56px) */}
+                <header className="h-14 border-b border-slate-200/80 bg-white/95 backdrop-blur-sm flex items-center justify-between px-4 lg:px-8 shrink-0 sticky top-0 z-10 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                    {/* Left: Mobile Toggle & Institutional breadcrumb indicator */}
                     <div className="flex items-center gap-3">
-                        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-100/80 text-xs font-medium text-slate-600">
-                            <span className="material-symbols-outlined text-[16px] text-slate-400">account_balance</span>
-                            <span>Trường Đại học Thủ Dầu Một</span>
-                            <span className="text-slate-300">•</span>
+                        <Button
+                            type="text"
+                            icon={<MenuOutlined />}
+                            onClick={() => setMobileDrawerOpen(true)}
+                            className="lg:hidden text-slate-600 hover:text-[#0F766E]"
+                            title="Mở menu điều hướng"
+                        />
+                        <div className="hidden sm:flex items-center gap-2 text-xs font-medium text-slate-600">
+                            <span className="text-slate-400">ĐH Thủ Dầu Một</span>
+                            <span className="text-slate-300">/</span>
                             <span className="font-semibold text-slate-800">{roleLabel}</span>
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-4">
+                    {/* Right: Notification Bell & Profile dropdown */}
+                    <div className="flex items-center gap-3">
                         <button
-                            className="relative p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
                             onClick={() => navigate(`${config.basePath}/notifications`)}
+                            className="relative p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-md transition-colors"
                             title="Thông báo hệ thống"
                         >
-                            <span className="material-symbols-outlined text-[20px]">notifications</span>
-                            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full ring-2 ring-white"></span>
+                            <BellOutlined className="text-[17px]" />
+                            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#BE123C] rounded-full ring-2 ring-white"></span>
                         </button>
 
-                        <div className="h-5 w-px bg-slate-200"></div>
+                        <div className="h-4 w-px bg-slate-200"></div>
 
                         {/* User Profile Dropdown */}
                         <Dropdown menu={{ items: userMenuItems }} trigger={['click']} placement="bottomRight">
-                            <div className="flex items-center gap-3 cursor-pointer py-1 px-1.5 rounded-lg hover:bg-slate-50 transition-colors">
+                            <div className="flex items-center gap-2.5 cursor-pointer py-1 px-1.5 rounded-md hover:bg-slate-50 transition-colors">
                                 <div className="text-right hidden sm:block">
-                                    <p className="text-xs font-bold text-slate-800 leading-tight">
+                                    <p className="text-xs font-semibold text-slate-800 leading-tight">
                                         {user?.fullName || user?.name || roleLabel}
                                     </p>
-                                    <p className="text-[10px] font-medium text-slate-400 mt-0.5">
+                                    <p className="text-[10px] text-slate-400 mt-0.5">
                                         {user?.code ? `Mã: ${user.code}` : roleLabel}
                                     </p>
                                 </div>
-                                <div className="w-8 h-8 rounded-lg bg-[#1E3A5F] text-white flex items-center justify-center font-bold text-xs shadow-sm">
+                                <div className="w-8 h-8 rounded-md bg-[#0F766E] text-white flex items-center justify-center font-bold text-xs shadow-xs">
                                     {(user?.fullName || user?.name || roleLabel)?.[0]?.toUpperCase() || 'U'}
                                 </div>
                             </div>
@@ -338,29 +366,13 @@ function AppLayout({ role }) {
                     </div>
                 </header>
 
-                {/* Page Content */}
-                <main className="p-4 lg:p-8 overflow-y-auto flex-1">
+                {/* Page Content Container with Clean Nordic Spacing */}
+                <main className="p-4 sm:p-6 lg:p-8 overflow-y-auto flex-1">
                     <div className="max-w-7xl mx-auto">
                         <Outlet />
                     </div>
                 </main>
             </div>
-
-            {/* Mobile Bottom Nav */}
-            <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-slate-200 flex items-center justify-around px-2 py-2 z-30 shadow-lg">
-                {allNavItems.slice(0, 5).map((item) => (
-                    <button
-                        key={item.path}
-                        onClick={() => navigate(item.path)}
-                        className={`flex flex-col items-center gap-0.5 p-1.5 rounded-lg transition-colors ${
-                            isActive(item.path) ? 'text-[#1E3A5F] font-bold' : 'text-slate-400'
-                        }`}
-                    >
-                        <span className="material-symbols-outlined text-[22px]">{item.icon}</span>
-                        <span className="text-[10px] truncate max-w-[64px]">{item.label}</span>
-                    </button>
-                ))}
-            </nav>
         </div>
     );
 }

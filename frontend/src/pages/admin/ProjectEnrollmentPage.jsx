@@ -447,28 +447,28 @@ function ProjectEnrollmentPage() {
 
             {/* 3 Metric Stat Strip */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="bg-white rounded-xl border border-slate-200/80 p-4 shadow-sm">
-                    <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Tổng sinh viên đã gán</p>
-                    <p className="text-2xl font-black text-slate-900 mt-1">{rows.length}</p>
+                <div className="bg-white rounded-lg border border-slate-200 p-4 shadow-xs">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Tổng sinh viên đã gán</p>
+                    <p className="text-2xl font-bold text-slate-900 mt-1">{rows.length}</p>
                 </div>
-                <div className="bg-emerald-50/70 rounded-xl border border-emerald-200 p-4 shadow-sm">
-                    <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">Đang có hiệu lực</p>
-                    <p className="text-2xl font-black text-emerald-800 mt-1">
+                <div className="bg-emerald-50/80 rounded-lg border border-emerald-200 p-4 shadow-xs">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-800">Đang có hiệu lực</p>
+                    <p className="text-2xl font-bold text-emerald-900 mt-1">
                         {rows.filter((r) => r.status === 'ACTIVE').length}
                     </p>
                 </div>
-                <div className="bg-white rounded-xl border border-slate-200/80 p-4 shadow-sm">
-                    <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Sinh viên đang chọn (hàng loạt)</p>
-                    <p className="text-2xl font-black text-blue-600 mt-1">{selectedStudentIds.length}</p>
+                <div className="bg-white rounded-lg border border-slate-200 p-4 shadow-xs">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Sinh viên đang chọn (hàng loạt)</p>
+                    <p className="text-2xl font-bold text-[#0F766E] mt-1">{selectedStudentIds.length}</p>
                 </div>
             </div>
 
             {/* Manual Assignment Panel (Expandable) */}
             {showAssignPanel && (
-                <div className="bg-white rounded-xl border border-blue-200 bg-blue-50/20 p-5 shadow-sm space-y-4">
+                <div className="bg-white rounded-lg border border-teal-200 bg-teal-50/20 p-5 shadow-xs space-y-4">
                     <div className="flex items-center justify-between">
-                        <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                            <span className="material-symbols-outlined text-blue-600 text-[18px]">person_add</span>
+                        <h4 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                            <span className="material-symbols-outlined text-[#0F766E] text-[18px]">person_add</span>
                             Gán Sinh viên Thủ công vào Đợt Đồ Án
                         </h4>
                         <span className="text-xs text-slate-400">Chọn 1 hoặc nhiều sinh viên</span>

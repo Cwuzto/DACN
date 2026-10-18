@@ -44,6 +44,7 @@ import PageLoader from '../../components/common/PageLoader';
 import StatCard from '../../components/common/StatCard';
 import StudentProgressDetailPanel from './components/StudentProgressDetailPanel';
 import BMReviewDrawer from '../../components/forms/BMReviewDrawer';
+import BM04EvaluationModal from '../../components/lecturer/BM04EvaluationModal';
 import ClearanceCertificateModal from '../../components/forms/ClearanceCertificateModal';
 import { formatSemesterLabel } from '../../utils/semesterDisplay';
 
@@ -123,14 +124,6 @@ function ProgressTrackingPage() {
 
     // BM04 Gatekeeping state
     const [bm04ModalOpen, setBm04ModalOpen] = useState(false);
-    const [bm04Submitting, setBm04Submitting] = useState(false);
-    const [bm04Form] = Form.useForm();
-
-    // Task Bypass state
-    const [bypassModalOpen, setBypassModalOpen] = useState(false);
-    const [bypassTaskTarget, setBypassTaskTarget] = useState(null);
-    const [bypassSubmitting, setBypassSubmitting] = useState(false);
-    const [bypassForm] = Form.useForm();
 
     // Post-Defense Archive states
     const [archiveData, setArchiveData] = useState(null);
@@ -444,80 +437,17 @@ function ProgressTrackingPage() {
         }
     };
 
-    // Task Bypass handlers
-    const handleBypassTask = (task) => {
-        setBypassTaskTarget(task);
-        bypassForm.resetFields();
-        bypassForm.setFieldsValue({
-            reason: 'Đã hoàn thành nội dung tương đương / Thẩm định thông qua bảo vệ đề cương',
-        });
-        setBypassModalOpen(true);
-    };
-
-    const handleSubmitBypass = async (values) => {
-        if (!bypassTaskTarget) return;
-        try {
-            setBypassSubmitting(true);
-            const res = await taskService.bypassTask(bypassTaskTarget.id, { reason: values.reason });
-            if (res.success) {
-                message.success(`Đã miễn thẩm định cho ${bypassTaskTarget.title}`);
-                setBypassModalOpen(false);
-                setBypassTaskTarget(null);
-                if (selectedRegistration) {
-                    fetchTasksForRegistration(selectedRegistration);
-                }
-                fetchRegistrations();
-            }
-        } catch (error) {
-            message.error(error?.message || 'Lỗi khi thực hiện miễn thẩm định');
-        } finally {
-            setBypassSubmitting(false);
-        }
-    };
-
-    // BM04 Gatekeeping handlers
+    // BM04 Gatekeeping handler
     const openBM04Modal = (registration = null) => {
         const target = registration || selectedRegistration;
         if (!target) {
             message.warning('Vui lòng chọn sinh viên');
             return;
         }
-        bm04Form.resetFields();
-        bm04Form.setFieldsValue({
-            decision: 'AGREED',
-            reviewContent: 'Sinh viên hoàn thành đầy đủ các giai đoạn nghiên cứu, thực hiện tốt các chỉ dẫn của GVHD, đáp ứng tiêu chuẩn đồ án tốt nghiệp.',
-            defenseGrade: 8.5,
-        });
-        setBm04ModalOpen(true);
-    };
-
-    const handleSubmitBM04Review = async (values) => {
-        if (!selectedRegistration) return;
-        try {
-            setBm04Submitting(true);
-            const res = await registrationService.reviewBM04(selectedRegistration.id, {
-                decision: values.decision,
-                reviewContent: values.reviewContent,
-                defenseGrade: values.defenseGrade,
-                feedback: values.feedback,
-            });
-            if (res.success) {
-                message.success(
-                    values.decision === 'AGREED'
-                        ? 'Đã lập Phiếu BM04 và ĐỒNG Ý cho sinh viên ra bảo vệ!'
-                        : 'Đã lập Phiếu BM04 và KHÔNG ĐỒNG Ý cho bảo vệ (Hủy đề tài).'
-                );
-                setBm04ModalOpen(false);
-                fetchRegistrations();
-                if (selectedRegistration) {
-                    fetchTasksForRegistration(selectedRegistration);
-                }
-            }
-        } catch (error) {
-            message.error(error?.message || 'Lỗi khi lập phiếu đánh giá BM04');
-        } finally {
-            setBm04Submitting(false);
+        if (target !== selectedRegistration) {
+            setSelectedRegistration(target);
         }
+        setBm04ModalOpen(true);
     };
 
     // Post-Defense Archive review handlers
@@ -805,9 +735,7 @@ function ProgressTrackingPage() {
                 meetingLogs={meetingLogs}
                 openMeetingModal={openMeetingModal}
                 handleDeleteMeetingLog={handleDeleteMeetingLog}
-                handleBypassTask={handleBypassTask}
                 openBM04Modal={openBM04Modal}
-                bypassingTaskId={bypassSubmitting ? bypassTaskTarget?.id : null}
                 // Props for Gói 2: Archive & Certificate
                 archiveData={archiveData}
                 openArchiveReviewModal={openArchiveReviewModal}
@@ -924,180 +852,18 @@ function ProgressTrackingPage() {
                 </Form>
             </Modal>
 
-            {/* Modal Miễn thẩm định (Bypass Task BM01/BM02) */}
-            <Modal
-                title={(
-                    <Flex align="center" gap={8}>
-                        <FastForwardOutlined className="text-amber-500" />
-                        <span>Xác nhận Miễn thẩm định (Bypass)</span>
-                    </Flex>
-                )}
-                open={bypassModalOpen}
-                onCancel={() => {
-                    setBypassModalOpen(false);
-                    setBypassTaskTarget(null);
+            {/* Modal Lập Phiếu BM04 Chuẩn 4 Tiêu Chí & Khóa Bất Biến */}
+            <BM04EvaluationModal
+                visible={bm04ModalOpen}
+                onClose={() => setBm04ModalOpen(false)}
+                registration={selectedRegistration}
+                onSuccess={() => {
+                    fetchRegistrations();
+                    if (selectedRegistration) {
+                        fetchTasksForRegistration(selectedRegistration);
+                    }
                 }}
-                footer={null}
-                destroyOnClose
-                width={520}
-            >
-                <Alert
-                    type="warning"
-                    showIcon
-                    message="Cơ chế Bypass linh hoạt"
-                    description={`Bạn đang thực hiện miễn thẩm định cho cột mốc "${bypassTaskTarget?.title || ''}". Thao tác này sẽ đánh dấu nhiệm vụ là HOÀN THÀNH (BYPASSED) và ghi nhận vào hồ sơ minh chứng mà không bắt buộc sinh viên phải nộp lại biểu mẫu.`}
-                    style={{ marginBottom: 16, marginTop: 8 }}
-                />
-                <Form form={bypassForm} layout="vertical" onFinish={handleSubmitBypass}>
-                    <Form.Item
-                        name="reason"
-                        label="Lý do miễn thẩm định"
-                        rules={[{ required: true, message: 'Vui lòng nhập lý do giải trình' }]}
-                    >
-                        <Input.TextArea
-                            rows={3}
-                            placeholder="Ví dụ: Đã thẩm định thông qua bảo vệ đề cương tại Bộ môn / Có chứng chỉ công nhận tương đương..."
-                        />
-                    </Form.Item>
-                    <Flex justify="flex-end" gap={12}>
-                        <Button onClick={() => setBypassModalOpen(false)}>Hủy</Button>
-                        <Button
-                            type="primary"
-                            htmlType="submit"
-                            loading={bypassSubmitting}
-                            style={{ backgroundColor: '#f59e0b', borderColor: '#f59e0b' }}
-                            icon={<FastForwardOutlined />}
-                        >
-                            Xác nhận Miễn Thẩm Định
-                        </Button>
-                    </Flex>
-                </Form>
-            </Modal>
-
-            {/* Modal Lập Phiếu BM04 & Quyết định cho ra bảo vệ (Gatekeeping) */}
-            <Modal
-                title={(
-                    <Flex align="center" gap={8}>
-                        <SafetyCertificateOutlined className="text-emerald-600" />
-                        <span>Lập Phiếu Đánh Giá BM04 & Quyết Định Bảo Vệ</span>
-                    </Flex>
-                )}
-                open={bm04ModalOpen}
-                onCancel={() => setBm04ModalOpen(false)}
-                footer={null}
-                destroyOnClose
-                width={680}
-            >
-                <div className="space-y-4 my-2">
-                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                        <Flex justify="space-between" align="center" wrap="wrap" gap={8}>
-                            <div>
-                                <Text type="secondary" style={{ fontSize: 12 }}>Sinh viên:</Text>
-                                <div><Text strong>{selectedRegistration?.student?.fullName}</Text> ({selectedRegistration?.student?.code})</div>
-                            </div>
-                            <div>
-                                <Text type="secondary" style={{ fontSize: 12 }}>Tổng số buổi gặp BM03:</Text>
-                                <div>
-                                    <Tag color={meetingLogs.length >= 8 ? 'success' : 'warning'} className="font-semibold text-sm">
-                                        {meetingLogs.length} buổi gặp
-                                    </Tag>
-                                </div>
-                            </div>
-                            <div>
-                                <Text type="secondary" style={{ fontSize: 12 }}>Tiến độ tổng hợp:</Text>
-                                <div><Text strong className="text-blue-600">{taskOverview.progress}%</Text></div>
-                            </div>
-                        </Flex>
-                    </div>
-
-                    <Alert
-                        type="info"
-                        showIcon
-                        message="Cổng kiểm soát chất lượng (Gatekeeping)"
-                        description="Phiếu BM04 là quyết định chính thức của GVHD. Nếu 'Đồng ý', trạng thái đề tài sẽ chuyển sang ĐÃ NỘP (SUBMITTED) để Khoa sắp xếp Hội đồng. Nếu 'Không đồng ý', đề tài sẽ bị dừng (DROPPED)."
-                    />
-
-                    <Form form={bm04Form} layout="vertical" onFinish={handleSubmitBM04Review}>
-                        <Form.Item
-                            name="decision"
-                            label="Quyết định của GVHD về việc cho ra bảo vệ"
-                            rules={[{ required: true, message: 'Vui lòng chọn quyết định' }]}
-                        >
-                            <Radio.Group className="w-full">
-                                <Space direction="vertical" className="w-full orientation-vertical">
-                                    <Radio value="AGREED" className="p-3 border border-emerald-200 rounded-lg hover:bg-emerald-50/50 w-full block">
-                                        <Flex gap={8} align="center">
-                                            <CheckCircleOutlined className="text-emerald-600 text-lg" />
-                                            <div>
-                                                <Text strong className="text-emerald-700">ĐỒNG Ý cho ra bảo vệ trước Hội đồng</Text>
-                                                <div className="text-xs text-slate-500">Đề tài đạt yêu cầu về khối lượng, chất lượng và thời gian làm việc.</div>
-                                            </div>
-                                        </Flex>
-                                    </Radio>
-                                    <Radio value="DISAGREED" className="p-3 border border-rose-200 rounded-lg hover:bg-rose-50/50 w-full block">
-                                        <Flex gap={8} align="center">
-                                            <CloseCircleOutlined className="text-rose-600 text-lg" />
-                                            <div>
-                                                <Text strong className="text-rose-700">KHÔNG ĐỒNG Ý cho ra bảo vệ (Dừng đề tài)</Text>
-                                                <div className="text-xs text-slate-500">Đề tài chưa hoàn thiện, không đảm bảo tiến độ hoặc vi phạm quy định.</div>
-                                            </div>
-                                        </Flex>
-                                    </Radio>
-                                </Space>
-                            </Radio.Group>
-                        </Form.Item>
-
-                        <Form.Item
-                            name="defenseGrade"
-                            label="Điểm đánh giá của GVHD (Thang điểm 10)"
-                            rules={[{ required: true, message: 'Vui lòng nhập điểm đánh giá' }]}
-                        >
-                            <InputNumber
-                                min={0}
-                                max={10}
-                                step={0.1}
-                                precision={2}
-                                style={{ width: 180 }}
-                                placeholder="Ví dụ: 8.5"
-                            />
-                        </Form.Item>
-
-                        <Form.Item
-                            name="reviewContent"
-                            label="Nhận xét chi tiết của GVHD (Nội dung biểu mẫu BM04)"
-                            rules={[{ required: true, message: 'Vui lòng nhập nhận xét chi tiết' }]}
-                        >
-                            <Input.TextArea
-                                rows={4}
-                                placeholder="Nhận xét về tinh thần thái độ, năng lực thực hiện, kết quả đạt được, đóng góp mới của đề tài..."
-                            />
-                        </Form.Item>
-
-                        <Form.Item
-                            name="feedback"
-                            label="Dặn dò / Khuyến nghị thêm cho sinh viên trước buổi bảo vệ (Tùy chọn)"
-                        >
-                            <Input.TextArea
-                                rows={2}
-                                placeholder="Ví dụ: Cần chuẩn bị kỹ slide phần demo kiến trúc hệ thống và mang theo video backup..."
-                            />
-                        </Form.Item>
-
-                        <Flex justify="flex-end" gap={12} style={{ marginTop: 16 }}>
-                            <Button onClick={() => setBm04ModalOpen(false)}>Hủy</Button>
-                            <Button
-                                type="primary"
-                                htmlType="submit"
-                                loading={bm04Submitting}
-                                icon={<SafetyCertificateOutlined />}
-                                style={{ backgroundColor: '#10b981', borderColor: '#10b981' }}
-                            >
-                                Xác Nhận & Ký Phiếu BM04
-                            </Button>
-                        </Flex>
-                    </Form>
-                </div>
-            </Modal>
+            />
 
             {/* BM Review Drawer */}
             <BMReviewDrawer

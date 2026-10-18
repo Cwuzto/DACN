@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { message, Table, Tag, Tooltip, Progress, Button, Space } from 'antd';
+import { message, Table, Tag, Tooltip, Progress, Button, Space, Modal, Input } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import {
     PlusOutlined,
@@ -13,6 +13,7 @@ import {
 import dayjs from 'dayjs';
 
 import dashboardService from '../../services/dashboardService';
+import registrationService from '../../services/registrationService';
 import useAuthStore from '../../stores/authStore';
 import PageHeader from '../../components/common/PageHeader';
 import StatCard from '../../components/common/StatCard';
@@ -31,15 +32,26 @@ function LecturerDashboardPage() {
     });
     const [recentSubmissions, setRecentSubmissions] = useState([]);
     const [timelineEvents, setTimelineEvents] = useState([]);
+    const [pendingAdjustments, setPendingAdjustments] = useState([]);
+    const [adjustModalOpen, setAdjustModalOpen] = useState(false);
+    const [reviewingAdjustment, setReviewingAdjustment] = useState(null);
+    const [adjustReviewComment, setAdjustReviewComment] = useState('');
+    const [adjustSubmitting, setAdjustSubmitting] = useState(false);
 
     const fetchDashboardInfo = async () => {
         try {
             setLoading(true);
-            const res = await dashboardService.getLecturerStats();
+            const [res, adjustRes] = await Promise.all([
+                dashboardService.getLecturerStats(),
+                registrationService.getPendingTitleAdjustments().catch(() => ({ success: false, data: [] })),
+            ]);
             if (res.success) {
                 setStats(res.data.stats || {});
                 setRecentSubmissions(res.data.recentSubmissions || []);
                 setTimelineEvents(res.data.timelineEvents || []);
+            }
+            if (adjustRes.success) {
+                setPendingAdjustments(adjustRes.data || []);
             }
         } catch (error) {
             message.error(error.message || 'Lỗi tải dashboard giảng viên');
@@ -152,6 +164,28 @@ function LecturerDashboardPage() {
         },
     ];
 
+    const handleReviewAdjustment = async (decision) => {
+        if (!reviewingAdjustment) return;
+        try {
+            setAdjustSubmitting(true);
+            const res = await registrationService.reviewTitleAdjustment(reviewingAdjustment.id, {
+                status: decision,
+                reviewComment: adjustReviewComment.trim() || undefined,
+            });
+            if (res.success) {
+                message.success(decision === 'APPROVED' ? 'Đã phê duyệt đổi tên đề tài!' : 'Đã từ chối đơn đổi tên đề tài.');
+                setAdjustModalOpen(false);
+                setReviewingAdjustment(null);
+                setAdjustReviewComment('');
+                fetchDashboardInfo();
+            }
+        } catch (error) {
+            message.error(error.message || 'Không thể xử lý đơn đổi tên');
+        } finally {
+            setAdjustSubmitting(false);
+        }
+    };
+
     return (
         <div className="py-2 space-y-5">
             <PageHeader
@@ -189,6 +223,50 @@ function LecturerDashboardPage() {
                     </Space>
                 }
             />
+
+            {/* Banner: Đơn xin đổi tên đề tài chờ duyệt (Cửa sổ 7 ngày) */}
+            {pendingAdjustments.length > 0 && (
+                <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 shadow-2xs space-y-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div className="flex items-center gap-2">
+                            <span className="material-symbols-outlined text-purple-700 text-xl">edit_document</span>
+                            <h3 className="font-bold text-purple-900 text-sm">
+                                Đơn xin đổi tên đề tài chờ bạn phê duyệt ({pendingAdjustments.length} đơn)
+                            </h3>
+                        </div>
+                        <Tag color="purple" className="font-semibold text-xs">
+                            Cửa sổ 7 ngày sau Quyết định Viện
+                        </Tag>
+                    </div>
+                    <div className="divide-y divide-purple-100">
+                        {pendingAdjustments.map((adj) => (
+                            <div key={adj.id} className="py-2.5 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+                                <div className="space-y-0.5">
+                                    <p className="font-bold text-slate-800">
+                                        {adj.registration?.student?.fullName} ({adj.registration?.student?.code})
+                                    </p>
+                                    <p className="text-slate-600">
+                                        Tên cũ: <span className="line-through text-slate-400">{adj.oldTitle}</span> &rarr; Tên mới: <b className="text-purple-800">{adj.newTitle}</b>
+                                    </p>
+                                    <p className="text-slate-500 italic">Lý do: {adj.reason}</p>
+                                </div>
+                                <Button
+                                    size="small"
+                                    type="primary"
+                                    className="!bg-purple-600 hover:!bg-purple-700 self-start md:self-center"
+                                    onClick={() => {
+                                        setReviewingAdjustment(adj);
+                                        setAdjustReviewComment('');
+                                        setAdjustModalOpen(true);
+                                    }}
+                                >
+                                    Phê duyệt / Từ chối
+                                </Button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* 4 StatCards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -339,6 +417,59 @@ function LecturerDashboardPage() {
                     </div>
                 </div>
             </div>
+
+            {/* Modal Phê duyệt Đơn đổi tên đề tài */}
+            <Modal
+                title="Phê duyệt Đơn xin đổi tên đề tài"
+                open={adjustModalOpen}
+                onCancel={() => {
+                    setAdjustModalOpen(false);
+                    setReviewingAdjustment(null);
+                }}
+                footer={null}
+                destroyOnClose
+            >
+                {reviewingAdjustment && (
+                    <div className="space-y-4 py-2">
+                        <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs space-y-1.5">
+                            <div><strong>Sinh viên:</strong> {reviewingAdjustment.registration?.student?.fullName} ({reviewingAdjustment.registration?.student?.code})</div>
+                            <div><strong>Tên hiện tại:</strong> {reviewingAdjustment.oldTitle}</div>
+                            <div><strong>Tên đề xuất mới:</strong> <b className="text-purple-700">{reviewingAdjustment.newTitle}</b></div>
+                            <div><strong>Lý do điều chỉnh:</strong> {reviewingAdjustment.reason}</div>
+                        </div>
+
+                        <div>
+                            <label className="text-xs font-semibold text-slate-700 block mb-1">
+                                Ý kiến phản hồi của GVHD (Tùy chọn)
+                            </label>
+                            <Input.TextArea
+                                rows={3}
+                                value={adjustReviewComment}
+                                onChange={(e) => setAdjustReviewComment(e.target.value)}
+                                placeholder="Góp ý cho sinh viên hoặc lý do từ chối (nếu có)..."
+                            />
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                            <Button
+                                danger
+                                loading={adjustSubmitting}
+                                onClick={() => handleReviewAdjustment('REJECTED')}
+                            >
+                                Từ chối
+                            </Button>
+                            <Button
+                                type="primary"
+                                loading={adjustSubmitting}
+                                className="!bg-emerald-600 hover:!bg-emerald-700"
+                                onClick={() => handleReviewAdjustment('APPROVED')}
+                            >
+                                Đồng ý đổi tên
+                            </Button>
+                        </div>
+                    </div>
+                )}
+            </Modal>
         </div>
     );
 }

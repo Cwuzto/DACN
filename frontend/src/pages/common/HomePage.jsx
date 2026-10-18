@@ -58,10 +58,10 @@ const ROADMAP_STAGES = [
         duration: 'Tuần 3 - 4',
         color: '#7c3aed', // purple
         icon: 'fact_check',
-        summary: 'Nộp đề cương BM01 cho Hội đồng thẩm định. Tinh chỉnh thành BM02 trình Viện trưởng phê duyệt, hoặc xét cơ chế Miễn thẩm định (Bypass).',
+        summary: 'Nộp đề cương BM01 cho Hội đồng thẩm định. Sau khi Đạt, hoàn thiện BM02 trình Viện trưởng ban hành Quyết định giao đề tài.',
         actors: 'Sinh viên, Hội đồng thẩm định, Viện trưởng',
-        deliverables: 'Biểu mẫu BM01, BM02 đã ký số/phê duyệt',
-        rules: 'Đề tài đạt yêu cầu hoặc được Miễn thẩm định sẽ chuyển sang trạng thái IN_PROGRESS để thực hiện.',
+        deliverables: 'Biểu mẫu BM01, BM02, Quyết định giao đề tài',
+        rules: 'Đề tài đạt thẩm định và có Quyết định sẽ chuyển sang IN_PROGRESS (kèm quyền xin đổi tên trong 7 ngày).',
     },
     {
         step: '03',

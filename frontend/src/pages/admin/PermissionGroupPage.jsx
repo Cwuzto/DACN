@@ -313,26 +313,26 @@ function PermissionGroupPage() {
                 />
                 <StatCard
                     icon="key"
-                    iconBg="bg-blue-50"
-                    iconColor="text-blue-600"
+                    iconBg="bg-teal-50"
+                    iconColor="text-teal-700"
                     label="Tổng permission"
                     value={allPermissions.length}
                 />
                 <StatCard
                     icon="hub"
                     iconBg="bg-emerald-50"
-                    iconColor="text-emerald-600"
+                    iconColor="text-emerald-700"
                     label="Module nghiệp vụ"
                     value={new Set(allPermissions.map((p) => p.module)).size}
                 />
             </div>
 
             {/* Data Table Card */}
-            <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-4 lg:p-6 space-y-4">
+            <div className="bg-white rounded-lg border border-slate-200 shadow-xs p-4 lg:p-6 space-y-4">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <SafetyCertificateOutlined className="text-indigo-600 text-lg" />
-                        <span className="text-sm font-bold text-slate-800">
+                        <SafetyCertificateOutlined className="text-[#0F766E] text-lg" />
+                        <span className="text-sm font-semibold text-slate-800">
                             Danh sách Nhóm quyền phân cấp
                         </span>
                     </div>
@@ -341,7 +341,7 @@ function PermissionGroupPage() {
                     </span>
                 </div>
 
-                <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+                <div className="border border-slate-200 rounded-lg overflow-hidden shadow-xs">
                     <Table
                         dataSource={groups}
                         rowKey="id"

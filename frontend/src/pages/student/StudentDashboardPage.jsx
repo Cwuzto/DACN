@@ -18,14 +18,29 @@ import PageHeader from '../../components/common/PageHeader';
 import PageLoader from '../../components/common/PageLoader';
 import StatCard from '../../components/common/StatCard';
 
-const ACTIVE_FLOW_STATUSES = ['APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'DEFENDED', 'COMPLETED'];
-const WITHDRAWABLE_STATUSES = ['APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'DEFENDED', 'COMPLETED'];
+import TitleAdjustmentModal from '../../components/student/TitleAdjustmentModal';
+
+const ACTIVE_FLOW_STATUSES = [
+    'APPROVED',
+    'BM01_SUBMITTED',
+    'BM01_PASSED',
+    'BM01_NEEDS_REVISION',
+    'BM02_SUBMITTED',
+    'DECISION_ISSUED',
+    'IN_PROGRESS_BM03',
+    'BM03_PASSED',
+    'DEFENSE_READY',
+    'DEFENDED',
+    'COMPLETED',
+    'TERMINATED_FAILED_PROGRESS',
+];
+const WITHDRAWABLE_STATUSES = ['APPROVED', 'BM01_SUBMITTED', 'BM01_PASSED', 'BM01_NEEDS_REVISION', 'BM02_SUBMITTED'];
 
 const MILESTONES = [
     { key: 'REGISTRATION', label: '1. Đăng ký', sub: 'Duyệt đề tài' },
     { key: 'BM01', label: '2. BM01', sub: 'Đề cương' },
-    { key: 'BM02', label: '3. BM02', sub: 'Giao nhiệm vụ' },
-    { key: 'BM03', label: '4. BM03', sub: 'Báo cáo tiến độ' },
+    { key: 'BM02', label: '3. BM02', sub: 'Quyết định Viện' },
+    { key: 'BM03', label: '4. BM03', sub: '2 Checkpoint' },
     { key: 'BM04', label: '5. BM04', sub: 'Đánh giá GVHD' },
     { key: 'DEFENSE', label: '6. Bảo vệ', sub: 'Hội đồng chấm' },
 ];
@@ -39,6 +54,7 @@ function StudentDashboardPage() {
     const [withdrawModalOpen, setWithdrawModalOpen] = useState(false);
     const [withdrawReason, setWithdrawReason] = useState('');
     const [withdrawing, setWithdrawing] = useState(false);
+    const [titleModalOpen, setTitleModalOpen] = useState(false);
 
     const fetchDashboardData = async () => {
         try {
@@ -84,7 +100,18 @@ function StudentDashboardPage() {
         if (status === 'REJECTED') return <Tag color="error">Bị từ chối</Tag>;
         if (status === 'DROPPED') return <Tag color="default">Đã hủy</Tag>;
         if (status === 'WITHDRAWN') return <Tag color="orange">Đã rút đề tài</Tag>;
-        if (status === 'COMPLETED') return <Tag color="success">Đã hoàn thành</Tag>;
+        if (status === 'APPROVED') return <Tag color="processing">Đã nhận đề tài</Tag>;
+        if (status === 'BM01_SUBMITTED') return <Tag color="blue">Chờ duyệt đề cương BM01</Tag>;
+        if (status === 'BM01_PASSED') return <Tag color="success">Đề cương Đạt (Chuẩn bị BM02)</Tag>;
+        if (status === 'BM01_NEEDS_REVISION') return <Tag color="error">BM01 Cần chỉnh sửa</Tag>;
+        if (status === 'BM02_SUBMITTED') return <Tag color="cyan">Chờ Quyết định Viện</Tag>;
+        if (status === 'DECISION_ISSUED') return <Tag color="purple">Đã có QĐ (Cửa sổ 7 ngày đổi tên)</Tag>;
+        if (status === 'IN_PROGRESS_BM03') return <Tag color="processing">Đang thực hiện BM03</Tag>;
+        if (status === 'BM03_PASSED') return <Tag color="geekblue">Đạt BM03 (Chờ BM04)</Tag>;
+        if (status === 'DEFENSE_READY') return <Tag color="success">Đủ điều kiện bảo vệ</Tag>;
+        if (status === 'DEFENDED') return <Tag color="gold">Đã bảo vệ</Tag>;
+        if (status === 'COMPLETED') return <Tag color="success">Hoàn thành đồ án</Tag>;
+        if (status === 'TERMINATED_FAILED_PROGRESS') return <Tag color="red">Dừng do trượt tiến độ</Tag>;
         return <Tag color="processing">Đang thực hiện</Tag>;
     };
 
@@ -238,6 +265,124 @@ function StudentDashboardPage() {
                     >
                         Xem danh sách đề tài ngay
                     </Button>
+                </div>
+            )}
+
+            {/* Workflow Alerts */}
+            {currentRegistration?.status === 'DECISION_ISSUED' && currentRegistration?.decisionDate && (
+                (() => {
+                    const expiry = dayjs(currentRegistration.decisionDate).add(7, 'day');
+                    const isStillOpen = dayjs().isBefore(expiry);
+                    const hoursLeft = Math.max(0, expiry.diff(dayjs(), 'hour'));
+                    const daysLeft = Math.ceil(hoursLeft / 24);
+
+                    return (
+                        <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center flex-shrink-0 font-bold text-lg">
+                                    <ClockCircleOutlined />
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="text-xs font-bold uppercase tracking-wider text-purple-800 bg-purple-200/60 px-2 py-0.5 rounded">
+                                            CỬA SỔ 7 NGÀY ĐỔI TÊN ĐỀ TÀI
+                                        </span>
+                                        {isStillOpen ? (
+                                            <Tag color="purple" className="font-semibold text-xs">
+                                                Còn {daysLeft} ngày ({hoursLeft} giờ)
+                                            </Tag>
+                                        ) : (
+                                            <Tag color="default" className="text-xs">Đã hết hạn 7 ngày</Tag>
+                                        )}
+                                    </div>
+                                    <p className="text-xs text-purple-900 mt-1">
+                                        {currentRegistration.decisionNumber && <span>QĐ số: <b>{currentRegistration.decisionNumber}</b>. </span>}
+                                        {currentRegistration.adjustedTitle ? (
+                                            <span>Tên đề tài đã được cập nhật: <b>{currentRegistration.adjustedTitle}</b></span>
+                                        ) : (
+                                            <span>Trong vòng 7 ngày sau khi có Quyết định Viện, bạn được quyền nộp đơn xin điều chỉnh tên đề tài gửi GVHD duyệt trực tiếp.</span>
+                                        )}
+                                    </p>
+                                </div>
+                            </div>
+                            {isStillOpen && (
+                                <Button
+                                    type="primary"
+                                    onClick={() => setTitleModalOpen(true)}
+                                    className="self-start sm:self-center !bg-purple-600 hover:!bg-purple-700"
+                                >
+                                    Đơn xin đổi tên đề tài
+                                </Button>
+                            )}
+                        </div>
+                    );
+                })()
+            )}
+
+            {currentRegistration?.status === 'BM01_NEEDS_REVISION' && (
+                <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center flex-shrink-0 font-bold text-lg">
+                            <ExclamationCircleOutlined />
+                        </div>
+                        <div>
+                            <p className="text-sm font-bold text-amber-900">
+                                Đề cương BM01 cần chỉnh sửa theo yêu cầu của Hội đồng xét duyệt
+                            </p>
+                            <p className="text-xs text-amber-800 mt-0.5">
+                                Vui lòng chỉnh sửa nội dung/chức năng đề cương và nộp lại trên hệ thống để Giảng viên hướng dẫn thẩm định lại trước khi nộp BM02.
+                            </p>
+                        </div>
+                    </div>
+                    <Button
+                        type="primary"
+                        onClick={() => navigate('/student/submissions')}
+                        className="self-start sm:self-center !bg-amber-600 hover:!bg-amber-700"
+                    >
+                        Nộp lại đề cương BM01
+                    </Button>
+                </div>
+            )}
+
+            {currentRegistration?.status === 'DEFENSE_READY' && (
+                <div className="bg-emerald-50 border border-emerald-300 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center flex-shrink-0 font-bold text-lg">
+                            <CheckCircleOutlined />
+                        </div>
+                        <div>
+                            <p className="text-sm font-bold text-emerald-900">
+                                ĐỦ ĐIỀU KIỆN RA HỘI ĐỒNG BẢO VỆ TỐT NGHIỆP
+                            </p>
+                            <p className="text-xs text-emerald-800 mt-0.5">
+                                Giảng viên hướng dẫn đã đánh giá ĐỒNG Ý trong Phiếu nhận xét BM04. Đề tài của bạn đã sẵn sàng để Ban Quản Trị xếp lịch bảo vệ.
+                            </p>
+                        </div>
+                    </div>
+                    <Button
+                        onClick={() => navigate('/student/submissions')}
+                        className="self-start sm:self-center border-emerald-500 text-emerald-800 hover:bg-emerald-100"
+                    >
+                        Xem phiếu BM04
+                    </Button>
+                </div>
+            )}
+
+            {currentRegistration?.status === 'TERMINATED_FAILED_PROGRESS' && (
+                <div className="bg-rose-50 border border-rose-300 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center flex-shrink-0 font-bold text-lg">
+                            <ExclamationCircleOutlined />
+                        </div>
+                        <div>
+                            <p className="text-sm font-bold text-rose-900">
+                                ĐỀ TÀI ĐÃ BỊ DỪNG THỰC HIỆN DO KHÔNG ĐẠT TIẾN ĐỘ
+                            </p>
+                            <p className="text-xs text-rose-800 mt-0.5">
+                                Theo quy chế, kết quả đánh giá Checkpoint tiến độ BM03 không đạt yêu cầu. Đề tài bị dừng và sinh viên không đủ điều kiện ra bảo vệ trong đợt này.
+                            </p>
+                        </div>
+                    </div>
                 </div>
             )}
 
@@ -468,6 +613,16 @@ function StudentDashboardPage() {
                     />
                 </div>
             </Modal>
+
+            {/* Title Adjustment Modal (7-day window) */}
+            <TitleAdjustmentModal
+                visible={titleModalOpen}
+                onClose={() => setTitleModalOpen(false)}
+                registration={currentRegistration ? { ...currentRegistration, id: currentRegistration.registrationId } : null}
+                onSuccess={() => {
+                    fetchDashboardData();
+                }}
+            />
         </div>
     );
 }

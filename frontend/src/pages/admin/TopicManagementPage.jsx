@@ -361,7 +361,7 @@ function TopicManagementPage() {
                 }
             />
 
-            <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-lg border border-slate-200 shadow-xs overflow-hidden">
                 <Tabs
                     activeKey={activeTab}
                     onChange={handleTabChange}

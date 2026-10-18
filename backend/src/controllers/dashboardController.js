@@ -541,9 +541,13 @@ const getStudentDashboard = async (req, res, next) => {
                 registrationDetails: {
                     registrationId: registration.id,
                     status: registration.status,
+                    decisionNumber: registration.decisionNumber,
+                    decisionDate: registration.decisionDate,
+                    adjustedTitle: registration.adjustedTitle,
                     topic: registration.topic
                         ? {
-                            title: registration.topic.title,
+                            title: registration.adjustedTitle || registration.topic.title,
+                            originalTitle: registration.topic.title,
                             mentorName: registration.topic.mentor?.fullName || 'Chưa rõ',
                             topicCode: `DT-${String(registration.topic.id).padStart(3, '0')}`,
                         }

@@ -498,25 +498,25 @@ function UserManagementPage() {
                         <div
                             key={section.role}
                             onClick={() => setActiveRole(section.role)}
-                            className={`cursor-pointer rounded-xl border p-4 transition-all duration-200 flex items-center justify-between ${
+                            className={`cursor-pointer rounded-lg border p-4 transition-all flex items-center justify-between ${
                                 isSelected
-                                    ? 'bg-white border-primary shadow-sm ring-2 ring-primary/10'
-                                    : 'bg-white border-slate-200/80 hover:border-slate-300 hover:shadow-xs'
+                                    ? 'bg-white border-[#0F766E] shadow-xs ring-2 ring-[#0F766E]/15'
+                                    : 'bg-white border-slate-200 hover:border-slate-300'
                             }`}
                         >
                             <div className="flex items-center gap-3.5">
-                                <div className={`w-12 h-12 rounded-xl ${section.bg} ${section.color} flex items-center justify-center shrink-0`}>
-                                    <span className="material-symbols-outlined text-[24px]">{section.icon}</span>
+                                <div className={`w-11 h-11 rounded-lg ${section.bg} ${section.color} flex items-center justify-center shrink-0 border border-black/5`}>
+                                    <span className="material-symbols-outlined text-[22px]">{section.icon}</span>
                                 </div>
                                 <div>
-                                    <p className="text-xs uppercase tracking-wider font-bold text-slate-500">{section.label}</p>
-                                    <p className="text-2xl font-black text-slate-900 mt-0.5">
+                                    <p className="text-[11px] uppercase tracking-wider font-semibold text-slate-500">{section.label}</p>
+                                    <p className="text-2xl font-bold text-slate-900 mt-0.5">
                                         {roleCounts[section.role] || 0}
                                     </p>
                                 </div>
                             </div>
                             {isSelected && (
-                                <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-1 rounded-md">
+                                <span className="text-xs font-semibold text-[#0F766E] bg-[#F0FDFA] border border-[#99F6E4] px-2 py-0.5 rounded">
                                     Đang xem
                                 </span>
                             )}
@@ -526,7 +526,7 @@ function UserManagementPage() {
             </div>
 
             {/* Filter Toolbar & Data Table Card */}
-            <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-4 lg:p-6 space-y-4">
+            <div className="bg-white rounded-lg border border-slate-200 shadow-xs p-4 lg:p-6 space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex flex-wrap items-center gap-3 flex-1">
                         <Input

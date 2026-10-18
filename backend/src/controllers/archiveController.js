@@ -30,7 +30,7 @@ const getArchiveByRegistration = async (req, res, next) => {
                 topic: {
                     include: {
                         mentor: { select: { id: true, fullName: true, code: true, email: true, academicTitle: true } },
-                        semester: { select: { id: true, name: true, academicYear: true } },
+                        semester: { select: { id: true, name: true, startDate: true, endDate: true } },
                         projectCatalog: { select: { id: true, name: true } },
                     },
                 },
@@ -328,7 +328,7 @@ const getAllArchives = async (req, res, next) => {
                             topic: {
                                 include: {
                                     mentor: { select: { id: true, fullName: true, code: true, academicTitle: true } },
-                                    semester: { select: { id: true, name: true, academicYear: true } },
+                                    semester: { select: { id: true, name: true, startDate: true, endDate: true } },
                                     projectCatalog: { select: { id: true, name: true } },
                                 },
                             },
@@ -370,7 +370,7 @@ const getClearanceCertificate = async (req, res, next) => {
                 topic: {
                     include: {
                         mentor: { select: { id: true, fullName: true, code: true, academicTitle: true } },
-                        semester: { select: { id: true, name: true, academicYear: true } },
+                        semester: { select: { id: true, name: true, startDate: true, endDate: true } },
                         projectCatalog: { select: { id: true, name: true } },
                     },
                 },
@@ -423,7 +423,9 @@ const getClearanceCertificate = async (req, res, next) => {
                     title: registration.topic?.title,
                     courseName: registration.topic?.projectCatalog?.name || 'Khóa luận tốt nghiệp',
                     semester: registration.topic?.semester?.name,
-                    academicYear: registration.topic?.semester?.academicYear,
+                    academicYear: (registration.topic?.semester?.startDate && registration.topic?.semester?.endDate)
+                        ? `${new Date(registration.topic.semester.startDate).getFullYear()} - ${new Date(registration.topic.semester.endDate).getFullYear()}`
+                        : registration.topic?.semester?.name || `${year} - ${year + 1}`,
                 },
                 mentor: {
                     fullName: registration.topic?.mentor?.fullName,

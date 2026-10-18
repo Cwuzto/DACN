@@ -25,6 +25,7 @@ export default function BMReviewDrawer({
     const [form] = Form.useForm();
     const [submitting, setSubmitting] = useState(false);
     const [decision, setDecision] = useState('COMPLETED');
+    const isCheckpoint = task?.taskType === 'BM03_CHECKPOINT_1' || task?.taskType === 'BM03_CHECKPOINT_2';
 
     const submissions = task?.submissions || [];
     const latestSubmission = submissions.length > 0 ? submissions[0] : null;
@@ -162,6 +163,17 @@ export default function BMReviewDrawer({
                         Đánh giá & Nhận xét của Giảng viên hướng dẫn
                     </div>
 
+                    {isCheckpoint && (
+                        <Alert
+                            type="warning"
+                            showIcon
+                            icon={<ExclamationCircleOutlined className="text-rose-600" />}
+                            message={<span className="font-bold text-rose-900 text-xs">CẢNH BÁO QUY CHẾ CHECKPOINT TIẾN ĐỘ BẮT BUỘC</span>}
+                            description="Đồ án gồm 2 đợt Checkpoint tiến độ. Chỉ có 2 kết quả: ĐẠT hoặc KHÔNG ĐẠT. Nếu đánh giá KHÔNG ĐẠT, hệ thống sẽ DỪNG THỰC HIỆN ĐỀ TÀI NGAY LẬP TỨC (TERMINATED_FAILED_PROGRESS) và sinh viên không đủ điều kiện ra bảo vệ."
+                            className="mb-4 border-rose-300 bg-rose-50/70"
+                        />
+                    )}
+
                     <Form form={form} layout="vertical" onFinish={handleFinish}>
                         <Form.Item label={<span className="font-semibold text-slate-700">Kết quả đánh giá</span>} required>
                             <Radio.Group
@@ -175,37 +187,50 @@ export default function BMReviewDrawer({
                                         decision === 'COMPLETED' ? '!bg-emerald-50 !border-emerald-500 !text-emerald-700 font-bold' : '!border-slate-200'
                                     }`}
                                 >
-                                    <CheckCircleOutlined className="mr-1.5 text-emerald-600" /> Phê duyệt (Đạt)
+                                    <CheckCircleOutlined className="mr-1.5 text-emerald-600" /> {isCheckpoint ? 'ĐẠT Tiến Độ' : 'Phê duyệt (Đạt)'}
                                 </Radio.Button>
 
-                                <Radio.Button
-                                    value="REVISION"
-                                    className={`!h-11 !flex !items-center !justify-center !rounded-xl !border ${
-                                        decision === 'REVISION' ? '!bg-amber-50 !border-amber-500 !text-amber-700 font-bold' : '!border-slate-200'
-                                    }`}
-                                >
-                                    <CloseCircleOutlined className="mr-1.5 text-amber-600" /> Yêu cầu sửa lại
-                                </Radio.Button>
+                                {isCheckpoint ? (
+                                    <Radio.Button
+                                        value="FAILED"
+                                        className={`!h-11 !flex !items-center !justify-center !rounded-xl !border ${
+                                            decision === 'FAILED' ? '!bg-rose-50 !border-rose-500 !text-rose-700 font-bold' : '!border-slate-200'
+                                        }`}
+                                    >
+                                        <CloseCircleOutlined className="mr-1.5 text-rose-600" /> KHÔNG ĐẠT (Dừng đề tài)
+                                    </Radio.Button>
+                                ) : (
+                                    <Radio.Button
+                                        value="REVISION"
+                                        className={`!h-11 !flex !items-center !justify-center !rounded-xl !border ${
+                                            decision === 'REVISION' ? '!bg-amber-50 !border-amber-500 !text-amber-700 font-bold' : '!border-slate-200'
+                                        }`}
+                                    >
+                                        <CloseCircleOutlined className="mr-1.5 text-amber-600" /> Yêu cầu sửa lại
+                                    </Radio.Button>
+                                )}
                             </Radio.Group>
                         </Form.Item>
 
                         <Form.Item
                             name="feedback"
                             label={<span className="font-semibold text-slate-700">Nhận xét / Góp ý chi tiết</span>}
-                            rules={[{ required: decision === 'REVISION', message: 'Vui lòng nhập nhận xét khi yêu cầu sửa' }]}
+                            rules={[{ required: decision === 'REVISION' || decision === 'FAILED', message: decision === 'FAILED' ? 'Bắt buộc nhập lý do đánh giá không đạt' : 'Vui lòng nhập nhận xét khi yêu cầu sửa' }]}
                         >
                             <TextArea
                                 rows={4}
                                 placeholder={
                                     decision === 'COMPLETED'
                                         ? 'Nhập lời khen hoặc dặn dò cho bước tiếp theo (tùy chọn)...'
-                                        : 'Chỉ rõ các điểm sinh viên cần bổ sung, chỉnh sửa hoặc làm lại...'
+                                        : decision === 'FAILED'
+                                            ? 'Nêu rõ lý do không đạt yêu cầu tiến độ, khối lượng công việc chưa hoàn thành...'
+                                            : 'Chỉ rõ các điểm sinh viên cần bổ sung, chỉnh sửa hoặc làm lại...'
                                 }
                                 className="rounded-lg text-sm"
                             />
                         </Form.Item>
 
-                        {decision === 'REVISION' && (
+                        {!isCheckpoint && decision === 'REVISION' && (
                             <Form.Item
                                 name="newDueDate"
                                 label={<span className="font-semibold text-slate-700">Gia hạn nộp lại (mới)</span>}
@@ -228,11 +253,16 @@ export default function BMReviewDrawer({
                                 type="primary"
                                 htmlType="submit"
                                 loading={submitting}
+                                danger={decision === 'FAILED'}
                                 className={`rounded-lg px-6 font-semibold shadow-sm ${
-                                    decision === 'COMPLETED' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-amber-600 hover:bg-amber-700'
+                                    decision === 'COMPLETED' ? 'bg-emerald-600 hover:bg-emerald-700' : decision === 'FAILED' ? '' : 'bg-amber-600 hover:bg-amber-700'
                                 }`}
                             >
-                                {decision === 'COMPLETED' ? 'Xác nhận Duyệt Đạt' : 'Gửi Yêu cầu Sửa'}
+                                {decision === 'COMPLETED'
+                                    ? isCheckpoint ? 'Xác nhận ĐẠT Checkpoint' : 'Xác nhận Duyệt Đạt'
+                                    : decision === 'FAILED'
+                                        ? 'Xác nhận KHÔNG ĐẠT (Dừng đề tài)'
+                                        : 'Gửi Yêu cầu Sửa'}
                             </Button>
                         </div>
                     </Form>

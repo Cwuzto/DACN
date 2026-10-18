@@ -1,13 +1,13 @@
 import React from 'react';
 
 /**
- * StatCard — Swiss Modernism 2.0 Unified KPI & Metric Card
+ * StatCard — Nordic Institute Clean KPI Metric Card
  * Displays high-contrast metrics with semantic status colors and optional trend indicator.
  */
 export default function StatCard({
     icon,
-    iconBg = 'bg-blue-50',
-    iconColor = 'text-blue-600',
+    iconBg = 'bg-teal-50',
+    iconColor = 'text-teal-700',
     label,
     value,
     description,
@@ -20,33 +20,33 @@ export default function StatCard({
     return (
         <div
             onClick={onClick}
-            className={`bg-white rounded-xl border border-slate-200/80 p-5 shadow-sm transition-all duration-200 ${
+            className={`bg-white rounded-lg border border-slate-200 p-4 sm:p-5 shadow-xs transition-all duration-150 ${
                 isClickable
-                    ? 'cursor-pointer hover:shadow-md hover:border-slate-300 active:scale-[0.99]'
-                    : 'hover:shadow-md'
+                    ? 'cursor-pointer hover:border-teal-600/70 hover:shadow-sm active:scale-[0.995]'
+                    : 'hover:border-slate-300'
             } ${className}`}
         >
-            <div className="flex items-center justify-between gap-3 mb-3">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">
+            <div className="flex items-center justify-between gap-3 mb-2.5">
+                <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider truncate">
                     {label}
                 </span>
-                <div className={`w-9 h-9 ${iconBg} rounded-lg flex items-center justify-center shrink-0`}>
-                    <span className={`material-symbols-outlined text-[20px] ${iconColor}`}>
+                <div className={`w-8 h-8 ${iconBg} rounded-md flex items-center justify-center shrink-0 border border-black/5`}>
+                    <span className={`material-symbols-outlined text-[19px] ${iconColor}`}>
                         {icon}
                     </span>
                 </div>
             </div>
 
             <div className="flex items-baseline justify-between gap-2">
-                <p className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight leading-none">
+                <p className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight leading-none">
                     {value}
                 </p>
                 {trend && (
                     <span
-                        className={`inline-flex items-center text-xs font-bold px-2 py-0.5 rounded-full ${
+                        className={`inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded ${
                             trend.isPositive
-                                ? 'bg-emerald-50 text-emerald-700'
-                                : 'bg-rose-50 text-rose-700'
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : 'bg-rose-50 text-rose-700 border border-rose-200'
                         }`}
                     >
                         {trend.isPositive ? '↑' : '↓'} {trend.value}
@@ -55,7 +55,7 @@ export default function StatCard({
             </div>
 
             {description && (
-                <p className="text-xs text-slate-400 font-normal mt-2.5 leading-snug">
+                <p className="text-xs text-slate-400 font-normal mt-2 leading-relaxed">
                     {description}
                 </p>
             )}

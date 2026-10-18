@@ -38,7 +38,6 @@ import {
     StopOutlined,
     SwapOutlined,
     TeamOutlined,
-    ThunderboltOutlined,
     WarningOutlined,
     YoutubeOutlined,
 } from '@ant-design/icons';
@@ -131,34 +130,6 @@ function ProjectOversightPage() {
     const [certModalOpen, setCertModalOpen] = useState(false);
     const [certificateData, setCertificateData] = useState(null);
     const [certLoading, setCertLoading] = useState(false);
-
-    // Bypass BM01/BM02 states
-    const [isBypassModalOpen, setIsBypassModalOpen] = useState(false);
-    const [bypassTarget, setBypassTarget] = useState(null);
-    const [bypassReason, setBypassReason] = useState('Được miễn thẩm định theo quyết định của Viện / Khoa (Đề tài NCKH nghiệm thu)');
-    const [bypassLoading, setBypassLoading] = useState(false);
-
-    const handleConfirmBypass = async () => {
-        if (!bypassTarget?.registration?.id) return;
-        if (!bypassReason.trim()) {
-            message.warning('Vui lòng nhập lý do miễn thẩm định.');
-            return;
-        }
-        setBypassLoading(true);
-        try {
-            const res = await registrationService.bypassOutlineReview(bypassTarget.registration.id, bypassReason.trim());
-            if (res.success) {
-                message.success('Đã phê duyệt miễn thẩm định đề cương (Bypass BM01-BM02) thành công!');
-                setIsBypassModalOpen(false);
-                setBypassTarget(null);
-                fetchData();
-            }
-        } catch (err) {
-            message.error(err.message || 'Lỗi khi miễn thẩm định đề cương');
-        } finally {
-            setBypassLoading(false);
-        }
-    };
 
     const fetchHealthRadar = async (semId) => {
         try {
@@ -506,10 +477,9 @@ function ProjectOversightPage() {
         // BM01: Đề cương
         let bm01Color = 'bg-slate-100 text-slate-400 border-slate-200';
         let bm01Tooltip = 'BM01: Chưa thẩm định đề cương';
-        const isBypassed = reg.outlineFeedback?.includes('MIỄN THẨM ĐỊNH') || reg.outlineFeedback?.includes('BYPASS');
         if (reg.outlineReviewStatus === 'PASSED') {
-            bm01Color = isBypassed ? 'bg-purple-100 text-purple-800 border-purple-300' : 'bg-emerald-100 text-emerald-800 border-emerald-300';
-            bm01Tooltip = isBypassed ? `BM01: Đã miễn thẩm định đề cương (${reg.outlineFeedback})` : 'BM01: Đề cương ĐẠT thẩm định';
+            bm01Color = 'bg-emerald-100 text-emerald-800 border-emerald-300';
+            bm01Tooltip = 'BM01: Đề cương ĐẠT thẩm định';
         } else if (reg.outlineReviewStatus === 'NEEDS_REVISION') {
             bm01Color = 'bg-amber-100 text-amber-800 border-amber-300';
             bm01Tooltip = 'BM01: Cần chỉnh sửa đề cương';
@@ -572,9 +542,6 @@ function ProjectOversightPage() {
             key: 'title',
             width: 380,
             render: (text, record) => {
-                const isTopicBypassed = record.registrationEvents?.some((r) =>
-                    r.outlineFeedback?.includes('MIỄN THẨM ĐỊNH') || r.outlineFeedback?.includes('BYPASS')
-                );
                 return (
                     <div className="space-y-1">
                         <Tooltip title={text}>
@@ -587,11 +554,6 @@ function ProjectOversightPage() {
                             <span className="text-xs text-slate-500 font-medium">
                                 {record.projectCatalog?.name || 'Đồ án'}
                             </span>
-                            {isTopicBypassed && (
-                                <Tag color="purple" className="text-[10px] leading-tight m-0 font-semibold">
-                                    Miễn thẩm định
-                                </Tag>
-                            )}
                         </div>
                     </div>
                 );
@@ -707,17 +669,6 @@ function ProjectOversightPage() {
                     label: 'Đổi GV hướng dẫn',
                 });
 
-                const activeReg = (record.registrationEvents || []).find(
-                    (r) => !['REJECTED', 'DROPPED', 'WITHDRAWN', 'COMPLETED'].includes(r.status)
-                );
-                if (activeReg && activeReg.outlineReviewStatus !== 'PASSED') {
-                    menuItems.push({
-                        key: 'BYPASS_OUTLINE',
-                        icon: <ThunderboltOutlined className="text-amber-500" />,
-                        label: 'Miễn thẩm định đề cương (Bypass)',
-                    });
-                }
-
                 menuItems.push({ type: 'divider' });
                 menuItems.push({
                     key: 'PROGRESS',
@@ -734,11 +685,6 @@ function ProjectOversightPage() {
                     if (key === 'REJECT') handleReject(record);
                     if (key === 'APPROVE' || key === 'ACTIVATE') handleApprove(record);
                     if (key === 'TRANSFER') openTransferModal(record);
-                    if (key === 'BYPASS_OUTLINE' && activeReg) {
-                        setBypassTarget({ registration: activeReg, topic: record });
-                        setBypassReason('Được miễn thẩm định theo quyết định của Viện / Khoa (Đề tài NCKH nghiệm thu)');
-                        setIsBypassModalOpen(true);
-                    }
                     if (key === 'PROGRESS') openProgressModal(record);
                     if (key === 'AUDIT') {
                         setAuditTopic(record);
@@ -1053,12 +999,12 @@ function ProjectOversightPage() {
             />
 
             {/* Health Radar Cảnh Báo Sớm Widget */}
-            <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-5 text-white shadow-md relative overflow-hidden">
+            <div className="bg-[#0A2540] border border-teal-900/40 rounded-lg p-5 text-white shadow-xs relative overflow-hidden">
                 <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                         <div className="flex items-center gap-2 mb-1">
-                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                            <span className="text-xs font-bold uppercase tracking-wider text-indigo-200">
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                            <span className="text-xs font-semibold uppercase tracking-wider text-teal-300">
                                 Health Radar • Hệ Thống Cảnh Báo Sớm Toàn Khóa
                             </span>
                         </div>
@@ -1653,66 +1599,6 @@ function ProjectOversightPage() {
                 certificateData={certificateData}
             />
 
-            {/* Modal Miễn Thẩm Định Đề Cương (Bypass BM01-BM02) */}
-            <Modal
-                title={
-                    <div className="flex items-center gap-2 text-base font-bold text-slate-800">
-                        <ThunderboltOutlined className="text-amber-500 text-lg" />
-                        <span>Xác nhận Miễn Thẩm Định Đề Cương (Bypass BM01-BM02)</span>
-                    </div>
-                }
-                open={isBypassModalOpen}
-                onOk={handleConfirmBypass}
-                confirmLoading={bypassLoading}
-                okText="Xác nhận Miễn Thẩm Định"
-                cancelText="Đóng"
-                okButtonProps={{ className: 'bg-amber-600 hover:bg-amber-500 font-semibold' }}
-                onCancel={() => {
-                    setIsBypassModalOpen(false);
-                    setBypassTarget(null);
-                }}
-            >
-                <div className="space-y-4 py-2">
-                    <Alert
-                        type="info"
-                        showIcon
-                        message="Đặc quyền Quản trị viện / Viện Trưởng"
-                        description="Hệ thống sẽ bỏ qua bước nộp và thẩm định BM01-BM02, chuyển thẳng đề tài sang trạng thái Đang thực hiện (IN_PROGRESS) và tự động khởi tạo các mốc BM03 Checkpoint."
-                    />
-                    {bypassTarget && (
-                        <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs space-y-1.5">
-                            <div>
-                                <span className="font-semibold text-slate-500">Tên đề tài:</span>{' '}
-                                <span className="font-bold text-slate-800">{bypassTarget.topic?.title}</span>
-                            </div>
-                            <div>
-                                <span className="font-semibold text-slate-500">Sinh viên:</span>{' '}
-                                <span className="font-medium text-slate-700">
-                                    {bypassTarget.registration?.student?.fullName || 'N/A'} (
-                                    {bypassTarget.registration?.student?.code || 'N/A'})
-                                </span>
-                            </div>
-                            <div>
-                                <span className="font-semibold text-slate-500">GV hướng dẫn:</span>{' '}
-                                <span className="font-medium text-slate-700">
-                                    {bypassTarget.topic?.mentor?.fullName || 'N/A'}
-                                </span>
-                            </div>
-                        </div>
-                    )}
-                    <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">
-                            Lý do miễn thẩm định đề cương (*):
-                        </label>
-                        <Input.TextArea
-                            rows={3}
-                            value={bypassReason}
-                            onChange={(e) => setBypassReason(e.target.value)}
-                            placeholder="Nhập lý do miễn thẩm định đề cương..."
-                        />
-                    </div>
-                </div>
-            </Modal>
         </div>
     );
 }

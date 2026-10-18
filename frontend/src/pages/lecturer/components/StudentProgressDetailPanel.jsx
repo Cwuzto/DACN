@@ -80,9 +80,7 @@ function StudentProgressDetailPanel({
     meetingLogs = [],
     openMeetingModal,
     handleDeleteMeetingLog,
-    handleBypassTask,
     openBM04Modal,
-    bypassingTaskId,
     // New props for Gói 2: Archive & Certificate
     archiveData = null,
     openArchiveReviewModal,
@@ -223,8 +221,6 @@ function StudentProgressDetailPanel({
                                                                 const latestSubmission = submissions.length > 0 ? submissions[submissions.length - 1] : null;
                                                                 const overdue = isOverdueTask(task);
                                                                 const dueText = task.dueDate ? new Date(task.dueDate).toLocaleString('vi-VN') : 'Không có hạn';
-                                                                const isBypassed = task.isBypassed;
-                                                                const canBypass = ['BM01', 'BM02'].includes(task.taskType) && !isBypassed && task.status !== 'COMPLETED';
 
                                                                 return (
                                                                     <List.Item>
@@ -232,32 +228,23 @@ function StudentProgressDetailPanel({
                                                                             size="small"
                                                                             style={{
                                                                                 width: '100%',
-                                                                                border: isBypassed ? '1px solid #d3adf7' : overdue ? '1px solid #ffa39e' : '1px solid #f0f0f0',
-                                                                                background: isBypassed ? '#f9f0ff' : overdue ? '#fff2f0' : '#fff',
+                                                                                border: overdue ? '1px solid #ffa39e' : '1px solid #f0f0f0',
+                                                                                background: overdue ? '#fff2f0' : '#fff',
                                                                             }}
                                                                         >
                                                                             <Flex justify="space-between" align="start" gap={8}>
                                                                                 <Flex vertical gap={6} style={{ flex: 1 }}>
                                                                                     <Flex align="center" gap={8} wrap="wrap">
                                                                                         <Text strong>{task.title}</Text>
-                                                                                        {isBypassed ? (
-                                                                                            <Tag color="purple" icon={<CheckCircleOutlined />}>Miễn thẩm định</Tag>
-                                                                                        ) : (
-                                                                                            <Tag color={statusColorMap[task.status] || 'default'}>
-                                                                                                {taskStatusOptions.find((opt) => opt.value === task.status)?.label || task.status}
-                                                                                            </Tag>
-                                                                                        )}
+                                                                                        <Tag color={statusColorMap[task.status] || 'default'}>
+                                                                                            {taskStatusOptions.find((opt) => opt.value === task.status)?.label || task.status}
+                                                                                        </Tag>
                                                                                         {task.taskType && (
                                                                                             <Tag color="blue">{task.taskType}</Tag>
                                                                                         )}
-                                                                                        {overdue && !isBypassed ? <Tag color="error">Quá hạn</Tag> : null}
+                                                                                        {overdue ? <Tag color="error">Quá hạn</Tag> : null}
                                                                                     </Flex>
                                                                                     {task.content && <Text type="secondary" style={{ fontSize: 13 }}>{task.content}</Text>}
-                                                                                    {isBypassed && (
-                                                                                        <Text type="secondary" style={{ fontSize: 12, color: '#722ed1' }}>
-                                                                                            Lý do miễn: {task.bypassReason || 'Miễn thẩm định theo quy định'}
-                                                                                        </Text>
-                                                                                    )}
                                                                                     <Text type="secondary" style={{ fontSize: 12 }}><ClockCircleOutlined /> Hạn nộp: {dueText}</Text>
                                                                                     {latestSubmission ? (
                                                                                         <Flex vertical gap={4}>
@@ -273,14 +260,14 @@ function StudentProgressDetailPanel({
                                                                                                 )}
                                                                                             </Flex>
                                                                                         </Flex>
-                                                                                    ) : !isBypassed ? (
+                                                                                    ) : (
                                                                                         <Tooltip title="Sinh viên chưa nộp bài">
                                                                                             <Text type="secondary" style={{ fontSize: 12 }}><FileTextOutlined /> Chưa nộp</Text>
                                                                                         </Tooltip>
-                                                                                    ) : null}
+                                                                                    )}
                                                                                 </Flex>
 
-                                                                                <Flex vertical gap={8} style={{ minWidth: 160 }} align="end">
+                                                                                <Flex vertical gap={8} style={{ minWidth: 140 }} align="end">
                                                                                     <Button
                                                                                         type="primary"
                                                                                         icon={<CheckCircleOutlined />}
@@ -290,17 +277,6 @@ function StudentProgressDetailPanel({
                                                                                     >
                                                                                         Xem & Đánh giá
                                                                                     </Button>
-                                                                                    {canBypass && (
-                                                                                        <Button
-                                                                                            icon={<FastForwardOutlined />}
-                                                                                            size="small"
-                                                                                            onClick={() => handleBypassTask && handleBypassTask(task)}
-                                                                                            loading={bypassingTaskId === task.id}
-                                                                                            className="text-purple-700 border-purple-300 hover:border-purple-500"
-                                                                                        >
-                                                                                            Miễn thẩm định
-                                                                                        </Button>
-                                                                                    )}
                                                                                 </Flex>
                                                                             </Flex>
                                                                         </Card>

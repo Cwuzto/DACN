@@ -26,6 +26,7 @@ import {
     PlusOutlined,
     CalendarOutlined,
     CheckCircleOutlined,
+    FileDoneOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
@@ -110,13 +111,13 @@ function PeriodTimeline({ milestones, status }) {
     );
 }
 
-function PeriodCard({ period, onEdit, onDelete, onClone }) {
+function PeriodCard({ period, onEdit, onDelete, onClone, onIssueDecision }) {
     const isCompleted = period.status === 'COMPLETED';
     const cfg = statusConfig[period.status] || statusConfig.UPCOMING;
 
     return (
         <div
-            className={`bg-white rounded-xl border border-slate-200/80 shadow-sm p-5 hover:shadow-md transition-all duration-200 ${
+            className={`bg-white rounded-lg border border-slate-200 shadow-xs p-5 hover:border-slate-300 transition-all duration-150 ${
                 isCompleted ? 'opacity-80 bg-slate-50/40' : ''
             }`}
         >
@@ -143,7 +144,7 @@ function PeriodCard({ period, onEdit, onDelete, onClone }) {
                 </div>
 
                 {/* Stats & Actions Strip */}
-                <div className="w-full xl:w-56 shrink-0 flex xl:flex-col items-center xl:items-end justify-between xl:justify-center gap-3 pt-3 xl:pt-0 border-t xl:border-t-0 border-slate-100">
+                <div className="w-full xl:w-64 shrink-0 flex xl:flex-col items-center xl:items-end justify-between xl:justify-center gap-3 pt-3 xl:pt-0 border-t xl:border-t-0 border-slate-100">
                     {period.status === 'UPCOMING' ? (
                         <p className="text-xs text-slate-400 italic">Chưa mở đợt</p>
                     ) : isCompleted ? (
@@ -160,7 +161,20 @@ function PeriodCard({ period, onEdit, onDelete, onClone }) {
                         </div>
                     )}
 
-                    <Space size="small">
+                    <Space size="small" wrap>
+                        {!isCompleted && onIssueDecision && (
+                            <Tooltip title="Ban hành Quyết định giao đề tài (kèm danh sách BM02)">
+                                <Button
+                                    type="primary"
+                                    icon={<FileDoneOutlined />}
+                                    size="small"
+                                    className="!bg-purple-600 hover:!bg-purple-700 font-medium"
+                                    onClick={() => onIssueDecision(period)}
+                                >
+                                    Ban hành QĐ
+                                </Button>
+                            </Tooltip>
+                        )}
                         <Tooltip title="Sao chép cấu hình">
                             <Button
                                 icon={<CopyOutlined />}
@@ -202,6 +216,42 @@ function ProjectPeriodPage() {
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [modalMode, setModalMode] = useState('add');
     const [form] = Form.useForm();
+
+    const [decisionModalVisible, setDecisionModalVisible] = useState(false);
+    const [decisionPeriod, setDecisionPeriod] = useState(null);
+    const [decisionSubmitting, setDecisionSubmitting] = useState(false);
+    const [decisionForm] = Form.useForm();
+
+    const handleOpenIssueDecision = (period) => {
+        setDecisionPeriod(period);
+        decisionForm.resetFields();
+        decisionForm.setFieldsValue({
+            decisionDate: dayjs(),
+            decisionNumber: `QĐ-${period.id}/${dayjs().year()}/QĐ-VIEN`,
+        });
+        setDecisionModalVisible(true);
+    };
+
+    const handleSubmitIssueDecision = async (values) => {
+        if (!decisionPeriod) return;
+        try {
+            setDecisionSubmitting(true);
+            const res = await semesterService.issuePeriodDecision(decisionPeriod.id, {
+                decisionNumber: values.decisionNumber.trim(),
+                decisionDate: values.decisionDate.toISOString(),
+                decisionFileUrl: values.decisionFileUrl?.trim() || undefined,
+            });
+            if (res.success) {
+                message.success(res.message || 'Ban hành Quyết định giao đề tài thành công!');
+                setDecisionModalVisible(false);
+                fetchSemesters();
+            }
+        } catch (error) {
+            message.error(error?.message || 'Không thể ban hành quyết định');
+        } finally {
+            setDecisionSubmitting(false);
+        }
+    };
 
     const fetchSemesters = useCallback(async () => {
         try {
@@ -466,13 +516,13 @@ function ProjectPeriodPage() {
 
             {/* Registration Quick Switch Card */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-5 flex items-center justify-between gap-4">
+                <div className="bg-white rounded-lg border border-slate-200 shadow-xs p-5 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3.5">
-                        <div className="w-10 h-10 bg-amber-50 text-amber-600 rounded-lg flex items-center justify-center shrink-0">
+                        <div className="w-10 h-10 bg-amber-50 text-amber-700 rounded-md border border-amber-200 flex items-center justify-center shrink-0">
                             <span className="material-symbols-outlined text-[20px]">edit_notifications</span>
                         </div>
                         <div>
-                            <p className="text-sm font-bold text-slate-900">Cho phép đăng ký đề tài</p>
+                            <p className="text-sm font-semibold text-slate-900">Cho phép đăng ký đề tài</p>
                             <p className="text-xs text-slate-400 mt-0.5">
                                 Bật/tắt mở cổng đăng ký cho học kỳ đang chọn.
                             </p>
@@ -487,7 +537,7 @@ function ProjectPeriodPage() {
                         />
                         {selectedPeriod && (
                             <span
-                                className={`text-xs font-bold px-2 py-0.5 rounded-full border ${
+                                className={`text-xs font-semibold px-2 py-0.5 rounded border ${
                                     selectedPeriod.registrationOpen
                                         ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                                         : 'bg-rose-50 text-rose-700 border-rose-200'
@@ -499,13 +549,13 @@ function ProjectPeriodPage() {
                     </div>
                 </div>
 
-                <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-5 flex items-center justify-between gap-4">
+                <div className="bg-white rounded-lg border border-slate-200 shadow-xs p-5 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3.5">
-                        <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center shrink-0">
+                        <div className="w-10 h-10 bg-teal-50 text-teal-700 rounded-md border border-teal-100 flex items-center justify-center shrink-0">
                             <span className="material-symbols-outlined text-[20px]">dashboard_customize</span>
                         </div>
                         <div>
-                            <p className="text-sm font-bold text-slate-900">Học kỳ đang chọn</p>
+                            <p className="text-sm font-semibold text-slate-900">Học kỳ đang chọn</p>
                             <p className="text-xs text-slate-400 mt-0.5">
                                 Cấu hình áp dụng cho đợt được chọn này.
                             </p>
@@ -551,6 +601,7 @@ function ProjectPeriodPage() {
                                     onEdit={handleEdit}
                                     onDelete={handleDelete}
                                     onClone={handleClone}
+                                    onIssueDecision={handleOpenIssueDecision}
                                 />
                             ))
                         )}
@@ -648,6 +699,70 @@ function ProjectPeriodPage() {
                         </Col>
                     </Row>
                 </Form>
+            </Modal>
+
+            {/* Modal Ban hành Quyết định giao đề tài */}
+            <Modal
+                title={(
+                    <div className="flex items-center gap-2">
+                        <FileDoneOutlined className="text-purple-600 text-lg" />
+                        <span>Ban hành Quyết định giao đề tài ({decisionPeriod?.name})</span>
+                    </div>
+                )}
+                open={decisionModalVisible}
+                onCancel={() => {
+                    setDecisionModalVisible(false);
+                    setDecisionPeriod(null);
+                }}
+                footer={null}
+                destroyOnClose
+                width={560}
+            >
+                <div className="my-3 space-y-3">
+                    <div className="bg-purple-50 p-3 rounded-lg border border-purple-200 text-xs text-purple-900 leading-relaxed">
+                        <strong>Quy chuẩn học vụ:</strong> Quyết định giao đề tài được ký bởi Trưởng Viện / Ban Giám Hiệu kèm danh sách sinh viên đã nộp BM02. Sau khi ban hành, hệ thống sẽ kích hoạt <strong>cửa sổ 7 ngày</strong> cho phép sinh viên nộp đơn xin điều chỉnh tên đề tài (GVHD duyệt trực tiếp).
+                    </div>
+
+                    <Form form={decisionForm} layout="vertical" onFinish={handleSubmitIssueDecision}>
+                        <Form.Item
+                            name="decisionNumber"
+                            label="Số Quyết định ban hành"
+                            rules={[{ required: true, message: 'Vui lòng nhập số quyết định' }]}
+                        >
+                            <Input placeholder="Ví dụ: 125/QĐ-ĐHBK" />
+                        </Form.Item>
+
+                        <Form.Item
+                            name="decisionDate"
+                            label="Ngày ký ban hành Quyết định"
+                            rules={[{ required: true, message: 'Vui lòng chọn ngày ban hành' }]}
+                        >
+                            <DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} />
+                        </Form.Item>
+
+                        <Form.Item
+                            name="decisionFileUrl"
+                            label="Đường dẫn văn bản scan Quyết định (URL / Tùy chọn)"
+                        >
+                            <Input placeholder="https://drive.google.com/... hoặc link lưu trữ văn bản" />
+                        </Form.Item>
+
+                        <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                            <Button onClick={() => setDecisionModalVisible(false)} disabled={decisionSubmitting}>
+                                Hủy bỏ
+                            </Button>
+                            <Button
+                                type="primary"
+                                htmlType="submit"
+                                loading={decisionSubmitting}
+                                icon={<FileDoneOutlined />}
+                                className="!bg-purple-600 hover:!bg-purple-700 font-medium"
+                            >
+                                Ký Ban Hành Quyết Định
+                            </Button>
+                        </div>
+                    </Form>
+                </div>
             </Modal>
         </div>
     );

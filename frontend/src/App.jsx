@@ -1,6 +1,65 @@
 import { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ConfigProvider } from 'antd';
+import viVN from 'antd/locale/vi_VN';
+import dayjs from 'dayjs';
+import 'dayjs/locale/vi';
+
+dayjs.locale('vi');
+
+// Nordic Institute Theme — Scandinavian Precision & Academic Excellence
+const nordicTheme = {
+    token: {
+        colorPrimary: '#0F766E', // Alpine Forest Teal
+        colorPrimaryHover: '#115E59',
+        colorPrimaryActive: '#0D5D57',
+        colorPrimaryBg: '#F0FDFA',
+        colorSuccess: '#059669',
+        colorWarning: '#D97706',
+        colorError: '#BE123C', // Nordic Brick Red
+        colorInfo: '#0F766E',
+        colorBgLayout: '#F4F6F8', // Crisp Fog Gray
+        colorBgContainer: '#FFFFFF',
+        colorBorder: '#E2E8F0',
+        colorBorderSecondary: '#F1F5F9',
+        colorText: '#1E293B',
+        colorTextSecondary: '#475569',
+        fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+        fontSize: 14,
+        borderRadius: 6,
+        borderRadiusLG: 8,
+        borderRadiusSM: 4,
+        controlHeight: 36,
+    },
+    components: {
+        Layout: {
+            headerBg: '#FFFFFF',
+            headerHeight: 56,
+            siderBg: '#FFFFFF',
+            bodyBg: '#F4F6F8',
+        },
+        Card: {
+            paddingLG: 20,
+            boxShadowTertiary: '0 1px 3px 0 rgba(15, 23, 42, 0.04)',
+        },
+        Table: {
+            headerBg: '#F8FAFC',
+            headerColor: '#1E293B',
+            rowHoverBg: '#F1F5F9',
+            borderColor: '#E2E8F0',
+        },
+        Button: {
+            fontWeight: 500,
+        },
+        Menu: {
+            itemSelectedBg: '#F0FDFA',
+            itemSelectedColor: '#0F766E',
+        },
+        Tag: {
+            borderRadiusSM: 4,
+        },
+    },
+};
 
 // Layouts
 import AdminLayout from './components/layout/AdminLayout';
@@ -56,20 +115,7 @@ function RouteLoading() {
 
 function App() {
     return (
-        <ConfigProvider
-            theme={{
-                token: {
-                    colorPrimary: '#003366',
-                    fontFamily: "'Inter', 'Roboto', 'sans-serif'",
-                    borderRadius: 6,
-                },
-                components: {
-                    Typography: {
-                        fontFamilyCode: "'Lexend', 'Inter', 'sans-serif'",
-                    }
-                }
-            }}
-        >
+        <ConfigProvider locale={viVN} theme={nordicTheme}>
             <BrowserRouter>
                 <Suspense fallback={<RouteLoading />}>
                     <Routes>

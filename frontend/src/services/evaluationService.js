@@ -1,4 +1,4 @@
-﻿import api from './api';
+import api from './api';
 
 const wrapServiceError = (error, fallbackMessage) => {
     if (error?.success === false) return error;
@@ -67,6 +67,38 @@ const evaluationService = {
             return await api.put(`/evaluations/${registrationId}/score-sheet`, data);
         } catch (error) {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi lưu bảng điểm chi tiết');
+        }
+    },
+
+    resubmitBM01: async (registrationId, data) => {
+        try {
+            return await api.post(`/evaluations/bm01-resubmit/${registrationId}`, data);
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi nộp lại đề cương BM01');
+        }
+    },
+
+    approveResubmittedBM01: async (registrationId, data = {}) => {
+        try {
+            return await api.post(`/evaluations/bm01-gvhd-approve/${registrationId}`, data);
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi thẩm định đề cương BM01');
+        }
+    },
+
+    submitBM04Evaluation: async (data) => {
+        try {
+            return await api.post('/evaluations/bm04-submit', data);
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi nộp phiếu BM04');
+        }
+    },
+
+    getBM04Evaluation: async (registrationId) => {
+        try {
+            return await api.get(`/evaluations/bm04/${registrationId}`);
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi lấy phiếu đánh giá BM04');
         }
     },
 };

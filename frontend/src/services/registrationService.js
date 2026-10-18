@@ -91,19 +91,43 @@ const registrationService = {
         }
     },
 
-    bypassOutlineReview: async (id, reason) => {
+    submitBM02: async (data) => {
         try {
-            return await api.post(`/registrations/${id}/bypass-outline`, { reason });
+            return await api.post('/registrations/bm02-submit', data);
         } catch (error) {
-            throw wrapServiceError(error, 'Đã xảy ra lỗi khi miễn thẩm định đề cương');
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi nộp BM02');
         }
     },
 
-    batchBypassOutlineReview: async (registrationIds, reason) => {
+    requestTitleAdjustment: async (data) => {
         try {
-            return await api.post('/registrations/batch-bypass-outline', { registrationIds, reason });
+            return await api.post('/registrations/adjust-title', data);
         } catch (error) {
-            throw wrapServiceError(error, 'Đã xảy ra lỗi khi miễn thẩm định đề cương hàng loạt');
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi xin đổi tên đề tài');
+        }
+    },
+
+    reviewTitleAdjustment: async (id, data) => {
+        try {
+            return await api.put(`/registrations/adjust-title/${id}/review`, data);
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi xét duyệt đổi tên đề tài');
+        }
+    },
+
+    getMyTitleAdjustments: async () => {
+        try {
+            return await api.get('/registrations/adjust-title/my');
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi tải danh sách đổi tên đề tài');
+        }
+    },
+
+    getPendingTitleAdjustments: async () => {
+        try {
+            return await api.get('/registrations/adjust-title/pending');
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi tải danh sách chờ duyệt đổi tên');
         }
     },
 };

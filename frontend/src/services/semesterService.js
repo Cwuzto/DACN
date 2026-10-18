@@ -53,4 +53,12 @@ export const semesterService = {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi xóa học kỳ');
         }
     },
+
+    issuePeriodDecision: async (id, data = {}) => {
+        try {
+            return await api.post(`/semesters/${id}/issue-decision`, data);
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi ban hành Quyết định giao đề tài');
+        }
+    },
 };

@@ -374,29 +374,29 @@ function AnnouncementManagementPage() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <StatCard
                     icon="campaign"
-                    iconBg="bg-blue-50"
-                    iconColor="text-blue-600"
+                    iconBg="bg-teal-50"
+                    iconColor="text-teal-700"
                     label="Tổng số thông báo"
                     value={pagination.total || announcements.length}
                 />
                 <StatCard
                     icon="push_pin"
                     iconBg="bg-amber-50"
-                    iconColor="text-amber-600"
+                    iconColor="text-amber-700"
                     label="Thông báo được ghim"
                     value={pinnedCount}
                 />
                 <StatCard
                     icon="visibility"
                     iconBg="bg-emerald-50"
-                    iconColor="text-emerald-600"
+                    iconColor="text-emerald-700"
                     label="Đang công khai"
                     value={publishedCount}
                 />
             </div>
 
             {/* Content Table Card */}
-            <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-4 lg:p-6 space-y-4">
+            <div className="bg-white rounded-lg border border-slate-200 shadow-xs p-4 lg:p-6 space-y-4">
                 {/* Filter Toolbar */}
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex flex-wrap items-center gap-3 flex-1">

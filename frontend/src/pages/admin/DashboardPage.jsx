@@ -98,8 +98,8 @@ function DashboardPage() {
                 label: 'Sinh viên hoạt động',
                 value: stats?.totalStudents ?? 0,
                 icon: 'group',
-                iconBg: 'bg-blue-50',
-                iconColor: 'text-blue-600',
+                iconBg: 'bg-teal-50',
+                iconColor: 'text-teal-700',
                 description: 'Tổng số sinh viên đủ điều kiện làm đồ án',
                 onClick: () => navigate('/admin/users'),
             },
@@ -108,7 +108,7 @@ function DashboardPage() {
                 value: stats?.ongoingTopics ?? 0,
                 icon: 'description',
                 iconBg: 'bg-emerald-50',
-                iconColor: 'text-emerald-600',
+                iconColor: 'text-emerald-700',
                 description: 'Đề tài đạt chuẩn đang được thực hiện',
                 onClick: () => navigate('/admin/topics'),
             },
@@ -117,7 +117,7 @@ function DashboardPage() {
                 value: stats?.unassignedRegistrations ?? 0,
                 icon: 'groups_2',
                 iconBg: (stats?.unassignedRegistrations || 0) > 0 ? 'bg-amber-50' : 'bg-slate-50',
-                iconColor: (stats?.unassignedRegistrations || 0) > 0 ? 'text-amber-600' : 'text-slate-400',
+                iconColor: (stats?.unassignedRegistrations || 0) > 0 ? 'text-amber-700' : 'text-slate-400',
                 description: (stats?.unassignedRegistrations || 0) > 0 ? 'Cần xếp hội đồng bảo vệ' : 'Tất cả đã có hội đồng',
                 onClick: () => navigate('/admin/councils'),
             },
@@ -125,8 +125,8 @@ function DashboardPage() {
                 label: 'Hội đồng sắp bảo vệ',
                 value: stats?.upcomingDefenses ?? 0,
                 icon: 'verified_user',
-                iconBg: 'bg-purple-50',
-                iconColor: 'text-purple-600',
+                iconBg: 'bg-indigo-50',
+                iconColor: 'text-indigo-700',
                 description: 'Hội đồng dự kiến diễn ra sắp tới',
                 onClick: () => navigate('/admin/grading'),
             },
@@ -181,14 +181,14 @@ function DashboardPage() {
                 actions={
                     <div className="flex items-center gap-2">
                         <Button
-                            icon={<span className="material-symbols-outlined text-[16px]">groups</span>}
+                            icon={<TeamOutlined />}
                             onClick={() => navigate('/admin/councils')}
                         >
                             Phân công HĐ
                         </Button>
                         <Button
                             type="primary"
-                            icon={<span className="material-symbols-outlined text-[16px]">calendar_month</span>}
+                            icon={<CalendarOutlined />}
                             onClick={() => navigate('/admin/project-periods')}
                         >
                             Quản lý Đợt đồ án
@@ -199,23 +199,23 @@ function DashboardPage() {
 
             {/* Smart Actionable Alerts */}
             {(stats?.unassignedRegistrations || 0) > 0 && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+                <div className="bg-amber-50/80 border border-amber-200/90 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
-                            <ExclamationCircleOutlined className="text-xl" />
+                        <div className="w-9 h-9 rounded-md bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 border border-amber-200">
+                            <ExclamationCircleOutlined className="text-lg" />
                         </div>
                         <div>
-                            <h4 className="text-sm font-bold text-amber-900">
+                            <h4 className="text-sm font-semibold text-amber-950">
                                 Có {stats.unassignedRegistrations} sinh viên chưa được xếp Hội đồng
                             </h4>
-                            <p className="text-xs text-amber-700 mt-0.5">
+                            <p className="text-xs text-amber-800 mt-0.5">
                                 Các sinh viên này đang trong giai đoạn bảo vệ nhưng chưa có hội đồng chấm điểm chính thức.
                             </p>
                         </div>
                     </div>
                     <button
                         onClick={() => navigate('/admin/councils')}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-amber-600 text-white text-xs font-bold hover:bg-amber-700 transition-colors shrink-0 shadow-sm"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-[#0F766E] text-white text-xs font-semibold hover:bg-[#115E59] transition-colors shrink-0 shadow-xs"
                     >
                         <span>Phân công ngay</span>
                         <ArrowRightOutlined />
@@ -224,14 +224,14 @@ function DashboardPage() {
             )}
 
             {/* Top 4 KPI Metrics */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {statCards.map((stat, idx) => (
                     <StatCard key={idx} {...stat} />
                 ))}
             </div>
 
             {/* Hero Active Semester Operational Card */}
-            <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-5 lg:p-6">
+            <div className="bg-white rounded-lg border border-slate-200 shadow-xs p-5 lg:p-6">
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 border-b border-slate-100">
                     <div className="space-y-1">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -301,27 +301,27 @@ function DashboardPage() {
                             {/* Dual Progress Gauges */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
                                 <div className="space-y-2">
-                                    <div className="flex justify-between text-xs font-bold text-slate-600">
+                                    <div className="flex justify-between text-xs font-semibold text-slate-600">
                                         <span>Tỷ lệ duyệt đề tài</span>
-                                        <span className="text-blue-600">{semesterOverview.registrations.approvalRate}%</span>
+                                        <span className="text-[#0F766E] font-bold">{semesterOverview.registrations.approvalRate}%</span>
                                     </div>
                                     <Progress
                                         percent={semesterOverview.registrations.approvalRate}
-                                        strokeColor="#2563EB"
+                                        strokeColor="#0F766E"
                                         trailColor="#E2E8F0"
-                                        strokeWidth={10}
+                                        strokeWidth={8}
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <div className="flex justify-between text-xs font-bold text-slate-600">
+                                    <div className="flex justify-between text-xs font-semibold text-slate-600">
                                         <span>Tỷ lệ hoàn thành bảo vệ</span>
-                                        <span className="text-emerald-600">{semesterOverview.registrations.completionRate}%</span>
+                                        <span className="text-emerald-700 font-bold">{semesterOverview.registrations.completionRate}%</span>
                                     </div>
                                     <Progress
                                         percent={semesterOverview.registrations.completionRate}
-                                        strokeColor="#10B981"
+                                        strokeColor="#059669"
                                         trailColor="#E2E8F0"
-                                        strokeWidth={10}
+                                        strokeWidth={8}
                                     />
                                 </div>
                             </div>
@@ -335,9 +335,9 @@ function DashboardPage() {
             {/* Two-Column Analytics & Live Activity Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Score Distribution Chart Card */}
-                <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-6 space-y-4">
+                <div className="bg-white rounded-lg border border-slate-200 shadow-xs p-5 space-y-4">
                     <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                        <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                        <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
                             Phân bố Điểm Bảo vệ
                         </h3>
                         <span className="text-xs text-slate-400">Khóa luận tốt nghiệp</span>
@@ -373,11 +373,11 @@ function DashboardPage() {
                 </div>
 
                 {/* Audit Trail & Live Activity Feed (2 Cols) */}
-                <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-6 lg:col-span-2 space-y-4">
+                <div className="bg-white rounded-lg border border-slate-200 shadow-xs p-5 lg:col-span-2 space-y-4">
                     <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                         <div className="flex items-center gap-2">
                             <span className="material-symbols-outlined text-slate-400 text-[18px]">history</span>
-                            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
                                 Lịch sử Thao tác Gần đây
                             </h3>
                         </div>

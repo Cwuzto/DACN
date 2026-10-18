@@ -27,11 +27,12 @@ import BMSubmissionViewer from '../../components/forms/BMSubmissionViewer';
 const { Title, Text, Paragraph } = Typography;
 
 const BM_STEPS = [
-    { key: 'REGISTRATION', title: '1. Đăng ký', shortTitle: 'Đăng ký', desc: 'Duyệt đề tài' },
-    { key: 'BM01', title: '2. BM01', shortTitle: 'BM01', desc: 'Đề cương chi tiết' },
-    { key: 'BM02', title: '3. BM02', shortTitle: 'BM02', desc: 'Giao nhiệm vụ' },
-    { key: 'BM03', title: '4. BM03', shortTitle: 'BM03', desc: 'Tiến độ & Nhật ký' },
-    { key: 'BM04', title: '5. Thẩm định', shortTitle: 'Đánh giá GVHD', desc: 'Cho ra bảo vệ' },
+    { key: 'REGISTRATION', title: '1. Đăng ký', shortTitle: '1. Đăng ký', desc: 'Duyệt đề tài' },
+    { key: 'BM01', title: '2. BM01', shortTitle: '2. BM01 Đề cương', desc: 'Xét duyệt đạt' },
+    { key: 'BM02', title: '3. BM02', shortTitle: '3. BM02 QĐ Viện', desc: 'Ban hành QĐ' },
+    { key: 'BM03', title: '4. BM03', shortTitle: '4. BM03 Tiến độ', desc: '2 Checkpoint' },
+    { key: 'BM04', title: '5. BM04', shortTitle: '5. BM04 Đánh giá', desc: 'GVHD ký duyệt' },
+    { key: 'DEFENSE', title: '6. Bảo vệ', shortTitle: '6. Bảo vệ', desc: 'Hội đồng chấm' },
 ];
 
 const statusBadgeConfig = {
@@ -98,57 +99,50 @@ export default function SubmissionPage() {
         return map;
     }, [tasks]);
 
-    // Check sequential lock status with bypass support
+    // Check sequential lock status without bypass
     const isStepLocked = (taskType) => {
-        if (!registration || !['APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'DEFENDED', 'COMPLETED'].includes(registration.status)) {
+        if (!registration) return true;
+        if (registration.status === 'TERMINATED_FAILED_PROGRESS' || registration.status === 'DROPPED') {
             return true;
         }
-        if (taskType === 'BM01') return false;
+
+        if (taskType === 'BM01') {
+            return !['APPROVED', 'BM01_SUBMITTED', 'BM01_NEEDS_REVISION', 'BM01_PASSED'].includes(registration.status);
+        }
         if (taskType === 'BM02') {
-            const bm01 = taskByType.BM01;
-            return !bm01 || (!bm01.isBypassed && bm01.status !== 'COMPLETED');
+            return !['BM01_PASSED', 'BM02_SUBMITTED', 'DECISION_ISSUED', 'IN_PROGRESS_BM03', 'BM03_PASSED', 'DEFENSE_READY', 'DEFENDED', 'COMPLETED'].includes(registration.status);
         }
         if (taskType === 'BM03_CHECKPOINT_1' || taskType === 'BM03_CHECKPOINT') {
-            const bm02 = taskByType.BM02;
-            return !bm02 || (!bm02.isBypassed && bm02.status !== 'COMPLETED');
+            return !['DECISION_ISSUED', 'IN_PROGRESS_BM03', 'BM03_PASSED', 'DEFENSE_READY', 'DEFENDED', 'COMPLETED'].includes(registration.status);
         }
         if (taskType === 'BM03_CHECKPOINT_2') {
             const cp1 = taskByType.BM03_CHECKPOINT_1 || taskByType.BM03_CHECKPOINT;
-            return !cp1 || (!cp1.isBypassed && cp1.status !== 'COMPLETED');
+            return !cp1 || cp1.status !== 'COMPLETED';
         }
         if (taskType === 'REPORT_DRAFT') {
             const cp2 = taskByType.BM03_CHECKPOINT_2;
-            return !cp2 || (!cp2.isBypassed && cp2.status !== 'COMPLETED');
+            return !cp2 || cp2.status !== 'COMPLETED';
         }
         return false;
     };
 
-    // Calculate current active step index in the 5-step process
+    // Calculate current active step index in the 6-step process
     const currentStepIndex = useMemo(() => {
         if (!registration) return 0;
-        if (['SUBMITTED', 'DEFENDED', 'COMPLETED'].includes(registration.status)) return 4;
-        
-        const report = taskByType.REPORT_DRAFT;
-        const cp2 = taskByType.BM03_CHECKPOINT_2;
-        const cp1 = taskByType.BM03_CHECKPOINT_1 || taskByType.BM03_CHECKPOINT;
-        const bm02 = taskByType.BM02;
-        const bm01 = taskByType.BM01;
-
-        if (report?.status === 'COMPLETED' || report?.isBypassed) return 4;
-        if (cp2?.status === 'COMPLETED' || cp2?.isBypassed || cp1?.status === 'COMPLETED') return 3;
-        if (bm02?.status === 'COMPLETED' || bm02?.isBypassed) return 3;
-        if (bm01?.status === 'COMPLETED' || bm01?.isBypassed) return 2;
-        if (['APPROVED', 'IN_PROGRESS'].includes(registration.status)) return 1;
+        const status = registration.status;
+        if (['DEFENDED', 'COMPLETED'].includes(status)) return 5;
+        if (status === 'DEFENSE_READY') return 4;
+        if (status === 'BM03_PASSED') return 4;
+        if (['DECISION_ISSUED', 'IN_PROGRESS_BM03'].includes(status)) return 3;
+        if (status === 'BM02_SUBMITTED') return 2;
+        if (['BM01_SUBMITTED', 'BM01_PASSED', 'BM01_NEEDS_REVISION'].includes(status)) return 1;
+        if (['APPROVED', 'PENDING'].includes(status)) return 0;
         return 0;
-    }, [registration, taskByType]);
+    }, [registration]);
 
     const handleOpenSubmitModal = (task) => {
-        if (task.isBypassed) {
-            message.info('Nhiệm vụ này đã được miễn thẩm định (Bypass).');
-            return;
-        }
         if (isStepLocked(task.taskType)) {
-            message.warning('Vui lòng hoàn thành và chờ duyệt biểu mẫu trước đó.');
+            message.warning('Vui lòng hoàn thành và chờ duyệt bước trước đó.');
             return;
         }
         setActiveTask(task);
@@ -280,28 +274,23 @@ export default function SubmissionPage() {
                     </div>
                 ) : (
                     studentTasks.map((task) => {
-                        const isBypassed = task.isBypassed;
-                        const locked = !isBypassed && isStepLocked(task.taskType);
-                        const effectiveStatus = isBypassed ? 'COMPLETED' : locked ? 'LOCKED' : task.status;
-                        const badge = isBypassed
-                            ? { text: 'Miễn thẩm định', color: 'purple', icon: <CheckCircleOutlined /> }
-                            : (statusBadgeConfig[effectiveStatus] || statusBadgeConfig.OPEN);
+                        const locked = isStepLocked(task.taskType);
+                        const effectiveStatus = locked ? 'LOCKED' : task.status;
+                        const badge = statusBadgeConfig[effectiveStatus] || statusBadgeConfig.OPEN;
                         const submissions = task.submissions || [];
                         const lastSubmission = submissions.length > 0 ? submissions[0] : null;
-                        const canSubmit = !locked && !isBypassed && ['OPEN', 'IN_PROGRESS', 'REVISION'].includes(task.status);
-                        const isOverdue = !isBypassed && task.dueDate && new Date(task.dueDate).getTime() < Date.now() && task.status !== 'COMPLETED';
+                        const canSubmit = !locked && ['OPEN', 'IN_PROGRESS', 'REVISION'].includes(task.status);
+                        const isOverdue = task.dueDate && new Date(task.dueDate).getTime() < Date.now() && task.status !== 'COMPLETED';
 
                         return (
                             <div
                                 key={task.id}
                                 className={`bg-white rounded-xl border transition-all duration-150 overflow-hidden shadow-sm ${
-                                    isBypassed
-                                        ? 'border-purple-200 bg-purple-50/20'
-                                        : locked
-                                            ? 'border-slate-200/60 bg-slate-50/40 opacity-75'
-                                            : isOverdue
-                                                ? 'border-rose-200 hover:border-rose-300'
-                                                : 'border-slate-200/90 hover:border-blue-300'
+                                    locked
+                                        ? 'border-slate-200/60 bg-slate-50/40 opacity-75'
+                                        : isOverdue
+                                            ? 'border-rose-200 hover:border-rose-300'
+                                            : 'border-slate-200/90 hover:border-blue-300'
                                 }`}
                             >
                                 <div className="p-5 md:p-6 flex flex-col lg:flex-row gap-5 justify-between">
@@ -316,7 +305,7 @@ export default function SubmissionPage() {
                                                     {task.taskType}
                                                 </Tag>
                                             )}
-                                            {task.dueDate && !isBypassed && (
+                                            {task.dueDate && (
                                                 <span className={`text-xs flex items-center gap-1 ${isOverdue ? 'text-rose-600 font-bold' : 'text-slate-500'}`}>
                                                     <ClockCircleOutlined />
                                                     Hạn nộp: {dayjs(task.dueDate).format('DD/MM/YYYY HH:mm')}
@@ -334,20 +323,9 @@ export default function SubmissionPage() {
                                             </p>
                                         )}
 
-                                        {isBypassed && (
-                                            <div className="bg-purple-50 border border-purple-200/70 p-3 rounded-lg text-xs text-purple-800">
-                                                <strong>Xác nhận miễn thẩm định (Bypass):</strong> {task.bypassReason || 'Được miễn theo phê duyệt của Ban Quản Trị / GVHD.'}
-                                            </div>
-                                        )}
-
                                         {/* Action Buttons */}
                                         <div className="pt-1 flex items-center gap-2 flex-wrap">
-                                            {isBypassed ? (
-                                                <span className="inline-flex items-center gap-1.5 text-xs text-purple-700 bg-purple-100/70 px-3 py-1.5 rounded-lg font-medium">
-                                                    <CheckCircleOutlined />
-                                                    Đã được miễn làm bước này
-                                                </span>
-                                            ) : locked ? (
+                                            {locked ? (
                                                 <span className="inline-flex items-center gap-1.5 text-xs text-slate-400 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200/70">
                                                     <LockOutlined />
                                                     Cần hoàn thành biểu mẫu trước để mở khóa
@@ -455,15 +433,15 @@ export default function SubmissionPage() {
                     </div>
                 </div>
 
-                {['SUBMITTED', 'DEFENDED', 'COMPLETED'].includes(registration.status) ? (
+                {['DEFENSE_READY', 'DEFENDED', 'COMPLETED'].includes(registration.status) ? (
                     <Alert
                         type="success"
                         showIcon
                         icon={<CheckCircleOutlined className="text-lg" />}
-                        message={<span className="font-bold text-emerald-800 text-sm">GVHD ĐÃ DUYỆT ĐỒNG Ý CHO RA BẢO VỆ</span>}
+                        message={<span className="font-bold text-emerald-800 text-sm">GVHD ĐÃ ĐÁNH GIÁ ĐỒNG Ý CHO RA BẢO VỆ (BM04)</span>}
                         description={
                             <div className="space-y-1 mt-1 text-xs text-emerald-700">
-                                <p>Đề tài của bạn đã đủ điều kiện học vụ và được chuyển sang Ban Quản Trị Viện để phân công vào Hội đồng bảo vệ tốt nghiệp.</p>
+                                <p>Đề tài của bạn đã đủ điều kiện học vụ (DEFENSE_READY) và được chuyển sang Ban Quản Trị Viện để phân công vào Hội đồng bảo vệ tốt nghiệp.</p>
                                 {registration.outlineFeedback && (
                                     <div className="bg-white/80 p-2.5 rounded border border-emerald-200 mt-2 font-mono whitespace-pre-wrap text-slate-700">
                                         {registration.outlineFeedback}
@@ -472,15 +450,23 @@ export default function SubmissionPage() {
                             </div>
                         }
                     />
-                ) : registration.status === 'DROPPED' ? (
+                ) : ['DROPPED', 'TERMINATED_FAILED_PROGRESS'].includes(registration.status) ? (
                     <Alert
                         type="error"
                         showIcon
                         icon={<CloseCircleOutlined className="text-lg" />}
-                        message={<span className="font-bold text-rose-800 text-sm">GVHD ĐÁNH GIÁ KHÔNG ĐỒNG Ý CHO RA BẢO VỆ</span>}
+                        message={<span className="font-bold text-rose-800 text-sm">
+                            {registration.status === 'TERMINATED_FAILED_PROGRESS'
+                                ? 'ĐỀ TÀI ĐÃ DỪNG THỰC HIỆN DO KHÔNG ĐẠT TIẾN ĐỘ BM03'
+                                : 'GVHD ĐÁNH GIÁ KHÔNG ĐỒNG Ý CHO RA BẢO VỆ'}
+                        </span>}
                         description={
                             <div className="space-y-1 mt-1 text-xs text-rose-700">
-                                <p>Tiến độ hoặc chất lượng đề tài chưa đạt yêu cầu để ra Hội đồng bảo vệ đợt này.</p>
+                                <p>
+                                    {registration.status === 'TERMINATED_FAILED_PROGRESS'
+                                        ? 'Đề tài không đạt yêu cầu tại đợt Checkpoint định kỳ BM03 theo quy định đào tạo.'
+                                        : 'Tiến độ hoặc chất lượng đề tài chưa đạt yêu cầu để ra Hội đồng bảo vệ đợt này.'}
+                                </p>
                                 {registration.outlineFeedback && (
                                     <div className="bg-white/80 p-2.5 rounded border border-rose-200 mt-2 whitespace-pre-wrap text-slate-700">
                                         {registration.outlineFeedback}
@@ -496,7 +482,7 @@ export default function SubmissionPage() {
                             Đang trong giai đoạn thực hiện đồ án
                         </div>
                         <p>
-                            GVHD sẽ tổng hợp minh chứng các buổi gặp gỡ định kỳ ({meetingLogs.length} buổi đã ghi nhận) và kết quả các đợt kiểm tra tiến độ để lập Phiếu nhận xét BM04 chính thức trước ngày bảo vệ.
+                            GVHD sẽ tổng hợp minh chứng các buổi gặp gỡ định kỳ ({meetingLogs.length} buổi đã ghi nhận) và kết quả 2 đợt Checkpoint tiến độ BM03 để lập Phiếu nhận xét BM04 chính thức (gồm 4 tiêu chí bắt buộc) trước ngày bảo vệ.
                         </p>
                     </div>
                 )}
