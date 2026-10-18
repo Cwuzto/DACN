@@ -17,6 +17,7 @@ const permissionRoutes = require('./permissionRoutes');
 const announcementRoutes = require('./announcementRoutes');
 const meetingLogRoutes = require('./meetingLogRoutes');
 const archiveRoutes = require('./archiveRoutes');
+const rubricRoutes = require('./rubricRoutes');
 
 // Đăng ký routes
 router.use('/auth', authRoutes);
@@ -34,6 +35,7 @@ router.use('/project-enrollments', projectEnrollmentRoutes);
 router.use('/permissions', permissionRoutes);
 router.use('/announcements', announcementRoutes);
 router.use('/archives', archiveRoutes);
+router.use('/rubrics', rubricRoutes);
 router.use('/', meetingLogRoutes);
 
 // Health check

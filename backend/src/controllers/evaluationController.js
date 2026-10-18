@@ -3,6 +3,7 @@ const { auditLog } = require('../services/auditLogService');
 const { safeNotify } = require('../services/notificationService');
 const UploadService = require('../services/uploadService');
 const { generateScoreSheetPdfBuffer } = require('../services/scoreSheetPdfService');
+const rubricService = require('../services/rubricService');
 
 const getRequestIp = (req) => req.ip || req.headers['x-forwarded-for'] || null;
 const DEFENSE_CENTER_TABS = ['PENDING_ASSIGNMENT', 'ASSIGNED_COUNCIL', 'AWAITING_GRADING', 'COMPLETED'];
@@ -26,6 +27,54 @@ const RUBRIC_V1 = {
         { code: 'PRESENTATION_CONTENT', label: 'Noi dung trinh bay', maxScore: 1.0 },
         { code: 'QA_RESPONSE', label: 'Tra loi cac cau hoi', maxScore: 1.0 },
     ],
+};
+
+const resolveRubricForRegistration = async (registration) => {
+    if (!prisma?.rubricVersion?.findUnique) return null;
+
+    const existingVersion = registration?.defenseResult?.scoreRubricVersion ||
+        registration?.memberScores?.[0]?.scoreRubricVersion;
+
+    if (existingVersion) {
+        const found = await prisma.rubricVersion.findUnique({
+            where: { version: existingVersion },
+            include: {
+                categories: {
+                    orderBy: { orderIndex: 'asc' },
+                    include: { criteria: { orderBy: { orderIndex: 'asc' } } },
+                },
+            },
+        });
+        if (found) return found;
+    }
+
+    const active = await rubricService.getActiveRubric();
+    if (active) return active;
+
+    return null;
+};
+
+const formatRubricPayload = (resolvedRubric) => {
+    if (!resolvedRubric) return RUBRIC_V1;
+    return {
+        id: resolvedRubric.id,
+        version: resolvedRubric.version,
+        title: resolvedRubric.title,
+        description: resolvedRubric.description,
+        totalMaxScore: resolvedRubric.totalMaxScore,
+        categories: resolvedRubric.categories || [],
+        criteria: (resolvedRubric.categories || []).flatMap((cat) =>
+            (cat.criteria || []).map((cri) => ({
+                code: cri.code,
+                label: cri.label,
+                description: cri.description,
+                maxScore: cri.maxScore,
+                categoryCode: cat.code,
+                categoryName: cat.name,
+                orderIndex: cri.orderIndex,
+            }))
+        ),
+    };
 };
 const parsePositiveInt = (value) => {
     if (value === undefined || value === null || value === '') return null;
@@ -62,12 +111,14 @@ const canLecturerGradeRegistration = async (lecturerId, registrationId) => {
     return { ok: inCouncil || isMentor, registration };
 };
 
-const validateAndNormalizeScores = (scores = []) => {
+const validateAndNormalizeScores = (scores = [], rubricPayload = null) => {
     if (!Array.isArray(scores) || !scores.length) {
         return { ok: false, message: 'scores phải là mảng có ít nhất 1 phần tử.' };
     }
 
-    const criteriaMap = new Map(RUBRIC_V1.criteria.map((c) => [c.code, c]));
+    const rubric = rubricPayload || RUBRIC_V1;
+    const criteriaList = rubric.criteria || [];
+    const criteriaMap = new Map(criteriaList.map((c) => [c.code, c]));
     const seen = new Set();
     const normalized = [];
 
@@ -93,8 +144,8 @@ const validateAndNormalizeScores = (scores = []) => {
         seen.add(criterionCode);
     }
 
-    if (seen.size !== RUBRIC_V1.criteria.length) {
-        return { ok: false, message: 'scores chưa đầy đủ các tiêu chí trong barem v1.' };
+    if (seen.size !== criteriaList.length) {
+        return { ok: false, message: `scores chưa đầy đủ các tiêu chí trong barem ${rubric.version || 'v1'}.` };
     }
 
     const finalScoreRaw = normalized.reduce((sum, row) => sum + row.score, 0);
@@ -554,6 +605,9 @@ const getScoreSheet = async (req, res, next) => {
         const finalScore = registration.defenseResult?.finalScore ?? computeRegistrationFinalScore(registration.memberScores || []);
         const scoreLocked = currentMemberScore?.scoreLocked || false;
 
+        const resolvedRubric = await resolveRubricForRegistration(registration);
+        const rubricPayload = formatRubricPayload(resolvedRubric);
+
         res.json({
             success: true,
             data: {
@@ -564,7 +618,7 @@ const getScoreSheet = async (req, res, next) => {
                     topic: registration.topic,
                     councilId: effectiveCouncil?.id || registration.defenseCouncilId || registration.councilId,
                 },
-                rubric: RUBRIC_V1,
+                rubric: rubricPayload,
                 scores: currentMemberScore?.criterionScores || [],
                 defenseResult: currentMemberScore || null,
                 memberScores: (registration.memberScores || []).map((row) => ({
@@ -599,7 +653,23 @@ const saveScoreSheet = async (req, res, next) => {
         const evaluatorId = req.user.role === 'ADMIN' && targetEvaluatorId ? targetEvaluatorId : req.user.id;
         const evaluatorRole = req.user.role;
 
-        const validScore = validateAndNormalizeScores(scores);
+        const targetRegistration = await prisma.topicRegistration.findUnique({
+            where: { id: registrationId },
+            include: {
+                defenseResult: { select: { scoreRubricVersion: true } },
+                memberScores: { select: { scoreRubricVersion: true }, take: 1 },
+            },
+        });
+
+        if (!targetRegistration) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy đăng ký đề tài.' });
+        }
+
+        const resolvedRubric = await resolveRubricForRegistration(targetRegistration);
+        const rubricPayload = formatRubricPayload(resolvedRubric);
+        const targetRubricVersion = rubricPayload.version || RUBRIC_V1.version;
+
+        const validScore = validateAndNormalizeScores(scores, rubricPayload);
         if (!validScore.ok) {
             return res.status(400).json({ success: false, message: validScore.message });
         }
@@ -657,7 +727,7 @@ const saveScoreSheet = async (req, res, next) => {
                         finalScore: validScore.finalScore,
                         comments: generalComment ? String(generalComment).trim() : '',
                         evaluatorId,
-                        scoreRubricVersion: RUBRIC_V1.version,
+                        scoreRubricVersion: targetRubricVersion,
                     },
                 });
             } else {
@@ -666,7 +736,7 @@ const saveScoreSheet = async (req, res, next) => {
                     data: {
                         finalScore: validScore.finalScore,
                         comments: generalComment !== undefined ? String(generalComment || '').trim() : memberScore.comments,
-                        scoreRubricVersion: RUBRIC_V1.version,
+                        scoreRubricVersion: targetRubricVersion,
                     },
                 });
             }
@@ -702,14 +772,14 @@ const saveScoreSheet = async (req, res, next) => {
                 update: {
                     finalScore: aggregateFinalScore,
                     evaluatorId,
-                    scoreRubricVersion: RUBRIC_V1.version,
+                    scoreRubricVersion: targetRubricVersion,
                 },
                 create: {
                     registrationId,
                     finalScore: aggregateFinalScore,
                     comments: '',
                     evaluatorId,
-                    scoreRubricVersion: RUBRIC_V1.version,
+                    scoreRubricVersion: targetRubricVersion,
                 },
             });
 
