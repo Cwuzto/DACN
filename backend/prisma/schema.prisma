@@ -86,6 +86,7 @@ model User {
   reviewedAdjustments  TopicTitleAdjustment[] @relation("AdjustTitleReviewer")
   studentBM04          BM04Evaluation[] @relation("StudentBM04")
   lecturerBM04         BM04Evaluation[] @relation("LecturerBM04")
+  createdRubrics       RubricVersion[]  @relation("RubricCreator")
 
   @@map("users")
 }
@@ -357,6 +358,57 @@ model DefenseCriterionScore {
   @@map("defense_criterion_scores")
 }
 
+model RubricVersion {
+  id            Int              @id @default(autoincrement())
+  version       String           @unique
+  title         String
+  description   String?          @db.Text
+  totalMaxScore Float            @default(10.0) @map("total_max_score")
+  status        RubricStatus     @default(DRAFT)
+  isActive      Boolean          @default(false) @map("is_active")
+  createdById   Int?             @map("created_by_id")
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+  createdByUser User?            @relation("RubricCreator", fields: [createdById], references: [id])
+  categories    RubricCategory[]
+
+  @@map("rubric_versions")
+}
+
+model RubricCategory {
+  id              Int               @id @default(autoincrement())
+  rubricVersionId Int               @map("rubric_version_id")
+  code            String            @map("code")
+  name            String            @map("name")
+  description     String?           @db.Text
+  maxScore        Float             @map("max_score")
+  orderIndex      Int               @default(0) @map("order_index")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  rubricVersion   RubricVersion     @relation(fields: [rubricVersionId], references: [id], onDelete: Cascade)
+  criteria        RubricCriterion[]
+
+  @@unique([rubricVersionId, code])
+  @@index([rubricVersionId, orderIndex])
+  @@map("rubric_categories")
+}
+
+model RubricCriterion {
+  id          Int            @id @default(autoincrement())
+  categoryId  Int            @map("category_id")
+  code        String         @map("code")
+  label       String         @map("label")
+  description String?        @db.Text
+  maxScore    Float          @map("max_score")
+  orderIndex  Int            @default(0) @map("order_index")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+  category    RubricCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@index([categoryId, orderIndex])
+  @@map("rubric_criteria")
+}
+
 model Notification {
   id           Int              @id @default(autoincrement())
   userId       Int              @map("user_id")
@@ -606,4 +658,10 @@ enum ArchiveStatus {
   SUBMITTED
   APPROVED
   REVISION_REQUIRED
+}
+
+enum RubricStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
 }
