@@ -93,6 +93,7 @@ const NAV_CONFIG = {
                 items: [
                     { path: '/admin/councils', icon: 'groups', label: 'Phân công Hội đồng' },
                     { path: '/admin/grading', icon: 'rate_review', label: 'Trung tâm Chấm bảo vệ' },
+                    { path: '/admin/rubric-management', icon: 'rule', label: 'Tiêu chí chấm (Rubric)' },
                 ],
             },
             {

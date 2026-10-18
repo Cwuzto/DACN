@@ -86,6 +86,7 @@ const NotificationCenterPage = lazy(() => import('./pages/admin/NotificationCent
 const ProjectEnrollmentPage = lazy(() => import('./pages/admin/ProjectEnrollmentPage'));
 const PermissionGroupPage = lazy(() => import('./pages/admin/PermissionGroupPage'));
 const AnnouncementManagementPage = lazy(() => import('./pages/admin/AnnouncementManagementPage'));
+const RubricManagementPage = lazy(() => import('./pages/admin/RubricManagementPage'));
 
 // Lecturer pages
 const LecturerDashboardPage = lazy(() => import('./pages/lecturer/LecturerDashboardPage'));
@@ -133,6 +134,7 @@ function App() {
                                 <Route path="topics" element={<AdminTopicManagementPage />} />
                                 <Route path="oversight" element={<ProjectOversightPage />} />
                                 <Route path="grading" element={<GradingDefensePage />} />
+                                <Route path="rubric-management" element={<RubricManagementPage />} />
                                 <Route path="councils" element={<CouncilAssignmentPage />} />
                                 <Route path="project-enrollments" element={<ProjectEnrollmentPage />} />
                                 <Route path="announcements" element={<AnnouncementManagementPage />} />
