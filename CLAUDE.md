@@ -87,31 +87,49 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
      - Tạo mới `TitleAdjustmentModal.jsx` (đếm ngược 7 ngày) và `BM04EvaluationModal.jsx` (form 4 tiêu chuẩn, tính điểm, ký số, khóa vĩnh viễn).
      - Nâng cấp `StudentDashboardPage.jsx` và `SubmissionPage.jsx`: Thể hiện quy trình 6 bước khóa tuần tự, card BM04, banner đổi tên 7 ngày, cảnh báo BM01 cần sửa và alert dừng đề tài.
      - Nâng cấp `LecturerDashboardPage.jsx`, `ProgressTrackingPage.jsx`, `StudentProgressDetailPanel.jsx`, `BMReviewDrawer.jsx`: Tích hợp modal duyệt đổi tên đề tài, modal chấm BM04, chấm 2 Checkpoint Đạt / Không đạt.
-     - Nâng cấp `ProjectPeriodPage.jsx` (nút Ban hành Quyết định) và `CouncilAssignmentPage.jsx` (lọc SV `DEFENSE_READY`).
-     - Triệt tiêu 100% mọi nút, nhãn, modal bypass trên toàn bộ hệ thống (`CouncilAssignmentPage`, `ProjectOversightPage`, `HomePage`, `taskService`).
-     - Biên dịch Frontend `npm run build` thành công xuất sắc: 0 lỗi.
-  4. **Giai đoạn 4 (Kiểm thử, Nghiệm thu & Hoàn thiện tài liệu)**:
-     - Xây dựng bộ test tích hợp `backend/tests/integration/workflowRedesign.test.js` kiểm thử toàn diện các ràng buộc cốt lõi.
-     - Toàn bộ 19 test suites với 91 test cases trong `backend` đều `PASS 100%`.
-     - Cập nhật đầy đủ tài liệu quy tắc nghiệp vụ tại [01-business-workflow.md](file:///d:/DACN/.agents/rules/01-business-workflow.md).
+### 1. Những phần đã hoàn thành
+1. **Phân hệ Quản trị Tiêu chí Rubric Chấm điểm Bảo vệ (Admin Defense Rubric Customization)**:
+   - **Giai đoạn 1 (Database & Prisma Schema)**:
+     - Tạo Enum `RubricStatus`: `DRAFT`, `ACTIVE`, `ARCHIVED`.
+     - Tạo Model `RubricVersion` (phiên bản, tiêu đề, trạng thái, `isActive`, `totalMaxScore`), `RubricCategory` (nhóm mục lớn, `maxScore`, `orderIndex`), `RubricCriterion` (tiêu chí con, `maxScore`, `orderIndex`, mô tả tiêu chuẩn cấp độ).
+     - Đồng bộ CSDL với `npx prisma db push` và `npx prisma generate`.
+     - Khởi tạo seed data phiên bản `v1` chuẩn hóa (4 nhóm mục, 14 tiêu chí con, tổng 10.0đ, `isActive: true`) bảo toàn 100% dữ liệu lịch sử các khóa trước.
+   - **Giai đoạn 2 (Backend Services, API Controllers & Integration)**:
+     - Xây dựng `rubricService.js` với business guard `checkCanEditRubric()`: tự động phát hiện học kỳ đang diễn ra hoặc đã qua ngày bắt đầu để khóa chỉnh sửa Rubric bảo vệ tính công bằng.
+     - Hàm `validateRubricStructure()`: kiểm tra tổng điểm tiêu chí con = điểm mục; tổng điểm các mục = chính xác 10.0đ.
+     - Xây dựng `rubricController.js` và route `/api/rubrics` đầy đủ 8 endpoints CRUD, phân quyền chặt chẽ.
+     - Tích hợp Rubric động vào `evaluationController.js`: nạp barem động và xác thực điểm theo phiên bản Rubric thực tế của đề tài.
+     - Tạo test suite `backend/tests/integration/rubricRoutes.test.js` (4/4 test PASS). Toàn bộ 20/20 test suites (95/95 tests) đều PASS 100%.
+   - **Giai đoạn 3 (Frontend Admin Rubric Management)**:
+     - Xây dựng `frontend/src/services/rubricService.js` kết nối toàn bộ API Rubric.
+     - Thêm route `/admin/rubric-management` và menu item "Tiêu chí chấm (Rubric)" trên Sidebar Admin.
+     - Xây dựng trang [RubricManagementPage.jsx](file:///d:/DACN/frontend/src/pages/admin/RubricManagementPage.jsx) với Banner trạng thái khóa/mở, bảng danh sách phiên bản, modal Nhân bản (Clone), và Drawer soạn thảo Barem với bộ đếm điểm thời gian thực.
+   - **Giai đoạn 4 (Frontend Chấm điểm động Giảng viên & Admin)**:
+     - Nâng cấp [LecturerGradingSheetPage.jsx](file:///d:/DACN/frontend/src/pages/lecturer/LecturerGradingSheetPage.jsx): loại bỏ mảng cứng 14 mã và HTML regex tĩnh; render bảng chấm điểm động theo nhóm mục, tính tổng điểm thời gian thực, hỗ trợ in A4 chuẩn hành chính và xuất PDF.
+     - Nâng cấp [GradingDefensePage.jsx](file:///d:/DACN/frontend/src/pages/admin/GradingDefensePage.jsx): bảng xem điểm của Admin hiển thị gắn thẻ Nhóm mục lớn (Category Tag) trực quan.
+   - **Giai đoạn 5 (Kiểm thử, Nghiệm thu & Tài liệu)**:
+     - `npm run build` trên Frontend thành công 100% (0 lỗi biên dịch).
+     - `npm test` trên Backend PASS 20/20 test suites (95/95 tests).
+     - Cập nhật quy chuẩn Mục 4 trong `.agents/rules/01-business-workflow.md`.
 
 ### 2. Trạng thái cập nhật của từng phần
-- **Database**: `PASS` (Supabase PostgreSQL hoạt động ổn định, Schema Prisma đã đồng bộ với đầy đủ 11 status và bảng mới).
-- **Backend API**: `PASS` (Tất cả 19 test suites / 91 tests đều PASS, dev server port 5000 chạy ổn định).
-- **Frontend SPA**: `PASS` (`npm run build` thành công, dev server port 5173 chạy mượt mà).
-- **Kiểm thử nghiệm thu (E2E Integration)**: `PASS` (100% test cases nghiệp vụ mới đều được xác thực tự động).
+- **Database**: `PASS` (Supabase PostgreSQL hoạt động ổn định, schema đã có bảng `rubric_versions`, `rubric_categories`, `rubric_criteria`).
+- **Backend API**: `PASS` (20/20 test suites / 95 tests đều PASS, dev server port 5000 chạy ổn định).
+- **Frontend SPA**: `PASS` (`npm run build` thành công trong 15.73s, dev server port 5173 chạy mượt mà).
+- **Kiểm thử nghiệm thu (E2E Integration)**: `PASS` (100% test cases rubric và workflow đều được xác thực tự động).
 - **Tài liệu quy tắc**: `PASS` (Đã cập nhật chuẩn hóa trong `.agents/rules/01-business-workflow.md` và `CLAUDE.md`).
 
 ### 3. Bước tiếp theo cần làm (Next Session Plan)
 1. **Kiểm tra trải nghiệm người dùng thực tế trên trình duyệt**:
-   - Sử dụng tài khoản sinh viên đăng ký đề tài -> nộp BM01 -> dùng tài khoản Chủ tịch HĐ duyệt -> nộp BM02 -> tài khoản Trưởng Viện ban hành Quyết định -> thử đổi tên trong 7 ngày -> hoàn thành Checkpoint BM03 -> GVHD chấm BM04 -> xếp HĐ bảo vệ.
-2. **Xuất báo cáo & Văn bản hướng dẫn**:
-   - Xuất biểu mẫu in PDF chuẩn BM01, BM02, BM03, BM04 và Quyết định giao đề tài kèm danh sách có mã QR tra cứu tính toàn vẹn.
+   - Dùng tài khoản Admin truy cập `http://localhost:5173/admin/rubric-management` để kiểm tra giao diện quản lý phiên bản và trình soạn thảo Rubric.
+   - Dùng tài khoản Giảng viên truy cập phiếu chấm điểm để trải nghiệm giao diện chấm điểm động theo nhóm mục và in phiếu A4.
+2. **Xuất báo cáo & In ấn**:
+   - Hoàn thiện template in ấn PDF chuẩn hành chính của trường có mã QR xác thực kết quả chấm.
 
 ### 4. Quyết định quan trọng (Decisions & Rationale)
-1. **Triệt tiêu hoàn toàn Bypass**: Không còn bất kỳ ngoại lệ nào được bỏ qua bước thẩm định. Mọi đề tài đều phải thẩm định đề cương đạt, có quyết định của Viện và vượt qua 2 Checkpoint mới được nộp BM04.
-2. **Cơ chế dừng đề tài nghiêm ngặt tại Checkpoint BM03**: Bất kỳ sinh viên nào không hoàn thành tiến độ tại Checkpoint 1 hoặc 2 và bị GVHD đánh giá `FAILED` sẽ ngay lập tức bị dừng đề tài (`TERMINATED_FAILED_PROGRESS`), bảo đảm chất lượng đồ án tốt nghiệp của Viện.
-3. **Khóa bất biến phiếu nhận xét BM04**: Ngay khi GVHD ký nộp xác nhận, phiếu BM04 chuyển `isLocked = true` và cấm sửa đổi, chống tiêu cực sửa điểm/ý kiến trước giờ bảo vệ.
-4. **Cửa sổ 7 ngày đổi tên linh hoạt nhưng chặt chẽ**: Cho phép điều chỉnh tên đề tài phù hợp với thực tế nghiên cứu nhưng giới hạn cứng trong 7 ngày sau Quyết định giao đề tài; lưu vết cả tên gốc và tên điều chỉnh (`adjustedTitle`).
+1. **Quản lý toàn hệ thống theo Phiên bản (Global Versioning)**: Sử dụng các phiên bản `v1`, `v2`, `v3`... với 1 phiên bản `ACTIVE`. Điều này giúp hệ thống lưu trữ lịch sử chấm điểm bất biến (các khóa trước đã chấm theo `v1` vĩnh viễn không bị sai lệch điểm khi áp dụng barem mới).
+2. **Cấu trúc phân cấp 2 tầng (Hierarchical Categories & Criteria)**: Nhóm các tiêu chí con vào các Nhóm mục lớn (vd: Hình thức, Nội dung & kết quả, Thuyết trình & phản biện), phản ánh đúng thực tế barem đánh giá của Hội đồng chấm khóa luận tốt nghiệp.
+3. **Ràng buộc điểm học thuật nghiêm ngặt**: Tổng điểm các tiêu chí trong mục = điểm mục; tổng điểm các mục = chính xác 10.0đ. Giao diện có bộ đếm thời gian thực và khóa nút Lưu nếu chưa đúng 10.0đ.
+4. **Business Guard (Khóa an toàn)**: Chỉ cho phép chỉnh sửa hoặc kích hoạt Rubric khi **chưa vào đợt đồ án** (học kỳ `UPCOMING` hoặc trước ngày `startDate`). Khi học kỳ chuyển sang `ONGOING`, `DEFENSE` hoặc sau `startDate`, hệ thống tự động khóa sang chế độ Chỉ đọc (Read-only) nhằm đảm bảo tính công bằng học vụ.
 
 
