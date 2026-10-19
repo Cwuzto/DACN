@@ -307,6 +307,8 @@ function GradingDefensePage() {
             return {
                 criterionCode: criterion.code,
                 criterionLabel: criterion.label,
+                categoryCode: criterion.categoryCode || '',
+                categoryName: criterion.categoryName || '',
                 maxScore: criterion.maxScore,
                 score: currentScore,
                 level: getLevelByScore(currentScore, criterion.maxScore),
@@ -966,7 +968,14 @@ function GradingDefensePage() {
                                     <td className="p-2.5 text-center text-slate-500 font-mono border-r border-slate-200">{index + 1}</td>
                                     <td className="p-2.5 border-r border-slate-200">
                                         <div className="font-semibold text-slate-800">{row.criterionLabel}</div>
-                                        <div className="text-[11px] text-slate-400 font-mono">{row.criterionCode}</div>
+                                        <div className="flex items-center gap-2 mt-0.5">
+                                            <span className="text-[11px] text-slate-400 font-mono">{row.criterionCode}</span>
+                                            {row.categoryName && (
+                                                <span className="text-[10px] text-teal-700 bg-teal-50 border border-teal-200 px-1.5 py-0.2 rounded font-medium">
+                                                    {row.categoryName}
+                                                </span>
+                                            )}
+                                        </div>
                                     </td>
                                     <td className="p-2.5 text-center font-bold text-slate-700 border-r border-slate-200">{row.maxScore}</td>
                                     <td className="p-2.5 border-r border-slate-200">
