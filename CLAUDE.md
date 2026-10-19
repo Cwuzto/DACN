@@ -71,46 +71,19 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 ## 6. Cập Nhật Phiên Làm Việc (Session Update)
 
 ### 1. Những phần đã hoàn thành
-- **Hoàn thành trọn vẹn 4 Giai đoạn Chuẩn hóa Quy trình Đồ án tốt nghiệp (Thesis Workflow Redesign)**:
-  1. **Giai đoạn 1 (CSDL & Prisma Schema)**:
-     - Mở rộng enum `RegistrationStatus` lên 11 trạng thái chuẩn hóa, phản ánh đúng chu kỳ đời sống đồ án.
-     - Tạo model mới `TopicTitleAdjustment` lưu vết lịch sử đổi tên đề tài trong khung thời gian 7 ngày.
-     - Nâng cấp model `BM04Evaluation` gắn chặt theo đợt (`semesterId`), lưu trữ 4 tiêu chí đánh giá bắt buộc và cờ bất biến `isLocked = true`.
-     - Bổ sung `decisionNumber`, `decisionDate`, `adjustedTitle` vào `TopicRegistration`. Đã đồng bộ schema và sinh Prisma Client thành công.
-  2. **Giai đoạn 2 (Backend API & Controllers)**:
-     - `evaluationController.js`: Viết API nộp lại đề cương BM01 (`resubmitBM01`), GVHD thẩm định lại đề cương (`approveResubmittedBM01`), và nộp phiếu BM04 đánh giá 4 tiêu chí kèm khóa bất biến (`submitBM04Evaluation`).
-     - `registrationController.js`: Thêm API nộp BM02 với guard chặn nộp nếu BM01 chưa Đạt (`submitBM02`); API nộp đơn đổi tên trong 7 ngày (`requestTitleAdjustment`) và GVHD duyệt đổi tên (`reviewTitleAdjustment`).
-     - `semesterController.js`: Viết API ban hành Quyết định giao đề tài kèm danh sách (`issuePeriodDecision`), tự động sinh mốc Checkpoint BM03.
-     - `taskController.js`: Triển khai cơ chế dừng đề tài tức thì (`TERMINATED_FAILED_PROGRESS`) khi Checkpoint BM03 bị chấm Không đạt (`FAILED`).
-     - `councilController.js`: Chặn xếp Hội đồng bảo vệ nếu sinh viên chưa có trạng thái `DEFENSE_READY` (BM04 Đồng ý).
-  3. **Giai đoạn 3 (Frontend UI/UX & Triệt tiêu Bypass)**:
-     - Tạo mới `TitleAdjustmentModal.jsx` (đếm ngược 7 ngày) và `BM04EvaluationModal.jsx` (form 4 tiêu chuẩn, tính điểm, ký số, khóa vĩnh viễn).
-     - Nâng cấp `StudentDashboardPage.jsx` và `SubmissionPage.jsx`: Thể hiện quy trình 6 bước khóa tuần tự, card BM04, banner đổi tên 7 ngày, cảnh báo BM01 cần sửa và alert dừng đề tài.
-     - Nâng cấp `LecturerDashboardPage.jsx`, `ProgressTrackingPage.jsx`, `StudentProgressDetailPanel.jsx`, `BMReviewDrawer.jsx`: Tích hợp modal duyệt đổi tên đề tài, modal chấm BM04, chấm 2 Checkpoint Đạt / Không đạt.
-### 1. Những phần đã hoàn thành
-1. **Phân hệ Quản trị Tiêu chí Rubric Chấm điểm Bảo vệ (Admin Defense Rubric Customization)**:
-   - **Giai đoạn 1 (Database & Prisma Schema)**:
-     - Tạo Enum `RubricStatus`: `DRAFT`, `ACTIVE`, `ARCHIVED`.
-     - Tạo Model `RubricVersion` (phiên bản, tiêu đề, trạng thái, `isActive`, `totalMaxScore`), `RubricCategory` (nhóm mục lớn, `maxScore`, `orderIndex`), `RubricCriterion` (tiêu chí con, `maxScore`, `orderIndex`, mô tả tiêu chuẩn cấp độ).
-     - Đồng bộ CSDL với `npx prisma db push` và `npx prisma generate`.
-     - Khởi tạo seed data phiên bản `v1` chuẩn hóa (4 nhóm mục, 14 tiêu chí con, tổng 10.0đ, `isActive: true`) bảo toàn 100% dữ liệu lịch sử các khóa trước.
-   - **Giai đoạn 2 (Backend Services, API Controllers & Integration)**:
-     - Xây dựng `rubricService.js` với business guard `checkCanEditRubric()`: tự động phát hiện học kỳ đang diễn ra hoặc đã qua ngày bắt đầu để khóa chỉnh sửa Rubric bảo vệ tính công bằng.
-     - Hàm `validateRubricStructure()`: kiểm tra tổng điểm tiêu chí con = điểm mục; tổng điểm các mục = chính xác 10.0đ.
-     - Xây dựng `rubricController.js` và route `/api/rubrics` đầy đủ 8 endpoints CRUD, phân quyền chặt chẽ.
-     - Tích hợp Rubric động vào `evaluationController.js`: nạp barem động và xác thực điểm theo phiên bản Rubric thực tế của đề tài.
-     - Tạo test suite `backend/tests/integration/rubricRoutes.test.js` (4/4 test PASS). Toàn bộ 20/20 test suites (95/95 tests) đều PASS 100%.
-   - **Giai đoạn 3 (Frontend Admin Rubric Management)**:
-     - Xây dựng `frontend/src/services/rubricService.js` kết nối toàn bộ API Rubric.
-     - Thêm route `/admin/rubric-management` và menu item "Tiêu chí chấm (Rubric)" trên Sidebar Admin.
-     - Xây dựng trang [RubricManagementPage.jsx](file:///d:/DACN/frontend/src/pages/admin/RubricManagementPage.jsx) với Banner trạng thái khóa/mở, bảng danh sách phiên bản, modal Nhân bản (Clone), và Drawer soạn thảo Barem với bộ đếm điểm thời gian thực.
-   - **Giai đoạn 4 (Frontend Chấm điểm động Giảng viên & Admin)**:
-     - Nâng cấp [LecturerGradingSheetPage.jsx](file:///d:/DACN/frontend/src/pages/lecturer/LecturerGradingSheetPage.jsx): loại bỏ mảng cứng 14 mã và HTML regex tĩnh; render bảng chấm điểm động theo nhóm mục, tính tổng điểm thời gian thực, hỗ trợ in A4 chuẩn hành chính và xuất PDF.
-     - Nâng cấp [GradingDefensePage.jsx](file:///d:/DACN/frontend/src/pages/admin/GradingDefensePage.jsx): bảng xem điểm của Admin hiển thị gắn thẻ Nhóm mục lớn (Category Tag) trực quan.
-   - **Giai đoạn 5 (Kiểm thử, Nghiệm thu & Tài liệu)**:
-     - `npm run build` trên Frontend thành công 100% (0 lỗi biên dịch).
-     - `npm test` trên Backend PASS 20/20 test suites (95/95 tests).
-     - Cập nhật quy chuẩn Mục 4 trong `.agents/rules/01-business-workflow.md`.
+1. **Chuẩn hóa Quy trình Đồ án Tốt nghiệp Mới (BM01 - BM04 & Hội đồng Bảo vệ)**:
+   - CSDL: 11 trạng thái `RegistrationStatus`, model `TopicTitleAdjustment`, model `BM04Evaluation` (khóa bất biến `isLocked = true`).
+   - Backend API: Nộp lại BM01 (`resubmitBM01`), GVHD duyệt lại BM01, nộp BM02 có guard, Ban hành Quyết định giao đề tài (`issuePeriodDecision`), cửa sổ 7 ngày đổi tên đề tài, cơ chế dừng đề tài tức thì khi trượt Checkpoint BM03 (`TERMINATED_FAILED_PROGRESS`), phiếu nhận xét BM04 4 tiêu chí.
+   - Frontend UI/UX: Thanh tiến trình 6 bước, modal đổi tên 7 ngày, modal BM04, triệt tiêu 100% các nút và cơ chế Bypass.
+2. **Tính Năng Ghi Nhớ Đăng Nhập & Sửa Lỗi Trắng Trang `/admin/oversight`**:
+   - Ghi nhớ đăng nhập (Remember Me): Cấp JWT 30 ngày (nếu tick nhớ) hoặc 1 ngày (nếu không); lưu trữ hybrid giữa `localStorage` và `sessionStorage`; tự động điền email.
+   - Sửa lỗi trắng trang `/admin/oversight`: Khắc phục `ReferenceError: pickNearestLatestSemesterId is not defined` bằng hàm chuẩn `computeSemesterClosestToNow`, bổ sung fallback học kỳ.
+3. **Phân Hệ Quản Trị Tiêu Chí Rubric Chấm Điểm Bảo Vệ (Admin Defense Rubric Customization)**:
+   - **Giai đoạn 1 (Database & Prisma Schema)**: Tạo Enum `RubricStatus`, Models `RubricVersion`, `RubricCategory`, `RubricCriterion`. Push schema lên Supabase và seed bản `v1` chuẩn hóa (4 nhóm mục, 14 tiêu chí con, tổng 10.0đ, `isActive: true`) bảo toàn lịch sử.
+   - **Giai đoạn 2 (Backend Services, API Controllers & Integration)**: Xây dựng `rubricService.js` với business guard `checkCanEditRubric()` khóa khi học kỳ diễn ra; `validateRubricStructure()` kiểm tra tổng điểm = 10.0; route `/api/rubrics` 8 endpoints; tích hợp vào `evaluationController.js`. Test suite `rubricRoutes.test.js` PASS 100% (20/20 test suites / 95 tests).
+   - **Giai đoạn 3 (Frontend Admin Rubric Management)**: Service `rubricService.js`, route `/admin/rubric-management`, menu item "Tiêu chí chấm (Rubric)". Trang [RubricManagementPage.jsx](file:///d:/DACN/frontend/src/pages/admin/RubricManagementPage.jsx) với Banner trạng thái khóa/mở, bảng phiên bản, Clone modal, và Drawer soạn thảo với bộ đếm điểm thời gian thực.
+   - **Giai đoạn 4 (Frontend Chấm điểm động Giảng viên & Admin)**: Nâng cấp [LecturerGradingSheetPage.jsx](file:///d:/DACN/frontend/src/pages/lecturer/LecturerGradingSheetPage.jsx) render bảng barem động theo nhóm mục, tính tổng điểm thời gian thực, in chuẩn A4 và xuất PDF; nâng cấp [GradingDefensePage.jsx](file:///d:/DACN/frontend/src/pages/admin/GradingDefensePage.jsx) gắn thẻ Nhóm mục.
+   - **Giai đoạn 5 (Kiểm thử, Nghiệm thu & Tài liệu)**: `npm run build` thành công 100% (0 lỗi); `npm test` PASS 20/20 test suites; cập nhật quy chuẩn Mục 4 trong `.agents/rules/01-business-workflow.md`.
 
 ### 2. Trạng thái cập nhật của từng phần
 - **Database**: `PASS` (Supabase PostgreSQL hoạt động ổn định, schema đã có bảng `rubric_versions`, `rubric_categories`, `rubric_criteria`).
