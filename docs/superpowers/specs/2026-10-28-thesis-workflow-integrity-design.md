@@ -12,7 +12,7 @@ Thiết lập một nguồn chân lý cho `TopicRegistration` và các thực th
 
 1. Mỗi sinh viên chỉ có một lần nộp lại BM01. Không đạt lần nộp lại hoặc quá hạn thì dừng với `TERMINATED_BM01`.
 2. BM02 thiếu/sai được Viện trả về một lần, kèm lý do và hạn sửa. Bản nộp lại tạo phiên bản BM02 mới; không đạt lần hai hoặc quá hạn thì dừng với `TERMINATED_BM02`. Mọi lần nộp lại, kể cả sau `BM02_EXCEPTION_REVIEW`, dùng chung quota một lần sửa; cấp thêm lượt cần quyết định ngoại lệ riêng có audit.
-3. BM03 chỉ có kết luận `ALLOWED_TO_CONTINUE` hoặc `NOT_ALLOWED_TO_CONTINUE`, không có điểm số. BM03 chỉ hiệu lực khi GVHD và SV ký đầy đủ. Kháng nghị BM03 chỉ mở khi SV không ký đúng hạn; không có kháng nghị kết luận chuyên môn `NOT_ALLOWED_TO_CONTINUE`.
+3. BM03 chỉ có kết luận `ALLOWED_TO_CONTINUE` hoặc `NOT_ALLOWED_TO_CONTINUE`, không có điểm số. BM03 chỉ hiệu lực khi GVHD và SV ký đầy đủ. SV có 3 ngày để ký kể từ thông báo hợp lệ; nếu quá hạn không ký thì có 3 ngày để kháng nghị. Không có kháng nghị kết luận chuyên môn `NOT_ALLOWED_TO_CONTINUE`.
 4. Sau `DECISION_ISSUED`, không có luồng rút/hủy hồ sơ. Hồ sơ chỉ có thể đi tiếp hoặc dừng theo kết quả BM03, BM04, bảo vệ hoặc quy trình ngoại lệ có thẩm quyền.
 5. Quyết định gốc không bị sửa/xóa. Sai sót hành chính được xử lý bằng `DecisionAmendment`, tham chiếu quyết định gốc và có người ký.
 6. Chuyển GVHD cần Admin/Viện trưởng phê duyệt. GVHD mới kế thừa quyền còn hiệu lực từ thời điểm chuyển giao; BM04 đã ký không được chuyển hoặc sửa.
@@ -134,7 +134,7 @@ flowchart TD
 
 ### 3.4 Quy tắc deadline, chữ ký và checkpoint
 
-Mọi yêu cầu sửa BM01/BM02, yêu cầu ký BM03 và phiên bản lưu chiểu phải lưu `deadlineAt`, `notifiedAt`, `submittedAt`, `policyVersionId` và lịch sử gia hạn. Hạn tính theo múi giờ của đợt (`Asia/Ho_Chi_Minh`), bắt đầu từ `notifiedAt`; ngày nghỉ chỉ ảnh hưởng nếu `PeriodWorkflowPolicyVersion` quy định. Không tự sửa deadline đã hết: mọi gia hạn cần actor có thẩm quyền, lý do, thời điểm hiệu lực và audit. Sự cố hệ thống được xử lý bằng quyết định gia hạn có lưu bằng chứng, không bằng suy luận tự động.
+Mọi yêu cầu sửa BM01/BM02, yêu cầu ký BM03 và phiên bản lưu chiểu phải lưu `deadlineAt`, `notifiedAt`, `submittedAt`, `policyVersionId` và lịch sử gia hạn. Hạn tính theo múi giờ của đợt (`Asia/Ho_Chi_Minh`), bắt đầu từ `notifiedAt`; ngày nghỉ chỉ ảnh hưởng nếu `PeriodWorkflowPolicyVersion` quy định. Cấu hình mặc định BM03 là 3 ngày để SV ký và, nếu không ký, 3 ngày để nộp `CheckpointSignatureAppeal`. Không tự sửa deadline đã hết: mọi gia hạn cần actor có thẩm quyền, lý do, thời điểm hiệu lực và audit. Sự cố hệ thống được xử lý bằng quyết định gia hạn có lưu bằng chứng, không bằng suy luận tự động.
 
 Nếu GVHD cần thay phiên bản BM03 trước khi ký đầy đủ, hệ thống tạo `CheckpointEvaluation` mới tham chiếu `supersedesEvaluationId`, thu hồi yêu cầu ký của bản cũ và lưu lịch sử. Không có phiên bản nào được dùng để quyết định tiến độ trước khi đủ hai chữ ký.
 
