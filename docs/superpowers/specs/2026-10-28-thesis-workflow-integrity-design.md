@@ -12,7 +12,7 @@ Thiết lập một nguồn chân lý cho `TopicRegistration` và các thực th
 
 1. Mỗi sinh viên chỉ có một lần nộp lại BM01. Không đạt lần nộp lại hoặc quá hạn thì dừng với `TERMINATED_BM01`.
 2. BM02 thiếu/sai được Viện trả về một lần, kèm lý do và hạn sửa. Bản nộp lại tạo phiên bản BM02 mới; không đạt lần hai hoặc quá hạn thì dừng với `TERMINATED_BM02`. Mọi lần nộp lại, kể cả sau `BM02_EXCEPTION_REVIEW`, dùng chung quota một lần sửa; cấp thêm lượt cần quyết định ngoại lệ riêng có audit.
-3. Mỗi checkpoint BM03 chỉ có một lần kháng nghị trong hạn. Admin/Viện trưởng phê duyệt thì chỉ mở lại checkpoint bị kháng nghị để GVHD chấm lại; quyết định cũ luôn được lưu.
+3. BM03 chỉ có kết luận `ALLOWED_TO_CONTINUE` hoặc `NOT_ALLOWED_TO_CONTINUE`, không có điểm số. BM03 chỉ hiệu lực khi GVHD và SV ký đầy đủ. Kháng nghị BM03 chỉ mở khi SV không ký đúng hạn; không có kháng nghị kết luận chuyên môn `NOT_ALLOWED_TO_CONTINUE`.
 4. Sau `DECISION_ISSUED`, không có luồng rút/hủy hồ sơ. Hồ sơ chỉ có thể đi tiếp hoặc dừng theo kết quả BM03, BM04, bảo vệ hoặc quy trình ngoại lệ có thẩm quyền.
 5. Quyết định gốc không bị sửa/xóa. Sai sót hành chính được xử lý bằng `DecisionAmendment`, tham chiếu quyết định gốc và có người ký.
 6. Chuyển GVHD cần Admin/Viện trưởng phê duyệt. GVHD mới kế thừa quyền còn hiệu lực từ thời điểm chuyển giao; BM04 đã ký không được chuyển hoặc sửa.
@@ -47,13 +47,16 @@ flowchart TD
     G4 -->|Được phê duyệt có kiểm soát| G2
     G4 -->|Bị từ chối| G3
     H --> I[IN_PROGRESS_BM03]
-    I -->|Checkpoint chưa đạt| J[CHECKPOINT_APPEAL_OPEN]
-    J -->|SV nộp kháng nghị đúng hạn| J1[CHECKPOINT_APPEAL_SUBMITTED]
-    J1 --> J2[CHECKPOINT_APPEAL_REVIEW]
-    J2 -->|Được chấp thuận| I
-    J -->|Hết hạn| K[TERMINATED_FAILED_PROGRESS]
-    J2 -->|Bị bác hoặc chấm lại không đạt| K
-    I -->|Đủ 2 checkpoint| L[BM03_PASSED]
+    I -->|GVHD phát hành checkpoint BM03| J[BM03_SIGNATURE_PENDING]
+    J -->|Đủ chữ ký; CP1 ALLOWED_TO_CONTINUE| I
+    J -->|Đủ chữ ký; CP2 ALLOWED_TO_CONTINUE| L[BM03_PASSED]
+    J -->|Đủ chữ ký; NOT_ALLOWED_TO_CONTINUE| K[TERMINATED_FAILED_PROGRESS]
+    J -->|Hết hạn ký, SV chưa ký| J1[CHECKPOINT_SIGNATURE_APPEAL_OPEN]
+    J1 -->|SV nộp đơn đúng hạn| J2[CHECKPOINT_SIGNATURE_APPEAL_SUBMITTED]
+    J2 --> J3[CHECKPOINT_SIGNATURE_APPEAL_REVIEW]
+    J1 -->|Hết hạn, không có đơn| K
+    J3 -->|Bị bác| K
+    J3 -->|Được chấp thuận| J4[SIGNATURE_APPEAL_RESOLVED]
     L --> M[BM04_REVIEW]
     M -->|Không đồng ý| N[TERMINATED_BM04]
     M -->|Đồng ý và đủ lưu chiểu| O[DEFENSE_READY]
@@ -96,7 +99,22 @@ flowchart TD
 
 `BM02_RESUBMITTED` là trạng thái chờ Viện kiểm tra lại, không phải transition tự động sang QĐ. Viện chỉ có thể: duyệt phiên bản hiện hành để ban hành QĐ; kết thúc `TERMINATED_BM02` nếu vẫn không hợp lệ; hoặc chuyển `BM02_EXCEPTION_REVIEW` nếu phát hiện thay đổi lớn và policy cho phép. Chỉ Viện/người được phân quyền được trả BM02 về sửa. Mỗi lần trả về phải có danh sách lỗi cần sửa và deadline tính từ lúc thông báo thành công. Sửa lỗi thông thường giữ cùng `TopicRegistration`; thay đổi lớn chỉ được tiếp tục khi ngoại lệ được phê duyệt, nếu không kết thúc hồ sơ BM02. Ngoại lệ không tự cấp thêm quota nộp lại. Sai sót được phát hiện sau `DECISION_ISSUED` luôn đi theo `DecisionAmendment`, không mở lại BM02.
 
-### 3.2 State machine lưu chiểu hậu bảo vệ
+### 3.2 State machine BM03 và chữ ký checkpoint
+
+```mermaid
+flowchart TD
+    A[BM03_SIGNATURE_PENDING] -->|Đủ chữ ký GVHD và SV| B[BM03_EFFECTIVE]
+    A -->|Hết hạn ký, SV chưa ký| C[CHECKPOINT_SIGNATURE_APPEAL_OPEN]
+    C -->|SV gửi đơn đúng hạn| D[CHECKPOINT_SIGNATURE_APPEAL_SUBMITTED]
+    D --> E[CHECKPOINT_SIGNATURE_APPEAL_REVIEW]
+    E -->|Được chấp thuận| F[SIGNATURE_APPEAL_RESOLVED]
+    E -->|Bị bác| G[TERMINATED_FAILED_PROGRESS]
+    C -->|Hết hạn, không có đơn| G
+```
+
+Mỗi `CheckpointEvaluation` chỉ lưu kết luận `ALLOWED_TO_CONTINUE` hoặc `NOT_ALLOWED_TO_CONTINUE`, nhận xét, minh chứng và chữ ký; không lưu điểm số. GVHD xuất BM03 và ký trước, hệ thống thông báo cho SV xem/ký. Khi có đủ hai chữ ký, kết luận có hiệu lực: checkpoint 1 đạt thì tiếp tục `IN_PROGRESS_BM03`, checkpoint 2 đạt thì `BM03_PASSED`, còn `NOT_ALLOWED_TO_CONTINUE` thì `TERMINATED_FAILED_PROGRESS`. Khi SV không ký đúng hạn, chỉ nhánh `CHECKPOINT_SIGNATURE_APPEAL_*` được mở. Kháng nghị được chấp thuận không tự tạo chữ ký SV hoặc mặc nhiên làm BM03 có hiệu lực; Admin/Viện trưởng phải lưu quyết định xử lý cụ thể, sau đó điều kiện hai chữ ký vẫn được áp dụng. Không mở lại checkpoint hoặc thay đổi kết luận chuyên môn chỉ vì kháng nghị.
+
+### 3.3 State machine lưu chiểu hậu bảo vệ
 
 ```mermaid
 flowchart TD
@@ -114,13 +132,13 @@ flowchart TD
 
 `ProjectArchiveVersion` giữ state machine này độc lập; bản cũ không thể được nghiệm thu lại sau khi có bản thay thế, trừ một `ArchiveResolution` được phê duyệt. Mỗi phiên bản lưu `submittedAt`, `reviewStartedAt`, `reviewDeadlineAt`, `revisionDeadlineAt`, `reviewOutcome` và `policyVersionId`. Khi SV nộp bản sửa, tạo phiên bản mới và tính lại hạn phản hồi 7 ngày theo policy. Tối đa hai lần **SV nộp lại sau bản đầu tiên**. `RESOLVED` là kết thúc của vụ việc ngoại lệ, phải lưu outcome rõ ràng: gia hạn, yêu cầu tiếp tục hoàn thiện, hoặc quyết định học vụ khác theo quy chế. Outcome gia hạn mới được quay về `REVISION_REQUIRED`; outcome còn lại không tạo đường tắt để hoàn tất. Chỉ `ACCEPTED` của phiên bản hiện hành mới có thể kích hoạt `COMPLETED`.
 
-### 3.3 Quy tắc deadline và đánh giá checkpoint
+### 3.4 Quy tắc deadline, chữ ký và checkpoint
 
-Mọi yêu cầu sửa BM01/BM02 và phiên bản lưu chiểu phải lưu `deadlineAt`, `notifiedAt`, `submittedAt`, `policyVersionId` và lịch sử gia hạn. Hạn tính theo múi giờ của đợt (`Asia/Ho_Chi_Minh`), bắt đầu từ `notifiedAt`; ngày nghỉ chỉ ảnh hưởng nếu `PeriodWorkflowPolicyVersion` quy định. Không tự sửa deadline đã hết: mọi gia hạn cần actor có thẩm quyền, lý do, thời điểm hiệu lực và audit. Sự cố hệ thống được xử lý bằng quyết định gia hạn có lưu bằng chứng, không bằng suy luận tự động.
+Mọi yêu cầu sửa BM01/BM02, yêu cầu ký BM03 và phiên bản lưu chiểu phải lưu `deadlineAt`, `notifiedAt`, `submittedAt`, `policyVersionId` và lịch sử gia hạn. Hạn tính theo múi giờ của đợt (`Asia/Ho_Chi_Minh`), bắt đầu từ `notifiedAt`; ngày nghỉ chỉ ảnh hưởng nếu `PeriodWorkflowPolicyVersion` quy định. Không tự sửa deadline đã hết: mọi gia hạn cần actor có thẩm quyền, lý do, thời điểm hiệu lực và audit. Sự cố hệ thống được xử lý bằng quyết định gia hạn có lưu bằng chứng, không bằng suy luận tự động.
 
-Kết quả chấm lại checkpoint không ghi đè kết quả cũ. Hệ thống tạo `CheckpointEvaluation` mới với `supersedesEvaluationId`; chỉ evaluation đang hiệu lực được dùng để quyết định `BM03_PASSED`, nhưng toàn bộ phiên bản trước vẫn truy vết được.
+Nếu GVHD cần thay phiên bản BM03 trước khi ký đầy đủ, hệ thống tạo `CheckpointEvaluation` mới tham chiếu `supersedesEvaluationId`, thu hồi yêu cầu ký của bản cũ và lưu lịch sử. Không có phiên bản nào được dùng để quyết định tiến độ trước khi đủ hai chữ ký.
 
-### 3.4 Phiên bảo vệ và hiệu lực phiếu chấm
+### 3.5 Phiên bảo vệ và hiệu lực phiếu chấm
 
 `DefenseSession` có các trạng thái `SCHEDULED`, `STARTED`, `COMPLETED`, `POSTPONED`, `CANCELLED`. Khi phát sinh ngoại lệ, quyết định xử lý phải nêu rõ: bổ sung phiếu còn thiếu nếu thành viên đã thực sự tham gia và policy cho phép; thay thành viên kèm tổ chức lại buổi; hoặc hủy hiệu lực buổi cũ và tạo buổi mới. Không được hợp thức hóa phiếu của thành viên thay thế cho buổi mà người đó không tham gia.
 
@@ -139,7 +157,7 @@ Mỗi `ScoreSheet` và `ScoreObligation` gắn `defenseSessionId` và `isEffecti
 | INV-07 | Không xóa hoặc ghi đè Quyết định, phiếu chấm và lịch sử trạng thái đã xác nhận. |
 | INV-08 | Không cho hai yêu cầu đồng thời chuyển hồ sơ sang hai nhánh không tương thích. |
 | INV-09 | BM01 chỉ được nộp lại một lần và luôn gắn với kết quả BM01 bị yêu cầu sửa. |
-| INV-10 | Mỗi checkpoint chỉ có tối đa một kháng nghị, gắn với checkpoint, quyết định cũ, hạn và người duyệt. |
+| INV-10 | Mỗi checkpoint chỉ có tối đa một kháng nghị về việc SV không ký đúng hạn, gắn deadline, bằng chứng thông báo và người duyệt. |
 | INV-11 | Chỉ thành viên hợp lệ tại thời điểm bảo vệ được tạo/khóa phiếu chấm; GVHD bị cấm. |
 | INV-12 | Transition chạy trong transaction, kiểm tra trạng thái kỳ vọng và phiên bản để chống race condition. |
 | INV-13 | Không ban hành QĐ nếu BM02 không phải phiên bản hiện hành đã được Viện chấp thuận. |
@@ -153,6 +171,7 @@ Mỗi `ScoreSheet` và `ScoreObligation` gắn `defenseSessionId` và `isEffecti
 | INV-21 | Phiếu chấm chỉ có hiệu lực cho kết quả nếu thuộc `DefenseSession` hợp lệ và `isEffectiveForResult = true`. |
 | INV-22 | Policy của hồ sơ được pin khi đăng ký; chuyển sang version khác cần quyết định phạm vi áp dụng có thẩm quyền, không hồi tố ngầm. |
 | INV-23 | Các unique constraint và idempotency key phải bảo đảm không tạo hai QĐ gốc, hai kháng nghị hợp lệ/checkpoint hoặc hai phiếu hiệu lực/thành viên/buổi/loại chấm. |
+| INV-24 | `CheckpointEvaluation` không có điểm số và chỉ có hiệu lực khi GVHD, SV đều ký; BM04 chỉ cần chữ ký GVHD. |
 
 ## 5. Dữ liệu và phân quyền
 
@@ -160,8 +179,8 @@ Mỗi `ScoreSheet` và `ScoreObligation` gắn `defenseSessionId` và `isEffecti
 | --- | --- |
 | `TopicRegistration` | Trạng thái chính, `stateVersion`, `periodPolicyVersionId` được pin khi đăng ký, mốc thời gian. |
 | `RegistrationStateHistory` | Lịch sử transition append-only, actor, lý do, dữ liệu tham chiếu. |
-| `CheckpointAppeal` | Một kháng nghị/checkpoint: quyết định cũ, chứng cứ, hạn, phê duyệt và kết quả chấm lại. |
-| `CheckpointEvaluation` | Các lần đánh giá checkpoint; kết quả chấm lại tham chiếu `supersedesEvaluationId` và chỉ một phiên bản có hiệu lực. |
+| `CheckpointSignatureAppeal` | Một kháng nghị/checkpoint khi SV không ký đúng hạn: deadline, bằng chứng thông báo, chứng cứ, phê duyệt và quyết định xử lý. |
+| `CheckpointEvaluation` | Kết luận không điểm số, nhận xét, minh chứng, chữ ký GVHD/SV; phiên bản thay thế trước khi ký đầy đủ tham chiếu `supersedesEvaluationId`. |
 | `BM02Submission` | Phiên bản BM02, người nộp/duyệt, kết quả, lý do trả về, hạn sửa, số lần sửa và liên kết bản trước. |
 | `MentorTransfer` | GVHD cũ/mới, lý do, thời điểm hiệu lực, người duyệt. |
 | `DecisionAmendment` | Quyết định điều chỉnh, tham chiếu QĐ gốc, lý do, danh sách hồ sơ tác động, dữ liệu được bổ sung và người ký. |
@@ -180,8 +199,8 @@ Tầng dữ liệu phải thực thi `stateVersion`/optimistic locking hoặc kh
 
 `DecisionAmendment` chỉ bổ sung hoặc thay thế hiệu lực pháp lý từ ngày hiệu lực; không tự đưa `TopicRegistration` lùi về trạng thái cũ. `MentorTransfer` chỉ thay quyền xử lý ở các bước chưa hoàn tất; không thay actor/lịch sử của BM03, BM04, điểm hoặc bản lưu chiểu đã được xác nhận.
 
-- **SV:** nộp BM, kháng nghị một lần, nộp hồ sơ lưu chiểu.
-- **GVHD hiện hành:** chấm BM03, ký BM04, nghiệm thu lưu chiểu; không chấm bảo vệ.
+- **SV:** nộp BM, ký BM03, chỉ kháng nghị khi không ký đúng hạn, nộp hồ sơ lưu chiểu.
+- **GVHD hiện hành:** phát hành/ký BM03, ký BM04, nghiệm thu lưu chiểu; không chấm bảo vệ.
 - **Thành viên hội đồng:** chỉ tạo/khóa phiếu của hồ sơ được phân công hợp lệ.
 - **Chủ tịch:** xác nhận tính đầy đủ của buổi bảo vệ, lập biên bản xử lý; không tự ghi đè điểm thành viên.
 - **Admin/Viện trưởng:** duyệt kháng nghị, chuyển GVHD, điều chỉnh QĐ, ngoại lệ hội đồng và chốt/phê duyệt kết quả theo policy; không được tự thay điểm chuyên môn của giám khảo.
@@ -215,7 +234,7 @@ Tầng dữ liệu phải thực thi `stateVersion`/optimistic locking hoặc kh
 
 - BM01 một lần sửa; BM02 có phiên bản, một lần sửa và luồng ngoại lệ thay đổi lớn; QĐ điều chỉnh.
 - Đổi tên đúng trạng thái/hạn/GVHD hiệu lực.
-- Kháng nghị checkpoint và chuyển GVHD.
+- Chữ ký BM03 hai bên, kháng nghị do SV không ký đúng hạn và chuyển GVHD.
 - Kiểm tra bộ lưu chiểu trước bảo vệ trước `DEFENSE_READY`.
 
 ### Giai đoạn 4 — Hội đồng và kết quả bảo vệ
@@ -237,7 +256,7 @@ Tầng dữ liệu phải thực thi `stateVersion`/optimistic locking hoặc kh
 
 ## 7. Tiêu chí nghiệm thu tổng thể
 
-1. API không có đường nào vi phạm INV-01 đến INV-23, kể cả ngoại lệ, tác vụ nền và request gửi lại.
+1. API không có đường nào vi phạm INV-01 đến INV-24, kể cả ngoại lệ, tác vụ nền và request gửi lại.
 2. Mọi thay đổi pháp lý/học vụ quan trọng đều append-only, có actor, thời gian, lý do và dữ liệu trước/sau.
 3. UI không hiển thị hành động mà backend không chấp nhận.
 4. Migration không làm mất hồ sơ; các bản ghi mơ hồ được phân loại để rà soát thủ công.
@@ -267,7 +286,8 @@ Tầng dữ liệu phải thực thi `stateVersion`/optimistic locking hoặc kh
 | Gia hạn | Gia hạn sau deadline chỉ hiệu lực khi được phê duyệt và audit. |
 | Policy giữa chừng | Thay policy khi hồ sơ đang chạy không âm thầm đổi policy áp dụng. |
 | Bảo vệ không đạt | Hồ sơ `DEFENSE_FAILED` dù có archive `ACCEPTED` cũng không thành `COMPLETED`. |
-| Kháng nghị đồng thời | Hai request tạo kháng nghị checkpoint đồng thời chỉ ghi nhận một bản hợp lệ. |
+| Kháng nghị chữ ký đồng thời | Hai request tạo kháng nghị khi SV không ký BM03 đồng thời chỉ ghi nhận một bản hợp lệ. |
+| Chữ ký BM03 | Thiếu một trong hai chữ ký không làm checkpoint có hiệu lực; BM04 chỉ yêu cầu chữ ký GVHD. |
 
 ## 9. Quy tắc xuyên suốt
 
