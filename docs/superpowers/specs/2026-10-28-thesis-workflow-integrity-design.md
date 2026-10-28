@@ -156,7 +156,7 @@ Mỗi `ScoreSheet` và `ScoreObligation` gắn `defenseSessionId` và `isEffecti
 6. Điểm trong ngưỡng theo policy, hoặc chênh lệch đã có `DefenseResolution = APPROVED` đúng thẩm quyền, căn cứ, điểm gốc và kết quả cuối theo policy.
 7. Không còn ngoại lệ thiếu phiếu, sai thành phần, buổi bảo vệ không hợp lệ hoặc ngoại lệ điểm chưa giải quyết.
 
-Thiếu bất kỳ điều kiện nào thì transition bị từ chối và hồ sơ ở trạng thái hiện tại hoặc nhánh ngoại lệ phù hợp. Không tự điền điểm, tự loại phiếu hoặc tự chốt kết quả. Bước này chỉ xác nhận đủ điều kiện xác định điểm; `AWAITING_FINAL_APPROVAL → DEFENSE_PASSED / DEFENSE_FAILED` mới là bước phê duyệt kết quả đạt/không đạt theo quy chế.
+Thiếu bất kỳ điều kiện nào thì transition bị từ chối và hồ sơ ở trạng thái hiện tại hoặc nhánh ngoại lệ phù hợp. Không tự điền điểm, tự loại phiếu hoặc tự chốt kết quả. Bước này chỉ xác nhận đủ điều kiện xác định điểm. `AWAITING_FINAL_APPROVAL → DEFENSE_PASSED / DEFENSE_FAILED` là bước phê duyệt kết quả theo quy chế và chỉ actor có quyền `DEFENSE_RESULT_APPROVE` hợp lệ trong `PeriodWorkflowPolicyVersion`, đang là Viện trưởng/người được ủy quyền còn hiệu lực, mới được thực hiện; Admin kỹ thuật không có quyền này mặc định.
 
 ## 4. Invariant bắt buộc ở backend
 
@@ -186,8 +186,9 @@ Thiếu bất kỳ điều kiện nào thì transition bị từ chối và hồ
 | INV-22 | Policy của hồ sơ được pin khi đăng ký; chuyển sang version khác cần quyết định phạm vi áp dụng có thẩm quyền, không hồi tố ngầm. |
 | INV-23 | Các unique constraint và idempotency key phải bảo đảm không tạo hai QĐ gốc, hai kháng nghị hợp lệ/checkpoint hoặc hai phiếu hiệu lực/thành viên/buổi/loại chấm. |
 | INV-24 | `CheckpointEvaluation` không có điểm số và chỉ có hiệu lực khi GVHD, SV đều ký; BM04 chỉ cần chữ ký GVHD. |
-| INV-25 | Hết hạn `CheckpointSignatureAppeal` không có đơn hoặc đơn bị bác phải chuyển `TERMINATED_FAILED_PROGRESS`; mọi quyết định xử lý đơn đều có audit. |
-| INV-26 | Chỉ chuyển `AWAITING_SCORES` sang `AWAITING_FINAL_APPROVAL` khi đủ chính xác ba nghĩa vụ và ba phiếu hiệu lực của `DefenseSession` hiện hành, cùng toàn bộ điều kiện ở mục 3.6. |
+| INV-25 | Chỉ actor có quyền `DEFENSE_RESULT_APPROVE` hợp lệ theo policy của đợt mới được chuyển `AWAITING_FINAL_APPROVAL` sang `DEFENSE_PASSED` hoặc `DEFENSE_FAILED`; backend kiểm tra quyền, ủy quyền, policy và điều kiện hồ sơ trong cùng transaction, đồng thời audit toàn bộ căn cứ. |
+| INV-26 | Hết hạn `CheckpointSignatureAppeal` không có đơn hoặc đơn bị bác phải chuyển `TERMINATED_FAILED_PROGRESS`; mọi quyết định xử lý đơn đều có audit. |
+| INV-27 | Chỉ chuyển `AWAITING_SCORES` sang `AWAITING_FINAL_APPROVAL` khi đủ chính xác ba nghĩa vụ và ba phiếu hiệu lực của `DefenseSession` hiện hành, cùng toàn bộ điều kiện ở mục 3.6. |
 
 ## 5. Dữ liệu và phân quyền
 
@@ -207,7 +208,7 @@ Thiếu bất kỳ điều kiện nào thì transition bị từ chối và hồ
 | `DefenseSessionException` | Sự cố buổi bảo vệ, hướng xử lý và quyết định có thẩm quyền. |
 | `DefenseResolution` | Biên bản thiếu thành viên/chênh lệch: `resolutionStatus`, điểm gốc, giải trình, `finalScore`, căn cứ, `decisionMakerId`, `decisionAt`. |
 | `ProjectArchiveVersion` | Các phiên bản trước/sau bảo vệ, vòng phản hồi, hạn và kết quả nghiệm thu. |
-| `PeriodWorkflowPolicyVersion` | Cấu hình bất biến từng đợt: hạn, ngưỡng chênh lệch, số phiếu tối thiểu, công thức điểm, vòng sửa và thẩm quyền. |
+| `PeriodWorkflowPolicyVersion` | Cấu hình bất biến từng đợt: hạn, ngưỡng chênh lệch, số phiếu tối thiểu, công thức điểm, vòng sửa, thẩm quyền và actor có `DEFENSE_RESULT_APPROVE`. |
 
 Mỗi đợt có một policy version mặc định; `TopicRegistration` pin version tại thời điểm đăng ký (hoặc thời điểm bắt đầu đợt nếu quy chế yêu cầu) và sự kiện về sau mặc định kế thừa version đó. `PeriodWorkflowPolicyVersion` là bản cấu hình bất biến; chỉ lưu `policySnapshot` khi kiểm toán cần tái hiện dữ liệu quyết định ngoài nội dung version. Chuyển policy giữa chừng cần quyết định có thẩm quyền, nêu rõ hồ sơ/sự kiện chịu tác động; không hồi tố ngầm. Quy chế của trường luôn ưu tiên hơn thiết kế kỹ thuật.
 
@@ -219,7 +220,8 @@ Tầng dữ liệu phải thực thi `stateVersion`/optimistic locking hoặc kh
 - **GVHD hiện hành:** phát hành/ký BM03, ký BM04, nghiệm thu lưu chiểu; không chấm bảo vệ.
 - **Thành viên hội đồng:** chỉ tạo/khóa phiếu của hồ sơ được phân công hợp lệ.
 - **Chủ tịch:** xác nhận tính đầy đủ của buổi bảo vệ, lập biên bản xử lý; không tự ghi đè điểm thành viên.
-- **Admin/Viện trưởng:** xử lý `CheckpointSignatureAppeal`, chuyển GVHD, điều chỉnh QĐ, ngoại lệ hội đồng và chốt/phê duyệt kết quả theo policy; không được tự thay điểm chuyên môn của giám khảo. GVHD không được tự xử lý đơn của SV.
+- **Viện trưởng/người được ủy quyền:** chỉ khi có `DEFENSE_RESULT_APPROVE` hợp lệ theo policy mới phê duyệt `DEFENSE_PASSED`/`DEFENSE_FAILED`; không được tự thay điểm chuyên môn của giám khảo.
+- **Admin kỹ thuật:** không mặc nhiên có quyền phê duyệt kết quả; chỉ được transition nếu đang có `DEFENSE_RESULT_APPROVE` hợp lệ. Admin/Viện trưởng xử lý `CheckpointSignatureAppeal`, chuyển GVHD, điều chỉnh QĐ và ngoại lệ hội đồng theo quyền policy. GVHD không được tự xử lý đơn của SV.
 
 ## 6. Kế hoạch triển khai
 
@@ -272,7 +274,7 @@ Tầng dữ liệu phải thực thi `stateVersion`/optimistic locking hoặc kh
 
 ## 7. Tiêu chí nghiệm thu tổng thể
 
-1. API không có đường nào vi phạm INV-01 đến INV-26, kể cả ngoại lệ, tác vụ nền và request gửi lại.
+1. API không có đường nào vi phạm INV-01 đến INV-27, kể cả ngoại lệ, tác vụ nền và request gửi lại.
 2. Mọi thay đổi pháp lý/học vụ quan trọng đều append-only, có actor, thời gian, lý do và dữ liệu trước/sau.
 3. UI không hiển thị hành động mà backend không chấp nhận.
 4. Migration không làm mất hồ sơ; các bản ghi mơ hồ được phân loại để rà soát thủ công.
@@ -310,6 +312,8 @@ Tầng dữ liệu phải thực thi `stateVersion`/optimistic locking hoặc kh
 | DefenseResolution | Chênh lệch vượt ngưỡng chỉ tiếp tục khi resolution được duyệt đủ thẩm quyền và căn cứ. |
 | Chốt điểm đồng thời | Hai request transition đồng thời chỉ một request thành công; request gửi lại cùng idempotency key không tạo bản ghi trùng. |
 | Happy path bảo vệ | Đúng ba nghĩa vụ và ba phiếu hiệu lực, policy hợp lệ, không ngoại lệ thì transition đúng một lần sang `AWAITING_FINAL_APPROVAL`. |
+| Quyền phê duyệt kết quả | Viện trưởng/người ủy quyền có `DEFENSE_RESULT_APPROVE` được phép nếu hồ sơ đủ điều kiện; Admin kỹ thuật không có quyền, quyền thu hồi/hết hiệu lực hoặc policy không xác định thẩm quyền đều bị từ chối. |
+| Phê duyệt kết quả đồng thời | Actor đủ quyền gửi đồng thời/gửi lại chỉ tạo đúng một kết quả và một audit hợp lệ. |
 
 ## 9. Quy tắc xuyên suốt
 
