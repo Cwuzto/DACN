@@ -1,7 +1,7 @@
 # Thiết kế hoàn chỉnh quy trình Đồ án Tốt nghiệp
 
 - **Ngày:** 28/10/2026
-- **Trạng thái:** Bản hiệu chỉnh sau phản biện, chờ người dùng rà soát trước khi lập kế hoạch triển khai
+- **Trạng thái:** Đã phê duyệt; chờ lập implementation plan ở phiên sau
 - **Phạm vi:** Chuẩn hóa quy trình, state machine, dữ liệu, phân quyền và xử lý ngoại lệ từ đăng ký đề tài đến lưu chiểu.
 
 ## 1. Mục tiêu
