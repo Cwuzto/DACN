@@ -5,7 +5,7 @@ const { safeNotifyMany } = require('../services/notificationService');
 const { hasCompletedGraduationProject, STUDENT_RESTRICTION_MESSAGE } = require('../utils/studentAccountRestriction');
 
 const TOPIC_STATUS_VALUES = ['DRAFT', 'PENDING', 'APPROVED', 'REJECTED'];
-const ACTIVE_REGISTRATION_STATUSES = ['PENDING', 'APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'DEFENDED', 'COMPLETED'];
+const ACTIVE_REGISTRATION_STATUSES = ['PENDING', 'APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'AWAITING_SCORES', 'AWAITING_FINAL_APPROVAL', 'DEFENSE_PASSED', 'DEFENSE_FAILED', 'DEFENDED', 'COMPLETED'];
 const getRequestIp = (req) => req.ip || req.headers['x-forwarded-for'] || null;
 const DEFAULT_PROJECT_CATALOG_CODE = 'DATN';
 
@@ -422,7 +422,7 @@ const changeTopicStatus = async (req, res, next) => {
             const currentCount = await prisma.topicRegistration.count({
                 where: {
                     topic: { mentorId: existing.mentorId, semesterId: existing.semesterId },
-                    status: { in: ['APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'DEFENDED', 'COMPLETED'] },
+                    status: { in: ['APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'AWAITING_SCORES', 'AWAITING_FINAL_APPROVAL', 'DEFENSE_PASSED', 'DEFENSE_FAILED', 'DEFENDED', 'COMPLETED'] },
                 },
             });
             if (currentCount >= maxSlots) {
@@ -498,7 +498,7 @@ const getMentorCapacity = async (req, res, next) => {
 
         const whereClause = {
             topic: { mentorId: parseInt(mentorId, 10) },
-            status: { in: ['APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'DEFENDED', 'COMPLETED'] },
+            status: { in: ['APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'AWAITING_SCORES', 'AWAITING_FINAL_APPROVAL', 'DEFENSE_PASSED', 'DEFENSE_FAILED', 'DEFENDED', 'COMPLETED'] },
         };
         if (semesterId) whereClause.semesterId = parseInt(semesterId, 10);
 

@@ -108,6 +108,14 @@ const getAllCouncils = async (req, res, next) => {
             where.councilType = councilType;
         }
 
+        const allowedCouncilTypes = [];
+        if ((req.user.permissions || []).includes('OUTLINE_COUNCIL_MANAGE')) allowedCouncilTypes.push('OUTLINE_REVIEW');
+        if ((req.user.permissions || []).includes('DEFENSE_COUNCIL_MANAGE')) allowedCouncilTypes.push('DEFENSE_COUNCIL');
+        if (where.councilType && !allowedCouncilTypes.includes(where.councilType)) {
+            return res.status(403).json({ success: false, message: 'Bạn không có quyền xem loại hội đồng này.' });
+        }
+        if (!where.councilType) where.councilType = { in: allowedCouncilTypes };
+
         const councils = await prisma.council.findMany({
             where,
             include: {
@@ -475,19 +483,10 @@ const assignRegistrationsToCouncil = async (req, res, next) => {
             }
 
             if (council.councilType === 'DEFENSE_COUNCIL') {
-                const bm04Tasks = await tx.task.findMany({
-                    where: {
-                        registrationId: { in: uniqueRegistrationIds },
-                        taskType: 'BM04',
-                    },
-                    select: { registrationId: true, status: true },
-                });
-                const bm04ByReg = new Map(bm04Tasks.map((t) => [t.registrationId, t.status]));
                 for (const reg of registrations) {
-                    const bm04TaskStatus = bm04ByReg.get(reg.id);
-                    const isBM04Agreed = reg.bm04Evaluation?.conclusion === 'AGREED_FOR_DEFENSE'
-                        || reg.status === 'DEFENSE_READY'
-                        || bm04TaskStatus === 'COMPLETED';
+                    const isBM04Agreed = reg.status === 'DEFENSE_READY'
+                        && reg.bm04Evaluation?.conclusion === 'AGREED_FOR_DEFENSE'
+                        && reg.bm04Evaluation?.isLocked === true;
                     if (!isBM04Agreed) {
                         throw createHttpError(
                             400,

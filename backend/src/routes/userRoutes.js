@@ -1,33 +1,32 @@
 const router = require('express').Router();
 const userController = require('../controllers/userController');
-const { authenticate, authorize, authorizePermission } = require('../middlewares/auth');
+const { authenticate, authorizePermission } = require('../middlewares/auth');
+const { PERMISSIONS } = require('../constants/permissions');
 
 // Public route: Danh sách giảng viên & hướng nghiên cứu công khai
 router.get('/public-lecturers', userController.getPublicLecturers);
 
-// Tất cả route bên dưới đều cần authenticate + ADMIN
 router.use(authenticate);
-router.use(authorize('ADMIN'));
 
 // Excel Template, Import, Export
-router.get('/template', userController.downloadUserTemplate);
-router.post('/import-excel', userController.importUsersExcel);
-router.get('/export-excel', userController.exportUsersExcel);
+router.get('/template', authorizePermission(PERMISSIONS.USER_IMPORT), userController.downloadUserTemplate);
+router.post('/import-excel', authorizePermission(PERMISSIONS.USER_IMPORT), userController.importUsersExcel);
+router.get('/export-excel', authorizePermission(PERMISSIONS.USER_IMPORT), userController.exportUsersExcel);
 
 // CRUD
-router.get('/', userController.getAllUsers);
-router.post('/', userController.createUser);
-router.put('/:id', userController.updateUser);
-router.delete('/:id', userController.deleteUser);
+router.get('/', authorizePermission(PERMISSIONS.USER_MANAGE, PERMISSIONS.LECTURER_DIRECTORY_VIEW), userController.getAllUsers);
+router.post('/', authorizePermission(PERMISSIONS.USER_MANAGE), userController.createUser);
+router.put('/:id', authorizePermission(PERMISSIONS.USER_MANAGE), userController.updateUser);
+router.delete('/:id', authorizePermission(PERMISSIONS.USER_MANAGE), userController.deleteUser);
 
 // Permission groups
-router.get('/:id/permissions', userController.getUserPermissions);
-router.post('/:id/permission-groups', userController.updateUserPermissionGroups);
+router.get('/:id/permissions', authorizePermission(PERMISSIONS.PERMISSION_GROUP_MANAGE), userController.getUserPermissions);
+router.post('/:id/permission-groups', authorizePermission(PERMISSIONS.PERMISSION_GROUP_MANAGE), userController.updateUserPermissionGroups);
 
 // Lock/Unlock
-router.patch('/:id/toggle-active', userController.toggleActive);
+router.patch('/:id/toggle-active', authorizePermission(PERMISSIONS.USER_MANAGE), userController.toggleActive);
 
 // Reset password
-router.post('/:id/reset-password', userController.resetPassword);
+router.post('/:id/reset-password', authorizePermission(PERMISSIONS.USER_MANAGE), userController.resetPassword);
 
 module.exports = router;

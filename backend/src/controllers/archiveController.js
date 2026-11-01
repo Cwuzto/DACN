@@ -1,4 +1,5 @@
 const prisma = require('../config/database');
+const { PERMISSIONS } = require('../constants/permissions');
 
 const parsePositiveInt = (value) => {
     const parsed = parseInt(value, 10);
@@ -13,6 +14,21 @@ const getLetterGrade = (score) => {
     if (num >= 5.5) return { letter: 'C', text: 'Trung bình' };
     if (num >= 4.0) return { letter: 'D', text: 'Đạt' };
     return { letter: 'F', text: 'Không đạt' };
+};
+
+const hasPermission = (user, permissionCode) => (user.permissions || []).includes(permissionCode);
+
+const hasInstituteArchiveScope = (user) => (
+    hasPermission(user, PERMISSIONS.FINAL_DOCUMENT_REVIEW)
+    && hasPermission(user, PERMISSIONS.PROJECT_ASSIGNMENT_PUBLISH)
+);
+
+const canAccessRegistrationArchive = (user, registration) => {
+    const registrationStudentId = registration.studentId ?? registration.student?.id;
+    const isOwner = user.role === 'STUDENT' && registrationStudentId === user.id;
+    const isMentor = registration.topic?.mentorId === user.id
+        && hasPermission(user, PERMISSIONS.FINAL_DOCUMENT_REVIEW);
+    return isOwner || isMentor || hasInstituteArchiveScope(user);
 };
 
 // 1. Lay thong tin ho so luu chieu cua 1 de tai
@@ -48,13 +64,7 @@ const getArchiveByRegistration = async (req, res, next) => {
             return res.status(404).json({ success: false, message: 'Không tìm thấy hồ sơ đăng ký đề tài.' });
         }
 
-        // Kiem tra quyen truy cap: SV so huu, GVHD de tai hoac Admin
-        const { role, id: userId } = req.user;
-        const isOwner = role === 'STUDENT' && registration.studentId === userId;
-        const isMentor = role === 'LECTURER' && registration.topic?.mentorId === userId;
-        const isAdmin = role === 'ADMIN';
-
-        if (!isOwner && !isMentor && !isAdmin) {
+        if (!canAccessRegistrationArchive(req.user, registration)) {
             return res.status(403).json({ success: false, message: 'Bạn không có quyền truy cập hồ sơ lưu chiểu này.' });
         }
 
@@ -92,21 +102,19 @@ const submitArchive = async (req, res, next) => {
 
         const { role, id: userId } = req.user;
         const isOwner = role === 'STUDENT' && registration.studentId === userId;
-        const isAdmin = role === 'ADMIN';
 
-        if (!isOwner && !isAdmin) {
+        if (!isOwner) {
             return res.status(403).json({ success: false, message: 'Chỉ sinh viên sở hữu đề tài mới được nộp hồ sơ lưu chiểu.' });
         }
 
-        // Kiem tra dieu kien: Sinh vien phai da bao ve dat ket qua
-        const finalScore = registration.defenseResult?.finalScore;
-        const hasPassedDefense = (finalScore !== null && finalScore !== undefined && Number(finalScore) >= 5.0)
-            || ['DEFENDED', 'COMPLETED'].includes(registration.status);
+        // Điểm khóa không phải là kết quả chính thức; chỉ outcome đã duyệt đạt
+        // (hoặc bản ghi legacy DEFENDED) mới được nộp lưu chiểu.
+        const hasPassedDefense = ['DEFENSE_PASSED', 'DEFENDED', 'COMPLETED'].includes(registration.status);
 
         if (!hasPassedDefense) {
             return res.status(400).json({
                 success: false,
-                message: 'Đề tài chưa hoàn tất bảo vệ đạt yêu cầu (Điểm TB >= 5.0) để nộp hồ sơ lưu chiểu.',
+                message: 'Đề tài chưa có kết quả bảo vệ ĐẠT đã được phê duyệt để nộp hồ sơ lưu chiểu.',
             });
         }
 
@@ -216,15 +224,27 @@ const reviewArchive = async (req, res, next) => {
             return res.status(400).json({ success: false, message: 'Sinh viên chưa nộp hồ sơ lưu chiểu.' });
         }
 
-        const { role, id: userId } = req.user;
-        const isMentor = role === 'LECTURER' && registration.topic?.mentorId === userId;
-        const isAdmin = role === 'ADMIN';
+        const { id: userId } = req.user;
+        const isMentor = registration.topic?.mentorId === userId;
+        const isInstituteReviewer = hasInstituteArchiveScope(req.user);
 
-        if (!isMentor && !isAdmin) {
+        if (!isMentor && !isInstituteReviewer) {
             return res.status(403).json({ success: false, message: 'Chỉ GVHD hoặc Admin mới có quyền nghiệm thu hồ sơ lưu chiểu.' });
         }
 
         const isApproved = decision === 'APPROVED';
+
+        if (isApproved) {
+            // INV-06: Không chuyển đề tài bảo vệ không đạt (điểm < 5.0) sang COMPLETED
+            const finalScore = registration.defenseResult?.finalScore;
+            if (finalScore !== null && finalScore !== undefined && Number(finalScore) < 5.0) {
+                return res.status(409).json({
+                    success: false,
+                    code: 'CANNOT_COMPLETE_FAILED_DEFENSE',
+                    message: 'Đề tài có điểm bảo vệ dưới 5.0 (không đạt), không thể nghiệm thu hoàn tất đồ án.',
+                });
+            }
+        }
 
         const updatedArchive = await prisma.$transaction(async (tx) => {
             const archive = await tx.projectArchive.update({
@@ -242,10 +262,28 @@ const reviewArchive = async (req, res, next) => {
 
             // Neu nghiem thu thanh cong -> TopicRegistration chuyen COMPLETED
             if (isApproved) {
-                await tx.topicRegistration.update({
-                    where: { id: registrationId },
-                    data: { status: 'COMPLETED' },
-                });
+                if (tx.topicRegistration.update) {
+                    await tx.topicRegistration.update({
+                        where: { id: registrationId },
+                        data: {
+                            status: 'COMPLETED',
+                            ...(registration.stateVersion !== undefined ? { stateVersion: { increment: 1 } } : {}),
+                        },
+                    });
+                }
+                if (tx.registrationStateHistory?.create) {
+                    await tx.registrationStateHistory.create({
+                        data: {
+                            registrationId,
+                            fromStatus: registration.status,
+                            toStatus: 'COMPLETED',
+                            fromStateVersion: registration.stateVersion || 0,
+                            toStateVersion: (registration.stateVersion || 0) + 1,
+                            actorId: userId,
+                            reason: 'Nghiệm thu hồ sơ lưu chiểu số thành công - Hoàn tất đồ án tốt nghiệp',
+                        },
+                    });
+                }
             }
 
             return archive;
@@ -296,6 +334,9 @@ const getAllArchives = async (req, res, next) => {
         }
 
         const registrationWhere = {};
+        if (!hasInstituteArchiveScope(req.user)) {
+            registrationWhere.topic = { mentorId: req.user.id };
+        }
         const parsedSemesterId = parsePositiveInt(semesterId);
         if (parsedSemesterId) {
             registrationWhere.semesterId = parsedSemesterId;
@@ -394,6 +435,10 @@ const getClearanceCertificate = async (req, res, next) => {
             return res.status(404).json({ success: false, message: 'Không tìm thấy thông tin đăng ký.' });
         }
 
+        if (!canAccessRegistrationArchive(req.user, registration)) {
+            return res.status(403).json({ success: false, message: 'Bạn không có quyền truy cập giấy xác nhận này.' });
+        }
+
         const archive = registration.archive;
         const isApproved = archive?.status === 'APPROVED' || registration.status === 'COMPLETED';
 
@@ -404,16 +449,26 @@ const getClearanceCertificate = async (req, res, next) => {
             });
         }
 
+        const { generateCertificateVerificationHash } = require('../services/archivalWorkflowService');
         const finalScore = registration.defenseResult?.finalScore ?? null;
         const gradeInfo = getLetterGrade(finalScore);
         const year = new Date().getFullYear();
         const certCode = `TDMU-DA-CERT-${year}-${String(registration.id).padStart(5, '0')}`;
+        const issueDate = archive?.reviewedAt || new Date();
+        const verificationHash = generateCertificateVerificationHash({
+            certificateNumber: certCode,
+            studentCode: registration.student?.code,
+            topicTitle: registration.topic?.title,
+            finalScore: finalScore ?? '0',
+            issueDate: new Date(issueDate).toISOString().split('T')[0],
+        });
 
         res.json({
             success: true,
             data: {
                 certificateNumber: certCode,
-                issueDate: archive?.reviewedAt || new Date(),
+                verificationHash,
+                issueDate,
                 student: {
                     fullName: registration.student?.fullName,
                     code: registration.student?.code,
@@ -464,6 +519,7 @@ const getHealthRadarStats = async (req, res, next) => {
 
         const whereBase = {};
         if (parsedSemesterId) whereBase.semesterId = parsedSemesterId;
+        if (!hasInstituteArchiveScope(req.user)) whereBase.topic = { mentorId: req.user.id };
 
         const now = new Date();
         const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
@@ -494,7 +550,10 @@ const getHealthRadarStats = async (req, res, next) => {
         const pendingArchiveReviewCount = await prisma.projectArchive.count({
             where: {
                 status: 'SUBMITTED',
-                ...(parsedSemesterId ? { registration: { semesterId: parsedSemesterId } } : {}),
+                registration: {
+                    ...(parsedSemesterId ? { semesterId: parsedSemesterId } : {}),
+                    ...(!hasInstituteArchiveScope(req.user) ? { topic: { mentorId: req.user.id } } : {}),
+                },
             },
         });
 

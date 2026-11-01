@@ -1,7 +1,8 @@
 const express = require('express');
 const { body, param, query } = require('express-validator');
 const registrationController = require('../controllers/registrationController');
-const { authenticate, authorize } = require('../middlewares/auth');
+const { authenticate, authorize, authorizePermission, authorizeRoleOrPermission } = require('../middlewares/auth');
+const { PERMISSIONS } = require('../constants/permissions');
 const { validateRequest } = require('../middlewares/validate');
 
 const router = express.Router();
@@ -31,11 +32,16 @@ router.get(
 router.get(
     '/',
     [
-        authorize('ADMIN', 'LECTURER'),
+        authorizePermission(
+            PERMISSIONS.BM03_REVIEW,
+            PERMISSIONS.REPORT_VIEW,
+            PERMISSIONS.OUTLINE_COUNCIL_MANAGE,
+            PERMISSIONS.DEFENSE_COUNCIL_MANAGE,
+        ),
         query('semesterId').optional().isInt({ min: 1 }).withMessage('semesterId phải là số nguyên dương.'),
         query('status')
             .optional()
-            .isIn(['PENDING', 'APPROVED', 'REJECTED', 'IN_PROGRESS', 'SUBMITTED', 'DEFENDED', 'COMPLETED', 'DROPPED', 'WITHDRAWN'])
+            .isIn(['PENDING', 'APPROVED', 'REJECTED', 'IN_PROGRESS', 'SUBMITTED', 'AWAITING_SCORES', 'AWAITING_FINAL_APPROVAL', 'DEFENSE_PASSED', 'DEFENSE_FAILED', 'DEFENDED', 'COMPLETED', 'DROPPED', 'WITHDRAWN'])
             .withMessage('status không hợp lệ.'),
         query('unassignedCouncilOnly')
             .optional()
@@ -68,7 +74,7 @@ router.post(
 router.patch(
     '/:id/approve',
     [
-        authorize('ADMIN', 'LECTURER'),
+        authorizePermission(PERMISSIONS.MENTOR_REQUEST_REVIEW),
         param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
         body('action').isIn(['APPROVE', 'REJECT']).withMessage('action phải là APPROVE hoặc REJECT.'),
         body('rejectReason')
@@ -85,7 +91,7 @@ router.patch(
 router.patch(
     '/:id/drop',
     [
-        authorize('ADMIN', 'LECTURER'),
+        authorizePermission(PERMISSIONS.MENTOR_ASSIGNMENT_ADJUST),
         param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
         body('reason').isString().trim().notEmpty().withMessage('reason bắt buộc và không được rỗng.'),
         validateRequest,
@@ -96,7 +102,7 @@ router.patch(
 router.post(
     '/:id/withdraw',
     [
-        authorize('ADMIN', 'LECTURER', 'STUDENT'),
+        authorizeRoleOrPermission(['STUDENT'], [PERMISSIONS.MENTOR_ASSIGNMENT_ADJUST]),
         param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
         body('reason').isString().trim().notEmpty().withMessage('reason bắt buộc và không được rỗng.'),
         validateRequest,
@@ -107,7 +113,7 @@ router.post(
 router.patch(
     '/:id/force-decision',
     [
-        authorize('ADMIN'),
+        authorizePermission(PERMISSIONS.MENTOR_ASSIGN),
         param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
         body('action').isIn(['FORCE_APPROVE', 'FORCE_REJECT']).withMessage('action không hợp lệ.'),
         body('rejectReason').optional({ nullable: true }).isString().trim(),
@@ -119,49 +125,13 @@ router.patch(
 router.patch(
     '/:id/outline-review',
     [
-        authorize('ADMIN', 'LECTURER'),
+        authorizePermission(PERMISSIONS.OUTLINE_APPROVE),
         param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
-        body('status').optional().isIn(['PENDING', 'PASSED', 'REVISION_REQUIRED', 'FAILED']).withMessage('status không hợp lệ.'),
+        body('status').isIn(['PASSED', 'REVISION_REQUIRED', 'FAILED']).withMessage('status không hợp lệ.'),
         body('feedback').optional({ nullable: true }).isString(),
         validateRequest,
     ],
     registrationController.updateOutlineReview,
-);
-
-router.post(
-    '/:id/bm04-review',
-    [
-        authorize('ADMIN', 'LECTURER'),
-        param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
-        body('decision').isIn(['AGREED', 'DISAGREED']).withMessage('decision bắt buộc và phải là AGREED hoặc DISAGREED.'),
-        body('feedback').optional({ nullable: true }).isString(),
-        body('score').optional({ nullable: true }).isFloat({ min: 0, max: 10 }).withMessage('score phải từ 0 đến 10.'),
-        validateRequest,
-    ],
-    registrationController.reviewBM04,
-);
-
-router.post(
-    '/batch-bypass-outline',
-    [
-        authorize('ADMIN'),
-        body('registrationIds').isArray({ min: 1 }).withMessage('registrationIds phải là mảng có ít nhất 1 phần tử.'),
-        body('registrationIds.*').isInt({ min: 1 }).withMessage('Mỗi registrationId phải là số nguyên dương.'),
-        body('reason').optional({ nullable: true }).isString().trim(),
-        validateRequest,
-    ],
-    registrationController.batchBypassOutlineReview,
-);
-
-router.post(
-    '/:id/bypass-outline',
-    [
-        authorize('ADMIN'),
-        param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
-        body('reason').isString().trim().isLength({ min: 1 }).withMessage('reason bắt buộc và không được để trống.'),
-        validateRequest,
-    ],
-    registrationController.bypassOutlineReview,
 );
 
 // Nộp BM02 (Đơn đăng ký đề tài chính thức)
@@ -173,6 +143,18 @@ router.post(
         validateRequest,
     ],
     registrationController.submitBM02,
+);
+
+router.post(
+    '/bm02/:id/review',
+    [
+        authorizePermission(PERMISSIONS.BM02_REVIEW),
+        param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
+        body('action').isIn(['APPROVE', 'RETURN_FOR_REVISION', 'EXCEPTION_REVIEW']).withMessage('action không hợp lệ.'),
+        body('issues').optional({ nullable: true }).isArray().withMessage('issues phải là một mảng.'),
+        validateRequest,
+    ],
+    registrationController.reviewCurrentBM02,
 );
 
 // Điều chỉnh tên đề tài (trong hạn 7 ngày sau Quyết định)
@@ -191,7 +173,7 @@ router.post(
 router.put(
     '/adjust-title/:id/review',
     [
-        authorize('LECTURER', 'ADMIN'),
+        authorizePermission(PERMISSIONS.TOPIC_UPDATE_OWN),
         param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
         body('action').isIn(['APPROVE', 'REJECT']).withMessage('action phải là APPROVE hoặc REJECT.'),
         validateRequest,
@@ -207,8 +189,20 @@ router.get(
 
 router.get(
     '/adjust-title/pending',
-    authorize('LECTURER', 'ADMIN'),
+    authorizePermission(PERMISSIONS.TOPIC_UPDATE_OWN),
     registrationController.getPendingTitleAdjustments,
+);
+
+router.post(
+    '/:id/transfer-mentor',
+    [
+        authorizePermission(PERMISSIONS.MENTOR_ASSIGNMENT_ADJUST),
+        param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
+        body('newMentorId').isInt({ min: 1 }).withMessage('newMentorId phải là số nguyên dương.'),
+        body('reason').isString().trim().notEmpty().withMessage('reason không được để trống.'),
+        validateRequest,
+    ],
+    registrationController.transferTopicMentor,
 );
 
 router.delete(
@@ -219,6 +213,15 @@ router.delete(
         validateRequest,
     ],
     registrationController.cancelRegistration,
+);
+
+router.get(
+    '/:id/allowed-actions',
+    [
+        param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
+        validateRequest,
+    ],
+    registrationController.getAllowedActions,
 );
 
 module.exports = router;

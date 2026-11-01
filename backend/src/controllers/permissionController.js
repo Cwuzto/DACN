@@ -84,6 +84,29 @@ const deleteExistingGroup = async (req, res, next) => {
   }
 };
 
+const getMatrix = async (req, res, next) => {
+  try {
+    const { getPermissionMatrix } = require('../services/permissionService');
+    const matrix = await getPermissionMatrix();
+    res.json({ success: true, data: matrix, message: 'Lấy ma trận phân quyền thành công.' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const bulkUpdateMatrix = async (req, res, next) => {
+  try {
+    const { bulkUpdatePermissionMatrix } = require('../services/permissionService');
+    const result = await bulkUpdatePermissionMatrix(req.body, {
+      ...req.user,
+      ip: getRequestIp(req),
+    });
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   listAllPermissions,
   listAllGroups,
@@ -91,4 +114,6 @@ module.exports = {
   createNewGroup,
   updateExistingGroup,
   deleteExistingGroup,
+  getMatrix,
+  bulkUpdateMatrix,
 };

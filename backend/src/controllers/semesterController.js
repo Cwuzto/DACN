@@ -1,6 +1,8 @@
 const prisma = require('../config/database');
 const { safeNotify } = require('../services/notificationService');
 const { auditLog } = require('../services/auditLogService');
+const { issueAssignmentDecision, createDecisionAmendment } = require('../services/academicDocumentService');
+const { WorkflowTransitionError } = require('../services/registrationTransitionService');
 
 const REGISTRATION_TOGGLE_WARNING_WINDOW_DAYS = 14;
 
@@ -346,7 +348,8 @@ const issuePeriodDecision = async (req, res, next) => {
         const eligibleRegistrations = await prisma.topicRegistration.findMany({
             where: {
                 semesterId,
-                status: { in: ['BM02_SUBMITTED', 'BM01_PASSED', 'APPROVED'] },
+                status: { in: ['BM02_SUBMITTED', 'BM02_RESUBMITTED'] },
+                currentBM02Submission: { outcome: 'APPROVED' },
             },
             include: {
                 student: { select: { id: true, fullName: true, code: true } },
@@ -368,14 +371,19 @@ const issuePeriodDecision = async (req, res, next) => {
 
         const registrationIds = eligibleRegistrations.map((r) => r.id);
 
-        await prisma.topicRegistration.updateMany({
-            where: { id: { in: registrationIds } },
-            data: {
-                status: 'DECISION_ISSUED',
+        const requestKey = req.get('Idempotency-Key');
+        if (!requestKey || requestKey.length < 8) {
+            return res.status(400).json({ success: false, code: 'IDEMPOTENCY_KEY_REQUIRED', message: 'Idempotency-Key là bắt buộc khi ban hành Quyết định.' });
+        }
+        for (const reg of eligibleRegistrations) {
+            await issueAssignmentDecision({
+                registrationId: reg.id,
+                issuedById: userId,
                 decisionNumber: generatedDecisionNumber,
-                decisionDate: effectiveDecisionDate,
-            },
-        });
+                issuedAt: effectiveDecisionDate,
+                idempotencyKey: `${requestKey}:${reg.id}`,
+            });
+        }
 
         for (const reg of eligibleRegistrations) {
             const hasBM03 = await prisma.task.findFirst({
@@ -435,6 +443,43 @@ const issuePeriodDecision = async (req, res, next) => {
     }
 };
 
+const amendAssignmentDecision = async (req, res, next) => {
+    try {
+        const assignmentDecisionId = parseInt(req.params.decisionId, 10);
+        const { amendmentNumber, reason, changes, effectiveAt } = req.body;
+        const result = await createDecisionAmendment({
+            assignmentDecisionId,
+            signedById: req.user.id,
+            amendmentNumber,
+            reason,
+            changes,
+            effectiveAt: effectiveAt ? new Date(effectiveAt) : new Date(),
+            idempotencyKey: req.get('Idempotency-Key'),
+        });
+
+        if (!result.idempotent) {
+            await auditLog(
+                req.user.id,
+                'CREATE_DECISION_AMENDMENT',
+                'DecisionAmendment',
+                result.id,
+                { assignmentDecisionId, amendmentNumber, reason, changes },
+                req.ip || null,
+            );
+        }
+        return res.status(201).json({
+            success: true,
+            message: 'Đã tạo Quyết định điều chỉnh; Quyết định gốc được giữ nguyên.',
+            data: result,
+        });
+    } catch (error) {
+        if (error instanceof WorkflowTransitionError) {
+            return res.status(error.status).json({ success: false, code: error.code, message: error.message });
+        }
+        next(error);
+    }
+};
+
 module.exports = {
     getAllSemesters,
     getSemesterById,
@@ -443,4 +488,5 @@ module.exports = {
     toggleSemesterRegistration,
     deleteSemester,
     issuePeriodDecision,
+    amendAssignmentDecision,
 };

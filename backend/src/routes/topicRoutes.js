@@ -1,5 +1,6 @@
 const router = require('express').Router();
-const { authenticate, authorize } = require('../middlewares/auth');
+const { authenticate, authorizePermission, authorizeRoleOrPermission } = require('../middlewares/auth');
+const { PERMISSIONS } = require('../constants/permissions');
 const {
     getAllTopics,
     getTopicById,
@@ -22,15 +23,15 @@ router.get('/', getAllTopics);
 router.get('/:id', getTopicById);
 
 // POST /api/topics - Tạo đề tài (Admin/Lecturer đăng tải, Student đề xuất)
-router.post('/', authorize('ADMIN', 'LECTURER', 'STUDENT'), createTopic);
+router.post('/', authorizeRoleOrPermission(['STUDENT'], [PERMISSIONS.TOPIC_CREATE]), createTopic);
 
 // PUT /api/topics/:id - Cập nhật đề tài
-router.put('/:id', authorize('ADMIN', 'LECTURER'), updateTopic);
+router.put('/:id', authorizePermission(PERMISSIONS.TOPIC_UPDATE_OWN), updateTopic);
 
 // DELETE /api/topics/:id - Xóa đề tài
-router.delete('/:id', authorize('ADMIN', 'LECTURER'), deleteTopic);
+router.delete('/:id', authorizePermission(PERMISSIONS.TOPIC_UPDATE_OWN), deleteTopic);
 
 // PATCH /api/topics/:id/status - Duyệt/Từ chối đề tài SV đề xuất
-router.patch('/:id/status', authorize('ADMIN', 'LECTURER'), changeTopicStatus);
+router.patch('/:id/status', authorizePermission(PERMISSIONS.TOPIC_REVIEW), changeTopicStatus);
 
 module.exports = router;

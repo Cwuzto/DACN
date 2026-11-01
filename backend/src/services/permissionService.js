@@ -1,92 +1,7 @@
 const prisma = require('../config/database');
 const { auditLog } = require('./auditLogService');
+const { PERMISSION_CATALOG, DEFAULT_GROUPS } = require('../constants/permissions');
 const getRequestIp = (req) => req?.ip || req?.headers?.['x-forwarded-for'] || null;
-
-const PERMISSION_CATALOG = [
-  { code: 'PUBLIC_ANNOUNCEMENT_VIEW', label: 'Xem tin công khai', module: 'ANNOUNCEMENT' },
-  { code: 'PUBLIC_ANNOUNCEMENT_MANAGE', label: 'Quản lý tin công khai', module: 'ANNOUNCEMENT' },
-  { code: 'ELIGIBILITY_VIEW_OWN', label: 'Xem điều kiện bản thân', module: 'ELIGIBILITY' },
-  { code: 'ELIGIBILITY_VIEW_ALL', label: 'Xem danh sách đủ điều kiện', module: 'ELIGIBILITY' },
-  { code: 'ELIGIBILITY_PUBLISH', label: 'Công bố danh sách đủ điều kiện', module: 'ELIGIBILITY' },
-  { code: 'LECTURER_PROFILE_VIEW', label: 'Xem hồ sơ giảng viên', module: 'LECTURER' },
-  { code: 'LECTURER_PROFILE_MANAGE', label: 'Cập nhật hồ sơ giảng viên', module: 'LECTURER' },
-  { code: 'LECTURER_DIRECTORY_VIEW', label: 'Xem danh bạ giảng viên', module: 'LECTURER' },
-  { code: 'LECTURER_DIRECTORY_PUBLISH', label: 'Công bố danh bạ giảng viên', module: 'LECTURER' },
-  { code: 'MENTOR_REQUEST_CREATE', label: 'Gửi yêu cầu chọn GVHD', module: 'MENTOR' },
-  { code: 'MENTOR_REQUEST_REVIEW', label: 'Xem/xử lý yêu cầu chọn GVHD', module: 'MENTOR' },
-  { code: 'MENTOR_ASSIGN', label: 'Phân công GVHD', module: 'MENTOR' },
-  { code: 'MENTOR_ASSIGNMENT_ADJUST', label: 'Điều chỉnh phân công GVHD', module: 'MENTOR' },
-  { code: 'TOPIC_VIEW', label: 'Xem đề tài', module: 'TOPIC' },
-  { code: 'TOPIC_CREATE', label: 'Tạo đề tài', module: 'TOPIC' },
-  { code: 'TOPIC_UPDATE_OWN', label: 'Cập nhật đề tài của mình', module: 'TOPIC' },
-  { code: 'TOPIC_REVIEW', label: 'Xét duyệt đề tài', module: 'TOPIC' },
-  { code: 'OUTLINE_SUBMIT', label: 'Nộp đề cương BM01', module: 'OUTLINE' },
-  { code: 'OUTLINE_REVIEW', label: 'Xem/góp ý đề cương', module: 'OUTLINE' },
-  { code: 'OUTLINE_APPROVE', label: 'Duyệt đề cương', module: 'OUTLINE' },
-  { code: 'OUTLINE_COUNCIL_MANAGE', label: 'Lập hội đồng xét duyệt đề cương', module: 'OUTLINE' },
-  { code: 'BM02_SUBMIT', label: 'Nộp đơn BM02', module: 'REGISTRATION' },
-  { code: 'PROJECT_ASSIGNMENT_PUBLISH', label: 'Công bố danh sách giao đề tài', module: 'REGISTRATION' },
-  { code: 'BM03_SUBMIT', label: 'Theo dõi BM03', module: 'PROGRESS' },
-  { code: 'BM03_REVIEW', label: 'Xem tiến độ sinh viên', module: 'PROGRESS' },
-  { code: 'BM03_CHECKPOINT_DECIDE', label: 'Đánh giá checkpoint', module: 'PROGRESS' },
-  { code: 'BM04_SUBMIT', label: 'Ghi BM04', module: 'PROGRESS' },
-  { code: 'BM04_REVIEW', label: 'Xem BM04', module: 'PROGRESS' },
-  { code: 'DEFENSE_COUNCIL_MANAGE', label: 'Lập hội đồng chấm BCTN', module: 'DEFENSE' },
-  { code: 'DEFENSE_SCORE_SUBMIT', label: 'Nhập phiếu chấm cá nhân', module: 'DEFENSE' },
-  { code: 'DEFENSE_SCORE_VIEW', label: 'Xem điểm hội đồng', module: 'DEFENSE' },
-  { code: 'RESULT_LOCK', label: 'Khóa kết quả', module: 'DEFENSE' },
-  { code: 'RESULT_PUBLISH', label: 'Công bố kết quả', module: 'DEFENSE' },
-  { code: 'POST_DEFENSE_REVISION_SUBMIT', label: 'Nộp chỉnh sửa sau bảo vệ', module: 'REVISION' },
-  { code: 'POST_DEFENSE_REVISION_REVIEW', label: 'Xác nhận chỉnh sửa sau bảo vệ', module: 'REVISION' },
-  { code: 'FINAL_DOCUMENT_SUBMIT', label: 'Nộp quyển/file mềm/source', module: 'REVISION' },
-  { code: 'REPORT_VIEW', label: 'Xem báo cáo nghiệp vụ', module: 'REPORT' },
-  { code: 'USER_MANAGE', label: 'Quản lý tài khoản', module: 'ADMIN' },
-  { code: 'USER_IMPORT', label: 'Import danh sách tài khoản', module: 'ADMIN' },
-  { code: 'PERMISSION_GROUP_MANAGE', label: 'Quản lý nhóm quyền', module: 'ADMIN' },
-  { code: 'AUDIT_LOG_VIEW', label: 'Xem audit log', module: 'ADMIN' },
-  { code: 'SYSTEM_CONFIG_MANAGE', label: 'Cấu hình hệ thống', module: 'ADMIN' },
-  { code: 'SEMESTER_MANAGE', label: 'Quản lý học kỳ', module: 'ADMIN' },
-  { code: 'PROJECT_CATALOG_MANAGE', label: 'Quản lý danh mục đồ án', module: 'ADMIN' },
-  { code: 'ENROLLMENT_MANAGE', label: 'Quản lý enrollment', module: 'ADMIN' },
-];
-
-const DEFAULT_GROUPS = [
-  {
-    name: 'Giảng viên hướng dẫn',
-    code: 'GVHD',
-    description: 'Quyền nghiệp vụ của giảng viên hướng dẫn',
-    permissions: [
-      'LECTURER_PROFILE_VIEW', 'LECTURER_PROFILE_MANAGE', 'TOPIC_VIEW', 'TOPIC_CREATE',
-      'TOPIC_UPDATE_OWN', 'MENTOR_REQUEST_REVIEW', 'OUTLINE_REVIEW', 'BM03_SUBMIT',
-      'BM03_REVIEW', 'BM03_CHECKPOINT_DECIDE', 'BM04_SUBMIT', 'DEFENSE_SCORE_SUBMIT',
-      'DEFENSE_SCORE_VIEW', 'POST_DEFENSE_REVISION_SUBMIT', 'REPORT_VIEW',
-    ],
-  },
-  {
-    name: 'Viện trưởng',
-    code: 'VIEN_TRUONG',
-    description: 'Quyền quản lý nghiệp vụ của Viện trưởng kiêm GVHD',
-    permissions: [
-      'ELIGIBILITY_VIEW_ALL', 'ELIGIBILITY_PUBLISH', 'LECTURER_DIRECTORY_VIEW',
-      'LECTURER_DIRECTORY_PUBLISH', 'MENTOR_ASSIGN', 'MENTOR_ASSIGNMENT_ADJUST',
-      'TOPIC_VIEW', 'TOPIC_REVIEW', 'OUTLINE_REVIEW', 'OUTLINE_APPROVE',
-      'OUTLINE_COUNCIL_MANAGE', 'PROJECT_ASSIGNMENT_PUBLISH', 'BM03_REVIEW',
-      'BM04_REVIEW', 'DEFENSE_COUNCIL_MANAGE', 'DEFENSE_SCORE_VIEW', 'RESULT_LOCK',
-      'RESULT_PUBLISH', 'POST_DEFENSE_REVISION_REVIEW', 'PUBLIC_ANNOUNCEMENT_MANAGE',
-      'REPORT_VIEW', 'AUDIT_LOG_VIEW',
-    ],
-  },
-  {
-    name: 'Quản trị viên',
-    code: 'QUAN_TRI_VIEN',
-    description: 'Quyền quản trị hệ thống',
-    permissions: [
-      'USER_MANAGE', 'USER_IMPORT', 'PERMISSION_GROUP_MANAGE', 'PUBLIC_ANNOUNCEMENT_MANAGE',
-      'SYSTEM_CONFIG_MANAGE', 'SEMESTER_MANAGE', 'PROJECT_CATALOG_MANAGE',
-      'ENROLLMENT_MANAGE', 'AUDIT_LOG_VIEW', 'REPORT_VIEW',
-    ],
-  },
-];
 
 const listPermissions = async () => prisma.permission.findMany({ orderBy: [{ module: 'asc' }, { code: 'asc' }] });
 
@@ -217,6 +132,189 @@ const seedPermissionCatalog = async () => {
   }
 };
 
+const getPermissionMatrix = async () => {
+  const [groups, permissions, groupPermissions] = await Promise.all([
+    prisma.permissionGroup.findMany({
+      orderBy: { id: 'asc' },
+      select: { id: true, code: true, name: true, description: true, isSystem: true },
+    }),
+    prisma.permission.findMany({
+      orderBy: [{ module: 'asc' }, { id: 'asc' }],
+      select: { id: true, code: true, label: true, module: true },
+    }),
+    prisma.permissionGroupPermission.findMany({
+      select: { permissionGroupId: true, permissionId: true },
+    }),
+  ]);
+
+  const moduleMap = new Map();
+  for (const perm of permissions) {
+    if (!moduleMap.has(perm.module)) {
+      moduleMap.set(perm.module, []);
+    }
+    moduleMap.get(perm.module).push(perm);
+  }
+
+  const modules = Array.from(moduleMap.entries()).map(([moduleName, perms]) => ({
+    module_name: moduleName,
+    permissions: perms,
+  }));
+
+  const rolePermissions = {};
+  for (const g of groups) {
+    rolePermissions[String(g.id)] = [];
+  }
+  for (const gp of groupPermissions) {
+    const key = String(gp.permissionGroupId);
+    if (!rolePermissions[key]) {
+      rolePermissions[key] = [];
+    }
+    rolePermissions[key].push(gp.permissionId);
+  }
+
+  return {
+    roles: groups,
+    modules,
+    role_permissions: rolePermissions,
+  };
+};
+
+const createMatrixError = (statusCode, message) => {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+};
+
+const requirePositiveInteger = (value, fieldName) => {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
+    throw createMatrixError(400, `${fieldName} phải là số nguyên dương.`);
+  }
+  return value;
+};
+
+const normalizePermissionMatrixPayload = (payload) => {
+  if (!Array.isArray(payload) || payload.length === 0) {
+    throw createMatrixError(400, 'Dữ liệu cập nhật ma trận phải là một mảng không rỗng.');
+  }
+
+  const seenGroupIds = new Set();
+  const updates = payload.map((item, index) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      throw createMatrixError(400, `Phần tử ma trận tại vị trí ${index} không hợp lệ.`);
+    }
+
+    const groupId = requirePositiveInteger(item.role_id ?? item.groupId, `role_id tại vị trí ${index}`);
+    if (seenGroupIds.has(groupId)) {
+      throw createMatrixError(400, `role_id ${groupId} bị trùng trong payload.`);
+    }
+    seenGroupIds.add(groupId);
+
+    if (!Array.isArray(item.permission_ids)) {
+      throw createMatrixError(400, `permission_ids của role_id ${groupId} phải là một mảng.`);
+    }
+
+    const seenPermissionIds = new Set();
+    const permissionIds = item.permission_ids.map((value, permissionIndex) => {
+      const permissionId = requirePositiveInteger(
+        value,
+        `permission_ids[${permissionIndex}] của role_id ${groupId}`,
+      );
+      if (seenPermissionIds.has(permissionId)) {
+        throw createMatrixError(400, `permission_id ${permissionId} bị trùng trong role_id ${groupId}.`);
+      }
+      seenPermissionIds.add(permissionId);
+      return permissionId;
+    });
+
+    return { groupId, permissionIds };
+  });
+
+  return updates.sort((left, right) => left.groupId - right.groupId);
+};
+
+const bulkUpdatePermissionMatrix = async (payload, actor) => {
+  const updates = normalizePermissionMatrixPayload(payload);
+  const actorId = requirePositiveInteger(actor?.id, 'actor.id');
+  const groupIds = updates.map(({ groupId }) => groupId);
+  const permissionIds = [...new Set(updates.flatMap(({ permissionIds: ids }) => ids))];
+
+  await prisma.$transaction(async (tx) => {
+    const [existingGroups, existingPermissions, managePermission] = await Promise.all([
+      tx.permissionGroup.findMany({
+        where: { id: { in: groupIds } },
+        select: { id: true },
+      }),
+      permissionIds.length > 0
+        ? tx.permission.findMany({
+          where: { id: { in: permissionIds } },
+          select: { id: true },
+        })
+        : Promise.resolve([]),
+      tx.permission.findUnique({
+        where: { code: 'PERMISSION_GROUP_MANAGE' },
+        select: { id: true },
+      }),
+    ]);
+
+    if (existingGroups.length !== groupIds.length) {
+      const existingIds = new Set(existingGroups.map(({ id }) => id));
+      const missingIds = groupIds.filter((id) => !existingIds.has(id));
+      throw createMatrixError(400, `Nhóm quyền không tồn tại: ${missingIds.join(', ')}.`);
+    }
+    if (existingPermissions.length !== permissionIds.length) {
+      const existingIds = new Set(existingPermissions.map(({ id }) => id));
+      const missingIds = permissionIds.filter((id) => !existingIds.has(id));
+      throw createMatrixError(400, `Quyền không tồn tại: ${missingIds.join(', ')}.`);
+    }
+    if (!managePermission) {
+      throw createMatrixError(409, 'Catalog thiếu quyền tối quan trọng PERMISSION_GROUP_MANAGE.');
+    }
+
+    for (const { groupId, permissionIds: nextPermissionIds } of updates) {
+
+      await tx.permissionGroupPermission.deleteMany({
+        where: { permissionGroupId: groupId },
+      });
+
+      if (nextPermissionIds.length > 0) {
+        await tx.permissionGroupPermission.createMany({
+          data: nextPermissionIds.map((permissionId) => ({
+            permissionGroupId: groupId,
+            permissionId,
+          })),
+        });
+      }
+    }
+
+    const managerGroupCount = await tx.permissionGroupPermission.count({
+      where: { permissionId: managePermission.id },
+    });
+    if (managerGroupCount < 1) {
+      throw createMatrixError(
+        409,
+        'Không thể gỡ PERMISSION_GROUP_MANAGE khỏi tất cả nhóm quyền.',
+      );
+    }
+
+    await tx.auditLog.create({
+      data: {
+        userId: actorId,
+        action: 'BULK_UPDATE_PERMISSION_MATRIX',
+        entityType: 'PermissionMatrix',
+        entityId: null,
+        details: {
+          updatedGroupsCount: updates.length,
+        },
+        ipAddress: getRequestIp(actor),
+      },
+    });
+  }, {
+    isolationLevel: 'Serializable',
+  });
+
+  return { success: true, message: 'Cập nhật ma trận phân quyền thành công.' };
+};
+
 module.exports = {
   PERMISSION_CATALOG,
   DEFAULT_GROUPS,
@@ -230,4 +328,6 @@ module.exports = {
   getUserPermissions,
   hasPermission,
   seedPermissionCatalog,
+  getPermissionMatrix,
+  bulkUpdatePermissionMatrix,
 };

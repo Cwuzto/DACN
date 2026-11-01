@@ -4,10 +4,28 @@ const { safeNotify } = require('../services/notificationService');
 const UploadService = require('../services/uploadService');
 const { generateScoreSheetPdfBuffer } = require('../services/scoreSheetPdfService');
 const rubricService = require('../services/rubricService');
+const { reviewBM01, submitBM01Initial, submitBM01Revision } = require('../services/bm01WorkflowService');
+const {
+    issueCheckpoint,
+    signCheckpoint,
+    handleSignatureOverdue,
+    submitSignatureAppeal,
+    reviewSignatureAppeal,
+} = require('../services/checkpointWorkflowService');
+const { WorkflowTransitionError } = require('../services/registrationTransitionService');
+const { lockDefenseScores } = require('../services/defenseScoringService');
+const { approveDefenseResult, createResultPublication, getEligibleApprovals, listResultPublications, getDefenseResultApproval, getStudentPublishedResult } = require('../services/defenseResultPublicationService');
 
 const getRequestIp = (req) => req.ip || req.headers['x-forwarded-for'] || null;
+const getIdempotencyKey = (req) => req.get?.('Idempotency-Key') || req.headers?.['idempotency-key'];
+const sendWorkflowError = (res, error) => {
+    if (error instanceof WorkflowTransitionError) {
+        return res.status(error.status).json({ success: false, code: error.code, message: error.message });
+    }
+    return false;
+};
 const DEFENSE_CENTER_TABS = ['PENDING_ASSIGNMENT', 'ASSIGNED_COUNCIL', 'AWAITING_GRADING', 'COMPLETED'];
-const DEFENSE_ELIGIBLE_STATUSES = ['SUBMITTED', 'DEFENDED', 'COMPLETED'];
+const DEFENSE_ELIGIBLE_STATUSES = ['DEFENSE_READY', 'SUBMITTED', 'DEFENDED', 'COMPLETED'];
 
 const RUBRIC_V1 = {
     version: 'v1',
@@ -86,7 +104,9 @@ const round2 = (value) => Math.round((Number(value) || 0) * 100) / 100;
 const supportsMemberScoresModel = Boolean(prisma?.defenseMemberScore);
 
 const computeRegistrationFinalScore = (memberScores = []) => {
-    const valid = memberScores.filter((row) => Number.isFinite(Number(row.finalScore)));
+    const valid = memberScores.filter(
+        (row) => row && row.finalScore !== null && row.finalScore !== undefined && row.finalScore !== '' && Number.isFinite(Number(row.finalScore)),
+    );
     if (!valid.length) return null;
     const avg = valid.reduce((sum, row) => sum + Number(row.finalScore), 0) / valid.length;
     return round2(avg);
@@ -104,11 +124,15 @@ const canLecturerGradeRegistration = async (lecturerId, registrationId) => {
 
     if (!registration) return { ok: false, reason: 'not_found' };
 
+    // INV-11 & INV-20: Giảng viên hướng dẫn không được chấm điểm hội đồng cho sinh viên mình hướng dẫn
+    if (registration.topic?.mentorId === lecturerId) {
+        return { ok: false, reason: 'mentor_conflict' };
+    }
+
     const effectiveMembers = registration.defenseCouncil?.members || registration.council?.members || [];
     const inCouncil = effectiveMembers.some((m) => m.lecturerId === lecturerId);
-    const isMentor = registration.topic?.mentorId === lecturerId;
 
-    return { ok: inCouncil || isMentor, registration };
+    return { ok: inCouncil, registration };
 };
 
 const validateAndNormalizeScores = (scores = [], rubricPayload = null) => {
@@ -677,9 +701,16 @@ const saveScoreSheet = async (req, res, next) => {
         if (evaluatorRole === 'LECTURER') {
             const access = await canLecturerGradeRegistration(evaluatorId, registrationId);
             if (!access.ok) {
+                if (access.reason === 'mentor_conflict') {
+                    return res.status(403).json({
+                        success: false,
+                        code: 'MENTOR_CANNOT_GRADE_OWN_STUDENT',
+                        message: 'Xung đột lợi ích: Giảng viên hướng dẫn không được chấm điểm hội đồng bảo vệ cho sinh viên của mình.',
+                    });
+                }
                 return res.status(access.reason === 'not_found' ? 404 : 403).json({
                     success: false,
-                    message: access.reason === 'not_found' ? 'Không tìm thấy đăng ký.' : 'Bạn không có quyền chấm điểm hồ sơ này.',
+                    message: access.reason === 'not_found' ? 'Không tìm thấy đăng ký.' : 'Bạn không có quyền chấm điểm hồ sơ này (chỉ thành viên hội đồng mới có quyền).',
                 });
             }
         }
@@ -691,7 +722,7 @@ const saveScoreSheet = async (req, res, next) => {
                     id: true,
                     status: true,
                     studentId: true,
-                    topic: { select: { title: true } },
+                    topic: { select: { title: true, mentorId: true } },
                     defenseCouncil: { select: { members: { select: { lecturerId: true } } } },
                     council: { select: { members: { select: { lecturerId: true } } } },
                 },
@@ -699,6 +730,10 @@ const saveScoreSheet = async (req, res, next) => {
 
             if (!registration) {
                 throw new Error('NOT_FOUND_REGISTRATION');
+            }
+
+            if (registration.topic?.mentorId === evaluatorId) {
+                throw new Error('MENTOR_CANNOT_GRADE_OWN_STUDENT');
             }
 
             const effectiveMembers = registration.defenseCouncil?.members || registration.council?.members || [];
@@ -825,6 +860,13 @@ const saveScoreSheet = async (req, res, next) => {
         if (error?.message === 'NOT_FOUND_REGISTRATION') {
             return res.status(404).json({ success: false, message: 'Khong tim thay dang ky.' });
         }
+        if (error?.message === 'MENTOR_CANNOT_GRADE_OWN_STUDENT') {
+            return res.status(403).json({
+                success: false,
+                code: 'MENTOR_CANNOT_GRADE_OWN_STUDENT',
+                message: 'Xung đột lợi ích: Giảng viên hướng dẫn không được chấm điểm hội đồng cho sinh viên của mình.',
+            });
+        }
         if (error?.message === 'EVALUATOR_NOT_IN_COUNCIL') {
             return res.status(400).json({ success: false, message: 'Nguoi cham khong thuoc hoi dong cua de tai nay.' });
         }
@@ -941,41 +983,11 @@ const setDefenseScoreLock = async (req, res, next) => {
             return res.status(400).json({ success: false, message: 'action phai la LOCK hoac UNLOCK.' });
         }
 
-        const registration = await prisma.topicRegistration.findUnique({
-            where: { id: registrationId },
-            include: { memberScores: { select: { id: true } } },
-        });
-
-        if (!registration) {
-            return res.status(404).json({ success: false, message: 'Khong tim thay dang ky.' });
-        }
-
-        if (!registration.memberScores?.length) {
-            return res.status(400).json({ success: false, message: 'Ho so chua co diem bao ve de khoa/mo khoa.' });
-        }
-
-        const lockState = action === 'LOCK';
-        // When locking defense scores, student is DEFENDED and ready for post-defense archiving.
-        // Final COMPLETED status is granted upon post-defense archive approval.
-        const nextStatus = lockState ? 'DEFENDED' : 'SUBMITTED';
-
-        const updated = await prisma.$transaction(async (tx) => {
-            const updatedRegistration = await tx.topicRegistration.update({
-                where: { id: registrationId },
-                data: { status: nextStatus },
-                select: { id: true, status: true, updatedAt: true },
-            });
-
-            await tx.defenseMemberScore.updateMany({
-                where: { registrationId },
-                data: {
-                    scoreLocked: lockState,
-                    lockedAt: lockState ? new Date() : null,
-                    lockedBy: lockState ? req.user.id : null,
-                },
-            });
-
-            return updatedRegistration;
+        const updated = await lockDefenseScores({
+            registrationId,
+            action,
+            actorId: req.user.id,
+            idempotencyKey: getIdempotencyKey(req) || `defense-score-lock-${registrationId}-${action}-${Date.now()}`,
         });
 
         await auditLog(
@@ -983,18 +995,115 @@ const setDefenseScoreLock = async (req, res, next) => {
             action === 'LOCK' ? 'LOCK_SCORE_SHEET' : 'UNLOCK_SCORE_SHEET',
             'TopicRegistration',
             registrationId,
-            { previousStatus: registration.status, nextStatus, scoreLocked: lockState },
+            { nextStatus: updated.status, scoreLocked: action === 'LOCK' },
             getRequestIp(req),
         );
 
         res.json({
             success: true,
-            message: action === 'LOCK' ? 'Da khoa diem bao ve.' : 'Da mo khoa diem bao ve.',
+            message: action === 'LOCK' ? 'Da khoa diem bao ve va chuyen sang cho phe duyet ket qua.' : 'Da mo khoa diem bao ve.',
             data: updated,
         });
     } catch (error) {
         next(error);
     }
+};
+
+const approveDefenseResultAction = async (req, res, next) => {
+    try {
+        const result = await approveDefenseResult({
+            registrationId: parsePositiveInt(req.params.id),
+            actorId: req.user.id,
+            outcome: req.body.outcome,
+            reason: req.body.reason,
+            notes: req.body.notes,
+            idempotencyKey: getIdempotencyKey(req),
+        });
+        return res.status(201).json({ success: true, message: 'Đã phê duyệt kết quả bảo vệ.', data: result });
+    } catch (error) {
+        if (sendWorkflowError(res, error)) return;
+        next(error);
+    }
+};
+
+const getDefenseResultApprovalAction = async (req, res, next) => {
+    try {
+        const registrationId = parsePositiveInt(req.params.id);
+        if (!registrationId) return res.status(400).json({ success: false, message: 'registrationId không hợp lệ.' });
+        const approval = await getDefenseResultApproval(registrationId);
+        if (!approval) return res.status(404).json({ success: false, message: 'Chưa có quyết định phê duyệt kết quả bảo vệ.' });
+        return res.json({ success: true, data: approval });
+    } catch (error) {
+        next(error);
+    }
+};
+
+const correctDefenseResultAction = async (req, res, next) => {
+    try {
+        const result = await approveDefenseResult({
+            registrationId: parsePositiveInt(req.params.id), actorId: req.user.id, outcome: req.body.outcome,
+            reason: req.body.reason, notes: req.body.notes, idempotencyKey: getIdempotencyKey(req), correction: true,
+        });
+        return res.status(201).json({ success: true, message: 'Đã tạo quyết định điều chỉnh kết quả.', data: result });
+    } catch (error) {
+        if (sendWorkflowError(res, error)) return;
+        next(error);
+    }
+};
+
+const previewResultPublication = async (req, res, next) => {
+    try {
+        const semesterId = parsePositiveInt(req.params.semesterId);
+        if (!semesterId) return res.status(400).json({ success: false, message: 'semesterId không hợp lệ.' });
+        const approvals = await getEligibleApprovals(prisma, semesterId);
+        const published = await prisma.resultPublicationItem.findMany({ where: { registration: { semesterId } }, select: { registrationId: true } });
+        const publishedIds = new Set(published.map((item) => item.registrationId));
+        return res.json({
+            success: true,
+            data: {
+                eligible: approvals.filter((approval) => !publishedIds.has(approval.registrationId)),
+                correctionEligible: approvals.filter((approval) => publishedIds.has(approval.registrationId)),
+                alreadyPublishedRegistrationIds: [...publishedIds],
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+const publishDefenseResults = async (req, res, next) => {
+    try {
+        const semesterId = parsePositiveInt(req.params.semesterId);
+        if (!semesterId) return res.status(400).json({ success: false, message: 'semesterId không hợp lệ.' });
+        const result = await createResultPublication({
+            semesterId,
+            actorId: req.user.id,
+            type: req.body.type,
+            reason: req.body.reason,
+            previousPublicationId: req.body.previousPublicationId,
+            correctionItems: req.body.correctionItems,
+            idempotencyKey: getIdempotencyKey(req),
+        });
+        return res.status(result.idempotent ? 200 : 201).json({ success: true, message: 'Đã công bố kết quả theo snapshot.', data: result });
+    } catch (error) {
+        if (sendWorkflowError(res, error)) return;
+        next(error);
+    }
+};
+
+const getResultPublicationHistory = async (req, res, next) => {
+    try {
+        const semesterId = parsePositiveInt(req.params.semesterId);
+        if (!semesterId) return res.status(400).json({ success: false, message: 'semesterId không hợp lệ.' });
+        return res.json({ success: true, data: await listResultPublications(semesterId) });
+    } catch (error) { next(error); }
+};
+
+const getMyPublishedDefenseResult = async (req, res, next) => {
+    try {
+        const item = await getStudentPublishedResult(req.user.id);
+        return res.json({ success: true, data: item || null });
+    } catch (error) { next(error); }
 };
 const exportScoreSheetPdf = async (req, res, next) => {
     try {
@@ -1164,61 +1273,16 @@ const resubmitBM01 = async (req, res, next) => {
             return res.status(404).json({ success: false, message: 'Không tìm thấy hồ sơ đăng ký đề tài.' });
         }
 
-        if (req.user.role === 'STUDENT' && registration.studentId !== studentId) {
-            return res.status(403).json({ success: false, message: 'Bạn không có quyền nộp lại cho đề tài này.' });
-        }
-
-        const eligibleStatuses = ['BM01_NEEDS_REVISION', 'PENDING', 'APPROVED', 'BM01_SUBMITTED'];
-        const isRevisionRequired = registration.outlineReviewStatus === 'REVISION_REQUIRED' || registration.status === 'BM01_NEEDS_REVISION';
-
-        if (!isRevisionRequired && !eligibleStatuses.includes(registration.status)) {
-            return res.status(400).json({
-                success: false,
-                message: 'Chỉ được nộp lại đề cương khi đề cương đang ở trạng thái Cần chỉnh sửa (BM01_NEEDS_REVISION).',
-            });
-        }
-
-        let bm01Task = await prisma.task.findFirst({
-            where: { registrationId, taskType: 'BM01' },
+        const result = await submitBM01Revision({
+            registrationId,
+            studentId,
+            content,
+            fileUrl,
+            fileName,
+            idempotencyKey: getIdempotencyKey(req),
         });
 
-        if (!bm01Task) {
-            bm01Task = await prisma.task.create({
-                data: {
-                    registrationId,
-                    title: 'BM01 - Đề cương chi tiết đồ án',
-                    content: 'Nộp đề cương chi tiết đồ án gồm: mục tiêu, phạm vi nghiên cứu, phương pháp/công nghệ.',
-                    taskType: 'BM01',
-                    status: 'SUBMITTED',
-                },
-            });
-        } else {
-            await prisma.task.update({
-                where: { id: bm01Task.id },
-                data: { status: 'SUBMITTED' },
-            });
-        }
-
-        const submission = await prisma.submission.create({
-            data: {
-                taskId: bm01Task.id,
-                registrationId,
-                submittedBy: studentId,
-                content: content || null,
-                fileUrl: fileUrl || null,
-                fileName: fileName || null,
-            },
-        });
-
-        await prisma.topicRegistration.update({
-            where: { id: registrationId },
-            data: {
-                status: 'BM01_NEEDS_REVISION',
-                outlineReviewStatus: 'REVISION_REQUIRED',
-            },
-        });
-
-        if (registration.topic?.mentorId) {
+        if (!result.idempotent && registration.topic?.mentorId) {
             await safeNotify(
                 {
                     userId: registration.topic.mentorId,
@@ -1230,35 +1294,70 @@ const resubmitBM01 = async (req, res, next) => {
             );
         }
 
-        await auditLog(
-            studentId,
-            'RESUBMIT_BM01',
-            'TopicRegistration',
-            registrationId,
-            { submissionId: submission.id },
-            getRequestIp(req),
-        );
+        if (!result.idempotent) {
+            await auditLog(
+                studentId,
+                'RESUBMIT_BM01',
+                'TopicRegistration',
+                registrationId,
+                { submissionId: result.submission.id, evaluationId: result.evaluation.id },
+                getRequestIp(req),
+            );
+        }
 
         res.json({
             success: true,
             message: 'Đã nộp lại đề cương BM01 thành công. Đề cương đang chờ GVHD thẩm định lại.',
-            data: submission,
+            data: result,
         });
     } catch (error) {
+        if (sendWorkflowError(res, error)) return;
+        next(error);
+    }
+};
+
+const submitBM01 = async (req, res, next) => {
+    try {
+        const registrationId = parseInt(req.params.registrationId, 10);
+        const { content, fileUrl, fileName } = req.body;
+        const result = await submitBM01Initial({
+            registrationId,
+            studentId: req.user.id,
+            content,
+            fileUrl,
+            fileName,
+            idempotencyKey: getIdempotencyKey(req),
+        });
+        if (!result.idempotent) {
+            await auditLog(
+                req.user.id,
+                'SUBMIT_BM01',
+                'TopicRegistration',
+                registrationId,
+                { submissionId: result.submission.id },
+                getRequestIp(req),
+            );
+        }
+        return res.status(201).json({
+            success: true,
+            message: 'Đã nộp đề cương BM01 và chuyển hồ sơ sang chờ Hội đồng thẩm định.',
+            data: result,
+        });
+    } catch (error) {
+        if (sendWorkflowError(res, error)) return;
         next(error);
     }
 };
 
 /**
  * POST /api/evaluations/bm01-gvhd-approve/:registrationId
- * GVHD thẩm định và bấm duyệt ĐẠT đề cương BM01 đã chỉnh sửa
+ * GVHD thẩm định lần hai; đạt thì mở BM02, không đạt thì dừng hồ sơ.
  */
 const approveResubmittedBM01 = async (req, res, next) => {
     try {
         const registrationId = parseInt(req.params.registrationId, 10);
-        const { feedback } = req.body;
+        const { feedback, outcome = 'PASSED' } = req.body;
         const userId = req.user.id;
-        const role = req.user.role;
 
         if (!Number.isInteger(registrationId) || registrationId <= 0) {
             return res.status(400).json({ success: false, message: 'registrationId không hợp lệ.' });
@@ -1274,58 +1373,56 @@ const approveResubmittedBM01 = async (req, res, next) => {
         }
 
         const isMentor = registration.topic?.mentorId === userId;
-        const isAdmin = role === 'ADMIN';
-
-        if (!isMentor && !isAdmin) {
+        if (!isMentor) {
             return res.status(403).json({
                 success: false,
-                message: 'Chỉ giảng viên hướng dẫn của đề tài này (hoặc Admin) mới có quyền duyệt lại đề cương.',
+                message: 'Chỉ giảng viên hướng dẫn hiện hành mới có quyền duyệt lại đề cương.',
             });
         }
 
-        const updated = await prisma.$transaction(async (tx) => {
-            const regUpdated = await tx.topicRegistration.update({
-                where: { id: registrationId },
-                data: {
-                    status: 'BM01_PASSED',
-                    outlineReviewStatus: 'PASSED',
-                    outlineFeedback: feedback ? String(feedback).trim() : registration.outlineFeedback,
-                },
-            });
-
-            await tx.task.updateMany({
-                where: { registrationId, taskType: 'BM01' },
-                data: { status: 'COMPLETED' },
-            });
-
-            return regUpdated;
+        const result = await reviewBM01({
+            registrationId,
+            reviewerId: userId,
+            attemptNo: 2,
+            outcome,
+            feedback,
+            idempotencyKey: getIdempotencyKey(req),
         });
 
-        await safeNotify(
+        if (!result.idempotent) await safeNotify(
             {
                 userId: registration.studentId,
-                title: 'Đề cương BM01 đã được GVHD duyệt ĐẠT',
-                content: `GVHD đã duyệt ĐẠT đề cương chỉnh sửa cho đề tài "${registration.topic.title}". Bạn hiện đã đủ điều kiện để nộp BM02 (Phiếu đăng ký đề tài chính thức).`,
+                title: outcome === 'PASSED'
+                    ? 'Đề cương BM01 đã được GVHD duyệt ĐẠT'
+                    : 'Đề cương BM01 không đạt sau lần chỉnh sửa',
+                content: outcome === 'PASSED'
+                    ? `GVHD đã duyệt ĐẠT đề cương chỉnh sửa cho đề tài "${registration.topic.title}". Bạn hiện đã đủ điều kiện để nộp BM02 (Phiếu đăng ký đề tài chính thức).`
+                    : `GVHD kết luận đề cương chỉnh sửa của đề tài "${registration.topic.title}" không đạt. Hồ sơ đã dừng theo quy định BM01.`,
                 type: 'APPROVAL',
             },
             'approveResubmittedBM01',
         );
 
-        await auditLog(
-            userId,
-            'APPROVE_RESUBMITTED_BM01',
-            'TopicRegistration',
-            registrationId,
-            { feedback: feedback || null },
-            getRequestIp(req),
-        );
+        if (!result.idempotent) {
+            await auditLog(
+                userId,
+                'APPROVE_RESUBMITTED_BM01',
+                'TopicRegistration',
+                registrationId,
+                { feedback: feedback || null, outcome, evaluationId: result.evaluation.id },
+                getRequestIp(req),
+            );
+        }
 
         res.json({
             success: true,
-            message: 'Đã thẩm định và duyệt ĐẠT đề cương BM01 thành công. Sinh viên đã được mở khóa nộp BM02.',
-            data: updated,
+            message: outcome === 'PASSED'
+                ? 'Đã thẩm định và duyệt ĐẠT đề cương BM01 thành công. Sinh viên đã được mở khóa nộp BM02.'
+                : 'Đã ghi nhận BM01 không đạt lần hai. Hồ sơ chuyển sang TERMINATED_BM01.',
+            data: result,
         });
     } catch (error) {
+        if (sendWorkflowError(res, error)) return;
         next(error);
     }
 };
@@ -1354,10 +1451,10 @@ const submitBM04Evaluation = async (req, res, next) => {
             return res.status(400).json({ success: false, message: 'registrationId không hợp lệ.' });
         }
 
-        if (!['AGREED_FOR_DEFENSE', 'NOT_AGREED'].includes(conclusion)) {
+        if (!['AGREED_FOR_DEFENSE', 'NOT_AGREED_FOR_DEFENSE'].includes(conclusion)) {
             return res.status(400).json({
                 success: false,
-                message: 'Kết luận BM04 bắt buộc phải là AGREED_FOR_DEFENSE (Đồng ý) hoặc NOT_AGREED (Không đồng ý).',
+                message: 'Kết luận BM04 bắt buộc phải là AGREED_FOR_DEFENSE hoặc NOT_AGREED_FOR_DEFENSE.',
             });
         }
 
@@ -1377,17 +1474,16 @@ const submitBM04Evaluation = async (req, res, next) => {
 
         const registration = await prisma.topicRegistration.findUnique({
             where: { id: regIdInt },
-            include: { topic: true, student: true, bm04Evaluation: true },
+            include: { topic: true, student: true, bm04Evaluation: true, archive: true },
         });
 
         if (!registration) {
             return res.status(404).json({ success: false, message: 'Không tìm thấy hồ sơ đăng ký đề tài.' });
         }
 
-        const isMentor = registration.topic?.mentorId === userId;
-        const isAdmin = role === 'ADMIN';
+        const isMentor = role === 'LECTURER' && registration.topic?.mentorId === userId;
 
-        if (!isMentor && !isAdmin) {
+        if (!isMentor) {
             return res.status(403).json({
                 success: false,
                 message: 'Chỉ giảng viên hướng dẫn của đề tài này mới có quyền lập và ký phiếu BM04.',
@@ -1401,8 +1497,31 @@ const submitBM04Evaluation = async (req, res, next) => {
             });
         }
 
+        if (registration.status !== 'BM03_PASSED') {
+            return res.status(409).json({
+                success: false,
+                code: 'INVALID_TRANSITION',
+                message: 'Chỉ được lập BM04 khi hồ sơ đang ở trạng thái BM03_PASSED.',
+            });
+        }
+
         const isAgreed = conclusion === 'AGREED_FOR_DEFENSE';
-        const nextStatus = isAgreed ? 'DEFENSE_READY' : 'TERMINATED_FAILED_PROGRESS';
+        if (isAgreed) {
+            const preDefenseArchiveComplete = Boolean(
+                registration.archive?.reportFileUrl
+                && registration.archive?.sourceCodeUrl
+                && (registration.archive?.slideFileUrl || registration.archive?.demoVideoUrl),
+            );
+            if (!preDefenseArchiveComplete) {
+                return res.status(409).json({
+                    success: false,
+                    code: 'PRE_DEFENSE_ARCHIVE_INCOMPLETE',
+                    message: 'Chưa đủ bộ lưu chiểu trước bảo vệ: báo cáo PDF, source/repository và slide hoặc video demo.',
+                });
+            }
+        }
+
+        const nextStatus = isAgreed ? 'DEFENSE_READY' : 'TERMINATED_BM04';
 
         const result = await prisma.$transaction(async (tx) => {
             const evaluation = await tx.bM04Evaluation.upsert({
@@ -1416,22 +1535,24 @@ const submitBM04Evaluation = async (req, res, next) => {
                     researchContentScore: String(researchContentScore).trim(),
                     applicabilityScore: String(applicabilityScore).trim(),
                     attitudeScore: String(attitudeScore).trim(),
-                    conclusion,
+                    conclusion: isAgreed ? 'AGREED_FOR_DEFENSE' : 'NOT_AGREED_FOR_DEFENSE',
                     generalNotes: generalNotes ? String(generalNotes).trim() : null,
                     lecturerSignature: String(lecturerSignature).trim(),
                     signedAt: new Date(),
                     isLocked: true,
+                    policyVersionId: registration.periodPolicyVersionId,
                 },
                 update: {
                     thesisFormatScore: String(thesisFormatScore).trim(),
                     researchContentScore: String(researchContentScore).trim(),
                     applicabilityScore: String(applicabilityScore).trim(),
                     attitudeScore: String(attitudeScore).trim(),
-                    conclusion,
+                    conclusion: isAgreed ? 'AGREED_FOR_DEFENSE' : 'NOT_AGREED_FOR_DEFENSE',
                     generalNotes: generalNotes ? String(generalNotes).trim() : null,
                     lecturerSignature: String(lecturerSignature).trim(),
                     signedAt: new Date(),
                     isLocked: true,
+                    policyVersionId: registration.periodPolicyVersionId,
                 },
             });
 
@@ -1440,9 +1561,25 @@ const submitBM04Evaluation = async (req, res, next) => {
                 data: { status: nextStatus },
             });
 
+            if (tx.registrationStateHistory?.create) {
+                await tx.registrationStateHistory.create({
+                    data: {
+                        registrationId: regIdInt,
+                        fromStatus: registration.status,
+                        toStatus: nextStatus,
+                        fromStateVersion: registration.stateVersion || 0,
+                        toStateVersion: (registration.stateVersion || 0) + 1,
+                        actorId: userId,
+                        reason: isAgreed
+                            ? 'GVHD ký khóa BM04 ĐỒNG Ý cho ra bảo vệ'
+                            : 'GVHD ký khóa BM04 KHÔNG ĐỒNG Ý cho ra bảo vệ (dừng đồ án)',
+                    },
+                });
+            }
+
             await tx.task.updateMany({
                 where: { registrationId: regIdInt, taskType: 'BM04' },
-                data: { status: isAgreed ? 'COMPLETED' : 'REVISION' },
+                data: { status: 'COMPLETED' },
             });
 
             return evaluation;
@@ -1510,10 +1647,151 @@ const getBM04Evaluation = async (req, res, next) => {
             return res.status(404).json({ success: false, message: 'Chưa có phiếu đánh giá BM04 cho đề tài này.' });
         }
 
+        const canView = req.user.role === 'ADMIN'
+            || (req.user.role === 'STUDENT' && evaluation.studentId === req.user.id)
+            || (req.user.role === 'LECTURER' && evaluation.lecturerId === req.user.id);
+
+        if (!canView) {
+            return res.status(403).json({
+                success: false,
+                message: 'Bạn không có quyền xem phiếu đánh giá BM04 này.',
+            });
+        }
+
         res.json({
             success: true,
             data: evaluation,
         });
+    } catch (error) {
+        next(error);
+    }
+};
+
+const issueCheckpointEvaluation = async (req, res, next) => {
+    try {
+        const idempotencyKey = getIdempotencyKey(req);
+        if (!idempotencyKey) {
+            return res.status(400).json({ success: false, code: 'IDEMPOTENCY_KEY_REQUIRED', message: 'Yêu cầu Idempotency-Key header.' });
+        }
+        const { registrationId, checkpointNo, conclusion, comments, evidenceUrl, evidenceName, mentorSignature } = req.body;
+        const result = await issueCheckpoint({
+            registrationId: parseInt(registrationId, 10),
+            checkpointNo: parseInt(checkpointNo, 10),
+            conclusion,
+            comments,
+            evidenceUrl,
+            evidenceName,
+            mentorSignature,
+            actorId: req.user.id,
+            idempotencyKey,
+        });
+        res.json({ success: true, message: 'Đã phát hành biên bản BM03 Checkpoint thành công.', data: result });
+    } catch (error) {
+        if (sendWorkflowError(res, error)) return;
+        next(error);
+    }
+};
+
+const signCheckpointEvaluation = async (req, res, next) => {
+    try {
+        const idempotencyKey = getIdempotencyKey(req);
+        if (!idempotencyKey) {
+            return res.status(400).json({ success: false, code: 'IDEMPOTENCY_KEY_REQUIRED', message: 'Yêu cầu Idempotency-Key header.' });
+        }
+        const { checkpointEvaluationId, studentSignature } = req.body;
+        const result = await signCheckpoint({
+            checkpointEvaluationId: parseInt(checkpointEvaluationId, 10),
+            studentSignature,
+            actorId: req.user.id,
+            idempotencyKey,
+        });
+        res.json({ success: true, message: 'Đã ký xác nhận biên bản BM03 Checkpoint thành công.', data: result });
+    } catch (error) {
+        if (sendWorkflowError(res, error)) return;
+        next(error);
+    }
+};
+
+const handleCheckpointOverdue = async (req, res, next) => {
+    try {
+        const idempotencyKey = getIdempotencyKey(req);
+        if (!idempotencyKey) {
+            return res.status(400).json({ success: false, code: 'IDEMPOTENCY_KEY_REQUIRED', message: 'Yêu cầu Idempotency-Key header.' });
+        }
+        const { checkpointEvaluationId } = req.body;
+        const result = await handleSignatureOverdue({
+            checkpointEvaluationId: parseInt(checkpointEvaluationId, 10),
+            actorId: req.user.id,
+            idempotencyKey,
+        });
+        res.json({ success: true, message: 'Đã chuyển sang trạng thái quá hạn ký Checkpoint.', data: result });
+    } catch (error) {
+        if (sendWorkflowError(res, error)) return;
+        next(error);
+    }
+};
+
+const submitCheckpointAppeal = async (req, res, next) => {
+    try {
+        const idempotencyKey = getIdempotencyKey(req);
+        if (!idempotencyKey) {
+            return res.status(400).json({ success: false, code: 'IDEMPOTENCY_KEY_REQUIRED', message: 'Yêu cầu Idempotency-Key header.' });
+        }
+        const { checkpointEvaluationId, reason, evidenceUrl, evidenceName } = req.body;
+        const result = await submitSignatureAppeal({
+            checkpointEvaluationId: parseInt(checkpointEvaluationId, 10),
+            reason,
+            evidenceUrl,
+            evidenceName,
+            actorId: req.user.id,
+            idempotencyKey,
+        });
+        res.json({ success: true, message: 'Đã nộp đơn khiếu nại chữ ký Checkpoint thành công.', data: result });
+    } catch (error) {
+        if (sendWorkflowError(res, error)) return;
+        next(error);
+    }
+};
+
+const reviewCheckpointAppeal = async (req, res, next) => {
+    try {
+        const idempotencyKey = getIdempotencyKey(req);
+        if (!idempotencyKey) {
+            return res.status(400).json({ success: false, code: 'IDEMPOTENCY_KEY_REQUIRED', message: 'Yêu cầu Idempotency-Key header.' });
+        }
+        const { appealId, decision, reviewNotes, resolutionDecision } = req.body;
+        const result = await reviewSignatureAppeal({
+            appealId: parseInt(appealId, 10),
+            decision,
+            reviewNotes,
+            resolutionDecision,
+            actorId: req.user.id,
+            idempotencyKey,
+        });
+        res.json({ success: true, message: 'Đã hoàn tất thẩm định khiếu nại chữ ký Checkpoint.', data: result });
+    } catch (error) {
+        if (sendWorkflowError(res, error)) return;
+        next(error);
+    }
+};
+
+const getCheckpointEvaluations = async (req, res, next) => {
+    try {
+        const regIdInt = parseInt(req.params.registrationId, 10);
+        const evaluations = await prisma.checkpointEvaluation.findMany({
+            where: { registrationId: regIdInt },
+            include: {
+                mentorSignedBy: { select: { id: true, fullName: true, code: true } },
+                studentSignedBy: { select: { id: true, fullName: true, code: true } },
+                appeal: {
+                    include: {
+                        reviewedBy: { select: { id: true, fullName: true } },
+                    },
+                },
+            },
+            orderBy: [{ checkpointNo: 'asc' }, { attemptNo: 'asc' }],
+        });
+        res.json({ success: true, data: evaluations });
     } catch (error) {
         next(error);
     }
@@ -1527,11 +1805,25 @@ module.exports = {
     saveScoreSheet,
     remindDefenseGrading,
     setDefenseScoreLock,
+    getDefenseResultApprovalAction,
+    approveDefenseResultAction,
+    correctDefenseResultAction,
+    previewResultPublication,
+    publishDefenseResults,
+    getResultPublicationHistory,
+    getMyPublishedDefenseResult,
     exportScoreSheetPdf,
+    submitBM01,
     resubmitBM01,
     approveResubmittedBM01,
     submitBM04Evaluation,
     getBM04Evaluation,
+    issueCheckpointEvaluation,
+    signCheckpointEvaluation,
+    handleCheckpointOverdue,
+    submitCheckpointAppeal,
+    reviewCheckpointAppeal,
+    getCheckpointEvaluations,
 };
 
 

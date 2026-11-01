@@ -1,15 +1,61 @@
 const express = require('express');
 const { body, param } = require('express-validator');
-const { authenticate, authorize } = require('../middlewares/auth');
+const prisma = require('../config/database');
+const {
+    authenticate,
+    authorizePermission,
+    authorizeResolvedPermissions,
+} = require('../middlewares/auth');
+const { PERMISSIONS } = require('../constants/permissions');
 const { validateRequest } = require('../middlewares/validate');
 const councilController = require('../controllers/councilController');
 
 const router = express.Router();
 
 router.use(authenticate);
-router.use(authorize('ADMIN'));
 
-router.get('/', councilController.getAllCouncils);
+const COUNCIL_PERMISSIONS = [
+    PERMISSIONS.OUTLINE_COUNCIL_MANAGE,
+    PERMISSIONS.DEFENSE_COUNCIL_MANAGE,
+];
+
+const permissionForCouncilType = (councilType) => (
+    councilType === 'OUTLINE_REVIEW'
+        ? PERMISSIONS.OUTLINE_COUNCIL_MANAGE
+        : PERMISSIONS.DEFENSE_COUNCIL_MANAGE
+);
+
+const resolveCouncilPermissions = async (req) => {
+    const councilId = parseInt(req.params.id, 10);
+    const council = await prisma.council.findUnique({
+        where: { id: councilId },
+        select: { id: true, councilType: true },
+    });
+    if (!council) {
+        const error = new Error('Không tìm thấy hội đồng.');
+        error.statusCode = 404;
+        throw error;
+    }
+    req.authorizationCouncil = council;
+
+    const required = [permissionForCouncilType(council.councilType)];
+    if (req.body?.councilType && req.body.councilType !== council.councilType) {
+        required.push(permissionForCouncilType(req.body.councilType));
+    }
+    return [...new Set(required)];
+};
+
+const authorizeCouncilById = authorizeResolvedPermissions(
+    COUNCIL_PERMISSIONS,
+    resolveCouncilPermissions,
+);
+
+const authorizeCouncilCreate = authorizeResolvedPermissions(
+    COUNCIL_PERMISSIONS,
+    async (req) => permissionForCouncilType(req.body?.councilType || 'DEFENSE_COUNCIL'),
+);
+
+router.get('/', authorizePermission(...COUNCIL_PERMISSIONS), councilController.getAllCouncils);
 router.post(
     '/',
     [
@@ -35,10 +81,11 @@ router.post(
             .withMessage('roleInCouncil không hợp lệ.'),
         validateRequest,
     ],
+    authorizeCouncilCreate,
     councilController.createCouncil
 );
-router.get('/:id', [param('id').isInt({ min: 1 }), validateRequest], councilController.getCouncilById);
-router.get('/:id/logs', [param('id').isInt({ min: 1 }), validateRequest], councilController.getCouncilAuditLogs);
+router.get('/:id', [param('id').isInt({ min: 1 }), validateRequest], authorizeCouncilById, councilController.getCouncilById);
+router.get('/:id/logs', [param('id').isInt({ min: 1 }), validateRequest], authorizeCouncilById, councilController.getCouncilAuditLogs);
 router.put(
     '/:id',
     [
@@ -64,9 +111,10 @@ router.put(
             .withMessage('roleInCouncil không hợp lệ.'),
         validateRequest,
     ],
+    authorizeCouncilById,
     councilController.updateCouncil
 );
-router.delete('/:id', [param('id').isInt({ min: 1 }), validateRequest], councilController.deleteCouncil);
+router.delete('/:id', [param('id').isInt({ min: 1 }), validateRequest], authorizeCouncilById, councilController.deleteCouncil);
 
 router.post(
     '/auto-assign',
@@ -77,6 +125,7 @@ router.post(
             .withMessage('semesterId phai la so nguyen duong.'),
         validateRequest,
     ],
+    authorizePermission(PERMISSIONS.DEFENSE_COUNCIL_MANAGE),
     councilController.autoAssignRegistrationsToCouncils
 );
 
@@ -92,6 +141,7 @@ router.post(
             .withMessage('Mỗi registrationId phải là số nguyên dương.'),
         validateRequest,
     ],
+    authorizeCouncilById,
     councilController.assignRegistrationsToCouncil
 );
 router.post(
@@ -103,6 +153,7 @@ router.post(
             .withMessage('registrationId phải là số nguyên dương.'),
         validateRequest,
     ],
+    authorizeCouncilById,
     councilController.removeRegistrationFromCouncil
 );
 

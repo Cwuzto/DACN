@@ -1,5 +1,6 @@
 const express = require('express');
-const { authenticate, authorize } = require('../middlewares/auth');
+const { authenticate, authorize, authorizePermission } = require('../middlewares/auth');
+const { PERMISSIONS } = require('../constants/permissions');
 const dashboardController = require('../controllers/dashboardController');
 
 const router = express.Router();
@@ -7,14 +8,12 @@ const router = express.Router();
 // Yêu cầu xác thực chung cho tất cả route
 router.use(authenticate);
 
-// API dành riêng cho Giảng viên (và Admin)
-router.get('/lecturer', authorize('LECTURER', 'ADMIN'), dashboardController.getLecturerDashboard);
+router.get('/lecturer', authorize('LECTURER'), dashboardController.getLecturerDashboard);
 
 // API dành riêng cho Sinh viên
-router.get('/student', authorize('STUDENT', 'ADMIN'), dashboardController.getStudentDashboard);
+router.get('/student', authorize('STUDENT'), dashboardController.getStudentDashboard);
 
-// Các API bên dưới yêu cầu quyền ADMIN
-router.use(authorize('ADMIN'));
+router.use(authorizePermission(PERMISSIONS.REPORT_VIEW));
 
 router.get('/stats', dashboardController.getGeneralStats);
 router.get('/semester-overview', dashboardController.getSemesterOverview);

@@ -1,5 +1,18 @@
 const jwt = require('jsonwebtoken');
 const prisma = require('../config/database');
+const { PERMISSION_CATALOG } = require('../constants/permissions');
+
+const knownPermissionCodes = new Set(PERMISSION_CATALOG.map(({ code }) => code));
+
+const validatePermissionCodes = (permissionCodes) => {
+    if (permissionCodes.length === 0) {
+        throw new Error('Capability guard phải khai báo ít nhất một permission.');
+    }
+    const unknownCodes = permissionCodes.filter((code) => !knownPermissionCodes.has(code));
+    if (unknownCodes.length > 0) {
+        throw new Error(`Permission không tồn tại trong catalog: ${unknownCodes.join(', ')}.`);
+    }
+};
 
 /**
  * Middleware xác thực JWT Token
@@ -100,7 +113,8 @@ const authorize = (...roles) => {
 };
 
 const authorizePermission = (...permissionCodes) => {
-    return (req, res, next) => {
+    validatePermissionCodes(permissionCodes);
+    const middleware = (req, res, next) => {
         if (!req.user) {
             return res.status(401).json({ success: false, message: 'Chưa xác thực.' });
         }
@@ -110,6 +124,72 @@ const authorizePermission = (...permissionCodes) => {
         }
         next();
     };
+    middleware.authorizationPolicy = { mode: 'ANY', permissions: [...permissionCodes] };
+    return middleware;
+};
+
+const authorizeAllPermissions = (...permissionCodes) => {
+    validatePermissionCodes(permissionCodes);
+    const middleware = (req, res, next) => {
+        if (!req.user) {
+            return res.status(401).json({ success: false, message: 'Chưa xác thực.' });
+        }
+        const permissions = req.user.permissions || [];
+        if (!permissionCodes.every((code) => permissions.includes(code))) {
+            return res.status(403).json({ success: false, message: 'Bạn không có quyền thực hiện thao tác này.' });
+        }
+        next();
+    };
+    middleware.authorizationPolicy = { mode: 'ALL', permissions: [...permissionCodes] };
+    return middleware;
+};
+
+const assertPermission = (user, permissionCode) => {
+    validatePermissionCodes([permissionCode]);
+    if (!user) {
+        const error = new Error('Chưa xác thực.');
+        error.statusCode = 401;
+        throw error;
+    }
+    if (!(user.permissions || []).includes(permissionCode)) {
+        const error = new Error('Bạn không có quyền thực hiện thao tác này.');
+        error.statusCode = 403;
+        throw error;
+    }
+};
+
+const authorizeResolvedPermissions = (candidatePermissionCodes, resolvePermissionCodes) => {
+    validatePermissionCodes(candidatePermissionCodes);
+    const candidateSet = new Set(candidatePermissionCodes);
+    const middleware = async (req, res, next) => {
+        try {
+            if (!req.user) {
+                return res.status(401).json({ success: false, message: 'Chưa xác thực.' });
+            }
+
+            const resolved = await resolvePermissionCodes(req);
+            const requiredPermissionCodes = Array.isArray(resolved) ? resolved : [resolved];
+            if (
+                requiredPermissionCodes.length === 0
+                || requiredPermissionCodes.some((code) => !candidateSet.has(code))
+            ) {
+                throw new Error('Capability resolver trả về permission không hợp lệ.');
+            }
+
+            requiredPermissionCodes.forEach((code) => assertPermission(req.user, code));
+            next();
+        } catch (error) {
+            if (error.statusCode) {
+                return res.status(error.statusCode).json({ success: false, message: error.message });
+            }
+            next(error);
+        }
+    };
+    middleware.authorizationPolicy = {
+        mode: 'RESOLVED_ALL',
+        permissions: [...candidatePermissionCodes],
+    };
+    return middleware;
 };
 
 const optionalAuthenticate = async (req, res, next) => {
@@ -156,5 +236,37 @@ const optionalAuthenticate = async (req, res, next) => {
     }
 };
 
-module.exports = { authenticate, optionalAuthenticate, authorize, authorizePermission };
+const authorizeRoleOrPermission = (roles = [], permissionCodes = []) => {
+    if (permissionCodes.length > 0) validatePermissionCodes(permissionCodes);
+    const middleware = (req, res, next) => {
+        if (!req.user) {
+            return res.status(401).json({ success: false, message: 'Chưa xác thực.' });
+        }
+        if (roles.includes(req.user.role)) {
+            return next();
+        }
+        const permissions = req.user.permissions || [];
+        if (permissionCodes.some((code) => permissions.includes(code))) {
+            return next();
+        }
+        return res.status(403).json({ success: false, message: 'Bạn không có quyền thực hiện thao tác này.' });
+    };
+    middleware.authorizationPolicy = {
+        mode: 'ROLE_OR_ANY',
+        roles: [...roles],
+        permissions: [...permissionCodes],
+    };
+    return middleware;
+};
+
+module.exports = {
+    authenticate,
+    optionalAuthenticate,
+    authorize,
+    authorizePermission,
+    authorizeAllPermissions,
+    assertPermission,
+    authorizeResolvedPermissions,
+    authorizeRoleOrPermission,
+};
 

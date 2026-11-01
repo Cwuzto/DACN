@@ -18,6 +18,7 @@ const announcementRoutes = require('./announcementRoutes');
 const meetingLogRoutes = require('./meetingLogRoutes');
 const archiveRoutes = require('./archiveRoutes');
 const rubricRoutes = require('./rubricRoutes');
+const manualReviewRoutes = require('./manualReviewRoutes');
 
 // Đăng ký routes
 router.use('/auth', authRoutes);
@@ -36,6 +37,7 @@ router.use('/permissions', permissionRoutes);
 router.use('/announcements', announcementRoutes);
 router.use('/archives', archiveRoutes);
 router.use('/rubrics', rubricRoutes);
+router.use('/manual-review-cases', manualReviewRoutes);
 router.use('/', meetingLogRoutes);
 
 // Health check

@@ -1,14 +1,14 @@
 const router = require('express').Router();
 const announcementController = require('../controllers/announcementController');
-const { authenticate, optionalAuthenticate, authorize } = require('../middlewares/auth');
+const { authenticate, optionalAuthenticate, authorizePermission } = require('../middlewares/auth');
+const { PERMISSIONS } = require('../constants/permissions');
 
 // Public routes (với optional auth để admin có thể xem được bài chưa publish nếu cần)
 router.get('/', optionalAuthenticate, announcementController.getAnnouncements);
 router.get('/:id', optionalAuthenticate, announcementController.getAnnouncementById);
 
-// Admin-only management routes
-router.post('/', authenticate, authorize('ADMIN'), announcementController.createAnnouncement);
-router.put('/:id', authenticate, authorize('ADMIN'), announcementController.updateAnnouncement);
-router.delete('/:id', authenticate, authorize('ADMIN'), announcementController.deleteAnnouncement);
+router.post('/', authenticate, authorizePermission(PERMISSIONS.PUBLIC_ANNOUNCEMENT_MANAGE), announcementController.createAnnouncement);
+router.put('/:id', authenticate, authorizePermission(PERMISSIONS.PUBLIC_ANNOUNCEMENT_MANAGE), announcementController.updateAnnouncement);
+router.delete('/:id', authenticate, authorizePermission(PERMISSIONS.PUBLIC_ANNOUNCEMENT_MANAGE), announcementController.deleteAnnouncement);
 
 module.exports = router;

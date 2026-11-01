@@ -2,7 +2,8 @@ const express = require('express');
 const { body, param, query } = require('express-validator');
 const router = express.Router();
 const archiveController = require('../controllers/archiveController');
-const { authenticate, authorize } = require('../middlewares/auth');
+const { authenticate, authorize, authorizePermission, authorizeRoleOrPermission } = require('../middlewares/auth');
+const { PERMISSIONS } = require('../constants/permissions');
 const { validateRequest } = require('../middlewares/validate');
 
 router.use(authenticate);
@@ -10,7 +11,7 @@ router.use(authenticate);
 // 1. Danh sach Kho luu chieu toan khoa
 router.get(
     '/',
-    authorize('ADMIN', 'LECTURER'),
+    authorizePermission(PERMISSIONS.FINAL_DOCUMENT_REVIEW),
     [
         query('semesterId').optional().isInt({ min: 1 }),
         query('status').optional().isIn(['ALL', 'SUBMITTED', 'APPROVED', 'REVISION_REQUIRED']),
@@ -24,7 +25,7 @@ router.get(
 // 2. Health Radar canh bao som tien do & luu chieu
 router.get(
     '/health-radar',
-    authorize('ADMIN', 'LECTURER'),
+    authorizePermission(PERMISSIONS.FINAL_DOCUMENT_REVIEW),
     [
         query('semesterId').optional().isInt({ min: 1 }),
         validateRequest,
@@ -35,6 +36,7 @@ router.get(
 // 3. Lay ho so luu chieu cua 1 registration
 router.get(
     '/registrations/:registrationId',
+    authorizeRoleOrPermission(['STUDENT'], [PERMISSIONS.FINAL_DOCUMENT_REVIEW]),
     [
         param('registrationId').isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
         validateRequest,
@@ -45,7 +47,7 @@ router.get(
 // 4. Sinh vien nop hoac cap nhat ho so luu chieu
 router.post(
     '/registrations/:registrationId',
-    authorize('STUDENT', 'ADMIN'),
+    authorize('STUDENT'),
     [
         param('registrationId').isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
         body('reportFileUrl').optional({ nullable: true }).isString(),
@@ -65,7 +67,7 @@ router.post(
 // 5. GVHD / Admin nghiem thu ho so luu chieu
 router.post(
     '/registrations/:registrationId/review',
-    authorize('LECTURER', 'ADMIN'),
+    authorizePermission(PERMISSIONS.FINAL_DOCUMENT_REVIEW),
     [
         param('registrationId').isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
         body('decision').isIn(['APPROVED', 'REVISION_REQUIRED']).withMessage('decision phải là APPROVED hoặc REVISION_REQUIRED.'),
@@ -78,6 +80,7 @@ router.post(
 // 6. Trich xuat Giay Xac Nhan Hoan Thanh Do An (Clearance Certificate)
 router.get(
     '/registrations/:registrationId/clearance-certificate',
+    authorizeRoleOrPermission(['STUDENT'], [PERMISSIONS.FINAL_DOCUMENT_REVIEW]),
     [
         param('registrationId').isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
         validateRequest,

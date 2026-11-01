@@ -1,7 +1,8 @@
 const router = require('express').Router();
 const { body, param, query } = require('express-validator');
 const notificationController = require('../controllers/notificationController');
-const { authenticate, authorize } = require('../middlewares/auth');
+const { authenticate, authorizePermission } = require('../middlewares/auth');
+const { PERMISSIONS } = require('../constants/permissions');
 const { validateRequest } = require('../middlewares/validate');
 
 router.use(authenticate);
@@ -36,12 +37,12 @@ router.delete(
     notificationController.deleteMyNotification
 );
 
-router.get('/history', authorize('ADMIN'), notificationController.getNotificationHistory);
-router.get('/templates', authorize('ADMIN'), notificationController.getNotificationTemplates);
+router.get('/history', authorizePermission(PERMISSIONS.NOTIFICATION_MANAGE), notificationController.getNotificationHistory);
+router.get('/templates', authorizePermission(PERMISSIONS.NOTIFICATION_MANAGE), notificationController.getNotificationTemplates);
 router.put(
     '/templates/:key',
     [
-        authorize('ADMIN'),
+        authorizePermission(PERMISSIONS.NOTIFICATION_MANAGE),
         param('key').isString().trim().notEmpty().withMessage('key bắt buộc phải là chuỗi.'),
         body('name').optional().isString().trim().notEmpty().withMessage('name phải là chuỗi.'),
         body('title').optional().isString().trim().notEmpty().withMessage('title phải là chuỗi.'),
@@ -55,7 +56,7 @@ router.put(
 router.post(
     '/broadcast',
     [
-        authorize('ADMIN'),
+        authorizePermission(PERMISSIONS.NOTIFICATION_MANAGE),
         body('title').isString().trim().notEmpty().withMessage('title bắt buộc phải là chuỗi.'),
         body('content').isString().trim().notEmpty().withMessage('content bắt buộc phải là chuỗi.'),
         body('audience')
