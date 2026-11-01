@@ -48,3 +48,12 @@ docs/
 # markdown file
 PROJECT_OVERVIEW.md
 
+# archify
+.archify/
+
+# Stray root package files
+/package.json
+/package-lock.json
+/pnpm-lock.yaml
+/skills-lock.json
+

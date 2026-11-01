@@ -4,6 +4,16 @@
 - **Tài liệu tham chiếu thiết kế**: [2026-10-19-thesis-workflow-redesign-design.md](file:///d:/DACN/docs/superpowers/specs/2026-10-19-thesis-workflow-redesign-design.md)
 - **Nguyên tắc kỹ thuật**: Sửa từ gốc CSDL/Prisma ➔ Backend API/Controller/Route ➔ Frontend UI/UX. Chuẩn UTF-8 (no BOM).
 
+## Trạng thái nghiệm thu cập nhật ngày 29/10/2026
+
+- [x] CSDL/Prisma hợp lệ; 18 migration đã được áp dụng và database khớp schema.
+- [x] Backend hoàn tất BM01, BM02, cửa sổ đổi tên 7 ngày, BM03 Checkpoint, BM04 khóa vĩnh viễn và gate `DEFENSE_READY`.
+- [x] `GET /api/registrations` cho phép đúng `ADMIN`/`LECTURER`, tiếp tục chặn `STUDENT`.
+- [x] `GET /api/evaluations/bm04/:registrationId` đã được expose với ownership guard cho Admin, GVHD và chính sinh viên.
+- [x] Frontend đã nối modal đổi tên, BM04, hàng đợi duyệt lại BM01, hàng đợi duyệt đổi tên và lọc Hội đồng bảo vệ theo `DEFENSE_READY`.
+- [x] Verification tự động: Prisma validate, 31/31 backend suites (195 tests), 9 frontend tests, scoped ESLint và production build đều PASS.
+- [ ] Browser E2E cần chạy lại khi môi trường có Playwright hoặc browser automation khả dụng.
+
 ---
 
 ## Giai Đoạn 1: Cơ Sở Dữ Liệu & Prisma Schema (CSDL)
