@@ -10,6 +10,7 @@
     "db:deploy": "npx prisma migrate deploy",
     "db:status": "npx prisma migrate status",
     "db:seed": "node prisma/seed.js",
+    "db:seed:reset": "node prisma/seed.js",
     "db:studio": "npx prisma studio",
     "db:reset": "npx prisma migrate reset",
     "test": "jest --runInBand",
@@ -36,6 +37,7 @@
     "pdfkit": "^0.18.0",
     "pg": "^8.19.0",
     "puppeteer": "^24.42.0",
+    "sanitize-html": "^2.13.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "xlsx": "^0.18.5"
