@@ -14,6 +14,7 @@ const PLATFORM_ROUTERS = {
     rubricRoutes: require('../../src/routes/rubricRoutes'),
     manualReviewRoutes: require('../../src/routes/manualReviewRoutes'),
     permissionRoutes: require('../../src/routes/permissionRoutes'),
+    portalContentRoutes: require('../../src/routes/portalContentRoutes'),
 };
 
 const ACADEMIC_ROUTERS = {
