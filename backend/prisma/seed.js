@@ -150,8 +150,16 @@ async function upsertUsers() {
 
 async function clearNonUserData() {
   await prisma.$transaction([
+    prisma.topicRegistration.updateMany({ data: { currentBM02SubmissionId: null } }),
     prisma.auditLog.deleteMany(),
     prisma.notification.deleteMany(),
+    prisma.decisionAmendment.deleteMany(),
+    prisma.assignmentDecision.deleteMany(),
+    prisma.bM02Submission.deleteMany(),
+    prisma.bM01Evaluation.deleteMany(),
+    prisma.registrationStateHistory.deleteMany(),
+    prisma.idempotencyRecord.deleteMany(),
+    prisma.manualReviewCase.deleteMany(),
     prisma.defenseResult.deleteMany(),
     prisma.submission.deleteMany(),
     prisma.task.deleteMany(),
@@ -162,9 +170,23 @@ async function clearNonUserData() {
     prisma.topic.deleteMany(),
     prisma.studentProjectEnrollment.deleteMany(),
     prisma.projectCatalog.deleteMany(),
+    prisma.periodWorkflowPolicyVersion.deleteMany(),
     prisma.semester.deleteMany(),
     prisma.user.deleteMany(),
   ]);
+}
+
+async function createWorkflowPolicies(semesters) {
+  for (const semester of semesters) {
+    await prisma.periodWorkflowPolicyVersion.create({
+      data: {
+        semesterId: semester.id,
+        version: 1,
+        policy: DEFAULT_POLICY,
+        checksum: checksum(DEFAULT_POLICY),
+      },
+    });
+  }
 }
 
 async function createProjectCatalogs() {
@@ -290,6 +312,10 @@ async function createRegistrationsAndProgress({
   profile,
 }) {
   const registrations = [];
+  const policy = await prisma.periodWorkflowPolicyVersion.findFirst({
+    where: { semesterId: semester.id, isActive: true },
+    orderBy: { version: "desc" },
+  });
 
   for (let i = 0; i < targetCount; i += 1) {
     const topic = approvedTopics[i % approvedTopics.length];
@@ -302,6 +328,7 @@ async function createRegistrationsAndProgress({
         topicId: topic.id,
         studentId,
         semesterId: semester.id,
+        periodPolicyVersionId: policy?.id || null,
         status,
         rejectReason: null,
       },
@@ -319,6 +346,10 @@ async function addRejectedOrWithdrawnCases({ semester, approvedTopics, studentId
   const availableStudents = studentIds.filter((studentId) => !usedStudentIds.has(studentId));
   const baseIndexes = [0, 1, 2, 3, 4, 5];
   const statuses = ["REJECTED", "WITHDRAWN", "DROPPED", "REJECTED", "WITHDRAWN", "DROPPED"];
+  const policy = await prisma.periodWorkflowPolicyVersion.findFirst({
+    where: { semesterId: semester.id, isActive: true },
+    orderBy: { version: "desc" },
+  });
 
   for (let i = 0; i < baseIndexes.length; i += 1) {
     if (!availableTopics[i] || !availableStudents[i]) {
@@ -333,6 +364,7 @@ async function addRejectedOrWithdrawnCases({ semester, approvedTopics, studentId
         topicId: topic.id,
         studentId,
         semesterId: semester.id,
+        periodPolicyVersionId: policy?.id || null,
         status: statuses[i],
         rejectReason: statuses[i] === "REJECTED" ? "Sinh viên chưa đạt điều kiện tiên quyết." : null,
       },
@@ -527,6 +559,7 @@ async function seedBusinessData() {
   const allUserIds = users.map((u) => u.id);
 
   const semesters = await createSemesters();
+  await createWorkflowPolicies(semesters);
   const projectCatalogs = await createProjectCatalogs();
   const defaultProjectCatalog = projectCatalogs.find((item) => item.code === "DATN") || projectCatalogs[0];
 
@@ -631,6 +664,7 @@ async function seedBusinessData() {
 }
 
 const { seedPermissionCatalog } = require("../src/services/permissionService");
+const { DEFAULT_POLICY, checksum } = require("../src/services/workflowPolicyService");
 
 async function main() {
   console.log("[seed] Start seeding realistic demo data...");
