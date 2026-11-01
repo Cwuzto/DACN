@@ -10,7 +10,13 @@ jest.mock('jsonwebtoken', () => ({
 
 const prisma = require('../../src/config/database');
 const jwt = require('jsonwebtoken');
-const { authenticate } = require('../../src/middlewares/auth');
+const {
+    authenticate,
+    authorizePermission,
+    authorizeAllPermissions,
+    assertPermission,
+} = require('../../src/middlewares/auth');
+const { PERMISSIONS } = require('../../src/constants/permissions');
 const { createMockReq, createMockRes, createNext } = require('../helpers/http');
 
 describe('auth middleware authenticate', () => {
@@ -20,7 +26,7 @@ describe('auth middleware authenticate', () => {
     });
 
     test('returns 401 when authorization header is missing', async () => {
-        const req = createMockReq();
+        const req = createMockReq({ user: null });
         const res = createMockRes();
         const next = createNext();
 
@@ -61,5 +67,71 @@ describe('auth middleware authenticate', () => {
             })
         );
         expect(next).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('auth middleware capability guards', () => {
+    test('authorizePermission allows any matching capability and exposes policy metadata', () => {
+        const middleware = authorizePermission(PERMISSIONS.USER_MANAGE, PERMISSIONS.USER_IMPORT);
+        const req = createMockReq({ user: { role: 'ADMIN', permissions: [PERMISSIONS.USER_IMPORT] } });
+        const res = createMockRes();
+        const next = createNext();
+
+        middleware(req, res, next);
+
+        expect(next).toHaveBeenCalledTimes(1);
+        expect(middleware.authorizationPolicy).toEqual({
+            mode: 'ANY',
+            permissions: [PERMISSIONS.USER_MANAGE, PERMISSIONS.USER_IMPORT],
+        });
+    });
+
+    test('authorizeAllPermissions requires every capability', () => {
+        const middleware = authorizeAllPermissions(PERMISSIONS.USER_MANAGE, PERMISSIONS.USER_IMPORT);
+        const req = createMockReq({ user: { role: 'ADMIN', permissions: [PERMISSIONS.USER_MANAGE] } });
+        const res = createMockRes();
+        const next = createNext();
+
+        middleware(req, res, next);
+
+        expect(res.status).toHaveBeenCalledWith(403);
+        expect(next).not.toHaveBeenCalled();
+        expect(middleware.authorizationPolicy).toEqual({
+            mode: 'ALL',
+            permissions: [PERMISSIONS.USER_MANAGE, PERMISSIONS.USER_IMPORT],
+        });
+    });
+
+    test('ADMIN does not bypass a missing permission', () => {
+        const middleware = authorizePermission(PERMISSIONS.SEMESTER_MANAGE);
+        const req = createMockReq({ user: { role: 'ADMIN', permissions: [] } });
+        const res = createMockRes();
+        const next = createNext();
+
+        middleware(req, res, next);
+
+        expect(res.status).toHaveBeenCalledWith(403);
+        expect(next).not.toHaveBeenCalled();
+    });
+
+    test('capability guards return 401 without an authenticated user', () => {
+        const middleware = authorizePermission(PERMISSIONS.USER_MANAGE);
+        const req = createMockReq({ user: null });
+        const res = createMockRes();
+        const next = createNext();
+
+        middleware(req, res, next);
+
+        expect(res.status).toHaveBeenCalledWith(401);
+        expect(next).not.toHaveBeenCalled();
+    });
+
+    test('assertPermission throws 403 for resource-aware checks', () => {
+        expect(() => assertPermission({ role: 'ADMIN', permissions: [] }, PERMISSIONS.RUBRIC_MANAGE))
+            .toThrow(expect.objectContaining({ statusCode: 403 }));
+        expect(() => assertPermission(
+            { role: 'LECTURER', permissions: [PERMISSIONS.RUBRIC_MANAGE] },
+            PERMISSIONS.RUBRIC_MANAGE,
+        )).not.toThrow();
     });
 });

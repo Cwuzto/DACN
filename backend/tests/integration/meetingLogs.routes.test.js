@@ -50,8 +50,8 @@ describe('Integration - Meeting Logs, Bypass & BM04 Review', () => {
 
         prisma.user.findUnique.mockImplementation(async ({ where }) => {
             if (where.id === 10) return { id: 10, role: 'STUDENT', isActive: true, fullName: 'Sinh Vien A' };
-            if (where.id === 2) return { id: 2, role: 'LECTURER', isActive: true, fullName: 'GVHD B' };
-            if (where.id === 99) return { id: 99, role: 'LECTURER', isActive: true, fullName: 'GV C' };
+            if (where.id === 2) return { id: 2, role: 'LECTURER', isActive: true, fullName: 'GVHD B', permissionGroups: [{ permissionGroup: { code: 'GVHD', permissions: ['BM03_SUBMIT', 'BM03_REVIEW'].map((code) => ({ permission: { code } })) } }] };
+            if (where.id === 99) return { id: 99, role: 'LECTURER', isActive: true, fullName: 'GV C', permissionGroups: [{ permissionGroup: { code: 'GVHD', permissions: ['BM03_SUBMIT', 'BM03_REVIEW'].map((code) => ({ permission: { code } })) } }] };
             if (where.id === 1) return { id: 1, role: 'ADMIN', isActive: true, fullName: 'Admin' };
             return null;
         });
@@ -129,134 +129,60 @@ describe('Integration - Meeting Logs, Bypass & BM04 Review', () => {
         });
     });
 
-    describe('Task Bypass Endpoint', () => {
-        it('allows GVHD to bypass BM01 task', async () => {
-            prisma.task.findUnique.mockResolvedValue({
-                id: 50,
-                registrationId: 100,
-                taskType: 'BM01',
-                title: 'BM01 - Đề cương chi tiết đồ án',
-                status: 'OPEN',
-                registration: {
-                    status: 'APPROVED',
-                    studentId: 10,
-                    topic: { mentorId: 2, title: 'Đề tài mẫu' },
-                },
-            });
-
-            prisma.task.update.mockResolvedValue({
-                id: 50,
-                status: 'COMPLETED',
-                isBypassed: true,
-                bypassReason: 'Đề tài phân bổ sẵn',
-            });
-
+    describe('Academic workflow containment', () => {
+        it('removes the task bypass endpoint', async () => {
             const res = await request(app)
                 .post('/api/tasks/50/bypass')
                 .set('Authorization', 'Bearer lecturer-token')
-                .send({ reason: 'Đề tài phân bổ sẵn' });
+                .send({ reason: 'Không được phép bỏ qua BM01' });
 
-            expect(res.status).toBe(200);
-            expect(res.body.success).toBe(true);
-            expect(prisma.task.update).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    where: { id: 50 },
-                    data: expect.objectContaining({ isBypassed: true, status: 'COMPLETED' }),
-                }),
-            );
+            expect(res.status).toBe(404);
+            expect(prisma.task.update).not.toHaveBeenCalled();
         });
 
-        it('rejects bypass on non-soft-gate tasks', async () => {
+        it('removes registration bypass endpoints', async () => {
+            const single = await request(app)
+                .post('/api/registrations/100/bypass-outline')
+                .set('Authorization', 'Bearer admin-token')
+                .send({ reason: 'Không được phép bỏ qua' });
+            const batch = await request(app)
+                .post('/api/registrations/batch-bypass-outline')
+                .set('Authorization', 'Bearer admin-token')
+                .send({ registrationIds: [100], reason: 'Không được phép bỏ qua' });
+
+            expect(single.status).toBe(404);
+            expect(batch.status).toBe(404);
+            expect(prisma.topicRegistration.update).not.toHaveBeenCalled();
+        });
+
+        it('removes the legacy BM04 endpoint', async () => {
+            const res = await request(app)
+                .post('/api/registrations/100/bm04-review')
+                .set('Authorization', 'Bearer lecturer-token')
+                .send({ decision: 'AGREED', score: 9 });
+
+            expect(res.status).toBe(404);
+            expect(prisma.topicRegistration.update).not.toHaveBeenCalled();
+        });
+
+        it('rejects direct status updates for academic tasks', async () => {
             prisma.task.findUnique.mockResolvedValue({
-                id: 52,
-                registrationId: 100,
-                taskType: 'BM03_CHECKPOINT_1',
-                title: 'Tiến độ đợt 1',
+                id: 50,
+                taskType: 'BM01',
                 registration: {
-                    status: 'IN_PROGRESS',
                     studentId: 10,
                     topic: { mentorId: 2 },
                 },
             });
 
             const res = await request(app)
-                .post('/api/tasks/52/bypass')
+                .patch('/api/tasks/50/status')
                 .set('Authorization', 'Bearer lecturer-token')
-                .send({ reason: 'Muốn bỏ qua checkpoint' });
+                .send({ status: 'COMPLETED' });
 
-            expect(res.status).toBe(400);
-            expect(res.body.message).toContain('Chỉ cho phép miễn thẩm định');
-        });
-    });
-
-    describe('BM04 Gatekeeping Review Endpoint', () => {
-        it('transitions status to SUBMITTED when GVHD marks AGREED', async () => {
-            prisma.topicRegistration.findUnique.mockResolvedValue({
-                id: 100,
-                studentId: 10,
-                status: 'IN_PROGRESS',
-                topic: { mentorId: 2, title: 'Đồ án chuẩn' },
-                meetingLogs: [
-                    { id: 1, meetingType: 'LAB' },
-                    { id: 2, meetingType: 'ONLINE' },
-                ],
-                tasks: [],
-            });
-
-            prisma.topicRegistration.update.mockResolvedValue({
-                id: 100,
-                status: 'SUBMITTED',
-            });
-
-            const res = await request(app)
-                .post('/api/registrations/100/bm04-review')
-                .set('Authorization', 'Bearer lecturer-token')
-                .send({
-                    decision: 'AGREED',
-                    feedback: 'Sinh viên làm việc tích cực, kết quả tốt.',
-                });
-
-            expect(res.status).toBe(200);
-            expect(res.body.success).toBe(true);
-            expect(prisma.topicRegistration.update).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    where: { id: 100 },
-                    data: expect.objectContaining({ status: 'SUBMITTED' }),
-                }),
-            );
-        });
-
-        it('transitions status to DROPPED when GVHD marks DISAGREED', async () => {
-            prisma.topicRegistration.findUnique.mockResolvedValue({
-                id: 100,
-                studentId: 10,
-                status: 'IN_PROGRESS',
-                topic: { mentorId: 2, title: 'Đồ án không đạt' },
-                meetingLogs: [],
-                tasks: [],
-            });
-
-            prisma.topicRegistration.update.mockResolvedValue({
-                id: 100,
-                status: 'DROPPED',
-            });
-
-            const res = await request(app)
-                .post('/api/registrations/100/bm04-review')
-                .set('Authorization', 'Bearer lecturer-token')
-                .send({
-                    decision: 'DISAGREED',
-                    feedback: 'Khối lượng chưa đạt 50%, không đủ điều kiện bảo vệ.',
-                });
-
-            expect(res.status).toBe(200);
-            expect(res.body.success).toBe(true);
-            expect(prisma.topicRegistration.update).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    where: { id: 100 },
-                    data: expect.objectContaining({ status: 'DROPPED' }),
-                }),
-            );
+            expect(res.status).toBe(409);
+            expect(res.body.code).toBe('ACADEMIC_TASK_STATUS_IMMUTABLE');
+            expect(prisma.task.update).not.toHaveBeenCalled();
         });
     });
 });

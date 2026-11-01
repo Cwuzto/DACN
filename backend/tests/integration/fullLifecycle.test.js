@@ -46,6 +46,10 @@ jest.mock('../../src/config/database', () => ({
     defenseResult: {
         findUnique: jest.fn(),
         upsert: jest.fn(),
+        updateMany: jest.fn(),
+    },
+    bM04Evaluation: {
+        upsert: jest.fn(),
     },
     projectArchive: {
         findUnique: jest.fn(),
@@ -62,6 +66,13 @@ jest.mock('../../src/config/database', () => ({
         findFirst: jest.fn(),
     },
     notification: {
+        create: jest.fn(),
+    },
+    idempotencyRecord: {
+        findUnique: jest.fn(),
+        create: jest.fn(),
+    },
+    registrationStateHistory: {
         create: jest.fn(),
     },
 }));
@@ -91,6 +102,13 @@ const prisma = require('../../src/config/database');
 const jwt = require('jsonwebtoken');
 const app = require('../../src/app');
 
+const permissionGroups = (...codes) => [{
+    permissionGroup: {
+        code: 'TEST',
+        permissions: codes.map((code) => ({ permission: { code } })),
+    },
+}];
+
 describe('Full 6-Stage Graduation Project Lifecycle Integration Test Suite', () => {
     beforeEach(() => {
         jest.clearAllMocks();
@@ -108,9 +126,9 @@ describe('Full 6-Stage Graduation Project Lifecycle Integration Test Suite', () 
 
         prisma.user.findUnique.mockImplementation(async ({ where }) => {
             if (where.id === 10) return { id: 10, role: 'STUDENT', fullName: 'Nguyen Van A', code: 'SV010', isActive: true, department: 'CNTT' };
-            if (where.id === 20) return { id: 20, role: 'LECTURER', fullName: 'TS. Tran Huong Dan', code: 'GV020', isActive: true, department: 'CNTT' };
-            if (where.id === 30) return { id: 30, role: 'LECTURER', fullName: 'ThS. Le Phan Bien', code: 'GV030', isActive: true, department: 'CNTT' };
-            if (where.id === 1) return { id: 1, role: 'ADMIN', fullName: 'Vien Truong', code: 'AD001', isActive: true, department: 'BGH' };
+            if (where.id === 20) return { id: 20, role: 'LECTURER', fullName: 'TS. Tran Huong Dan', code: 'GV020', isActive: true, department: 'CNTT', permissionGroups: permissionGroups('MENTOR_REQUEST_REVIEW', 'BM03_SUBMIT', 'BM03_CHECKPOINT_DECIDE', 'BM04_SUBMIT', 'FINAL_DOCUMENT_REVIEW') };
+            if (where.id === 30) return { id: 30, role: 'LECTURER', fullName: 'ThS. Le Phan Bien', code: 'GV030', isActive: true, department: 'CNTT', permissionGroups: permissionGroups('DEFENSE_SCORE_VIEW', 'DEFENSE_SCORE_SUBMIT') };
+            if (where.id === 1) return { id: 1, role: 'ADMIN', fullName: 'Vien Truong', code: 'AD001', isActive: true, department: 'BGH', permissionGroups: permissionGroups('DEFENSE_COUNCIL_MANAGE', 'DEFENSE_SCORE_VIEW', 'RESULT_LOCK', 'FINAL_DOCUMENT_REVIEW', 'PROJECT_ASSIGNMENT_PUBLISH') };
             return null;
         });
     });
@@ -188,76 +206,29 @@ describe('Full 6-Stage Graduation Project Lifecycle Integration Test Suite', () 
     });
 
     // ─────────────────────────────────────────────────────────────
-    // STAGE 2: MIỄN THẨM ĐỊNH ĐỀ CƯƠNG (BYPASS BM01-BM02)
+    // STAGE 2: CONTAINMENT — KHÔNG CÓ ĐƯỜNG TẮT BM01/BM02
     // ─────────────────────────────────────────────────────────────
-    describe('Giai đoạn 2: Miễn thẩm định đề cương (Bypass BM01-BM02)', () => {
-        it('2.1 Sinh viên hoặc Giảng viên không có quyền gọi Bypass (403)', async () => {
-            const res = await request(app)
-                .post('/api/registrations/501/bypass-outline')
-                .set('Authorization', 'Bearer student-token')
-                .send({ reason: 'Xin miễn thẩm định' });
-
-            expect(res.status).toBe(403);
-            expect(res.body.success).toBe(false);
-        });
-
-        it('2.2 Admin kích hoạt Bypass BM01-BM02 -> Chuyển IN_PROGRESS, PASSED, sinh task BM03', async () => {
-            prisma.topicRegistration.findUnique.mockResolvedValue({
-                id: 501,
-                studentId: 10,
-                status: 'APPROVED',
-                outlineReviewStatus: 'PENDING',
-                topic: { id: 100, title: 'Hệ thống Quản lý Đồ án', mentorId: 20 },
-                student: { id: 10, fullName: 'Nguyen Van A', code: 'SV010' },
-                tasks: [],
-            });
-            prisma.topicRegistration.update.mockResolvedValue({
-                id: 501,
-                status: 'IN_PROGRESS',
-                outlineReviewStatus: 'PASSED',
-                outlineFeedback: '[MIỄN THẨM ĐỊNH / BYPASS BM01-BM02]: Đề tài NCKH nghiệm thu Xuất sắc',
-            });
-            prisma.task.createMany.mockResolvedValue({ count: 4 });
-
+    describe('Giai đoạn 2: Endpoint bỏ qua BM01/BM02 đã bị loại bỏ', () => {
+        it('2.1 Không vai trò nào gọi được endpoint đơn lẻ', async () => {
             const res = await request(app)
                 .post('/api/registrations/501/bypass-outline')
                 .set('Authorization', 'Bearer admin-token')
-                .send({ reason: 'Đề tài NCKH nghiệm thu Xuất sắc' });
+                .send({ reason: 'Không được phép bỏ qua' });
 
-            expect(res.status).toBe(200);
-            expect(res.body.success).toBe(true);
-            expect(res.body.data.status).toBe('IN_PROGRESS');
-            expect(res.body.data.outlineReviewStatus).toBe('PASSED');
-            expect(prisma.task.createMany).toHaveBeenCalled();
+            expect(res.status).toBe(404);
+            expect(prisma.topicRegistration.update).not.toHaveBeenCalled();
         });
 
-        it('2.3 Admin phê duyệt Miễn thẩm định hàng loạt (batch-bypass-outline)', async () => {
-            prisma.topicRegistration.findUnique.mockResolvedValue({
-                id: 502,
-                studentId: 10,
-                status: 'APPROVED',
-                outlineReviewStatus: 'PENDING',
-                topic: { id: 100, title: 'Hệ thống IoT Giám sát', mentorId: 20 },
-                student: { id: 10, fullName: 'Nguyen Van B', code: 'SV011' },
-                tasks: [],
-            });
-            prisma.topicRegistration.update.mockResolvedValue({ id: 502, status: 'IN_PROGRESS' });
-            prisma.task.createMany.mockResolvedValue({ count: 4 });
-
+        it('2.2 Không vai trò nào gọi được endpoint hàng loạt', async () => {
             const res = await request(app)
                 .post('/api/registrations/batch-bypass-outline')
                 .set('Authorization', 'Bearer admin-token')
-                .send({
-                    registrationIds: [502],
-                    reason: 'Miễn thẩm định theo quyết định Hội đồng Khoa',
-                });
+                .send({ registrationIds: [501], reason: 'Không được phép bỏ qua' });
 
-            expect(res.status).toBe(200);
-            expect(res.body.success).toBe(true);
-            expect(res.body.data.updatedCount).toBe(1);
+            expect(res.status).toBe(404);
+            expect(prisma.task.createMany).not.toHaveBeenCalled();
         });
     });
-
     // ─────────────────────────────────────────────────────────────
     // STAGE 3: TIẾN ĐỘ BM03 (MEETING LOGS)
     // ─────────────────────────────────────────────────────────────
@@ -312,7 +283,7 @@ describe('Full 6-Stage Graduation Project Lifecycle Integration Test Suite', () 
     // STAGE 4: BM04 & GATEKEEPING HỘI ĐỒNG BẢO VỆ
     // ─────────────────────────────────────────────────────────────
     describe('Giai đoạn 4: Đánh giá BM04 và Gatekeeping Hội đồng', () => {
-        it('4.1 Chặn phân công vào Hội đồng bảo vệ nếu chưa hoàn thành BM04 (400)', async () => {
+        it('4.1 Chặn phân công nếu chỉ có task BM04 legacy đã hoàn thành (400)', async () => {
             prisma.council.findUnique.mockResolvedValue({
                 id: 88,
                 councilType: 'DEFENSE_COUNCIL',
@@ -326,14 +297,17 @@ describe('Full 6-Stage Graduation Project Lifecycle Integration Test Suite', () 
             prisma.topicRegistration.findMany.mockResolvedValue([
                 {
                     id: 501,
+                    status: 'BM03_PASSED',
                     defenseCouncilId: null,
                     outlineCouncilId: null,
                     topic: { mentorId: 20, title: 'Hệ thống Quản lý Đồ án' },
                     student: { fullName: 'Nguyen Van A', code: 'SV010' },
+                    bm04Evaluation: null,
                 },
             ]);
-            // Task BM04 chưa tồn tại hoặc chưa COMPLETED
-            prisma.task.findMany.mockResolvedValue([]);
+            prisma.task.findMany.mockResolvedValue([
+                { registrationId: 501, status: 'COMPLETED' },
+            ]);
 
             const res = await request(app)
                 .post('/api/councils/88/assign')
@@ -342,34 +316,53 @@ describe('Full 6-Stage Graduation Project Lifecycle Integration Test Suite', () 
 
             expect(res.status).toBe(400);
             expect(res.body.message).toContain('biểu mẫu BM04');
+            expect(prisma.task.findMany).not.toHaveBeenCalled();
         });
 
         it('4.2 GVHD lập phiếu nhận xét BM04 AGREED thành công', async () => {
             prisma.topicRegistration.findUnique.mockResolvedValue({
                 id: 501,
-                status: 'IN_PROGRESS',
+                semesterId: 1,
+                studentId: 10,
+                status: 'BM03_PASSED',
                 topic: { mentorId: 20, title: 'Hệ thống Quản lý Đồ án' },
                 student: { fullName: 'Nguyen Van A' },
+                bm04Evaluation: null,
+                archive: {
+                    reportFileUrl: 'https://storage/report.pdf',
+                    sourceCodeUrl: 'https://github.com/tdmu/dacn-final',
+                    slideFileUrl: 'https://storage/slides.pptx',
+                },
             });
-            prisma.meetingLog.count.mockResolvedValue(5);
-            prisma.task.findMany.mockResolvedValue([]);
+            prisma.bM04Evaluation.upsert.mockResolvedValue({
+                id: 40,
+                registrationId: 501,
+                conclusion: 'AGREED_FOR_DEFENSE',
+                isLocked: true,
+            });
             prisma.topicRegistration.update.mockResolvedValue({
                 id: 501,
-                status: 'SUBMITTED',
+                status: 'DEFENSE_READY',
             });
 
             const res = await request(app)
-                .post('/api/registrations/501/bm04-review')
+                .post('/api/evaluations/bm04-submit')
                 .set('Authorization', 'Bearer mentor-token')
                 .send({
-                    decision: 'AGREED',
-                    feedback: 'Sinh viên hoàn thành xuất sắc đồ án, đồng ý cho bảo vệ.',
-                    score: 9.0,
+                    registrationId: 501,
+                    thesisFormatScore: 'Hình thức đạt yêu cầu',
+                    researchContentScore: 'Nội dung đạt yêu cầu',
+                    applicabilityScore: 'Có khả năng ứng dụng',
+                    attitudeScore: 'Thái độ nghiêm túc',
+                    conclusion: 'AGREED_FOR_DEFENSE',
+                    lecturerSignature: 'TS. Tran Huong Dan',
                 });
 
             expect(res.status).toBe(200);
             expect(res.body.success).toBe(true);
-            expect(res.body.message).toContain('ĐỒNG Ý');
+            expect(prisma.topicRegistration.update).toHaveBeenCalledWith(
+                expect.objectContaining({ data: { status: 'DEFENSE_READY' } }),
+            );
         });
 
         it('4.3 Sau khi BM04 COMPLETED, gán vào Hội đồng bảo vệ thành công', async () => {
@@ -386,14 +379,16 @@ describe('Full 6-Stage Graduation Project Lifecycle Integration Test Suite', () 
             prisma.topicRegistration.findMany.mockResolvedValue([
                 {
                     id: 501,
+                    status: 'DEFENSE_READY',
                     defenseCouncilId: null,
                     outlineCouncilId: null,
                     topic: { mentorId: 20, title: 'Hệ thống Quản lý Đồ án' },
                     student: { fullName: 'Nguyen Van A', code: 'SV010' },
+                    bm04Evaluation: {
+                        conclusion: 'AGREED_FOR_DEFENSE',
+                        isLocked: true,
+                    },
                 },
-            ]);
-            prisma.task.findMany.mockResolvedValue([
-                { registrationId: 501, status: 'COMPLETED' },
             ]);
             prisma.topicRegistration.updateMany.mockResolvedValue({ count: 1 });
 
@@ -462,15 +457,30 @@ describe('Full 6-Stage Graduation Project Lifecycle Integration Test Suite', () 
             expect(res.body.data.finalScore).toBe(9.25);
         });
 
-        it('5.2 Khóa sổ điểm bảo vệ -> Trạng thái chuyển sang DEFENDED', async () => {
+        it('5.2 Khóa sổ điểm bảo vệ -> Trạng thái chuyển sang AWAITING_FINAL_APPROVAL', async () => {
             prisma.topicRegistration.findUnique.mockResolvedValue({
                 id: 501,
                 status: 'SUBMITTED',
+                stateVersion: 0,
                 memberScores: [{ id: 901 }],
+                defenseResult: null,
             });
+            prisma.topicRegistration.updateMany.mockResolvedValue({ count: 1 });
+            prisma.topicRegistration.findUnique
+                .mockResolvedValueOnce({
+                    id: 501,
+                    status: 'SUBMITTED',
+                    stateVersion: 0,
+                    memberScores: [{ id: 901, finalScore: 9, evaluatorId: 20 }],
+                    defenseResult: null,
+                    defenseCouncil: null,
+                    council: null,
+                })
+                .mockResolvedValueOnce({ id: 501, status: 'SUBMITTED', stateVersion: 0, semesterId: 1, periodPolicyVersionId: null });
+            prisma.defenseResult.upsert.mockResolvedValue({ id: 701, finalScore: 9 });
             prisma.topicRegistration.update.mockResolvedValue({
                 id: 501,
-                status: 'DEFENDED',
+                status: 'AWAITING_FINAL_APPROVAL',
             });
             prisma.defenseMemberScore.updateMany.mockResolvedValue({ count: 1 });
 
@@ -481,7 +491,7 @@ describe('Full 6-Stage Graduation Project Lifecycle Integration Test Suite', () 
 
             expect(res.status).toBe(200);
             expect(res.body.success).toBe(true);
-            expect(res.body.data.status).toBe('DEFENDED');
+            expect(res.body.data.status).toBe('AWAITING_FINAL_APPROVAL');
         });
     });
 
@@ -560,6 +570,7 @@ describe('Full 6-Stage Graduation Project Lifecycle Integration Test Suite', () 
         it('6.3 Cấp Giấy Xác Nhận Hoàn Thành Đồ Án Tốt Nghiệp với mã định danh duy nhất', async () => {
             prisma.topicRegistration.findUnique.mockResolvedValue({
                 id: 501,
+                studentId: 10,
                 status: 'COMPLETED',
                 updatedAt: new Date('2026-09-21'),
                 student: {

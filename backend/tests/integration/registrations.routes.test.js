@@ -59,6 +59,7 @@ describe('Integration - registrations routes', () => {
         jwt.verify.mockImplementation((token) => {
             if (token === 'student-token') return { userId: 5, role: 'STUDENT' };
             if (token === 'lecturer-token') return { userId: 77, role: 'LECTURER' };
+            if (token === 'admin-token') return { userId: 1, role: 'ADMIN' };
             throw new Error('invalid token');
         });
 
@@ -72,6 +73,7 @@ describe('Integration - registrations routes', () => {
                     role: 'STUDENT',
                     department: 'CNTT',
                     isActive: true,
+                    permissionGroups: [],
                 };
             }
             if (where?.id === 77) {
@@ -83,6 +85,29 @@ describe('Integration - registrations routes', () => {
                     role: 'LECTURER',
                     department: 'CNTT',
                     isActive: true,
+                    permissionGroups: [{
+                        permissionGroup: {
+                            code: 'GVHD',
+                            permissions: ['BM03_REVIEW', 'MENTOR_ASSIGNMENT_ADJUST'].map((code) => ({ permission: { code } })),
+                        },
+                    }],
+                };
+            }
+            if (where?.id === 1) {
+                return {
+                    id: 1,
+                    email: 'admin@example.com',
+                    fullName: 'Quan Tri Vien',
+                    code: 'ADMIN001',
+                    role: 'ADMIN',
+                    department: 'CNTT',
+                    isActive: true,
+                    permissionGroups: [{
+                        permissionGroup: {
+                            code: 'QUAN_TRI_VIEN',
+                            permissions: ['REPORT_VIEW', 'DEFENSE_COUNCIL_MANAGE', 'MENTOR_ASSIGNMENT_ADJUST'].map((code) => ({ permission: { code } })),
+                        },
+                    }],
                 };
             }
             return null;
@@ -233,6 +258,51 @@ describe('Integration - registrations routes', () => {
         );
     });
 
+    test('GET /api/registrations returns all registrations for admin role', async () => {
+        prisma.topicRegistration.findMany.mockResolvedValue([
+            { id: 1, status: 'BM01_PASSED' },
+            { id: 2, status: 'DEFENSE_READY' },
+        ]);
+
+        const res = await request(app)
+            .get('/api/registrations?semesterId=9')
+            .set('Authorization', 'Bearer admin-token');
+
+        expect(res.status).toBe(200);
+        expect(res.body.data).toHaveLength(2);
+        expect(prisma.topicRegistration.findMany).toHaveBeenCalledWith(
+            expect.objectContaining({ where: { semesterId: 9 } }),
+        );
+    });
+
+    test('GET /api/registrations rejects student role', async () => {
+        const res = await request(app)
+            .get('/api/registrations?semesterId=9')
+            .set('Authorization', 'Bearer student-token');
+
+        expect(res.status).toBe(403);
+        expect(prisma.topicRegistration.findMany).not.toHaveBeenCalled();
+    });
+
+    test('GET /api/registrations only returns DEFENSE_READY candidates for defense assignment', async () => {
+        prisma.topicRegistration.findMany.mockResolvedValue([]);
+
+        const res = await request(app)
+            .get('/api/registrations?semesterId=9&unassignedCouncilOnly=true&councilType=DEFENSE_COUNCIL')
+            .set('Authorization', 'Bearer admin-token');
+
+        expect(res.status).toBe(200);
+        expect(prisma.topicRegistration.findMany).toHaveBeenCalledWith(
+            expect.objectContaining({
+                where: expect.objectContaining({
+                    semesterId: 9,
+                    defenseCouncilId: null,
+                    status: 'DEFENSE_READY',
+                }),
+            }),
+        );
+    });
+
     test('GET /api/registrations returns empty list when lecturer has no active semester', async () => {
         prisma.semester.findFirst.mockResolvedValue(null);
 
@@ -244,5 +314,68 @@ describe('Integration - registrations routes', () => {
         expect(res.body.success).toBe(true);
         expect(res.body.data).toEqual([]);
         expect(prisma.topicRegistration.findMany).not.toHaveBeenCalled();
+    });
+
+    test('POST /api/registrations/:id/withdraw rejects after DECISION_ISSUED', async () => {
+        prisma.topicRegistration.findUnique.mockResolvedValue({
+            id: 1,
+            studentId: 5,
+            status: 'DECISION_ISSUED',
+            topic: { id: 100, title: 'Do an AI', mentorId: 77, mentor: { id: 77 } },
+            student: { id: 5, fullName: 'Nguyen Van A', code: 'SV005' },
+            defenseResult: null,
+        });
+
+        const res = await request(app)
+            .post('/api/registrations/1/withdraw')
+            .set('Authorization', 'Bearer student-token')
+            .send({ reason: 'Xin rút sau quyết định' });
+
+        expect(res.status).toBe(409);
+        expect(res.body.code).toBe('INVALID_TRANSITION');
+        expect(prisma.topicRegistration.update).not.toHaveBeenCalled();
+    });
+
+    test('PATCH /api/registrations/:id/drop rejects legacy post-decision status', async () => {
+        prisma.topicRegistration.findUnique.mockResolvedValue({
+            id: 1,
+            studentId: 5,
+            status: 'IN_PROGRESS',
+            topic: { id: 100, title: 'Do an AI', mentorId: 77, mentor: { id: 77 } },
+            student: { id: 5, fullName: 'Nguyen Van A', code: 'SV005' },
+            defenseResult: null,
+        });
+
+        const res = await request(app)
+            .patch('/api/registrations/1/drop')
+            .set('Authorization', 'Bearer lecturer-token')
+            .send({ reason: 'Không được hủy sau quyết định' });
+
+        expect(res.status).toBe(409);
+        expect(res.body.code).toBe('INVALID_TRANSITION');
+        expect(prisma.topicRegistration.update).not.toHaveBeenCalled();
+    });
+
+    test('GET /api/registrations/:id/allowed-actions returns allowed actions for student', async () => {
+        prisma.topicRegistration.findUnique.mockResolvedValue({
+            id: 1,
+            studentId: 5,
+            status: 'PENDING',
+            stateVersion: 1,
+            topic: { id: 100, title: 'Do an AI', mentorId: 77 },
+            defenseCouncil: null,
+            defenseResult: null,
+            archive: null,
+            manualReviewCases: [],
+        });
+
+        const res = await request(app)
+            .get('/api/registrations/1/allowed-actions')
+            .set('Authorization', 'Bearer student-token');
+
+        expect(res.status).toBe(200);
+        expect(res.body.success).toBe(true);
+        expect(res.body.data.registrationId).toBe(1);
+        expect(res.body.data.allowedActions).toContain('CANCEL_REGISTRATION');
     });
 });

@@ -50,6 +50,15 @@ describe('Integration - semesters routes', () => {
                     role: 'ADMIN',
                     department: 'PDT',
                     isActive: true,
+                    permissionGroups: [{
+                        permissionGroup: {
+                            code: 'QUAN_TRI_VIEN',
+                            permissions: [
+                                { permission: { code: 'SEMESTER_MANAGE' } },
+                                { permission: { code: 'PROJECT_ASSIGNMENT_PUBLISH' } },
+                            ],
+                        },
+                    }],
                 };
             }
             if (where?.id === 2) {

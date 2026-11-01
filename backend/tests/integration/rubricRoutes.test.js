@@ -48,7 +48,20 @@ describe('Integration - Rubric Management Routes', () => {
         });
 
         prisma.user.findUnique.mockImplementation(async ({ where }) => {
-            if (where.id === 1) return { id: 1, email: 'admin@dacn.edu.vn', role: 'ADMIN', isActive: true };
+            if (where.id === 1) {
+                return {
+                    id: 1,
+                    email: 'admin@dacn.edu.vn',
+                    role: 'ADMIN',
+                    isActive: true,
+                    permissionGroups: [{
+                        permissionGroup: {
+                            code: 'QUAN_TRI_VIEN',
+                            permissions: [{ permission: { code: 'RUBRIC_MANAGE' } }],
+                        },
+                    }],
+                };
+            }
             if (where.id === 2) return { id: 2, email: 'lecturer@dacn.edu.vn', role: 'LECTURER', isActive: true };
             if (where.id === 10) return { id: 10, email: 'student@dacn.edu.vn', role: 'STUDENT', isActive: true };
             return null;

@@ -33,6 +33,13 @@ const prisma = require('../../src/config/database');
 const jwt = require('jsonwebtoken');
 const app = require('../../src/app');
 
+const permissionGroups = (...codes) => [{
+    permissionGroup: {
+        code: 'TEST',
+        permissions: codes.map((code) => ({ permission: { code } })),
+    },
+}];
+
 describe('Integration - Project Archive & Clearance Certificate', () => {
     beforeEach(() => {
         jest.clearAllMocks();
@@ -50,9 +57,9 @@ describe('Integration - Project Archive & Clearance Certificate', () => {
         prisma.user.findUnique.mockImplementation(async ({ where }) => {
             if (where.id === 10) return { id: 10, role: 'STUDENT', isActive: true, fullName: 'Sinh Vien A' };
             if (where.id === 11) return { id: 11, role: 'STUDENT', isActive: true, fullName: 'Sinh Vien B' };
-            if (where.id === 2) return { id: 2, role: 'LECTURER', isActive: true, fullName: 'GVHD C' };
-            if (where.id === 99) return { id: 99, role: 'LECTURER', isActive: true, fullName: 'GV Khac D' };
-            if (where.id === 1) return { id: 1, role: 'ADMIN', isActive: true, fullName: 'Admin' };
+            if (where.id === 2) return { id: 2, role: 'LECTURER', isActive: true, fullName: 'GVHD C', permissionGroups: permissionGroups('FINAL_DOCUMENT_REVIEW') };
+            if (where.id === 99) return { id: 99, role: 'LECTURER', isActive: true, fullName: 'GV Khac D', permissionGroups: permissionGroups('FINAL_DOCUMENT_REVIEW') };
+            if (where.id === 1) return { id: 1, role: 'ADMIN', isActive: true, fullName: 'Admin', permissionGroups: permissionGroups('FINAL_DOCUMENT_REVIEW', 'PROJECT_ASSIGNMENT_PUBLISH') };
             return null;
         });
     });
@@ -114,7 +121,7 @@ describe('Integration - Project Archive & Clearance Certificate', () => {
                 });
 
             expect(res.status).toBe(400);
-            expect(res.body.message).toContain('chưa hoàn tất bảo vệ');
+            expect(res.body.message).toContain('kết quả bảo vệ ĐẠT đã được phê duyệt');
         });
 
         it('accepts archive submission when student is DEFENDED and provides demo/report links', async () => {
@@ -218,6 +225,7 @@ describe('Integration - Project Archive & Clearance Certificate', () => {
         it('returns 400 if archive has not been officially approved', async () => {
             prisma.topicRegistration.findUnique.mockResolvedValue({
                 id: 101,
+                studentId: 10,
                 status: 'DEFENDED',
                 archive: { status: 'SUBMITTED' },
             });
@@ -233,6 +241,7 @@ describe('Integration - Project Archive & Clearance Certificate', () => {
         it('generates certificate data when registration is COMPLETED / archive APPROVED', async () => {
             prisma.topicRegistration.findUnique.mockResolvedValue({
                 id: 101,
+                studentId: 10,
                 status: 'COMPLETED',
                 student: { fullName: 'Nguyễn Văn A', code: '212480103001', department: 'CNTT' },
                 topic: {

@@ -16,6 +16,9 @@ jest.mock('../../src/config/database', () => ({
         update: jest.fn(),
         updateMany: jest.fn(),
     },
+    bM02Submission: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
+    idempotencyRecord: { findUnique: jest.fn(), create: jest.fn() },
+    registrationStateHistory: { create: jest.fn() },
     topic: {
         findUnique: jest.fn(),
         update: jest.fn(),
@@ -76,6 +79,10 @@ describe('Integration - Thesis Workflow Redesign Core Rules', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         prisma.$transaction.mockImplementation(async (callback) => callback(prisma));
+        prisma.idempotencyRecord.findUnique.mockResolvedValue(null);
+        prisma.idempotencyRecord.create.mockResolvedValue({});
+        prisma.registrationStateHistory.create.mockResolvedValue({});
+        prisma.topicRegistration.updateMany.mockResolvedValue({ count: 1 });
         process.env.JWT_SECRET = 'test-secret';
 
         jwt.verify.mockImplementation((token) => {
@@ -87,8 +94,8 @@ describe('Integration - Thesis Workflow Redesign Core Rules', () => {
 
         prisma.user.findUnique.mockImplementation(async ({ where }) => {
             if (where?.id === 10) return { id: 10, email: 'student@test.com', fullName: 'Sinh Vien A', role: 'STUDENT', isActive: true, permissionGroups: [] };
-            if (where?.id === 20) return { id: 20, email: 'lecturer@test.com', fullName: 'GVHD B', role: 'LECTURER', isActive: true, permissionGroups: [] };
-            if (where?.id === 1) return { id: 1, email: 'admin@test.com', fullName: 'Admin C', role: 'ADMIN', isActive: true, permissionGroups: [] };
+            if (where?.id === 20) return { id: 20, email: 'lecturer@test.com', fullName: 'GVHD B', role: 'LECTURER', isActive: true, permissionGroups: [{ permissionGroup: { code: 'GVHD', permissions: ['TOPIC_UPDATE_OWN', 'BM03_CHECKPOINT_DECIDE', 'BM04_SUBMIT'].map((code) => ({ permission: { code } })) } }] };
+            if (where?.id === 1) return { id: 1, email: 'admin@test.com', fullName: 'Admin C', role: 'ADMIN', isActive: true, permissionGroups: [{ permissionGroup: { code: 'QUAN_TRI_VIEN', permissions: [{ permission: { code: 'BM04_REVIEW' } }] } }] };
             return null;
         });
     });
@@ -106,15 +113,16 @@ describe('Integration - Thesis Workflow Redesign Core Rules', () => {
             const res = await request(app)
                 .post('/api/registrations/bm02-submit')
                 .set('Authorization', 'Bearer student-token')
+                .set('Idempotency-Key', 'workflow-bm02-invalid-0001')
                 .send({
                     registrationId: 100,
                     finalTitle: 'Đề tài chính thức',
                     reason: 'Chỉnh sửa sau thẩm định',
                 });
 
-            expect(res.status).toBe(400);
+            expect(res.status).toBe(409);
             expect(res.body.success).toBe(false);
-            expect(res.body.message).toContain('chấm ĐẠT');
+            expect(res.body.code).toBe('WORKFLOW_POLICY_REQUIRED');
         });
 
         it('nên cho phép nộp BM02 khi BM01 đã ĐẠT', async () => {
@@ -123,9 +131,13 @@ describe('Integration - Thesis Workflow Redesign Core Rules', () => {
                 studentId: 10,
                 status: 'BM01_PASSED',
                 outlineReviewStatus: 'PASSED',
+                stateVersion: 0,
+                periodPolicyVersionId: 7,
                 topic: { id: 50, title: 'Đề tài mẫu' },
             });
             prisma.task.findFirst.mockResolvedValue({ id: 201 });
+            prisma.bM02Submission.findFirst.mockResolvedValue(null);
+            prisma.bM02Submission.create.mockResolvedValue({ id: 99, versionNo: 1 });
             prisma.task.update.mockResolvedValue({ id: 201, status: 'COMPLETED' });
             prisma.submission.create.mockResolvedValue({ id: 99 });
             prisma.topicRegistration.update.mockResolvedValue({
@@ -136,15 +148,16 @@ describe('Integration - Thesis Workflow Redesign Core Rules', () => {
             const res = await request(app)
                 .post('/api/registrations/bm02-submit')
                 .set('Authorization', 'Bearer student-token')
+                .set('Idempotency-Key', 'workflow-bm02-0001')
                 .send({
                     registrationId: 100,
                     finalTitle: 'Đề tài chính thức đã hoàn thiện',
                     reason: 'Thống nhất với GVHD',
                 });
 
-            expect(res.status).toBe(200);
+            expect(res.status).toBe(201);
             expect(res.body.success).toBe(true);
-            expect(res.body.message).toContain('BM02 thành công');
+            expect(res.body.data.versionNo).toBe(1);
         });
     });
 
@@ -281,15 +294,75 @@ describe('Integration - Thesis Workflow Redesign Core Rules', () => {
     });
 
     describe('4. BM04 Permanent Locking & DEFENSE_READY', () => {
+        it('cho phép sinh viên xem phiếu BM04 của chính mình', async () => {
+            prisma.bM04Evaluation.findUnique.mockResolvedValue({
+                id: 10,
+                registrationId: 100,
+                studentId: 10,
+                lecturerId: 20,
+                conclusion: 'AGREED_FOR_DEFENSE',
+                isLocked: true,
+                registration: { studentId: 10, topic: { mentorId: 20 } },
+            });
+
+            const res = await request(app)
+                .get('/api/evaluations/bm04/100')
+                .set('Authorization', 'Bearer student-token');
+
+            expect(res.status).toBe(200);
+            expect(res.body.data.registrationId).toBe(100);
+        });
+
+        it('chặn sinh viên xem phiếu BM04 của người khác', async () => {
+            prisma.bM04Evaluation.findUnique.mockResolvedValue({
+                id: 11,
+                registrationId: 101,
+                studentId: 999,
+                lecturerId: 20,
+                conclusion: 'AGREED_FOR_DEFENSE',
+                isLocked: true,
+                registration: { studentId: 999, topic: { mentorId: 20 } },
+            });
+
+            const res = await request(app)
+                .get('/api/evaluations/bm04/101')
+                .set('Authorization', 'Bearer student-token');
+
+            expect(res.status).toBe(403);
+        });
+
+        it('cho phép Admin xem phiếu BM04 để giám sát học vụ', async () => {
+            prisma.bM04Evaluation.findUnique.mockResolvedValue({
+                id: 12,
+                registrationId: 102,
+                studentId: 999,
+                lecturerId: 888,
+                conclusion: 'AGREED_FOR_DEFENSE',
+                isLocked: true,
+                registration: { studentId: 999, topic: { mentorId: 888 } },
+            });
+
+            const res = await request(app)
+                .get('/api/evaluations/bm04/102')
+                .set('Authorization', 'Bearer admin-token');
+
+            expect(res.status).toBe(200);
+        });
+
         it('GVHD nộp BM04 ĐỒNG Ý -> isLocked = true và status chuyển DEFENSE_READY', async () => {
             prisma.topicRegistration.findUnique.mockResolvedValue({
                 id: 100,
                 semesterId: 1,
                 studentId: 10,
-                status: 'IN_PROGRESS',
+                status: 'BM03_PASSED',
                 topic: { mentorId: 20, title: 'Đề tài hoàn tất' },
                 student: { fullName: 'Sinh Vien A' },
                 bm04Evaluation: null,
+                archive: {
+                    reportFileUrl: 'https://storage/report.pdf',
+                    sourceCodeUrl: 'https://github.com/example/project',
+                    slideFileUrl: 'https://storage/slides.pptx',
+                },
             });
             prisma.bM04Evaluation.upsert.mockResolvedValue({
                 id: 10,
@@ -321,6 +394,54 @@ describe('Integration - Thesis Workflow Redesign Core Rules', () => {
                     data: { status: 'DEFENSE_READY' },
                 }),
             );
+        });
+
+        it('từ chối BM04 khi hồ sơ chưa BM03_PASSED', async () => {
+            prisma.topicRegistration.findUnique.mockResolvedValue({
+                id: 100,
+                semesterId: 1,
+                studentId: 10,
+                status: 'IN_PROGRESS_BM03',
+                topic: { mentorId: 20, title: 'Đề tài chưa đạt BM03' },
+                student: { fullName: 'Sinh Vien A' },
+                bm04Evaluation: null,
+                archive: null,
+            });
+
+            const res = await request(app)
+                .post('/api/evaluations/bm04-submit')
+                .set('Authorization', 'Bearer lecturer-token')
+                .send({
+                    registrationId: 100,
+                    thesisFormatScore: 'Đạt',
+                    researchContentScore: 'Đạt',
+                    applicabilityScore: 'Đạt',
+                    attitudeScore: 'Đạt',
+                    conclusion: 'AGREED_FOR_DEFENSE',
+                    lecturerSignature: 'TS. Nguyen Van B',
+                });
+
+            expect(res.status).toBe(409);
+            expect(res.body.code).toBe('INVALID_TRANSITION');
+            expect(prisma.bM04Evaluation.upsert).not.toHaveBeenCalled();
+        });
+
+        it('từ chối Admin kỹ thuật ký BM04 thay GVHD', async () => {
+            const res = await request(app)
+                .post('/api/evaluations/bm04-submit')
+                .set('Authorization', 'Bearer admin-token')
+                .send({
+                    registrationId: 100,
+                    thesisFormatScore: 'Đạt',
+                    researchContentScore: 'Đạt',
+                    applicabilityScore: 'Đạt',
+                    attitudeScore: 'Đạt',
+                    conclusion: 'AGREED_FOR_DEFENSE',
+                    lecturerSignature: 'Admin',
+                });
+
+            expect(res.status).toBe(403);
+            expect(prisma.topicRegistration.findUnique).not.toHaveBeenCalled();
         });
 
         it('nên chặn không cho sửa BM04 một khi đã bị khóa isLocked = true', async () => {
