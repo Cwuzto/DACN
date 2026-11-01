@@ -20,15 +20,20 @@ const { Text, Title } = Typography;
 
 export default function ClearanceCertificateModal({
     visible,
+    open: openProp,
     onClose,
     certificateData,
+    certificate,
 }) {
     const printRef = useRef(null);
+    const isOpen = openProp !== undefined ? openProp : visible;
+    const effectiveData = certificate || certificateData;
 
-    if (!certificateData) return null;
+    if (!effectiveData) return null;
 
     const {
         certificateNumber,
+        verificationHash,
         issueDate,
         student = {},
         topic = {},
@@ -36,7 +41,7 @@ export default function ClearanceCertificateModal({
         council = {},
         evaluation = {},
         archive = {},
-    } = certificateData;
+    } = effectiveData;
 
     const handlePrint = () => {
         window.print();
@@ -44,7 +49,7 @@ export default function ClearanceCertificateModal({
 
     return (
         <Modal
-            open={visible}
+            open={isOpen}
             onCancel={onClose}
             width={780}
             title={(
@@ -55,8 +60,8 @@ export default function ClearanceCertificateModal({
             )}
             footer={(
                 <Flex justify="space-between" align="center">
-                    <span className="text-xs text-slate-400">
-                        Mã xác thực: <b>{certificateNumber}</b>
+                    <span className="text-xs text-slate-600 font-medium">
+                        Mã xác thực: <b className="text-slate-900">{certificateNumber}</b>
                     </span>
                     <Space>
                         <Button onClick={onClose}>Đóng</Button>
@@ -166,12 +171,12 @@ export default function ClearanceCertificateModal({
                 <div className="grid grid-cols-2 gap-6 mt-8 pt-6 text-center text-xs">
                     <div>
                         <div className="font-bold uppercase text-slate-800">GIẢNG VIÊN HƯỚNG DẪN</div>
-                        <div className="text-[11px] text-slate-400 italic mb-14">(Ký và ghi rõ họ tên)</div>
+                        <div className="text-[11px] text-slate-500 italic mb-14 font-medium">(Ký và ghi rõ họ tên)</div>
                         <div className="font-bold text-slate-900 text-sm">{archive.reviewerName || mentor.fullName}</div>
                     </div>
                     <div>
                         <div className="font-bold uppercase text-slate-800">TRƯỞNG KHOA / BAN QUẢN TRỊ</div>
-                        <div className="text-[11px] text-slate-400 italic mb-14">(Xác nhận điện tử qua hệ thống)</div>
+                        <div className="text-[11px] text-slate-500 italic mb-14 font-medium">(Xác nhận điện tử qua hệ thống)</div>
                         <div className="inline-block px-3 py-1 rounded border border-emerald-300 bg-emerald-50 text-emerald-700 font-bold text-[11px]">
                             ✓ ĐÃ NGHIỆM THU ĐIỆN TỬ
                         </div>
@@ -179,10 +184,15 @@ export default function ClearanceCertificateModal({
                 </div>
 
                 {/* Footer verification note */}
-                <div className="mt-8 pt-3 border-t border-slate-200 flex justify-between items-center text-[10px] text-slate-400">
-                    <div className="flex items-center gap-1">
+                <div className="mt-8 pt-3 border-t border-slate-200 flex justify-between items-center text-[10px] text-slate-600 font-medium">
+                    <div className="flex items-center gap-1.5">
                         <QrcodeOutlined />
                         <span>Hệ thống Quản lý Đồ án Tốt nghiệp TDMU • Xác thực điện tử</span>
+                        {verificationHash && (
+                            <span className="font-mono text-[9px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                                SHA256: {verificationHash.slice(0, 16).toUpperCase()}...
+                            </span>
+                        )}
                     </div>
                     <div>Thời điểm nghiệm thu: {new Date(issueDate).toLocaleString('vi-VN')}</div>
                 </div>

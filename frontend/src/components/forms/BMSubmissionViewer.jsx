@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Tag, Typography, Button, Space, Divider, Alert } from 'antd';
-import { FilePdfOutlined, DownloadOutlined, CheckCircleOutlined, ClockCircleOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
+import { FilePdfOutlined, DownloadOutlined, CheckCircleOutlined, ClockCircleOutlined, ExclamationCircleOutlined, PrinterOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import SimulatedDocumentViewer from '../common/SimulatedDocumentViewer';
 
 const { Text, Title } = Typography;
 
@@ -27,9 +28,11 @@ const FIELD_LABELS = {
 };
 
 export default function BMSubmissionViewer({ submission, showFeedback = true }) {
+    const [showPaperModal, setShowPaperModal] = useState(false);
+
     if (!submission) {
         return (
-            <div className="text-slate-400 text-sm italic py-4 text-center">
+            <div className="text-slate-500 font-medium text-sm italic py-4 text-center">
                 Chưa có bản nộp nào.
             </div>
         );
@@ -48,6 +51,27 @@ export default function BMSubmissionViewer({ submission, showFeedback = true }) 
 
     const fields = parsedContent?.fields || null;
 
+    const documentData = {
+        title: submission.task?.title || 'BIỂU MẪU BÁO CÁO HỌC VỤ ĐỒ ÁN',
+        documentNumber: `BM-${submission.id || 'DACN'}/TDMU-VCS`,
+        date: submission.submittedAt,
+        preamble: `Căn cứ theo quy chế đào tạo và đồ án tốt nghiệp Viện Công nghệ Số, Trường Đại học Thủ Dầu Một;
+Sinh viên: ${submission.student?.fullName || 'Sinh viên'} - MSSV: ${submission.student?.code || ''}`,
+        articles: fields
+            ? Object.entries(fields).map(([k, v], idx) => ({
+                  title: `Mục ${idx + 1}: ${FIELD_LABELS[k] || k}`,
+                  content: typeof v === 'object' ? JSON.stringify(v) : String(v),
+              }))
+            : [
+                  {
+                      title: 'Nội dung chi tiết',
+                      content: rawContent || 'Không có nội dung chi tiết',
+                  },
+              ],
+        signerTitle: 'GIẢNG VIÊN HƯỚNG DẪN',
+        signerName: 'Xác nhận số',
+    };
+
     return (
         <div className="space-y-4">
             {/* Header info */}
@@ -55,11 +79,21 @@ export default function BMSubmissionViewer({ submission, showFeedback = true }) 
                 <span>
                     Thời gian nộp: <strong className="text-slate-700">{submission.submittedAt ? dayjs(submission.submittedAt).format('HH:mm - DD/MM/YYYY') : '---'}</strong>
                 </span>
-                {submission.student && (
-                    <span>
-                        Sinh viên: <strong className="text-slate-700">{submission.student.fullName} ({submission.student.code})</strong>
-                    </span>
-                )}
+                <div className="flex items-center gap-3">
+                    {submission.student && (
+                        <span>
+                            Sinh viên: <strong className="text-slate-700">{submission.student.fullName} ({submission.student.code})</strong>
+                        </span>
+                    )}
+                    <Button
+                        size="small"
+                        icon={<PrinterOutlined />}
+                        onClick={() => setShowPaperModal(true)}
+                        className="text-xs font-medium text-teal-700 border-teal-200 bg-teal-50 hover:bg-teal-100"
+                    >
+                        Xem bản in A4
+                    </Button>
+                </div>
             </div>
 
             {/* Structured Fields */}
@@ -144,6 +178,13 @@ export default function BMSubmissionViewer({ submission, showFeedback = true }) 
                     </div>
                 </div>
             )}
+
+            {/* Simulated Document Viewer Modal */}
+            <SimulatedDocumentViewer
+                open={showPaperModal}
+                onClose={() => setShowPaperModal(false)}
+                documentData={documentData}
+            />
         </div>
     );
 }

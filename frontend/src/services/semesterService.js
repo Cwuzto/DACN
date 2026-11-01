@@ -6,6 +6,14 @@ const wrapServiceError = (error, fallbackMessage) => {
 };
 
 export const semesterService = {
+    getPublic: async () => {
+        try {
+            return await api.get('/semesters/public');
+        } catch (error) {
+            return { success: false, data: [] };
+        }
+    },
+
     getAll: async () => {
         try {
             return await api.get('/semesters');
@@ -56,9 +64,25 @@ export const semesterService = {
 
     issuePeriodDecision: async (id, data = {}) => {
         try {
-            return await api.post(`/semesters/${id}/issue-decision`, data);
+            const key = globalThis.crypto?.randomUUID?.()
+                || `decision-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+            return await api.post(`/semesters/${id}/issue-decision`, data, {
+                headers: { 'Idempotency-Key': key },
+            });
         } catch (error) {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi ban hành Quyết định giao đề tài');
+        }
+    },
+
+    createDecisionAmendment: async (decisionId, data) => {
+        try {
+            const key = globalThis.crypto?.randomUUID?.()
+                || `amendment-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+            return await api.post(`/semesters/decisions/${decisionId}/amendments`, data, {
+                headers: { 'Idempotency-Key': key },
+            });
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi tạo Quyết định điều chỉnh');
         }
     },
 };

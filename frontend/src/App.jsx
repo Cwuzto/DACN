@@ -7,28 +7,32 @@ import 'dayjs/locale/vi';
 
 dayjs.locale('vi');
 
-// Nordic Institute Theme — Scandinavian Precision & Academic Excellence
-const nordicTheme = {
+// Academic Pine Teal Theme — Standardized from Lecturer Workspace Prototype
+const academicPineTheme = {
     token: {
-        colorPrimary: '#0F766E', // Alpine Forest Teal
+        colorPrimary: '#0F766E', // Deep Pine Teal
         colorPrimaryHover: '#115E59',
         colorPrimaryActive: '#0D5D57',
         colorPrimaryBg: '#F0FDFA',
-        colorSuccess: '#059669',
+        colorSuccess: '#16A34A',
         colorWarning: '#D97706',
-        colorError: '#BE123C', // Nordic Brick Red
+        colorError: '#DC2626',
         colorInfo: '#0F766E',
-        colorBgLayout: '#F4F6F8', // Crisp Fog Gray
+        colorBgLayout: '#F8FAFC',
         colorBgContainer: '#FFFFFF',
         colorBorder: '#E2E8F0',
         colorBorderSecondary: '#F1F5F9',
-        colorText: '#1E293B',
-        colorTextSecondary: '#475569',
+        colorText: '#0F172A',
+        colorTextSecondary: '#334155', // Slate-700 (9.5:1 high contrast)
+        colorTextTertiary: '#475569',  // Slate-600 (7.0:1 WCAG AAA for descriptions/subtexts)
+        colorTextQuaternary: '#64748B', // Slate-500 (4.6:1 WCAG AA for disabled/faint elements)
+        colorTextDescription: '#475569', // Slate-600 for card/item descriptions
+        colorTextPlaceholder: '#64748B', // Slate-500 for legible placeholders
         fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
         fontSize: 14,
-        borderRadius: 6,
-        borderRadiusLG: 8,
-        borderRadiusSM: 4,
+        borderRadius: 8,
+        borderRadiusLG: 10,
+        borderRadiusSM: 6,
         controlHeight: 36,
     },
     components: {
@@ -36,27 +40,42 @@ const nordicTheme = {
             headerBg: '#FFFFFF',
             headerHeight: 56,
             siderBg: '#FFFFFF',
-            bodyBg: '#F4F6F8',
+            bodyBg: '#F8FAFC',
         },
         Card: {
             paddingLG: 20,
-            boxShadowTertiary: '0 1px 3px 0 rgba(15, 23, 42, 0.04)',
+            borderRadiusLG: 10,
+            boxShadowTertiary: '0 1px 3px 0 rgba(0, 0, 0, 0.08), 0 1px 2px -1px rgba(0, 0, 0, 0.08)',
         },
         Table: {
-            headerBg: '#F8FAFC',
-            headerColor: '#1E293B',
-            rowHoverBg: '#F1F5F9',
+            headerBg: '#FAFAFA',
+            headerColor: '#0F172A',
+            rowHoverBg: '#F8FAFC',
             borderColor: '#E2E8F0',
+            cellPaddingBlock: 12,
+            cellPaddingInline: 14,
         },
         Button: {
-            fontWeight: 500,
+            fontWeight: 600,
+            borderRadius: 6,
+            controlHeight: 36,
         },
         Menu: {
+            itemBorderRadius: 6,
             itemSelectedBg: '#F0FDFA',
             itemSelectedColor: '#0F766E',
+            itemHoverBg: '#F1F5F9',
         },
         Tag: {
             borderRadiusSM: 4,
+        },
+        Modal: {
+            borderRadiusLG: 12,
+            headerBg: '#FFFFFF',
+        },
+        Drawer: {
+            headerPadding: '16px 20px',
+            bodyPadding: '20px',
         },
     },
 };
@@ -116,43 +135,85 @@ function RouteLoading() {
 
 function App() {
     return (
-        <ConfigProvider locale={viVN} theme={nordicTheme}>
+        <ConfigProvider locale={viVN} theme={academicPineTheme}>
             <BrowserRouter>
                 <Suspense fallback={<RouteLoading />}>
                     <Routes>
                         <Route element={<PublicOnlyRoute />}>
-                            <Route path="/login" element={<LoginPage />} />
+                            <Route path="/login" element={<Navigate to="/?login=true" replace />} />
                             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
                         </Route>
 
                         <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
                             <Route path="/admin" element={<AdminLayout />}>
                                 <Route index element={<Navigate to="dashboard" replace />} />
-                                <Route path="dashboard" element={<DashboardPage />} />
-                                <Route path="users" element={<UserManagementPage />} />
-                                <Route path="project-periods" element={<ProjectPeriodPage />} />
+                                <Route element={<ProtectedRoute allowedRoles={['ADMIN']} requiredPermissions={['REPORT_VIEW']} />}>
+                                    <Route path="dashboard" element={<DashboardPage />} />
+                                </Route>
+                                <Route element={<ProtectedRoute allowedRoles={['ADMIN']} requiredPermissions={['USER_MANAGE', 'PERMISSION_GROUP_MANAGE']} />}>
+                                    <Route path="users" element={<UserManagementPage />} />
+                                </Route>
+                                <Route element={<ProtectedRoute allowedRoles={['ADMIN']} requiredPermissions={['SEMESTER_MANAGE']} />}>
+                                    <Route path="project-periods" element={<ProjectPeriodPage />} />
+                                </Route>
                                 <Route path="topics" element={<AdminTopicManagementPage />} />
-                                <Route path="oversight" element={<ProjectOversightPage />} />
-                                <Route path="grading" element={<GradingDefensePage />} />
-                                <Route path="rubric-management" element={<RubricManagementPage />} />
-                                <Route path="councils" element={<CouncilAssignmentPage />} />
-                                <Route path="project-enrollments" element={<ProjectEnrollmentPage />} />
-                                <Route path="announcements" element={<AnnouncementManagementPage />} />
-                                <Route path="permissions" element={<PermissionGroupPage />} />
-                                <Route path="notifications" element={<NotificationCenterPage />} />
+                                <Route element={<ProtectedRoute allowedRoles={['ADMIN']} requiredPermissions={['REPORT_VIEW', 'LEGACY_REVIEW_MANAGE']} />}>
+                                    <Route path="oversight" element={<ProjectOversightPage />} />
+                                </Route>
+                                <Route element={<ProtectedRoute allowedRoles={['ADMIN']} requiredPermissions={['DEFENSE_SCORE_VIEW']} />}>
+                                    <Route path="grading" element={<GradingDefensePage />} />
+                                </Route>
+                                <Route element={<ProtectedRoute allowedRoles={['ADMIN']} requiredPermissions={['RUBRIC_MANAGE']} />}>
+                                    <Route path="rubric-management" element={<RubricManagementPage />} />
+                                </Route>
+                                <Route element={<ProtectedRoute allowedRoles={['ADMIN']} requiredAnyPermissions={['OUTLINE_COUNCIL_MANAGE', 'DEFENSE_COUNCIL_MANAGE']} />}>
+                                    <Route path="councils" element={<CouncilAssignmentPage />} />
+                                </Route>
+                                <Route element={<ProtectedRoute allowedRoles={['ADMIN']} requiredPermissions={['ENROLLMENT_MANAGE', 'PROJECT_CATALOG_MANAGE']} />}>
+                                    <Route path="project-enrollments" element={<ProjectEnrollmentPage />} />
+                                </Route>
+                                <Route element={<ProtectedRoute allowedRoles={['ADMIN']} requiredPermissions={['PUBLIC_ANNOUNCEMENT_MANAGE']} />}>
+                                    <Route path="announcements" element={<AnnouncementManagementPage />} />
+                                </Route>
+                                <Route element={<ProtectedRoute allowedRoles={['ADMIN']} requiredPermissions={['PERMISSION_GROUP_MANAGE']} />}>
+                                    <Route path="permissions" element={<PermissionGroupPage />} />
+                                </Route>
+                                <Route element={<ProtectedRoute allowedRoles={['ADMIN']} requiredPermissions={['NOTIFICATION_MANAGE']} />}>
+                                    <Route path="notifications" element={<NotificationCenterPage />} />
+                                </Route>
                                 <Route path="profile" element={<ProfilePage />} />
                             </Route>
                         </Route>
 
                         <Route element={<ProtectedRoute allowedRoles={['LECTURER']} />}>
-                            <Route path="/lecturer/grading/sheet/:registrationId" element={<LecturerGradingSheetPage />} />
+                            <Route element={<ProtectedRoute allowedRoles={['LECTURER']} requiredPermissions={['DEFENSE_SCORE_VIEW', 'DEFENSE_SCORE_SUBMIT']} />}>
+                                <Route path="/lecturer/grading/sheet/:registrationId" element={<LecturerGradingSheetPage />} />
+                            </Route>
                             <Route path="/lecturer" element={<LecturerLayout />}>
                                 <Route index element={<Navigate to="dashboard" replace />} />
-                                <Route path="dashboard" element={<LecturerDashboardPage />} />
-                                <Route path="topics" element={<LecturerTopicManagementPage />} />
-                                <Route path="approvals" element={<TopicApprovalPage />} />
-                                <Route path="progress" element={<ProgressTrackingPage />} />
-                                <Route path="grading" element={<GradingPage />} />
+                                <Route element={<ProtectedRoute allowedRoles={['LECTURER']} requiredPermissions={['BM03_REVIEW']} />}>
+                                    <Route path="dashboard" element={<LecturerDashboardPage />} />
+                                    <Route path="progress" element={<ProgressTrackingPage />} />
+                                </Route>
+                                <Route element={<ProtectedRoute allowedRoles={['LECTURER']} requiredPermissions={['TOPIC_CREATE', 'TOPIC_UPDATE_OWN']} />}>
+                                    <Route path="topics" element={<LecturerTopicManagementPage />} />
+                                </Route>
+                                <Route element={<ProtectedRoute allowedRoles={['LECTURER']} requiredPermissions={['MENTOR_REQUEST_REVIEW', 'OUTLINE_REVIEW']} />}>
+                                    <Route path="approvals" element={<TopicApprovalPage />} />
+                                </Route>
+                                <Route element={<ProtectedRoute allowedRoles={['LECTURER']} requiredPermissions={['DEFENSE_SCORE_VIEW']} />}>
+                                    <Route path="grading" element={<GradingPage />} />
+                                </Route>
+                                <Route
+                                    element={(
+                                        <ProtectedRoute
+                                            allowedRoles={['LECTURER']}
+                                            requiredPermissions={['PROJECT_ASSIGNMENT_PUBLISH']}
+                                        />
+                                    )}
+                                >
+                                    <Route path="institute" element={<ProjectPeriodPage />} />
+                                </Route>
                                 <Route path="notifications" element={<NotificationsPage />} />
                                 <Route path="profile" element={<ProfilePage />} />
                             </Route>

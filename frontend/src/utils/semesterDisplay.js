@@ -43,3 +43,37 @@ export const formatSemesterLabel = (semester) => {
     const { term, academicYear } = extractSemesterMeta(semester);
     return `Học kỳ ${term} - ${academicYear}`;
 };
+
+export const computeSemesterClosestToNow = (list = []) => {
+    if (!Array.isArray(list) || list.length === 0) return null;
+
+    const now = new Date();
+    const scored = list
+        .map((semester) => {
+            const start = semester.startDate ? new Date(semester.startDate) : null;
+            const end = semester.endDate ? new Date(semester.endDate) : null;
+            const defense = semester.defenseDate ? new Date(semester.defenseDate) : null;
+
+            let distanceToNow = Number.POSITIVE_INFINITY;
+            [start, end, defense].forEach((point) => {
+                if (point && !Number.isNaN(point.getTime())) {
+                    const diff = Math.abs(point.getTime() - now.getTime());
+                    if (diff < distanceToNow) distanceToNow = diff;
+                }
+            });
+
+            return {
+                semester,
+                distanceToNow,
+            };
+        })
+        .sort((a, b) => a.distanceToNow - b.distanceToNow);
+
+    return scored[0]?.semester?.id || null;
+};
+
+export const getClosestSemester = (list = []) => {
+    if (!Array.isArray(list) || list.length === 0) return null;
+    const closestId = computeSemesterClosestToNow(list);
+    return list.find((s) => s.id === closestId) || list[0] || null;
+};

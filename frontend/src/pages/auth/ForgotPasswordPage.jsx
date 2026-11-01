@@ -38,7 +38,7 @@ function ForgotPasswordPage() {
                         </div>
                         <div className="space-y-2">
                             <h2 className="text-slate-900 dark:text-slate-100 text-2xl font-bold">Quên mật khẩu</h2>
-                            <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed">
+                            <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed">
                                 Nhập email để nhận hướng dẫn khôi phục mật khẩu
                             </p>
                         </div>
@@ -50,7 +50,7 @@ function ForgotPasswordPage() {
                                 Địa chỉ Email
                             </label>
                             <div className="relative flex items-center">
-                                <span className="material-symbols-outlined absolute left-3 text-slate-400 text-[20px]">
+                                <span className="material-symbols-outlined absolute left-3 text-slate-500 text-[20px]">
                                     mail
                                 </span>
                                 <input 

@@ -1,0 +1,3983 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DACN - Không Gian Làm Việc Giảng Viên</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Lexend:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-display: 'Lexend', 'Inter', -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      
+      --bg: #F8FAFC;
+      --surface: #FFFFFF;
+      --surface-subtle: #F1F5F9;
+      --border: #E2E8F0;
+      --border-light: #F1F5F9;
+      --fg: #0F172A;
+      --muted: #64748B;
+      
+      --primary: #0F766E;
+      --primary-hover: #115E59;
+      --primary-light: #F0FDFA;
+      --accent: #2563EB;
+      --accent-light: #EFF6FF;
+      --success: #16A34A;
+      --success-light: #F0FDF4;
+      --warning: #D97706;
+      --warning-light: #FFFBEB;
+      --danger: #DC2626;
+      --danger-light: #FEF2F2;
+      
+      --radius-sm: 6px;
+      --radius: 10px;
+      --radius-lg: 14px;
+      --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+      --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+      --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.03);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background-color: var(--bg);
+      color: var(--fg);
+      line-height: 1.5;
+      font-size: 14px;
+      -webkit-font-smoothing: antialiased;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* TYPOGRAPHY */
+    h1, h2, h3, h4, .font-display {
+      font-family: var(--font-display);
+      font-weight: 700;
+      color: var(--fg);
+    }
+    .mono {
+      font-family: var(--font-mono);
+    }
+
+    /* SIDEBAR */
+    .sidebar {
+      width: 280px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      user-select: none;
+      z-index: 20;
+      transition: width 0.2s ease;
+    }
+    .sidebar.is-collapsed { width: 72px; }
+
+    .brand-header {
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .brand-logo {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, var(--primary), #14B8A6);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 800;
+      font-size: 16px;
+      font-family: var(--font-display);
+      box-shadow: 0 2px 4px rgba(15, 118, 110, 0.2);
+    }
+    .brand-title {
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--fg);
+    }
+    .brand-sub {
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    /* Lecturer Profile Chip */
+    .lecturer-chip {
+      padding: 14px 18px;
+      margin: 14px 16px;
+      background: #F8FAFC;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .lecturer-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--primary-light);
+      color: var(--primary);
+      border: 2px solid #CCFBF1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    .lecturer-info {
+      min-width: 0;
+    }
+    .lecturer-name {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--fg);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .lecturer-dept {
+      font-size: 11px;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Quota Meter Widget */
+    .quota-widget {
+      margin: 0 16px 14px 16px;
+      padding: 12px 14px;
+      background: #F0FDFA;
+      border: 1px solid #CCFBF1;
+      border-radius: var(--radius);
+    }
+    .quota-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .quota-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: #0F766E;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .quota-count {
+      font-size: 12px;
+      font-weight: 800;
+      color: #0F766E;
+    }
+    .quota-bar-track {
+      height: 6px;
+      background: #E2E8F0;
+      border-radius: 999px;
+      overflow: hidden;
+      margin-bottom: 6px;
+    }
+    .quota-bar-fill {
+      height: 100%;
+      background: var(--primary);
+      border-radius: 999px;
+      transition: width 0.3s ease;
+    }
+    .quota-foot {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #115E59;
+    }
+
+    /* Navigation List */
+    .nav-list {
+      list-style: none;
+      padding: 0 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      flex: 1;
+      overflow-y: auto;
+    }
+    .nav-section-title {
+      font-size: 10.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #94A3B8;
+      padding: 10px 10px 4px 10px;
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 12px;
+      border-radius: var(--radius-sm);
+      color: #475569;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .nav-item:hover {
+      background: #F1F5F9;
+      color: var(--fg);
+    }
+    .nav-item.active {
+      background: var(--primary-light);
+      color: var(--primary);
+      font-weight: 600;
+    }
+    .nav-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .nav-left svg {
+      width: 17px;
+      height: 17px;
+      stroke-width: 2;
+    }
+    .nav-badge {
+      font-size: 11px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      font-weight: 600;
+    }
+    .nav-badge.danger {
+      background: #FEE2E2;
+      color: #DC2626;
+    }
+    .nav-badge.warning {
+      background: #FEF3C7;
+      color: #D97706;
+    }
+    .nav-badge.info {
+      background: #E0F2FE;
+      color: #0284C7;
+    }
+    .nav-badge.primary {
+      background: #CCFBF1;
+      color: #0F766E;
+    }
+
+    .sidebar-footer {
+      padding: 14px 16px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .switch-link {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--muted);
+      text-decoration: none;
+      padding: 6px 8px;
+      border-radius: var(--radius-sm);
+      transition: all 0.15s ease;
+    }
+    .switch-link:hover {
+      background: #F1F5F9;
+      color: var(--fg);
+    }
+    .sidebar-toggle {
+      width: 32px;
+      height: 32px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      color: var(--muted);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: none;
+      cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    }
+    .sidebar-toggle:hover { background: #F1F5F9; color: var(--fg); border-color: #CBD5E1; }
+    .sidebar-toggle:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+    .sidebar-toggle svg { width: 16px; height: 16px; transition: transform 0.2s ease; }
+    .sidebar.is-collapsed .sidebar-toggle { background: var(--primary); color: #FFFFFF; border-color: var(--primary); }
+    .sidebar.is-collapsed .sidebar-toggle:hover { background: var(--primary-hover); color: #FFFFFF; }
+    .sidebar.is-collapsed .sidebar-toggle svg { transform: rotate(180deg); }
+    .sidebar.is-collapsed .brand-header { justify-content: center; padding-inline: 18px; }
+    .sidebar.is-collapsed .brand-logo,
+    .sidebar.is-collapsed .brand-copy,
+    .sidebar.is-collapsed .lecturer-chip,
+    .sidebar.is-collapsed .quota-widget,
+    .sidebar.is-collapsed .nav-section-title,
+    .sidebar.is-collapsed .nav-badge,
+    .sidebar.is-collapsed .switch-link span { display: none; }
+    .sidebar.is-collapsed .nav-list { padding-inline: 10px; }
+    .sidebar.is-collapsed .nav-item,
+    .sidebar.is-collapsed .switch-link { justify-content: center; padding-inline: 8px; }
+    .sidebar.is-collapsed .nav-left { gap: 0; font-size: 0; }
+    .sidebar.is-collapsed .sidebar-footer { padding-inline: 10px; }
+
+    /* MAIN VIEWPORT */
+    .main-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      background: var(--bg);
+      overflow: hidden;
+    }
+
+    /* TOP HEADER */
+    .topbar {
+      height: 56px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      flex-shrink: 0;
+    }
+    .topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .period-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      background: #F8FAFC;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--fg);
+    }
+    .period-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.2);
+    }
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* BUTTONS */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: var(--radius-sm);
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-decoration: none;
+      font-family: inherit;
+    }
+    .btn-sm {
+      padding: 5px 10px;
+      font-size: 12px;
+    }
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+    }
+    .btn-primary:hover {
+      background: var(--primary-hover);
+    }
+    .btn-secondary {
+      background: var(--surface);
+      border-color: var(--border);
+      color: var(--fg);
+    }
+    .btn-secondary:hover {
+      background: #F8FAFC;
+      border-color: #CBD5E1;
+    }
+    .btn-success {
+      background: var(--success);
+      color: white;
+    }
+    .btn-success:hover {
+      background: #15803D;
+    }
+    .btn-danger {
+      background: var(--danger);
+      color: white;
+    }
+    .btn-danger:hover {
+      background: #B91C1C;
+    }
+    .btn-outline-danger {
+      background: transparent;
+      border-color: #FCA5A5;
+      color: var(--danger);
+    }
+    .btn-outline-danger:hover {
+      background: #FEF2F2;
+    }
+
+    /* PAGE CONTAINER */
+    .page-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+    }
+
+    .view-pane {
+      display: none;
+      animation: fadeIn 0.15s ease;
+    }
+    .view-pane.active {
+      display: block;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* CARDS & GRIDS */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+      box-shadow: var(--shadow-sm);
+    }
+    .stat-label {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .stat-value-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-top: 8px;
+    }
+    .stat-val {
+      font-size: 26px;
+      font-weight: 800;
+      font-family: var(--font-display);
+      color: var(--fg);
+    }
+    .stat-badge {
+      font-size: 11.5px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+
+    /* SECTION / TABLE CARD */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 24px;
+      overflow: hidden;
+    }
+    .card-head {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #FFFFFF;
+    }
+    .card-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--fg);
+    }
+    .card-subtitle {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    /* TABLES */
+    .table-wrap {
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 13px;
+    }
+    thead {
+      background: #F8FAFC;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      padding: 11px 16px;
+      font-size: 11.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #64748B;
+    }
+    tbody tr {
+      border-bottom: 1px solid #F1F5F9;
+      transition: background 0.1s ease;
+    }
+    tbody tr:hover {
+      background: #F8FAFC;
+    }
+    td {
+      padding: 12px 16px;
+      color: #334155;
+    }
+
+    /* TAGS & BADGES */
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11.5px;
+      font-weight: 600;
+    }
+    .tag.green { background: #DCFCE7; color: #15803D; }
+    .tag.blue { background: #E0F2FE; color: #0369A1; }
+    .tag.yellow { background: #FEF3C7; color: #B45309; }
+    .tag.red { background: #FEE2E2; color: #B91C1C; }
+    .tag.gray { background: #F1F5F9; color: #475569; }
+    .tag.teal { background: #CCFBF1; color: #0F766E; }
+
+    /* SEGMENTED TABS */
+    .segmented-tabs {
+      display: inline-flex;
+      background: #F1F5F9;
+      padding: 3px;
+      border-radius: var(--radius-sm);
+      gap: 2px;
+    }
+    .seg-tab {
+      padding: 5px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #64748B;
+      border-radius: 4px;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.15s ease;
+    }
+    .seg-tab.active {
+      background: white;
+      color: var(--fg);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+    }
+
+    /* INPUT FIELDS */
+    .input-field {
+      padding: 7px 12px;
+      font-size: 13px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: white;
+      color: var(--fg);
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .input-field:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.15);
+    }
+
+    /* SPLIT VIEW (PROGRESS) */
+    .split-layout {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 20px;
+      height: calc(100vh - 150px);
+    }
+    .student-list-col {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .student-search-box {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .student-cards-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .student-item-card {
+      padding: 12px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: white;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .student-item-card:hover {
+      border-color: #94A3B8;
+      background: #F8FAFC;
+    }
+    .student-item-card.selected {
+      border-color: var(--primary);
+      background: #F0FDFA;
+      box-shadow: 0 0 0 1px var(--primary);
+    }
+    .student-card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+    .student-card-name {
+      font-weight: 700;
+      font-size: 13.5px;
+      color: var(--fg);
+    }
+    .student-card-topic {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.35;
+      margin-bottom: 6px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .student-card-foot {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: #64748B;
+    }
+
+    /* RIGHT DETAIL AREA */
+    .supervision-detail-col {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .supervision-header-bar {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: white;
+    }
+    .detail-nav-tabs {
+      display: flex;
+      padding: 0 20px;
+      border-bottom: 1px solid var(--border);
+      background: #F8FAFC;
+      gap: 20px;
+    }
+    .d-tab {
+      padding: 12px 2px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #64748B;
+      cursor: pointer;
+      position: relative;
+      user-select: none;
+    }
+    .d-tab.active {
+      color: var(--primary);
+    }
+    .d-tab.active::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: var(--primary);
+    }
+    .detail-tab-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+    }
+
+    /* TIMELINE */
+    .timeline {
+      position: relative;
+      padding-left: 20px;
+    }
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 6px;
+      top: 6px;
+      bottom: 6px;
+      width: 2px;
+      background: var(--border);
+    }
+    .timeline-node {
+      position: relative;
+      margin-bottom: 18px;
+    }
+    .timeline-dot {
+      position: absolute;
+      left: -20px;
+      top: 4px;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: white;
+      border: 3px solid #94A3B8;
+    }
+    .timeline-dot.done {
+      border-color: var(--success);
+      background: #DCFCE7;
+    }
+    .timeline-dot.active {
+      border-color: var(--primary);
+      background: #CCFBF1;
+    }
+    .timeline-card {
+      background: #F8FAFC;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+    }
+    .timeline-head {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+
+    /* RUBRIC SLIDERS */
+    .rubric-group {
+      margin-bottom: 22px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      background: white;
+    }
+    .rubric-group-title {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--fg);
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #F1F5F9;
+    }
+    .rubric-row {
+      display: grid;
+      grid-template-columns: 1fr 130px 140px 75px;
+      gap: 14px;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px dashed #F1F5F9;
+    }
+    .rubric-row:last-child {
+      border-bottom: none;
+    }
+    .rubric-row.editing {
+      grid-template-columns: 1fr 170px 40px;
+      background: #F8FAFC;
+      padding: 12px 14px;
+      border-radius: var(--radius);
+      margin-bottom: 10px;
+      border: 1px solid #E2E8F0;
+    }
+    .rubric-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: #334155;
+    }
+    .rubric-desc {
+      font-size: 11.5px;
+      color: var(--muted);
+      margin-top: 2px;
+      line-height: 1.4;
+    }
+    .rubric-max-badge {
+      font-size: 11.5px;
+      color: var(--muted);
+      font-family: var(--font-mono);
+      background: #F1F5F9;
+      padding: 4px 10px;
+      border-radius: 4px;
+      white-space: nowrap;
+      text-align: center;
+      border: 1px solid #E2E8F0;
+    }
+    .rubric-slider {
+      width: 100%;
+      accent-color: var(--primary);
+      cursor: pointer;
+    }
+    .rubric-input {
+      width: 65px;
+      text-align: center;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      padding: 5px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: white;
+    }
+    .rubric-edit-title-input {
+      width: 100%;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      margin-bottom: 6px;
+      background: white;
+    }
+    .rubric-edit-desc-input {
+      width: 100%;
+      font-size: 11.5px;
+      color: #475569;
+      padding: 5px 10px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: white;
+    }
+    .rubric-max-input {
+      width: 65px;
+      padding: 5px;
+      font-size: 12.5px;
+      font-weight: 700;
+      text-align: center;
+      font-family: var(--font-mono);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: white;
+    }
+
+    /* MODAL & DRAWER */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.5);
+      backdrop-filter: blur(2px);
+      z-index: 100;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .modal-overlay.open {
+      display: flex;
+    }
+    .modal-box {
+      background: white;
+      border-radius: var(--radius-lg);
+      width: 100%;
+      max-width: 650px;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: var(--shadow-lg);
+      animation: modalPop 0.2s ease;
+    }
+    @keyframes modalPop {
+      from { transform: scale(0.96); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+    .modal-head {
+      padding: 18px 22px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .modal-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--fg);
+    }
+    .modal-close {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 20px;
+      cursor: pointer;
+      line-height: 1;
+    }
+    .modal-body {
+      padding: 22px;
+    }
+    .modal-foot {
+      padding: 16px 22px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      background: #F8FAFC;
+    }
+
+    /* DRAWER */
+    .drawer-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.4);
+      z-index: 90;
+      display: none;
+    }
+    .drawer-overlay.open {
+      display: block;
+    }
+    .drawer-box {
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: 720px;
+      max-width: 90vw;
+      background: white;
+      z-index: 95;
+      box-shadow: -4px 0 20px rgba(0,0,0,0.1);
+      display: flex;
+      flex-direction: column;
+      transform: translateX(100%);
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .drawer-overlay.open .drawer-box {
+      transform: translateX(0);
+    }
+
+    /* TOAST */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 999;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .toast {
+      padding: 12px 18px;
+      background: #0F172A;
+      color: white;
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 500;
+      box-shadow: var(--shadow-lg);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      animation: toastIn 0.2s ease;
+    }
+    @keyframes toastIn {
+      from { transform: translateY(10px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    /* PRINT STYLES */
+    @media print {
+      body {
+        background: white !important;
+        overflow: visible !important;
+        display: block !important;
+        height: auto !important;
+      }
+      .sidebar, .topbar, .toast-container, .modal-head, .modal-foot, button, .main-area {
+        display: none !important;
+      }
+      .modal-overlay {
+        position: static !important;
+        background: none !important;
+        display: none !important;
+        padding: 0 !important;
+      }
+      .modal-overlay.open {
+        display: block !important;
+      }
+      .modal-box {
+        box-shadow: none !important;
+        max-width: 100% !important;
+        max-height: none !important;
+        border: none !important;
+        padding: 0 !important;
+      }
+      .modal-body {
+        padding: 0 !important;
+        background: white !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- SIDEBAR NAVIGATION -->
+  <aside class="sidebar">
+    <div class="brand-header">
+      <div class="brand-logo">VCS</div>
+      <div class="brand-copy">
+        <div class="brand-title">DACN · Giảng viên</div>
+        <div class="brand-sub">Viện Công nghệ Số · ĐH Quốc gia</div>
+      </div>
+      <button class="sidebar-toggle" type="button" onclick="toggleSharedSidebar()" aria-label="Thu gọn thanh điều hướng" aria-expanded="true" title="Thu gọn thanh điều hướng">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+      </button>
+    </div>
+
+    <!-- Profile Chip -->
+    <div class="lecturer-chip">
+      <div class="lecturer-avatar">DŨNG</div>
+      <div class="lecturer-info">
+        <div class="lecturer-name">PGS.TS Lê Quang Dũng</div>
+        <div class="lecturer-dept">Khoa Kỹ thuật Phần mềm</div>
+      </div>
+    </div>
+
+    <!-- Quota Meter Widget -->
+    <div class="quota-widget">
+      <div class="quota-head">
+        <span class="quota-title">Chỉ tiêu hướng dẫn</span>
+        <span class="quota-count mono" id="quota-display">7 / 10 SV</span>
+      </div>
+      <div class="quota-bar-track">
+        <div class="quota-bar-fill" id="quota-bar" style="width: 70%;"></div>
+      </div>
+      <div class="quota-foot">
+        <span id="quota-remain-text">Còn lại 3 suất</span>
+        <span>Tối đa 10 SV/đợt</span>
+      </div>
+    </div>
+
+    <!-- Navigation List -->
+    <ul class="nav-list">
+      <li class="nav-section-title">Tổng quan</li>
+      <li class="nav-item active" onclick="switchView('view-dashboard', this)">
+        <span class="nav-left">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          Bàn làm việc
+        </span>
+        <span class="nav-badge danger">3 việc gấp</span>
+      </li>
+
+      <li class="nav-section-title">Hướng dẫn & Đề tài</li>
+      <li class="nav-item" onclick="switchView('view-topics', this)">
+        <span class="nav-left">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+          Đề tài của tôi
+        </span>
+        <span class="nav-badge primary">8 đề tài</span>
+      </li>
+
+      <li class="nav-item" onclick="switchView('view-approvals', this)">
+        <span class="nav-left">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          Phê duyệt sinh viên
+        </span>
+        <span class="nav-badge warning" id="badge-approvals">2 đơn chờ</span>
+      </li>
+
+      <li class="nav-item" onclick="switchView('view-progress', this)">
+        <span class="nav-left">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          Theo dõi tiến độ & BM
+        </span>
+        <span class="nav-badge danger" id="badge-progress-risk">1 trễ hạn</span>
+      </li>
+
+      <li class="nav-section-title">Hội đồng & Đánh giá</li>
+      <li class="nav-item" onclick="switchView('view-grading', this)">
+        <span class="nav-left">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          Hội đồng chấm điểm
+        </span>
+        <span class="nav-badge info">2 Hội đồng</span>
+      </li>
+
+      <li class="nav-item" onclick="switchView('view-grading-sheet', this)">
+        <span class="nav-left">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          Phiếu chấm Rubric V1
+        </span>
+        <span class="nav-badge primary">Đang chấm</span>
+      </li>
+    </ul>
+
+    <!-- Switcher Footer -->
+    <div class="sidebar-footer">
+      <a href="public-portal-dacn.html" class="switch-link">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        <span>Về Cổng Thông tin Học vụ</span>
+      </a>
+      <a href="student-dacn-prototype.html" class="switch-link">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+        <span>Không gian Sinh viên</span>
+      </a>
+      <a href="admin-dacn-prototype.html" class="switch-link">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span>Chuyển sang Phân hệ Quản trị</span>
+      </a>
+    </div>
+  </aside>
+
+  <!-- MAIN VIEWPORT -->
+  <main class="main-area">
+    <!-- Topbar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="period-badge">
+          <span class="period-dot"></span>
+          <span>Học kỳ 1 (2026 - 2027) · Đang diễn ra</span>
+        </div>
+        <span style="color: var(--border);">|</span>
+        <span style="font-size: 13px; color: var(--muted);">Vai trò: <strong>Giảng viên Hướng dẫn & Thành viên Hội đồng</strong></span>
+      </div>
+      <div class="topbar-right" style="gap: 8px;">
+        <button class="btn btn-secondary btn-sm" onclick="openModal('modal-broadcast-message')" title="Gửi thông báo nhanh đến nhóm sinh viên hướng dẫn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.2 8.4c.5.38.8.97.8 1.6v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V10a2 2 0 0 1 .8-1.6l8-6a2 2 0 0 1 2.4 0l8 6z"/><path d="m22 10-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 10"/></svg>
+          Nhắn tin nhóm SV
+        </button>
+        <button class="btn btn-secondary btn-sm" onclick="openModal('modal-workload-declaration')" title="Kê khai khối lượng giảng dạy & giờ chuẩn khóa luận">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          Kê khai Giờ chuẩn
+        </button>
+        <button class="btn btn-secondary btn-sm" onclick="openModal('modal-lecturer-profile')" title="Cập nhật lịch tiếp sinh viên tại Lab và hướng nghiên cứu công khai">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Lịch tiếp Lab & NCKH
+        </button>
+        <button class="btn btn-primary btn-sm" onclick="openModal('modal-new-topic')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          + Đề xuất Đề tài mới
+        </button>
+      </div>
+    </header>
+
+    <!-- CONTENT WRAPPER -->
+    <div class="page-container">
+
+      <!-- ========================================================================= -->
+      <!-- VIEW 1: BÀN LÀM VIỆC (DASHBOARD) -->
+      <!-- ========================================================================= -->
+      <section id="view-dashboard" class="view-pane active">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+          <div>
+            <h1 style="font-size: 22px;">Bàn Làm Việc Giảng Viên</h1>
+            <p style="color: var(--muted); font-size: 13px; margin-top: 2px;">Tổng hợp nhiệm vụ hướng dẫn, tình trạng phê duyệt và lịch chấm hội đồng.</p>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-secondary btn-sm" onclick="openModal('modal-broadcast-message')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.2 8.4c.5.38.8.97.8 1.6v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V10a2 2 0 0 1 .8-1.6l8-6a2 2 0 0 1 2.4 0l8 6z"/><path d="m22 10-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 10"/></svg>
+              Gửi thông báo nhóm
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="openModal('modal-workload-declaration')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              Kê khai Giờ chuẩn
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="openModal('modal-meeting-log')">+ Ghi nhận Buổi gặp Lab</button>
+          </div>
+        </div>
+
+        <!-- Stat Cards -->
+        <div class="stat-grid">
+          <div class="stat-card">
+            <span class="stat-label">Sinh viên hướng dẫn</span>
+            <div class="stat-value-row">
+              <span class="stat-val mono" id="dash-student-count">07</span>
+              <span class="stat-badge tag teal">Tối đa 10 SV</span>
+            </div>
+            <div style="font-size: 11.5px; color: var(--muted); margin-top: 6px;">7 đề tài đã chốt sinh viên</div>
+          </div>
+
+          <div class="stat-card">
+            <span class="stat-label">Đơn chờ phê duyệt</span>
+            <div class="stat-value-row">
+              <span class="stat-val mono" style="color: var(--warning);" id="dash-pending-count">02</span>
+              <span class="stat-badge tag yellow">Cần duyệt sớm</span>
+            </div>
+            <div style="font-size: 11.5px; color: var(--muted); margin-top: 6px;">Sinh viên đăng ký nguyện vọng</div>
+          </div>
+
+          <div class="stat-card">
+            <span class="stat-label">Tiến độ nộp BM03</span>
+            <div class="stat-value-row">
+              <span class="stat-val mono" style="color: var(--primary);">82%</span>
+              <span class="stat-badge tag green">Đúng tiến độ</span>
+            </div>
+            <div style="font-size: 11.5px; color: var(--muted); margin-top: 6px;">6/7 sinh viên đầy đủ nhật ký</div>
+          </div>
+
+          <div class="stat-card">
+            <span class="stat-label">Hội đồng chấm bảo vệ</span>
+            <div class="stat-value-row">
+              <span class="stat-val mono" style="color: var(--accent);">02 HĐ</span>
+              <span class="stat-badge tag blue">P.402 & Lab 502</span>
+            </div>
+            <div style="font-size: 11.5px; color: var(--muted); margin-top: 6px;">Chủ tịch HĐ-05 & Phản biện HĐ-01</div>
+          </div>
+        </div>
+
+        <!-- Triage Queue: Việc cần xử lý gấp -->
+        <div class="card" style="border-left: 4px solid var(--warning);">
+          <div class="card-head" style="background: #FFFBEB;">
+            <div>
+              <div class="card-title" style="color: #92400E; display: flex; align-items: center; gap: 8px;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <span>Nhiệm Vụ Cần Xử Lý Trong Ngày (3 việc)</span>
+              </div>
+              <div class="card-subtitle" style="color: #B45309;">Các công việc có kỳ hạn học vụ cần hoàn thành trước khi hết ngày làm việc</div>
+            </div>
+            <span class="tag yellow">Hạn chót: 17h00 hôm nay</span>
+          </div>
+
+          <div style="padding: 16px 20px; display: flex; flex-direction: column; gap: 12px;">
+            <!-- Task 1 -->
+            <div style="padding: 12px 14px; background: white; border: 1px solid #FDE68A; border-radius: var(--radius-sm); display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <div style="font-weight: 700; color: var(--fg); font-size: 13.5px;">
+                  ⚡ Phê duyệt 2 đơn đăng ký đề tài của sinh viên
+                </div>
+                <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">
+                  Sinh viên Nguyễn Văn Hưng (GPA 3.52) và Trần Thị Mai (GPA 3.38) đang chờ giảng viên xác nhận nguyện vọng.
+                </div>
+              </div>
+              <button class="btn btn-primary btn-sm" onclick="switchView('view-approvals')">Xử lý ngay →</button>
+            </div>
+
+            <!-- Task 2 -->
+            <div style="padding: 12px 14px; background: white; border: 1px solid #FECACA; border-radius: var(--radius-sm); display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <div style="font-weight: 700; color: var(--danger); font-size: 13.5px;">
+                  ⚠️ Cảnh báo học vụ: Sinh viên Lê Quốc Bảo đã 24 ngày không có nhật ký gặp gỡ
+                </div>
+                <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">
+                  Đề tài: DT-2026-091 "Nền tảng Microservices E-commerce chịu tải cao". Nguy cơ không đủ điều kiện xét BM04.
+                </div>
+              </div>
+              <div style="display: flex; gap: 8px;">
+                <button class="btn btn-secondary btn-sm" onclick="sendStudentEmail('21110192@vcs.edu.vn')">Gửi email đôn đốc</button>
+                <button class="btn btn-danger btn-sm" onclick="openLogMeetingForStudent('Lê Quốc Bảo')">+ Ghi nhận Buổi gặp</button>
+              </div>
+            </div>
+
+            <!-- Task 3 -->
+            <div style="padding: 12px 14px; background: white; border: 1px solid #BFDBFE; border-radius: var(--radius-sm); display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <div style="font-weight: 700; color: #1E40AF; font-size: 13.5px;">
+                  📅 Lịch bảo vệ Hội đồng HĐ-01 KTPM sắp diễn ra (Thứ Sáu, 24/10/2026)
+                </div>
+                <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">
+                  Phòng thi: P.402 · Tòa H1. Bạn đảm nhận vai trò Ủy viên Phản biện cho 4 sinh viên bảo vệ.
+                </div>
+              </div>
+              <button class="btn btn-secondary btn-sm" onclick="switchView('view-grading')">Xem Lịch thi & Rubric →</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Supervision Summary Table -->
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <div class="card-title">Danh Sách Sinh Viên Đang Hướng Dẫn (7 Sinh Viên)</div>
+              <div class="card-subtitle">Theo dõi tiến độ tổng thể, số buổi gặp Lab thực tế và trạng thái BM04</div>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="switchView('view-progress')">Mở Sổ Theo Dõi Chi Tiết →</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Mã ĐT</th>
+                  <th>Tên Đề tài</th>
+                  <th>Sinh viên thực hiện</th>
+                  <th>Tiến độ BM</th>
+                  <th>Số buổi gặp Lab</th>
+                  <th>Thẩm định BM04</th>
+                  <th>Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="mono" style="font-weight: 600; color: var(--accent);">DT-2026-089</td>
+                  <td><strong>Kiến trúc RAG phân tán phục vụ Tra cứu Văn bản Pháp luật</strong></td>
+                  <td>
+                    <div>Trần Văn Hùng</div>
+                    <span class="mono" style="font-size: 11px; color: var(--muted);">21110034</span>
+                  </td>
+                  <td><span class="tag green">100% Hoàn thành</span></td>
+                  <td><strong style="color: var(--primary);">8 buổi</strong> (Đầy đủ)</td>
+                  <td><span class="tag green">✓ Đạt (Cho BV)</span></td>
+                  <td>
+                    <button class="btn btn-secondary btn-sm" onclick="openStudentSupervisionDetail('Trần Văn Hùng')">Sổ tiến độ</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="mono" style="font-weight: 600; color: var(--accent);">DT-2026-091</td>
+                  <td><strong>Nền tảng Microservices E-commerce chịu tải cao</strong></td>
+                  <td>
+                    <div>Lê Quốc Bảo</div>
+                    <span class="mono" style="font-size: 11px; color: var(--muted);">21110192</span>
+                  </td>
+                  <td><span class="tag red">45% Trễ hạn</span></td>
+                  <td><strong style="color: var(--danger);">2 buổi</strong> (>21 ngày)</td>
+                  <td><span class="tag red">Chưa đủ điều kiện</span></td>
+                  <td>
+                    <button class="btn btn-secondary btn-sm" onclick="openStudentSupervisionDetail('Lê Quốc Bảo')">Sổ tiến độ</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="mono" style="font-weight: 600; color: var(--accent);">DT-2026-095</td>
+                  <td><strong>Hệ thống Phát hiện Mã độc Bằng Deep Learning</strong></td>
+                  <td>
+                    <div>Phạm Minh Tuấn</div>
+                    <span class="mono" style="font-size: 11px; color: var(--muted);">21110078</span>
+                  </td>
+                  <td><span class="tag green">95% Hoàn thành</span></td>
+                  <td><strong style="color: var(--primary);">7 buổi</strong> (Đầy đủ)</td>
+                  <td><span class="tag green">✓ Đạt (Cho BV)</span></td>
+                  <td>
+                    <button class="btn btn-secondary btn-sm" onclick="openStudentSupervisionDetail('Phạm Minh Tuấn')">Sổ tiến độ</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="mono" style="font-weight: 600; color: var(--accent);">DT-2026-102</td>
+                  <td><strong>Ứng dụng IoT Giám sát Chất lượng Nước Nuôi trồng Thủy sản</strong></td>
+                  <td>
+                    <div>Vũ Thị Lan</div>
+                    <span class="mono" style="font-size: 11px; color: var(--muted);">21110112</span>
+                  </td>
+                  <td><span class="tag blue">80% Đang nộp</span></td>
+                  <td><strong style="color: var(--primary);">5 buổi</strong> (Đạt chuẩn)</td>
+                  <td><span class="tag yellow">Đang xét duyệt</span></td>
+                  <td>
+                    <button class="btn btn-secondary btn-sm" onclick="openStudentSupervisionDetail('Vũ Thị Lan')">Sổ tiến độ</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================================= -->
+      <!-- VIEW 2: ĐỀ TÀI CỦA TÔI (TOPIC MANAGEMENT) -->
+      <!-- ========================================================================= -->
+      <section id="view-topics" class="view-pane">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+          <div>
+            <h1 style="font-size: 22px;">Quản Lý Đề Tài Của Tôi</h1>
+            <p style="color: var(--muted); font-size: 13px; margin-top: 2px;">Danh mục các đề tài do bạn đề xuất trong học kỳ hiện tại kèm chỉ tiêu sinh viên.</p>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-secondary btn-sm" onclick="openModal('modal-clone-topics')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              Sao chép từ kỳ trước
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="openModal('modal-new-topic')">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              + Đề xuất Đề tài mới
+            </button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div class="segmented-tabs">
+              <div class="seg-tab active" onclick="filterTopicsTable('all', this)">Tất cả (8)</div>
+              <div class="seg-tab" onclick="filterTopicsTable('approved', this)">Đã duyệt (5)</div>
+              <div class="seg-tab" onclick="filterTopicsTable('open', this)">Đang tuyển (2)</div>
+              <div class="seg-tab" onclick="filterTopicsTable('pending', this)">Chờ duyệt BCN (1)</div>
+            </div>
+            <div style="display: flex; gap: 10px;">
+              <input type="text" class="input-field" placeholder="Tìm theo tên đề tài, công nghệ..." style="width: 260px;" onkeyup="searchTopicsTable(this.value)" />
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table id="topics-main-table">
+              <thead>
+                <tr>
+                  <th>Mã ĐT</th>
+                  <th>Tên Đề tài Nghiên cứu</th>
+                  <th>Lĩnh vực / Công nghệ</th>
+                  <th>Sinh viên thực hiện</th>
+                  <th>Tình trạng suất</th>
+                  <th>Trạng thái Học vụ</th>
+                  <th style="text-align: right;">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr data-status="approved">
+                  <td class="mono" style="font-weight: 600; color: var(--accent);">DT-2026-089</td>
+                  <td>
+                    <div style="font-weight: 600;">Kiến trúc RAG phân tán phục vụ Tra cứu Văn bản Pháp luật</div>
+                    <div style="font-size: 11.5px; color: var(--muted);">Distributed RAG Architecture for Legal Search</div>
+                  </td>
+                  <td><span class="tag gray">Python · LangChain · Qdrant</span></td>
+                  <td>
+                    <strong>Trần Văn Hùng</strong>
+                    <div class="mono" style="font-size: 11px; color: var(--muted);">21110034</div>
+                  </td>
+                  <td><span class="tag blue">1 / 1 SV (Đầy)</span></td>
+                  <td><span class="tag green">Đã duyệt BV</span></td>
+                  <td style="text-align: right;">
+                    <button class="btn btn-secondary btn-sm" onclick="openStudentSupervisionDetail('Trần Văn Hùng')">Sổ nhật ký</button>
+                  </td>
+                </tr>
+
+                <tr data-status="approved">
+                  <td class="mono" style="font-weight: 600; color: var(--accent);">DT-2026-091</td>
+                  <td>
+                    <div style="font-weight: 600;">Nền tảng Microservices E-commerce chịu tải cao</div>
+                    <div style="font-size: 11.5px; color: var(--muted);">High-throughput E-commerce Platform</div>
+                  </td>
+                  <td><span class="tag gray">Go · Kafka · gRPC</span></td>
+                  <td>
+                    <strong>Lê Quốc Bảo</strong>
+                    <div class="mono" style="font-size: 11px; color: var(--muted);">21110192</div>
+                  </td>
+                  <td><span class="tag blue">1 / 1 SV (Đầy)</span></td>
+                  <td><span class="tag red">Chậm BM03</span></td>
+                  <td style="text-align: right;">
+                    <button class="btn btn-secondary btn-sm" onclick="openStudentSupervisionDetail('Lê Quốc Bảo')">Sổ nhật ký</button>
+                  </td>
+                </tr>
+
+                <tr data-status="open">
+                  <td class="mono" style="font-weight: 600; color: var(--accent);">DT-2026-108</td>
+                  <td>
+                    <div style="font-weight: 600;">Hệ thống Tối ưu Phân tán Kubernetes cho Kiến trúc Microservices</div>
+                    <div style="font-size: 11.5px; color: var(--muted);">Distributed Kubernetes Optimization Engine</div>
+                  </td>
+                  <td><span class="tag gray">Golang · Kubernetes · Prometheus</span></td>
+                  <td><span style="color: var(--muted); font-style: italic;">Chưa gán chính thức</span></td>
+                  <td><span class="tag green">0 / 1 SV (Đang mở)</span></td>
+                  <td><span class="tag yellow">1 Đơn chờ duyệt</span></td>
+                  <td style="text-align: right;">
+                    <button class="btn btn-primary btn-sm" onclick="switchView('view-approvals')">Xem đơn đăng ký</button>
+                  </td>
+                </tr>
+
+                <tr data-status="open">
+                  <td class="mono" style="font-weight: 600; color: var(--accent);">DT-2026-112</td>
+                  <td>
+                    <div style="font-weight: 600;">Nhận diện Cử chỉ Tay Điều khiển Thiết bị Thực tế Ảo (VR)</div>
+                    <div style="font-size: 11.5px; color: var(--muted);">Hand Gesture Recognition for VR Interfaces</div>
+                  </td>
+                  <td><span class="tag gray">Python · MediaPipe · Unity</span></td>
+                  <td><span style="color: var(--muted); font-style: italic;">Chưa gán chính thức</span></td>
+                  <td><span class="tag green">0 / 1 SV (Đang mở)</span></td>
+                  <td><span class="tag yellow">1 Đơn chờ duyệt</span></td>
+                  <td style="text-align: right;">
+                    <button class="btn btn-primary btn-sm" onclick="switchView('view-approvals')">Xem đơn đăng ký</button>
+                  </td>
+                </tr>
+
+                <tr data-status="pending">
+                  <td class="mono" style="font-weight: 600; color: var(--accent);">DT-2026-115</td>
+                  <td>
+                    <div style="font-weight: 600;">Phát hiện Bất thường Mạng trong Hạ tầng IoT Bằng GNN</div>
+                    <div style="font-size: 11.5px; color: var(--muted);">IoT Network Anomaly Detection using GNN</div>
+                  </td>
+                  <td><span class="tag gray">PyTorch Geometric · NetworkX</span></td>
+                  <td><span style="color: var(--muted); font-style: italic;">Chờ phê duyệt</span></td>
+                  <td><span class="tag gray">0 / 1 SV</span></td>
+                  <td><span class="tag yellow">Chờ Ban Chủ Nhiệm duyệt</span></td>
+                  <td style="text-align: right;">
+                    <button class="btn btn-secondary btn-sm" onclick="showToast('Đề tài đang trong quy trình thẩm định của Bộ môn')">Xem xét</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================================= -->
+      <!-- VIEW 3: PHÊ DUYỆT SINH VIÊN (TOPIC APPROVALS) -->
+      <!-- ========================================================================= -->
+      <section id="view-approvals" class="view-pane">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+          <div>
+            <h1 style="font-size: 22px;">Phê Duyệt Sinh Viên Đăng Ký Đề Tài</h1>
+            <p style="color: var(--muted); font-size: 13px; margin-top: 2px;">Xem xét học lực, bảng điểm và nguyện vọng của sinh viên trước khi chấp thuận hướng dẫn.</p>
+          </div>
+          <span class="tag teal" style="padding: 6px 12px; font-size: 12px;">Quy chuẩn: 1 Sinh viên / 1 Đề tài · Tối đa 10 SV/đợt</span>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+          <!-- Request Card 1 -->
+          <div class="card" id="req-card-1" style="border-left: 4px solid var(--warning); margin-bottom: 0;">
+            <div style="padding: 18px 20px;">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                <div>
+                  <div style="font-size: 15px; font-weight: 700; color: var(--fg);">
+                    Nguyễn Văn Hưng 
+                    <span class="mono" style="font-weight: normal; color: var(--muted); font-size: 12px;">(MSSV: 21110045 · Lớp KTPM2021)</span>
+                  </div>
+                  <div style="font-size: 12.5px; color: var(--muted); margin-top: 4px;">
+                    Điểm GPA: <strong style="color: var(--accent);">3.52 / 4.0</strong> · Điểm Đồ án CN: <strong style="color: var(--success);">9.0</strong> · Hoàn thành 132/140 tín chỉ
+                  </div>
+                </div>
+                <span class="tag yellow">Đang chờ bạn duyệt</span>
+              </div>
+
+              <div style="background: #F8FAFC; padding: 12px 14px; border-radius: var(--radius-sm); font-size: 13px; margin-bottom: 14px; border: 1px solid var(--border);">
+                <strong>Nguyện vọng đề tài:</strong> DT-2026-108: <em>"Hệ thống Tối ưu Phân tán Kubernetes cho Kiến trúc Microservices"</em><br />
+                <div style="color: #475569; margin-top: 6px;">
+                  <strong>Lời nhắn sinh viên:</strong> "Em đã có kinh nghiệm thực tập DevOps 6 tháng tại FPT Software và rất mong muốn được Thầy hướng dẫn nghiên cứu sâu về thuật toán autoscaling và giám sát tài nguyên trên cluster Kubernetes."
+                </div>
+              </div>
+
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <button class="btn btn-secondary btn-sm" onclick="openStudentCvModal('Nguyễn Văn Hưng', '3.52', '132/140', 'DevOps, Docker, K8s, Go')">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  Xem Bảng điểm & CV Đính Kèm
+                </button>
+                <div style="display: flex; gap: 8px;">
+                  <button class="btn btn-outline-danger btn-sm" onclick="openRejectModal('req-card-1', 'Nguyễn Văn Hưng')">✕ Từ chối</button>
+                  <button class="btn btn-success btn-sm" onclick="acceptRegistration('req-card-1', 'Nguyễn Văn Hưng', 'DT-2026-108')">✓ Chấp thuận Hướng dẫn</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Request Card 2 -->
+          <div class="card" id="req-card-2" style="border-left: 4px solid var(--warning); margin-bottom: 0;">
+            <div style="padding: 18px 20px;">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                <div>
+                  <div style="font-size: 15px; font-weight: 700; color: var(--fg);">
+                    Trần Thị Mai 
+                    <span class="mono" style="font-weight: normal; color: var(--muted); font-size: 12px;">(MSSV: 21110088 · Lớp KTPM2021B)</span>
+                  </div>
+                  <div style="font-size: 12.5px; color: var(--muted); margin-top: 4px;">
+                    Điểm GPA: <strong style="color: var(--accent);">3.38 / 4.0</strong> · Điểm Xử lý Ảnh: <strong style="color: var(--success);">8.5</strong> · Hoàn thành 130/140 tín chỉ
+                  </div>
+                </div>
+                <span class="tag yellow">Đang chờ bạn duyệt</span>
+              </div>
+
+              <div style="background: #F8FAFC; padding: 12px 14px; border-radius: var(--radius-sm); font-size: 13px; margin-bottom: 14px; border: 1px solid var(--border);">
+                <strong>Nguyện vọng đề tài:</strong> DT-2026-112: <em>"Nhận diện Cử chỉ Tay Điều khiển Thiết bị Thực tế Ảo (VR)"</em><br />
+                <div style="color: #475569; margin-top: 6px;">
+                  <strong>Lời nhắn sinh viên:</strong> "Em đã tìm hiểu thư viện MediaPipe và Unity, mong muốn áp dụng thị giác máy tính vào các ứng dụng tương tác không chạm trên môi trường VR."
+                </div>
+              </div>
+
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <button class="btn btn-secondary btn-sm" onclick="openStudentCvModal('Trần Thị Mai', '3.38', '130/140', 'Python, OpenCV, MediaPipe, Unity')">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  Xem Bảng điểm & CV Đính Kèm
+                </button>
+                <div style="display: flex; gap: 8px;">
+                  <button class="btn btn-outline-danger btn-sm" onclick="openRejectModal('req-card-2', 'Trần Thị Mai')">✕ Từ chối</button>
+                  <button class="btn btn-success btn-sm" onclick="acceptRegistration('req-card-2', 'Trần Thị Mai', 'DT-2026-112')">✓ Chấp thuận Hướng dẫn</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================================= -->
+      <!-- VIEW 4: THEO DÕI TIẾN ĐỘ & BIỂU MẪU (PROGRESS & BM01 - BM04) -->
+      <!-- ========================================================================= -->
+      <section id="view-progress" class="view-pane">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <div>
+            <h1 style="font-size: 22px;">Theo Dõi Tiến Độ & Biểu Mẫu Hướng Dẫn</h1>
+            <p style="color: var(--muted); font-size: 13px; margin-top: 2px;">Giao nhiệm vụ theo tuần, lưu nhật ký gặp Lab và hoàn thiện hồ sơ thẩm định BM04.</p>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-secondary btn-sm" onclick="openModal('modal-broadcast-message')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.2 8.4c.5.38.8.97.8 1.6v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V10a2 2 0 0 1 .8-1.6l8-6a2 2 0 0 1 2.4 0l8 6z"/><path d="m22 10-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 10"/></svg>
+              Gửi thông báo nhóm
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="bulkRemindTasks()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+              Nhắc nộp bài hàng loạt
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="openModal('modal-new-task')">+ Giao việc mới</button>
+          </div>
+        </div>
+
+        <!-- Split Layout -->
+        <div class="split-layout">
+          <!-- Left Column: Student List -->
+          <div class="student-list-col">
+            <div class="student-search-box">
+              <input type="text" class="input-field" placeholder="Tìm sinh viên..." style="width: 100%;" onkeyup="filterStudentList(this.value)" />
+            </div>
+            <div class="student-cards-scroll" id="student-select-list">
+              <!-- Student 1 -->
+              <div class="student-item-card selected" onclick="selectStudent('Trần Văn Hùng', '21110034', 'DT-2026-089', 'Kiến trúc RAG phân tán phục vụ Tra cứu Văn bản Pháp luật', '8 buổi', 'green', this)">
+                <div class="student-card-top">
+                  <span class="student-card-name">Trần Văn Hùng</span>
+                  <span class="tag green">Đạt BM04</span>
+                </div>
+                <div class="student-card-topic">DT-2026-089: Kiến trúc RAG phân tán phục vụ Tra cứu Văn bản Pháp luật</div>
+                <div class="student-card-foot">
+                  <span>MSSV: 21110034</span>
+                  <strong style="color: var(--primary);">8 buổi gặp</strong>
+                </div>
+              </div>
+
+              <!-- Student 2 (Risk) -->
+              <div class="student-item-card" onclick="selectStudent('Lê Quốc Bảo', '21110192', 'DT-2026-091', 'Nền tảng Microservices E-commerce chịu tải cao', '2 buổi', 'red', this)">
+                <div class="student-card-top">
+                  <span class="student-card-name">Lê Quốc Bảo</span>
+                  <span class="tag red">Nguy cơ trễ</span>
+                </div>
+                <div class="student-card-topic">DT-2026-091: Nền tảng Microservices E-commerce chịu tải cao</div>
+                <div class="student-card-foot">
+                  <span>MSSV: 21110192</span>
+                  <strong style="color: var(--danger);">2 buổi (>21 ngày)</strong>
+                </div>
+              </div>
+
+              <!-- Student 3 -->
+              <div class="student-item-card" onclick="selectStudent('Phạm Minh Tuấn', '21110078', 'DT-2026-095', 'Hệ thống Phát hiện Mã độc Bằng Deep Learning', '7 buổi', 'green', this)">
+                <div class="student-card-top">
+                  <span class="student-card-name">Phạm Minh Tuấn</span>
+                  <span class="tag green">Đạt BM04</span>
+                </div>
+                <div class="student-card-topic">DT-2026-095: Hệ thống Phát hiện Mã độc Bằng Deep Learning</div>
+                <div class="student-card-foot">
+                  <span>MSSV: 21110078</span>
+                  <strong style="color: var(--primary);">7 buổi gặp</strong>
+                </div>
+              </div>
+
+              <!-- Student 4 -->
+              <div class="student-item-card" onclick="selectStudent('Vũ Thị Lan', '21110112', 'DT-2026-102', 'Ứng dụng IoT Giám sát Chất lượng Nước Nuôi trồng Thủy sản', '5 buổi', 'blue', this)">
+                <div class="student-card-top">
+                  <span class="student-card-name">Vũ Thị Lan</span>
+                  <span class="tag blue">Nghiên cứu</span>
+                </div>
+                <div class="student-card-topic">DT-2026-102: Ứng dụng IoT Giám sát Chất lượng Nước Nuôi trồng Thủy sản</div>
+                <div class="student-card-foot">
+                  <span>MSSV: 21110112</span>
+                  <strong style="color: var(--primary);">5 buổi gặp</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Column: Detail Workspaces -->
+          <div class="supervision-detail-col">
+            <!-- Header bar -->
+            <div class="supervision-header-bar">
+              <div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <h2 style="font-size: 16px;" id="current-student-name">Trần Văn Hùng</h2>
+                  <span class="mono" style="font-size: 12.5px; color: var(--muted);" id="current-student-mssv">MSSV: 21110034</span>
+                  <span class="tag green" id="current-student-badge">✓ Đã duyệt BM04 (Cho BV)</span>
+                </div>
+                <div style="font-size: 12.5px; color: var(--fg); margin-top: 3px;" id="current-student-topic">
+                  DT-2026-089: Kiến trúc RAG phân tán phục vụ Tra cứu Văn bản Pháp luật
+                </div>
+              </div>
+              <div style="display: flex; gap: 8px;">
+                <button class="btn btn-secondary btn-sm" onclick="showToast('Đang tải file dự thảo luận văn PDF...')">Xem Báo cáo PDF</button>
+                <button class="btn btn-primary btn-sm" onclick="openDrawer('drawer-bm04')">Lập / Cập nhật BM04</button>
+              </div>
+            </div>
+
+            <!-- Risk Banner -->
+            <div id="risk-alert-bar" style="display: none; padding: 10px 20px; background: #FEE2E2; border-bottom: 1px solid #FCA5A5; color: #991B1B; font-size: 12.5px; align-items: center; justify-content: space-between;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <span><strong>Cảnh báo học vụ:</strong> Sinh viên này đã 24 ngày không có nhật ký trao đổi. Hãy lên lịch hẹn gặp ngay!</span>
+              </div>
+              <button class="btn btn-danger btn-sm" onclick="openModal('modal-meeting-log')">+ Ghi nhận Buổi gặp Lab</button>
+            </div>
+
+            <!-- Sub Nav Tabs -->
+            <div class="detail-nav-tabs">
+              <div class="d-tab active" onclick="switchDetailTab('tab-tasks', this)">1. Nhiệm vụ tuần (Tasks)</div>
+              <div class="d-tab" onclick="switchDetailTab('tab-meeting-logs', this)">2. Nhật ký trao đổi (BM03)</div>
+              <div class="d-tab" onclick="switchDetailTab('tab-checkpoints', this)">3. Đánh giá Checkpoint</div>
+              <div class="d-tab" onclick="switchDetailTab('tab-archive', this)">4. Thẩm định BM04 & Lưu chiểu</div>
+            </div>
+
+            <!-- Tab Contents -->
+            <div class="detail-tab-body">
+              <!-- TAB 1: TASKS -->
+              <div id="tab-tasks" class="tab-pane-content">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+                  <div style="font-size: 13px; font-weight: 600;">Danh sách nhiệm vụ giao theo tuần (10/12 nhiệm vụ hoàn thành)</div>
+                  <button class="btn btn-primary btn-sm" onclick="openModal('modal-new-task')">+ Thêm nhiệm vụ tuần mới</button>
+                </div>
+
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Tuần</th>
+                        <th>Nhiệm vụ & Yêu cầu</th>
+                        <th>Hạn nộp</th>
+                        <th>Bài nộp của SV</th>
+                        <th>Trạng thái</th>
+                        <th style="text-align: right;">Đánh giá</th>
+                      </tr>
+                    </thead>
+                    <tbody id="task-table-body">
+                      <tr>
+                        <td><strong>Tuần 10</strong></td>
+                        <td>
+                          <strong>Triển khai Vector Search và Đo lường độ trễ truy vấn</strong>
+                          <div style="font-size: 11px; color: var(--muted);">Thực nghiệm Qdrant với 100.000 văn bản luật</div>
+                        </td>
+                        <td class="mono">18/10/2026</td>
+                        <td><a href="javascript:void(0)" onclick="showToast('Đang tải file report_week10.pdf')" style="color: var(--accent);">report_week10.pdf</a></td>
+                        <td><span class="tag green">Đã duyệt (Đạt)</span></td>
+                        <td style="text-align: right;">
+                          <button class="btn btn-secondary btn-sm" onclick="openReviewTaskModal('Tuần 10: Vector Search', 'report_week10.pdf', 'Đạt yêu cầu benchmark độ trễ < 50ms.')">Xem lại</button>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td><strong>Tuần 9</strong></td>
+                        <td>
+                          <strong>Đánh giá kiến trúc Microservices và Reranking module</strong>
+                          <div style="font-size: 11px; color: var(--muted);">Tích hợp mô hình Cross-Encoder</div>
+                        </td>
+                        <td class="mono">11/10/2026</td>
+                        <td><a href="javascript:void(0)" onclick="showToast('Đang tải file report_week9.pdf')" style="color: var(--accent);">report_week9.pdf</a></td>
+                        <td><span class="tag green">Đã duyệt (Đạt)</span></td>
+                        <td style="text-align: right;">
+                          <button class="btn btn-secondary btn-sm" onclick="openReviewTaskModal('Tuần 9: Reranking', 'report_week9.pdf', 'Kết quả chính xác tốt.')">Xem lại</button>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td><strong>Tuần 8</strong></td>
+                        <td>
+                          <strong>Xây dựng Pipeline Chunking tài liệu pháp luật</strong>
+                          <div style="font-size: 11px; color: var(--muted);">Tách văn bản theo cấu trúc Điều - Khoản - Điểm</div>
+                        </td>
+                        <td class="mono">04/10/2026</td>
+                        <td><a href="javascript:void(0)" onclick="showToast('Đang tải file pipeline_code.zip')" style="color: var(--accent);">pipeline_code.zip</a></td>
+                        <td><span class="tag green">Đã duyệt (Đạt)</span></td>
+                        <td style="text-align: right;">
+                          <button class="btn btn-secondary btn-sm" onclick="openReviewTaskModal('Tuần 8: Pipeline Chunking', 'pipeline_code.zip', 'Xử lý cấu trúc luật chuẩn xác.')">Xem lại</button>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- TAB 2: MEETING LOGS (BM03) -->
+              <div id="tab-meeting-logs" class="tab-pane-content" style="display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                  <div>
+                    <span style="font-size: 13.5px; font-weight: 700;">Nhật ký trao đổi hướng dẫn thực tế (BM03):</span>
+                    <span class="mono" style="color: var(--primary); font-weight: 700; margin-left: 6px;" id="meeting-total-label">8 buổi</span>
+                  </div>
+                  <button class="btn btn-primary btn-sm" onclick="openModal('modal-meeting-log')">+ Ghi nhận Buổi gặp Lab (1 phút)</button>
+                </div>
+
+                <div class="timeline" id="meeting-timeline-container">
+                  <!-- Node 1 -->
+                  <div class="timeline-node">
+                    <div class="timeline-dot done"></div>
+                    <div class="timeline-card">
+                      <div class="timeline-head">
+                        <div>
+                          <strong>Buổi 8: Thẩm định Báo cáo Toàn văn & Slide Bảo Vệ</strong>
+                          <span class="tag teal" style="margin-left: 6px;">Tại Lab H2-502</span>
+                        </div>
+                        <span class="mono" style="font-size: 11.5px; color: var(--muted);">16/10/2026</span>
+                      </div>
+                      <div style="font-size: 12.5px; color: var(--fg); line-height: 1.45;">
+                        <strong>Nội dung trao đổi:</strong> Kiểm tra bản dự thảo báo cáo khóa luận 98 trang; rà soát trích dẫn tài liệu theo chuẩn IEEE; chạy thử nghiệm demo hệ thống trên máy chủ Lab.<br />
+                        <strong>Nhiệm vụ tiếp theo:</strong> In đóng cuốn bìa mềm và hoàn thiện video demo 3 phút.<br />
+                        <span style="color: var(--success); font-weight: 600; margin-top: 4px; display: block;">✓ Đánh giá: Sinh viên hoàn thành 100% mục tiêu; Đủ điều kiện ra bảo vệ trước Hội đồng.</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Node 2 -->
+                  <div class="timeline-node">
+                    <div class="timeline-dot done"></div>
+                    <div class="timeline-card">
+                      <div class="timeline-head">
+                        <div>
+                          <strong>Buổi 7: Tối ưu thời gian đáp ứng của mô hình RAG</strong>
+                          <span class="tag blue" style="margin-left: 6px;">Online Google Meet</span>
+                        </div>
+                        <span class="mono" style="font-size: 11.5px; color: var(--muted);">09/10/2026</span>
+                      </div>
+                      <div style="font-size: 12.5px; color: var(--fg); line-height: 1.45;">
+                        <strong>Nội dung trao đổi:</strong> Khắc phục hiện tượng bottleneck khi truy vấn đồng thời 20 người dùng; bổ sung cơ chế caching Redis cho các câu hỏi thường gặp.<br />
+                        <span style="color: var(--success); font-weight: 600; margin-top: 4px; display: block;">✓ Đánh giá: Tiến độ tốt.</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- TAB 3: CHECKPOINTS -->
+              <div id="tab-checkpoints" class="tab-pane-content" style="display: none;">
+                <div style="display: flex; flex-direction: column; gap: 16px;">
+                  <div class="card" style="margin-bottom: 0;">
+                    <div class="card-head">
+                      <div>
+                        <div class="card-title">Checkpoint 1 (Tuần 6) · Thẩm tra Đề cương & Kiến trúc</div>
+                        <div class="card-subtitle">Yêu cầu hoàn thành tối thiểu 50% khối lượng đề tài</div>
+                      </div>
+                      <span class="tag green">✓ ĐẠT (Cho phép tiếp tục)</span>
+                    </div>
+                    <div style="padding: 16px 20px; font-size: 13px;">
+                      <p><strong>Ngày đánh giá:</strong> 18/09/2026 · <strong>Khối lượng xác nhận:</strong> 55%</p>
+                      <p style="margin-top: 6px;"><strong>Nhận xét của GVHD:</strong> Đã hoàn thành thu thập dữ liệu văn bản pháp luật, thiết lập cluster Qdrant thành công. Đề cương chi tiết đạt chuẩn Viện.</p>
+                    </div>
+                  </div>
+
+                  <div class="card" style="margin-bottom: 0;">
+                    <div class="card-head">
+                      <div>
+                        <div class="card-title">Checkpoint 2 (Tuần 11) · Thẩm tra Dự thảo Luận văn & Demo</div>
+                        <div class="card-subtitle">Yêu cầu hoàn thành tối thiểu 85% khối lượng đề tài</div>
+                      </div>
+                      <span class="tag green">✓ ĐẠT (Cho phép hoàn thiện BV)</span>
+                    </div>
+                    <div style="padding: 16px 20px; font-size: 13px;">
+                      <p><strong>Ngày đánh giá:</strong> 12/10/2026 · <strong>Khối lượng xác nhận:</strong> 90%</p>
+                      <p style="margin-top: 6px;"><strong>Nhận xét của GVHD:</strong> Đã có sản phẩm demo web hoàn chỉnh, kết quả kiểm thử đạt yêu cầu. Bản dự thảo luận văn rõ ràng, logic.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- TAB 4: BM04 & ARCHIVE -->
+              <div id="tab-archive" class="tab-pane-content" style="display: none;">
+                <div style="display: flex; flex-direction: column; gap: 20px;">
+                  <!-- BM04 Status Card -->
+                  <div class="card" style="margin-bottom: 0; border-left: 4px solid var(--success);">
+                    <div class="card-head">
+                      <div>
+                        <div class="card-title">Phiếu Nhận Xét Của Giảng Viên Hướng Dẫn (BM04)</div>
+                        <div class="card-subtitle">Văn bản pháp lý quyết định sinh viên có được phép ra bảo vệ trước Hội đồng</div>
+                      </div>
+                      <button class="btn btn-primary btn-sm" onclick="openDrawer('drawer-bm04')">Xem / Sửa BM04</button>
+                    </div>
+                    <div style="padding: 16px 20px; font-size: 13px;">
+                      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 12px;">
+                        <div>
+                          <span style="color: var(--muted); font-size: 12px;">Tổng số buổi gặp:</span>
+                          <div style="font-weight: 700; font-size: 15px; color: var(--primary);">8 buổi làm việc</div>
+                        </div>
+                        <div>
+                          <span style="color: var(--muted); font-size: 12px;">Điểm đánh giá quá trình:</span>
+                          <div style="font-weight: 700; font-size: 15px; color: var(--success);">9.2 / 10</div>
+                        </div>
+                        <div>
+                          <span style="color: var(--muted); font-size: 12px;">Kết luận pháp lý:</span>
+                          <div style="font-weight: 700; font-size: 15px; color: var(--success);">ĐỒNG Ý CHO BẢO VỆ</div>
+                        </div>
+                      </div>
+                      <div style="background: #F8FAFC; padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border);">
+                        <strong>Ý kiến nhận xét:</strong> Sinh viên có tinh thần tự giác cao, nắm vững kiến thức công nghệ hiện đại. Đề tài có tính ứng dụng thực tiễn tốt, đủ điều kiện bảo vệ trước Hội đồng chấm khóa luận tốt nghiệp.
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Archive Verification Card -->
+                  <div class="card" style="margin-bottom: 0;">
+                    <div class="card-head">
+                      <div>
+                        <div class="card-title">Nghiệm Thu Hồ Sơ Lưu Chiểu Sau Bảo Vệ</div>
+                        <div class="card-subtitle">Kiểm tra đủ 4 thành phần bắt buộc để cấp Giấy xác nhận hoàn thành khóa luận</div>
+                      </div>
+                      <button class="btn btn-secondary btn-sm" onclick="openModal('modal-certificate')">Xem Giấy Xác Nhận (A4)</button>
+                    </div>
+                    <div class="table-wrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Thành phần hồ sơ</th>
+                            <th>Định dạng & Dung lượng</th>
+                            <th>Thời điểm nộp</th>
+                            <th style="text-align: right;">Thao tác</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr>
+                            <td><strong>1. Luận văn toàn văn</strong></td>
+                            <td>PDF · 4.2 MB</td>
+                            <td class="mono">17/10/2026</td>
+                            <td style="text-align: right;"><button class="btn btn-secondary btn-sm" onclick="showToast('Mở xem file PDF luận văn')">Xem</button></td>
+                          </tr>
+                          <tr>
+                            <td><strong>2. Slide thuyết trình</strong></td>
+                            <td>PPTX · 18.5 MB</td>
+                            <td class="mono">17/10/2026</td>
+                            <td style="text-align: right;"><button class="btn btn-secondary btn-sm" onclick="showToast('Tải slide thuyết trình')">Tải</button></td>
+                          </tr>
+                          <tr>
+                            <td><strong>3. Video Demo hệ thống</strong></td>
+                            <td>YouTube Link (3 phút)</td>
+                            <td class="mono">17/10/2026</td>
+                            <td style="text-align: right;"><button class="btn btn-secondary btn-sm" onclick="showToast('Mở liên kết Video Demo')">Xem video</button></td>
+                          </tr>
+                          <tr>
+                            <td><strong>4. Mã nguồn Codebase</strong></td>
+                            <td>GitHub Repo (Public)</td>
+                            <td class="mono">17/10/2026</td>
+                            <td style="text-align: right;"><button class="btn btn-secondary btn-sm" onclick="showToast('Mở GitHub Repository')">Mở Repo</button></td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================================= -->
+      <!-- VIEW 5: HỘI ĐỒNG CHẤM ĐIỂM (COUNCIL DEFENSE) -->
+      <!-- ========================================================================= -->
+      <section id="view-grading" class="view-pane">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+          <div>
+            <h1 style="font-size: 22px;">Hội Đồng Chấm Bảo Vệ Khóa Luận</h1>
+            <p style="color: var(--muted); font-size: 13px; margin-top: 2px;">Danh sách các hội đồng bạn được phân công tham gia đánh giá học thuật.</p>
+          </div>
+          <div class="segmented-tabs">
+            <div class="seg-tab active" id="tab-btn-defense" onclick="switchCouncilStage('defense', this)">Hội đồng Khóa luận (Pha 5 · 2 HĐ)</div>
+            <div class="seg-tab" id="tab-btn-outline" onclick="switchCouncilStage('outline', this)">Hội đồng Thẩm định Đề cương (Pha 2 · 1 HĐ)</div>
+          </div>
+        </div>
+
+        <!-- STAGE 1: HỘI ĐỒNG CHẤM BẢO VỆ KHÓA LUẬN (PHA 5) -->
+        <div id="council-stage-defense" style="display: flex; flex-direction: column; gap: 20px;">
+          <!-- Council 1 -->
+          <div class="card" style="margin-bottom: 0;">
+            <div class="card-head" style="background: #F0FDFA;">
+              <div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <span class="card-title" style="color: #0F766E;">Hội Đồng 05: Công Nghệ Phần Mềm & Trí Tuệ Nhân Tạo</span>
+                  <span class="tag teal">Vai trò: Chủ Tịch Hội Đồng</span>
+                </div>
+                <div class="card-subtitle" style="color: #115E59;">
+                  Ngày thi: <strong>Thứ Sáu, 24/10/2026</strong> · Ca Sáng (08:00 - 11:30) · Địa điểm: <strong>Phòng 402, Tòa H1</strong>
+                </div>
+              </div>
+              <div style="text-align: right;">
+                <span class="tag green">Tiến độ: 3 / 4 SV đã có điểm</span>
+              </div>
+            </div>
+
+            <div style="padding: 14px 20px; background: #F8FAFC; border-bottom: 1px solid var(--border); font-size: 12.5px;">
+              <strong>Cơ cấu Hội đồng 3 thành viên:</strong> 
+              Chủ tịch: <strong>PGS.TS Lê Quang Dũng</strong> · Thư ký: <strong>TS. Hoàng Văn Tuấn</strong> · UV Phản biện: <strong>TS. Trần Minh Khoa</strong>
+            </div>
+
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Ca thi</th>
+                    <th>Sinh viên bảo vệ</th>
+                    <th>Tên Đề tài Khóa luận</th>
+                    <th>Giảng viên HD</th>
+                    <th>Điểm TB Khóa luận</th>
+                    <th>Trạng thái Điểm</th>
+                    <th style="text-align: right;">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="mono">08:00 - 08:45</td>
+                    <td>
+                      <strong>Đặng Quốc Cường</strong>
+                      <div class="mono" style="font-size: 11px; color: var(--muted);">21110052</div>
+                    </td>
+                    <td>Xây dựng Hệ thống Phát hiện Deepfake Âm thanh Thời gian thực</td>
+                    <td>TS. Nguyễn Thị Mai</td>
+                    <td><strong class="mono" style="color: var(--primary); font-size: 14px;">8.85 / 10</strong></td>
+                    <td><span class="tag green">Đã chốt sổ điểm</span></td>
+                    <td style="text-align: right;">
+                      <button class="btn btn-secondary btn-sm" onclick="openGradingSheetForStudent('Đặng Quốc Cường', '21110052', 'Xây dựng Hệ thống Phát hiện Deepfake Âm thanh Thời gian thực', 8.85)">Xem phiếu chấm</button>
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td class="mono">08:45 - 09:30</td>
+                    <td>
+                      <strong>Hoàng Thu Thảo</strong>
+                      <div class="mono" style="font-size: 11px; color: var(--muted);">21110166</div>
+                    </td>
+                    <td>Mô hình Ngôn ngữ Lớn Hỗ trợ Chẩn đoán Hình ảnh Y tế</td>
+                    <td>PGS.TS Vũ Đình Hải</td>
+                    <td><strong class="mono" style="color: var(--warning); font-size: 14px;">Đang chấm</strong></td>
+                    <td><span class="tag yellow">Chờ bạn nhập điểm</span></td>
+                    <td style="text-align: right;">
+                      <button class="btn btn-primary btn-sm" onclick="openGradingSheetForStudent('Hoàng Thu Thảo', '21110166', 'Mô hình Ngôn ngữ Lớn Hỗ trợ Chẩn đoán Hình ảnh Y tế', 8.50)">Vào chấm điểm →</button>
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td class="mono">09:30 - 10:15</td>
+                    <td>
+                      <strong>Ngô Bảo Long</strong>
+                      <div class="mono" style="font-size: 11px; color: var(--muted);">21110099</div>
+                    </td>
+                    <td>Hệ thống Phân tích Hành vi Người dùng Bằng Edge AI</td>
+                    <td>TS. Trần Minh Khoa</td>
+                    <td><strong class="mono" style="color: var(--primary); font-size: 14px;">8.20 / 10</strong></td>
+                    <td><span class="tag green">Đã chốt sổ điểm</span></td>
+                    <td style="text-align: right;">
+                      <button class="btn btn-secondary btn-sm" onclick="openGradingSheetForStudent('Ngô Bảo Long', '21110099', 'Hệ thống Phân tích Hành vi Người dùng Bằng Edge AI', 8.20)">Xem phiếu chấm</button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Council 2 (Reviewer Role) -->
+          <div class="card" style="margin-bottom: 0;">
+            <div class="card-head" style="background: #EFF6FF;">
+              <div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <span class="card-title" style="color: #1E40AF;">Hội Đồng 01: Hệ Thống Thông Tin & Cơ Sở Dữ Liệu</span>
+                  <span class="tag blue">Vai trò: Ủy Viên Phản Biện</span>
+                </div>
+                <div class="card-subtitle" style="color: #1D4ED8;">
+                  Ngày thi: <strong>Thứ Bảy, 25/10/2026</strong> · Ca Chiều (13:30 - 17:00) · Địa điểm: <strong>Lab 502, Tòa H2</strong>
+                </div>
+              </div>
+              <div style="text-align: right;">
+                <span class="tag blue">Tiến độ: 0 / 4 SV (Chưa thi)</span>
+              </div>
+            </div>
+
+            <div style="padding: 14px 20px; background: #F8FAFC; border-bottom: 1px solid var(--border); font-size: 12.5px;">
+              <strong>Cơ cấu Hội đồng:</strong> 
+              Chủ tịch: <strong>GS.TS Nguyễn Thanh Bình</strong> · Thư ký: <strong>ThS. Vũ Thị Ngọc</strong> · UV Phản biện: <strong>PGS.TS Lê Quang Dũng (Bạn)</strong>
+            </div>
+
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Ca thi</th>
+                    <th>Sinh viên bảo vệ</th>
+                    <th>Tên Đề tài Khóa luận</th>
+                    <th>Giảng viên HD</th>
+                    <th>Trạng thái Bản thảo</th>
+                    <th style="text-align: right;">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="mono">13:30 - 14:15</td>
+                    <td>
+                      <strong>Phan Đình Khải</strong>
+                      <div class="mono" style="font-size: 11px; color: var(--muted);">21110201</div>
+                    </td>
+                    <td>Kiến trúc Data Lakehouse trên Nền tảng Apache Iceberg</td>
+                    <td>TS. Lê Văn Thắng</td>
+                    <td><span class="tag green">✓ Đã nộp bản thảo</span></td>
+                    <td style="text-align: right;">
+                      <div style="display: inline-flex; gap: 6px;">
+                        <button class="btn btn-secondary btn-sm" onclick="openReviewerFormModal('Phan Đình Khải', '21110201', 'Kiến trúc Data Lakehouse trên Nền tảng Apache Iceberg', 'TS. Lê Văn Thắng')">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -2px; margin-right: 3px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                          Phiếu nhận xét phản biện (A4)
+                        </button>
+                        <button class="btn btn-primary btn-sm" onclick="openGradingSheetForStudent('Phan Đình Khải', '21110201', 'Kiến trúc Data Lakehouse trên Nền tảng Apache Iceberg', 8.00)">Chấm Rubric</button>
+                      </div>
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td class="mono">14:15 - 15:00</td>
+                    <td>
+                      <strong>Trần Thị Mai Anh</strong>
+                      <div class="mono" style="font-size: 11px; color: var(--muted);">21110188</div>
+                    </td>
+                    <td>Tối ưu Hóa Lập Lịch Tác Vụ trên Hạ Tầng Điện Toán Đám Mây</td>
+                    <td>PGS.TS Nguyễn Thanh Bình</td>
+                    <td><span class="tag green">✓ Đã nộp bản thảo</span></td>
+                    <td style="text-align: right;">
+                      <div style="display: inline-flex; gap: 6px;">
+                        <button class="btn btn-secondary btn-sm" onclick="openReviewerFormModal('Trần Thị Mai Anh', '21110188', 'Tối ưu Hóa Lập Lịch Tác Vụ trên Hạ Tầng Điện Toán Đám Mây', 'PGS.TS Nguyễn Thanh Bình')">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -2px; margin-right: 3px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                          Phiếu nhận xét phản biện (A4)
+                        </button>
+                        <button class="btn btn-primary btn-sm" onclick="openGradingSheetForStudent('Trần Thị Mai Anh', '21110188', 'Tối ưu Hóa Lập Lịch Tác Vụ trên Hạ Tầng Điện Toán Đám Mây', 8.50)">Chấm Rubric</button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- STAGE 2: HỘI ĐỒNG THẨM ĐỊNH ĐỀ CƯƠNG (PHA 2 · OUTLINE REVIEW) -->
+        <div id="council-stage-outline" style="display: none; flex-direction: column; gap: 20px;">
+          <div class="card" style="margin-bottom: 0;">
+            <div class="card-head" style="background: #FFFBEB;">
+              <div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <span class="card-title" style="color: #92400E;">Hội Đồng 02: Thẩm Định Đề Cương BM01 · Bộ Môn Kỹ Thuật Phần Mềm</span>
+                  <span class="tag yellow">Vai trò: Cán Bộ Thẩm Định 1 (Phản biện Đề cương)</span>
+                </div>
+                <div class="card-subtitle" style="color: #B45309;">
+                  Đợt xét duyệt đầu kỳ Học kỳ 1 (2026 - 2027) · Thời hạn hoàn thành thẩm định: <strong>25/10/2026</strong>
+                </div>
+              </div>
+              <div style="text-align: right;">
+                <span class="tag yellow">Tiến độ: 3 / 5 Đề tài đã thẩm định</span>
+              </div>
+            </div>
+
+            <div style="padding: 14px 20px; background: #F8FAFC; border-bottom: 1px solid var(--border); font-size: 12.5px;">
+              <strong>Cơ cấu Hội đồng Thẩm định Đề cương:</strong> 
+              Cán bộ Thẩm định 1: <strong>PGS.TS Lê Quang Dũng (Bạn)</strong> · Cán bộ Thẩm định 2: <strong>TS. Nguyễn Thị Mai</strong> · Thư ký tổng hợp: <strong>ThS. Vũ Thị Ngọc</strong>
+            </div>
+
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Mã ĐT</th>
+                    <th>Tên Đề tài Đăng ký</th>
+                    <th>Sinh viên thực hiện</th>
+                    <th>GV Hướng dẫn</th>
+                    <th>Bản thuyết minh BM01</th>
+                    <th>Kết quả Thẩm định</th>
+                    <th style="text-align: right;">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="mono" style="font-weight: 600; color: var(--accent);">DT-2026-077</td>
+                    <td>
+                      <strong>Hệ thống Tự động Phát hiện Lỗ hổng Hợp đồng Thông minh (Smart Contract)</strong>
+                      <div style="font-size: 11px; color: var(--muted);">Công nghệ: Solidity · Slither · Mythril</div>
+                    </td>
+                    <td>
+                      <div>Võ Minh Khôi</div>
+                      <span class="mono" style="font-size: 11px; color: var(--muted);">21110145</span>
+                    </td>
+                    <td>TS. Hoàng Văn Tuấn</td>
+                    <td>
+                      <a href="javascript:void(0)" onclick="showToast('Đang tải file de_cuong_BM01_21110145.pdf')" style="color: var(--accent); font-weight: 500;">
+                        de_cuong_BM01_21110145.pdf
+                      </a>
+                    </td>
+                    <td><span class="tag green">✓ Đạt yêu cầu (Cho nộp BM02)</span></td>
+                    <td style="text-align: right;">
+                      <button class="btn btn-secondary btn-sm" onclick="openOutlineEvaluationModal('Võ Minh Khôi', '21110145', 'DT-2026-077', 'Hệ thống Tự động Phát hiện Lỗ hổng Hợp đồng Thông minh', 'TS. Hoàng Văn Tuấn', 'pass')">Xem đánh giá</button>
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td class="mono" style="font-weight: 600; color: var(--accent);">DT-2026-081</td>
+                    <td>
+                      <strong>Ứng dụng Thị giác Máy tính Giám sát Hành vi Tài xế Giao thông</strong>
+                      <div style="font-size: 11px; color: var(--muted);">Công nghệ: YOLOv10 · PyTorch · Jetson Nano</div>
+                    </td>
+                    <td>
+                      <div>Dương Quốc Huy</div>
+                      <span class="mono" style="font-size: 11px; color: var(--muted);">21110093</span>
+                    </td>
+                    <td>TS. Trần Minh Khoa</td>
+                    <td>
+                      <a href="javascript:void(0)" onclick="showToast('Đang tải file de_cuong_BM01_21110093.pdf')" style="color: var(--accent); font-weight: 500;">
+                        de_cuong_BM01_21110093.pdf
+                      </a>
+                    </td>
+                    <td><span class="tag yellow">⚠ Yêu cầu sửa đổi bổ sung</span></td>
+                    <td style="text-align: right;">
+                      <button class="btn btn-secondary btn-sm" onclick="openOutlineEvaluationModal('Dương Quốc Huy', '21110093', 'DT-2026-081', 'Ứng dụng Thị giác Máy tính Giám sát Hành vi Tài xế Giao thông', 'TS. Trần Minh Khoa', 'revision')">Xem đánh giá</button>
+                    </td>
+                  </tr>
+
+                  <tr style="background: #FFFBEB;">
+                    <td class="mono" style="font-weight: 600; color: var(--accent);">DT-2026-084</td>
+                    <td>
+                      <strong>Nền tảng Tích hợp Dữ liệu Chuỗi Cung ứng Bằng Blockchain Hyperledger</strong>
+                      <div style="font-size: 11px; color: var(--muted);">Công nghệ: Hyperledger Fabric · Go · Node.js</div>
+                    </td>
+                    <td>
+                      <div><strong>Lâm Thảo Nhi</strong></div>
+                      <span class="mono" style="font-size: 11px; color: var(--muted);">21110177</span>
+                    </td>
+                    <td>TS. Lê Văn Thắng</td>
+                    <td>
+                      <a href="javascript:void(0)" onclick="showToast('Đang mở bản xem trước de_cuong_BM01_21110177.pdf')" style="color: var(--accent); font-weight: 600;">
+                        de_cuong_BM01_21110177.pdf
+                      </a>
+                    </td>
+                    <td><span class="tag yellow">Chờ bạn thẩm định</span></td>
+                    <td style="text-align: right;">
+                      <button class="btn btn-primary btn-sm" onclick="openOutlineEvaluationModal('Lâm Thảo Nhi', '21110177', 'DT-2026-084', 'Nền tảng Tích hợp Dữ liệu Chuỗi Cung ứng Bằng Blockchain Hyperledger', 'TS. Lê Văn Thắng', 'pending')">
+                        Thẩm định đề cương →
+                      </button>
+                    </td>
+                  </tr>
+
+                  <tr>
+                    <td class="mono" style="font-weight: 600; color: var(--accent);">DT-2026-088</td>
+                    <td>
+                      <strong>Phân tích Cảm xúc Đa phương thức trên Mạng Xã hội Bằng Multimodal LLM</strong>
+                      <div style="font-size: 11px; color: var(--muted);">Công nghệ: LLaVA · CLIP · Python · FastAPI</div>
+                    </td>
+                    <td>
+                      <div>Bùi Anh Tuấn</div>
+                      <span class="mono" style="font-size: 11px; color: var(--muted);">21110220</span>
+                    </td>
+                    <td>PGS.TS Vũ Đình Hải</td>
+                    <td>
+                      <a href="javascript:void(0)" onclick="showToast('Đang tải file de_cuong_BM01_21110220.pdf')" style="color: var(--accent); font-weight: 500;">
+                        de_cuong_BM01_21110220.pdf
+                      </a>
+                    </td>
+                    <td><span class="tag green">✓ Đạt yêu cầu (Cho nộp BM02)</span></td>
+                    <td style="text-align: right;">
+                      <button class="btn btn-secondary btn-sm" onclick="openOutlineEvaluationModal('Bùi Anh Tuấn', '21110220', 'DT-2026-088', 'Phân tích Cảm xúc Đa phương thức trên Mạng Xã hội Bằng Multimodal LLM', 'PGS.TS Vũ Đình Hải', 'pass')">Xem đánh giá</button>
+                    </td>
+                  </tr>
+
+                  <tr style="background: #FFFBEB;">
+                    <td class="mono" style="font-weight: 600; color: var(--accent);">DT-2026-092</td>
+                    <td>
+                      <strong>Hệ thống Khuyến nghị Học tập Cá nhân hóa Dựa trên Đồ thị Tri thức</strong>
+                      <div style="font-size: 11px; color: var(--muted);">Công nghệ: Neo4j · GNN · PyTorch Geometric</div>
+                    </td>
+                    <td>
+                      <div><strong>Ngô Thành Đạt</strong></div>
+                      <span class="mono" style="font-size: 11px; color: var(--muted);">21110156</span>
+                    </td>
+                    <td>TS. Nguyễn Thị Mai</td>
+                    <td>
+                      <a href="javascript:void(0)" onclick="showToast('Đang mở bản xem trước de_cuong_BM01_21110156.pdf')" style="color: var(--accent); font-weight: 600;">
+                        de_cuong_BM01_21110156.pdf
+                      </a>
+                    </td>
+                    <td><span class="tag yellow">Chờ bạn thẩm định</span></td>
+                    <td style="text-align: right;">
+                      <button class="btn btn-primary btn-sm" onclick="openOutlineEvaluationModal('Ngô Thành Đạt', '21110156', 'DT-2026-092', 'Hệ thống Khuyến nghị Học tập Cá nhân hóa Dựa trên Đồ thị Tri thức', 'TS. Nguyễn Thị Mai', 'pending')">
+                        Thẩm định đề cương →
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================================= -->
+      <!-- VIEW 6: PHIẾU CHẤM ĐIỂM RUBRIC V1 CHI TIẾT -->
+      <!-- ========================================================================= -->
+      <section id="view-grading-sheet" class="view-pane">
+        <!-- Top Back Bar -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
+          <button class="btn btn-secondary btn-sm" onclick="switchView('view-grading')">
+            ← Quay lại danh sách Hội đồng
+          </button>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-secondary btn-sm" onclick="openPrintScoreSheetModal()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+              In Phiếu Chấm Cá Nhân (A4)
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="saveRubricScore()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              Lưu Điểm & Ký Số Điện Tử
+            </button>
+          </div>
+        </div>
+
+        <!-- Student & Topic Banner -->
+        <div class="card" style="background: white; border-left: 4px solid var(--primary); margin-bottom: 20px;">
+          <div style="padding: 18px 22px; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <h2 style="font-size: 18px;" id="sheet-student-name">Hoàng Thu Thảo</h2>
+                <span class="mono" style="font-size: 13px; color: var(--muted);" id="sheet-student-mssv">MSSV: 21110166</span>
+                <span class="tag blue">Hội Đồng 05 · Phòng 402</span>
+              </div>
+              <div style="font-size: 13.5px; font-weight: 600; color: var(--fg); margin-top: 4px;" id="sheet-topic-title">
+                Mô hình Ngôn ngữ Lớn Hỗ trợ Chẩn đoán Hình ảnh Y tế
+              </div>
+              <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">
+                Vai trò của bạn: <strong style="color: var(--primary);">Chủ tịch Hội đồng</strong> · Giảng viên hướng dẫn: <strong>PGS.TS Vũ Đình Hải</strong>
+              </div>
+            </div>
+
+            <div style="text-align: right; background: #F0FDFA; padding: 10px 18px; border-radius: var(--radius); border: 1px solid #CCFBF1;">
+              <div style="font-size: 11px; font-weight: 700; color: #0F766E; text-transform: uppercase;">Tổng Điểm Đánh Giá</div>
+              <div class="mono" style="font-size: 28px; font-weight: 900; color: #0F766E;" id="sheet-total-score">8.55</div>
+              <div style="font-size: 11.5px; font-weight: 700; color: var(--success);" id="sheet-grade-text">XẾP LOẠI: GIỎI (A)</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tiêu Chí Rubric Đánh Giá Khóa Luận -->
+        <div class="card" style="margin-bottom: 20px;">
+          <div class="card-head" style="flex-wrap: wrap; gap: 10px;">
+            <div>
+              <div class="card-title">Bảng Tiêu Chí Đánh Giá Khóa Luận (Rubric)</div>
+              <div class="card-subtitle">Kéo thanh trượt hoặc nhập điểm trực tiếp cho từng tiêu chí thành phần</div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <span class="tag teal" id="rubric-total-scale-tag">Thang điểm chuẩn Viện: 10.00đ</span>
+              <span class="tag" style="background: #F8FAFC; color: var(--muted); border: 1px solid var(--border); font-size: 11.5px; display: inline-flex; align-items: center; gap: 4px;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                Tiêu chí chuẩn do Quản trị viên ban hành
+              </span>
+            </div>
+          </div>
+
+          <div style="padding: 20px;">
+            <!-- Rubric Groups Container (Rendered dynamically via JS) -->
+            <div id="rubric-groups-container">
+              <!-- Rendered via renderRubricTable() -->
+            </div>
+              <!-- Rendered via renderRubricTable() -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- ========================================================================= -->
+  <!-- MODALS & DRAWERS -->
+  <!-- ========================================================================= -->
+
+  <!-- Modal 1: Đề Xuất Đề Tài Mới -->
+  <div class="modal-overlay" id="modal-new-topic">
+    <div class="modal-box">
+      <div class="modal-head">
+        <div class="modal-title">+ Đề Xuất Đề Tài Khóa Luận Mới</div>
+        <button class="modal-close" onclick="closeModal('modal-new-topic')">×</button>
+      </div>
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px;">
+        <div>
+          <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 4px;">Tên đề tài tiếng Việt (*):</label>
+          <input type="text" class="input-field" id="topic-title-vi" placeholder="Ví dụ: Xây dựng Nền tảng Microservices..." style="width: 100%;">
+        </div>
+        <div>
+          <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 4px;">Tên đề tài tiếng Anh:</label>
+          <input type="text" class="input-field" id="topic-title-en" placeholder="Ví dụ: Building a Distributed Microservices Platform..." style="width: 100%;">
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div>
+            <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 4px;">Bộ môn chuyên môn:</label>
+            <select class="input-field" style="width: 100%;">
+              <option>Kỹ thuật Phần mềm</option>
+              <option>Khoa học Dữ liệu & AI</option>
+              <option>Mạng & An ninh mạng</option>
+              <option>Hệ thống Thông tin</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 4px;">Số lượng sinh viên:</label>
+            <input type="text" class="input-field" value="01 Sinh viên (Cố định theo quy chế)" style="width: 100%; background: #F1F5F9;" readonly>
+          </div>
+        </div>
+        <div>
+          <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 4px;">Mục tiêu và Yêu cầu công nghệ:</label>
+          <textarea class="input-field" id="topic-desc" rows="3" placeholder="Mô tả công nghệ yêu cầu (Golang, Docker, K8s...), mục tiêu sản phẩm..." style="width: 100%;"></textarea>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-secondary" onclick="closeModal('modal-new-topic')">Hủy</button>
+        <button class="btn btn-primary" onclick="submitNewTopic()">Gửi Duyệt Ban Chủ Nhiệm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 2: Ghi Nhận Buổi Gặp Lab (BM03) -->
+  <div class="modal-overlay" id="modal-meeting-log">
+    <div class="modal-box">
+      <div class="modal-head">
+        <div class="modal-title">+ Ghi Nhận Buổi Gặp Lab Mới (BM03)</div>
+        <button class="modal-close" onclick="closeModal('modal-meeting-log')">×</button>
+      </div>
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px;">
+        <div style="padding: 10px 12px; background: #F0FDFA; border-radius: var(--radius-sm); border: 1px solid #CCFBF1; font-size: 13px;">
+          Sinh viên trao đổi: <strong id="log-target-student">Trần Văn Hùng</strong>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div>
+            <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 4px;">Ngày gặp mặt:</label>
+            <input type="date" class="input-field" id="log-date" value="2026-10-19" style="width: 100%;">
+          </div>
+          <div>
+            <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 4px;">Hình thức làm việc:</label>
+            <select class="input-field" id="log-location" style="width: 100%;">
+              <option>Tại Lab H2-502</option>
+              <option>Online Google Meet</option>
+              <option>Văn phòng Bộ môn</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 4px;">Tóm tắt nội dung sinh viên đã báo cáo:</label>
+          <textarea class="input-field" id="log-content" rows="3" placeholder="Ví dụ: Sinh viên báo cáo kết quả tối ưu hóa truy vấn cơ sở dữ liệu..." style="width: 100%;"></textarea>
+        </div>
+        <div>
+          <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 4px;">Nhiệm vụ giao cho tuần tiếp theo:</label>
+          <input type="text" class="input-field" id="log-next-task" placeholder="Ví dụ: Hoàn thiện slide thuyết trình và chạy thử demo..." style="width: 100%;">
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-secondary" onclick="closeModal('modal-meeting-log')">Hủy</button>
+        <button class="btn btn-primary" onclick="submitMeetingLog()">Lưu Nhật Ký Buổi Gặp</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 3: Giao Việc Mới (New Task) -->
+  <div class="modal-overlay" id="modal-new-task">
+    <div class="modal-box">
+      <div class="modal-head">
+        <div class="modal-title">+ Giao Nhiệm Vụ Tuần Cho Sinh Viên</div>
+        <button class="modal-close" onclick="closeModal('modal-new-task')">×</button>
+      </div>
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div>
+            <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 4px;">Tuần học vụ:</label>
+            <select class="input-field" id="task-week" style="width: 100%;">
+              <option>Tuần 11</option>
+              <option>Tuần 12</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 4px;">Hạn nộp báo cáo:</label>
+            <input type="date" class="input-field" id="task-due" value="2026-10-25" style="width: 100%;">
+          </div>
+        </div>
+        <div>
+          <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 4px;">Tiêu đề nhiệm vụ (*):</label>
+          <input type="text" class="input-field" id="task-title" placeholder="Ví dụ: Hoàn thiện dự thảo slide bảo vệ..." style="width: 100%;">
+        </div>
+        <div>
+          <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 4px;">Yêu cầu chi tiết và tiêu chí nghiệm thu:</label>
+          <textarea class="input-field" id="task-desc" rows="3" placeholder="Chi tiết yêu cầu nộp file, định dạng PPTX..." style="width: 100%;"></textarea>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-secondary" onclick="closeModal('modal-new-task')">Hủy</button>
+        <button class="btn btn-primary" onclick="submitNewTask()">Giao Nhiệm Vụ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 4: Đánh Giá Bài Nộp Của Task -->
+  <div class="modal-overlay" id="modal-review-task">
+    <div class="modal-box">
+      <div class="modal-head">
+        <div class="modal-title">Đánh Giá Bài Nộp Nhiệm Vụ Tuần</div>
+        <button class="modal-close" onclick="closeModal('modal-review-task')">×</button>
+      </div>
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px;">
+        <div style="background: #F8FAFC; padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border); font-size: 13px;">
+          <div style="font-weight: 700;" id="review-task-title">Tuần 10: Vector Search</div>
+          <div style="color: var(--muted); margin-top: 4px;">Tệp đính kèm nộp: <strong id="review-task-file">report_week10.pdf</strong></div>
+        </div>
+        <div>
+          <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 4px;">Nhận xét phản hồi của Giảng viên:</label>
+          <textarea class="input-field" id="review-task-comment" rows="3" style="width: 100%;">Kết quả đo lường độ trễ đạt chuẩn. Bổ sung thêm biểu đồ so sánh với Elasticsearch.</textarea>
+        </div>
+        <div>
+          <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 4px;">Kết luận:</label>
+          <div style="display: flex; gap: 14px;">
+            <label style="display: flex; align-items: center; gap: 6px; font-weight: 600; color: var(--success); cursor: pointer;">
+              <input type="radio" name="task_result" value="pass" checked> ✓ Đạt yêu cầu
+            </label>
+            <label style="display: flex; align-items: center; gap: 6px; font-weight: 600; color: var(--warning); cursor: pointer;">
+              <input type="radio" name="task_result" value="revision"> ⚠ Yêu cầu sửa đổi
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-secondary" onclick="closeModal('modal-review-task')">Đóng</button>
+        <button class="btn btn-primary" onclick="saveTaskReview()">Lưu Kết Quả Đánh Giá</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 5: Xem CV & Bảng Điểm Sinh Viên -->
+  <div class="modal-overlay" id="modal-view-cv">
+    <div class="modal-box">
+      <div class="modal-head">
+        <div class="modal-title">Hồ Sơ Năng Lực & Học Bạ Sinh Viên</div>
+        <button class="modal-close" onclick="closeModal('modal-view-cv')">×</button>
+      </div>
+      <div class="modal-body" style="font-size: 13px; display: flex; flex-direction: column; gap: 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; background: #F8FAFC; padding: 14px; border-radius: var(--radius-sm); border: 1px solid var(--border);">
+          <div>
+            <div style="font-size: 16px; font-weight: 700;" id="cv-student-name">Nguyễn Văn Hưng</div>
+            <div style="color: var(--muted); margin-top: 2px;">Chuyên ngành: Kỹ thuật Phần mềm · Khóa K2021</div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 11px; color: var(--muted);">Điểm GPA tích lũy:</div>
+            <div style="font-size: 20px; font-weight: 900; color: var(--accent);" id="cv-student-gpa">3.52 / 4.0</div>
+          </div>
+        </div>
+
+        <div>
+          <div style="font-weight: 700; margin-bottom: 6px;">Các môn chuyên ngành liên quan:</div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <div style="padding: 8px 10px; background: white; border: 1px solid var(--border); border-radius: 4px;">
+              Đồ án chuyên ngành: <strong style="color: var(--success);">9.0</strong>
+            </div>
+            <div style="padding: 8px 10px; background: white; border: 1px solid var(--border); border-radius: 4px;">
+              Kiến trúc phần mềm: <strong style="color: var(--success);">8.5</strong>
+            </div>
+            <div style="padding: 8px 10px; background: white; border: 1px solid var(--border); border-radius: 4px;">
+              Điện toán đám mây: <strong style="color: var(--success);">9.0</strong>
+            </div>
+            <div style="padding: 8px 10px; background: white; border: 1px solid var(--border); border-radius: 4px;">
+              Hệ điều hành mạng: <strong style="color: var(--success);">8.5</strong>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div style="font-weight: 700; margin-bottom: 4px;">Kỹ năng công nghệ:</div>
+          <p id="cv-student-skills" style="color: #475569;">Golang, Kubernetes, Docker, Prometheus, Linux Administration, Python</p>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-secondary" onclick="closeModal('modal-view-cv')">Đóng</button>
+        <button class="btn btn-primary" onclick="showToast('Đang tải bản scan PDF có dấu đỏ của Phòng Đào tạo...')">Tải Bảng Điểm Đầy Đủ (PDF)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 6: Từ Chối Đơn Đăng Ký -->
+  <div class="modal-overlay" id="modal-reject-reg">
+    <div class="modal-box" style="max-width: 500px;">
+      <div class="modal-head">
+        <div class="modal-title" style="color: var(--danger);">Từ Chối Nguyện Vọng Đăng Ký</div>
+        <button class="modal-close" onclick="closeModal('modal-reject-reg')">×</button>
+      </div>
+      <div class="modal-body" style="font-size: 13px;">
+        <p>Vui lòng nhập lý do từ chối sinh viên <strong id="reject-student-name">Nguyễn Văn Hưng</strong> để hệ thống tự động gửi email hướng dẫn sinh viên tìm đề tài khác:</p>
+        <textarea class="input-field" id="reject-reason" rows="3" style="width: 100%; margin-top: 10px;">Đề tài yêu cầu kỹ năng Golang và Kubernetes nâng cao, sinh viên chưa tích lũy đủ các môn tiên quyết.</textarea>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-secondary" onclick="closeModal('modal-reject-reg')">Hủy</button>
+        <button class="btn btn-danger" onclick="confirmRejectRegistration()">Xác Nhận Từ Chối</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 7: Giấy Xác Nhận Hoàn Thành Khóa Luận (A4) -->
+  <div class="modal-overlay" id="modal-certificate">
+    <div class="modal-box" style="max-width: 680px;">
+      <div class="modal-head">
+        <div class="modal-title">Giấy Xác Nhận Hoàn Thành Khóa Luận Tốt Nghiệp</div>
+        <button class="modal-close" onclick="closeModal('modal-certificate')">×</button>
+      </div>
+      <div class="modal-body" style="background: #FAFAFA; padding: 24px;">
+        <div style="background: white; border: 2px solid #0F766E; border-radius: 8px; padding: 28px; position: relative; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
+          <!-- Heading -->
+          <div style="text-align: center; border-bottom: 2px solid #CCFBF1; padding-bottom: 14px; margin-bottom: 18px;">
+            <div style="font-size: 12px; font-weight: 700; text-transform: uppercase;">ĐẠI HỌC QUỐC GIA · VIỆN CÔNG NGHỆ SỐ</div>
+            <div style="font-size: 16px; font-weight: 900; color: #0F766E; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.04em;">
+              GIẤY XÁC NHẬN HOÀN THÀNH KHÓA LUẬN TỐT NGHIỆP
+            </div>
+            <div class="mono" style="font-size: 11px; color: var(--muted); margin-top: 2px;">Số xác nhận: VCS-2026-CERT-089</div>
+          </div>
+
+          <!-- Body -->
+          <div style="font-size: 13px; line-height: 1.6; color: #1E293B;">
+            <p>Viện Công nghệ Số chứng nhận sinh viên:</p>
+            <div style="padding: 10px 14px; background: #F8FAFC; border-radius: 6px; margin: 8px 0; border: 1px solid var(--border);">
+              Họ và tên: <strong style="font-size: 14px;">TRẦN VĂN HÙNG</strong> · MSSV: <strong class="mono">21110034</strong><br />
+              Lớp: <strong>KTPM2021</strong> · Ngành: <strong>Kỹ thuật Phần mềm</strong>
+            </div>
+            <p>Đã hoàn thành toàn bộ các yêu cầu của Khóa luận tốt nghiệp đại học:</p>
+            <p><strong>Tên đề tài:</strong> <em>Kiến trúc RAG phân tán phục vụ Tra cứu Văn bản Pháp luật</em></p>
+            <p><strong>Giảng viên hướng dẫn:</strong> PGS.TS Lê Quang Dũng</p>
+            <p><strong>Điểm bảo vệ chính thức:</strong> <strong style="color: #0F766E; font-size: 15px;">8.85 / 10 (Xuất sắc)</strong></p>
+            <p><strong>Tình trạng lưu chiểu:</strong> Đầy đủ 4/4 thành phần (Luận văn PDF, Slide, Video, Source code). Đã hoàn tất thủ tục tốt nghiệp.</p>
+          </div>
+
+          <!-- Footer Signature -->
+          <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 24px;">
+            <div>
+              <div style="width: 60px; height: 60px; background: #F1F5F9; border: 1px dashed #CBD5E1; display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--muted); text-align: center;">
+                QR Code Xác thực
+              </div>
+            </div>
+            <div style="text-align: center; font-size: 12.5px;">
+              <div><em>Hà Nội, ngày 19 tháng 10 năm 2026</em></div>
+              <div style="font-weight: 700; margin-top: 2px;">VIỆN TRƯỞNG VIỆN CÔNG NGHỆ SỐ</div>
+              <div style="height: 40px; display: flex; align-items: center; justify-content: center; color: var(--primary); font-family: cursive; font-size: 16px;">
+                GS.TS Nguyễn Thanh Bình
+              </div>
+              <div style="font-size: 11px; color: var(--success); font-weight: 600;">(Đã ký số điện tử hợp lệ)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-secondary" onclick="closeModal('modal-certificate')">Đóng</button>
+        <button class="btn btn-primary" onclick="window.print()">In Giấy Xác Nhận (Ctrl+P)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 8: In Phiếu Chấm Cá Nhân (A4) -->
+  <div class="modal-overlay" id="modal-print-score-sheet">
+    <div class="modal-box" style="max-width: 700px;">
+      <div class="modal-head">
+        <div class="modal-title">Phiếu Chấm Điểm Cá Nhân Của Thành Viên Hội Đồng</div>
+        <button class="modal-close" onclick="closeModal('modal-print-score-sheet')">×</button>
+      </div>
+      <div class="modal-body" style="background: #FAFAFA; padding: 20px;">
+        <div style="background: white; border: 1px solid var(--border); padding: 24px; font-size: 12.5px; line-height: 1.5;">
+          <div style="text-align: center; margin-bottom: 14px;">
+            <div style="font-weight: 700; text-transform: uppercase;">ĐẠI HỌC QUỐC GIA HÀ NỘI · VIỆN CÔNG NGHỆ SỐ</div>
+            <div style="font-size: 15px; font-weight: 900; color: #0F766E; margin-top: 4px; text-transform: uppercase;">
+              PHIẾU ĐÁNH GIÁ KHÓA LUẬN TỐT NGHIỆP ĐẠI HỌC
+            </div>
+            <div style="font-size: 11.5px; color: var(--muted);">(Dành cho Thành viên Hội đồng chấm bảo vệ)</div>
+          </div>
+
+          <div style="margin-bottom: 12px; border-bottom: 1px solid #E2E8F0; padding-bottom: 8px;">
+            <p>Họ tên sinh viên: <strong>HOÀNG THU THẢO</strong> · MSSV: <strong class="mono">21110166</strong></p>
+            <p>Tên đề tài: <strong>Mô hình Ngôn ngữ Lớn Hỗ trợ Chẩn đoán Hình ảnh Y tế</strong></p>
+            <p>Hội đồng chấm: <strong>Hội đồng 05 KTPM & AI</strong> · Phòng thi: <strong>P.402</strong></p>
+            <p>Họ tên Giám khảo chấm: <strong>PGS.TS Lê Quang Dũng</strong> · Vai trò: <strong>Chủ tịch Hội đồng</strong></p>
+          </div>
+
+          <div style="margin-bottom: 14px;">
+            <table style="width: 100%; border: 1px solid #CBD5E1; font-size: 12px;">
+              <thead style="background: #F1F5F9;">
+                <tr>
+                  <th style="border: 1px solid #CBD5E1; padding: 6px;">Nội dung đánh giá</th>
+                  <th style="border: 1px solid #CBD5E1; padding: 6px; text-align: center; width: 90px;">Điểm tối đa</th>
+                  <th style="border: 1px solid #CBD5E1; padding: 6px; text-align: center; width: 90px;">Điểm chấm</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="border: 1px solid #CBD5E1; padding: 5px;">I. Hình thức & Quy cách Báo cáo</td>
+                  <td style="border: 1px solid #CBD5E1; padding: 5px; text-align: center;">1.00</td>
+                  <td style="border: 1px solid #CBD5E1; padding: 5px; text-align: center; font-weight: 700;">0.90</td>
+                </tr>
+                <tr>
+                  <td style="border: 1px solid #CBD5E1; padding: 5px;">II. Nội dung Nghiên cứu & Sản phẩm Thực nghiệm</td>
+                  <td style="border: 1px solid #CBD5E1; padding: 5px; text-align: center;">5.25</td>
+                  <td style="border: 1px solid #CBD5E1; padding: 5px; text-align: center; font-weight: 700;">4.50</td>
+                </tr>
+                <tr>
+                  <td style="border: 1px solid #CBD5E1; padding: 5px;">III. Kỹ năng Thuyết trình & Trực quan</td>
+                  <td style="border: 1px solid #CBD5E1; padding: 5px; text-align: center;">2.00</td>
+                  <td style="border: 1px solid #CBD5E1; padding: 5px; text-align: center; font-weight: 700;">1.65</td>
+                </tr>
+                <tr>
+                  <td style="border: 1px solid #CBD5E1; padding: 5px;">IV. Trả lời Phản biện & Vấn đáp</td>
+                  <td style="border: 1px solid #CBD5E1; padding: 5px; text-align: center;">1.75</td>
+                  <td style="border: 1px solid #CBD5E1; padding: 5px; text-align: center; font-weight: 700;">1.50</td>
+                </tr>
+                <tr style="background: #F0FDFA; font-weight: 700;">
+                  <td style="border: 1px solid #CBD5E1; padding: 6px; color: #0F766E;">TỔNG ĐIỂM ĐÁNH GIÁ (HỆ 10)</td>
+                  <td style="border: 1px solid #CBD5E1; padding: 6px; text-align: center; color: #0F766E;">10.00</td>
+                  <td style="border: 1px solid #CBD5E1; padding: 6px; text-align: center; color: #0F766E; font-size: 14px;">8.55</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div style="display: flex; justify-content: flex-end; margin-top: 18px;">
+            <div style="text-align: center;">
+              <div><em>Hà Nội, ngày 24 tháng 10 năm 2026</em></div>
+              <div style="font-weight: 700; margin-top: 2px;">GIÁM KHẢO CHẤM ĐIỂM</div>
+              <div style="height: 36px; display: flex; align-items: center; justify-content: center; font-family: cursive; color: #0F766E; font-size: 15px;">
+                PGS.TS Lê Quang Dũng
+              </div>
+              <div style="font-size: 10.5px; color: var(--success); font-weight: 600;">(Đã ký số SHA-256)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-secondary" onclick="closeModal('modal-print-score-sheet')">Đóng</button>
+        <button class="btn btn-primary" onclick="window.print()">In Phiếu Điểm (Ctrl+P)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Drawer: Lập Phiếu Thẩm Định BM04 -->
+  <div class="drawer-overlay" id="drawer-bm04" onclick="if(event.target===this) closeDrawer('drawer-bm04')">
+    <div class="drawer-box">
+      <div class="modal-head">
+        <div>
+          <div class="modal-title">Phiếu Nhận Xét Của GVHD (Biểu Mẫu BM04)</div>
+          <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">Văn bản thẩm định điều kiện tiên quyết cho phép sinh viên ra bảo vệ</div>
+        </div>
+        <button class="modal-close" onclick="closeDrawer('drawer-bm04')">×</button>
+      </div>
+      <div style="flex: 1; overflow-y: auto; padding: 22px; display: flex; flex-direction: column; gap: 16px;">
+        <div style="background: #F8FAFC; padding: 12px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border); font-size: 13px;">
+          Sinh viên: <strong>Trần Văn Hùng</strong> · MSSV: <strong class="mono">21110034</strong><br />
+          Đề tài: <em>Kiến trúc RAG phân tán phục vụ Tra cứu Văn bản Pháp luật</em>
+        </div>
+
+        <div>
+          <label style="font-weight: 700; font-size: 13px; display: block; margin-bottom: 4px;">1. Tổng số buổi sinh viên gặp và trao đổi trực tiếp với GVHD:</label>
+          <input type="text" class="input-field" value="8 buổi (Đầy đủ minh chứng học thuật theo quy chế)" style="width: 100%; font-weight: 600; color: var(--primary);" readonly>
+        </div>
+
+        <div>
+          <label style="font-weight: 700; font-size: 13px; display: block; margin-bottom: 4px;">2. Điểm đánh giá quá trình thực hiện đồ án (Hệ 10):</label>
+          <input type="number" class="input-field" value="9.2" step="0.1" min="0" max="10" style="width: 120px; font-weight: 700;">
+        </div>
+
+        <div>
+          <label style="font-weight: 700; font-size: 13px; display: block; margin-bottom: 4px;">3. Nhận xét về tinh thần, thái độ làm việc của sinh viên:</label>
+          <textarea class="input-field" rows="3" style="width: 100%;">Sinh viên có tinh thần cầu tiến, thái độ học tập và nghiên cứu nghiêm túc. Tích cực tham gia các buổi sinh hoạt học thuật tại Lab.</textarea>
+        </div>
+
+        <div>
+          <label style="font-weight: 700; font-size: 13px; display: block; margin-bottom: 4px;">4. Nhận xét về chất lượng sản phẩm và báo cáo khóa luận:</label>
+          <textarea class="input-field" rows="3" style="width: 100%;">Bản báo cáo được viết công phu, chuẩn mực. Hệ thống demo chạy ổn định trên cluster thực nghiệm, hoàn thành đầy đủ các mục tiêu đề ra.</textarea>
+        </div>
+
+        <div style="background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: var(--radius-sm); padding: 14px;">
+          <label style="display: flex; align-items: center; gap: 8px; font-weight: 700; color: #15803D; cursor: pointer; font-size: 13.5px;">
+            <input type="checkbox" checked style="width: 18px; height: 18px; accent-color: var(--success);">
+            ĐỒNG Ý CHO SINH VIÊN RA BẢO VỆ TRƯỚC HỘI ĐỒNG
+          </label>
+          <p style="font-size: 11.5px; color: #166534; margin-top: 4px; margin-left: 26px;">
+            Xác nhận này sẽ chuyển hồ sơ sinh viên sang hàng đợi sẵn sàng phân công Hội đồng của Phòng Đào tạo.
+          </p>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-secondary" onclick="closeDrawer('drawer-bm04')">Hủy</button>
+        <button class="btn btn-primary" onclick="saveBM04()">Ký Số & Lưu Phiếu BM04</button>
+  <!-- Modal 9: Phiếu Nhận Xét Của Cán Bộ Phản Biện (A4) -->
+  <div class="modal-overlay" id="modal-reviewer-form">
+    <div class="modal-box" style="max-width: 720px;">
+      <div class="modal-head">
+        <div>
+          <div class="modal-title">Phiếu Nhận Xét Khóa Luận Của Cán Bộ Phản Biện</div>
+          <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">Văn bản đánh giá độc lập trước ngày bảo vệ chính thức trước Hội đồng</div>
+        </div>
+        <button class="modal-close" onclick="closeModal('modal-reviewer-form')">×</button>
+      </div>
+      <div class="modal-body" style="background: #FAFAFA; padding: 22px;">
+        <div style="background: white; border: 1px solid var(--border); padding: 26px; font-size: 12.5px; line-height: 1.6; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+          <!-- Heading -->
+          <div style="text-align: center; border-bottom: 2px solid #E2E8F0; padding-bottom: 12px; margin-bottom: 16px;">
+            <div style="font-weight: 700; text-transform: uppercase;">ĐẠI HỌC QUỐC GIA HÀ NỘI · VIỆN CÔNG NGHỆ SỐ</div>
+            <div style="font-size: 15px; font-weight: 900; color: #1E40AF; margin-top: 4px; text-transform: uppercase;">
+              BẢN NHẬN XÉT KHÓA LUẬN TỐT NGHIỆP ĐẠI HỌC
+            </div>
+            <div style="font-size: 11.5px; color: var(--muted);">(Dành cho Cán bộ Phản biện đọc và nhận xét trước ngày bảo vệ)</div>
+          </div>
+
+          <!-- Metadata -->
+          <div style="padding: 10px 14px; background: #F8FAFC; border-radius: 6px; margin-bottom: 14px; border: 1px solid var(--border);">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+              <div>Họ tên sinh viên: <strong id="reviewer-student-name">PHAN ĐÌNH KHẢI</strong></div>
+              <div>MSSV: <strong class="mono" id="reviewer-student-mssv">21110201</strong></div>
+            </div>
+            <div style="margin-top: 4px;">Tên đề tài: <strong id="reviewer-topic-title">Kiến trúc Data Lakehouse trên Nền tảng Apache Iceberg</strong></div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px;">
+              <div>Giảng viên hướng dẫn: <strong id="reviewer-supervisor-name">TS. Lê Văn Thắng</strong></div>
+              <div>Cán bộ Phản biện: <strong>PGS.TS Lê Quang Dũng</strong></div>
+            </div>
+          </div>
+
+          <!-- Review Fields -->
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            <div>
+              <label style="font-weight: 700; display: block; margin-bottom: 3px;">1. Về tính cấp thiết, ý nghĩa khoa học và thực tiễn của đề tài:</label>
+              <textarea class="input-field" id="reviewer-f1" rows="2" style="width: 100%;">Đề tài có tính thời sự cao trong bối cảnh các doanh nghiệp đang chuyển dịch từ Data Warehouse truyền thống sang kiến trúc Lakehouse mở nhằm tối ưu chi phí lưu trữ và tăng tốc độ xử lý truy vấn phân tích.</textarea>
+            </div>
+
+            <div>
+              <label style="font-weight: 700; display: block; margin-bottom: 3px;">2. Về bố cục, quy cách trình bày và khối lượng thực hiện:</label>
+              <textarea class="input-field" id="reviewer-f2" rows="2" style="width: 100%;">Bản thảo khóa luận gồm 82 trang, bố cục hợp lý theo chuẩn quy định của Viện. Trích dẫn tài liệu tham khảo đúng quy cách, chỉ số trùng lặp Turnitin 11% đạt yêu cầu liêm chính học thuật.</textarea>
+            </div>
+
+            <div>
+              <label style="font-weight: 700; display: block; margin-bottom: 3px;">3. Về kết quả nghiên cứu và sản phẩm thực nghiệm (Demo & Codebase):</label>
+              <textarea class="input-field" id="reviewer-f3" rows="2" style="width: 100%;">Sinh viên đã triển khai thành công mô hình thực nghiệm với Apache Iceberg kết hợp Trino và MinIO, đo lường độ trễ truy vấn phân tích dữ liệu lớn với benchmark TPC-H đạt kết quả khả quan.</textarea>
+            </div>
+
+            <div>
+              <label style="font-weight: 700; display: block; margin-bottom: 3px;">4. Những điểm còn hạn chế cần sinh viên giải trình hoặc bổ sung:</label>
+              <textarea class="input-field" id="reviewer-f4" rows="2" style="width: 100%;">Cần làm rõ hơn cơ chế nén metadata và chiến lược compaction khi tần suất ghi dữ liệu thời gian thực tăng cao.</textarea>
+            </div>
+
+            <div>
+              <label style="font-weight: 700; display: block; margin-bottom: 3px;">5. Câu hỏi phản biện đặt ra cho sinh viên trong buổi bảo vệ:</label>
+              <textarea class="input-field" id="reviewer-f5" rows="2" style="width: 100%;">1. So sánh cơ chế ACID Transaction của Apache Iceberg với Delta Lake và Apache Hudi trong môi trường đa cụm?&#10;2. Giải pháp đảm bảo tính nhất quán dữ liệu khi xảy ra xung đột đồng thời giữa nhiều luồng ghi?</textarea>
+            </div>
+
+            <div style="background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: var(--radius-sm); padding: 12px; margin-top: 4px;">
+              <label style="display: flex; align-items: center; gap: 8px; font-weight: 700; color: #15803D; cursor: pointer;">
+                <input type="checkbox" id="reviewer-decision-cb" checked style="accent-color: var(--success); width: 17px; height: 17px;">
+                KẾT LUẬN: ĐỒNG Ý CHO SINH VIÊN ĐƯỢC BẢO VỆ TRƯỚC HỘI ĐỒNG
+              </label>
+              <div style="font-size: 11px; color: #166534; margin-left: 25px; margin-top: 2px;">
+                Sinh viên đủ điều kiện trình bày và trả lời phản biện tại Hội đồng 01 vào chiều 25/10/2026.
+              </div>
+            </div>
+          </div>
+
+          <!-- Signature -->
+          <div style="display: flex; justify-content: flex-end; margin-top: 20px;">
+            <div style="text-align: center;">
+              <div><em>Hà Nội, ngày 21 tháng 10 năm 2026</em></div>
+              <div style="font-weight: 700; margin-top: 2px;">CÁN BỘ PHẢN BIỆN</div>
+              <div style="height: 38px; display: flex; align-items: center; justify-content: center; font-family: cursive; color: #1E40AF; font-size: 16px;">
+                PGS.TS Lê Quang Dũng
+              </div>
+              <div style="font-size: 10.5px; color: var(--success); font-weight: 600;">(Đã ký số điện tử SHA-256)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-secondary" onclick="closeModal('modal-reviewer-form')">Đóng</button>
+        <button class="btn btn-secondary" onclick="window.print()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          In Phiếu Nhận Xét (Ctrl+P)
+        </button>
+        <button class="btn btn-primary" onclick="saveReviewerForm()">Ký Số & Lưu Bản Nhận Xét</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 10: Thẩm Định Đề Cương BM01 -->
+  <div class="modal-overlay" id="modal-outline-evaluation">
+    <div class="modal-box" style="max-width: 660px;">
+      <div class="modal-head">
+        <div>
+          <div class="modal-title">Thẩm Định Đề Cương Khóa Luận (Biểu Mẫu BM01)</div>
+          <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">Hội đồng Thẩm định xét duyệt tính khả thi và phạm vi nghiên cứu đầu kỳ</div>
+        </div>
+        <button class="modal-close" onclick="closeModal('modal-outline-evaluation')">×</button>
+      </div>
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px; font-size: 13px;">
+        <!-- Student & Topic Info -->
+        <div style="padding: 12px 14px; background: #F8FAFC; border: 1px solid var(--border); border-radius: var(--radius-sm);">
+          <div>Sinh viên: <strong id="eval-student-name">Lâm Thảo Nhi</strong> · MSSV: <strong class="mono" id="eval-student-mssv">21110177</strong></div>
+          <div style="margin-top: 3px;">Đề tài: <strong id="eval-topic-title">Nền tảng Tích hợp Dữ liệu Chuỗi Cung ứng Bằng Blockchain Hyperledger</strong></div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
+            <span style="color: var(--muted);">GVHD: <strong id="eval-supervisor">TS. Lê Văn Thắng</strong></span>
+            <button class="btn btn-secondary btn-sm" onclick="showToast('Đang mở file de_cuong_BM01.pdf...')">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              Xem Thuyết Minh Đề Cương (PDF)
+            </button>
+          </div>
+        </div>
+
+        <!-- 4 Criteria Table -->
+        <div>
+          <div style="font-weight: 700; margin-bottom: 6px;">Tiêu chí thẩm định chất lượng đề cương:</div>
+          <div style="border: 1px solid var(--border); border-radius: 6px; overflow: hidden;">
+            <div style="display: flex; justify-content: space-between; padding: 8px 12px; background: #F1F5F9; font-weight: 600; font-size: 12px;">
+              <span>Nội dung đánh giá</span>
+              <span>Đánh giá sơ bộ</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-top: 1px solid var(--border);">
+              <span>1. Tính cấp thiết & Mục tiêu nghiên cứu rõ ràng</span>
+              <span class="tag green">✓ Đạt yêu cầu</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-top: 1px solid var(--border);">
+              <span>2. Khối lượng và phạm vi thực hiện (vừa vặn 15 tuần)</span>
+              <span class="tag yellow">⚠ Cần thu hẹp</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-top: 1px solid var(--border);">
+              <span>3. Phương pháp nghiên cứu và công nghệ dự kiến</span>
+              <span class="tag green">✓ Đạt yêu cầu</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-top: 1px solid var(--border);">
+              <span>4. Kế hoạch triển khai từng tuần & Sản phẩm dự kiến</span>
+              <span class="tag green">✓ Đạt yêu cầu</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Feedback -->
+        <div>
+          <label style="font-weight: 700; display: block; margin-bottom: 4px;">Nhận xét và góp ý chỉnh sửa cho sinh viên & GVHD:</label>
+          <textarea class="input-field" id="eval-feedback" rows="3" style="width: 100%;">Đề tài có tính ứng dụng thực tiễn tốt. Cần thu hẹp phạm vi thử nghiệm vào một chuỗi cung ứng nông sản cụ thể thay vì đa ngành để đảm bảo hoàn thành kịp tiến độ 15 tuần.</textarea>
+        </div>
+
+        <!-- Decision Radios -->
+        <div style="background: #F8FAFC; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px;">
+          <div style="font-weight: 700; margin-bottom: 8px;">Kết luận của Cán bộ Thẩm định:</div>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <label style="display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--success); cursor: pointer;">
+              <input type="radio" name="eval_result" value="pass" checked>
+              ✓ ĐỒNG Ý CHO THỰC HIỆN (Đạt yêu cầu - Sinh viên được nộp Đơn đăng ký BM02)
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--warning); cursor: pointer;">
+              <input type="radio" name="eval_result" value="revision">
+              ⚠ YÊU CẦU CHỈNH SỬA BỔ SUNG (Nộp lại bản đề cương chỉnh sửa trong vòng 7 ngày)
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--danger); cursor: pointer;">
+              <input type="radio" name="eval_result" value="reject">
+              ✕ KHÔNG ĐỒNG Ý (Đề tài không khả thi / Yêu cầu đổi đề tài khác)
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-secondary" onclick="closeModal('modal-outline-evaluation')">Hủy</button>
+        <button class="btn btn-primary" onclick="saveOutlineEvaluation()">Lưu Kết Quả Thẩm Định & Ký Số</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 11: Gửi Thông Báo Nhanh Cho Nhóm Sinh Viên Hướng Dẫn -->
+  <div class="modal-overlay" id="modal-broadcast-message">
+    <div class="modal-box" style="max-width: 580px;">
+      <div class="modal-head">
+        <div>
+          <div class="modal-title">Gửi Thông Báo Cho Nhóm Sinh Viên Hướng Dẫn</div>
+          <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">Gửi thông báo tức thì qua Email trường (@vcs.edu.vn) và thông báo trên hệ thống DACN</div>
+        </div>
+        <button class="modal-close" onclick="closeModal('modal-broadcast-message')">×</button>
+      </div>
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px; font-size: 13px;">
+        <div>
+          <label style="font-weight: 600; display: block; margin-bottom: 4px;">Đối tượng nhận thông báo:</label>
+          <select class="input-field" id="broadcast-audience" style="width: 100%;">
+            <option value="all">Toàn bộ 7 sinh viên đang hướng dẫn</option>
+            <option value="risk">Chỉ gửi sinh viên có nguy cơ trễ hạn (Lê Quốc Bảo)</option>
+            <option value="pending-bm04">Sinh viên đang chuẩn bị duyệt BM04</option>
+          </select>
+        </div>
+
+        <div>
+          <label style="font-weight: 600; display: block; margin-bottom: 4px;">Kênh phát hành thông báo:</label>
+          <div style="display: flex; gap: 20px;">
+            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+              <input type="checkbox" checked style="accent-color: var(--primary);"> Email trường (@vcs.edu.vn)
+            </label>
+            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+              <input type="checkbox" checked style="accent-color: var(--primary);"> Thông báo hệ thống DACN (Push)
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <label style="font-weight: 600; display: block; margin-bottom: 4px;">Tiêu đề thông báo (*):</label>
+          <input type="text" class="input-field" id="broadcast-title" value="[Học vụ Đồ án] Lịch sinh hoạt Lab Tuần 11 & Hạn nộp bản thảo BM04" style="width: 100%;">
+        </div>
+
+        <div>
+          <label style="font-weight: 600; display: block; margin-bottom: 4px;">Nội dung thông báo (*):</label>
+          <textarea class="input-field" id="broadcast-body" rows="4" style="width: 100%;">Thầy nhắc cả nhóm: Chiều Thứ Năm tuần này (14h00 tại Lab H2-502) chúng ta có buổi tổng duyệt tiến độ Tuần 11. Các bạn chuẩn bị sẵn slide báo cáo và bản thảo chương thực nghiệm để thầy xem trước. Bạn nào vắng mặt phải báo trước ít nhất 24 giờ.</textarea>
+        </div>
+
+        <div style="padding: 10px 12px; background: #F0FDFA; border: 1px solid #CCFBF1; border-radius: var(--radius-sm); font-size: 12px; color: #0F766E;">
+          Thông báo sẽ được gửi đồng thời đến hộp thư của 7 sinh viên và lưu lại trong nhật ký trao đổi của nhóm.
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-secondary" onclick="closeModal('modal-broadcast-message')">Hủy</button>
+        <button class="btn btn-primary" onclick="submitBroadcastMessage()">Gửi Thông Báo Ngay</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 12: Bảng Kê Khai Khối Lượng Giảng Dạy & Giờ Chuẩn (A4) -->
+  <div class="modal-overlay" id="modal-workload-declaration">
+    <div class="modal-box" style="max-width: 740px;">
+      <div class="modal-head">
+        <div>
+          <div class="modal-title">Bảng Kê Khai Khối Lượng Giảng Dạy & Giờ Chuẩn Khóa Luận</div>
+          <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">Văn bản đối soát thù lao học vụ và giờ chuẩn giảng dạy nộp Phòng Đào tạo</div>
+        </div>
+        <button class="modal-close" onclick="closeModal('modal-workload-declaration')">×</button>
+      </div>
+      <div class="modal-body" style="background: #FAFAFA; padding: 22px;">
+        <div style="background: white; border: 1px solid var(--border); padding: 26px; font-size: 12.5px; line-height: 1.5; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+          <!-- Heading -->
+          <div style="text-align: center; border-bottom: 2px solid #E2E8F0; padding-bottom: 12px; margin-bottom: 16px;">
+            <div style="font-weight: 700; text-transform: uppercase;">ĐẠI HỌC QUỐC GIA HÀ NỘI · VIỆN CÔNG NGHỆ SỐ</div>
+            <div style="font-size: 15px; font-weight: 900; color: #0F766E; margin-top: 4px; text-transform: uppercase;">
+              BẢNG KÊ KHAI KHỐI LƯỢNG HỌC VỤ & GIỜ CHUẨN ĐỒ ÁN TỐT NGHIỆP
+            </div>
+            <div class="mono" style="font-size: 11.5px; color: var(--muted);">Học kỳ 1 · Năm học 2026 - 2027</div>
+          </div>
+
+          <!-- Lecturer Metadata -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px 14px; background: #F8FAFC; border-radius: 6px; margin-bottom: 16px; border: 1px solid var(--border);">
+            <div>Họ và tên giảng viên: <strong>PGS.TS Lê Quang Dũng</strong></div>
+            <div>Mã số cán bộ: <strong class="mono">CB-2014-08</strong></div>
+            <div>Bộ môn trực thuộc: <strong>Khoa Kỹ thuật Phần mềm</strong></div>
+            <div>Học hàm/học vị: <strong>Phó Giáo sư · Tiến sĩ</strong></div>
+          </div>
+
+          <!-- Workload Table -->
+          <div style="margin-bottom: 16px;">
+            <table style="width: 100%; border: 1px solid #CBD5E1; font-size: 12px; border-collapse: collapse;">
+              <thead style="background: #F1F5F9;">
+                <tr>
+                  <th style="border: 1px solid #CBD5E1; padding: 7px; text-align: center; width: 40px;">STT</th>
+                  <th style="border: 1px solid #CBD5E1; padding: 7px; text-align: left;">Hạng mục công tác học vụ</th>
+                  <th style="border: 1px solid #CBD5E1; padding: 7px; text-align: center; width: 80px;">Số lượng</th>
+                  <th style="border: 1px solid #CBD5E1; padding: 7px; text-align: center; width: 100px;">Định mức quy đổi</th>
+                  <th style="border: 1px solid #CBD5E1; padding: 7px; text-align: right; width: 110px;">Tổng tiết chuẩn</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="border: 1px solid #CBD5E1; padding: 6px; text-align: center;">1</td>
+                  <td style="border: 1px solid #CBD5E1; padding: 6px;">Hướng dẫn Khóa luận tốt nghiệp đại học</td>
+                  <td style="border: 1px solid #CBD5E1; padding: 6px; text-align: center;">07 SV</td>
+                  <td style="border: 1px solid #CBD5E1; padding: 6px; text-align: center;">25 tiết / SV</td>
+                  <td style="border: 1px solid #CBD5E1; padding: 6px; text-align: right; font-weight: 700;">175.0 tiết</td>
+                </tr>
+                <tr>
+                  <td style="border: 1px solid #CBD5E1; padding: 6px; text-align: center;">2</td>
+                  <td style="border: 1px solid #CBD5E1; padding: 6px;">Thành viên Hội đồng chấm bảo vệ khóa luận (HĐ-05 & HĐ-01)</td>
+                  <td style="border: 1px solid #CBD5E1; padding: 6px; text-align: center;">08 SV</td>
+                  <td style="border: 1px solid #CBD5E1; padding: 6px; text-align: center;">1.5 tiết / SV</td>
+                  <td style="border: 1px solid #CBD5E1; padding: 6px; text-align: right; font-weight: 700;">12.0 tiết</td>
+                </tr>
+                <tr>
+                  <td style="border: 1px solid #CBD5E1; padding: 6px; text-align: center;">3</td>
+                  <td style="border: 1px solid #CBD5E1; padding: 6px;">Thành viên Hội đồng thẩm định đề cương (Pha 2 · BM01)</td>
+                  <td style="border: 1px solid #CBD5E1; padding: 6px; text-align: center;">05 Đề tài</td>
+                  <td style="border: 1px solid #CBD5E1; padding: 6px; text-align: center;">1.5 tiết / ĐT</td>
+                  <td style="border: 1px solid #CBD5E1; padding: 6px; text-align: right; font-weight: 700;">7.5 tiết</td>
+                </tr>
+                <tr>
+                  <td style="border: 1px solid #CBD5E1; padding: 6px; text-align: center;">4</td>
+                  <td style="border: 1px solid #CBD5E1; padding: 6px;">Cán bộ Phản biện khóa luận tốt nghiệp (Đọc & lập nhận xét A4)</td>
+                  <td style="border: 1px solid #CBD5E1; padding: 6px; text-align: center;">02 SV</td>
+                  <td style="border: 1px solid #CBD5E1; padding: 6px; text-align: center;">2.0 tiết / SV</td>
+                  <td style="border: 1px solid #CBD5E1; padding: 6px; text-align: right; font-weight: 700;">4.0 tiết</td>
+                </tr>
+                <tr style="background: #F0FDFA; font-weight: 800;">
+                  <td colspan="4" style="border: 1px solid #CBD5E1; padding: 8px; text-align: right; color: #0F766E;">
+                    TỔNG CỘNG KHỐI LƯỢNG HỌC VỤ QUY ĐỔI (TIẾT CHUẨN):
+                  </td>
+                  <td style="border: 1px solid #CBD5E1; padding: 8px; text-align: right; color: #0F766E; font-size: 14px;">
+                    198.5 tiết
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Signatures 3 Columns -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; text-align: center; margin-top: 24px; font-size: 11.5px;">
+            <div>
+              <div style="font-weight: 700;">TRƯỞNG PHÒNG ĐÀO TẠO</div>
+              <div style="height: 40px; display: flex; align-items: center; justify-content: center; color: var(--muted); font-style: italic;">(Chờ đối soát)</div>
+              <div>TS. Trần Minh Khoa</div>
+            </div>
+            <div>
+              <div style="font-weight: 700;">TRƯỞNG BỘ MÔN KTPM</div>
+              <div style="height: 40px; display: flex; align-items: center; justify-content: center; color: var(--success); font-weight: 600;">(Đã ký duyệt điện tử)</div>
+              <div>PGS.TS Vũ Đình Hải</div>
+            </div>
+            <div>
+              <div><em>Hà Nội, 19/10/2026</em></div>
+              <div style="font-weight: 700;">GIẢNG VIÊN KÊ KHAI</div>
+              <div style="height: 40px; display: flex; align-items: center; justify-content: center; font-family: cursive; color: #0F766E; font-size: 15px;">PGS.TS Lê Quang Dũng</div>
+              <div style="color: var(--success); font-weight: 600;">(Đã ký số SHA-256)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-secondary" onclick="closeModal('modal-workload-declaration')">Đóng</button>
+        <button class="btn btn-secondary" onclick="showToast('Đang xuất bảng kê khai ra tệp Excel (.xlsx)...')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Xuất File Excel (.xlsx)
+        </button>
+        <button class="btn btn-primary" onclick="window.print()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          In Bảng Kê Khai (Ctrl+P)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 13: Sao Chép Đề Tài Từ Kỳ Trước -->
+  <div class="modal-overlay" id="modal-clone-topics">
+    <div class="modal-box" style="max-width: 620px;">
+      <div class="modal-head">
+        <div>
+          <div class="modal-title">Sao Chép & Nhân Bản Đề Tài Từ Kỳ Trước</div>
+          <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">Chọn các đề tài nghiên cứu từ học kỳ trước để mở đăng ký cho học kỳ hiện tại</div>
+        </div>
+        <button class="modal-close" onclick="closeModal('modal-clone-topics')">×</button>
+      </div>
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px; font-size: 13px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-weight: 600;">Học kỳ nguồn:</span>
+          <select class="input-field" style="width: 240px;">
+            <option>Học kỳ 2 (2025 - 2026) · 6 Đề tài</option>
+            <option>Học kỳ 1 (2025 - 2026) · 8 Đề tài</option>
+          </select>
+        </div>
+
+        <div style="border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden;">
+          <div style="padding: 10px 14px; background: #F8FAFC; border-bottom: 1px solid var(--border); font-weight: 700;">
+            Danh sách đề tài có thể nhân bản:
+          </div>
+          <div style="display: flex; flex-direction: column;">
+            <label style="display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--border); cursor: pointer;">
+              <input type="checkbox" checked style="accent-color: var(--primary); margin-top: 3px;">
+              <div>
+                <strong style="color: var(--fg);">DT-2025-142: Nền tảng Quan sát và Giám sát Hiệu năng Dịch vụ Đám mây</strong>
+                <div style="font-size: 11.5px; color: var(--muted);">Công nghệ: OpenTelemetry · Go · Prometheus · Grafana</div>
+              </div>
+            </label>
+
+            <label style="display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--border); cursor: pointer;">
+              <input type="checkbox" checked style="accent-color: var(--primary); margin-top: 3px;">
+              <div>
+                <strong style="color: var(--fg);">DT-2025-155: Nhận dạng Thực thể Tên (NER) trong Bệnh án Điện tử Y tế</strong>
+                <div style="font-size: 11.5px; color: var(--muted);">Công nghệ: Python · PyTorch · BioBERT · FastAPI</div>
+              </div>
+            </label>
+
+            <label style="display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; cursor: pointer;">
+              <input type="checkbox" checked style="accent-color: var(--primary); margin-top: 3px;">
+              <div>
+                <strong style="color: var(--fg);">DT-2025-160: Hệ thống Phân tích Rủi ro Giao dịch Tài chính Bằng Graph AI</strong>
+                <div style="font-size: 11.5px; color: var(--muted);">Công nghệ: Graph Neural Network · Neo4j · Kafka · Python</div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div style="padding: 10px 12px; background: #FFFBEB; border: 1px solid #FDE68A; border-radius: var(--radius-sm); font-size: 12px; color: #92400E;">
+          Hệ thống sẽ tự động cập nhật mã đề tài mới theo niên khóa <strong>DT-2026</strong> và chuyển sang trạng thái <strong>Đang tuyển sinh viên (0/1 SV)</strong>.
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-secondary" onclick="closeModal('modal-clone-topics')">Hủy</button>
+        <button class="btn btn-primary" onclick="confirmCloneTopics()">Xác Nhận Nhân Bản 3 Đề Tài</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 14: Hồ Sơ Giảng Viên & Lịch Tiếp Sinh Viên Tại Lab -->
+  <div class="modal-overlay" id="modal-lecturer-profile">
+    <div class="modal-box" style="max-width: 620px;">
+      <div class="modal-head">
+        <div>
+          <div class="modal-title">Cập Nhật Hồ Sơ Giảng Viên & Lịch Tiếp Sinh Viên</div>
+          <div style="font-size: 12px; color: var(--muted); margin-top: 2px;">Thông tin hiển thị công khai trên Cổng thông tin học vụ để sinh viên tìm hiểu và gửi nguyện vọng</div>
+        </div>
+        <button class="modal-close" onclick="closeModal('modal-lecturer-profile')">×</button>
+      </div>
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px; font-size: 13px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div>
+            <label style="font-weight: 600; display: block; margin-bottom: 4px;">Họ tên & Học vị:</label>
+            <input type="text" class="input-field" value="PGS.TS Lê Quang Dũng" style="width: 100%; background: #F1F5F9;" readonly>
+          </div>
+          <div>
+            <label style="font-weight: 600; display: block; margin-bottom: 4px;">Email trường tiếp nhận:</label>
+            <input type="text" class="input-field" value="dung.le@vcs.edu.vn" style="width: 100%; background: #F1F5F9;" readonly>
+          </div>
+        </div>
+
+        <div>
+          <label style="font-weight: 600; display: block; margin-bottom: 4px;">Lĩnh vực nghiên cứu ưu tiên tiếp nhận sinh viên:</label>
+          <input type="text" class="input-field" id="prof-research" value="Kiến trúc RAG, LLM Đa phương thức, Hệ thống phân tán, Microservices chịu tải cao" style="width: 100%;">
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div>
+            <label style="font-weight: 600; display: block; margin-bottom: 4px;">Phòng Lab nghiên cứu:</label>
+            <input type="text" class="input-field" id="prof-lab" value="Phòng Lab 502, Tòa nhà H2" style="width: 100%;">
+          </div>
+          <div>
+            <label style="font-weight: 600; display: block; margin-bottom: 4px;">Lịch tiếp sinh viên cố định:</label>
+            <input type="text" class="input-field" id="prof-hours" value="Thứ Ba & Thứ Năm (08:30 - 11:30)" style="width: 100%;">
+          </div>
+        </div>
+
+        <div>
+          <label style="font-weight: 600; display: block; margin-bottom: 4px;">Liên kết Google Meet trao đổi trực tuyến:</label>
+          <input type="text" class="input-field" id="prof-meet" value="https://meet.google.com/vcs-lab-502" style="width: 100%;">
+        </div>
+
+        <div>
+          <label style="font-weight: 600; display: block; margin-bottom: 4px;">Yêu cầu đối với sinh viên muốn đăng ký:</label>
+          <textarea class="input-field" id="prof-requirements" rows="2" style="width: 100%;">Điểm GPA >= 3.0, đã hoàn thành tốt môn Đồ án chuyên ngành, có kỹ năng tự đọc tài liệu tiếng Anh và chủ động tham gia sinh hoạt Lab hàng tuần.</textarea>
+        </div>
+
+        <div style="background: #F0FDFA; border: 1px solid #CCFBF1; border-radius: var(--radius-sm); padding: 10px 12px;">
+          <label style="display: flex; align-items: center; gap: 8px; font-weight: 600; color: #0F766E; cursor: pointer;">
+            <input type="checkbox" checked style="accent-color: var(--primary);">
+            Đồng bộ thông tin công khai lên Cổng thông tin học vụ (public-portal-dacn.html)
+          </label>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-secondary" onclick="closeModal('modal-lecturer-profile')">Hủy</button>
+        <button class="btn btn-primary" onclick="saveLecturerProfile()">Lưu Cập Nhật Hồ Sơ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST CONTAINER -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- JAVASCRIPT LOGIC -->
+  <script>
+    let currentQuota = 7;
+    const maxQuota = 10;
+    let currentStudentName = 'Trần Văn Hùng';
+    let rejectingCardId = null;
+
+    // View Switching
+    function switchView(viewId, navElem) {
+      document.querySelectorAll('.view-pane').forEach(function(pane) {
+        pane.classList.remove('active');
+      });
+      const activePane = document.getElementById(viewId);
+      if (activePane) {
+        activePane.classList.add('active');
+      }
+
+      if (navElem) {
+        document.querySelectorAll('.nav-item').forEach(function(item) {
+          item.classList.remove('active');
+        });
+        navElem.classList.add('active');
+      }
+    }
+
+    // Toast Notification
+    function showToast(message) {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      toast.innerHTML = '<span>' + message + '</span>';
+      container.appendChild(toast);
+
+      setTimeout(function() {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(10px)';
+        toast.style.transition = 'all 0.2s';
+        setTimeout(function() {
+          toast.remove();
+        }, 200);
+      }, 3000);
+    }
+
+    // Modal / Drawer helpers
+    function openModal(id) {
+      const el = document.getElementById(id);
+      if (el) el.classList.add('open');
+    }
+    function closeModal(id) {
+      const el = document.getElementById(id);
+      if (el) el.classList.remove('open');
+    }
+    function openDrawer(id) {
+      const el = document.getElementById(id);
+      if (el) el.classList.add('open');
+    }
+    function closeDrawer(id) {
+      const el = document.getElementById(id);
+      if (el) el.classList.remove('open');
+    }
+
+    // Quota UI update
+    function updateQuotaUI() {
+      document.getElementById('quota-display').textContent = currentQuota + ' / 10 SV';
+      document.getElementById('quota-bar').style.width = ((currentQuota / maxQuota) * 100) + '%';
+      document.getElementById('quota-remain-text').textContent = 'Còn lại ' + (maxQuota - currentQuota) + ' suất';
+      const dashCount = document.getElementById('dash-student-count');
+      if (dashCount) dashCount.textContent = (currentQuota < 10 ? '0' : '') + currentQuota;
+    }
+
+    // Accept student registration
+    function acceptRegistration(cardId, studentName, topicCode) {
+      if (currentQuota >= maxQuota) {
+        alert('Đã đạt mức trần 10 Sinh viên hướng dẫn! Không thể tiếp nhận thêm.');
+        return;
+      }
+      currentQuota++;
+      updateQuotaUI();
+
+      const card = document.getElementById(cardId);
+      if (card) {
+        card.style.opacity = '0.5';
+        card.innerHTML = '<div style="padding: 18px; color: var(--success); font-weight: 700;">✓ Đã chấp thuận hướng dẫn sinh viên ' + studentName + ' vào đề tài ' + topicCode + '!</div>';
+        setTimeout(function() {
+          card.remove();
+        }, 1200);
+      }
+      const badge = document.getElementById('badge-approvals');
+      if (badge) badge.textContent = '1 đơn chờ';
+      const dashPending = document.getElementById('dash-pending-count');
+      if (dashPending) dashPending.textContent = '01';
+
+      showToast('Đã chấp thuận sinh viên ' + studentName + ' vào đề tài!');
+    }
+
+    // Open reject modal
+    function openRejectModal(cardId, studentName) {
+      rejectingCardId = cardId;
+      document.getElementById('reject-student-name').textContent = studentName;
+      openModal('modal-reject-reg');
+    }
+
+    function confirmRejectRegistration() {
+      const reason = document.getElementById('reject-reason').value.trim();
+      closeModal('modal-reject-reg');
+      if (rejectingCardId) {
+        const card = document.getElementById(rejectingCardId);
+        if (card) card.remove();
+      }
+      showToast('Đã từ chối đơn đăng ký. Phản hồi đã được gửi tới sinh viên.');
+    }
+
+    // Open Student CV Modal
+    function openStudentCvModal(name, gpa, credits, skills) {
+      document.getElementById('cv-student-name').textContent = name;
+      document.getElementById('cv-student-gpa').textContent = gpa + ' / 4.0';
+      document.getElementById('cv-student-skills').textContent = skills;
+      openModal('modal-view-cv');
+    }
+
+    // Filter Topics
+    function filterTopicsTable(status, tabElem) {
+      document.querySelectorAll('#view-topics .seg-tab').forEach(function(t) {
+        t.classList.remove('active');
+      });
+      tabElem.classList.add('active');
+
+      const rows = document.querySelectorAll('#topics-main-table tbody tr');
+      rows.forEach(function(r) {
+        const rowStatus = r.getAttribute('data-status');
+        if (status === 'all' || rowStatus === status) {
+          r.style.display = '';
+        } else {
+          r.style.display = 'none';
+        }
+      });
+    }
+
+    function searchTopicsTable(keyword) {
+      const term = keyword.toLowerCase().trim();
+      const rows = document.querySelectorAll('#topics-main-table tbody tr');
+      rows.forEach(function(r) {
+        const text = r.textContent.toLowerCase();
+        r.style.display = text.indexOf(term) !== -1 ? '' : 'none';
+      });
+    }
+
+    // Submit New Topic
+    function submitNewTopic() {
+      const titleVi = document.getElementById('topic-title-vi').value.trim();
+      if (!titleVi) {
+        alert('Vui lòng nhập tên đề tài tiếng Việt!');
+        return;
+      }
+      closeModal('modal-new-topic');
+      showToast('Đã gửi đề xuất đề tài "' + titleVi + '" lên Ban Chủ Nhiệm thẩm định!');
+    }
+
+    // Student selection in Progress View
+    function selectStudent(name, mssv, topicCode, topicTitle, meetings, statusColor, cardElem) {
+      currentStudentName = name;
+      document.querySelectorAll('.student-item-card').forEach(function(c) {
+        c.classList.remove('selected');
+      });
+      if (cardElem) cardElem.classList.add('selected');
+
+      document.getElementById('current-student-name').textContent = name;
+      document.getElementById('current-student-mssv').textContent = 'MSSV: ' + mssv;
+      document.getElementById('current-student-topic').textContent = topicCode + ': ' + topicTitle;
+
+      const badge = document.getElementById('current-student-badge');
+      const riskBar = document.getElementById('risk-alert-bar');
+
+      if (statusColor === 'red') {
+        badge.className = 'tag red';
+        badge.textContent = 'Nguy cơ trễ hạn (>21 ngày)';
+        riskBar.style.display = 'flex';
+      } else {
+        badge.className = 'tag green';
+        badge.textContent = '✓ Đã duyệt BM04 (Cho BV)';
+        riskBar.style.display = 'none';
+      }
+    }
+
+    function filterStudentList(keyword) {
+      const term = keyword.toLowerCase().trim();
+      document.querySelectorAll('.student-item-card').forEach(function(c) {
+        const text = c.textContent.toLowerCase();
+        c.style.display = text.indexOf(term) !== -1 ? '' : 'none';
+      });
+    }
+
+    function openStudentSupervisionDetail(studentName) {
+      switchView('view-progress');
+      document.querySelectorAll('.student-item-card').forEach(function(c) {
+        if (c.textContent.indexOf(studentName) !== -1) {
+          c.click();
+        }
+      });
+    }
+
+    // Detail Tabs in Progress View
+    function switchDetailTab(tabId, tabElem) {
+      document.querySelectorAll('.detail-nav-tabs .d-tab').forEach(function(t) {
+        t.classList.remove('active');
+      });
+      tabElem.classList.add('active');
+
+      document.querySelectorAll('.tab-pane-content').forEach(function(pane) {
+        pane.style.display = 'none';
+      });
+      const activePane = document.getElementById(tabId);
+      if (activePane) activePane.style.display = 'block';
+    }
+
+    // Meeting Log Handlers
+    function openLogMeetingForStudent(studentName) {
+      currentStudentName = studentName;
+      document.getElementById('log-target-student').textContent = studentName;
+      openModal('modal-meeting-log');
+    }
+
+    function submitMeetingLog() {
+      const content = document.getElementById('log-content').value.trim();
+      const nextTask = document.getElementById('log-next-task').value.trim();
+      const location = document.getElementById('log-location').value;
+
+      if (!content) {
+        alert('Vui lòng nhập tóm tắt nội dung sinh viên đã báo cáo!');
+        return;
+      }
+      closeModal('modal-meeting-log');
+
+      const container = document.getElementById('meeting-timeline-container');
+      if (container) {
+        const newNode = document.createElement('div');
+        newNode.className = 'timeline-node';
+        newNode.innerHTML = '<div class="timeline-dot done"></div>' +
+          '<div class="timeline-card" style="border-left: 3px solid var(--success);">' +
+          '<div class="timeline-head">' +
+          '<div><strong>Buổi mới: Họp trao đổi tiến độ</strong><span class="tag green" style="margin-left: 6px;">' + location + '</span></div>' +
+          '<span class="mono" style="font-size: 11.5px; color: var(--muted);">Hôm nay</span>' +
+          '</div>' +
+          '<div style="font-size: 12.5px; color: var(--fg); line-height: 1.45;">' +
+          '<strong>Nội dung:</strong> ' + content + '<br />' +
+          (nextTask ? '<strong>Nhiệm vụ tiếp theo:</strong> ' + nextTask + '<br />' : '') +
+          '<span style="color: var(--success); font-weight: 600; margin-top: 4px; display: block;">✓ Đã xác thực minh chứng học thuật BM03 thành công.</span>' +
+          '</div></div>';
+        container.insertBefore(newNode, container.firstChild);
+      }
+
+      // Hide risk bar if Lê Quốc Bảo
+      if (currentStudentName === 'Lê Quốc Bảo') {
+        const riskBar = document.getElementById('risk-alert-bar');
+        if (riskBar) riskBar.style.display = 'none';
+        const badgeRisk = document.getElementById('badge-progress-risk');
+        if (badgeRisk) badgeRisk.style.display = 'none';
+      }
+
+      showToast('Đã lưu nhật ký buổi gặp thành công!');
+    }
+
+    // Tasks Handlers
+    function submitNewTask() {
+      const week = document.getElementById('task-week').value;
+      const title = document.getElementById('task-title').value.trim();
+      const due = document.getElementById('task-due').value;
+
+      if (!title) {
+        alert('Vui lòng nhập tiêu đề nhiệm vụ!');
+        return;
+      }
+      closeModal('modal-new-task');
+
+      const tbody = document.getElementById('task-table-body');
+      if (tbody) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td><strong>' + week + '</strong></td>' +
+          '<td><strong>' + title + '</strong></td>' +
+          '<td class="mono">' + due + '</td>' +
+          '<td><span style="color: var(--muted); font-style: italic;">Chưa nộp</span></td>' +
+          '<td><span class="tag yellow">Mới giao</span></td>' +
+          '<td style="text-align: right;"><button class="btn btn-secondary btn-sm" onclick="showToast(\'Sinh viên chưa nộp bài\')">Chờ nộp</button></td>';
+        tbody.insertBefore(tr, tbody.firstChild);
+      }
+      showToast('Đã giao nhiệm vụ mới cho sinh viên!');
+    }
+
+    function openReviewTaskModal(title, fileName, comment) {
+      document.getElementById('review-task-title').textContent = title;
+      document.getElementById('review-task-file').textContent = fileName;
+      document.getElementById('review-task-comment').value = comment;
+      openModal('modal-review-task');
+    }
+
+    function saveTaskReview() {
+      closeModal('modal-review-task');
+      showToast('Đã cập nhật kết quả đánh giá bài nộp nhiệm vụ!');
+    }
+
+    function bulkRemindTasks() {
+      showToast('Đã gửi thông báo nhắc nộp bài hàng loạt đến tất cả sinh viên chưa hoàn thành task!');
+    }
+
+    function sendStudentEmail(email) {
+      showToast('Đã gửi email nhắc nhở học vụ đến ' + email);
+    }
+
+    // BM04 Drawer save
+    function saveBM04() {
+      closeDrawer('drawer-bm04');
+      showToast('Đã ký số điện tử và lưu Phiếu Nhận Xét BM04 thành công!');
+    }
+
+    // -------------------------------------------------------------
+    // RUBRIC DATA & CRITERIA CUSTOMIZATION SYSTEM
+    // -------------------------------------------------------------
+    const DEFAULT_RUBRIC_DATA = [
+      {
+        id: 'group-1',
+        title: 'I. HÌNH THỨC & QUY CÁCH BÁO CÁO',
+        criteria: [
+          { id: 'c1', name: '1. Cấu trúc và hình thức trình bày luận văn', desc: 'Đúng quy cách format, căn lề, mục lục, bảng biểu và phụ lục', max: 0.40, score: 0.35, step: 0.05 },
+          { id: 'c2', name: '2. Trích dẫn tài liệu & Liêm chính học thuật', desc: 'Trích dẫn chuẩn IEEE/APA, chỉ số trùng lặp Turnitin < 20%', max: 0.30, score: 0.30, step: 0.05 },
+          { id: 'c3', name: '3. Ngôn ngữ & Diễn đạt khoa học', desc: 'Hành văn mạch lạc, thuật ngữ chuyên ngành chuẩn xác', max: 0.30, score: 0.25, step: 0.05 }
+        ]
+      },
+      {
+        id: 'group-2',
+        title: 'II. NỘI DUNG NGHIÊN CỨU & SẢN PHẨM THỰC NGHIỆM',
+        criteria: [
+          { id: 'c4', name: '4. Đặt vấn đề và Mục tiêu nghiên cứu', desc: 'Tính cấp thiết và rõ ràng của mục tiêu nghiên cứu', max: 0.75, score: 0.70, step: 0.05 },
+          { id: 'c5', name: '5. Tổng quan tình hình nghiên cứu', desc: 'Khảo sát đầy đủ các công trình khoa học trong và ngoài nước', max: 0.75, score: 0.65, step: 0.05 },
+          { id: 'c6', name: '6. Phương pháp nghiên cứu & Giải pháp kỹ thuật', desc: 'Lựa chọn kiến trúc hệ thống, thuật toán và mô hình phù hợp', max: 1.00, score: 0.85, step: 0.05 },
+          { id: 'c7', name: '7. Kết quả thực nghiệm & Đánh giá đo lường', desc: 'Tập dữ liệu kiểm thử, các chỉ số đo lường chính xác và độ trễ', max: 1.25, score: 1.10, step: 0.05 },
+          { id: 'c8', name: '8. Sản phẩm ứng dụng thực tế (Demo)', desc: 'Giao diện người dùng, mã nguồn codebase, độ hoàn thiện demo', max: 1.00, score: 0.80, step: 0.05 },
+          { id: 'c9', name: '9. Đóng góp mới & Khả năng ứng dụng', desc: 'Tính mới của giải pháp hoặc ứng dụng hiệu quả vào thực tiễn', max: 0.50, score: 0.40, step: 0.05 }
+        ]
+      },
+      {
+        id: 'group-3',
+        title: 'III. KỸ NĂNG THUYẾT TRÌNH & TRỰC QUAN',
+        criteria: [
+          { id: 'c10', name: '10. Trực quan hóa Slide & Demo sản phẩm', desc: 'Slide rõ ràng, minh họa sinh động, demo mượt mà không lỗi', max: 0.75, score: 0.65, step: 0.05 },
+          { id: 'c11', name: '11. Kỹ năng diễn đạt & Quản lý thời gian', desc: 'Thuyết trình tự tin, mạch lạc, đúng thời lượng quy định 15 phút', max: 0.75, score: 0.60, step: 0.05 },
+          { id: 'c12', name: '12. Tác phong & Trang phục học thuật', desc: 'Nghiêm túc, trang trọng, chuẩn mực sinh viên tốt nghiệp', max: 0.50, score: 0.40, step: 0.05 }
+        ]
+      },
+      {
+        id: 'group-4',
+        title: 'IV. TRẢ LỜI CÂU HỎI PHẢN BIỆN & VẤN ĐÁP',
+        criteria: [
+          { id: 'c13', name: '13. Nắm vững bản chất kiến thức chuyên môn', desc: 'Hiểu sâu lý thuyết nền tảng và cơ chế hoạt động của giải pháp', max: 1.00, score: 0.85, step: 0.05 },
+          { id: 'c14', name: '14. Khả năng phản biện & Làm rõ các câu hỏi', desc: 'Trả lời đúng trọng tâm câu hỏi của các thành viên Hội đồng', max: 0.75, score: 0.65, step: 0.05 }
+        ]
+      }
+    ];
+
+    let RUBRIC_DATA = JSON.parse(JSON.stringify(DEFAULT_RUBRIC_DATA));
+    function renderRubricTable() {
+      const container = document.getElementById('rubric-groups-container');
+      if (!container) return;
+
+      let html = '';
+      RUBRIC_DATA.forEach((group) => {
+        const groupMax = group.criteria.reduce((sum, c) => sum + (parseFloat(c.max) || 0), 0);
+        const groupScore = group.criteria.reduce((sum, c) => sum + (parseFloat(c.score) || 0), 0);
+
+        html += `
+          <div class="rubric-group">
+            <div class="rubric-group-title">
+              <span>${group.title} (TỐI ĐA ${groupMax.toFixed(2)} ĐIỂM)</span>
+              <span class="mono" style="color: var(--primary);" id="subtotal-${group.id}">${groupScore.toFixed(2)} / ${groupMax.toFixed(2)}đ</span>
+            </div>
+            <div>
+              ${group.criteria.map((c) => `
+                <div class="rubric-row" id="row-${c.id}">
+                  <div>
+                    <div class="rubric-name">${c.name}</div>
+                    <div class="rubric-desc">${c.desc}</div>
+                  </div>
+                  <div class="rubric-max-badge">Tối đa: <span class="mono" id="badge-max-${c.id}">${c.max.toFixed(2)}</span>đ</div>
+                  <input type="range" class="rubric-slider" id="slider-${c.id}" min="0" max="${c.max}" step="${c.step || 0.05}" value="${c.score}" oninput="onRubricSliderChange('${c.id}', this.value)">
+                  <input type="number" class="rubric-input r-val mono" id="input-${c.id}" min="0" max="${c.max}" step="${c.step || 0.05}" value="${c.score.toFixed(2)}" onchange="onRubricInputChange('${c.id}', this.value)">
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+      updateTotalRubricScore();
+    }
+
+    function onRubricSliderChange(critId, val) {
+      const score = parseFloat(val) || 0;
+      for (const g of RUBRIC_DATA) {
+        const c = g.criteria.find(x => x.id === critId);
+        if (c) {
+          c.score = score;
+          const inputElem = document.getElementById('input-' + critId);
+          if (inputElem) inputElem.value = score.toFixed(2);
+          updateGroupSubtotal(g.id);
+          break;
+        }
+      }
+      updateTotalRubricScore();
+    }
+
+    function onRubricInputChange(critId, val) {
+      let score = parseFloat(val) || 0;
+      for (const g of RUBRIC_DATA) {
+        const c = g.criteria.find(x => x.id === critId);
+        if (c) {
+          score = Math.max(0, Math.min(c.max, score));
+          c.score = score;
+          const sliderElem = document.getElementById('slider-' + critId);
+          if (sliderElem) sliderElem.value = score;
+          const inputElem = document.getElementById('input-' + critId);
+          if (inputElem) inputElem.value = score.toFixed(2);
+          updateGroupSubtotal(g.id);
+          break;
+        }
+      }
+      updateTotalRubricScore();
+    }
+
+    function updateGroupSubtotal(groupId) {
+      const g = RUBRIC_DATA.find(x => x.id === groupId);
+      if (g) {
+        const groupScore = g.criteria.reduce((sum, c) => sum + (parseFloat(c.score) || 0), 0);
+        const groupMax = g.criteria.reduce((sum, c) => sum + (parseFloat(c.max) || 0), 0);
+        const subtotalElem = document.getElementById('subtotal-' + groupId);
+        if (subtotalElem) {
+          subtotalElem.textContent = groupScore.toFixed(2) + ' / ' + groupMax.toFixed(2) + 'đ';
+        }
+      }
+    }
+
+    function updateTotalRubricScore() {
+      let totalScore = 0;
+      let totalMax = 0;
+
+      RUBRIC_DATA.forEach(g => {
+        g.criteria.forEach(c => {
+          totalScore += parseFloat(c.score) || 0;
+          totalMax += parseFloat(c.max) || 0;
+        });
+      });
+
+      const totalScoreElem = document.getElementById('sheet-total-score');
+      if (totalScoreElem) totalScoreElem.textContent = totalScore.toFixed(2);
+
+      const tagElem = document.getElementById('rubric-total-scale-tag');
+      if (tagElem) {
+        tagElem.textContent = 'Thang điểm chuẩn: ' + totalMax.toFixed(2) + 'đ';
+      }
+
+      const gradeText = document.getElementById('sheet-grade-text');
+      if (gradeText) {
+        const ratio = totalMax > 0 ? (totalScore / totalMax) * 10 : 0;
+        if (ratio >= 9.0) {
+          gradeText.textContent = 'XẾP LOẠI: XUẤT SẮC (A+)';
+          gradeText.style.color = '#15803D';
+        } else if (ratio >= 8.5) {
+          gradeText.textContent = 'XẾP LOẠI: GIỎI (A)';
+          gradeText.style.color = '#0F766E';
+        } else if (ratio >= 7.0) {
+          gradeText.textContent = 'XẾP LOẠI: KHÁ (B)';
+          gradeText.style.color = '#2563EB';
+        } else {
+          gradeText.textContent = 'XẾP LOẠI: TRUNG BÌNH (C)';
+          gradeText.style.color = '#D97706';
+        }
+      }
+    }
+
+    // Grading Sheet open
+    function openGradingSheetForStudent(studentName, mssv, topicTitle, initialScore) {
+      document.getElementById('sheet-student-name').textContent = studentName;
+      document.getElementById('sheet-student-mssv').textContent = 'MSSV: ' + mssv;
+      document.getElementById('sheet-topic-title').textContent = topicTitle;
+      switchView('view-grading-sheet');
+      renderRubricTable();
+    }
+
+    function saveRubricScore() {
+      const score = document.getElementById('sheet-total-score').textContent;
+      showToast('Đã lưu điểm Rubric (' + score + 'đ) và ký số biên bản điện tử thành công!');
+    }
+
+    function openPrintScoreSheetModal() {
+      const modal = document.getElementById('modal-print-score-sheet');
+      if (!modal) return;
+
+      const sName = document.getElementById('sheet-student-name').textContent;
+      const sMssv = document.getElementById('sheet-student-mssv').textContent.replace('MSSV: ', '');
+      const sTopic = document.getElementById('sheet-topic-title').textContent;
+
+      const pStudent = modal.querySelector('p:nth-child(1)');
+      if (pStudent) pStudent.innerHTML = 'Họ tên sinh viên: <strong>' + sName.toUpperCase() + '</strong> · MSSV: <strong class="mono">' + sMssv + '</strong>';
+      const pTopic = modal.querySelector('p:nth-child(2)');
+      if (pTopic) pTopic.innerHTML = 'Tên đề tài: <strong>' + sTopic + '</strong>';
+
+      const pTbody = modal.querySelector('tbody');
+      if (pTbody) {
+        let totalMax = 0;
+        let totalScore = 0;
+        let rowsHtml = '';
+
+        RUBRIC_DATA.forEach(g => {
+          const gMax = g.criteria.reduce((sum, c) => sum + (parseFloat(c.max) || 0), 0);
+          const gScore = g.criteria.reduce((sum, c) => sum + (parseFloat(c.score) || 0), 0);
+          totalMax += gMax;
+          totalScore += gScore;
+
+          rowsHtml += `
+            <tr>
+              <td style="border: 1px solid #CBD5E1; padding: 6px;">${g.title}</td>
+              <td style="border: 1px solid #CBD5E1; padding: 6px; text-align: center;">${gMax.toFixed(2)}</td>
+              <td style="border: 1px solid #CBD5E1; padding: 6px; text-align: center; font-weight: 700;">${gScore.toFixed(2)}</td>
+            </tr>
+          `;
+        });
+
+        rowsHtml += `
+          <tr style="background: #F0FDFA; font-weight: 700;">
+            <td style="border: 1px solid #CBD5E1; padding: 6px; color: #0F766E;">TỔNG ĐIỂM ĐÁNH GIÁ</td>
+            <td style="border: 1px solid #CBD5E1; padding: 6px; text-align: center; color: #0F766E;">${totalMax.toFixed(2)}</td>
+            <td style="border: 1px solid #CBD5E1; padding: 6px; text-align: center; color: #0F766E; font-size: 14px;">${totalScore.toFixed(2)}</td>
+          </tr>
+        `;
+        pTbody.innerHTML = rowsHtml;
+      }
+
+      openModal('modal-print-score-sheet');
+    }
+
+    // Switch Stage in Council View (Defense vs Outline)
+    function switchCouncilStage(stage, tabElem) {
+      document.querySelectorAll('#view-grading .segmented-tabs .seg-tab').forEach(function(t) {
+        t.classList.remove('active');
+      });
+      if (tabElem) tabElem.classList.add('active');
+
+      const defenseStage = document.getElementById('council-stage-defense');
+      const outlineStage = document.getElementById('council-stage-outline');
+
+      if (stage === 'defense') {
+        if (defenseStage) defenseStage.style.display = 'flex';
+        if (outlineStage) outlineStage.style.display = 'none';
+      } else {
+        if (defenseStage) defenseStage.style.display = 'none';
+        if (outlineStage) outlineStage.style.display = 'flex';
+      }
+    }
+
+    // Reviewer Form Handlers
+    function openReviewerFormModal(name, mssv, topic, supervisor) {
+      document.getElementById('reviewer-student-name').textContent = name;
+      document.getElementById('reviewer-student-mssv').textContent = mssv;
+      document.getElementById('reviewer-topic-title').textContent = topic;
+      document.getElementById('reviewer-supervisor-name').textContent = supervisor;
+      openModal('modal-reviewer-form');
+    }
+
+    function saveReviewerForm() {
+      closeModal('modal-reviewer-form');
+      showToast('Đã lưu bản nhận xét phản biện và ký số SHA-256 thành công!');
+    }
+
+    // Outline Evaluation Handlers
+    let currentOutlineStudent = '';
+    function openOutlineEvaluationModal(name, mssv, topicCode, topicTitle, supervisor, status) {
+      currentOutlineStudent = name;
+      document.getElementById('eval-student-name').textContent = name;
+      document.getElementById('eval-student-mssv').textContent = mssv;
+      document.getElementById('eval-topic-title').textContent = topicCode + ': ' + topicTitle;
+      document.getElementById('eval-supervisor').textContent = supervisor;
+
+      const radios = document.querySelectorAll('input[name="eval_result"]');
+      if (status === 'pass') {
+        radios[0].checked = true;
+      } else if (status === 'revision') {
+        radios[1].checked = true;
+      } else {
+        radios[0].checked = true;
+      }
+      openModal('modal-outline-evaluation');
+    }
+
+    function saveOutlineEvaluation() {
+      const selected = document.querySelector('input[name="eval_result"]:checked').value;
+      closeModal('modal-outline-evaluation');
+
+      const rows = document.querySelectorAll('#council-stage-outline table tbody tr');
+      rows.forEach(function(r) {
+        if (r.textContent.indexOf(currentOutlineStudent) !== -1) {
+          const statusCell = r.children[5];
+          const actionCell = r.children[6];
+          if (selected === 'pass') {
+            statusCell.innerHTML = '<span class="tag green">✓ Đạt yêu cầu (Cho nộp BM02)</span>';
+            actionCell.innerHTML = '<button class="btn btn-secondary btn-sm" onclick="showToast(\'Đã lưu kết quả Đạt yêu cầu\')">Xem đánh giá</button>';
+          } else if (selected === 'revision') {
+            statusCell.innerHTML = '<span class="tag yellow">⚠ Yêu cầu sửa đổi bổ sung</span>';
+            actionCell.innerHTML = '<button class="btn btn-secondary btn-sm" onclick="showToast(\'Đã gửi yêu cầu sửa đổi đến sinh viên\')">Xem đánh giá</button>';
+          } else {
+            statusCell.innerHTML = '<span class="tag red">✕ Không đồng ý (Đổi đề tài)</span>';
+            actionCell.innerHTML = '<button class="btn btn-secondary btn-sm" onclick="showToast(\'Đã từ chối đề cương\')">Xem đánh giá</button>';
+          }
+          r.style.background = '';
+        }
+      });
+
+      showToast('Đã lưu kết quả thẩm định đề cương và ký số biên bản thành công!');
+    }
+
+    // Group Broadcast Message Handler
+    function submitBroadcastMessage() {
+      const title = document.getElementById('broadcast-title').value.trim();
+      const body = document.getElementById('broadcast-body').value.trim();
+      if (!title || !body) {
+        alert('Vui lòng nhập đầy đủ tiêu đề và nội dung thông báo!');
+        return;
+      }
+      closeModal('modal-broadcast-message');
+      showToast('Đã gửi thông báo thành công đến 7 sinh viên qua Email trường và thông báo DACN!');
+    }
+
+    // Clone Topics Handler
+    function confirmCloneTopics() {
+      closeModal('modal-clone-topics');
+      const tbody = document.querySelector('#topics-main-table tbody');
+      if (tbody) {
+        const tr1 = document.createElement('tr');
+        tr1.setAttribute('data-status', 'open');
+        tr1.innerHTML = '<td class="mono" style="font-weight: 600; color: var(--accent);">DT-2026-118</td>' +
+          '<td><div style="font-weight: 600;">Nền tảng Quan sát và Giám sát Hiệu năng Dịch vụ Đám mây</div><div style="font-size: 11.5px; color: var(--muted);">Cloud Observability Engine with OpenTelemetry</div></td>' +
+          '<td><span class="tag gray">Go · Prometheus · OpenTelemetry</span></td>' +
+          '<td><span style="color: var(--muted); font-style: italic;">Chưa gán chính thức</span></td>' +
+          '<td><span class="tag green">0 / 1 SV (Đang mở)</span></td>' +
+          '<td><span class="tag yellow">Mới nhân bản</span></td>' +
+          '<td style="text-align: right;"><button class="btn btn-primary btn-sm" onclick="switchView(\'view-approvals\')">Xem hồ sơ</button></td>';
+        tbody.insertBefore(tr1, tbody.firstChild);
+      }
+      showToast('Đã sao chép thành công 3 đề tài từ học kỳ trước và mở đăng ký!');
+    }
+
+    // Lecturer Profile Save Handler
+    function saveLecturerProfile() {
+      const lab = document.getElementById('prof-lab').value;
+      const hours = document.getElementById('prof-hours').value;
+      closeModal('modal-lecturer-profile');
+      showToast('Đã cập nhật lịch tiếp sinh viên (' + hours + ' tại ' + lab + ') và đồng bộ lên Cổng thông tin học vụ!');
+    }
+
+    const SHARED_SIDEBAR_KEY = 'dacn-sidebar-collapsed';
+    function applySharedSidebarState(collapsed) {
+      const sidebar = document.querySelector('.sidebar');
+      const toggle = document.querySelector('.sidebar-toggle');
+      if (!sidebar || !toggle) return;
+      sidebar.classList.toggle('is-collapsed', collapsed);
+      toggle.setAttribute('aria-expanded', String(!collapsed));
+      const label = collapsed ? 'Mở rộng thanh điều hướng' : 'Thu gọn thanh điều hướng';
+      toggle.setAttribute('aria-label', label);
+      toggle.title = label;
+      sidebar.querySelectorAll('.nav-item, .switch-link').forEach(function(item) {
+        if (!item.dataset.sidebarLabel) item.dataset.sidebarLabel = item.textContent.trim().replace(/\s+/g, ' ');
+        item.title = collapsed ? item.dataset.sidebarLabel : '';
+      });
+    }
+    function toggleSharedSidebar() {
+      const sidebar = document.querySelector('.sidebar');
+      const collapsed = !sidebar.classList.contains('is-collapsed');
+      localStorage.setItem(SHARED_SIDEBAR_KEY, String(collapsed));
+      applySharedSidebarState(collapsed);
+    }
+    function initializeSharedSidebar() {
+      applySharedSidebarState(localStorage.getItem(SHARED_SIDEBAR_KEY) === 'true');
+    }
+
+    // Initialize Rubric on load
+    document.addEventListener('DOMContentLoaded', function() {
+      renderRubricTable();
+    });
+    // In case DOM is already ready
+    initializeSharedSidebar();
+    renderRubricTable();
+  </script>
+</body>
+</html>

@@ -27,7 +27,7 @@ export default function StatCard({
             } ${className}`}
         >
             <div className="flex items-center justify-between gap-3 mb-2.5">
-                <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider truncate">
+                <span className="text-[11px] font-semibold text-slate-600 uppercase tracking-wider truncate">
                     {label}
                 </span>
                 <div className={`w-8 h-8 ${iconBg} rounded-md flex items-center justify-center shrink-0 border border-black/5`}>
@@ -55,7 +55,7 @@ export default function StatCard({
             </div>
 
             {description && (
-                <p className="text-xs text-slate-400 font-normal mt-2 leading-relaxed">
+                <p className="text-xs text-slate-600 font-medium mt-2 leading-relaxed">
                     {description}
                 </p>
             )}

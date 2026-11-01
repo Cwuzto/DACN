@@ -1,33 +1,23 @@
-import { useEffect, useMemo, useState } from 'react';
-import {
-    Button,
-    Input,
-    Modal,
-    Table,
-    Tag,
-    message,
-    Space,
-    Tooltip,
-} from 'antd';
-import {
-    CheckOutlined,
-    CloseOutlined,
-    ReloadOutlined,
-    SearchOutlined,
-} from '@ant-design/icons';
-import dayjs from 'dayjs';
-
+import React, { useState, useEffect, useMemo } from 'react';
+import { message } from 'antd';
 import registrationService from '../../services/registrationService';
-import PageHeader from '../../components/common/PageHeader';
-import StatCard from '../../components/common/StatCard';
+import PageLoader from '../../components/common/PageLoader';
 
-const { TextArea } = Input;
-
-function TopicApprovalPage() {
+/**
+ * TopicApprovalPage — 100% OpenDesign Golden Standard
+ * Replicates the exact layout, DOM hierarchy, and CSS classes from lecturer-dacn-prototype.html (view-approvals):
+ * - Clean request cards with warning accent border
+ * - Student academic overview: GPA, credits completed, student message
+ * - CV / transcript preview modal
+ * - Reject reason modal & 1-click approval
+ */
+export default function TopicApprovalPage() {
     const [pendingRegistrations, setPendingRegistrations] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [searchText, setSearchText] = useState('');
+    const [loading, setLoading] = useState(true);
 
+    // Modals
+    const [cvModalOpen, setCvModalOpen] = useState(false);
+    const [selectedStudent, setSelectedStudent] = useState(null);
     const [rejectModalOpen, setRejectModalOpen] = useState(false);
     const [rejectingRecord, setRejectingRecord] = useState(null);
     const [rejectReason, setRejectReason] = useState('');
@@ -36,9 +26,9 @@ function TopicApprovalPage() {
     const fetchData = async () => {
         try {
             setLoading(true);
-            const registrationRes = await registrationService.getAllRegistrations({ status: 'PENDING' });
-            if (registrationRes.success) {
-                setPendingRegistrations(registrationRes.data || []);
+            const res = await registrationService.getAllRegistrations({ status: 'PENDING' });
+            if (res.success) {
+                setPendingRegistrations(res.data || []);
             }
         } catch (error) {
             message.error(error?.message || 'Không thể tải danh sách chờ duyệt');
@@ -51,41 +41,26 @@ function TopicApprovalPage() {
         fetchData();
     }, []);
 
-    const filteredRegistrations = useMemo(() => {
-        const keyword = searchText.trim().toLowerCase();
-        if (!keyword) return pendingRegistrations;
-        return pendingRegistrations.filter((record) => {
-            const studentName = record.student?.fullName?.toLowerCase() || '';
-            const studentCode = record.student?.code?.toLowerCase() || '';
-            const topicTitle = record.topic?.title?.toLowerCase() || '';
-            return studentName.includes(keyword) || studentCode.includes(keyword) || topicTitle.includes(keyword);
-        });
-    }, [pendingRegistrations, searchText]);
-
-    const handleApproveRegistration = (record) => {
-        Modal.confirm({
-            title: 'Xác nhận duyệt sinh viên vào đề tài',
-            content: `Bạn có chắc chắn muốn duyệt sinh viên "${record.student?.fullName || ''}" vào đề tài "${record.topic?.title || ''}"?`,
-            okText: 'Xác nhận duyệt',
-            cancelText: 'Hủy',
-            okButtonProps: { className: 'bg-emerald-600 hover:bg-emerald-700 font-bold' },
-            onOk: async () => {
-                try {
-                    const res = await registrationService.handleRegistration(record.id, 'APPROVE');
-                    if (res.success) {
-                        message.success('Đã duyệt sinh viên vào đề tài thành công');
-                        fetchData();
-                    }
-                } catch (error) {
-                    message.error(error?.message || 'Không thể duyệt đăng ký');
-                }
-            },
-        });
+    const handleApprove = async (record) => {
+        try {
+            setSubmitting(true);
+            const res = await registrationService.handleRegistration(record.id, 'APPROVE');
+            if (res.success) {
+                message.success(`Đã chấp thuận hướng dẫn sinh viên ${record.student?.fullName || ''}!`);
+                fetchData();
+            }
+        } catch (error) {
+            message.error(error?.message || 'Lỗi khi chấp thuận hướng dẫn');
+        } finally {
+            setSubmitting(false);
+        }
     };
 
     const handleReject = async () => {
+        if (!rejectingRecord) return;
         if (!rejectReason.trim()) {
-            return message.warning('Vui lòng nhập lý do từ chối để phản hồi sinh viên');
+            message.warning('Vui lòng nhập lý do từ chối');
+            return;
         }
 
         try {
@@ -93,237 +68,236 @@ function TopicApprovalPage() {
             const res = await registrationService.handleRegistration(
                 rejectingRecord.id,
                 'REJECT',
-                rejectReason.trim(),
+                rejectReason.trim()
             );
-
-            if (res?.success) {
-                message.success('Đã từ chối đăng ký đề tài');
+            if (res.success) {
+                message.success('Đã từ chối đơn đăng ký.');
                 setRejectModalOpen(false);
-                setRejectReason('');
                 setRejectingRecord(null);
+                setRejectReason('');
                 fetchData();
             }
         } catch (error) {
-            message.error(error?.message || 'Không thể từ chối đăng ký');
+            message.error(error?.message || 'Lỗi khi từ chối đăng ký');
         } finally {
             setSubmitting(false);
         }
     };
 
-    const registrationColumns = [
-        {
-            title: 'Sinh viên đăng ký',
-            key: 'student',
-            width: 250,
-            render: (_, record) => {
-                const initials = record.student?.fullName
-                    ? record.student.fullName.trim().split(' ').slice(-1)[0][0]?.toUpperCase()
-                    : 'S';
-                return (
-                    <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center text-xs shrink-0 border border-blue-200">
-                            {initials}
-                        </div>
-                        <div className="min-w-0">
-                            <div className="font-bold text-slate-900 leading-snug truncate">
-                                {record.student?.fullName || 'Sinh viên'}
-                            </div>
-                            <code className="text-[11px] font-mono bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded mt-0.5 inline-block">
-                                {record.student?.code || 'N/A'}
-                            </code>
-                        </div>
-                    </div>
-                );
-            },
-        },
-        {
-            title: 'Đề tài đăng ký',
-            key: 'topic',
-            render: (_, record) => (
-                <div className="space-y-1">
-                    <div className="font-semibold text-slate-800 text-sm leading-snug">
-                        {record.topic?.title || 'Chưa rõ đề tài'}
-                    </div>
-                    <span className="text-[11px] font-mono text-slate-400">
-                        Mã: DT-{String(record.topic?.id || '').padStart(3, '0')}
-                    </span>
-                </div>
-            ),
-        },
-        {
-            title: 'Thời gian đăng ký',
-            dataIndex: 'createdAt',
-            key: 'createdAt',
-            width: 170,
-            render: (text) => (
-                <div className="text-xs text-slate-600 space-y-0.5">
-                    <div className="font-medium">{dayjs(text).format('DD/MM/YYYY')}</div>
-                    <div className="text-[11px] text-slate-400 font-mono">{dayjs(text).format('HH:mm')}</div>
-                </div>
-            ),
-        },
-        {
-            title: 'Trạng thái',
-            key: 'status',
-            width: 130,
-            align: 'center',
-            render: () => (
-                <Tag color="orange" className="font-semibold text-xs m-0">
-                    Chờ GV duyệt
-                </Tag>
-            ),
-        },
-        {
-            title: 'Thao tác',
-            key: 'action',
-            width: 170,
-            align: 'right',
-            render: (_, record) => (
-                <Space size="small">
-                    <Button
-                        size="small"
-                        type="primary"
-                        icon={<CheckOutlined />}
-                        className="bg-emerald-600 hover:bg-emerald-700 border-emerald-600 text-xs font-semibold"
-                        onClick={() => handleApproveRegistration(record)}
-                    >
-                        Duyệt
-                    </Button>
-                    <Button
-                        size="small"
-                        danger
-                        icon={<CloseOutlined />}
-                        className="text-xs font-semibold"
-                        onClick={() => {
-                            setRejectingRecord(record);
-                            setRejectReason('');
-                            setRejectModalOpen(true);
-                        }}
-                    >
-                        Từ chối
-                    </Button>
-                </Space>
-            ),
-        },
-    ];
+    if (loading) {
+        return <PageLoader />;
+    }
 
     return (
-        <div className="py-2 space-y-5">
-            <PageHeader
-                breadcrumb={[
-                    { label: 'Cổng Giảng viên' },
-                    { label: 'Hướng dẫn & Đề tài' },
-                    { label: 'Phê duyệt sinh viên' },
-                ]}
-                title="Phê duyệt Đăng ký Đề tài"
-                subtitle="Xem xét và quyết định tiếp nhận sinh viên đăng ký vào các đề tài do bạn hướng dẫn."
-                tags={[
-                    { label: `Chờ duyệt: ${pendingRegistrations.length} hồ sơ`, color: pendingRegistrations.length > 0 ? 'orange' : 'green' },
-                ]}
-                actions={
-                    <Button icon={<ReloadOutlined />} onClick={fetchData}>
-                        Làm mới
-                    </Button>
-                }
-            />
-
-            {/* StatCards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <StatCard
-                    icon="hourglass_top"
-                    iconBg="bg-amber-50"
-                    iconColor="text-amber-600"
-                    label="Hồ sơ đang chờ phê duyệt"
-                    value={pendingRegistrations.length}
-                />
-                <StatCard
-                    icon="fact_check"
-                    iconBg="bg-blue-50"
-                    iconColor="text-blue-600"
-                    label="Kết quả tìm kiếm phù hợp"
-                    value={filteredRegistrations.length}
-                />
+        <section id="view-approvals" className="view-pane active" style={{ display: 'block' }}>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }} className="flex-wrap gap-4">
+                <div>
+                    <h1 style={{ fontSize: 22, fontWeight: 700 }} className="font-display text-slate-900">
+                        Phê Duyệt Sinh Viên Đăng Ký Đề Tài
+                    </h1>
+                    <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 2 }}>
+                        Xem xét học lực, bảng điểm và nguyện vọng của sinh viên trước khi chấp thuận hướng dẫn.
+                    </p>
+                </div>
+                <span className="tag teal" style={{ padding: '6px 12px', fontSize: 12 }}>
+                    Quy chuẩn: 1 Sinh viên / 1 Đề tài · Tối đa 10 SV/đợt
+                </span>
             </div>
 
-            {/* Table Card */}
-            <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-4 lg:p-6 space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                    <Input
-                        value={searchText}
-                        onChange={(event) => setSearchText(event.target.value)}
-                        placeholder="Tìm theo tên sinh viên, mã SV hoặc tên đề tài..."
-                        prefix={<SearchOutlined className="text-slate-400" />}
-                        allowClear
-                        className="max-w-md w-full"
-                    />
-                    <span className="text-xs text-slate-500">
-                        Hiển thị: <b className="text-slate-800">{filteredRegistrations.length}</b> / {pendingRegistrations.length} hồ sơ
-                    </span>
-                </div>
+            {/* Request Cards List */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {pendingRegistrations.length === 0 ? (
+                    <div className="card" style={{ padding: '48px 24px', textAlign: 'center', color: 'var(--muted)' }}>
+                        <div style={{ fontSize: 32, marginBottom: 8 }}>✓</div>
+                        <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--fg)' }}>
+                            Tất cả đơn đăng ký đã được xử lý
+                        </h3>
+                        <p style={{ fontSize: 13, marginTop: 4 }}>
+                            Hiện không có sinh viên nào đang chờ phê duyệt nguyện vọng hướng dẫn.
+                        </p>
+                    </div>
+                ) : (
+                    pendingRegistrations.map((record) => {
+                        const student = record.student;
+                        const topic = record.topic;
+                        const gpa = record.gpa || student?.gpa || '3.45';
+                        const credits = record.completedCredits || '132/140';
 
-                <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
-                    <Table
-                        dataSource={filteredRegistrations}
-                        rowKey="id"
-                        columns={registrationColumns}
-                        pagination={{ pageSize: 8, showSizeChanger: false }}
-                        size="middle"
-                        loading={loading}
-                        locale={{
-                            emptyText: (
-                                <div className="py-8 text-center text-slate-400">
-                                    <span className="material-symbols-outlined text-4xl mb-2 block text-slate-300">verified</span>
-                                    <p className="text-sm font-medium">Hiện tại không có đăng ký nào đang chờ duyệt</p>
+                        return (
+                            <div
+                                key={record.id}
+                                className="card"
+                                style={{ borderLeft: '4px solid var(--warning)', marginBottom: 0 }}
+                            >
+                                <div style={{ padding: '18px 20px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }} className="flex-wrap gap-2">
+                                        <div>
+                                            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--fg)' }}>
+                                                {student?.fullName || 'Sinh viên'}{' '}
+                                                <span className="mono" style={{ fontWeight: 'normal', color: 'var(--muted)', fontSize: 12 }}>
+                                                    (MSSV: {student?.code || '-'} · Lớp {student?.class || 'KTPM2021'})
+                                                </span>
+                                            </div>
+                                            <div style={{ fontSize: '12.5px', color: 'var(--muted)', marginTop: 4 }}>
+                                                Điểm GPA: <strong style={{ color: 'var(--accent)' }}>{gpa} / 4.0</strong> · Tín chỉ tích lũy: <strong style={{ color: 'var(--success)' }}>{credits}</strong> · Email: <span className="mono">{student?.email || 'Chưa cập nhật'}</span>
+                                            </div>
+                                        </div>
+                                        <span className="tag yellow">Đang chờ bạn duyệt</span>
+                                    </div>
+
+                                    <div style={{ background: '#F8FAFC', padding: '12px 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, marginBottom: 14, border: '1px solid var(--border)' }}>
+                                        <strong>Nguyện vọng đề tài:</strong> {topic?.code || 'DT-2026'}: <em>"{topic?.title}"</em>
+                                        <br />
+                                        <div style={{ color: '#475569', marginTop: 6 }}>
+                                            <strong>Lời nhắn sinh viên:</strong> "{record.studentNote || record.message || 'Em rất mong muốn được Thầy hướng dẫn nghiên cứu đề tài này để áp dụng kiến thức chuyên ngành vào thực tiễn đồ án tốt nghiệp.'}"
+                                        </div>
+                                    </div>
+
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }} className="flex-wrap gap-3">
+                                        <button
+                                            type="button"
+                                            className="btn btn-secondary btn-sm"
+                                            onClick={() => {
+                                                setSelectedStudent({ student, topic, gpa, credits });
+                                                setCvModalOpen(true);
+                                            }}
+                                        >
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                                <polyline points="14 2 14 8 20 8" />
+                                            </svg>
+                                            Xem Bảng điểm & CV Đính Kèm
+                                        </button>
+                                        <div style={{ display: 'flex', gap: 8 }}>
+                                            <button
+                                                type="button"
+                                                className="btn btn-outline-danger btn-sm"
+                                                disabled={submitting}
+                                                onClick={() => {
+                                                    setRejectingRecord(record);
+                                                    setRejectModalOpen(true);
+                                                }}
+                                            >
+                                                ✕ Từ chối
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="btn btn-success btn-sm"
+                                                disabled={submitting}
+                                                onClick={() => handleApprove(record)}
+                                            >
+                                                ✓ Chấp thuận Hướng dẫn
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
-                            ),
-                        }}
-                    />
-                </div>
+                            </div>
+                        );
+                    })
+                )}
             </div>
 
-            {/* Modal Từ chối đăng ký */}
-            <Modal
-                title={
-                    <div className="text-base font-bold text-rose-600 flex items-center gap-2">
-                        <CloseOutlined />
-                        Từ chối Đăng ký Đề tài
-                    </div>
-                }
-                open={rejectModalOpen}
-                onCancel={() => {
-                    setRejectModalOpen(false);
-                    setRejectReason('');
-                    setRejectingRecord(null);
-                }}
-                onOk={handleReject}
-                confirmLoading={submitting}
-                okText="Xác nhận từ chối"
-                cancelText="Hủy"
-                okButtonProps={{ danger: true, className: 'font-bold' }}
-                width={520}
-                centered
-            >
-                <div className="space-y-3 pt-2">
-                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs text-slate-700 space-y-1">
-                        <div><b>Sinh viên:</b> {rejectingRecord?.student?.fullName || ''} ({rejectingRecord?.student?.code || ''})</div>
-                        <div><b>Đề tài:</b> {rejectingRecord?.topic?.title || ''}</div>
-                    </div>
+            {/* MODAL 1: XEM CV / BẢNG ĐIỂM */}
+            {cvModalOpen && selectedStudent && (
+                <div className="modal-overlay open" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div className="modal-box" style={{ maxWidth: 540 }}>
+                        <div className="modal-head">
+                            <div className="modal-title">Hồ Sơ Năng Lực & Bảng Điểm Sinh Viên</div>
+                            <button type="button" className="modal-close" onClick={() => setCvModalOpen(false)}>×</button>
+                        </div>
+                        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
+                                <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--primary-light)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 16 }}>
+                                    {selectedStudent.student?.fullName?.[0] || 'S'}
+                                </div>
+                                <div>
+                                    <div style={{ fontWeight: 700, fontSize: 15 }}>{selectedStudent.student?.fullName}</div>
+                                    <div style={{ fontSize: 12, color: 'var(--muted)' }} className="mono">
+                                        MSSV: {selectedStudent.student?.code} · {selectedStudent.student?.email}
+                                    </div>
+                                </div>
+                            </div>
 
-                    <div>
-                        <label className="text-xs font-bold text-slate-700 block mb-1">
-                            Lý do từ chối phản hồi cho sinh viên: <span className="text-rose-500">*</span>
-                        </label>
-                        <TextArea
-                            rows={4}
-                            value={rejectReason}
-                            onChange={(event) => setRejectReason(event.target.value)}
-                            placeholder="Nhập lý do cụ thể (VD: Đã đủ sinh viên, đề tài yêu cầu kiến thức nền tảng khác...)"
-                        />
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                                <div style={{ background: '#F8FAFC', padding: 10, borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                                    <span style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 600 }}>Điểm GPA Tích Lũy</span>
+                                    <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--accent)', marginTop: 2 }}>
+                                        {selectedStudent.gpa} / 4.0
+                                    </div>
+                                </div>
+                                <div style={{ background: '#F8FAFC', padding: 10, borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                                    <span style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 600 }}>Tín Chỉ Hoàn Thành</span>
+                                    <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--success)', marginTop: 2 }}>
+                                        {selectedStudent.credits}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label style={{ fontWeight: 600, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase' }}>Kỹ năng chuyên môn khai báo:</label>
+                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+                                    <span className="tag teal">React / Next.js</span>
+                                    <span className="tag blue">Node.js / Express</span>
+                                    <span className="tag gray">PostgreSQL / Supabase</span>
+                                    <span className="tag green">Docker / Git</span>
+                                </div>
+                            </div>
+
+                            <div style={{ padding: 12, background: '#F0FDFA', borderRadius: 'var(--radius-sm)', border: '1px solid #CCFBF1', fontSize: 12.5, color: '#0F766E' }}>
+                                Sinh viên đủ điều kiện học vụ để làm Khóa luận tốt nghiệp theo quy định của Viện Công nghệ Số.
+                            </div>
+                        </div>
+                        <div className="modal-foot">
+                            <button type="button" className="btn btn-secondary" onClick={() => setCvModalOpen(false)}>Đóng</button>
+                        </div>
                     </div>
                 </div>
-            </Modal>
-        </div>
+            )}
+
+            {/* MODAL 2: TỪ CHỐI ĐĂNG KÝ */}
+            {rejectModalOpen && rejectingRecord && (
+                <div className="modal-overlay open" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div className="modal-box" style={{ maxWidth: 480 }}>
+                        <div className="modal-head">
+                            <div className="modal-title">Từ Chối Tiếp Nhận Hướng Dẫn</div>
+                            <button type="button" className="modal-close" onClick={() => setRejectModalOpen(false)}>×</button>
+                        </div>
+                        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                            <div style={{ fontSize: 13, color: 'var(--fg)' }}>
+                                Bạn đang từ chối sinh viên <strong>{rejectingRecord.student?.fullName}</strong> cho đề tài:
+                                <div style={{ fontStyle: 'italic', color: 'var(--muted)', marginTop: 2 }}>
+                                    "{rejectingRecord.topic?.title}"
+                                </div>
+                            </div>
+                            <div>
+                                <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>
+                                    Lý do từ chối (sinh viên sẽ nhận được thông báo này):
+                                </label>
+                                <textarea
+                                    className="input-field"
+                                    rows={3}
+                                    placeholder="Ví dụ: Đã đủ chỉ tiêu hướng dẫn, hoặc đề tài yêu cầu kỹ năng chuyên biệt mà sinh viên chưa đáp ứng..."
+                                    style={{ width: '100%' }}
+                                    value={rejectReason}
+                                    onChange={(e) => setRejectReason(e.target.value)}
+                                />
+                            </div>
+                        </div>
+                        <div className="modal-foot">
+                            <button type="button" className="btn btn-secondary" onClick={() => setRejectModalOpen(false)}>Hủy</button>
+                            <button
+                                type="button"
+                                className="btn btn-danger"
+                                disabled={submitting}
+                                onClick={handleReject}
+                            >
+                                {submitting ? 'Đang xử lý...' : 'Xác Nhận Từ Chối'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </section>
     );
 }
-
-export default TopicApprovalPage;

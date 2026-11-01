@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Modal, Form, Input, Alert, message } from 'antd';
 import { EditOutlined } from '@ant-design/icons';
+import dayjs from 'dayjs';
 import registrationService from '../../services/registrationService';
 
 const { TextArea } = Input;
@@ -15,6 +16,11 @@ export default function TitleAdjustmentModal({
 }) {
     const [form] = Form.useForm();
     const [submitting, setSubmitting] = useState(false);
+    const adjustmentDeadline = decisionDate ? dayjs(decisionDate).add(7, 'day') : null;
+    const isExpired = adjustmentDeadline ? dayjs().isAfter(adjustmentDeadline) : false;
+    const remainingDays = adjustmentDeadline
+        ? Math.max(0, Math.ceil(adjustmentDeadline.diff(dayjs(), 'day', true)))
+        : null;
 
     const handleSubmit = async (values) => {
         try {
@@ -44,7 +50,7 @@ export default function TitleAdjustmentModal({
         <Modal
             title={
                 <div className="flex items-center gap-2 text-base font-semibold text-slate-800">
-                    <EditOutlined className="text-blue-600" />
+                    <EditOutlined className="text-teal-700" />
                     <span>Xin Điều Chỉnh Tên Đề Tài Tốt Nghiệp</span>
                 </div>
             }
@@ -52,6 +58,7 @@ export default function TitleAdjustmentModal({
             onCancel={onClose}
             onOk={() => form.submit()}
             confirmLoading={submitting}
+            okButtonProps={{ disabled: isExpired || !registrationId }}
             okText="Gửi đơn xét duyệt"
             cancelText="Hủy bỏ"
             destroyOnClose
@@ -59,10 +66,12 @@ export default function TitleAdjustmentModal({
         >
             <div className="space-y-4 pt-2">
                 <Alert
-                    type="info"
                     showIcon
-                    message="Quy định điều chỉnh tên đề tài (Cửa sổ 7 ngày)"
-                    description="Theo quy chế học vụ, sinh viên chỉ được phép gửi đơn xin điều chỉnh tên đề tài trong vòng 7 ngày kể từ ngày ban hành Quyết định giao đề tài của Viện. Đơn sẽ được chuyển tới GVHD phê duyệt trực tiếp."
+                    type={isExpired ? 'error' : 'info'}
+                    message={isExpired ? 'Đã hết hạn điều chỉnh tên đề tài' : `Cửa sổ điều chỉnh tên: còn ${remainingDays ?? 7} ngày`}
+                    description={adjustmentDeadline
+                        ? `Hạn chót: ${adjustmentDeadline.format('DD/MM/YYYY HH:mm')}. Đơn sẽ được chuyển tới GVHD phê duyệt trực tiếp.`
+                        : 'Chưa xác định được ngày ban hành Quyết định. Vui lòng tải lại dữ liệu trước khi gửi đơn.'}
                 />
 
                 <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">

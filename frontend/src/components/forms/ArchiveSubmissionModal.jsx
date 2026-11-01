@@ -33,11 +33,17 @@ const { Text, Title, Paragraph } = Typography;
 
 export default function ArchiveSubmissionModal({
     visible,
+    open: openProp,
     onClose,
     registration,
+    registrationId,
     initialArchive = null,
+    initialData = null,
     onSuccess,
 }) {
+    const isOpen = openProp !== undefined ? openProp : visible;
+    const effectiveRegistration = registration || (registrationId ? { id: registrationId } : null);
+    const effectiveInitial = initialArchive || initialData;
     const [form] = Form.useForm();
     const [submitting, setSubmitting] = useState(false);
     const [uploadingReport, setUploadingReport] = useState(false);
@@ -47,26 +53,26 @@ export default function ArchiveSubmissionModal({
     const [slideFile, setSlideFile] = useState(null);
 
     useEffect(() => {
-        if (visible) {
+        if (isOpen) {
             form.resetFields();
-            if (initialArchive) {
+            if (effectiveInitial) {
                 form.setFieldsValue({
-                    sourceCodeUrl: initialArchive.sourceCodeUrl || '',
-                    demoVideoUrl: initialArchive.demoVideoUrl || '',
-                    summary: initialArchive.summary || '',
+                    sourceCodeUrl: effectiveInitial.sourceCodeUrl || '',
+                    demoVideoUrl: effectiveInitial.demoVideoUrl || '',
+                    summary: effectiveInitial.summary || '',
                 });
-                if (initialArchive.reportFileUrl) {
+                if (effectiveInitial.reportFileUrl) {
                     setReportFile({
-                        url: initialArchive.reportFileUrl,
-                        name: initialArchive.reportFileName || 'BaoCao_ThuyetMinh_HoanThien.pdf',
+                        url: effectiveInitial.reportFileUrl,
+                        name: effectiveInitial.reportFileName || 'BaoCao_ThuyetMinh_HoanThien.pdf',
                     });
                 } else {
                     setReportFile(null);
                 }
-                if (initialArchive.slideFileUrl) {
+                if (effectiveInitial.slideFileUrl) {
                     setSlideFile({
-                        url: initialArchive.slideFileUrl,
-                        name: initialArchive.slideFileName || 'Slide_BaoVe.pptx',
+                        url: effectiveInitial.slideFileUrl,
+                        name: effectiveInitial.slideFileName || 'Slide_BaoVe.pptx',
                     });
                 } else {
                     setSlideFile(null);
@@ -76,7 +82,7 @@ export default function ArchiveSubmissionModal({
                 setSlideFile(null);
             }
         }
-    }, [visible, initialArchive]);
+    }, [isOpen, effectiveInitial]);
 
     const handleUploadReport = async (file) => {
         try {
@@ -134,7 +140,12 @@ export default function ArchiveSubmissionModal({
                 summary: values.summary?.trim() || null,
             };
 
-            const res = await archiveService.submitArchive(registration.id, payload);
+            const regId = effectiveRegistration?.id || registration?.id;
+            if (!regId) {
+                message.error('Không tìm thấy thông tin đăng ký.');
+                return;
+            }
+            const res = await archiveService.submitArchive(regId, payload);
             if (res.success) {
                 message.success('Đã nộp hồ sơ lưu chiểu thành công!');
                 onSuccess && onSuccess(res.data);
@@ -149,7 +160,7 @@ export default function ArchiveSubmissionModal({
 
     return (
         <Modal
-            open={visible}
+            open={isOpen}
             onCancel={onClose}
             width={720}
             title={(
@@ -203,7 +214,7 @@ export default function ArchiveSubmissionModal({
                                     <FilePdfOutlined className="text-rose-500" />
                                     Báo cáo Thuyết minh (PDF/Word)
                                 </span>
-                                <span className="text-[11px] text-slate-400">Tối đa 50MB</span>
+                                <span className="text-[11px] text-slate-600 font-medium">Tối đa 50MB</span>
                             </div>
                             {reportFile ? (
                                 <div className="flex items-center justify-between p-2 bg-rose-50/50 border border-rose-200 rounded-lg text-xs">
@@ -237,7 +248,7 @@ export default function ArchiveSubmissionModal({
                                     <FilePptOutlined className="text-amber-500" />
                                     Slide Thuyết trình (PPTX/PDF)
                                 </span>
-                                <span className="text-[11px] text-slate-400">Tối đa 50MB</span>
+                                <span className="text-[11px] text-slate-600 font-medium">Tối đa 50MB</span>
                             </div>
                             {slideFile ? (
                                 <div className="flex items-center justify-between p-2 bg-amber-50/50 border border-amber-200 rounded-lg text-xs">

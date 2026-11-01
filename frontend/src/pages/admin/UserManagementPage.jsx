@@ -11,6 +11,9 @@ import {
     Dropdown,
     Space,
     Tag,
+    Drawer,
+    Progress,
+    Descriptions,
 } from 'antd';
 import {
     PlusOutlined,
@@ -25,6 +28,12 @@ import {
     UploadOutlined,
     DownloadOutlined,
     SafetyCertificateOutlined,
+    UserOutlined,
+    MailOutlined,
+    PhoneOutlined,
+    BankOutlined,
+    CheckCircleOutlined,
+    CloseCircleOutlined,
 } from '@ant-design/icons';
 import userService from '../../services/userService';
 import permissionService from '../../services/permissionService';
@@ -33,14 +42,14 @@ import ExcelImportModal from '../../components/common/ExcelImportModal';
 
 const roleMap = {
     ADMIN: { label: 'Quản trị viên', color: 'error', badgeBg: 'bg-rose-50 text-rose-700 border-rose-200' },
-    LECTURER: { label: 'Giảng viên', color: 'blue', badgeBg: 'bg-blue-50 text-blue-700 border-blue-200' },
+    LECTURER: { label: 'Giảng viên', color: 'teal', badgeBg: 'bg-teal-50 text-teal-700 border-teal-200' },
     STUDENT: { label: 'Sinh viên', color: 'green', badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
 };
 
 const roleSections = [
-    { role: 'LECTURER', label: 'Giảng viên', icon: 'school', color: 'text-blue-600', bg: 'bg-blue-50' },
-    { role: 'ADMIN', label: 'Quản trị viên', icon: 'admin_panel_settings', color: 'text-rose-600', bg: 'bg-rose-50' },
-    { role: 'STUDENT', label: 'Sinh viên', icon: 'groups', color: 'text-emerald-600', bg: 'bg-emerald-50' },
+    { role: 'LECTURER', label: 'Giảng viên', icon: 'school', color: 'text-teal-700', bg: 'bg-teal-50' },
+    { role: 'STUDENT', label: 'Sinh viên', icon: 'groups', color: 'text-emerald-700', bg: 'bg-emerald-50' },
+    { role: 'ADMIN', label: 'Quản trị viên', icon: 'admin_panel_settings', color: 'text-rose-700', bg: 'bg-rose-50' },
 ];
 
 function UserManagementPage() {
@@ -49,6 +58,7 @@ function UserManagementPage() {
     const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 });
     const [searchText, setSearchText] = useState('');
     const [activeRole, setActiveRole] = useState('LECTURER');
+    const [departmentFilter, setDepartmentFilter] = useState(null);
     const [statusFilter, setStatusFilter] = useState(null);
     const [accountRestrictedFilter, setAccountRestrictedFilter] = useState(null);
     const [roleCounts, setRoleCounts] = useState({ ADMIN: 0, LECTURER: 0, STUDENT: 0 });
@@ -60,6 +70,10 @@ function UserManagementPage() {
     const [exporting, setExporting] = useState(false);
     const [form] = Form.useForm();
     const selectedRole = Form.useWatch('role', form);
+
+    // Profile context drawer
+    const [drawerUser, setDrawerUser] = useState(null);
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
     // Permission group modal
     const [permModal, setPermModal] = useState({ open: false, user: null });
@@ -97,6 +111,7 @@ function UserManagementPage() {
         try {
             const params = { page, limit, role: activeRole };
             if (searchText) params.search = searchText;
+            if (departmentFilter) params.department = departmentFilter;
             if (statusFilter) params.status = statusFilter;
             if (activeRole === 'STUDENT' && accountRestrictedFilter !== null) {
                 params.accountRestricted = accountRestrictedFilter;
@@ -116,7 +131,7 @@ function UserManagementPage() {
         } finally {
             setLoading(false);
         }
-    }, [searchText, activeRole, statusFilter, accountRestrictedFilter]);
+    }, [searchText, activeRole, departmentFilter, statusFilter, accountRestrictedFilter]);
 
     useEffect(() => { fetchUsers(); }, [fetchUsers]);
     useEffect(() => { fetchRoleCounts(); }, [fetchRoleCounts]);
@@ -158,6 +173,9 @@ function UserManagementPage() {
                 message.success(res.message || 'Cập nhật nhóm quyền thành công');
                 setPermModal({ open: false, user: null });
                 fetchUsers(pagination.current, pagination.pageSize);
+                if (drawerUser?.id === permModal.user.id) {
+                    setIsDrawerOpen(false);
+                }
             }
         } catch (error) {
             message.error(error.message || 'Lỗi khi cập nhật nhóm quyền');
@@ -192,6 +210,9 @@ function UserManagementPage() {
                     setIsModalOpen(false);
                     fetchUsers(pagination.current, pagination.pageSize);
                     fetchRoleCounts();
+                    if (drawerUser?.id === editingUser.id) {
+                        setDrawerUser((prev) => ({ ...prev, ...values }));
+                    }
                 }
             } else {
                 const response = await userService.createUser(values);
@@ -216,6 +237,7 @@ function UserManagementPage() {
                 message.success(response.message);
                 fetchUsers(pagination.current, pagination.pageSize);
                 fetchRoleCounts();
+                if (drawerUser?.id === record.id) setIsDrawerOpen(false);
             }
         } catch (error) {
             message.error(error.message);
@@ -229,6 +251,9 @@ function UserManagementPage() {
                 message.success(response.message);
                 fetchUsers(pagination.current, pagination.pageSize);
                 fetchRoleCounts();
+                if (drawerUser?.id === record.id) {
+                    setDrawerUser((prev) => ({ ...prev, isActive: !prev.isActive }));
+                }
             }
         } catch (error) {
             message.error(error.message);
@@ -263,6 +288,8 @@ function UserManagementPage() {
         }
     };
 
+    const totalAllAccounts = (roleCounts.ADMIN || 0) + (roleCounts.LECTURER || 0) + (roleCounts.STUDENT || 0);
+
     const columns = [
         {
             title: 'STT',
@@ -270,34 +297,42 @@ function UserManagementPage() {
             width: 60,
             align: 'center',
             render: (_, __, index) => (
-                <span className="text-slate-400 font-mono text-xs">
+                <span className="text-slate-600 font-mono text-xs font-semibold">
                     {(pagination.current - 1) * pagination.pageSize + index + 1}
                 </span>
             ),
         },
         {
-            title: 'Họ và tên',
+            title: 'Họ và tên & Đơn vị',
             dataIndex: 'fullName',
             key: 'fullName',
             width: 250,
             render: (name, record) => {
                 const initials = name ? name.trim().split(' ').slice(-1)[0][0]?.toUpperCase() : 'U';
                 return (
-                    <div className="flex items-center gap-3">
+                    <div
+                        className="flex items-center gap-3 cursor-pointer group"
+                        onClick={() => {
+                            setDrawerUser(record);
+                            setIsDrawerOpen(true);
+                        }}
+                    >
                         <div
                             className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
                                 record.role === 'ADMIN'
                                     ? 'bg-rose-100 text-rose-700 border border-rose-200'
                                     : record.role === 'LECTURER'
-                                    ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                                    ? 'bg-teal-100 text-teal-800 border border-teal-200'
                                     : 'bg-emerald-100 text-emerald-700 border border-emerald-200'
                             }`}
                         >
                             {initials}
                         </div>
                         <div className="min-w-0">
-                            <p className="text-sm font-bold text-slate-900 leading-snug truncate">{name}</p>
-                            <p className="text-xs text-slate-500 truncate">{record.department || 'Chưa cập nhật khoa'}</p>
+                            <p className="text-sm font-bold text-slate-900 leading-snug group-hover:text-teal-700 transition-colors truncate">
+                                {name}
+                            </p>
+                            <p className="text-xs text-slate-500 font-medium truncate">{record.department || 'Chưa cập nhật khoa'}</p>
                         </div>
                     </div>
                 );
@@ -309,23 +344,23 @@ function UserManagementPage() {
             key: 'code',
             width: 130,
             render: (code) => (
-                <code className="text-xs font-mono bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200">
+                <code className="text-xs font-mono bg-slate-100 text-teal-900 px-2 py-0.5 rounded border border-slate-200 font-bold">
                     {code}
                 </code>
             ),
         },
         {
-            title: 'Email',
+            title: 'Email trường',
             dataIndex: 'email',
             key: 'email',
-            width: 220,
-            render: (email) => <span className="text-xs font-medium text-slate-600">{email}</span>,
+            width: 210,
+            render: (email) => <span className="text-xs text-slate-600 font-medium">{email}</span>,
         },
         {
             title: 'Vai trò',
             dataIndex: 'role',
             key: 'role',
-            width: 140,
+            width: 130,
             render: (role) => {
                 const currentRole = roleMap[role];
                 return (
@@ -336,24 +371,39 @@ function UserManagementPage() {
             },
         },
         {
-            title: 'Nhóm quyền',
-            key: 'permissionGroups',
-            width: 180,
-            render: (_, record) =>
-                record.permissionGroups?.length ? (
+            title: activeRole === 'LECTURER' ? 'Hạn mức (Quota)' : 'Nhóm quyền',
+            key: 'quotaOrPerm',
+            width: 170,
+            render: (_, record) => {
+                if (record.role === 'LECTURER') {
+                    const max = record.maxStudents || 10;
+                    return (
+                        <div className="space-y-1">
+                            <div className="flex items-center justify-between text-xs font-mono">
+                                <span className="text-slate-500 font-medium">Tối đa:</span>
+                                <span className="font-bold text-teal-800">{max} SV</span>
+                            </div>
+                            <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                                <div className="bg-teal-600 h-full rounded-full" style={{ width: '40%' }}></div>
+                            </div>
+                        </div>
+                    );
+                }
+                return record.permissionGroups?.length ? (
                     <div className="flex flex-wrap gap-1">
                         {record.permissionGroups.map((group) => (
                             <span
                                 key={group.code || group}
-                                className="inline-flex px-2 py-0.5 rounded text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200"
+                                className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-50 text-teal-800 border border-teal-200"
                             >
                                 {group.name || group}
                             </span>
                         ))}
                     </div>
                 ) : (
-                    <span className="text-slate-300">—</span>
-                ),
+                    <span className="text-slate-400 font-bold">—</span>
+                );
+            },
         },
         {
             title: 'Trạng thái',
@@ -370,32 +420,17 @@ function UserManagementPage() {
             ),
         },
         {
-            title: 'Giới hạn đồ án',
-            key: 'accountRestricted',
-            width: 150,
-            render: (_, record) => {
-                if (record.role !== 'STUDENT') return <span className="text-slate-300">—</span>;
-                if (record.accountRestricted) {
-                    return (
-                        <Tag color="orange" className="text-xs m-0">
-                            Đã hoàn thành
-                        </Tag>
-                    );
-                }
-                return (
-                    <Tag color="success" className="text-xs m-0">
-                        Bình thường
-                    </Tag>
-                );
-            },
-        },
-        {
             title: 'Thao tác',
             key: 'actions',
             width: 130,
             align: 'right',
             render: (_, record) => {
                 const items = [
+                    {
+                        key: 'detail',
+                        icon: <UserOutlined />,
+                        label: 'Xem hồ sơ chi tiết',
+                    },
                     { key: 'edit', icon: <EditOutlined />, label: 'Chỉnh sửa thông tin' },
                     { key: 'perm', icon: <SafetyCertificateOutlined />, label: 'Phân quyền nhóm (RBAC)' },
                     {
@@ -410,6 +445,10 @@ function UserManagementPage() {
                 ];
 
                 const onMenuClick = ({ key }) => {
+                    if (key === 'detail') {
+                        setDrawerUser(record);
+                        setIsDrawerOpen(true);
+                    }
                     if (key === 'edit') handleEdit(record);
                     if (key === 'perm') handleOpenPermModal(record);
                     if (key === 'toggle') {
@@ -444,7 +483,7 @@ function UserManagementPage() {
 
                 return (
                     <Dropdown menu={{ items, onClick: onMenuClick }} trigger={['click']} placement="bottomRight">
-                        <Button size="small" className="text-xs font-semibold text-slate-700 hover:text-primary">
+                        <Button size="small" className="text-xs font-semibold text-slate-700 hover:text-teal-700">
                             Thao tác <DownOutlined className="text-[9px]" />
                         </Button>
                     </Dropdown>
@@ -454,23 +493,22 @@ function UserManagementPage() {
     ];
 
     return (
-        <div className="py-2 space-y-5">
+        <div className="py-2 space-y-6">
             <PageHeader
                 breadcrumb={[
                     { label: 'Quản trị hệ thống' },
                     { label: 'Người dùng & Phân quyền' },
-                    { label: 'Quản lý Người dùng' },
+                    { label: 'Quản trị Người dùng' },
                 ]}
-                title="Quản lý Người dùng"
-                subtitle="Quản lý tài khoản Giảng viên, Sinh viên và Quản trị viên, phân quyền RBAC và tích hợp nhập xuất Excel."
-                tags={[{ label: 'Tài khoản & RBAC', color: 'blue' }]}
+                title="Quản trị Người dùng & Phân quyền Kiêm nhiệm"
+                subtitle="Quản lý tài khoản Giảng viên, Sinh viên, Quản trị viên, phân quyền RBAC và hạn mức hướng dẫn đồ án"
                 actions={
                     <Space>
                         <Button
                             icon={<UploadOutlined />}
                             onClick={() => setIsExcelModalOpen(true)}
                         >
-                            Import Excel
+                            Nhập từ Excel
                         </Button>
                         <Button
                             icon={<DownloadOutlined />}
@@ -484,58 +522,122 @@ function UserManagementPage() {
                             icon={<PlusOutlined />}
                             onClick={handleAdd}
                         >
-                            Thêm người dùng
+                            + Thêm Người Dùng
                         </Button>
                     </Space>
                 }
             />
 
-            {/* 3 Large Role Interactive Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {roleSections.map((section) => {
-                    const isSelected = activeRole === section.role;
-                    return (
-                        <div
-                            key={section.role}
-                            onClick={() => setActiveRole(section.role)}
-                            className={`cursor-pointer rounded-lg border p-4 transition-all flex items-center justify-between ${
-                                isSelected
-                                    ? 'bg-white border-[#0F766E] shadow-xs ring-2 ring-[#0F766E]/15'
-                                    : 'bg-white border-slate-200 hover:border-slate-300'
-                            }`}
-                        >
-                            <div className="flex items-center gap-3.5">
-                                <div className={`w-11 h-11 rounded-lg ${section.bg} ${section.color} flex items-center justify-center shrink-0 border border-black/5`}>
-                                    <span className="material-symbols-outlined text-[22px]">{section.icon}</span>
-                                </div>
-                                <div>
-                                    <p className="text-[11px] uppercase tracking-wider font-semibold text-slate-500">{section.label}</p>
-                                    <p className="text-2xl font-bold text-slate-900 mt-0.5">
-                                        {roleCounts[section.role] || 0}
-                                    </p>
-                                </div>
-                            </div>
-                            {isSelected && (
-                                <span className="text-xs font-semibold text-[#0F766E] bg-[#F0FDFA] border border-[#99F6E4] px-2 py-0.5 rounded">
-                                    Đang xem
-                                </span>
-                            )}
-                        </div>
-                    );
-                })}
+            {/* 4 Top KPI Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
+                    <div>
+                        <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Tổng Tài khoản</span>
+                        <p className="text-2xl font-black text-slate-900 mt-1 font-mono">{totalAllAccounts}</p>
+                    </div>
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-100">
+                        Đang hoạt động
+                    </span>
+                </div>
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
+                    <div>
+                        <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Cán bộ & Giảng viên</span>
+                        <p className="text-2xl font-black text-teal-700 mt-1 font-mono">{roleCounts.LECTURER || 0}</p>
+                    </div>
+                    <span className="text-xs text-slate-500 font-medium">
+                        ThS · TS · PGS
+                    </span>
+                </div>
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
+                    <div>
+                        <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Sinh viên Làm đồ án</span>
+                        <p className="text-2xl font-black text-emerald-600 mt-1 font-mono">{roleCounts.STUDENT || 0}</p>
+                    </div>
+                    <span className="text-xs text-slate-500 font-medium">
+                        1 SV / 1 Đề tài
+                    </span>
+                </div>
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
+                    <div>
+                        <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Quản trị & Giáo vụ</span>
+                        <p className="text-2xl font-black text-rose-700 mt-1 font-mono">{roleCounts.ADMIN || 0}</p>
+                    </div>
+                    <span className="text-xs text-slate-500 font-medium">
+                        Toàn quyền
+                    </span>
+                </div>
             </div>
 
-            {/* Filter Toolbar & Data Table Card */}
-            <div className="bg-white rounded-lg border border-slate-200 shadow-xs p-4 lg:p-6 space-y-4">
+            {/* Faceted Filter Toolbar & Data Table Container */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-4 lg:p-5 space-y-4">
+                {/* Segmented Role Tabs with Counters */}
+                <div className="flex items-center gap-2 border-b border-slate-100 pb-3 flex-wrap">
+                    <button
+                        className={`inline-flex items-center gap-2 px-3.5 py-1.5 text-xs rounded-lg font-semibold transition-all cursor-pointer ${
+                            activeRole === 'LECTURER'
+                                ? 'bg-teal-50 text-teal-800 border border-teal-600 shadow-xs'
+                                : 'bg-slate-50 text-slate-600 border border-slate-200 hover:border-slate-300'
+                        }`}
+                        onClick={() => setActiveRole('LECTURER')}
+                    >
+                        <span>Giảng viên</span>
+                        <span className="px-1.5 py-0.2 rounded-full bg-teal-100 text-teal-800 font-mono text-[11px]">
+                            {roleCounts.LECTURER || 0}
+                        </span>
+                    </button>
+                    <button
+                        className={`inline-flex items-center gap-2 px-3.5 py-1.5 text-xs rounded-lg font-semibold transition-all cursor-pointer ${
+                            activeRole === 'STUDENT'
+                                ? 'bg-teal-50 text-teal-800 border border-teal-600 shadow-xs'
+                                : 'bg-slate-50 text-slate-600 border border-slate-200 hover:border-slate-300'
+                        }`}
+                        onClick={() => setActiveRole('STUDENT')}
+                    >
+                        <span>Sinh viên</span>
+                        <span className="px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-800 font-mono text-[11px]">
+                            {roleCounts.STUDENT || 0}
+                        </span>
+                    </button>
+                    <button
+                        className={`inline-flex items-center gap-2 px-3.5 py-1.5 text-xs rounded-lg font-semibold transition-all cursor-pointer ${
+                            activeRole === 'ADMIN'
+                                ? 'bg-teal-50 text-teal-800 border border-teal-600 shadow-xs'
+                                : 'bg-slate-50 text-slate-600 border border-slate-200 hover:border-slate-300'
+                        }`}
+                        onClick={() => setActiveRole('ADMIN')}
+                    >
+                        <span>Quản trị & Giáo vụ</span>
+                        <span className="px-1.5 py-0.2 rounded-full bg-rose-100 text-rose-800 font-mono text-[11px]">
+                            {roleCounts.ADMIN || 0}
+                        </span>
+                    </button>
+                </div>
+
+                {/* Filter Inputs Row */}
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex flex-wrap items-center gap-3 flex-1">
                         <Input
-                            placeholder="Tìm theo tên, email, mã số..."
-                            prefix={<SearchOutlined className="text-slate-400" />}
+                            placeholder="Tìm theo Mã số, Họ tên, Email trường, SĐT..."
+                            prefix={<SearchOutlined className="text-slate-500" />}
                             style={{ maxWidth: 360, minWidth: 240 }}
                             value={searchText}
                             onChange={(event) => handleSearch(event.target.value)}
                             allowClear
+                        />
+                        <Select
+                            placeholder="Khoa / Bộ môn"
+                            style={{ minWidth: 200 }}
+                            allowClear
+                            value={departmentFilter}
+                            onChange={(value) => setDepartmentFilter(value || null)}
+                            options={[
+                                { label: 'Tất cả Bộ môn', value: null },
+                                { label: 'Viện Công nghệ Số', value: 'Viện Công nghệ Số' },
+                                { label: 'Bộ môn Kỹ thuật Phần mềm', value: 'Bộ môn Công nghệ Phần mềm' },
+                                { label: 'Bộ môn Hệ thống Thông tin', value: 'Bộ môn Hệ thống Thông tin' },
+                                { label: 'Bộ môn Mạng Máy tính', value: 'Bộ môn Mạng Máy tính' },
+                                { label: 'Bộ môn Khoa học Máy tính', value: 'Bộ môn Khoa học Máy tính' },
+                            ]}
                         />
                         <Select
                             placeholder="Trạng thái tài khoản"
@@ -552,7 +654,7 @@ function UserManagementPage() {
                         {activeRole === 'STUDENT' && (
                             <Select
                                 placeholder="Trạng thái đồ án"
-                                style={{ minWidth: 220 }}
+                                style={{ minWidth: 200 }}
                                 allowClear
                                 value={accountRestrictedFilter}
                                 onChange={(value) => setAccountRestrictedFilter(value ?? null)}
@@ -574,15 +676,8 @@ function UserManagementPage() {
                     </Tooltip>
                 </div>
 
+                {/* Table */}
                 <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
-                    <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                            Danh sách {roleMap[activeRole]?.label}
-                        </span>
-                        <span className="text-xs text-slate-500">
-                            Tổng số: <b className="text-slate-800">{pagination.total}</b> tài khoản
-                        </span>
-                    </div>
                     <Table
                         dataSource={users}
                         rowKey="id"
@@ -595,10 +690,161 @@ function UserManagementPage() {
                         }}
                         onChange={handleTableChange}
                         size="middle"
-                        scroll={{ x: 1200 }}
+                        scroll={{ x: 1100 }}
                     />
                 </div>
             </div>
+
+            {/* USER PROFILE CONTEXT DRAWER */}
+            <Drawer
+                title={
+                    drawerUser && (
+                        <div className="flex items-center gap-3">
+                            <div
+                                className={`w-11 h-11 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${
+                                    drawerUser.role === 'ADMIN'
+                                        ? 'bg-rose-100 text-rose-700'
+                                        : drawerUser.role === 'LECTURER'
+                                        ? 'bg-teal-100 text-teal-800'
+                                        : 'bg-emerald-100 text-emerald-700'
+                                }`}
+                            >
+                                {drawerUser.fullName?.split(' ').pop()?.[0]?.toUpperCase()}
+                            </div>
+                            <div>
+                                <h3 className="text-base font-bold text-slate-900 leading-snug">{drawerUser.fullName}</h3>
+                                <p className="text-xs text-slate-500 font-mono font-medium">
+                                    {drawerUser.code} · {roleMap[drawerUser.role]?.label}
+                                </p>
+                            </div>
+                        </div>
+                    )
+                }
+                open={isDrawerOpen}
+                onClose={() => setIsDrawerOpen(false)}
+                width={520}
+                destroyOnClose
+            >
+                {drawerUser && (
+                    <div className="space-y-6">
+                        {/* Status Card */}
+                        <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Trạng thái Tài khoản</span>
+                                <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full ${
+                                    drawerUser.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
+                                }`}>
+                                    {drawerUser.isActive ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
+                                    {drawerUser.isActive ? 'Đang hoạt động' : 'Tài khoản bị khóa'}
+                                </span>
+                            </div>
+                            <div className="text-xs text-slate-700 font-medium space-y-1">
+                                <p className="flex items-center gap-2">
+                                    <MailOutlined className="text-slate-500" />
+                                    <span>{drawerUser.email}</span>
+                                </p>
+                                <p className="flex items-center gap-2">
+                                    <PhoneOutlined className="text-slate-500" />
+                                    <span>{drawerUser.phone || 'Chưa cập nhật SĐT'}</span>
+                                </p>
+                                <p className="flex items-center gap-2">
+                                    <BankOutlined className="text-slate-500" />
+                                    <span>{drawerUser.department || 'Chưa phân Khoa/Bộ môn'}</span>
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Lecturer Quota Meter if Lecturer */}
+                        {drawerUser.role === 'LECTURER' && (
+                            <div className="p-4 rounded-xl bg-teal-50/60 border border-teal-100 space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs font-bold text-teal-800 uppercase tracking-wider">Hạn mức Hướng dẫn Đồ án</span>
+                                    <span className="text-xs font-mono font-bold text-teal-900">
+                                        Tối đa {drawerUser.maxStudents || 10} SV
+                                    </span>
+                                </div>
+                                <div className="w-full bg-teal-200/50 rounded-full h-2 overflow-hidden">
+                                    <div className="bg-teal-700 h-full rounded-full" style={{ width: '40%' }}></div>
+                                </div>
+                                <p className="text-[11px] text-teal-700">
+                                    Học vị: <strong>{drawerUser.academicTitle || 'Thạc sĩ'}</strong> · Tối đa 1 SV / 1 Đề tài
+                                </p>
+                            </div>
+                        )}
+
+                        {/* Permission Groups */}
+                        <div className="space-y-2">
+                            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Nhóm quyền RBAC</h4>
+                            {drawerUser.permissionGroups?.length ? (
+                                <div className="flex flex-wrap gap-2">
+                                    {drawerUser.permissionGroups.map((g) => (
+                                        <span
+                                            key={g.code || g}
+                                            className="px-2.5 py-1 rounded-lg text-xs font-bold bg-teal-50 text-teal-800 border border-teal-200"
+                                        >
+                                            {g.name || g}
+                                        </span>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-xs text-slate-500 italic font-medium">Chưa được gán nhóm quyền kiêm nhiệm nào.</p>
+                            )}
+                        </div>
+
+                        {/* Quick Actions */}
+                        <div className="space-y-2 pt-4 border-t border-slate-200">
+                            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Thao tác nhanh</h4>
+                            <div className="grid grid-cols-2 gap-2">
+                                <Button
+                                    icon={<EditOutlined />}
+                                    onClick={() => handleEdit(drawerUser)}
+                                    className="text-xs"
+                                >
+                                    Sửa thông tin
+                                </Button>
+                                <Button
+                                    icon={<SafetyCertificateOutlined />}
+                                    onClick={() => handleOpenPermModal(drawerUser)}
+                                    className="text-xs"
+                                >
+                                    Phân quyền RBAC
+                                </Button>
+                                <Button
+                                    icon={<KeyOutlined />}
+                                    onClick={() => {
+                                        Modal.confirm({
+                                            title: 'Reset mật khẩu?',
+                                            content: `Mật khẩu mới sẽ quay về mã số người dùng: ${drawerUser.code}`,
+                                            okText: 'Reset',
+                                            cancelText: 'Hủy',
+                                            onOk: () => handleResetPassword(drawerUser),
+                                        });
+                                    }}
+                                    className="text-xs"
+                                >
+                                    Reset mật khẩu
+                                </Button>
+                                <Button
+                                    danger={drawerUser.isActive}
+                                    icon={drawerUser.isActive ? <LockOutlined /> : <UnlockOutlined />}
+                                    onClick={() => {
+                                        Modal.confirm({
+                                            title: drawerUser.isActive ? 'Khóa tài khoản?' : 'Mở khóa?',
+                                            content: `Xác nhận ${drawerUser.isActive ? 'khóa' : 'mở khóa'} tài khoản "${drawerUser.fullName}"?`,
+                                            okText: 'Đồng ý',
+                                            cancelText: 'Hủy',
+                                            onOk: () => handleToggleLock(drawerUser),
+                                        });
+                                    }}
+                                    className="text-xs"
+                                >
+                                    {drawerUser.isActive ? 'Khóa tài khoản' : 'Mở khóa'}
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </Drawer>
 
             {/* Modal Create/Edit User */}
             <Modal
@@ -615,7 +861,7 @@ function UserManagementPage() {
                 confirmLoading={submitting}
                 width={620}
                 centered
-                destroyOnHidden
+                destroyOnClose
             >
                 <Form form={form} layout="vertical" className="pt-2">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -715,7 +961,7 @@ function UserManagementPage() {
             <Modal
                 title={
                     <div className="flex items-center gap-2 text-base font-bold text-slate-900">
-                        <SafetyCertificateOutlined className="text-indigo-600" />
+                        <SafetyCertificateOutlined className="text-teal-700" />
                         <span>Phân nhóm quyền: <strong>{permModal.user?.fullName}</strong></span>
                     </div>
                 }
@@ -727,7 +973,7 @@ function UserManagementPage() {
                 confirmLoading={permSubmitting}
                 width={560}
                 centered
-                destroyOnHidden
+                destroyOnClose
             >
                 {permModal.user && (
                     <div className="space-y-4 pt-2">
@@ -737,7 +983,7 @@ function UserManagementPage() {
                                     permModal.user.role === 'ADMIN'
                                         ? 'bg-rose-100 text-rose-700'
                                         : permModal.user.role === 'LECTURER'
-                                        ? 'bg-blue-100 text-blue-700'
+                                        ? 'bg-teal-100 text-teal-800'
                                         : 'bg-emerald-100 text-emerald-700'
                                 }`}
                             >
@@ -770,13 +1016,13 @@ function UserManagementPage() {
                                             key={group.id}
                                             className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
                                                 checked
-                                                    ? 'border-indigo-300 bg-indigo-50/70 shadow-xs'
+                                                    ? 'border-teal-300 bg-teal-50/70 shadow-xs'
                                                     : 'border-slate-200 bg-white hover:border-slate-300'
                                             }`}
                                         >
                                             <input
                                                 type="checkbox"
-                                                className="mt-1 accent-indigo-600"
+                                                className="mt-1 accent-teal-600"
                                                 checked={checked}
                                                 onChange={(e) => {
                                                     if (e.target.checked) {
@@ -788,7 +1034,7 @@ function UserManagementPage() {
                                             />
                                             <div className="min-w-0">
                                                 <div className="flex items-center gap-2">
-                                                    <code className="text-xs bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-mono font-bold">
+                                                    <code className="text-xs bg-teal-100 text-teal-800 px-1.5 py-0.5 rounded font-mono font-bold">
                                                         {group.code}
                                                     </code>
                                                     <span className="text-sm font-semibold text-slate-900">{group.name}</span>

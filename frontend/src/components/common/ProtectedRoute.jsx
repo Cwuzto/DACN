@@ -1,30 +1,30 @@
 import { Navigate, Outlet } from 'react-router-dom';
 import useAuthStore from '../../stores/authStore';
+import { getRouteRedirect } from '../../utils/authRedirect';
 
 /**
  * Component bảo vệ các Route cần đăng nhập và kiểm tra Role.
  * @param {Array} allowedRoles mảng các role được phép truy cập, VD: ['ADMIN', 'LECTURER']
  */
-function ProtectedRoute({ allowedRoles, requiredPermissions = [] }) {
+function ProtectedRoute({
+    allowedRoles = [],
+    requiredPermissions = [],
+    requiredAnyPermissions = [],
+    allowedPermissionGroups = [],
+}) {
     const { isAuthenticated, user } = useAuthStore();
 
-    // 1. Nếu chưa đăng nhập -> chuyển về trang login
-    if (!isAuthenticated || !user) {
-        return <Navigate to="/login" replace />;
-    }
+    const redirectTo = getRouteRedirect({
+        isAuthenticated,
+        user,
+        allowedRoles,
+        requiredPermissions,
+        requiredAnyPermissions,
+        allowedPermissionGroups,
+    });
 
-    // 2. Nếu đã đăng nhập nhưng không có quyền truy cập route này
-    const hasRequiredPermissions = requiredPermissions.every((permission) =>
-        user.permissions?.includes(permission)
-    );
-    if ((allowedRoles && !allowedRoles.includes(user.role)) || !hasRequiredPermissions) {
-        // Tuỳ theo role thực tại để đẩy về đúng dashboard
-        if (user.role === 'ADMIN') return <Navigate to="/admin/dashboard" replace />;
-        if (user.role === 'LECTURER') return <Navigate to="/lecturer/dashboard" replace />;
-        return <Navigate to="/student/dashboard" replace />;
-    }
+    if (redirectTo) return <Navigate to={redirectTo} replace />;
 
-    // 3. Hợp lệ -> cho phép render các route con
     return <Outlet />;
 }
 

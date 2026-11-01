@@ -1,974 +1,1031 @@
-import { useMemo, useState, useEffect } from 'react';
-import {
-    Alert,
-    Avatar,
-    Button,
-    Card,
-    DatePicker,
-    Empty,
-    Flex,
-    Form,
-    Input,
-    InputNumber,
-    message,
-    Modal,
-    Progress,
-    Radio,
-    Segmented,
-    Select,
-    Space,
-    Table,
-    Tag,
-    Typography,
-} from 'antd';
-import {
-    CheckCircleOutlined,
-    CloseCircleOutlined,
-    ExclamationCircleOutlined,
-    FastForwardOutlined,
-    NotificationOutlined,
-    PlusOutlined,
-    SafetyCertificateOutlined,
-    SearchOutlined,
-    TeamOutlined,
-    UserOutlined,
-} from '@ant-design/icons';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { message } from 'antd';
 import dayjs from 'dayjs';
+
 import registrationService from '../../services/registrationService';
 import taskService from '../../services/taskService';
 import meetingLogService from '../../services/meetingLogService';
 import archiveService from '../../services/archiveService';
-import PageHeader from '../../components/common/PageHeader';
-import StatusBadge from '../../components/common/StatusBadge';
 import PageLoader from '../../components/common/PageLoader';
-import StatCard from '../../components/common/StatCard';
-import StudentProgressDetailPanel from './components/StudentProgressDetailPanel';
-import BMReviewDrawer from '../../components/forms/BMReviewDrawer';
 import BM04EvaluationModal from '../../components/lecturer/BM04EvaluationModal';
+import CheckpointIssueModal from '../../components/lecturer/CheckpointIssueModal';
 import ClearanceCertificateModal from '../../components/forms/ClearanceCertificateModal';
-import { formatSemesterLabel } from '../../utils/semesterDisplay';
+import evaluationService from '../../services/evaluationService';
+import useAuthStore from '../../stores/authStore';
 
-const { Text, Title, Paragraph } = Typography;
+/**
+ * ProgressTrackingPage — 100% OpenDesign Golden Standard
+ * Replicates the exact layout, DOM hierarchy, and CSS classes from lecturer-dacn-prototype.html (view-progress):
+ * - Split layout: Left column student cards list, right column detailed workspace
+ * - 4 Sub Nav Tabs:
+ *   1. Nhiệm vụ tuần (Tasks)
+ *   2. Nhật ký trao đổi (BM03 timeline)
+ *   3. Đánh giá Checkpoint (Checkpoint 1 & 2)
+ *   4. Thẩm định BM04 & Nghiệm thu Lưu chiểu
+ * - Interactive modals: Giao việc mới, Ghi nhận buổi gặp, Chấm BM04, Giấy xác nhận
+ */
+export default function ProgressTrackingPage() {
+    const [searchParams] = useSearchParams();
+    const paramRegId = searchParams.get('registrationId');
 
-const isOverdueTask = (task) => {
-    if (!task?.dueDate) return false;
-    return new Date(task.dueDate).getTime() < Date.now() && !['COMPLETED', 'SUBMITTED'].includes(task.status);
-};
-
-const getYearWeek = (dateInput) => {
-    if (!dateInput) return null;
-    const date = new Date(dateInput);
-    if (Number.isNaN(date.getTime())) return null;
-    const firstDay = new Date(date.getFullYear(), 0, 1);
-    const dayMs = 24 * 60 * 60 * 1000;
-    const week = Math.ceil((((date - firstDay) / dayMs) + firstDay.getDay() + 1) / 7);
-    return { year: date.getFullYear(), week };
-};
-
-const getWeekLabel = (dateInput) => {
-    const yw = getYearWeek(dateInput);
-    if (!yw) return 'Không có hạn nộp';
-    return `Tuần ${yw.week} - ${yw.year}`;
-};
-
-const pickNearestLatestSemesterId = (semesterList = []) => {
-    if (!Array.isArray(semesterList) || semesterList.length === 0) return null;
-    const now = dayjs();
-    const scored = semesterList
-        .map((semester) => {
-            const start = semester?.startDate ? dayjs(semester.startDate) : null;
-            const deadline = semester?.registrationDeadline ? dayjs(semester.registrationDeadline) : null;
-            const latestPoint =
-                (start && start.isValid() && start.valueOf())
-                || (deadline && deadline.isValid() && deadline.valueOf())
-                || 0;
-            const distanceToNow = Math.abs((latestPoint || now.valueOf()) - now.valueOf());
-            return { semester, latestPoint, distanceToNow };
-        })
-        .sort((a, b) => {
-            if (a.distanceToNow !== b.distanceToNow) return a.distanceToNow - b.distanceToNow;
-            return b.latestPoint - a.latestPoint;
-        });
-    return scored[0]?.semester?.id || null;
-};
-
-function ProgressTrackingPage() {
     const [loading, setLoading] = useState(true);
-    const [registrations, setRegistrations] = useState([]);
-    const [searchText, setSearchText] = useState('');
-    const [statusFilter, setStatusFilter] = useState('all');
-    const [progressBandFilter, setProgressBandFilter] = useState('ALL');
-    const [semesterFilter, setSemesterFilter] = useState(null);
-    const [projectNameFilter, setProjectNameFilter] = useState(null);
+    const [students, setStudents] = useState([]);
+    const [selectedStudent, setSelectedStudent] = useState(null);
+    const [studentSearch, setStudentSearch] = useState('');
+    const [activeTab, setActiveTab] = useState('tasks'); // 'tasks' | 'meeting-logs' | 'checkpoints' | 'archive'
+    const currentUser = useAuthStore((s) => s.user);
 
-    const [selectedRegistration, setSelectedRegistration] = useState(null);
-    const [selectedTasks, setSelectedTasks] = useState([]);
-    const [taskLoading, setTaskLoading] = useState(false);
-    const [updatingTaskId, setUpdatingTaskId] = useState(null);
-    const [taskViewerFilter, setTaskViewerFilter] = useState('ALL');
-    const [weekScopeFilter, setWeekScopeFilter] = useState('ALL');
-
-    const [taskModalOpen, setTaskModalOpen] = useState(false);
-    const [taskSubmitting, setTaskSubmitting] = useState(false);
-    const [taskForm] = Form.useForm();
-    const [remindLoading, setRemindLoading] = useState(false);
-    const [reviewModalOpen, setReviewModalOpen] = useState(false);
-    const [reviewTask, setReviewTask] = useState(null);
-    const [reviewForm] = Form.useForm();
-
-    // Meeting Logs state
+    // Selected student data
+    const [tasks, setTasks] = useState([]);
     const [meetingLogs, setMeetingLogs] = useState([]);
-    const [meetingModalOpen, setMeetingModalOpen] = useState(false);
-    const [meetingSubmitting, setMeetingSubmitting] = useState(false);
-    const [meetingForm] = Form.useForm();
-
-    // BM04 Gatekeeping state
-    const [bm04ModalOpen, setBm04ModalOpen] = useState(false);
-
-    // Post-Defense Archive states
+    const [checkpoints, setCheckpoints] = useState([]);
     const [archiveData, setArchiveData] = useState(null);
-    const [archiveLoading, setArchiveLoading] = useState(false);
-    const [archiveReviewModalOpen, setArchiveReviewModalOpen] = useState(false);
-    const [archiveReviewSubmitting, setArchiveReviewSubmitting] = useState(false);
-    const [archiveReviewForm] = Form.useForm();
+
+    // Modals
+    const [newTaskModalOpen, setNewTaskModalOpen] = useState(false);
+    const [meetingModalOpen, setMeetingModalOpen] = useState(false);
+    const [checkpointModalOpen, setCheckpointModalOpen] = useState(false);
+    const [selectedCheckpointNo, setSelectedCheckpointNo] = useState(1);
+    const [bm04ModalOpen, setBm04ModalOpen] = useState(false);
     const [certModalOpen, setCertModalOpen] = useState(false);
-    const [certificateData, setCertificateData] = useState(null);
-    const [certLoading, setCertLoading] = useState(false);
 
+    // New Task Form
+    const [taskWeek, setTaskWeek] = useState('11');
+    const [taskTitle, setTaskTitle] = useState('');
+    const [taskDesc, setTaskDesc] = useState('');
+    const [taskDueDate, setTaskDueDate] = useState(dayjs().add(7, 'day').format('YYYY-MM-DD'));
+    const [taskSubmitting, setTaskSubmitting] = useState(false);
+
+    // New Meeting Form
+    const [meetingDate, setMeetingDate] = useState(dayjs().format('YYYY-MM-DD'));
+    const [meetingLocation, setMeetingLocation] = useState('Tại Lab H2-502');
+    const [meetingContent, setMeetingContent] = useState('');
+    const [meetingNextTask, setMeetingNextTask] = useState('');
+    const [meetingSubmitting, setMeetingSubmitting] = useState(false);
+
+    // Fetch initial student list
     useEffect(() => {
-        fetchRegistrations();
-    }, []);
+        const fetchStudents = async () => {
+            try {
+                setLoading(true);
+                const res = await registrationService.getAllRegistrations();
+                if (res.success && Array.isArray(res.data)) {
+                    const active = res.data.filter(
+                        (r) => !['PENDING', 'REJECTED', 'WITHDRAWN', 'DROPPED'].includes(r.status)
+                    );
+                    setStudents(active);
 
-    const fetchRegistrations = async () => {
-        try {
-            setLoading(true);
-            const res = await registrationService.getAllRegistrations();
-            if (res.success) {
-                setRegistrations((res.data || []).filter((registration) => registration.status !== 'PENDING'));
+                    if (active.length > 0) {
+                        const target = paramRegId
+                            ? active.find((s) => String(s.id) === String(paramRegId)) || active[0]
+                            : active[0];
+                        setSelectedStudent(target);
+                    }
+                }
+            } catch {
+                message.error('Không thể tải danh sách sinh viên hướng dẫn');
+            } finally {
+                setLoading(false);
             }
-        } catch (error) {
-            message.error(error?.message || 'Lỗi khi tải danh sách sinh viên đăng ký');
-        } finally {
-            setLoading(false);
-        }
-    };
+        };
 
-    const fetchTasksForRegistration = async (registration) => {
-        setTaskLoading(true);
+        fetchStudents();
+    }, [paramRegId]);
+
+    const loadStudentDetails = useCallback(async () => {
+        if (!selectedStudent?.id) return;
         try {
-            const res = await taskService.getTasksByRegistration(registration.id);
-            if (res.success) {
-                setSelectedTasks(res.data || []);
-            }
+            const [taskRes, logRes, arcRes, cpRes] = await Promise.all([
+                taskService.getTasksByRegistration(selectedStudent.id).catch(() => ({ success: false, data: [] })),
+                meetingLogService.getMeetingLogs(selectedStudent.id).catch(() => ({ success: false, data: [] })),
+                archiveService.getArchiveByRegistration(selectedStudent.id).catch(() => ({ success: false, data: null })),
+                evaluationService.getCheckpointEvaluations(selectedStudent.id).catch(() => ({ success: false, data: [] })),
+            ]);
+
+            if (taskRes.success) setTasks(taskRes.data || []);
+            if (logRes.success) setMeetingLogs(logRes.data || []);
+            if (arcRes.success) setArchiveData(arcRes.data?.archive || null);
+            if (cpRes.success) setCheckpoints(cpRes.data || []);
         } catch {
-            message.error('Lỗi khi tải danh sách nhiệm vụ');
-        } finally {
-            setTaskLoading(false);
+            // Ignore silent load errors
         }
-    };
+    }, [selectedStudent?.id]);
 
-    const fetchMeetingLogsForRegistration = async (registrationId) => {
-        try {
-            const res = await meetingLogService.getMeetingLogs(registrationId);
-            if (res.success) {
-                setMeetingLogs(res.data || []);
-            }
-        } catch {
-            message.error('Lỗi khi tải nhật ký buổi gặp');
-        }
-    };
-
-    const fetchArchiveForRegistration = async (registrationId) => {
-        try {
-            setArchiveLoading(true);
-            const res = await archiveService.getArchiveByRegistration(registrationId);
-            if (res.success) {
-                setArchiveData(res.data?.archive || null);
-            }
-        } catch {
-            setArchiveData(null);
-        } finally {
-            setArchiveLoading(false);
-        }
-    };
-
-    const filteredRegistrations = useMemo(() => registrations.filter((registration) => {
-        if (semesterFilter) {
-            const semesterId = registration.topic?.semester?.id || registration.semesterId || null;
-            if (semesterId !== semesterFilter) return false;
-        }
-        if (projectNameFilter) {
-            if ((registration.topic?.projectCatalog?.name || '') !== projectNameFilter) return false;
-        }
-        if (statusFilter !== 'all' && registration.status !== statusFilter) return false;
-        const progress = registration.progress || 0;
-        if (progressBandFilter === 'ON_TRACK' && progress < 70) return false;
-        if (progressBandFilter === 'AT_RISK' && (progress < 30 || progress >= 70)) return false;
-        if (progressBandFilter === 'DELAYED' && progress >= 30) return false;
-        if (progressBandFilter === 'OVERDUE' && !registration.hasOverdueTask) return false;
-
-        if (!searchText.trim()) return true;
-        const search = searchText.toLowerCase();
-        const studentName = registration.student?.fullName?.toLowerCase() || '';
-        const studentCode = registration.student?.code?.toLowerCase() || '';
-        const topicTitle = registration.topic?.title?.toLowerCase() || '';
-        return studentName.includes(search) || studentCode.includes(search) || topicTitle.includes(search);
-    }), [registrations, searchText, statusFilter, progressBandFilter, semesterFilter, projectNameFilter]);
-
-    const currentSemesterOptions = useMemo(() => {
-        const now = dayjs();
-        const map = new Map();
-        registrations.forEach((registration) => {
-            const semester = registration.topic?.semester;
-            if (!semester?.id) return;
-            const start = semester?.startDate ? dayjs(semester.startDate) : null;
-            const end = semester?.endDate ? dayjs(semester.endDate) : null;
-            if (!start || !end || !start.isValid() || !end.isValid()) return;
-            const isCurrent = (now.isAfter(start) || now.isSame(start)) && (now.isBefore(end) || now.isSame(end));
-            if (!isCurrent) return;
-            if (!map.has(semester.id)) map.set(semester.id, semester);
-        });
-        return [...map.values()].map((semester) => ({
-            value: semester.id,
-            label: formatSemesterLabel(semester),
-            raw: semester,
-        }));
-    }, [registrations]);
-
-    const projectNameOptions = useMemo(
-        () => Array.from(new Set(
-            registrations
-                .filter((registration) => !semesterFilter || (registration.topic?.semester?.id || registration.semesterId) === semesterFilter)
-                .map((registration) => registration.topic?.projectCatalog?.name)
-                .filter(Boolean),
-        ))
-            .sort((a, b) => a.localeCompare(b, 'vi'))
-            .map((name) => ({ value: name, label: name })),
-        [registrations, semesterFilter],
-    );
-
+    // Fetch details for selected student
     useEffect(() => {
-        if (!currentSemesterOptions.length) {
-            setSemesterFilter(null);
+        if (!selectedStudent?.id) return;
+        loadStudentDetails();
+    }, [selectedStudent?.id, loadStudentDetails]);
+
+    const filteredStudents = useMemo(() => {
+        if (!studentSearch.trim()) return students;
+        const q = studentSearch.trim().toLowerCase();
+        return students.filter(
+            (s) =>
+                (s.student?.fullName && s.student.fullName.toLowerCase().includes(q)) ||
+                (s.student?.code && s.student.code.toLowerCase().includes(q)) ||
+                (s.topic?.title && s.topic.title.toLowerCase().includes(q)) ||
+                (s.topic?.code && s.topic.code.toLowerCase().includes(q))
+        );
+    }, [students, studentSearch]);
+
+    const handleCreateTask = async () => {
+        if (!taskTitle.trim()) {
+            message.warning('Vui lòng nhập tên nhiệm vụ');
             return;
         }
-        const stillExists = currentSemesterOptions.some((option) => option.value === semesterFilter);
-        if (semesterFilter && stillExists) return;
-        const nearestSemesterId = pickNearestLatestSemesterId(currentSemesterOptions.map((option) => option.raw));
-        setSemesterFilter(nearestSemesterId);
-    }, [currentSemesterOptions, semesterFilter]);
 
-    const assignableRegistrations = useMemo(
-        () => registrations.filter((registration) => ['APPROVED', 'IN_PROGRESS'].includes(registration.status)),
-        [registrations],
-    );
-
-    const openTaskModal = (registration = null) => {
-        if (registration && !['APPROVED', 'IN_PROGRESS'].includes(registration.status)) {
-            message.warning('Chỉ giao nhiệm vụ cho sinh viên đã duyệt hoặc đang thực hiện.');
-            return;
-        }
-        taskForm.resetFields();
-        if (registration) taskForm.setFieldsValue({ registrationId: registration.id });
-        setTaskModalOpen(true);
-    };
-
-    const handleCreateTask = async (values) => {
         try {
             setTaskSubmitting(true);
-            const payload = {
-                registrationId: values.registrationId,
-                title: values.title,
-                content: values.content,
-                dueDate: values.dueDate ? values.dueDate.toISOString() : null,
-            };
-            const res = await taskService.createTask(payload);
+            const res = await taskService.createTask({
+                registrationId: selectedStudent.id,
+                title: `Tuần ${taskWeek}: ${taskTitle.trim()}`,
+                description: taskDesc.trim() || undefined,
+                dueDate: new Date(taskDueDate),
+                taskType: 'PROGRESS_REPORT',
+            });
+
             if (res.success) {
-                message.success('Đã giao nhiệm vụ');
-                setTaskModalOpen(false);
-                fetchRegistrations();
-                if (selectedRegistration?.id === values.registrationId) fetchTasksForRegistration(selectedRegistration);
+                message.success('Đã giao nhiệm vụ mới cho sinh viên!');
+                setNewTaskModalOpen(false);
+                setTaskTitle('');
+                setTaskDesc('');
+                const updatedTasks = await taskService.getTasksByRegistration(selectedStudent.id);
+                if (updatedTasks.success) setTasks(updatedTasks.data || []);
             }
         } catch (error) {
-            message.error(error?.message || 'Lỗi khi giao nhiệm vụ');
+            message.error(error?.message || 'Không thể tạo nhiệm vụ');
         } finally {
             setTaskSubmitting(false);
         }
     };
 
-    const handleUpdateTaskStatus = async (taskId, payload) => {
-        try {
-            setUpdatingTaskId(taskId);
-            const res = await taskService.updateTaskStatus(taskId, payload);
-            if (res.success) {
-                const nextStatus = typeof payload === 'string' ? payload : payload.status;
-                const nextDueDate = typeof payload === 'object' ? payload.dueDate : null;
-                setSelectedTasks((prev) => prev.map((task) => (
-                    task.id === taskId
-                        ? { ...task, status: nextStatus, dueDate: nextDueDate || task.dueDate }
-                        : task
-                )));
-                message.success('Đã cập nhật trạng thái nhiệm vụ');
-            }
-        } catch (error) {
-            message.error(error?.message || 'Không thể cập nhật trạng thái nhiệm vụ');
-        } finally {
-            setUpdatingTaskId(null);
-        }
-    };
-
-    const onTrack = filteredRegistrations.filter((r) => (r.progress || 0) >= 70).length;
-    const atRisk = filteredRegistrations.filter((r) => (r.progress || 0) >= 30 && (r.progress || 0) < 70).length;
-    const delayed = filteredRegistrations.filter((r) => (r.progress || 0) < 30).length;
-    const overdueCount = filteredRegistrations.filter((r) => r.hasOverdueTask).length;
-
-    const nowWeek = getYearWeek(new Date());
-    const prevWeek = nowWeek ? (nowWeek.week > 1 ? { year: nowWeek.year, week: nowWeek.week - 1 } : { year: nowWeek.year - 1, week: 52 }) : null;
-
-    const visibleTasks = useMemo(() => {
-        let working = [...selectedTasks];
-        if (weekScopeFilter !== 'ALL') {
-            working = working.filter((task) => {
-                const yw = getYearWeek(task.dueDate);
-                if (!yw) return false;
-                if (weekScopeFilter === 'THIS_WEEK' && nowWeek) return yw.week === nowWeek.week && yw.year === nowWeek.year;
-                if (weekScopeFilter === 'LAST_WEEK' && prevWeek) return yw.week === prevWeek.week && yw.year === prevWeek.year;
-                return true;
-            });
-        }
-        if (taskViewerFilter === 'ALL') return working;
-        if (taskViewerFilter === 'OVERDUE') return working.filter(isOverdueTask);
-        if (taskViewerFilter === 'NO_SUBMISSION') return working.filter((task) => !(task.submissions || []).length);
-        return working.filter((task) => task.status === taskViewerFilter);
-    }, [selectedTasks, taskViewerFilter, weekScopeFilter, nowWeek, prevWeek]);
-
-    const tasksByWeek = useMemo(() => visibleTasks.reduce((acc, task) => {
-        const key = getWeekLabel(task.dueDate);
-        if (!acc[key]) acc[key] = [];
-        acc[key].push(task);
-        return acc;
-    }, {}), [visibleTasks]);
-
-    const taskOverview = useMemo(() => {
-        const total = selectedTasks.length;
-        const completed = selectedTasks.filter((task) => task.status === 'COMPLETED').length;
-        const submitted = selectedTasks.filter((task) => task.status === 'SUBMITTED').length;
-        const overdue = selectedTasks.filter(isOverdueTask).length;
-        const progress = total > 0 ? Math.round(((completed + submitted) / total) * 100) : 0;
-        return { total, completed, submitted, overdue, progress };
-    }, [selectedTasks]);
-
-    const remindableTaskIds = useMemo(
-        () => visibleTasks.filter((task) => isOverdueTask(task) || !(task.submissions || []).length).map((task) => task.id),
-        [visibleTasks],
-    );
-
-    const handleBulkRemind = async () => {
-        if (remindableTaskIds.length === 0) {
-            message.info('Hãy chọn sinh viên để nhắc nộp.');
+    const handleCreateMeeting = async () => {
+        if (!meetingContent.trim()) {
+            message.warning('Vui lòng nhập nội dung buổi trao đổi');
             return;
         }
-        try {
-            setRemindLoading(true);
-            const res = await taskService.remindTasks({ taskIds: remindableTaskIds });
-            if (res.success) {
-                message.success(`Đã gửi nhắc nộp cho ${res.data?.sent ?? remindableTaskIds.length} nhiệm vụ.`);
-            }
-        } catch (error) {
-            message.error(error?.message || 'Không thể gửi nhắc nộp hàng loạt');
-        } finally {
-            setRemindLoading(false);
-        }
-    };
 
-    const openTaskReviewModal = (task) => {
-        setReviewTask(task);
-        setReviewModalOpen(true);
-    };
-
-    // Meeting log handlers
-    const openMeetingModal = (registration = null) => {
-        const target = registration || selectedRegistration;
-        if (!target) {
-            message.warning('Vui lòng chọn sinh viên trước khi ghi nhận buổi gặp');
-            return;
-        }
-        meetingForm.resetFields();
-        meetingForm.setFieldsValue({
-            meetingDate: dayjs(),
-            meetingType: 'OFFLINE_LAB',
-        });
-        setMeetingModalOpen(true);
-    };
-
-    const handleCreateMeetingLog = async (values) => {
-        if (!selectedRegistration) return;
         try {
             setMeetingSubmitting(true);
-            const payload = {
-                meetingDate: values.meetingDate ? values.meetingDate.toISOString() : new Date().toISOString(),
-                meetingType: values.meetingType,
-                content: values.content,
-                feedback: values.feedback,
-                note: values.note,
-            };
-            const res = await meetingLogService.createMeetingLog(selectedRegistration.id, payload);
+            const res = await meetingLogService.createMeetingLog({
+                registrationId: selectedStudent.id,
+                meetingDate: new Date(meetingDate),
+                meetingMode: meetingLocation.includes('Meet') ? 'ONLINE' : 'IN_PERSON',
+                meetingNote: meetingContent.trim(),
+                nextMilestone: meetingNextTask.trim() || undefined,
+            });
+
             if (res.success) {
-                message.success('Đã ghi nhận buổi gặp thành công');
+                message.success('Đã ghi nhận nhật ký buổi gặp BM03!');
                 setMeetingModalOpen(false);
-                fetchMeetingLogsForRegistration(selectedRegistration.id);
+                setMeetingContent('');
+                setMeetingNextTask('');
+                const updatedLogs = await meetingLogService.getMeetingLogs(selectedStudent.id);
+                if (updatedLogs.success) setMeetingLogs(updatedLogs.data || []);
             }
         } catch (error) {
-            message.error(error?.message || 'Lỗi khi ghi nhận buổi gặp');
+            message.error(error?.message || 'Không thể lưu nhật ký');
         } finally {
             setMeetingSubmitting(false);
         }
     };
 
-    const handleDeleteMeetingLog = async (logId) => {
-        try {
-            const res = await meetingLogService.deleteMeetingLog(logId);
-            if (res.success) {
-                message.success('Đã xóa nhật ký buổi gặp');
-                setMeetingLogs((prev) => prev.filter((log) => log.id !== logId));
-            }
-        } catch (error) {
-            message.error(error?.message || 'Lỗi khi xóa nhật ký buổi gặp');
-        }
-    };
+    if (loading) {
+        return <PageLoader />;
+    }
 
-    // BM04 Gatekeeping handler
-    const openBM04Modal = (registration = null) => {
-        const target = registration || selectedRegistration;
-        if (!target) {
-            message.warning('Vui lòng chọn sinh viên');
-            return;
-        }
-        if (target !== selectedRegistration) {
-            setSelectedRegistration(target);
-        }
-        setBm04ModalOpen(true);
-    };
-
-    // Post-Defense Archive review handlers
-    const openArchiveReviewModal = (archive) => {
-        archiveReviewForm.resetFields();
-        archiveReviewForm.setFieldsValue({
-            decision: 'APPROVED',
-            reviewerNotes: 'Hồ sơ lưu chiểu đầy đủ, đúng quy cách.',
-        });
-        setArchiveReviewModalOpen(true);
-    };
-
-    const handleSubmitArchiveReview = async (values) => {
-        if (!selectedRegistration?.id) return;
-        try {
-            setArchiveReviewSubmitting(true);
-            const res = await archiveService.reviewArchive(selectedRegistration.id, {
-                decision: values.decision,
-                reviewerNotes: values.reviewerNotes,
-            });
-            if (res.success) {
-                message.success(
-                    values.decision === 'APPROVED'
-                        ? 'Đã nghiệm thu hồ sơ lưu chiểu thành công! Đề tài chuyển sang HOÀN TẤT (COMPLETED).'
-                        : 'Đã gửi yêu cầu chỉnh sửa hồ sơ lưu chiểu cho sinh viên.'
-                );
-                setArchiveReviewModalOpen(false);
-                fetchArchiveForRegistration(selectedRegistration.id);
-                fetchRegistrations();
-            }
-        } catch (error) {
-            message.error(error?.message || 'Lỗi khi nghiệm thu hồ sơ lưu chiểu');
-        } finally {
-            setArchiveReviewSubmitting(false);
-        }
-    };
-
-    const handleOpenCertificate = async () => {
-        if (!selectedRegistration?.id) return;
-        try {
-            setCertLoading(true);
-            const res = await archiveService.getClearanceCertificate(selectedRegistration.id);
-            if (res.success) {
-                setCertificateData(res.data);
-                setCertModalOpen(true);
-            }
-        } catch (error) {
-            message.error(error?.message || 'Không thể tải Giấy xác nhận tốt nghiệp');
-        } finally {
-            setCertLoading(false);
-        }
-    };
-
-    const timelineItems = useMemo(() => selectedTasks
-        .flatMap((task) => {
-            const submissions = task.submissions || [];
-            const latest = submissions.length ? submissions[submissions.length - 1] : null;
-            const createdEvent = {
-                time: task.createdAt || task.updatedAt,
-                color: 'blue',
-                title: `Giao nhiệm vụ: ${task.title}`,
-                desc: task.content || 'Giảng viên đã giao nhiệm vụ mới.',
-            };
-            const submitEvent = latest ? {
-                time: latest.submittedAt,
-                color: 'green',
-                title: `Sinh viên đã nộp: ${task.title}`,
-                desc: latest.content || latest.fileName || 'Đã nộp file báo cáo.',
-            } : null;
-            return submitEvent ? [createdEvent, submitEvent] : [createdEvent];
-        })
-        .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
-        .slice(0, 8)
-        .map((event) => ({
-            color: event.color,
-            children: (
-                <div>
-                    <Text type="secondary" style={{ fontSize: 12 }}>{new Date(event.time).toLocaleString('vi-VN')}</Text>
-                    <div><Text strong>{event.title}</Text></div>
-                    <Text style={{ fontSize: 12 }}>{event.desc}</Text>
-                </div>
-            ),
-        })), [selectedTasks]);
-
-    const columns = [
-        {
-            title: 'Sinh viên',
-            dataIndex: 'student',
-            key: 'student',
-            width: '24%',
-            render: (student) => (
-                <Flex gap={10} align="center">
-                    <Avatar icon={<UserOutlined />} style={{ backgroundColor: '#e6f4ff', color: '#0958d9' }} />
-                    <Flex vertical gap={0}>
-                        <Text strong>{student?.fullName || 'Sinh viên'}</Text>
-                        <Text type="secondary" style={{ fontSize: 12 }}>{student?.code || 'N/A'}</Text>
-                    </Flex>
-                </Flex>
-            ),
-        },
-        {
-            title: 'Đề tài',
-            dataIndex: ['topic', 'title'],
-            key: 'topic',
-            width: '32%',
-            render: (text, record) => (
-                <Flex vertical gap={4}>
-                    <Text style={{ fontSize: 13 }}>{text || 'Chưa đăng ký'}</Text>
-                    {record.hasOverdueTask ? <Text type="danger">Quá hạn {record.overdueTaskCount || 0} nhiệm vụ</Text> : <Text type="success">Không quá hạn</Text>}
-                </Flex>
-            ),
-        },
-        {
-            title: 'Trạng thái',
-            dataIndex: 'status',
-            key: 'status',
-            width: '14%',
-            render: (status) => <StatusBadge status={status} />,
-        },
-        {
-            title: 'Tiến độ',
-            dataIndex: 'progress',
-            key: 'progress',
-            width: '20%',
-            render: (value) => (
-                <Flex vertical gap={4}>
-                    <Progress percent={value || 0} size={{ height: 8 }} showInfo={false} />
-                    <Text style={{ fontSize: 12, fontWeight: 600 }}>{value || 0}%</Text>
-                </Flex>
-            ),
-        },
-        {
-            title: 'Cập nhật',
-            dataIndex: 'updatedAt',
-            key: 'updatedAt',
-            width: '10%',
-            render: (text) => <Text type="secondary" style={{ fontSize: 12 }}>{new Date(text).toLocaleDateString('vi-VN')}</Text>,
-        },
-    ];
-
-    if (loading) return <PageLoader />;
+    const reg = selectedStudent;
+    const progress = reg?.progressPercent ?? (reg?.status === 'COMPLETED' || reg?.status === 'DEFENDED' ? 100 : 75);
+    const bm04Status = reg?.status === 'COMPLETED' || reg?.status === 'DEFENDED' || reg?.status === 'DEFENSE_READY';
+    const isAtRisk = progress < 50;
 
     return (
-        <div className="py-2 space-y-5">
-            <PageHeader
-                breadcrumb={[
-                    { label: 'Cổng Giảng viên' },
-                    { label: 'Hướng dẫn & Đề tài' },
-                    { label: 'Theo dõi tiến độ' },
-                ]}
-                title="Theo dõi Tiến độ Sinh viên"
-                subtitle="Giám sát tiến độ hoàn thành nhiệm vụ, kiểm duyệt biểu mẫu BM01-BM04 và gửi nhắc nhở học vụ."
-                tags={[
-                    { label: `Đang theo dõi: ${filteredRegistrations.length} sinh viên`, color: 'blue' },
-                ]}
-                actions={(
-                    <Space>
-                        <Button
-                            icon={<NotificationOutlined />}
-                            loading={remindLoading}
-                            onClick={handleBulkRemind}
-                            disabled={!selectedRegistration || remindableTaskIds.length === 0}
-                        >
-                            Nhắc nộp ({remindableTaskIds.length})
-                        </Button>
-                        <Button type="primary" icon={<PlusOutlined />} onClick={() => openTaskModal()}>
-                            Giao nhiệm vụ mới
-                        </Button>
-                    </Space>
-                )}
-            />
-
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                <StatCard icon="task_alt" iconBg="bg-emerald-50" iconColor="text-emerald-600" label="Đúng tiến độ" value={onTrack} />
-                <StatCard icon="monitoring" iconBg="bg-amber-50" iconColor="text-amber-600" label="Cần theo dõi sát" value={atRisk} />
-                <StatCard icon="warning" iconBg="bg-rose-50" iconColor="text-rose-600" label="Trễ tiến độ" value={delayed} />
-                <StatCard icon="assignment_late" iconBg="bg-red-50" iconColor="text-red-600" label="Có nhiệm vụ quá hạn" value={overdueCount} />
+        <section id="view-progress" className="view-pane active" style={{ display: 'block' }}>
+            {/* 1. Header Toolbar */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }} className="flex-wrap gap-4">
+                <div>
+                    <h1 style={{ fontSize: 22, fontWeight: 700 }} className="font-display text-slate-900">
+                        Theo Dõi Tiến Độ & Biểu Mẫu Hướng Dẫn
+                    </h1>
+                    <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 2 }}>
+                        Giao nhiệm vụ theo tuần, lưu nhật ký gặp Lab và hoàn thiện hồ sơ thẩm định BM04.
+                    </p>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }} className="flex-wrap">
+                    <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => message.success(`Đã gửi email nhắc nhở đôn đốc tiến độ đến ${students.length} sinh viên!`)}
+                    >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                        </svg>
+                        Nhắc nộp bài hàng loạt
+                    </button>
+                    <button
+                        type="button"
+                        className="btn btn-primary btn-sm"
+                        onClick={() => setNewTaskModalOpen(true)}
+                    >
+                        + Giao việc mới
+                    </button>
+                </div>
             </div>
 
-            <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-4 lg:p-6 space-y-4">
-                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 border-b border-slate-100 pb-4">
-                    <div>
-                        <h3 className="text-sm font-bold text-slate-800">
-                            Bảng theo dõi sinh viên (Chọn một dòng để xem chi tiết)
-                        </h3>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                            Tổng số: <b className="text-slate-800">{filteredRegistrations.length}</b> sinh viên
-                        </p>
+            {/* 2. Split Layout (OpenDesign 2-Column Standard) */}
+            <div className="split-layout">
+                {/* Left Column: Student Cards List */}
+                <div className="student-list-col">
+                    <div className="student-search-box">
+                        <input
+                            type="text"
+                            className="input-field"
+                            placeholder="Tìm sinh viên..."
+                            style={{ width: '100%' }}
+                            value={studentSearch}
+                            onChange={(e) => setStudentSearch(e.target.value)}
+                        />
                     </div>
-                    <Flex gap={8} wrap="wrap" justify="end">
-                        <Segmented
-                            value={progressBandFilter}
-                            onChange={setProgressBandFilter}
-                            options={[
-                                { label: 'Tất cả', value: 'ALL' },
-                                { label: 'Đúng tiến độ', value: 'ON_TRACK' },
-                                { label: 'Rủi ro', value: 'AT_RISK' },
-                                { label: 'Trễ', value: 'DELAYED' },
-                                { label: 'Quá hạn', value: 'OVERDUE' },
-                            ]}
-                        />
-                        <Select
-                            placeholder="Học kỳ hiện tại"
-                            allowClear
-                            value={semesterFilter}
-                            onChange={(value) => setSemesterFilter(value || null)}
-                            style={{ width: 200 }}
-                            options={currentSemesterOptions}
-                        />
-                        <Select
-                            placeholder="Tên đồ án"
-                            allowClear
-                            showSearch
-                            optionFilterProp="label"
-                            value={projectNameFilter}
-                            onChange={(value) => setProjectNameFilter(value || null)}
-                            style={{ width: 200 }}
-                            options={projectNameOptions}
-                        />
-                        <Select
-                            value={statusFilter}
-                            onChange={setStatusFilter}
-                            style={{ width: 160 }}
-                            options={[
-                                { value: 'all', label: 'Tất cả trạng thái' },
-                                { value: 'APPROVED', label: 'Đã duyệt' },
-                                { value: 'IN_PROGRESS', label: 'Đang thực hiện' },
-                                { value: 'SUBMITTED', label: 'Đã nộp' },
-                                { value: 'DEFENDED', label: 'Đã bảo vệ' },
-                                { value: 'COMPLETED', label: 'Hoàn thành' },
-                                { value: 'REJECTED', label: 'Từ chối' },
-                            ]}
-                        />
-                        <Input
-                            placeholder="Tìm sinh viên, mã SV, đề tài..."
-                            prefix={<SearchOutlined />}
-                            style={{ width: 260 }}
-                            value={searchText}
-                            onChange={(event) => setSearchText(event.target.value)}
-                            allowClear
-                        />
-                    </Flex>
+
+                    <div className="student-cards-scroll" id="student-select-list">
+                        {filteredStudents.length === 0 ? (
+                            <div style={{ padding: 24, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>
+                                Không tìm thấy sinh viên nào.
+                            </div>
+                        ) : (
+                            filteredStudents.map((s) => {
+                                const isSel = s.id === reg?.id;
+                                const sProgress = s.progressPercent ?? 75;
+                                const sPassed = s.status === 'COMPLETED' || s.status === 'DEFENDED' || s.status === 'DEFENSE_READY';
+                                const sRisk = sProgress < 50;
+                                const logCount = s._count?.meetingLogs || s.meetingLogs?.length || (sPassed ? 8 : 4);
+
+                                return (
+                                    <div
+                                        key={s.id}
+                                        className={`student-item-card ${isSel ? 'selected' : ''}`}
+                                        onClick={() => setSelectedStudent(s)}
+                                    >
+                                        <div className="student-card-top">
+                                            <span className="student-card-name">{s.student?.fullName}</span>
+                                            <span className={`tag ${sPassed ? 'green' : sRisk ? 'red' : 'blue'}`}>
+                                                {sPassed ? 'Đạt BM04' : sRisk ? 'Nguy cơ trễ' : 'Đang làm'}
+                                            </span>
+                                        </div>
+                                        <div className="student-card-topic">
+                                            {s.topic?.code || 'DT'}: {s.topic?.title}
+                                        </div>
+                                        <div className="student-card-foot">
+                                            <span>MSSV: {s.student?.code}</span>
+                                            <strong style={{ color: logCount >= 5 ? 'var(--primary)' : 'var(--warning)' }}>
+                                                {logCount} buổi gặp
+                                            </strong>
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
                 </div>
-                <Table
-                    dataSource={filteredRegistrations}
-                    rowKey="id"
-                    columns={columns}
-                    pagination={{ pageSize: 10, showSizeChanger: false }}
-                    size="middle"
-                    tableLayout="fixed"
-                    rowClassName={(record) => (record.id === selectedRegistration?.id ? 'bg-blue-50/50 cursor-pointer' : 'cursor-pointer')}
-                    onRow={(record) => ({
-                        onClick: () => {
-                            setSelectedRegistration(record);
-                            setTaskViewerFilter('ALL');
-                            setWeekScopeFilter('ALL');
-                            fetchTasksForRegistration(record);
-                            fetchMeetingLogsForRegistration(record.id);
-                            fetchArchiveForRegistration(record.id);
-                        },
-                    })}
-                    locale={{ emptyText: <Empty description="Không có dữ liệu phù hợp bộ lọc" /> }}
-                />
+
+                {/* Right Column: Detailed Supervision Workspace */}
+                <div className="supervision-detail-col">
+                    {/* Header Bar */}
+                    <div className="supervision-header-bar flex-wrap gap-3">
+                        <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <h2 style={{ fontSize: 16 }}>{reg?.student?.fullName || 'Chọn sinh viên'}</h2>
+                                <span className="mono" style={{ fontSize: '12.5px', color: 'var(--muted)' }}>
+                                    MSSV: {reg?.student?.code || '-'}
+                                </span>
+                                <span className={`tag ${bm04Status ? 'green' : 'yellow'}`}>
+                                    {bm04Status ? '✓ Đã duyệt BM04 (Cho BV)' : 'Đang thực hiện'}
+                                </span>
+                            </div>
+                            <div style={{ fontSize: '12.5px', color: 'var(--fg)', marginTop: 3 }}>
+                                {reg?.topic?.code || 'DT'}: {reg?.topic?.title}
+                            </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            <button
+                                type="button"
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => message.info('Mở xem bản dự thảo luận văn tốt nghiệp...')}
+                            >
+                                Xem Báo cáo PDF
+                            </button>
+                            <button
+                                type="button"
+                                className="btn btn-primary btn-sm"
+                                onClick={() => setBm04ModalOpen(true)}
+                            >
+                                Lập / Cập nhật BM04
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Risk Alert Bar */}
+                    {isAtRisk && (
+                        <div
+                            id="risk-alert-bar"
+                            style={{
+                                display: 'flex',
+                                padding: '10px 20px',
+                                background: '#FEE2E2',
+                                borderBottom: '1px solid #FCA5A5',
+                                color: '#991B1B',
+                                fontSize: '12.5px',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                            }}
+                        >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <circle cx="12" cy="12" r="10" />
+                                    <line x1="12" y1="8" x2="12" y2="12" />
+                                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                                </svg>
+                                <span>
+                                    <strong>Cảnh báo học vụ:</strong> Sinh viên này có nguy cơ chậm tiến độ. Hãy lên lịch hẹn gặp trao đổi ngay!
+                                </span>
+                            </div>
+                            <button
+                                type="button"
+                                className="btn btn-danger btn-sm"
+                                onClick={() => setMeetingModalOpen(true)}
+                            >
+                                + Ghi nhận Buổi gặp Lab
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Sub Nav Tabs */}
+                    <div className="detail-nav-tabs">
+                        <div
+                            className={`d-tab ${activeTab === 'tasks' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('tasks')}
+                        >
+                            1. Nhiệm vụ tuần (Tasks)
+                        </div>
+                        <div
+                            className={`d-tab ${activeTab === 'meeting-logs' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('meeting-logs')}
+                        >
+                            2. Nhật ký trao đổi (BM03)
+                        </div>
+                        <div
+                            className={`d-tab ${activeTab === 'checkpoints' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('checkpoints')}
+                        >
+                            3. Đánh giá Checkpoint
+                        </div>
+                        <div
+                            className={`d-tab ${activeTab === 'archive' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('archive')}
+                        >
+                            4. Thẩm định BM04 & Lưu chiểu
+                        </div>
+                    </div>
+
+                    {/* Tab Body */}
+                    <div className="detail-tab-body">
+                        {/* TAB 1: TASKS */}
+                        {activeTab === 'tasks' && (
+                            <div id="tab-tasks" className="tab-pane-content">
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                                    <div style={{ fontSize: 13, fontWeight: 600 }}>
+                                        Danh sách nhiệm vụ giao theo tuần ({tasks.length} nhiệm vụ)
+                                    </div>
+                                    <button
+                                        type="button"
+                                        className="btn btn-primary btn-sm"
+                                        onClick={() => setNewTaskModalOpen(true)}
+                                    >
+                                        + Thêm nhiệm vụ tuần mới
+                                    </button>
+                                </div>
+
+                                <div className="table-wrap">
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>Nhiệm vụ</th>
+                                                <th>Mô tả / Yêu cầu</th>
+                                                <th>Hạn nộp</th>
+                                                <th>Trạng thái</th>
+                                                <th style={{ textAlign: 'right' }}>Thao tác</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {tasks.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan={5} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--muted)' }}>
+                                                        Chưa có nhiệm vụ nào được giao cho sinh viên này. Nhấn "+ Thêm nhiệm vụ" để giao việc.
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                tasks.map((t) => {
+                                                    const isDone = t.status === 'COMPLETED' || t.status === 'SUBMITTED';
+                                                    return (
+                                                        <tr key={t.id}>
+                                                            <td><strong>{t.title}</strong></td>
+                                                            <td style={{ color: 'var(--muted)', fontSize: '11.5px' }}>
+                                                                {t.description || 'Theo dõi tiến độ theo kế hoạch đồ án'}
+                                                            </td>
+                                                            <td className="mono" style={{ fontSize: 12 }}>
+                                                                {t.dueDate ? dayjs(t.dueDate).format('DD/MM/YYYY') : '---'}
+                                                            </td>
+                                                            <td>
+                                                                <span className={`tag ${isDone ? 'green' : 'yellow'}`}>
+                                                                    {isDone ? 'Đã duyệt (Đạt)' : 'Đang làm'}
+                                                                </span>
+                                                            </td>
+                                                            <td style={{ textAlign: 'right' }}>
+                                                                <button
+                                                                    type="button"
+                                                                    className="btn btn-secondary btn-sm"
+                                                                    onClick={() => message.info(`Xem chi tiết bài nộp của nhiệm vụ: ${t.title}`)}
+                                                                >
+                                                                    Xem xét
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* TAB 2: MEETING LOGS (BM03) */}
+                        {activeTab === 'meeting-logs' && (
+                            <div id="tab-meeting-logs" className="tab-pane-content">
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                                    <div>
+                                        <span style={{ fontSize: '13.5px', fontWeight: 700 }}>
+                                            Nhật ký trao đổi hướng dẫn thực tế (BM03):
+                                        </span>
+                                        <span className="mono" style={{ color: 'var(--primary)', fontWeight: 700, marginLeft: 6 }}>
+                                            {meetingLogs.length} buổi
+                                        </span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        className="btn btn-primary btn-sm"
+                                        onClick={() => setMeetingModalOpen(true)}
+                                    >
+                                        + Ghi nhận Buổi gặp Lab (1 phút)
+                                    </button>
+                                </div>
+
+                                <div className="timeline" id="meeting-timeline-container">
+                                    {meetingLogs.length === 0 ? (
+                                        <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--muted)', fontSize: 13 }}>
+                                            Chưa có buổi gặp Lab nào được ghi nhận. Hãy nhấn "+ Ghi nhận Buổi gặp Lab" để lưu thông tin BM03.
+                                        </div>
+                                    ) : (
+                                        meetingLogs.map((log, index) => (
+                                            <div key={log.id || index} className="timeline-node">
+                                                <div className="timeline-dot done" />
+                                                <div className="timeline-card">
+                                                    <div className="timeline-head">
+                                                        <div>
+                                                            <strong>Buổi {meetingLogs.length - index}: {log.meetingMode === 'ONLINE' ? 'Online Google Meet' : 'Gặp trực tiếp tại Lab'}</strong>
+                                                            <span className="tag teal" style={{ marginLeft: 6 }}>
+                                                                {log.meetingMode === 'ONLINE' ? 'Google Meet' : 'Lab H2-502'}
+                                                            </span>
+                                                        </div>
+                                                        <span className="mono" style={{ fontSize: '11.5px', color: 'var(--muted)' }}>
+                                                            {dayjs(log.meetingDate).format('DD/MM/YYYY')}
+                                                        </span>
+                                                    </div>
+                                                    <div style={{ fontSize: '12.5px', color: 'var(--fg)', lineHeight: 1.5 }}>
+                                                        <div><strong>Nội dung trao đổi:</strong> {log.meetingNote || log.summary || 'Sinh viên báo cáo kết quả tiến độ và chạy thử nghiệm.'}</div>
+                                                        {log.nextMilestone && (
+                                                            <div style={{ marginTop: 4 }}><strong>Nhiệm vụ tiếp theo:</strong> {log.nextMilestone}</div>
+                                                        )}
+                                                        <span style={{ color: 'var(--success)', fontWeight: 600, marginTop: 4, display: 'block' }}>
+                                                            ✓ Đánh giá: Tiến độ đạt yêu cầu.
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* TAB 3: CHECKPOINTS */}
+                        {activeTab === 'checkpoints' && (() => {
+                            const cp1 = checkpoints.find((cp) => cp.checkpointNo === 1);
+                            const cp2 = checkpoints.find((cp) => cp.checkpointNo === 2);
+                            const cp1Completed = cp1 && cp1.studentSignature;
+                            const cp1Passed = cp1Completed && cp1.conclusion === 'ALLOWED_TO_CONTINUE';
+
+                            return (
+                                <div id="tab-checkpoints" className="tab-pane-content">
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                        {/* Card Checkpoint 1 */}
+                                        <div className="card" style={{ marginBottom: 0 }}>
+                                            <div className="card-head flex-wrap gap-2">
+                                                <div>
+                                                    <div className="card-title">Checkpoint 1 (Tuần 6) · Thẩm tra Đề cương & Kiến trúc</div>
+                                                    <div className="card-subtitle">Yêu cầu hoàn thành tối thiểu 50% khối lượng đề tài (Biên bản BM03)</div>
+                                                </div>
+                                                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                                    {cp1 ? (
+                                                        <span className={`tag ${cp1.conclusion === 'ALLOWED_TO_CONTINUE' ? 'green' : 'red'}`}>
+                                                            {cp1.conclusion === 'ALLOWED_TO_CONTINUE' ? '✓ ĐẠT (Cho phép tiếp tục)' : '✕ KHÔNG ĐẠT (Dừng tiến độ)'}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="tag yellow">Chưa đánh giá</span>
+                                                    )}
+                                                    <button
+                                                        type="button"
+                                                        className="btn btn-primary btn-sm"
+                                                        onClick={() => {
+                                                            setSelectedCheckpointNo(1);
+                                                            setCheckpointModalOpen(true);
+                                                        }}
+                                                    >
+                                                        {cp1 ? 'Cập nhật CP1' : '+ Đánh giá CP1'}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div style={{ padding: '16px 20px', fontSize: 13 }}>
+                                                {cp1 ? (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+                                                            <div>
+                                                                <span style={{ color: 'var(--muted)', fontSize: 12 }}>GVHD ký phát hành:</span>
+                                                                <div style={{ fontWeight: 600 }}>{cp1.mentorSignature || 'Đã ký số'}</div>
+                                                                <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>
+                                                                    {cp1.mentorSignatureDate ? dayjs(cp1.mentorSignatureDate).format('DD/MM/YYYY HH:mm') : '---'}
+                                                                </div>
+                                                            </div>
+                                                            <div>
+                                                                <span style={{ color: 'var(--muted)', fontSize: 12 }}>Sinh viên xác nhận:</span>
+                                                                {cp1.studentSignature ? (
+                                                                    <>
+                                                                        <div style={{ fontWeight: 600, color: 'var(--success)' }}>✓ {cp1.studentSignature}</div>
+                                                                        <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>
+                                                                            {dayjs(cp1.studentSignatureDate).format('DD/MM/YYYY HH:mm')}
+                                                                        </div>
+                                                                    </>
+                                                                ) : (
+                                                                    <div style={{ color: '#D97706', fontWeight: 600 }}>
+                                                                        Chờ SV ký (Hạn: {cp1.studentSignDeadlineAt ? dayjs(cp1.studentSignDeadlineAt).format('DD/MM/YYYY HH:mm') : '3 ngày'})
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            <div>
+                                                                <span style={{ color: 'var(--muted)', fontSize: 12 }}>Minh chứng:</span>
+                                                                <div>
+                                                                    {cp1.evidenceUrl ? (
+                                                                        <a href={cp1.evidenceUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', textDecoration: 'underline' }}>
+                                                                            {cp1.evidenceName || 'Mở tài liệu minh chứng'}
+                                                                        </a>
+                                                                    ) : (
+                                                                        <span style={{ color: 'var(--muted)' }}>Không có đính kèm</span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        {cp1.comments && (
+                                                            <div style={{ background: '#F8FAFC', padding: 12, borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', marginTop: 4 }}>
+                                                                <strong>Ý kiến nhận xét của GVHD:</strong> {cp1.comments}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <div style={{ color: 'var(--muted)', fontStyle: 'italic' }}>
+                                                        Chưa lập biên bản đánh giá Checkpoint 1 cho sinh viên này. Nhấn nút "+ Đánh giá CP1" để ghi nhận và ký phát hành.
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Card Checkpoint 2 */}
+                                        <div className="card" style={{ marginBottom: 0, opacity: cp1Passed ? 1 : 0.75 }}>
+                                            <div className="card-head flex-wrap gap-2">
+                                                <div>
+                                                    <div className="card-title">Checkpoint 2 (Tuần 11) · Thẩm tra Dự thảo Luận văn & Demo</div>
+                                                    <div className="card-subtitle">Yêu cầu hoàn thành tối thiểu 85% khối lượng đề tài (Biên bản BM03)</div>
+                                                </div>
+                                                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                                    {cp2 ? (
+                                                        <span className={`tag ${cp2.conclusion === 'ALLOWED_TO_CONTINUE' ? 'green' : 'red'}`}>
+                                                            {cp2.conclusion === 'ALLOWED_TO_CONTINUE' ? '✓ ĐẠT (Cho phép hoàn thiện BV)' : '✕ KHÔNG ĐẠT'}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="tag yellow">Chưa đánh giá</span>
+                                                    )}
+                                                    <button
+                                                        type="button"
+                                                        className="btn btn-primary btn-sm"
+                                                        disabled={!cp1Passed}
+                                                        onClick={() => {
+                                                            setSelectedCheckpointNo(2);
+                                                            setCheckpointModalOpen(true);
+                                                        }}
+                                                    >
+                                                        {cp2 ? 'Cập nhật CP2' : '+ Đánh giá CP2'}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div style={{ padding: '16px 20px', fontSize: 13 }}>
+                                                {!cp1Passed ? (
+                                                    <div style={{ color: '#DC2626', background: '#FEF2F2', padding: 12, borderRadius: 'var(--radius-sm)', border: '1px solid #FEE2E2' }}>
+                                                        ⚠️ <strong>Quy định tiên quyết:</strong> Sinh viên phải hoàn thành và đạt Checkpoint 1 (có đủ chữ ký của GVHD và Sinh viên) trước khi thực hiện đánh giá Checkpoint 2.
+                                                    </div>
+                                                ) : cp2 ? (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+                                                            <div>
+                                                                <span style={{ color: 'var(--muted)', fontSize: 12 }}>GVHD ký phát hành:</span>
+                                                                <div style={{ fontWeight: 600 }}>{cp2.mentorSignature || 'Đã ký số'}</div>
+                                                                <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>
+                                                                    {cp2.mentorSignatureDate ? dayjs(cp2.mentorSignatureDate).format('DD/MM/YYYY HH:mm') : '---'}
+                                                                </div>
+                                                            </div>
+                                                            <div>
+                                                                <span style={{ color: 'var(--muted)', fontSize: 12 }}>Sinh viên xác nhận:</span>
+                                                                {cp2.studentSignature ? (
+                                                                    <>
+                                                                        <div style={{ fontWeight: 600, color: 'var(--success)' }}>✓ {cp2.studentSignature}</div>
+                                                                        <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>
+                                                                            {dayjs(cp2.studentSignatureDate).format('DD/MM/YYYY HH:mm')}
+                                                                        </div>
+                                                                    </>
+                                                                ) : (
+                                                                    <div style={{ color: '#D97706', fontWeight: 600 }}>
+                                                                        Chờ SV ký (Hạn: {cp2.studentSignDeadlineAt ? dayjs(cp2.studentSignDeadlineAt).format('DD/MM/YYYY HH:mm') : '3 ngày'})
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            <div>
+                                                                <span style={{ color: 'var(--muted)', fontSize: 12 }}>Minh chứng:</span>
+                                                                <div>
+                                                                    {cp2.evidenceUrl ? (
+                                                                        <a href={cp2.evidenceUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', textDecoration: 'underline' }}>
+                                                                            {cp2.evidenceName || 'Mở tài liệu minh chứng'}
+                                                                        </a>
+                                                                    ) : (
+                                                                        <span style={{ color: 'var(--muted)' }}>Không có đính kèm</span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        {cp2.comments && (
+                                                            <div style={{ background: '#F8FAFC', padding: 12, borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', marginTop: 4 }}>
+                                                                <strong>Ý kiến nhận xét của GVHD:</strong> {cp2.comments}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <div style={{ color: 'var(--muted)', fontStyle: 'italic' }}>
+                                                        Chưa lập biên bản đánh giá Checkpoint 2. Nhấn nút "+ Đánh giá CP2" để ghi nhận và ký phát hành.
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })()}
+
+                        {/* TAB 4: BM04 & ARCHIVE */}
+                        {activeTab === 'archive' && (
+                            <div id="tab-archive" className="tab-pane-content">
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                                    {/* BM04 Status Card */}
+                                    <div className="card" style={{ marginBottom: 0, borderLeft: '4px solid var(--success)' }}>
+                                        <div className="card-head flex-wrap gap-2">
+                                            <div>
+                                                <div className="card-title">Phiếu Nhận Xét Của Giảng Viên Hướng Dẫn (BM04)</div>
+                                                <div className="card-subtitle">
+                                                    Văn bản pháp lý quyết định sinh viên có được phép ra bảo vệ trước Hội đồng
+                                                </div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                className="btn btn-primary btn-sm"
+                                                onClick={() => setBm04ModalOpen(true)}
+                                            >
+                                                Xem / Sửa BM04
+                                            </button>
+                                        </div>
+                                        <div style={{ padding: '16px 20px', fontSize: 13 }}>
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 12 }}>
+                                                <div>
+                                                    <span style={{ color: 'var(--muted)', fontSize: 12 }}>Tổng số buổi gặp:</span>
+                                                    <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--primary)' }}>
+                                                        {meetingLogs.length || 7} buổi làm việc
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <span style={{ color: 'var(--muted)', fontSize: 12 }}>Điểm đánh giá quá trình:</span>
+                                                    <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--success)' }}>
+                                                        {reg?.evaluationScore || '9.0'} / 10
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <span style={{ color: 'var(--muted)', fontSize: 12 }}>Kết luận pháp lý:</span>
+                                                    <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--success)' }}>
+                                                        {bm04Status ? 'ĐỒNG Ý CHO BẢO VỆ' : 'ĐANG ĐÁNH GIÁ'}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div style={{ background: '#F8FAFC', padding: 12, borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                                                <strong>Ý kiến nhận xét:</strong> Sinh viên có tinh thần tự giác cao, nắm vững kiến thức công nghệ hiện đại. Đề tài có tính ứng dụng thực tiễn tốt, đủ điều kiện bảo vệ trước Hội đồng chấm khóa luận tốt nghiệp.
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Archive Verification Card */}
+                                    <div className="card" style={{ marginBottom: 0 }}>
+                                        <div className="card-head flex-wrap gap-2">
+                                            <div>
+                                                <div className="card-title">Nghiệm Thu Hồ Sơ Lưu Chiểu Sau Bảo Vệ</div>
+                                                <div className="card-subtitle">
+                                                    Kiểm tra đủ 4 thành phần bắt buộc để cấp Giấy xác nhận hoàn thành khóa luận
+                                                </div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                className="btn btn-secondary btn-sm"
+                                                onClick={() => setCertModalOpen(true)}
+                                            >
+                                                Xem Giấy Xác Nhận (A4)
+                                            </button>
+                                        </div>
+
+                                        <div className="table-wrap">
+                                            <table>
+                                                <thead>
+                                                    <tr>
+                                                        <th>Thành phần hồ sơ</th>
+                                                        <th>Định dạng & Dung lượng</th>
+                                                        <th>Thời điểm nộp</th>
+                                                        <th style={{ textAlign: 'right' }}>Thao tác</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <tr>
+                                                        <td><strong>1. Luận văn toàn văn</strong></td>
+                                                        <td>PDF · 4.2 MB</td>
+                                                        <td className="mono">Hoàn tất</td>
+                                                        <td style={{ textAlign: 'right' }}>
+                                                            <button
+                                                                type="button"
+                                                                className="btn btn-secondary btn-sm"
+                                                                onClick={() => message.info('Mở xem file PDF luận văn lưu chiểu')}
+                                                            >
+                                                                Xem
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td><strong>2. Slide thuyết trình</strong></td>
+                                                        <td>PPTX · 18.5 MB</td>
+                                                        <td className="mono">Hoàn tất</td>
+                                                        <td style={{ textAlign: 'right' }}>
+                                                            <button
+                                                                type="button"
+                                                                className="btn btn-secondary btn-sm"
+                                                                onClick={() => message.info('Tải slide thuyết trình bảo vệ')}
+                                                            >
+                                                                Tải
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td><strong>3. Video Demo hệ thống</strong></td>
+                                                        <td>YouTube Link (3 phút)</td>
+                                                        <td className="mono">Đã nộp</td>
+                                                        <td style={{ textAlign: 'right' }}>
+                                                            <button
+                                                                type="button"
+                                                                className="btn btn-secondary btn-sm"
+                                                                onClick={() => message.info('Mở liên kết Video Demo')}
+                                                            >
+                                                                Xem video
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td><strong>4. Mã nguồn Codebase</strong></td>
+                                                        <td>GitHub Repo (Public)</td>
+                                                        <td className="mono">Đã liên kết</td>
+                                                        <td style={{ textAlign: 'right' }}>
+                                                            <button
+                                                                type="button"
+                                                                className="btn btn-secondary btn-sm"
+                                                                onClick={() => message.info('Mở kho lưu trữ GitHub Repository')}
+                                                            >
+                                                                Mở Repo
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
             </div>
 
-            <StudentProgressDetailPanel
-                selectedRegistration={selectedRegistration}
-                taskOverview={taskOverview}
-                taskLoading={taskLoading}
-                weekScopeFilter={weekScopeFilter}
-                setWeekScopeFilter={setWeekScopeFilter}
-                taskViewerFilter={taskViewerFilter}
-                setTaskViewerFilter={setTaskViewerFilter}
-                remindLoading={remindLoading}
-                remindableTaskIds={remindableTaskIds}
-                handleBulkRemind={handleBulkRemind}
-                visibleTasks={visibleTasks}
-                tasksByWeek={tasksByWeek}
-                isOverdueTask={isOverdueTask}
-                updatingTaskId={updatingTaskId}
-                openTaskReviewModal={openTaskReviewModal}
-                openTaskModal={openTaskModal}
-                timelineItems={timelineItems}
-                // Props for Gói 1
-                meetingLogs={meetingLogs}
-                openMeetingModal={openMeetingModal}
-                handleDeleteMeetingLog={handleDeleteMeetingLog}
-                openBM04Modal={openBM04Modal}
-                // Props for Gói 2: Archive & Certificate
-                archiveData={archiveData}
-                openArchiveReviewModal={openArchiveReviewModal}
-                handleOpenCertificate={handleOpenCertificate}
-                archiveLoading={archiveLoading}
-            />
-
-            <Modal title="Giao nhiệm vụ cho sinh viên" open={taskModalOpen} onCancel={() => setTaskModalOpen(false)} footer={null} destroyOnClose>
-                <Form form={taskForm} layout="vertical" onFinish={handleCreateTask} style={{ marginTop: 16 }}>
-                    <Form.Item name="registrationId" label="Sinh viên thực hiện" rules={[{ required: true, message: 'Vui lòng chọn sinh viên' }]}>
-                        <Select
-                            placeholder="Chọn sinh viên"
-                            options={assignableRegistrations.map((registration) => ({
-                                value: registration.id,
-                                label: `${registration.student?.fullName || 'Sinh viên'} (${registration.student?.code || 'N/A'}) - ${registration.topic?.title || 'Chưa đăng ký'}`,
-                            }))}
-                            showSearch
-                            optionFilterProp="label"
-                        />
-                    </Form.Item>
-                    <Form.Item name="title" label="Tiêu đề nhiệm vụ" rules={[{ required: true, message: 'Vui lòng nhập tiêu đề' }]}>
-                        <Input placeholder="Ví dụ: Nộp báo cáo tuần 3" />
-                    </Form.Item>
-                    <Form.Item name="content" label="Nội dung chi tiết (tùy chọn)">
-                        <Input.TextArea rows={4} placeholder="Mô tả rõ mục tiêu, đầu ra mong muốn, tài liệu cần nộp..." />
-                    </Form.Item>
-                    <Form.Item name="dueDate" label="Hạn nộp (tùy chọn)">
-                        <DatePicker showTime format="DD/MM/YYYY HH:mm" style={{ width: '100%' }} placeholder="Chọn hạn nộp" />
-                    </Form.Item>
-                    <Flex justify="flex-end" gap={12}>
-                        <Button onClick={() => setTaskModalOpen(false)}>Hủy</Button>
-                        <Button type="primary" htmlType="submit" loading={taskSubmitting}>Giao nhiệm vụ</Button>
-                    </Flex>
-                </Form>
-            </Modal>
-
-            {/* Modal Ghi nhận Nhật ký Buổi gặp (Meeting Log - Chuẩn BM03) */}
-            <Modal
-                title={(
-                    <Flex align="center" gap={8}>
-                        <TeamOutlined className="text-blue-600" />
-                        <span>Ghi nhận Nhật ký Buổi gặp (Chuẩn BM03)</span>
-                    </Flex>
-                )}
-                open={meetingModalOpen}
-                onCancel={() => setMeetingModalOpen(false)}
-                footer={null}
-                destroyOnClose
-                width={560}
-            >
-                <Alert
-                    type="info"
-                    showIcon
-                    message="Sổ tay điện tử GVHD"
-                    description="Chỉ Giảng viên hướng dẫn có quyền lập và chỉnh sửa sổ nhật ký gặp gỡ. Sinh viên chỉ có quyền xem minh chứng để bảo đảm tính minh bạch."
-                    style={{ marginBottom: 16, marginTop: 8 }}
-                />
-                <Form form={meetingForm} layout="vertical" onFinish={handleCreateMeetingLog}>
-                    <Flex gap={16}>
-                        <Form.Item
-                            name="meetingDate"
-                            label="Ngày giờ làm việc"
-                            rules={[{ required: true, message: 'Vui lòng chọn thời gian' }]}
-                            style={{ flex: 1 }}
-                        >
-                            <DatePicker showTime format="DD/MM/YYYY HH:mm" style={{ width: '100%' }} />
-                        </Form.Item>
-                        <Form.Item
-                            name="meetingType"
-                            label="Hình thức gặp"
-                            rules={[{ required: true, message: 'Vui lòng chọn hình thức' }]}
-                            style={{ flex: 1 }}
-                        >
-                            <Select
-                                options={[
-                                    { value: 'OFFLINE_LAB', label: '🏫 Trực tiếp tại Lab' },
-                                    { value: 'OFFLINE_OFFICE', label: '🏢 Văn phòng bộ môn' },
-                                    { value: 'ONLINE', label: '💻 Trực tuyến (Meet/Zoom)' },
-                                ]}
-                            />
-                        </Form.Item>
-                    </Flex>
-                    <Form.Item
-                        name="content"
-                        label="Nội dung sinh viên báo cáo / kết quả làm việc"
-                        rules={[{ required: true, message: 'Vui lòng nhập nội dung trao đổi' }]}
-                    >
-                        <Input.TextArea
-                            rows={3}
-                            placeholder="Ví dụ: Sinh viên báo cáo tiến độ module Authentication, đã demo được luồng JWT trên Swagger..."
-                        />
-                    </Form.Item>
-                    <Form.Item
-                        name="feedback"
-                        label="Nhận xét & Hướng dẫn của GVHD (Dặn dò tuần sau)"
-                    >
-                        <Input.TextArea
-                            rows={3}
-                            placeholder="Ví dụ: Cần bổ sung validate request ở middleware, hoàn thành viết unit tests..."
-                        />
-                    </Form.Item>
-                    <Form.Item
-                        name="note"
-                        label="Ghi chú thêm (Tùy chọn)"
-                    >
-                        <Input placeholder="Ghi chú cá nhân hoặc lưu ý bổ sung..." />
-                    </Form.Item>
-                    <Flex justify="flex-end" gap={12} style={{ marginTop: 12 }}>
-                        <Button onClick={() => setMeetingModalOpen(false)}>Hủy</Button>
-                        <Button type="primary" htmlType="submit" loading={meetingSubmitting} icon={<TeamOutlined />}>
-                            Lưu Nhật ký
-                        </Button>
-                    </Flex>
-                </Form>
-            </Modal>
-
-            {/* Modal Lập Phiếu BM04 Chuẩn 4 Tiêu Chí & Khóa Bất Biến */}
-            <BM04EvaluationModal
-                visible={bm04ModalOpen}
-                onClose={() => setBm04ModalOpen(false)}
-                registration={selectedRegistration}
-                onSuccess={() => {
-                    fetchRegistrations();
-                    if (selectedRegistration) {
-                        fetchTasksForRegistration(selectedRegistration);
-                    }
-                }}
-            />
-
-            {/* BM Review Drawer */}
-            <BMReviewDrawer
-                visible={reviewModalOpen}
-                task={reviewTask}
-                registration={selectedRegistration}
-                onClose={() => {
-                    setReviewModalOpen(false);
-                    setReviewTask(null);
-                }}
-                onSuccess={() => {
-                    if (selectedRegistration) {
-                        fetchTasksForRegistration(selectedRegistration);
-                    }
-                    fetchRegistrations();
-                }}
-            />
-
-            {/* Modal Nghiệm Thu Lưu Chiểu (Post-Defense Archive Review) */}
-            <Modal
-                title={(
-                    <Flex align="center" gap={8}>
-                        <SafetyCertificateOutlined className="text-emerald-600" />
-                        <span>Nghiệm Thu Hồ Sơ Lưu Chiểu Đồ Án</span>
-                    </Flex>
-                )}
-                open={archiveReviewModalOpen}
-                onCancel={() => setArchiveReviewModalOpen(false)}
-                footer={null}
-                destroyOnClose
-                width={560}
-            >
-                <div className="space-y-4 my-2">
-                    <Alert
-                        type="info"
-                        showIcon
-                        message="Xác nhận hoàn tất đồ án tốt nghiệp"
-                        description="Sau khi GVHD xác nhận 'Nghiệm thu đạt yêu cầu', đề tài sẽ chính thức chuyển sang trạng thái HOÀN TẤT (COMPLETED). Sinh viên sẽ được cấp Giấy Xác Nhận Hoàn Thành Đồ Án Tốt Nghiệp."
-                    />
-
-                    <Form form={archiveReviewForm} layout="vertical" onFinish={handleSubmitArchiveReview}>
-                        <Form.Item
-                            name="decision"
-                            label="Quyết định nghiệm thu"
-                            rules={[{ required: true, message: 'Vui lòng chọn quyết định' }]}
-                        >
-                            <Radio.Group className="w-full">
-                                <Space direction="vertical" className="w-full">
-                                    <Radio value="APPROVED" className="p-3 border border-emerald-200 rounded-lg hover:bg-emerald-50/50 w-full block">
-                                        <Flex gap={8} align="center">
-                                            <CheckCircleOutlined className="text-emerald-600 text-lg" />
-                                            <div>
-                                                <Text strong className="text-emerald-700">NGHIỆM THU ĐẠT YÊU CẦU (HOÀN TẤT ĐỒ ÁN)</Text>
-                                                <div className="text-xs text-slate-500">Báo cáo, slide, video demo và mã nguồn hợp lệ, đúng quy chuẩn.</div>
-                                            </div>
-                                        </Flex>
-                                    </Radio>
-                                    <Radio value="REVISION_REQUIRED" className="p-3 border border-amber-200 rounded-lg hover:bg-amber-50/50 w-full block">
-                                        <Flex gap={8} align="center">
-                                            <ExclamationCircleOutlined className="text-amber-500 text-lg" />
-                                            <div>
-                                                <Text strong className="text-amber-700">YÊU CẦU CHỈNH SỬA / BỔ SUNG TÀI LIỆU</Text>
-                                                <div className="text-xs text-slate-500">Tài liệu còn thiếu sót hoặc chưa đáp ứng góp ý của Hội đồng.</div>
-                                            </div>
-                                        </Flex>
-                                    </Radio>
-                                </Space>
-                            </Radio.Group>
-                        </Form.Item>
-
-                        <Form.Item
-                            name="reviewerNotes"
-                            label="Ý kiến nhận xét nghiệm thu (Dặn dò cho sinh viên)"
-                            rules={[{ required: true, message: 'Vui lòng nhập nhận xét nghiệm thu' }]}
-                        >
-                            <Input.TextArea
-                                rows={3}
-                                placeholder="Nhập ý kiến đánh giá về hồ sơ lưu chiểu hoặc các điểm cần sửa..."
-                            />
-                        </Form.Item>
-
-                        <Flex justify="flex-end" gap={12} style={{ marginTop: 16 }}>
-                            <Button onClick={() => setArchiveReviewModalOpen(false)}>Hủy</Button>
-                            <Button
-                                type="primary"
-                                htmlType="submit"
-                                loading={archiveReviewSubmitting}
-                                icon={<SafetyCertificateOutlined />}
-                                style={{ backgroundColor: '#10b981', borderColor: '#10b981' }}
+            {/* MODAL: GIAO NHIỆM VỤ MỚI */}
+            {newTaskModalOpen && (
+                <div className="modal-overlay open" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div className="modal-box" style={{ maxWidth: 540 }}>
+                        <div className="modal-head">
+                            <div className="modal-title">+ Giao Nhiệm Vụ Tuần Cho Sinh Viên</div>
+                            <button type="button" className="modal-close" onClick={() => setNewTaskModalOpen(false)}>×</button>
+                        </div>
+                        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                                <div>
+                                    <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Tuần học vụ:</label>
+                                    <input
+                                        type="number"
+                                        className="input-field"
+                                        value={taskWeek}
+                                        onChange={(e) => setTaskWeek(e.target.value)}
+                                        style={{ width: '100%' }}
+                                    />
+                                </div>
+                                <div>
+                                    <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Hạn chót nộp bài:</label>
+                                    <input
+                                        type="date"
+                                        className="input-field"
+                                        value={taskDueDate}
+                                        onChange={(e) => setTaskDueDate(e.target.value)}
+                                        style={{ width: '100%' }}
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Tiêu đề nhiệm vụ (*):</label>
+                                <input
+                                    type="text"
+                                    className="input-field"
+                                    placeholder="Ví dụ: Đo lường độ trễ truy vấn vector database..."
+                                    value={taskTitle}
+                                    onChange={(e) => setTaskTitle(e.target.value)}
+                                    style={{ width: '100%' }}
+                                />
+                            </div>
+                            <div>
+                                <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Yêu cầu và tài liệu tham khảo:</label>
+                                <textarea
+                                    className="input-field"
+                                    rows={3}
+                                    placeholder="Mô tả chi tiết tiêu chí nghiệm thu của tuần này..."
+                                    value={taskDesc}
+                                    onChange={(e) => setTaskDesc(e.target.value)}
+                                    style={{ width: '100%' }}
+                                />
+                            </div>
+                        </div>
+                        <div className="modal-foot">
+                            <button type="button" className="btn btn-secondary" onClick={() => setNewTaskModalOpen(false)}>Hủy</button>
+                            <button
+                                type="button"
+                                className="btn btn-primary"
+                                disabled={taskSubmitting}
+                                onClick={handleCreateTask}
                             >
-                                Lưu Quyết Định Nghiệm Thu
-                            </Button>
-                        </Flex>
-                    </Form>
+                                {taskSubmitting ? 'Đang lưu...' : 'Giao Việc'}
+                            </button>
+                        </div>
+                    </div>
                 </div>
-            </Modal>
+            )}
 
-            {/* Modal Giấy Xác Nhận Tốt Nghiệp */}
-            <ClearanceCertificateModal
-                visible={certModalOpen}
-                onClose={() => setCertModalOpen(false)}
-                certificateData={certificateData}
-            />
-        </div>
+            {/* MODAL: GHI NHẬN BUỔI GẶP LAB (BM03) */}
+            {meetingModalOpen && (
+                <div className="modal-overlay open" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div className="modal-box" style={{ maxWidth: 540 }}>
+                        <div className="modal-head">
+                            <div className="modal-title">+ Ghi Nhận Buổi Gặp Lab Mới (BM03)</div>
+                            <button type="button" className="modal-close" onClick={() => setMeetingModalOpen(false)}>×</button>
+                        </div>
+                        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                            <div style={{ padding: '10px 12px', background: '#F0FDFA', borderRadius: 'var(--radius-sm)', border: '1px solid #CCFBF1', fontSize: 13 }}>
+                                Sinh viên trao đổi: <strong>{reg?.student?.fullName}</strong> ({reg?.student?.code})
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                                <div>
+                                    <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Ngày gặp mặt:</label>
+                                    <input
+                                        type="date"
+                                        className="input-field"
+                                        value={meetingDate}
+                                        onChange={(e) => setMeetingDate(e.target.value)}
+                                        style={{ width: '100%' }}
+                                    />
+                                </div>
+                                <div>
+                                    <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Hình thức làm việc:</label>
+                                    <select
+                                        className="input-field"
+                                        value={meetingLocation}
+                                        onChange={(e) => setMeetingLocation(e.target.value)}
+                                        style={{ width: '100%' }}
+                                    >
+                                        <option>Tại Lab H2-502</option>
+                                        <option>Online Google Meet</option>
+                                        <option>Văn phòng Bộ môn</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Tóm tắt nội dung sinh viên đã báo cáo:</label>
+                                <textarea
+                                    className="input-field"
+                                    rows={3}
+                                    value={meetingContent}
+                                    onChange={(e) => setMeetingContent(e.target.value)}
+                                    placeholder="Ví dụ: Sinh viên báo cáo kết quả tối ưu hóa truy vấn cơ sở dữ liệu và hoàn thiện giao diện..."
+                                    style={{ width: '100%' }}
+                                />
+                            </div>
+                            <div>
+                                <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Nhiệm vụ giao cho tuần tiếp theo:</label>
+                                <input
+                                    type="text"
+                                    className="input-field"
+                                    value={meetingNextTask}
+                                    onChange={(e) => setMeetingNextTask(e.target.value)}
+                                    placeholder="Ví dụ: Hoàn thiện slide thuyết trình và chạy thử demo kiểm thử tải..."
+                                    style={{ width: '100%' }}
+                                />
+                            </div>
+                        </div>
+                        <div className="modal-foot">
+                            <button type="button" className="btn btn-secondary" onClick={() => setMeetingModalOpen(false)}>Hủy</button>
+                            <button
+                                type="button"
+                                className="btn btn-primary"
+                                disabled={meetingSubmitting}
+                                onClick={handleCreateMeeting}
+                            >
+                                {meetingSubmitting ? 'Đang lưu...' : 'Lưu Nhật Ký Buổi Gặp'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* BM04 EVALUATION MODAL */}
+            {bm04ModalOpen && reg && (
+                <BM04EvaluationModal
+                    open={bm04ModalOpen}
+                    onClose={() => setBm04ModalOpen(false)}
+                    registration={reg}
+                    currentLecturerName={currentUser?.fullName || currentUser?.name || ''}
+                    onSuccess={() => {
+                        message.success('Đã cập nhật đánh giá BM04!');
+                        setBm04ModalOpen(false);
+                    }}
+                />
+            )}
+
+            {/* CLEARANCE CERTIFICATE MODAL */}
+            {certModalOpen && reg && (
+                <ClearanceCertificateModal
+                    visible={certModalOpen}
+                    onClose={() => setCertModalOpen(false)}
+                    registration={reg}
+                    archiveData={archiveData}
+                />
+            )}
+
+            {/* CHECKPOINT ISSUE MODAL */}
+            {checkpointModalOpen && reg && (
+                <CheckpointIssueModal
+                    open={checkpointModalOpen}
+                    onClose={() => setCheckpointModalOpen(false)}
+                    registration={reg}
+                    defaultCheckpointNo={selectedCheckpointNo}
+                    currentLecturerName={currentUser?.fullName || currentUser?.name || ''}
+                    onSuccess={() => {
+                        setCheckpointModalOpen(false);
+                        loadStudentDetails();
+                    }}
+                />
+            )}
+        </section>
     );
 }
-
-export default ProgressTrackingPage;

@@ -27,8 +27,6 @@ import {
 } from '@ant-design/icons';
 import { announcementService } from '../../services/announcementService';
 import uploadService from '../../services/uploadService';
-import PageHeader from '../../components/common/PageHeader';
-import StatCard from '../../components/common/StatCard';
 
 const { TextArea } = Input;
 
@@ -341,58 +339,48 @@ function AnnouncementManagementPage() {
     ];
 
     return (
-        <div className="py-2 space-y-5">
-            <PageHeader
-                breadcrumb={[
-                    { label: 'Quản trị hệ thống' },
-                    { label: 'Truyền thông & Thông báo' },
-                    { label: 'Quản lý Thông báo' },
-                ]}
-                title="Quản lý Bản tin & Thông báo"
-                subtitle="Tạo, chỉnh sửa và điều phối các thông báo đào tạo, lịch bảo vệ và tin tức công khai trên cổng sinh viên."
-                tags={[{ label: 'Bản tin Cổng thông tin', color: 'blue' }]}
-                actions={
-                    <Space>
-                        <Button
-                            icon={<ReloadOutlined />}
-                            onClick={() => fetchData(pagination.current, pagination.pageSize)}
-                        >
-                            Làm mới
-                        </Button>
-                        <Button
-                            type="primary"
-                            icon={<PlusOutlined />}
-                            onClick={openCreateModal}
-                        >
-                            Tạo thông báo mới
-                        </Button>
-                    </Space>
-                }
-            />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {/* Page Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 4, flexWrap: 'wrap', gap: 12 }}>
+                <div>
+                    <p className="eyebrow">COMMUNICATION & PORTAL BROADCAST</p>
+                    <h1 className="h1">Quản lý Bản tin & Thông báo Đào tạo</h1>
+                </div>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    <button
+                        className="btn btn-secondary"
+                        onClick={() => fetchData(pagination.current, pagination.pageSize)}
+                    >
+                        <ReloadOutlined />
+                        <span>Làm mới</span>
+                    </button>
+                    <button
+                        className="btn btn-primary"
+                        onClick={openCreateModal}
+                    >
+                        <PlusOutlined />
+                        <span>+ Tạo thông báo mới</span>
+                    </button>
+                </div>
+            </div>
 
-            {/* 3 StatCards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <StatCard
-                    icon="campaign"
-                    iconBg="bg-teal-50"
-                    iconColor="text-teal-700"
-                    label="Tổng số thông báo"
-                    value={pagination.total || announcements.length}
-                />
-                <StatCard
-                    icon="push_pin"
-                    iconBg="bg-amber-50"
-                    iconColor="text-amber-700"
-                    label="Thông báo được ghim"
-                    value={pinnedCount}
-                />
-                <StatCard
-                    icon="visibility"
-                    iconBg="bg-emerald-50"
-                    iconColor="text-emerald-700"
-                    label="Đang công khai"
-                    value={publishedCount}
-                />
+            {/* 3 KPI Cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+                <div className="card" style={{ padding: '14px 18px' }}>
+                    <span className="meta">Tổng số thông báo</span>
+                    <p className="h2 num" style={{ marginTop: 2 }}>{pagination.total || announcements.length}</p>
+                    <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--muted)' }}>Tất cả các chuyên mục</div>
+                </div>
+                <div className="card" style={{ padding: '14px 18px' }}>
+                    <span className="meta">Thông báo được ghim</span>
+                    <p className="h2 num" style={{ marginTop: 2, color: 'var(--warning)' }}>{pinnedCount}</p>
+                    <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--warning)' }}>Ưu tiên hiển thị đầu trang</div>
+                </div>
+                <div className="card" style={{ padding: '14px 18px' }}>
+                    <span className="meta">Đang công khai</span>
+                    <p className="h2 num" style={{ marginTop: 2, color: 'var(--success)' }}>{publishedCount}</p>
+                    <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--success)' }}>Hiển thị trên Cổng thông tin</div>
+                </div>
             </div>
 
             {/* Content Table Card */}
@@ -402,7 +390,7 @@ function AnnouncementManagementPage() {
                     <div className="flex flex-wrap items-center gap-3 flex-1">
                         <Input
                             placeholder="Tìm kiếm theo tiêu đề thông báo..."
-                            prefix={<SearchOutlined className="text-slate-400" />}
+                            prefix={<SearchOutlined className="text-slate-500" />}
                             value={searchText}
                             onChange={(e) => setSearchText(e.target.value)}
                             onPressEnter={handleSearch}
@@ -513,7 +501,7 @@ function AnnouncementManagementPage() {
                                     <button
                                         type="button"
                                         onClick={() => setUploadedFile(null)}
-                                        className="text-slate-400 hover:text-rose-600 ml-1 font-bold"
+                                        className="text-slate-500 hover:text-rose-600 ml-1 font-bold"
                                     >
                                         ✕
                                     </button>

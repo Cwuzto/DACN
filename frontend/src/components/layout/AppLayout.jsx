@@ -1,31 +1,31 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
-import { Dropdown, Drawer, Badge, Button } from 'antd';
-import {
-    LogoutOutlined,
-    UserOutlined,
-    SettingOutlined,
-    MenuOutlined,
-    BellOutlined,
-} from '@ant-design/icons';
 import useAuthStore from '../../stores/authStore';
+import authService from '../../services/authService';
+import { semesterService } from '../../services/semesterService';
+import { getClosestSemester } from '../../utils/semesterDisplay';
+import registrationService from '../../services/registrationService';
+import NavIcon from './NavIcon';
+import OpenDrawer from '../common/OpenDrawer';
+import QuotaMeter from '../common/QuotaMeter';
 
 // Mapping role -> nav items + role label
 const NAV_CONFIG = {
     STUDENT: {
         label: 'Cổng Sinh viên',
+        portalTitle: 'Cổng Sinh viên',
         basePath: '/student',
         sections: [
             {
                 title: 'TỔNG QUAN',
                 items: [
-                    { path: '/student/dashboard', icon: 'dashboard', label: 'Tổng quan cá nhân' },
+                    { path: '/student/dashboard', icon: 'dashboard', label: 'Bàn làm việc sinh viên' },
                 ],
             },
             {
                 title: 'KHÓA LUẬN & ĐỒ ÁN',
                 items: [
-                    { path: '/student/topics', icon: 'list_alt', label: 'Danh sách đề tài' },
+                    { path: '/student/topics', icon: 'list_alt', label: 'Danh mục đề tài' },
                     { path: '/student/submissions', icon: 'cloud_upload', label: 'Tiến độ & Nộp bài' },
                     { path: '/student/grades', icon: 'workspace_premium', label: 'Kết quả bảo vệ' },
                 ],
@@ -38,26 +38,27 @@ const NAV_CONFIG = {
     },
     LECTURER: {
         label: 'Cổng Giảng viên',
+        portalTitle: 'Cổng Giảng viên',
         basePath: '/lecturer',
         sections: [
             {
                 title: 'TỔNG QUAN',
                 items: [
-                    { path: '/lecturer/dashboard', icon: 'dashboard', label: 'Bảng điều khiển' },
+                    { path: '/lecturer/dashboard', icon: 'dashboard', label: 'Bàn làm việc giảng viên', permissions: ['BM03_REVIEW'] },
                 ],
             },
             {
                 title: 'HƯỚNG DẪN & ĐỀ TÀI',
                 items: [
-                    { path: '/lecturer/topics', icon: 'folder_open', label: 'Đề tài của tôi' },
-                    { path: '/lecturer/approvals', icon: 'fact_check', label: 'Phê duyệt sinh viên' },
-                    { path: '/lecturer/progress', icon: 'trending_up', label: 'Theo dõi tiến độ BM' },
+                    { path: '/lecturer/topics', icon: 'folder_open', label: 'Đề tài của tôi', permissions: ['TOPIC_CREATE', 'TOPIC_UPDATE_OWN'] },
+                    { path: '/lecturer/approvals', icon: 'fact_check', label: 'Phê duyệt sinh viên', permissions: ['MENTOR_REQUEST_REVIEW', 'OUTLINE_REVIEW'] },
+                    { path: '/lecturer/progress', icon: 'trending_up', label: 'Theo dõi tiến độ BM', permissions: ['BM03_REVIEW'] },
                 ],
             },
             {
                 title: 'HỘI ĐỒNG & CHẤM ĐIỂM',
                 items: [
-                    { path: '/lecturer/grading', icon: 'rate_review', label: 'Hội đồng chấm điểm' },
+                    { path: '/lecturer/grading', icon: 'rate_review', label: 'Hội đồng chấm điểm', permissions: ['DEFENSE_SCORE_VIEW'] },
                 ],
             },
         ],
@@ -66,43 +67,44 @@ const NAV_CONFIG = {
             { path: '/lecturer/profile', icon: 'settings', label: 'Cài đặt tài khoản' },
         ],
         instituteItems: [
-            { path: '/lecturer/institute', icon: 'account_balance', label: 'Quản lý Viện' },
+            { path: '/lecturer/institute', icon: 'account_balance', label: 'Quản lý Viện & Ban hành QĐ' },
         ],
     },
     ADMIN: {
         label: 'Quản trị Hệ thống',
+        portalTitle: 'Quản trị Hệ thống',
         basePath: '/admin',
         sections: [
             {
                 title: 'TỔNG QUAN',
                 items: [
-                    { path: '/admin/dashboard', icon: 'dashboard', label: 'Tổng quan hệ thống' },
+                    { path: '/admin/dashboard', icon: 'dashboard', label: 'Tổng quan hệ thống', permissions: ['REPORT_VIEW'] },
                 ],
             },
             {
                 title: 'ĐÀO TẠO & ĐỀ TÀI',
                 items: [
-                    { path: '/admin/project-periods', icon: 'calendar_month', label: 'Đợt làm đồ án' },
-                    { path: '/admin/project-enrollments', icon: 'playlist_add_check', label: 'Gán môn đồ án' },
+                    { path: '/admin/project-periods', icon: 'calendar_month', label: 'Đợt đồ án', permissions: ['SEMESTER_MANAGE'] },
+                    { path: '/admin/project-enrollments', icon: 'playlist_add_check', label: 'Gán môn đồ án', permissions: ['ENROLLMENT_MANAGE', 'PROJECT_CATALOG_MANAGE'] },
                     { path: '/admin/topics', icon: 'description', label: 'Quản lý đề tài' },
-                    { path: '/admin/oversight', icon: 'policy', label: 'Giám sát tiến độ & BM' },
+                    { path: '/admin/oversight', icon: 'policy', label: 'Giám sát tiến độ & BM', permissions: ['REPORT_VIEW', 'LEGACY_REVIEW_MANAGE'] },
                 ],
             },
             {
                 title: 'HỘI ĐỒNG & ĐÁNH GIÁ',
                 items: [
-                    { path: '/admin/councils', icon: 'groups', label: 'Phân công Hội đồng' },
-                    { path: '/admin/grading', icon: 'rate_review', label: 'Trung tâm Chấm bảo vệ' },
-                    { path: '/admin/rubric-management', icon: 'rule', label: 'Tiêu chí chấm (Rubric)' },
+                    { path: '/admin/councils', icon: 'groups', label: 'Phân công Hội đồng', permissions: ['OUTLINE_COUNCIL_MANAGE', 'DEFENSE_COUNCIL_MANAGE'], permissionMode: 'any' },
+                    { path: '/admin/grading', icon: 'rate_review', label: 'Trung tâm Chấm bảo vệ', permissions: ['DEFENSE_SCORE_VIEW'] },
+                    { path: '/admin/rubric-management', icon: 'rule', label: 'Tiêu chí chấm (Rubric)', permissions: ['RUBRIC_MANAGE'] },
                 ],
             },
             {
                 title: 'QUẢN TRỊ HỆ THỐNG',
                 items: [
-                    { path: '/admin/users', icon: 'group', label: 'Quản lý người dùng' },
-                    { path: '/admin/permissions', icon: 'shield_lock', label: 'Quản lý phân quyền' },
-                    { path: '/admin/announcements', icon: 'campaign', label: 'Quản lý thông báo' },
-                    { path: '/admin/notifications', icon: 'send', label: 'Trung tâm Gửi tin' },
+                    { path: '/admin/users', icon: 'group', label: 'Quản lý người dùng', permissions: ['USER_MANAGE', 'PERMISSION_GROUP_MANAGE'] },
+                    { path: '/admin/permissions', icon: 'shield_lock', label: 'Quản lý phân quyền', permissions: ['PERMISSION_GROUP_MANAGE'] },
+                    { path: '/admin/announcements', icon: 'campaign', label: 'Quản lý thông báo', permissions: ['PUBLIC_ANNOUNCEMENT_MANAGE'] },
+                    { path: '/admin/notifications', icon: 'send', label: 'Trung tâm Gửi tin', permissions: ['NOTIFICATION_MANAGE'] },
                 ],
             },
         ],
@@ -115,261 +117,356 @@ const NAV_CONFIG = {
 function AppLayout({ role }) {
     const navigate = useNavigate();
     const location = useLocation();
-    const { user, logout } = useAuthStore();
+    const { user, logout, updateUser } = useAuthStore();
     const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+    const [collapsed, setCollapsed] = useState(() => {
+        try {
+            return localStorage.getItem('sidebar_collapsed') === 'true';
+        } catch {
+            return false;
+        }
+    });
+
+    const [currentSemester, setCurrentSemester] = useState(null);
+    const [lecturerStudentCount, setLecturerStudentCount] = useState(0);
+
+    const toggleCollapse = () => {
+        setCollapsed((prev) => {
+            const next = !prev;
+            try {
+                localStorage.setItem('sidebar_collapsed', String(next));
+            } catch {}
+            return next;
+        });
+    };
+
+    useEffect(() => {
+        let isMounted = true;
+        authService
+            .getMe()
+            .then((res) => {
+                if (isMounted && res?.success && res?.data) {
+                    updateUser(res.data);
+                }
+            })
+            .catch(() => {});
+        return () => {
+            isMounted = false;
+        };
+    }, [updateUser]);
+
+    useEffect(() => {
+        let isMounted = true;
+        semesterService
+            .getAll()
+            .then((res) => {
+                if (isMounted && res?.success && Array.isArray(res.data)) {
+                    const active = res.data.find((s) => s.isActive || s.status === 'ACTIVE');
+                    const chosen = active || getClosestSemester(res.data) || res.data[0];
+                    setCurrentSemester(chosen);
+                }
+            })
+            .catch(() => {});
+
+        if (role === 'LECTURER') {
+            registrationService
+                .getAllRegistrations()
+                .then((res) => {
+                    if (isMounted && res?.success && Array.isArray(res.data)) {
+                        const myCount = res.data.filter(
+                            (r) =>
+                                (r.topic?.lecturerId === user?.id || r.topic?.lecturer?.id === user?.id) &&
+                                !['REJECTED', 'DROPPED', 'WITHDRAWN'].includes(r.status)
+                        ).length;
+                        setLecturerStudentCount(myCount);
+                    }
+                })
+                .catch(() => {});
+        }
+
+        return () => {
+            isMounted = false;
+        };
+    }, [role, user?.id]);
 
     const config = NAV_CONFIG[role] || NAV_CONFIG.STUDENT;
+    const permissionSet = useMemo(() => new Set(user?.permissions || []), [user?.permissions]);
+    const visibleSections = useMemo(() => config.sections
+        .map((section) => ({
+            ...section,
+            items: section.items.filter((item) => (
+                !item.permissions || (
+                    item.permissionMode === 'any'
+                        ? item.permissions.some((permission) => permissionSet.has(permission))
+                        : item.permissions.every((permission) => permissionSet.has(permission))
+                )
+            )),
+        }))
+        .filter((section) => section.items.length > 0), [config, permissionSet]);
+    const isVienTruong = permissionSet.has('PROJECT_ASSIGNMENT_PUBLISH');
 
     const handleLogout = () => {
         logout();
-        navigate('/login');
+        navigate('/', { replace: true });
     };
 
     const isActive = (path) => location.pathname === path || location.pathname.startsWith(path + '/');
 
     const roleLabel = role === 'ADMIN' ? 'Quản trị viên' : role === 'LECTURER' ? 'Giảng viên' : 'Sinh viên';
+    const initials = (user?.fullName || user?.name || roleLabel)?.[0]?.toUpperCase() || 'U';
 
     const handleNavigate = (path) => {
         navigate(path);
         setMobileDrawerOpen(false);
     };
 
-    const userMenuItems = [
-        {
-            key: 'profile',
-            icon: <UserOutlined />,
-            label: 'Thông tin cá nhân',
-            onClick: () => navigate(`${config.basePath}/profile`),
-        },
-        {
-            key: 'settings',
-            icon: <SettingOutlined />,
-            label: 'Cài đặt tài khoản',
-            onClick: () => navigate(`${config.basePath}/profile`),
-        },
-        {
-            type: 'divider',
-        },
-        {
-            key: 'logout',
-            icon: <LogoutOutlined />,
-            danger: true,
-            label: 'Đăng xuất',
-            onClick: handleLogout,
-        },
-    ];
-
-    // Navigation Menu Content Component (shared by desktop sidebar & mobile drawer)
-    const NavContent = () => (
+    // Shared Navigation Content
+    const NavContent = ({ isSidebarCollapsed = false }) => (
         <div className="flex flex-col h-full bg-white select-none">
-            {/* Institutional Brand Header */}
-            <div className="p-4 border-b border-slate-100 flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-[#0F766E] text-white flex items-center justify-center font-bold text-lg shadow-sm shrink-0">
-                    <span className="material-symbols-outlined text-[20px]">school</span>
+            {/* Brand Header: Only Logo */}
+            <div className="brand-header flex items-center justify-between px-4 py-3">
+                <div className="flex items-center overflow-hidden">
+                    <img
+                        src="https://aanqmscxckeejuhvaezm.supabase.co/storage/v1/object/public/dacn/branding/tdmu-logo.svg"
+                        alt="Đại học Thủ Dầu Một"
+                        className={isSidebarCollapsed ? "w-9 h-9 object-contain" : "h-9 w-auto object-contain max-w-[140px]"}
+                        onError={(e) => {
+                            e.currentTarget.src = '/assets/tdmu-logo.svg';
+                        }}
+                    />
                 </div>
-                <div className="min-w-0">
-                    <h2 className="font-bold text-sm text-slate-900 leading-tight truncate">
-                        Viện Công nghệ Số
-                    </h2>
-                    <p className="text-[10px] font-semibold text-teal-700 uppercase tracking-wider truncate">
-                        TDMU THESIS PORTAL
-                    </p>
-                </div>
+                <button
+                    className="sidebar-toggle"
+                    type="button"
+                    onClick={toggleCollapse}
+                    aria-label={isSidebarCollapsed ? 'Mở rộng sidebar' : 'Thu gọn sidebar'}
+                    title={isSidebarCollapsed ? 'Mở rộng sidebar' : 'Thu gọn sidebar'}
+                >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="m15 18-6-6 6-6" />
+                    </svg>
+                </button>
             </div>
 
-            {/* Menu Links */}
-            <nav className="flex-1 px-3 py-4 space-y-4 overflow-y-auto">
-                {config.sections ? (
-                    config.sections.map((section, sIdx) => (
-                        <div key={sIdx} className="space-y-1">
-                            <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                                {section.title}
-                            </p>
-                            <div className="space-y-0.5">
-                                {section.items.map((item) => {
-                                    const active = isActive(item.path);
-                                    return (
-                                        <button
-                                            key={item.path}
-                                            onClick={() => handleNavigate(item.path)}
-                                            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium transition-all text-left ${
-                                                active
-                                                    ? 'bg-[#F0FDFA] text-[#0F766E] font-semibold border-r-2 border-[#0F766E]'
-                                                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                                            }`}
-                                        >
-                                            <span className={`material-symbols-outlined text-[18px] ${active ? 'text-[#0F766E]' : 'text-slate-400'}`}>
-                                                {item.icon}
-                                            </span>
-                                            <span className="truncate">{item.label}</span>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    ))
-                ) : (
-                    <div className="space-y-1">
-                        {config.items?.map((item) => {
-                            const active = isActive(item.path);
-                            return (
-                                <button
-                                    key={item.path}
-                                    onClick={() => handleNavigate(item.path)}
-                                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium transition-all text-left ${
-                                        active
-                                            ? 'bg-[#F0FDFA] text-[#0F766E] font-semibold border-r-2 border-[#0F766E]'
-                                            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                                    }`}
-                                >
-                                    <span className={`material-symbols-outlined text-[18px] ${active ? 'text-[#0F766E]' : 'text-slate-400'}`}>
-                                        {item.icon}
-                                    </span>
-                                    <span className="truncate">{item.label}</span>
-                                </button>
-                            );
-                        })}
+            {/* Profile Chip */}
+            {!isSidebarCollapsed && (
+                <div className={role === 'LECTURER' ? 'lecturer-chip' : 'user-chip'}>
+                    <div className={role === 'LECTURER' ? 'lecturer-avatar' : 'user-avatar'}>
+                        {initials}
                     </div>
-                )}
+                    <div className={role === 'LECTURER' ? 'lecturer-info' : 'user-info'}>
+                        <div className={role === 'LECTURER' ? 'lecturer-name' : 'user-name'}>
+                            {user?.fullName || user?.name || roleLabel}
+                        </div>
+                        <div className={role === 'LECTURER' ? 'lecturer-dept' : 'user-dept'}>
+                            {user?.code ? `Mã: ${user.code}` : (role === 'ADMIN' ? 'Ban Quản trị Viện' : 'Khoa Công nghệ Phần mềm')}
+                        </div>
+                    </div>
+                </div>
+            )}
 
-                {/* Institute Extra Items */}
-                {config.instituteItems && user?.permissionGroups?.includes('VIEN_TRUONG') && (
-                    <div className="pt-2 border-t border-slate-100 space-y-1">
-                        <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                            Quản lý Viện
-                        </p>
+            {/* Quota Widget (Lecturer quota meter) */}
+            {role === 'LECTURER' && !isSidebarCollapsed && (
+                <div className="px-4 py-2">
+                    <QuotaMeter
+                        current={lecturerStudentCount}
+                        max={10}
+                        label="Chỉ tiêu hướng dẫn"
+                        showPercentage={true}
+                    />
+                </div>
+            )}
+
+            {/* Navigation List */}
+            <ul className="nav-list">
+                {visibleSections.map((section) => (
+                    <li key={section.title} className="space-y-1">
+                        {!isSidebarCollapsed && (
+                            <div className="nav-section-title">{section.title}</div>
+                        )}
+                        <div className="space-y-0.5">
+                            {section.items.map((item) => {
+                                const active = isActive(item.path);
+                                return (
+                                    <button
+                                        key={item.path}
+                                        type="button"
+                                        onClick={() => handleNavigate(item.path)}
+                                        className={`nav-item ${active ? 'active' : ''}`}
+                                        title={isSidebarCollapsed ? item.label : undefined}
+                                    >
+                                        <span className="nav-left">
+                                            <NavIcon name={item.icon} />
+                                            {!isSidebarCollapsed && <span>{item.label}</span>}
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </li>
+                ))}
+
+                {/* Institute Extra Section */}
+                {config.instituteItems && isVienTruong && (
+                    <li className="space-y-1 pt-2 border-t border-slate-100">
+                        {!isSidebarCollapsed && (
+                            <div className="nav-section-title">QUẢN LÝ VIỆN</div>
+                        )}
                         {config.instituteItems.map((item) => {
                             const active = isActive(item.path);
                             return (
                                 <button
                                     key={item.path}
+                                    type="button"
                                     onClick={() => handleNavigate(item.path)}
-                                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium transition-all text-left ${
-                                        active
-                                            ? 'bg-[#F0FDFA] text-[#0F766E] font-semibold border-r-2 border-[#0F766E]'
-                                            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                                    }`}
+                                    className={`nav-item ${active ? 'active' : ''}`}
+                                    title={isSidebarCollapsed ? item.label : undefined}
                                 >
-                                    <span className="material-symbols-outlined text-[18px]">{item.icon}</span>
-                                    <span className="truncate">{item.label}</span>
+                                    <span className="nav-left">
+                                        <NavIcon name={item.icon} />
+                                        {!isSidebarCollapsed && <span>{item.label}</span>}
+                                    </span>
                                 </button>
                             );
                         })}
-                    </div>
+                    </li>
                 )}
 
                 {/* Bottom Items */}
                 {config.bottomItems && config.bottomItems.length > 0 && (
-                    <div className="pt-2 border-t border-slate-100 space-y-1">
+                    <li className="space-y-1 pt-2 border-t border-slate-100">
                         {config.bottomItems.map((item) => {
                             const active = isActive(item.path);
                             return (
                                 <button
                                     key={item.path}
+                                    type="button"
                                     onClick={() => handleNavigate(item.path)}
-                                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium transition-all text-left ${
-                                        active
-                                            ? 'bg-[#F0FDFA] text-[#0F766E] font-semibold'
-                                            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                                    }`}
+                                    className={`nav-item ${active ? 'active' : ''}`}
+                                    title={isSidebarCollapsed ? item.label : undefined}
                                 >
-                                    <span className="material-symbols-outlined text-[18px] text-slate-400">
-                                        {item.icon}
+                                    <span className="nav-left">
+                                        <NavIcon name={item.icon} />
+                                        {!isSidebarCollapsed && <span>{item.label}</span>}
                                     </span>
-                                    <span className="truncate">{item.label}</span>
                                 </button>
                             );
                         })}
-                    </div>
+                    </li>
                 )}
-            </nav>
+            </ul>
 
-            {/* Sidebar Bottom Footer */}
-            <div className="p-3 border-t border-slate-100 bg-slate-50/50">
+            {/* Sidebar Footer with Only Logout */}
+            <div className="sidebar-footer">
                 <button
+                    type="button"
                     onClick={handleLogout}
-                    className="flex w-full items-center justify-center gap-2 px-3 py-1.5 bg-white text-slate-700 border border-slate-200 rounded-md text-xs font-medium hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 transition-all"
+                    className="switch-link danger"
+                    title="Đăng xuất khỏi hệ thống"
                 >
-                    <span className="material-symbols-outlined text-[16px]">logout</span>
-                    <span>Đăng xuất</span>
+                    <NavIcon name="logout" size={14} />
+                    {!isSidebarCollapsed && <span>Đăng xuất</span>}
                 </button>
             </div>
         </div>
     );
 
     return (
-        <div className="flex min-h-screen bg-[#F4F6F8]">
-            {/* Desktop Fixed Sidebar (width 256px) */}
-            <aside className="hidden lg:flex w-64 flex-col border-r border-slate-200/80 bg-white shrink-0 fixed inset-y-0 left-0 z-20 shadow-[1px_0_3px_rgba(0,0,0,0.02)]">
-                <NavContent />
+        <div className="app-layout">
+            {/* Desktop Fixed OpenDesign Sidebar */}
+            <aside className={`sidebar hidden lg:flex ${collapsed ? 'is-collapsed' : ''}`}>
+                <NavContent isSidebarCollapsed={collapsed} />
             </aside>
 
-            {/* Mobile / Tablet Ant Design Drawer (solves the 5-item cutoff bug) */}
-            <Drawer
-                placement="left"
-                onClose={() => setMobileDrawerOpen(false)}
+            {/* Mobile Sliding OpenDrawer */}
+            <OpenDrawer
                 open={mobileDrawerOpen}
-                styles={{ body: { padding: 0 } }}
-                width={280}
+                onClose={() => setMobileDrawerOpen(false)}
+                placement="left"
+                width="280px"
+                ariaLabel="Menu điều hướng"
             >
-                <NavContent />
-            </Drawer>
+                <NavContent isSidebarCollapsed={false} />
+            </OpenDrawer>
 
-            {/* Main Workspace Layout */}
-            <div className="flex-1 flex flex-col min-w-0 lg:ml-64">
-                {/* Clean Nordic Header (height 56px) */}
-                <header className="h-14 border-b border-slate-200/80 bg-white/95 backdrop-blur-sm flex items-center justify-between px-4 lg:px-8 shrink-0 sticky top-0 z-10 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
-                    {/* Left: Mobile Toggle & Institutional breadcrumb indicator */}
-                    <div className="flex items-center gap-3">
-                        <Button
-                            type="text"
-                            icon={<MenuOutlined />}
-                            onClick={() => setMobileDrawerOpen(true)}
-                            className="lg:hidden text-slate-600 hover:text-[#0F766E]"
-                            title="Mở menu điều hướng"
-                        />
-                        <div className="hidden sm:flex items-center gap-2 text-xs font-medium text-slate-600">
-                            <span className="text-slate-400">ĐH Thủ Dầu Một</span>
-                            <span className="text-slate-300">/</span>
-                            <span className="font-semibold text-slate-800">{roleLabel}</span>
+            {/* Main Application Area */}
+            <div className="main-wrapper">
+                {/* Topbar Header */}
+                <header className="topbar">
+                    <div className="topbar-left">
+                        {/* Institutional Period Badge */}
+                        <div className="period-badge">
+                            <span className="period-dot"></span>
+                            <span>{currentSemester?.name || 'Học kỳ 1 (2026 - 2027)'} · Đang diễn ra</span>
                         </div>
+
+                        <span className="hidden sm:inline" style={{ color: 'var(--border)' }}>|</span>
+                        <span className="hidden md:inline" style={{ fontSize: '13px', color: 'var(--muted)' }}>
+                            Vai trò: <strong style={{ color: 'var(--fg)' }}>{roleLabel}</strong>
+                        </span>
                     </div>
 
-                    {/* Right: Notification Bell & Profile dropdown */}
-                    <div className="flex items-center gap-3">
+                    <div className="topbar-right">
+                        {/* Quick Actions depending on role */}
+                        {role === 'LECTURER' && (
+                            <button
+                                type="button"
+                                className="btn btn-primary btn-sm hidden sm:inline-flex"
+                                onClick={() => navigate('/lecturer/topics')}
+                            >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                                </svg>
+                                <span>Đề xuất Đề tài</span>
+                            </button>
+                        )}
+
+                        {role === 'ADMIN' && (
+                            <button
+                                type="button"
+                                className="btn btn-primary btn-sm hidden sm:inline-flex"
+                                onClick={() => navigate('/admin/project-periods')}
+                            >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                                </svg>
+                                <span>Đợt Đồ án</span>
+                            </button>
+                        )}
+
+                        {/* Notifications Quick Link */}
                         <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
                             onClick={() => navigate(`${config.basePath}/notifications`)}
-                            className="relative p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-md transition-colors"
                             title="Thông báo hệ thống"
                         >
-                            <BellOutlined className="text-[17px]" />
-                            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#BE123C] rounded-full ring-2 ring-white"></span>
+                            <NavIcon name="notifications" size={16} />
+                            <span className="hidden md:inline">Thông báo</span>
                         </button>
 
-                        <div className="h-4 w-px bg-slate-200"></div>
-
-                        {/* User Profile Dropdown */}
-                        <Dropdown menu={{ items: userMenuItems }} trigger={['click']} placement="bottomRight">
-                            <div className="flex items-center gap-2.5 cursor-pointer py-1 px-1.5 rounded-md hover:bg-slate-50 transition-colors">
-                                <div className="text-right hidden sm:block">
-                                    <p className="text-xs font-semibold text-slate-800 leading-tight">
-                                        {user?.fullName || user?.name || roleLabel}
-                                    </p>
-                                    <p className="text-[10px] text-slate-400 mt-0.5">
-                                        {user?.code ? `Mã: ${user.code}` : roleLabel}
-                                    </p>
-                                </div>
-                                <div className="w-8 h-8 rounded-md bg-[#0F766E] text-white flex items-center justify-center font-bold text-xs shadow-xs">
-                                    {(user?.fullName || user?.name || roleLabel)?.[0]?.toUpperCase() || 'U'}
-                                </div>
+                        {/* User Profile Quick Trigger */}
+                        <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => navigate(`${config.basePath}/profile`)}
+                            title="Thông tin tài khoản"
+                        >
+                            <div className="w-5 h-5 rounded bg-[#0F766E] text-white flex items-center justify-center font-bold text-[10px]">
+                                {initials}
                             </div>
-                        </Dropdown>
+                            <span className="hidden md:inline font-semibold">
+                                {user?.fullName || user?.name || roleLabel}
+                            </span>
+                        </button>
                     </div>
                 </header>
 
-                {/* Page Content Container with Clean Nordic Spacing */}
-                <main className="p-4 sm:p-6 lg:p-8 overflow-y-auto flex-1">
-                    <div className="max-w-7xl mx-auto">
+                {/* Main Content Area */}
+                <main className="main-area">
+                    <div className="content-container">
                         <Outlet />
                     </div>
                 </main>

@@ -217,16 +217,16 @@ function ProfilePage() {
                         <div className="w-full border-t border-slate-100 my-4"></div>
                         
                         <div className="w-full flex flex-col gap-3">
-                            <div className="flex items-center gap-3 text-slate-600">
-                                <MailOutlined className="text-slate-400" />
+                            <div className="flex items-center gap-3 text-slate-700">
+                                <MailOutlined className="text-slate-500" />
                                 <span className="text-sm font-medium truncate" title={tempProfile.email}>{tempProfile.email}</span>
                             </div>
-                            <div className="flex items-center gap-3 text-slate-600">
-                                <PhoneOutlined className="text-slate-400" />
+                            <div className="flex items-center gap-3 text-slate-700">
+                                <PhoneOutlined className="text-slate-500" />
                                 <span className="text-sm font-medium">{tempProfile.phone || 'Chưa cập nhật'}</span>
                             </div>
-                            <div className="flex items-center gap-3 text-slate-600">
-                                <IdcardOutlined className="text-slate-400" />
+                            <div className="flex items-center gap-3 text-slate-700">
+                                <IdcardOutlined className="text-slate-500" />
                                 <span className="text-sm font-medium">{tempProfile.employeeId}</span>
                             </div>
                         </div>
@@ -245,15 +245,15 @@ function ProfilePage() {
                         <div className="p-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
-                                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Họ và tên <span className="text-red-500">*</span></label>
+                                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Họ và tên <span className="text-red-500">*</span></label>
                                     <div className="text-sm font-medium text-slate-900 bg-slate-50 p-2.5 rounded border border-slate-200">{tempProfile.name}</div>
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Email</label>
+                                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Email</label>
                                     <div className="text-sm font-medium text-slate-900 bg-slate-50 p-2.5 rounded border border-slate-200">{tempProfile.email}</div>
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Số điện thoại</label>
+                                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Số điện thoại</label>
                                     {editing ? (
                                         <Input size="large" value={tempProfile.phone} onChange={(e) => handleChange('phone', e.target.value)} placeholder="0901234567" disabled={isProfileBusy} />
                                     ) : (
@@ -261,16 +261,16 @@ function ProfilePage() {
                                     )}
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Mã nhân viên / MSSV</label>
+                                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Mã nhân viên / MSSV</label>
                                     <div className="text-sm font-medium text-slate-900 bg-slate-50 p-2.5 rounded border border-slate-200">{tempProfile.employeeId}</div>
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Đơn vị / Khoa</label>
+                                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Đơn vị / Khoa</label>
                                     {editing ? (
                                         <Input size="large" value={tempProfile.department} onChange={(e) => handleChange('department', e.target.value)} placeholder="VD: Khoa CNTT" disabled={isProfileBusy} />
                                     ) : (
                                         <div className="text-sm font-medium text-slate-900 bg-slate-50 p-2.5 rounded border border-transparent flex items-center gap-2">
-                                            <BankOutlined className="text-slate-400" />
+                                            <BankOutlined className="text-slate-500" />
                                             {tempProfile.department || '---'}
                                         </div>
                                     )}

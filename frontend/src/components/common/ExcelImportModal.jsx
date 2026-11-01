@@ -453,7 +453,7 @@ export default function ExcelImportModal({
                 key: 'rowNumber',
                 width: 60,
                 align: 'center',
-                render: (val) => <span className="text-slate-400 font-mono text-xs">{val}</span>,
+                render: (val) => <span className="text-slate-600 font-mono text-xs font-semibold">{val}</span>,
             },
             {
                 title: 'Trạng thái',
@@ -545,7 +545,7 @@ export default function ExcelImportModal({
                         {record.errors.join(', ')}
                     </span>
                 ) : (
-                    <span className="text-xs text-slate-400">—</span>
+                    <span className="text-xs text-slate-500 font-medium">—</span>
                 ),
         });
 
@@ -660,7 +660,7 @@ export default function ExcelImportModal({
                             <p className="text-sm font-bold text-slate-800 mt-2">
                                 Nhấp để chọn file hoặc kéo thả file Excel vào đây
                             </p>
-                            <p className="text-xs text-slate-400">
+                            <p className="text-xs text-slate-600 font-medium">
                                 Định dạng được hỗ trợ: <code>.xlsx</code>, <code>.xls</code>, <code>.csv</code> (Dung lượng tối đa 10MB)
                             </p>
                         </label>

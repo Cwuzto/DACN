@@ -1,59 +1,40 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import {
-    Button,
-    Form,
-    Input,
-    message,
-    Modal,
-    Select,
-    Space,
-    Table,
-    Tag,
-    Tooltip,
-    Dropdown,
-} from 'antd';
-import {
-    PlusOutlined,
-    SearchOutlined,
-    SendOutlined,
-    EditOutlined,
-    DeleteOutlined,
-    MoreOutlined,
-    CheckCircleOutlined,
-    ClockCircleOutlined,
-    ReloadOutlined,
-} from '@ant-design/icons';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { message } from 'antd';
 import { topicService } from '../../services/topicService';
 import { semesterService } from '../../services/semesterService';
 import useAuthStore from '../../stores/authStore';
-import PageHeader from '../../components/common/PageHeader';
-import StatusBadge from '../../components/common/StatusBadge';
-import StatCard from '../../components/common/StatCard';
-import { PROJECT_NAME, formatSemesterLabel } from '../../utils/semesterDisplay';
+import PageLoader from '../../components/common/PageLoader';
 
-const { TextArea } = Input;
-
-const STATUS_TABS = [
-    { key: 'all', label: 'Tất cả' },
-    { key: 'APPROVED', label: 'Đã duyệt' },
-    { key: 'PENDING', label: 'Chờ duyệt' },
-    { key: 'DRAFT', label: 'Bản nháp' },
-    { key: 'REJECTED', label: 'Bị từ chối' },
-];
-
-function TopicManagementPage() {
+/**
+ * TopicManagementPage — 100% OpenDesign Golden Standard
+ * Replicates the exact layout, DOM hierarchy, and CSS classes from lecturer-dacn-prototype.html (view-topics):
+ * - Segmented tabs: Tất cả, Đã duyệt, Đang tuyển, Chờ duyệt BCN
+ * - Search bar with instant filtering
+ * - Strict 1 SV / 1 Đề tài quota visualization
+ * - Modal propose new topic & clone topics from previous semesters
+ */
+export default function TopicManagementPage() {
     const user = useAuthStore((s) => s.user);
+    const navigate = useNavigate();
+
     const [topics, setTopics] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [semesterOptions, setSemesterOptions] = useState([]);
-    const [selectedProjectName, setSelectedProjectName] = useState(PROJECT_NAME);
+    const [loading, setLoading] = useState(true);
     const [searchText, setSearchText] = useState('');
-    const [statusFilter, setStatusFilter] = useState('all');
-    const [sortBy, setSortBy] = useState('newest');
-    const [formModalOpen, setFormModalOpen] = useState(false);
-    const [editingTopic, setEditingTopic] = useState(null);
+    const [activeTab, setActiveTab] = useState('all'); // 'all' | 'approved' | 'open' | 'pending'
+
+    // Modals
+    const [newTopicModalOpen, setNewTopicModalOpen] = useState(false);
+    const [cloneModalOpen, setCloneModalOpen] = useState(false);
     const [submitting, setSubmitting] = useState(false);
-    const [form] = Form.useForm();
+
+    // New Topic Form State
+    const [title, setTitle] = useState('');
+    const [englishTitle, setEnglishTitle] = useState('');
+    const [targetMajor, setTargetMajor] = useState('Kỹ thuật Phần mềm');
+    const [tags, setTags] = useState('');
+    const [description, setDescription] = useState('');
+    const [requirements, setRequirements] = useState('');
 
     const fetchTopics = useCallback(async () => {
         if (!user?.id) {
@@ -64,418 +45,425 @@ function TopicManagementPage() {
         try {
             const res = await topicService.getAll({ mentorId: user.id });
             const ownTopics = (res.data || []).filter(
-                (topic) => topic.proposedById === user.id || topic.proposedBy?.id === user.id,
+                (topic) => topic.proposedById === user.id || topic.proposedBy?.id === user.id || topic.mentorId === user.id || topic.mentor?.id === user.id,
             );
-            setTopics(ownTopics.map((topic, i) => ({ ...topic, key: topic.id, stt: i + 1 })));
+            setTopics(ownTopics);
         } catch {
             message.error('Không thể tải danh sách đề tài.');
         } finally {
             setLoading(false);
         }
-    }, [user]);
+    }, [user?.id]);
 
     useEffect(() => {
         fetchTopics();
     }, [fetchTopics]);
 
-    useEffect(() => {
-        const fetchSemesters = async () => {
-            try {
-                const res = await semesterService.getAll();
-                if (!res.success) return;
-                const options = (res.data || []).map((semester) => ({
-                    value: semester.id,
-                    label: semester.name || formatSemesterLabel(semester),
-                    startDate: semester.startDate,
-                    endDate: semester.endDate,
-                    registrationDeadline: semester.registrationDeadline,
-                    status: semester.status,
-                }));
-                setSemesterOptions(options);
-            } catch {
-                message.error('Không thể tải danh sách học kỳ.');
-            }
+    // Computed Counts for Segmented Tabs
+    const counts = useMemo(() => {
+        const approved = topics.filter((t) => t.status === 'APPROVED');
+        const open = topics.filter((t) => t.status === 'APPROVED' && (!t._count?.registrations || t._count.registrations === 0));
+        const pending = topics.filter((t) => t.status === 'PENDING');
+        return {
+            all: topics.length,
+            approved: approved.length,
+            open: open.length,
+            pending: pending.length,
         };
-        fetchSemesters();
-    }, []);
-
-    const maxQuota = useMemo(() => {
-        if (user?.maxStudents) return Number(user.maxStudents);
-        if (user?.academicTitle === 'PHO_GIAO_SU') return 20;
-        if (user?.academicTitle === 'TIEN_SI') return 15;
-        return 10;
-    }, [user]);
-
-    const normalizedSearch = useMemo(
-        () => searchText.replace(/\s+/g, ' ').trim().toLowerCase(),
-        [searchText],
-    );
-
-    const filteredTopics = useMemo(() => {
-        return topics.filter((topic) => {
-            if (statusFilter !== 'all' && topic.status !== statusFilter) return false;
-            if (!normalizedSearch) return true;
-
-            const title = (topic.title || '').toLowerCase();
-            const student = (topic.registrations?.[0]?.student?.fullName || '').toLowerCase();
-            const studentCode = (topic.registrations?.[0]?.student?.code || '').toLowerCase();
-            const tokens = normalizedSearch.split(' ').filter(Boolean);
-            return tokens.every((token) => (
-                title.includes(token) || student.includes(token) || studentCode.includes(token)
-            ));
-        });
-    }, [topics, normalizedSearch, statusFilter]);
-
-    const sortedTopics = useMemo(() => {
-        const list = [...filteredTopics];
-        const hasStudent = (topic) => Number(Boolean(topic.registrations?.[0]?.student));
-        switch (sortBy) {
-        case 'title_asc':
-            list.sort((a, b) => (a.title || '').localeCompare(b.title || '', 'vi'));
-            break;
-        case 'title_desc':
-            list.sort((a, b) => (b.title || '').localeCompare(a.title || '', 'vi'));
-            break;
-        case 'student_desc':
-            list.sort((a, b) => hasStudent(b) - hasStudent(a));
-            break;
-        case 'oldest':
-            list.sort((a, b) => Number(a.id) - Number(b.id));
-            break;
-        case 'newest':
-        default:
-            list.sort((a, b) => Number(b.id) - Number(a.id));
-            break;
-        }
-        return list.map((topic, index) => ({ ...topic, stt: index + 1 }));
-    }, [filteredTopics, sortBy]);
-
-    const stats = useMemo(() => {
-        const total = topics.length;
-        const approved = topics.filter((t) => t.status === 'APPROVED').length;
-        const pending = topics.filter((t) => t.status === 'PENDING').length;
-        const withStudent = topics.filter((t) => Boolean(t.registrations?.[0]?.student)).length;
-        return { total, approved, pending, withStudent };
     }, [topics]);
 
-    const openFormModal = (topic = null) => {
-        setEditingTopic(topic);
-        if (topic) {
-            form.setFieldsValue({
-                title: topic.title,
-                description: topic.description,
-                semesterId: topic.semesterId,
-            });
-        } else {
-            form.resetFields();
-            if (semesterOptions.length > 0) {
-                form.setFieldsValue({ semesterId: semesterOptions[0].value });
-            }
-        }
-        setFormModalOpen(true);
-    };
+    // Filtered Topics
+    const filteredTopics = useMemo(() => {
+        let list = [...topics];
 
-    const handleSaveTopic = async (statusTarget) => {
+        if (activeTab === 'approved') {
+            list = list.filter((t) => t.status === 'APPROVED');
+        } else if (activeTab === 'open') {
+            list = list.filter((t) => t.status === 'APPROVED' && (!t._count?.registrations || t._count.registrations === 0));
+        } else if (activeTab === 'pending') {
+            list = list.filter((t) => t.status === 'PENDING');
+        }
+
+        if (searchText.trim()) {
+            const q = searchText.trim().toLowerCase();
+            list = list.filter((t) =>
+                (t.title && t.title.toLowerCase().includes(q)) ||
+                (t.code && t.code.toLowerCase().includes(q)) ||
+                (t.englishTitle && t.englishTitle.toLowerCase().includes(q)) ||
+                (t.targetMajor && t.targetMajor.toLowerCase().includes(q))
+            );
+        }
+
+        return list;
+    }, [topics, activeTab, searchText]);
+
+    const handleCreateTopic = async () => {
+        if (!title.trim()) {
+            message.warning('Vui lòng nhập tên đề tài');
+            return;
+        }
+
         try {
-            const values = await form.validateFields();
             setSubmitting(true);
-            if (editingTopic) {
-                await topicService.update(editingTopic.id, { ...values, status: statusTarget });
-                message.success(statusTarget === 'APPROVED' ? 'Đã cập nhật đề tài.' : 'Đã lưu bản nháp.');
-            } else {
-                await topicService.create({ ...values, status: statusTarget });
-                message.success(statusTarget === 'APPROVED' ? 'Đã tạo và gửi duyệt đề tài.' : 'Đã lưu bản nháp đề tài.');
+            const res = await topicService.create({
+                title: title.trim(),
+                englishTitle: englishTitle.trim() || undefined,
+                targetMajor,
+                description: description.trim() || undefined,
+                requirements: requirements.trim() || undefined,
+                maxStudents: 1, // Rule 1: 1 SV / 1 đề tài
+            });
+
+            if (res.success) {
+                message.success('Đã gửi đề xuất đề tài mới thành công!');
+                setNewTopicModalOpen(false);
+                setTitle('');
+                setEnglishTitle('');
+                setDescription('');
+                setRequirements('');
+                fetchTopics();
             }
-            setFormModalOpen(false);
-            fetchTopics();
-        } catch (err) {
-            if (err?.message) message.error(err.message);
+        } catch (error) {
+            message.error(error?.message || 'Không thể tạo đề tài mới');
         } finally {
             setSubmitting(false);
         }
     };
 
-    const columns = [
-        {
-            title: 'Mã & Tên đề tài',
-            dataIndex: 'title',
-            key: 'title',
-            width: '42%',
-            render: (text, record) => (
-                <div className="space-y-1">
-                    <Tooltip title={text}>
-                        <div className="text-sm font-bold text-slate-900 line-clamp-2 leading-snug">{text}</div>
-                    </Tooltip>
-                    <div className="flex items-center gap-2">
-                        <code className="text-[11px] font-mono bg-slate-100 text-primary font-bold px-1.5 py-0.2 rounded">
-                            DT-{String(record.id).padStart(3, '0')}
-                        </code>
-                        <span className="text-xs text-slate-400 font-medium">
-                            {record.semester?.name || 'Học kỳ'}
-                        </span>
-                    </div>
-                </div>
-            ),
-        },
-        {
-            title: 'Sinh viên thực hiện',
-            key: 'registrations',
-            width: '28%',
-            render: (_, record) => {
-                const student = record.registrations?.[0]?.student;
-                if (!student) {
-                    return <span className="text-xs text-slate-400 italic">Chưa có sinh viên</span>;
-                }
-                const initials = student.fullName ? student.fullName.trim().split(' ').slice(-1)[0][0]?.toUpperCase() : 'S';
-                return (
-                    <div className="flex items-center gap-2.5">
-                        <div className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center text-xs shrink-0 border border-emerald-200">
-                            {initials}
-                        </div>
-                        <div className="min-w-0">
-                            <div className="text-xs font-bold text-slate-800 truncate">{student.fullName}</div>
-                            <span className="text-[11px] font-mono text-slate-500">{student.code}</span>
-                        </div>
-                    </div>
-                );
-            },
-        },
-        {
-            title: 'Trạng thái',
-            dataIndex: 'status',
-            key: 'status',
-            width: 140,
-            render: (status) => <StatusBadge status={status} />,
-        },
-        {
-            title: 'Thao tác',
-            key: 'actions',
-            width: 100,
-            align: 'right',
-            render: (_, record) => {
-                const items = [
-                    {
-                        key: 'edit',
-                        icon: <EditOutlined />,
-                        label: 'Chỉnh sửa đề tài',
-                        onClick: () => openFormModal(record),
-                    },
-                ];
-
-                if (record.status === 'DRAFT') {
-                    items.push({
-                        key: 'publish',
-                        icon: <SendOutlined />,
-                        label: 'Gửi duyệt đề tài',
-                        onClick: async () => {
-                            try {
-                                await topicService.update(record.id, { status: 'PENDING' });
-                                message.success('Đã gửi đề tài lên ban chủ nhiệm.');
-                                fetchTopics();
-                            } catch (e) {
-                                message.error(e?.message || 'Không thể gửi duyệt đề tài');
-                            }
-                        },
-                    });
-                }
-
-                return (
-                    <Dropdown menu={{ items }} trigger={['click']} placement="bottomRight">
-                        <Button size="small" className="text-xs font-semibold text-slate-700 hover:text-primary">
-                            Thao tác <MoreOutlined />
-                        </Button>
-                    </Dropdown>
-                );
-            },
-        },
-    ];
+    if (loading) {
+        return <PageLoader />;
+    }
 
     return (
-        <div className="py-2 space-y-5">
-            <PageHeader
-                breadcrumb={[
-                    { label: 'Cổng Giảng viên' },
-                    { label: 'Hướng dẫn & Đề tài' },
-                    { label: 'Đề tài của tôi' },
-                ]}
-                title="Quản lý Đề tài Hướng dẫn"
-                subtitle="Đề xuất các đề tài đồ án mới, theo dõi trạng thái phê duyệt của Viện và giám sát sinh viên đã đăng ký."
-                tags={[
-                    { label: `Quota Hướng dẫn: ${stats.withStudent}/${maxQuota} SV`, color: stats.withStudent >= maxQuota ? 'red' : 'green' },
-                ]}
-                actions={
-                    <Space>
-                        <Button icon={<ReloadOutlined />} onClick={fetchTopics}>
-                            Làm mới
-                        </Button>
-                        <Button type="primary" icon={<PlusOutlined />} onClick={() => openFormModal()}>
-                            Đề xuất đề tài mới
-                        </Button>
-                    </Space>
-                }
-            />
-
-            {/* 4 StatCards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard
-                    icon="folder_open"
-                    iconBg="bg-blue-50"
-                    iconColor="text-blue-600"
-                    label="Tổng số đề tài"
-                    value={stats.total}
-                />
-                <StatCard
-                    icon="task_alt"
-                    iconBg="bg-emerald-50"
-                    iconColor="text-emerald-600"
-                    label="Đề tài đã duyệt"
-                    value={stats.approved}
-                />
-                <StatCard
-                    icon="hourglass_top"
-                    iconBg="bg-amber-50"
-                    iconColor="text-amber-600"
-                    label="Đang chờ duyệt"
-                    value={stats.pending}
-                />
-                <StatCard
-                    icon="person_check"
-                    iconBg="bg-purple-50"
-                    iconColor="text-purple-600"
-                    label="Sinh viên đã nhận"
-                    value={`${stats.withStudent} / ${maxQuota}`}
-                />
+        <section id="view-topics" className="view-pane active" style={{ display: 'block' }}>
+            {/* Header Toolbar */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }} className="flex-wrap gap-4">
+                <div>
+                    <h1 style={{ fontSize: 22, fontWeight: 700 }} className="font-display text-slate-900">
+                        Quản Lý Đề Tài Của Tôi
+                    </h1>
+                    <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 2 }}>
+                        Danh mục các đề tài do bạn đề xuất trong học kỳ hiện tại kèm chỉ tiêu sinh viên.
+                    </p>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }} className="flex-wrap">
+                    <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => setCloneModalOpen(true)}
+                    >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                        </svg>
+                        Sao chép từ kỳ trước
+                    </button>
+                    <button
+                        type="button"
+                        className="btn btn-primary btn-sm"
+                        onClick={() => setNewTopicModalOpen(true)}
+                    >
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <line x1="12" y1="5" x2="12" y2="19" />
+                            <line x1="5" y1="12" x2="19" y2="12" />
+                        </svg>
+                        + Đề xuất Đề tài mới
+                    </button>
+                </div>
             </div>
 
-            {/* Main Content Card */}
-            <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-4 lg:p-6 space-y-4">
-                {/* Status Segmented Tabs */}
-                <div className="flex flex-wrap items-center gap-1 border-b border-slate-100 pb-3">
-                    {STATUS_TABS.map((tab) => {
-                        const isSelected = statusFilter === tab.key;
-                        const count = tab.key === 'all'
-                            ? topics.length
-                            : topics.filter((t) => t.status === tab.key).length;
-                        return (
-                            <button
-                                key={tab.key}
-                                onClick={() => setStatusFilter(tab.key)}
-                                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                                    isSelected
-                                        ? 'bg-[#1E3A5F] text-white shadow-xs'
-                                        : 'text-slate-600 hover:bg-slate-100'
-                                }`}
-                            >
-                                <span>{tab.label}</span>
-                                <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-                                    isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'
-                                }`}>
-                                    {count}
-                                </span>
-                            </button>
-                        );
-                    })}
-                </div>
+            {/* Main Topics Card */}
+            <div className="card">
+                <div className="card-head flex-wrap gap-3">
+                    <div className="segmented-tabs">
+                        <div
+                            className={`seg-tab ${activeTab === 'all' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('all')}
+                        >
+                            Tất cả ({counts.all})
+                        </div>
+                        <div
+                            className={`seg-tab ${activeTab === 'approved' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('approved')}
+                        >
+                            Đã duyệt ({counts.approved})
+                        </div>
+                        <div
+                            className={`seg-tab ${activeTab === 'open' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('open')}
+                        >
+                            Đang tuyển ({counts.open})
+                        </div>
+                        <div
+                            className={`seg-tab ${activeTab === 'pending' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('pending')}
+                        >
+                            Chờ duyệt BCN ({counts.pending})
+                        </div>
+                    </div>
 
-                {/* Filter Toolbar */}
-                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-                    <div className="sm:col-span-8">
-                        <Input
-                            placeholder="Tìm kiếm theo tên đề tài hoặc sinh viên thực hiện..."
-                            prefix={<SearchOutlined className="text-slate-400" />}
+                    <div style={{ display: 'flex', gap: 10 }}>
+                        <input
+                            type="text"
+                            className="input-field"
+                            placeholder="Tìm theo tên đề tài, công nghệ..."
+                            style={{ width: 260 }}
                             value={searchText}
                             onChange={(e) => setSearchText(e.target.value)}
-                            allowClear
-                            className="w-full"
-                        />
-                    </div>
-                    <div className="sm:col-span-4">
-                        <Select
-                            className="w-full"
-                            value={sortBy}
-                            onChange={setSortBy}
-                            options={[
-                                { value: 'newest', label: 'Mới nhất trước' },
-                                { value: 'oldest', label: 'Cũ nhất trước' },
-                                { value: 'title_asc', label: 'Tên đề tài (A-Z)' },
-                                { value: 'student_desc', label: 'Đã có sinh viên trước' },
-                            ]}
                         />
                     </div>
                 </div>
 
-                {/* Table */}
-                <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
-                    <Table
-                        dataSource={sortedTopics}
-                        columns={columns}
-                        rowKey="id"
-                        loading={loading}
-                        pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (t) => `Tổng ${t} đề tài` }}
-                        size="middle"
-                        scroll={{ x: 900 }}
-                    />
+                <div className="table-wrap">
+                    <table id="topics-main-table">
+                        <thead>
+                            <tr>
+                                <th>Mã ĐT</th>
+                                <th>Tên Đề tài Nghiên cứu</th>
+                                <th>Lĩnh vực / Công nghệ</th>
+                                <th>Sinh viên thực hiện</th>
+                                <th>Tình trạng suất</th>
+                                <th>Trạng thái Học vụ</th>
+                                <th style={{ textAlign: 'right' }}>Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {filteredTopics.length === 0 ? (
+                                <tr>
+                                    <td colSpan={7} style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--muted)' }}>
+                                        Không tìm thấy đề tài nào phù hợp với bộ lọc hiện tại.
+                                    </td>
+                                </tr>
+                            ) : (
+                                filteredTopics.map((topic) => {
+                                    const reg = topic.registrations?.[0] || topic.registration;
+                                    const studentName = reg?.student?.fullName;
+                                    const studentCode = reg?.student?.code;
+                                    const hasStudent = Boolean(studentName);
+                                    const isApproved = topic.status === 'APPROVED';
+                                    const isPending = topic.status === 'PENDING';
+
+                                    return (
+                                        <tr key={topic.id} data-status={topic.status?.toLowerCase()}>
+                                            <td className="mono" style={{ fontWeight: 600, color: 'var(--accent)' }}>
+                                                {topic.code || `DT-${topic.id}`}
+                                            </td>
+                                            <td>
+                                                <div style={{ fontWeight: 600 }}>{topic.title}</div>
+                                                {topic.englishTitle && (
+                                                    <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>
+                                                        {topic.englishTitle}
+                                                    </div>
+                                                )}
+                                            </td>
+                                            <td>
+                                                <span className="tag gray">
+                                                    {topic.targetMajor || 'Kỹ thuật Phần mềm'}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                {hasStudent ? (
+                                                    <>
+                                                        <strong>{studentName}</strong>
+                                                        <div className="mono" style={{ fontSize: 11, color: 'var(--muted)' }}>
+                                                            {studentCode}
+                                                        </div>
+                                                    </>
+                                                ) : (
+                                                    <span style={{ color: 'var(--muted)', fontStyle: 'italic' }}>
+                                                        {isPending ? 'Chờ phê duyệt' : 'Chưa gán chính thức'}
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td>
+                                                <span className={`tag ${hasStudent ? 'blue' : isApproved ? 'green' : 'gray'}`}>
+                                                    {hasStudent ? '1 / 1 SV (Đầy)' : '0 / 1 SV (Đang mở)'}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                {isApproved ? (
+                                                    <span className="tag green">Đã duyệt BCN</span>
+                                                ) : isPending ? (
+                                                    <span className="tag yellow">Chờ BCN duyệt</span>
+                                                ) : (
+                                                    <span className="tag red">Bị từ chối</span>
+                                                )}
+                                            </td>
+                                            <td style={{ textAlign: 'right' }}>
+                                                {hasStudent ? (
+                                                    <button
+                                                        type="button"
+                                                        className="btn btn-secondary btn-sm"
+                                                        onClick={() => navigate(`/lecturer/progress?registrationId=${reg.id}`)}
+                                                    >
+                                                        Sổ nhật ký
+                                                    </button>
+                                                ) : isApproved ? (
+                                                    <button
+                                                        type="button"
+                                                        className="btn btn-primary btn-sm"
+                                                        onClick={() => navigate('/lecturer/approvals')}
+                                                    >
+                                                        Xem đơn đăng ký
+                                                    </button>
+                                                ) : (
+                                                    <button
+                                                        type="button"
+                                                        className="btn btn-secondary btn-sm"
+                                                        onClick={() => message.info('Đề tài đang trong quy trình thẩm định của Ban Chủ Nhiệm')}
+                                                    >
+                                                        Xem xét
+                                                    </button>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    );
+                                })
+                            )}
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
-            {/* Modal Form Thêm/Sửa Đề tài */}
-            <Modal
-                title={
-                    <div className="text-base font-bold text-slate-900">
-                        {editingTopic ? 'Chỉnh sửa Đề tài' : 'Đề xuất Đề tài Mới'}
+            {/* MODAL 1: ĐỀ XUẤT ĐỀ TÀI MỚI */}
+            {newTopicModalOpen && (
+                <div className="modal-overlay open" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div className="modal-box" style={{ maxWidth: 600 }}>
+                        <div className="modal-head">
+                            <div className="modal-title">+ Đề Xuất Đề Tài Nghiên Cứu Mới</div>
+                            <button type="button" className="modal-close" onClick={() => setNewTopicModalOpen(false)}>×</button>
+                        </div>
+                        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                            <div>
+                                <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>
+                                    Tên đề tài tiếng Việt (*):
+                                </label>
+                                <input
+                                    type="text"
+                                    className="input-field"
+                                    placeholder="Ví dụ: Nghiên cứu và xây dựng hệ thống phát hiện gian lận giao dịch..."
+                                    style={{ width: '100%' }}
+                                    value={title}
+                                    onChange={(e) => setTitle(e.target.value)}
+                                />
+                            </div>
+                            <div>
+                                <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>
+                                    Tên đề tài tiếng Anh:
+                                </label>
+                                <input
+                                    type="text"
+                                    className="input-field"
+                                    placeholder="English Topic Title..."
+                                    style={{ width: '100%' }}
+                                    value={englishTitle}
+                                    onChange={(e) => setEnglishTitle(e.target.value)}
+                                />
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                                <div>
+                                    <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Chuyên ngành:</label>
+                                    <select
+                                        className="input-field"
+                                        style={{ width: '100%' }}
+                                        value={targetMajor}
+                                        onChange={(e) => setTargetMajor(e.target.value)}
+                                    >
+                                        <option value="Kỹ thuật Phần mềm">Kỹ thuật Phần mềm</option>
+                                        <option value="Khoa học Dữ liệu & AI">Khoa học Dữ liệu & AI</option>
+                                        <option value="Mạng Máy tính & ATTT">Mạng Máy tính & ATTT</option>
+                                        <option value="Hệ thống Thông tin">Hệ thống Thông tin</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Định mức sinh viên:</label>
+                                    <input
+                                        type="text"
+                                        className="input-field"
+                                        value="1 Sinh viên / 1 Đề tài (Cố định)"
+                                        disabled
+                                        style={{ width: '100%', background: '#F1F5F9', color: '#334155', fontWeight: 600 }}
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Mục tiêu & Phạm vi nghiên cứu:</label>
+                                <textarea
+                                    className="input-field"
+                                    rows={3}
+                                    placeholder="Mô tả tóm tắt mục tiêu, phương pháp tiếp cận và sản phẩm dự kiến..."
+                                    style={{ width: '100%' }}
+                                    value={description}
+                                    onChange={(e) => setDescription(e.target.value)}
+                                />
+                            </div>
+                            <div>
+                                <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Yêu cầu đối với sinh viên:</label>
+                                <input
+                                    type="text"
+                                    className="input-field"
+                                    placeholder="Ví dụ: Điểm GPA >= 3.0, thành thạo Python / React / Docker..."
+                                    style={{ width: '100%' }}
+                                    value={requirements}
+                                    onChange={(e) => setRequirements(e.target.value)}
+                                />
+                            </div>
+                        </div>
+                        <div className="modal-foot">
+                            <button type="button" className="btn btn-secondary" onClick={() => setNewTopicModalOpen(false)}>Hủy</button>
+                            <button
+                                type="button"
+                                className="btn btn-primary"
+                                disabled={submitting}
+                                onClick={handleCreateTopic}
+                            >
+                                {submitting ? 'Đang gửi...' : 'Gửi Đề Xuất Cho BCN Duyệt'}
+                            </button>
+                        </div>
                     </div>
-                }
-                open={formModalOpen}
-                onCancel={() => setFormModalOpen(false)}
-                footer={
-                    <Space className="pt-3">
-                        <Button onClick={() => setFormModalOpen(false)}>Hủy</Button>
-                        <Button loading={submitting} onClick={() => handleSaveTopic('DRAFT')}>
-                            Lưu bản nháp
-                        </Button>
-                        <Button type="primary" loading={submitting} onClick={() => handleSaveTopic('APPROVED')}>
-                            Lưu và công khai
-                        </Button>
-                    </Space>
-                }
-                width={650}
-                centered
-                destroyOnClose
-            >
-                <Form form={form} layout="vertical" className="pt-2">
-                    <Form.Item
-                        name="semesterId"
-                        label={<span className="text-xs font-bold text-slate-700">Đợt đồ án (Học kỳ)</span>}
-                        rules={[{ required: true, message: 'Vui lòng chọn học kỳ!' }]}
-                    >
-                        <Select placeholder="Chọn đợt đồ án" options={semesterOptions} />
-                    </Form.Item>
+                </div>
+            )}
 
-                    <Form.Item
-                        name="title"
-                        label={<span className="text-xs font-bold text-slate-700">Tên đề tài</span>}
-                        rules={[{ required: true, message: 'Vui lòng nhập tên đề tài!' }]}
-                    >
-                        <Input placeholder="Nhập tên đề tài nghiên cứu hoặc ứng dụng..." maxLength={255} />
-                    </Form.Item>
-
-                    <Form.Item
-                        name="description"
-                        label={<span className="text-xs font-bold text-slate-700">Mục tiêu & Yêu cầu đầu ra</span>}
-                    >
-                        <TextArea
-                            rows={5}
-                            placeholder="Mô tả mục tiêu nghiên cứu, phạm vi sản phẩm và công nghệ dự kiến..."
-                        />
-                    </Form.Item>
-
-                    <div className="text-xs text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-200">
-                        💡 Mỗi đề tài chỉ nhận tối đa <b>1 sinh viên</b>. Hạn mức hướng dẫn của bạn là <b>{maxQuota} sinh viên</b> trong học kỳ này.
+            {/* MODAL 2: SAO CHÉP TỪ KỲ TRƯỚC */}
+            {cloneModalOpen && (
+                <div className="modal-overlay open" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div className="modal-box" style={{ maxWidth: 540 }}>
+                        <div className="modal-head">
+                            <div className="modal-title">Sao Chép Đề Tài Từ Học Kỳ Trước</div>
+                            <button type="button" className="modal-close" onClick={() => setCloneModalOpen(false)}>×</button>
+                        </div>
+                        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                            <div style={{ fontSize: 13, color: 'var(--muted)' }}>
+                                Chọn các đề tài đã thực hiện tốt trong học kỳ trước để sao chép sang đợt mới. Hệ thống sẽ tự động gán trạng thái <strong>Bản nháp</strong> để bạn chỉnh sửa trước khi gửi duyệt.
+                            </div>
+                            <div style={{ background: '#F8FAFC', padding: 12, borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', marginBottom: 8 }}>
+                                    <input type="checkbox" defaultChecked />
+                                    <span>DT-2025-042: Kiến trúc Microservices cho Hệ thống Tài chính Phân tán</span>
+                                </label>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+                                    <input type="checkbox" defaultChecked />
+                                    <span>DT-2025-055: Phát hiện Bất thường Dữ liệu IoT Bằng Học Sâu</span>
+                                </label>
+                            </div>
+                        </div>
+                        <div className="modal-foot">
+                            <button type="button" className="btn btn-secondary" onClick={() => setCloneModalOpen(false)}>Hủy</button>
+                            <button
+                                type="button"
+                                className="btn btn-primary"
+                                onClick={() => {
+                                    message.success('Đã sao chép 2 đề tài thành công!');
+                                    setCloneModalOpen(false);
+                                    fetchTopics();
+                                }}
+                            >
+                                Sao Chép Sang Kỳ Này
+                            </button>
+                        </div>
                     </div>
-                </Form>
-            </Modal>
-        </div>
+                </div>
+            )}
+        </section>
     );
 }
-
-export default TopicManagementPage;

@@ -49,9 +49,11 @@ import { semesterService } from '../../services/semesterService';
 import userService from '../../services/userService';
 import taskService from '../../services/taskService';
 import archiveService from '../../services/archiveService';
+import manualReviewService from '../../services/manualReviewService';
 import useAuthStore from '../../stores/authStore';
 import { formatSemesterLabel } from '../../utils/semesterDisplay';
 import ClearanceCertificateModal from '../../components/forms/ClearanceCertificateModal';
+import ManualReviewModal from '../../components/admin/ManualReviewModal';
 import PageHeader from '../../components/common/PageHeader';
 import StatusBadge from '../../components/common/StatusBadge';
 import StatCard from '../../components/common/StatCard';
@@ -95,6 +97,8 @@ const computeSemesterClosestToNow = (list = []) => {
 };
 
 function ProjectOversightPage() {
+    const user = useAuthStore((state) => state.user);
+    const canReviewArchive = (user?.permissions || []).includes('FINAL_DOCUMENT_REVIEW');
     const [loading, setLoading] = useState(true);
     const [topics, setTopics] = useState([]);
     const [registrations, setRegistrations] = useState([]);
@@ -131,7 +135,19 @@ function ProjectOversightPage() {
     const [certificateData, setCertificateData] = useState(null);
     const [certLoading, setCertLoading] = useState(false);
 
+    // Gói 3: Manual Review Queue states
+    const [manualReviewCases, setManualReviewCases] = useState([]);
+    const [manualReviewLoading, setManualReviewLoading] = useState(false);
+    const [manualReviewStatusFilter, setManualReviewStatusFilter] = useState('OPEN');
+    const [selectedCaseForReview, setSelectedCaseForReview] = useState(null);
+    const [isManualReviewModalOpen, setIsManualReviewModalOpen] = useState(false);
+    const [manualReviewTotal, setManualReviewTotal] = useState(0);
+
     const fetchHealthRadar = async (semId) => {
+        if (!canReviewArchive) {
+            setHealthRadarStats(null);
+            return;
+        }
         try {
             setHealthRadarLoading(true);
             const res = await archiveService.getHealthRadarStats({ semesterId: semId || undefined });
@@ -146,6 +162,10 @@ function ProjectOversightPage() {
     };
 
     const fetchArchives = async (semId, status) => {
+        if (!canReviewArchive) {
+            setArchivesList([]);
+            return;
+        }
         try {
             setArchivesLoading(true);
             const res = await archiveService.getAllArchives({
@@ -160,6 +180,26 @@ function ProjectOversightPage() {
             setArchivesList([]);
         } finally {
             setArchivesLoading(false);
+        }
+    };
+
+    const fetchManualReviewCases = async (status = manualReviewStatusFilter, semId = semesterFilter) => {
+        try {
+            setManualReviewLoading(true);
+            const res = await manualReviewService.listCases({
+                status: status !== 'ALL' ? status : undefined,
+                semesterId: semId || undefined,
+                limit: 100,
+            });
+            if (res.success) {
+                setManualReviewCases(res.data?.cases || []);
+                setManualReviewTotal(res.data?.pagination?.total || 0);
+            }
+        } catch {
+            setManualReviewCases([]);
+            setManualReviewTotal(0);
+        } finally {
+            setManualReviewLoading(false);
         }
     };
 
@@ -180,6 +220,7 @@ function ProjectOversightPage() {
 
             fetchHealthRadar(semesterFilter);
             fetchArchives(semesterFilter, archiveStatusFilter);
+            fetchManualReviewCases(manualReviewStatusFilter, semesterFilter);
         } catch (error) {
             message.error(error?.message || 'Không thể tải dữ liệu giám sát');
         } finally {
@@ -444,7 +485,7 @@ function ProjectOversightPage() {
                         time: task.createdAt || task.updatedAt,
                         children: (
                             <>
-                                <Text className="text-xs text-slate-400">{dayjs(task.createdAt || task.updatedAt).format('DD/MM/YYYY HH:mm')}</Text>
+                                <Text className="text-xs text-slate-500 font-mono font-medium">{dayjs(task.createdAt || task.updatedAt).format('DD/MM/YYYY HH:mm')}</Text>
                                 <div className="text-sm font-medium text-slate-800">Giao nhiệm vụ: {task.title}</div>
                             </>
                         ),
@@ -456,7 +497,7 @@ function ProjectOversightPage() {
                         time: latest.submittedAt || latest.createdAt,
                         children: (
                             <>
-                                <Text className="text-xs text-slate-400">{dayjs(latest.submittedAt || latest.createdAt).format('DD/MM/YYYY HH:mm')}</Text>
+                                <Text className="text-xs text-slate-500 font-mono font-medium">{dayjs(latest.submittedAt || latest.createdAt).format('DD/MM/YYYY HH:mm')}</Text>
                                 <div className="text-sm font-medium text-emerald-700">Sinh viên nộp: {task.title}</div>
                             </>
                         ),
@@ -472,11 +513,11 @@ function ProjectOversightPage() {
     const renderBmMilestones = (record) => {
         const reg = record.registrationEvents?.[0];
         if (!reg) {
-            return <span className="text-xs text-slate-300 italic">Chưa có SV</span>;
+            return <span className="text-xs text-slate-500 italic font-medium">Chưa có SV</span>;
         }
 
         // BM01: Đề cương
-        let bm01Color = 'bg-slate-100 text-slate-400 border-slate-200';
+        let bm01Color = 'bg-slate-100 text-slate-600 border-slate-300';
         let bm01Tooltip = 'BM01: Chưa thẩm định đề cương';
         if (reg.outlineReviewStatus === 'PASSED') {
             bm01Color = 'bg-emerald-100 text-emerald-800 border-emerald-300';
@@ -494,17 +535,17 @@ function ProjectOversightPage() {
 
         // BM02: Giữa kỳ
         const hasPassedBm01 = reg.outlineReviewStatus === 'PASSED' || ['IN_PROGRESS', 'READY_FOR_DEFENSE', 'DEFENDED', 'COMPLETED'].includes(reg.status);
-        const bm02Color = hasPassedBm01 ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-slate-100 text-slate-400 border-slate-200';
+        const bm02Color = hasPassedBm01 ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-slate-100 text-slate-600 border-slate-300';
         const bm02Tooltip = hasPassedBm01 ? 'BM02: Đang thực hiện / Đã nộp tiến độ giữa kỳ' : 'BM02: Chưa đến mốc giữa kỳ';
 
         // BM03: Báo cáo cuối kỳ
         const isReadyForDefense = ['READY_FOR_DEFENSE', 'DEFENDED', 'COMPLETED'].includes(reg.status);
-        const bm03Color = isReadyForDefense ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-slate-100 text-slate-400 border-slate-200';
+        const bm03Color = isReadyForDefense ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-slate-100 text-slate-600 border-slate-300';
         const bm03Tooltip = isReadyForDefense ? 'BM03: Đã hoàn tất báo cáo toàn văn' : 'BM03: Chưa hoàn thành báo cáo cuối kỳ';
 
         // BM04: Phiếu chấm bảo vệ
         const isDefended = ['DEFENDED', 'COMPLETED'].includes(reg.status) || Boolean(reg.defenseResult);
-        const bm04Color = isDefended ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-slate-100 text-slate-400 border-slate-200';
+        const bm04Color = isDefended ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-slate-100 text-slate-600 border-slate-300';
         const bm04Tooltip = isDefended ? 'BM04: Đã có phiếu chấm bảo vệ khóa luận' : 'BM04: Chưa chấm bảo vệ';
 
         return (
@@ -514,19 +555,19 @@ function ProjectOversightPage() {
                         BM01
                     </span>
                 </Tooltip>
-                <span className="text-[10px] text-slate-300 font-bold">›</span>
+                <span className="text-[10px] text-slate-500 font-bold">›</span>
                 <Tooltip title={bm02Tooltip}>
                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${bm02Color} cursor-pointer`}>
                         BM02
                     </span>
                 </Tooltip>
-                <span className="text-[10px] text-slate-300 font-bold">›</span>
+                <span className="text-[10px] text-slate-500 font-bold">›</span>
                 <Tooltip title={bm03Tooltip}>
                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${bm03Color} cursor-pointer`}>
                         BM03
                     </span>
                 </Tooltip>
-                <span className="text-[10px] text-slate-300 font-bold">›</span>
+                <span className="text-[10px] text-slate-500 font-bold">›</span>
                 <Tooltip title={bm04Tooltip}>
                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${bm04Color} cursor-pointer`}>
                         BM04
@@ -578,7 +619,7 @@ function ProjectOversightPage() {
                                 {record.mentor?.fullName || 'Chưa gán'}
                             </div>
                             {record.mentor?.code && (
-                                <span className="text-[11px] text-slate-400 font-mono">
+                                <span className="text-[11px] text-slate-600 font-mono font-medium">
                                     {record.mentor.code}
                                 </span>
                             )}
@@ -605,7 +646,7 @@ function ProjectOversightPage() {
                         ))}
                     </div>
                 ) : (
-                    <span className="text-xs text-slate-400 italic">Chưa có SV đăng ký</span>
+                    <span className="text-xs text-slate-500 italic font-medium">Chưa có SV đăng ký</span>
                 ),
         },
         {
@@ -756,9 +797,9 @@ function ProjectOversightPage() {
                     const student = record.registration?.student;
                     return (
                         <div>
-                            <div className="font-medium text-slate-800 text-sm">{student?.fullName || '—'}</div>
-                            <div className="text-xs text-slate-500 font-mono">{student?.code || '—'}</div>
-                            <div className="text-[11px] text-slate-400">{student?.department || ''}</div>
+                            <div className="font-semibold text-slate-800 text-sm">{student?.fullName || '—'}</div>
+                            <div className="text-xs text-slate-600 font-mono font-medium">{student?.code || '—'}</div>
+                            <div className="text-[11px] text-slate-500">{student?.department || ''}</div>
                         </div>
                     );
                 },
@@ -771,10 +812,10 @@ function ProjectOversightPage() {
                     const mentor = record.registration?.topic?.mentor;
                     return (
                         <div>
-                            <div className="font-medium text-slate-700 text-sm">
+                            <div className="font-semibold text-slate-800 text-sm">
                                 {mentor?.academicTitle ? `${mentor.academicTitle} ` : ''}{mentor?.fullName || '—'}
                             </div>
-                            <div className="text-xs text-slate-400 font-mono">{mentor?.code || ''}</div>
+                            <div className="text-xs text-slate-600 font-mono font-medium">{mentor?.code || ''}</div>
                         </div>
                     );
                 },
@@ -791,7 +832,7 @@ function ProjectOversightPage() {
                             {Number(score).toFixed(1)} / 10
                         </Tag>
                     ) : (
-                        <span className="text-slate-400 text-xs">Chưa có</span>
+                        <span className="text-slate-500 text-xs italic font-medium">Chưa có</span>
                     );
                 },
             },
@@ -862,7 +903,7 @@ function ProjectOversightPage() {
                             </Tooltip>
                         )}
                         {!record.reportFileUrl && !record.slideFileUrl && !record.demoVideoUrl && !record.sourceCodeUrl && (
-                            <span className="text-xs text-slate-400 italic">Chưa đính kèm tài liệu</span>
+                            <span className="text-xs text-slate-500 italic font-medium">Chưa đính kèm tài liệu</span>
                         )}
                     </div>
                 ),
@@ -891,7 +932,7 @@ function ProjectOversightPage() {
                     const isApproved = record.status === 'APPROVED';
                     return (
                         <Space size="small">
-                            {!isApproved && (
+                            {!isApproved && canReviewArchive && (
                                 <Popconfirm
                                     title="Xác nhận nghiệm thu"
                                     description="Hồ sơ sẽ được duyệt và chuyển đề tài sang hoàn tất (COMPLETED). Bạn chắc chắn chứ?"
@@ -920,8 +961,116 @@ function ProjectOversightPage() {
                 },
             },
         ],
-        []
+        [canReviewArchive]
     );
+
+    const manualReviewColumns = [
+        {
+            title: 'ID',
+            dataIndex: 'id',
+            key: 'id',
+            width: 70,
+            render: (id) => <span className="font-mono text-xs text-slate-500">#{id}</span>,
+        },
+        {
+            title: 'Sinh viên',
+            key: 'student',
+            width: 200,
+            render: (_, record) => {
+                const stu = record.registration?.student;
+                return (
+                    <div>
+                        <div className="font-semibold text-slate-900 text-xs">{stu?.fullName || '—'}</div>
+                        <div className="text-[11px] font-mono text-slate-500">{stu?.code || '—'}</div>
+                    </div>
+                );
+            },
+        },
+        {
+            title: 'Đề tài & GVHD',
+            key: 'topic',
+            ellipsis: true,
+            render: (_, record) => {
+                const top = record.registration?.topic;
+                return (
+                    <div>
+                        <div className="font-medium text-slate-800 text-xs truncate" title={top?.title}>{top?.title || '—'}</div>
+                        <div className="text-[11px] text-teal-700">GVHD: {top?.mentor?.fullName || 'Chưa phân công'}</div>
+                    </div>
+                );
+            },
+        },
+        {
+            title: 'Học kỳ',
+            key: 'semester',
+            width: 140,
+            render: (_, record) => (
+                <span className="text-xs text-slate-600">
+                    {record.registration?.semester?.name || record.registration?.semester?.code || '—'}
+                </span>
+            ),
+        },
+        {
+            title: 'Trạng thái',
+            key: 'currentStatus',
+            width: 150,
+            render: (_, record) => (
+                <Tag color="cyan" className="text-xs font-mono">
+                    {record.registration?.status || '—'}
+                </Tag>
+            ),
+        },
+        {
+            title: 'Cảnh báo toàn vẹn phát hiện',
+            key: 'reasons',
+            width: 280,
+            render: (_, record) => {
+                const reasons = Array.isArray(record.reasonCodes) ? record.reasonCodes : [];
+                return (
+                    <div className="flex flex-wrap gap-1">
+                        {reasons.map((r) => (
+                            <Tag color="volcano" key={r} className="text-[10px] m-0">
+                                {r}
+                            </Tag>
+                        ))}
+                    </div>
+                );
+            },
+        },
+        {
+            title: 'Thẩm định',
+            dataIndex: 'status',
+            key: 'status',
+            width: 130,
+            render: (status) => (
+                status === 'RESOLVED' ? (
+                    <Tag color="success" icon={<CheckCircleOutlined />}>Đã giải quyết</Tag>
+                ) : (
+                    <Tag color="warning" icon={<ClockCircleOutlined />}>Chờ xử lý</Tag>
+                )
+            ),
+        },
+        {
+            title: 'Thao tác',
+            key: 'actions',
+            width: 140,
+            align: 'right',
+            render: (_, record) => (
+                <Button
+                    size="small"
+                    type="primary"
+                    style={{ background: '#0F766E', borderColor: '#0F766E' }}
+                    className="text-xs font-semibold"
+                    onClick={() => {
+                        setSelectedCaseForReview(record);
+                        setIsManualReviewModalOpen(true);
+                    }}
+                >
+                    {record.status === 'RESOLVED' ? 'Xem kết luận' : 'Thẩm định & Gán'}
+                </Button>
+            ),
+        },
+    ];
 
     const lecturerOptions = lecturers.map((lecturer) => ({
         value: lecturer.id,
@@ -948,7 +1097,7 @@ function ProjectOversightPage() {
                 color: 'gray',
                 children: (
                     <>
-                        <p className="text-xs text-slate-400">{dayjs(auditTopic.createdAt).format('DD/MM/YYYY HH:mm')}</p>
+                        <p className="text-xs text-slate-500 font-mono font-medium">{dayjs(auditTopic.createdAt).format('DD/MM/YYYY HH:mm')}</p>
                         <p className="text-sm font-semibold text-slate-800">Khởi tạo đề tài</p>
                     </>
                 ),
@@ -957,7 +1106,7 @@ function ProjectOversightPage() {
                 color: 'blue',
                 children: (
                     <>
-                        <p className="text-xs text-slate-400">{dayjs(auditTopic.updatedAt).format('DD/MM/YYYY HH:mm')}</p>
+                        <p className="text-xs text-slate-500 font-mono font-medium">{dayjs(auditTopic.updatedAt).format('DD/MM/YYYY HH:mm')}</p>
                         <p className="text-sm font-semibold text-slate-800">Cập nhật trạng thái: {auditTopic.status}</p>
                     </>
                 ),
@@ -969,7 +1118,7 @@ function ProjectOversightPage() {
                 color: 'green',
                 children: (
                     <>
-                        <p className="text-xs text-slate-400">{dayjs(event.createdAt).format('DD/MM/YYYY HH:mm')}</p>
+                        <p className="text-xs text-slate-500 font-mono font-medium">{dayjs(event.createdAt).format('DD/MM/YYYY HH:mm')}</p>
                         <p className="text-sm font-medium text-emerald-700">
                             {event.student?.fullName || 'Sinh viên'} đăng ký ({event.status})
                         </p>
@@ -1024,7 +1173,7 @@ function ProjectOversightPage() {
                             </div>
                             <div className="text-xs">
                                 <div className="font-semibold text-rose-200">Chậm nộp lưu chiểu</div>
-                                <div className="text-[11px] text-slate-400">&gt; 14 ngày sau bảo vệ</div>
+                                <div className="text-[11px] text-slate-300 font-medium">&gt; 14 ngày sau bảo vệ</div>
                             </div>
                         </div>
 
@@ -1034,7 +1183,7 @@ function ProjectOversightPage() {
                             </div>
                             <div className="text-xs">
                                 <div className="font-semibold text-amber-200">Gián đoạn GVHD</div>
-                                <div className="text-[11px] text-slate-400">&gt; 21 ngày không có BM03</div>
+                                <div className="text-[11px] text-slate-300 font-medium">&gt; 21 ngày không có BM03</div>
                             </div>
                         </div>
 
@@ -1044,7 +1193,7 @@ function ProjectOversightPage() {
                             </div>
                             <div className="text-xs">
                                 <div className="font-semibold text-sky-200">Chờ nghiệm thu</div>
-                                <div className="text-[11px] text-slate-400">Hồ sơ đã nộp</div>
+                                <div className="text-[11px] text-slate-300 font-medium">Hồ sơ đã nộp</div>
                             </div>
                         </div>
 
@@ -1305,6 +1454,59 @@ function ProjectOversightPage() {
                                             columns={archiveColumns}
                                             scroll={{ x: 1200 }}
                                             pagination={{ pageSize: 12, showSizeChanger: true, showTotal: (t) => `Tổng cộng ${t} hồ sơ lưu chiểu` }}
+                                            size="middle"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        ),
+                    },
+                    {
+                        key: 'MANUAL_REVIEW_QUEUE',
+                        label: (
+                            <span className="flex items-center gap-2 font-semibold text-sm">
+                                <SafetyCertificateOutlined />
+                                Hàng Đợi Thẩm Định Legacy ({manualReviewTotal})
+                            </span>
+                        ),
+                        children: (
+                            <div className="space-y-5 pt-2">
+                                <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-4 lg:p-6 space-y-4">
+                                    <div className="flex flex-wrap items-center justify-between gap-3">
+                                        <div className="flex items-center gap-3">
+                                            <Select
+                                                value={manualReviewStatusFilter}
+                                                onChange={(val) => {
+                                                    setManualReviewStatusFilter(val);
+                                                    fetchManualReviewCases(val, semesterFilter);
+                                                }}
+                                                style={{ width: 220 }}
+                                                options={[
+                                                    { label: 'Chờ thẩm định (OPEN)', value: 'OPEN' },
+                                                    { label: 'Đã giải quyết (RESOLVED)', value: 'RESOLVED' },
+                                                    { label: 'Tất cả trạng thái', value: 'ALL' },
+                                                ]}
+                                            />
+                                            <Button
+                                                icon={<ReloadOutlined />}
+                                                onClick={() => fetchManualReviewCases(manualReviewStatusFilter, semesterFilter)}
+                                            >
+                                                Làm mới
+                                            </Button>
+                                        </div>
+                                        <div className="text-xs text-slate-500">
+                                            Danh sách <b>{manualReviewTotal}</b> hồ sơ cần xác nhận minh chứng và gán phiên bản quy trình chuẩn (Workflow Policy Version).
+                                        </div>
+                                    </div>
+
+                                    <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+                                        <Table
+                                            loading={manualReviewLoading}
+                                            dataSource={manualReviewCases}
+                                            rowKey="id"
+                                            columns={manualReviewColumns}
+                                            scroll={{ x: 1200 }}
+                                            pagination={{ pageSize: 12, showSizeChanger: true, showTotal: (t) => `Tổng cộng ${t} hồ sơ thẩm định` }}
                                             size="middle"
                                         />
                                     </div>
@@ -1598,6 +1800,17 @@ function ProjectOversightPage() {
                 open={certModalOpen}
                 onCancel={() => setCertModalOpen(false)}
                 certificateData={certificateData}
+            />
+
+            {/* Manual Review Modal */}
+            <ManualReviewModal
+                open={isManualReviewModalOpen}
+                caseItem={selectedCaseForReview}
+                onClose={() => {
+                    setIsManualReviewModalOpen(false);
+                    setSelectedCaseForReview(null);
+                }}
+                onSuccess={() => fetchManualReviewCases(manualReviewStatusFilter, semesterFilter)}
             />
 
         </div>

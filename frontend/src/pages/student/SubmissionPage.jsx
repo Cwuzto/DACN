@@ -1,59 +1,62 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Button, Card, Divider, Empty, Steps, Tag, Typography, message, Tooltip, Alert } from 'antd';
+import {
+    Button,
+    Empty,
+    Modal,
+    message,
+    Tooltip,
+} from 'antd';
 import {
     CheckCircleOutlined,
     ClockCircleOutlined,
-    EditOutlined,
     ExclamationCircleOutlined,
-    FileTextOutlined,
     LockOutlined,
     ReloadOutlined,
-    UploadOutlined,
-    UserOutlined,
-    TeamOutlined,
-    CalendarOutlined,
-    SafetyCertificateOutlined,
-    CloseCircleOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import taskService from '../../services/taskService';
 import registrationService from '../../services/registrationService';
+import evaluationService from '../../services/evaluationService';
 import meetingLogService from '../../services/meetingLogService';
-import PageHeader from '../../components/common/PageHeader';
-import PageLoader from '../../components/common/PageLoader';
 import HybridBMFormModal from '../../components/forms/HybridBMFormModal';
 import BMSubmissionViewer from '../../components/forms/BMSubmissionViewer';
-
-const { Title, Text, Paragraph } = Typography;
-
-const BM_STEPS = [
-    { key: 'REGISTRATION', title: '1. Đăng ký', shortTitle: '1. Đăng ký', desc: 'Duyệt đề tài' },
-    { key: 'BM01', title: '2. BM01', shortTitle: '2. BM01 Đề cương', desc: 'Xét duyệt đạt' },
-    { key: 'BM02', title: '3. BM02', shortTitle: '3. BM02 QĐ Viện', desc: 'Ban hành QĐ' },
-    { key: 'BM03', title: '4. BM03', shortTitle: '4. BM03 Tiến độ', desc: '2 Checkpoint' },
-    { key: 'BM04', title: '5. BM04', shortTitle: '5. BM04 Đánh giá', desc: 'GVHD ký duyệt' },
-    { key: 'DEFENSE', title: '6. Bảo vệ', shortTitle: '6. Bảo vệ', desc: 'Hội đồng chấm' },
-];
-
-const statusBadgeConfig = {
-    OPEN: { text: 'Chưa nộp', color: 'default', icon: <ClockCircleOutlined /> },
-    IN_PROGRESS: { text: 'Đang thực hiện', color: 'processing', icon: <ClockCircleOutlined /> },
-    SUBMITTED: { text: 'Chờ GV duyệt', color: 'warning', icon: <ClockCircleOutlined /> },
-    REVISION: { text: 'Yêu cầu sửa', color: 'error', icon: <ExclamationCircleOutlined /> },
-    COMPLETED: { text: 'Đã phê duyệt', color: 'success', icon: <CheckCircleOutlined /> },
-    LOCKED: { text: 'Đang khóa', color: 'default', icon: <LockOutlined /> },
-};
+import CheckpointSignModal from '../../components/student/CheckpointSignModal';
+import useAuthStore from '../../stores/authStore';
 
 export default function SubmissionPage() {
     const [registration, setRegistration] = useState(null);
     const [tasks, setTasks] = useState([]);
     const [meetingLogs, setMeetingLogs] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [, setLoading] = useState(true);
 
     // Modal state
     const [modalVisible, setModalVisible] = useState(false);
     const [activeTask, setActiveTask] = useState(null);
     const [submitting, setSubmitting] = useState(false);
+
+    // Viewer state
+    const [viewerVisible, setViewerVisible] = useState(false);
+    const [viewerSubmission, setViewerSubmission] = useState(null);
+    const [bm04ViewerOpen, setBm04ViewerOpen] = useState(false);
+    const [bm04Evaluation, setBm04Evaluation] = useState(null);
+
+    // Checkpoint state
+    const [checkpoints, setCheckpoints] = useState([]);
+    const [checkpointSignModalOpen, setCheckpointSignModalOpen] = useState(false);
+    const [selectedCheckpoint, setSelectedCheckpoint] = useState(null);
+    const currentUser = useAuthStore((s) => s.user);
+
+    const handleViewBM04 = async () => {
+        try {
+            const res = await evaluationService.getBM04Evaluation(registration.id);
+            if (res.success) {
+                setBm04Evaluation(res.data);
+                setBm04ViewerOpen(true);
+            }
+        } catch (error) {
+            message.error(error?.message || 'Không thể tải phiếu BM04.');
+        }
+    };
 
     useEffect(() => {
         fetchData();
@@ -67,21 +70,20 @@ export default function SubmissionPage() {
                 const regData = regRes.data;
                 setRegistration(regData);
 
-                // Load tasks
-                const taskRes = await taskService.getTasksByRegistration(regData.id);
-                if (taskRes.success) {
-                    setTasks(taskRes.data || []);
-                }
+                const [taskRes, logRes, cpRes] = await Promise.all([
+                    taskService.getTasksByRegistration(regData.id).catch(() => ({ success: false, data: [] })),
+                    meetingLogService.getMeetingLogs(regData.id).catch(() => ({ success: false, data: [] })),
+                    evaluationService.getCheckpointEvaluations(regData.id).catch(() => ({ success: false, data: [] })),
+                ]);
 
-                // Load meeting logs
-                const logRes = await meetingLogService.getMeetingLogs(regData.id);
-                if (logRes.success) {
-                    setMeetingLogs(logRes.data || []);
-                }
+                if (taskRes.success) setTasks(taskRes.data || []);
+                if (logRes.success) setMeetingLogs(logRes.data || []);
+                if (cpRes.success) setCheckpoints(cpRes.data || []);
             } else {
                 setRegistration(null);
                 setTasks([]);
                 setMeetingLogs([]);
+                setCheckpoints([]);
             }
         } catch (error) {
             message.error(error?.message || 'Không thể tải dữ liệu nộp biểu mẫu.');
@@ -90,7 +92,6 @@ export default function SubmissionPage() {
         }
     };
 
-    // Helper map of task by taskType
     const taskByType = useMemo(() => {
         const map = {};
         tasks.forEach((t) => {
@@ -99,18 +100,16 @@ export default function SubmissionPage() {
         return map;
     }, [tasks]);
 
-    // Check sequential lock status without bypass
     const isStepLocked = (taskType) => {
         if (!registration) return true;
-        if (registration.status === 'TERMINATED_FAILED_PROGRESS' || registration.status === 'DROPPED') {
+        if (['TERMINATED_FAILED_PROGRESS', 'TERMINATED_BM01', 'TERMINATED_BM02', 'DROPPED', 'WITHDRAWN'].includes(registration.status)) {
             return true;
         }
-
         if (taskType === 'BM01') {
-            return !['APPROVED', 'BM01_SUBMITTED', 'BM01_NEEDS_REVISION', 'BM01_PASSED'].includes(registration.status);
+            return !['REGISTERED', 'APPROVED', 'BM01_NEEDS_REVISION'].includes(registration.status);
         }
         if (taskType === 'BM02') {
-            return !['BM01_PASSED', 'BM02_SUBMITTED', 'DECISION_ISSUED', 'IN_PROGRESS_BM03', 'BM03_PASSED', 'DEFENSE_READY', 'DEFENDED', 'COMPLETED'].includes(registration.status);
+            return !['BM01_PASSED', 'BM02_NEEDS_REVISION'].includes(registration.status);
         }
         if (taskType === 'BM03_CHECKPOINT_1' || taskType === 'BM03_CHECKPOINT') {
             return !['DECISION_ISSUED', 'IN_PROGRESS_BM03', 'BM03_PASSED', 'DEFENSE_READY', 'DEFENDED', 'COMPLETED'].includes(registration.status);
@@ -126,20 +125,6 @@ export default function SubmissionPage() {
         return false;
     };
 
-    // Calculate current active step index in the 6-step process
-    const currentStepIndex = useMemo(() => {
-        if (!registration) return 0;
-        const status = registration.status;
-        if (['DEFENDED', 'COMPLETED'].includes(status)) return 5;
-        if (status === 'DEFENSE_READY') return 4;
-        if (status === 'BM03_PASSED') return 4;
-        if (['DECISION_ISSUED', 'IN_PROGRESS_BM03'].includes(status)) return 3;
-        if (status === 'BM02_SUBMITTED') return 2;
-        if (['BM01_SUBMITTED', 'BM01_PASSED', 'BM01_NEEDS_REVISION'].includes(status)) return 1;
-        if (['APPROVED', 'PENDING'].includes(status)) return 0;
-        return 0;
-    }, [registration]);
-
     const handleOpenSubmitModal = (task) => {
         if (isStepLocked(task.taskType)) {
             message.warning('Vui lòng hoàn thành và chờ duyệt bước trước đó.');
@@ -149,11 +134,25 @@ export default function SubmissionPage() {
         setModalVisible(true);
     };
 
+    const handleOpenViewer = (submission) => {
+        setViewerSubmission(submission);
+        setViewerVisible(true);
+    };
+
     const handleSubmitForm = async (payload) => {
         if (!activeTask) return;
         try {
             setSubmitting(true);
-            const res = await taskService.submitTask(activeTask.id, payload);
+            let res;
+            if (activeTask.taskType === 'BM01') {
+                res = registration.status === 'BM01_NEEDS_REVISION'
+                    ? await evaluationService.resubmitBM01(registration.id, payload)
+                    : await evaluationService.submitBM01(registration.id, payload);
+            } else if (activeTask.taskType === 'BM02') {
+                res = await registrationService.submitBM02({ registrationId: registration.id, ...payload });
+            } else {
+                res = await taskService.submitTask(activeTask.id, payload);
+            }
             if (res.success) {
                 message.success('Nộp biểu mẫu thành công!');
                 setModalVisible(false);
@@ -168,335 +167,343 @@ export default function SubmissionPage() {
         }
     };
 
-    // Filter out any legacy BM04 from student submit tasks
     const studentTasks = useMemo(() => {
         return tasks.filter((t) => t.taskType !== 'BM04');
     }, [tasks]);
 
-    if (loading) return <PageLoader />;
+    const bm01Revision = registration?.bm01Evaluations?.find((item) => item.outcome === 'NEEDS_REVISION');
+    const bm02Current = registration?.currentBM02Submission;
+    const revisionNotice = registration?.status === 'BM01_NEEDS_REVISION'
+        ? {
+            title: 'BM01 cần chỉnh sửa',
+            version: 'Lần nộp lại 1/1',
+            deadline: bm01Revision?.deadlineAt,
+            issues: bm01Revision?.issues?.feedback ? [bm01Revision.issues.feedback] : [],
+        }
+        : registration?.status === 'BM02_NEEDS_REVISION'
+            ? {
+                title: 'BM02 cần chỉnh sửa',
+                version: `Phiên bản ${bm02Current?.versionNo || 1} · Lần nộp lại 1/1`,
+                deadline: bm02Current?.revisionDeadlineAt,
+                issues: Array.isArray(bm02Current?.issues) ? bm02Current.issues : [],
+            }
+            : null;
 
     if (!registration) {
         return (
-            <div className="py-6 space-y-6">
-                <PageHeader
-                    breadcrumb={[
-                        { label: 'Cổng Sinh viên' },
-                        { label: 'Học vụ & Biểu mẫu' },
-                    ]}
-                    title="Nộp Biểu Mẫu & Báo Cáo Tiến Độ"
-                    subtitle="Theo dõi tiến độ, nộp biểu mẫu chuẩn hóa BM01 - BM03 và xem nhật ký làm việc với GVHD."
-                />
-                <div className="bg-white rounded-xl border border-slate-200/90 shadow-sm p-12 text-center">
-                    <Empty
-                        description={
-                            <div className="space-y-2">
-                                <p className="text-slate-600 font-medium">Bạn chưa đăng ký hoặc chưa được duyệt đề tài đồ án nào trong học kỳ này.</p>
-                                <p className="text-xs text-slate-400">Vui lòng vào mục "Danh sách đề tài" để chọn hoặc đề xuất đề tài trước.</p>
-                            </div>
-                        }
-                    />
+            <div style={{ padding: '24px 32px' }} className="sub-view">
+                <div className="card" style={{ padding: '40px 20px', textAlign: 'center' }}>
+                    <Empty description="Bạn chưa đăng ký hoặc chưa được duyệt đề tài đồ án nào trong học kỳ này." />
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="py-4 space-y-6">
-            <PageHeader
-                breadcrumb={[
-                    { label: 'Cổng Sinh viên' },
-                    { label: 'Học vụ & Biểu mẫu' },
-                    { label: 'Tiến độ đồ án' },
-                ]}
-                title="Quy Trình Biểu Mẫu & Tiến Độ Thực Hiện"
-                subtitle="Theo dõi lộ trình học vụ, nộp biểu mẫu tuần tự và kiểm tra biên bản làm việc định kỳ với GVHD."
-                tags={[
-                    { label: `Đề tài: ${registration.topic?.title}`, color: 'blue' },
-                    { label: `GVHD: ${registration.topic?.mentor?.fullName || 'N/A'}`, color: 'cyan' },
-                ]}
-                actions={
-                    <Button icon={<ReloadOutlined />} onClick={fetchData}>
-                        Làm mới
-                    </Button>
-                }
-            />
-
-            {/* Stepper Card */}
-            <div className="bg-white rounded-xl border border-slate-200/90 shadow-sm p-6 space-y-4">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-b border-slate-100 pb-4">
-                    <div>
-                        <span className="text-xs font-bold uppercase tracking-wider text-blue-700 bg-blue-50 px-2 py-0.5 rounded">
-                            QUY TRÌNH HỌC VỤ BẮT BUỘC
-                        </span>
-                        <h2 className="text-lg font-bold text-slate-900 mt-1">
-                            {registration.topic?.title || 'Đề tài Đồ án tốt nghiệp'}
-                        </h2>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <span className="text-xs text-slate-500">Trạng thái hiện tại:</span>
-                        <Tag color="processing" className="font-semibold">{registration.status}</Tag>
-                    </div>
+        <div style={{ padding: '24px 32px' }} data-od-id="view-submissions" className="sub-view">
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+                <div>
+                    <h1 className="h1" style={{ fontSize: 20 }}>Quy Trình Giao Nộp Biểu Mẫu & Báo Cáo Tiến Độ</h1>
+                    <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
+                        Tất cả biểu mẫu phải được GVHD ký duyệt điện tử và lưu trữ số trên hệ thống DACN.
+                    </p>
                 </div>
-
-                <div className="py-3 overflow-x-auto">
-                    <Steps
-                        current={currentStepIndex}
-                        items={BM_STEPS.map((step, idx) => {
-                            let status = 'wait';
-                            if (idx < currentStepIndex) status = 'finish';
-                            else if (idx === currentStepIndex) status = 'process';
-
-                            return {
-                                title: <span className="font-semibold text-xs md:text-sm">{step.shortTitle}</span>,
-                                description: <span className="text-xs text-slate-400">{step.desc}</span>,
-                                status,
-                            };
-                        })}
-                    />
+                <div style={{ display: 'flex', gap: 10 }}>
+                    <button className="btn btn-secondary btn-sm" onClick={fetchData}>
+                        <ReloadOutlined style={{ marginRight: 4 }} />
+                        <span>Làm mới</span>
+                    </button>
+                    {studentTasks.some((t) => !isStepLocked(t.taskType) && ['OPEN', 'IN_PROGRESS', 'REVISION'].includes(t.status)) && (
+                        <button
+                            className="btn btn-primary btn-sm"
+                            onClick={() => {
+                                const nextTask = studentTasks.find((t) => !isStepLocked(t.taskType) && ['OPEN', 'IN_PROGRESS', 'REVISION'].includes(t.status));
+                                if (nextTask) handleOpenSubmitModal(nextTask);
+                            }}
+                        >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                <polyline points="17 8 12 3 7 8" />
+                                <line x1="12" y1="3" x2="12" y2="15" />
+                            </svg>
+                            <span>Nộp báo cáo tiếp theo</span>
+                        </button>
+                    )}
                 </div>
             </div>
 
-            {/* Task List */}
-            <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h3 className="text-sm font-bold text-slate-800">Danh sách biểu mẫu nhiệm vụ</h3>
-                        <p className="text-xs text-slate-500">Mô hình Hybrid: Điền thông tin cấu trúc + Tệp đính kèm bản scan/PDF</p>
+            {revisionNotice && (
+                <div className="card" style={{ marginBottom: 18, padding: '14px 16px', borderColor: '#F59E0B', background: '#FFFBEB' }}>
+                    <div style={{ fontWeight: 700, color: '#92400E' }}>{revisionNotice.title}</div>
+                    <div style={{ marginTop: 4, fontSize: 13, color: '#78350F' }}>
+                        {revisionNotice.version}
+                        {revisionNotice.deadline && ` · Hạn nộp: ${dayjs(revisionNotice.deadline).format('DD/MM/YYYY HH:mm')}`}
                     </div>
-                    <span className="text-xs text-slate-500 font-medium">
-                        Tổng số: <b className="text-slate-700">{studentTasks.length}</b> nhiệm vụ
-                    </span>
+                    {revisionNotice.issues.length > 0 && (
+                        <ul style={{ margin: '8px 0 0', paddingLeft: 20, color: '#78350F' }}>
+                            {revisionNotice.issues.map((issue, index) => <li key={`${issue}-${index}`}>{issue}</li>)}
+                        </ul>
+                    )}
                 </div>
+            )}
 
-                {studentTasks.length === 0 ? (
-                    <div className="bg-white rounded-xl border border-slate-200/90 shadow-sm p-8 text-center">
-                        <Empty description="Chưa có biểu mẫu nào được khởi tạo cho đề tài này." />
-                    </div>
-                ) : (
-                    studentTasks.map((task) => {
-                        const locked = isStepLocked(task.taskType);
-                        const effectiveStatus = locked ? 'LOCKED' : task.status;
-                        const badge = statusBadgeConfig[effectiveStatus] || statusBadgeConfig.OPEN;
-                        const submissions = task.submissions || [];
-                        const lastSubmission = submissions.length > 0 ? submissions[0] : null;
-                        const canSubmit = !locked && ['OPEN', 'IN_PROGRESS', 'REVISION'].includes(task.status);
-                        const isOverdue = task.dueDate && new Date(task.dueDate).getTime() < Date.now() && task.status !== 'COMPLETED';
+            {/* Checkpoint Urgent Notification Banner */}
+            {(() => {
+                const pendingCp = checkpoints.find((cp) => !cp.studentSignature);
+                if (!pendingCp) return null;
 
-                        return (
-                            <div
-                                key={task.id}
-                                className={`bg-white rounded-xl border transition-all duration-150 overflow-hidden shadow-sm ${
-                                    locked
-                                        ? 'border-slate-200/60 bg-slate-50/40 opacity-75'
-                                        : isOverdue
-                                            ? 'border-rose-200 hover:border-rose-300'
-                                            : 'border-slate-200/90 hover:border-blue-300'
-                                }`}
-                            >
-                                <div className="p-5 md:p-6 flex flex-col lg:flex-row gap-5 justify-between">
-                                    {/* Left: Task Info */}
-                                    <div className="flex-1 space-y-3">
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                            <Tag color={badge.color} icon={badge.icon} className="font-semibold text-xs">
-                                                {badge.text}
-                                            </Tag>
-                                            {task.taskType && (
-                                                <Tag color="blue" className="font-mono text-xs">
-                                                    {task.taskType}
-                                                </Tag>
-                                            )}
-                                            {task.dueDate && (
-                                                <span className={`text-xs flex items-center gap-1 ${isOverdue ? 'text-rose-600 font-bold' : 'text-slate-500'}`}>
-                                                    <ClockCircleOutlined />
-                                                    Hạn nộp: {dayjs(task.dueDate).format('DD/MM/YYYY HH:mm')}
-                                                </span>
-                                            )}
-                                        </div>
+                const isAppeal = ['CHECKPOINT_SIGNATURE_APPEAL_OPEN', 'CHECKPOINT_SIGNATURE_APPEAL_SUBMITTED', 'CHECKPOINT_SIGNATURE_APPEAL_REVIEW'].includes(registration?.status);
+                const isPendingSign = registration?.status === 'BM03_SIGNATURE_PENDING' || (!isAppeal && !pendingCp.studentSignature);
 
-                                        <h4 className="text-base font-bold text-slate-900 leading-snug">
-                                            {task.title}
-                                        </h4>
+                if (!isAppeal && !isPendingSign) return null;
 
-                                        {task.content && (
-                                            <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-lg border border-slate-100">
-                                                {task.content}
-                                            </p>
-                                        )}
+                const deadlineText = pendingCp.studentSignDeadlineAt
+                    ? dayjs(pendingCp.studentSignDeadlineAt).format('DD/MM/YYYY HH:mm')
+                    : '3 ngày kể từ khi GVHD phát hành';
 
-                                        {/* Action Buttons */}
-                                        <div className="pt-1 flex items-center gap-2 flex-wrap">
-                                            {locked ? (
-                                                <span className="inline-flex items-center gap-1.5 text-xs text-slate-400 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200/70">
-                                                    <LockOutlined />
-                                                    Cần hoàn thành biểu mẫu trước để mở khóa
-                                                </span>
-                                            ) : canSubmit ? (
-                                                <Button
-                                                    type="primary"
-                                                    icon={<UploadOutlined />}
-                                                    onClick={() => handleOpenSubmitModal(task)}
-                                                    className="font-medium"
-                                                >
-                                                    {task.status === 'REVISION' ? 'Nộp lại biểu mẫu' : 'Nộp biểu mẫu'}
-                                                </Button>
-                                            ) : task.status === 'SUBMITTED' ? (
-                                                <Button
-                                                    onClick={() => handleOpenSubmitModal(task)}
-                                                    icon={<EditOutlined />}
-                                                    className="text-xs font-medium"
-                                                >
-                                                    Cập nhật bài nộp
-                                                </Button>
-                                            ) : null}
-                                        </div>
-                                    </div>
-
-                                    {/* Right: Submission & Feedback Preview */}
-                                    <div className="lg:w-5/12 bg-slate-50/80 rounded-xl p-4 border border-slate-200/70 flex flex-col justify-between">
-                                        <div>
-                                            <div className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
-                                                <FileTextOutlined className="text-blue-600" />
-                                                Bài nộp gần nhất & Đánh giá
-                                            </div>
-                                            <BMSubmissionViewer submission={lastSubmission} showFeedback={true} />
-                                        </div>
-                                    </div>
+                return (
+                    <div
+                        className="card"
+                        style={{
+                            marginBottom: 20,
+                            padding: '16px 20px',
+                            background: isAppeal ? '#FEF2F2' : '#EFF6FF',
+                            borderColor: isAppeal ? '#F87171' : '#60A5FA',
+                            borderLeftWidth: 6,
+                        }}
+                    >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                            <div>
+                                <div style={{ fontSize: 15, fontWeight: 700, color: isAppeal ? '#991B1B' : '#1E40AF' }}>
+                                    {isAppeal ? '⚠️ CẢNH BÁO: QUÁ HẠN KÝ BM03 CHECKPOINT - ĐANG MỞ CỬA SỔ KHIẾU NẠI' : '📝 YÊU CẦU KÝ XÁC NHẬN BIÊN BẢN BM03 CHECKPOINT'}
                                 </div>
-                            </div>
-                        );
-                    })
-                )}
-            </div>
-
-            {/* Sổ Nhật Ký Buổi Gặp Gỡ GVHD */}
-            <div className="bg-white rounded-xl border border-slate-200/90 shadow-sm p-6 space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
-                    <div className="flex items-center gap-2">
-                        <TeamOutlined className="text-blue-600 text-lg" />
-                        <div>
-                            <h3 className="text-sm font-bold text-slate-800">Sổ Nhật Ký Làm Việc & Gặp Gỡ GVHD</h3>
-                            <p className="text-xs text-slate-500">Minh chứng quá trình làm việc định kỳ do Thầy/Cô trực tiếp ghi nhận</p>
-                        </div>
-                    </div>
-                    <Tag color="blue" className="font-semibold text-xs px-2.5 py-1">
-                        Tổng số buổi đã gặp: <strong>{meetingLogs.length}</strong>
-                    </Tag>
-                </div>
-
-                {meetingLogs.length === 0 ? (
-                    <div className="py-6 text-center text-slate-400 text-xs italic">
-                        Chưa có nhật ký buổi gặp nào được ghi nhận. GVHD sẽ cập nhật sau các buổi trao đổi định kỳ tại Lab hoặc Online.
-                    </div>
-                ) : (
-                    <div className="space-y-3 pt-2">
-                        {meetingLogs.map((log, idx) => (
-                            <div key={log.id} className="bg-slate-50/70 border border-slate-200/70 rounded-xl p-4 space-y-2">
-                                <div className="flex items-center justify-between flex-wrap gap-2">
-                                    <div className="flex items-center gap-2">
-                                        <CalendarOutlined className="text-slate-400" />
-                                        <span className="font-bold text-slate-800 text-xs">
-                                            Buổi {meetingLogs.length - idx}: {dayjs(log.meetingDate).format('DD/MM/YYYY')}
+                                <div style={{ fontSize: 13, marginTop: 4, color: isAppeal ? '#7F1D1D' : '#1E3A8A' }}>
+                                    {isAppeal ? (
+                                        <span>
+                                            Bạn đã quá hạn ký biên bản Checkpoint {pendingCp.checkpointNo}. Hệ thống đang mở cửa sổ khiếu nại (3 ngày).
+                                            Vui lòng nộp đơn giải trình kèm minh chứng lý do khách quan để Ban chủ nhiệm xét duyệt!
                                         </span>
-                                        <Tag color={log.meetingType === 'LAB' ? 'green' : log.meetingType === 'ONLINE' ? 'blue' : 'orange'} className="text-[11px] font-semibold">
-                                            {log.meetingType === 'LAB' ? 'Trực tiếp tại Lab' : log.meetingType === 'ONLINE' ? 'Họp Online (Meet/Zoom)' : 'Văn phòng bộ môn'}
-                                        </Tag>
-                                    </div>
-                                    <span className="text-[11px] text-slate-400">
-                                        Ghi nhận bởi: {log.creator?.fullName || 'GVHD'}
-                                    </span>
-                                </div>
-
-                                <div className="text-xs text-slate-700 bg-white p-3 rounded-lg border border-slate-200/50 space-y-1">
-                                    <div><strong>Nội dung đã báo cáo:</strong> {log.studentWorkSummary}</div>
-                                    {log.nextPlan && (
-                                        <div><strong>Kế hoạch tiếp theo:</strong> {log.nextPlan}</div>
-                                    )}
-                                    {log.supervisorNotes && (
-                                        <div className="text-blue-700 pt-1 border-t border-slate-100">
-                                            <strong>Dặn dò / Góp ý của Thầy/Cô:</strong> {log.supervisorNotes}
-                                        </div>
+                                    ) : (
+                                        <span>
+                                            GVHD đã ký phát hành biên bản <strong>BM03 Checkpoint {pendingCp.checkpointNo}</strong>.
+                                            Hạn chót ký điện tử: <strong>{deadlineText}</strong>. Quá hạn 3 ngày hệ thống sẽ tự động khóa và chuyển sang quy trình khiếu nại.
+                                        </span>
                                     )}
                                 </div>
                             </div>
-                        ))}
+                            <button
+                                type="button"
+                                className={`btn ${isAppeal ? 'btn-danger' : 'btn-primary'}`}
+                                onClick={() => {
+                                    setSelectedCheckpoint(pendingCp);
+                                    setCheckpointSignModalOpen(true);
+                                }}
+                            >
+                                {isAppeal ? 'Nộp Đơn Khiếu Nại Ký BM03' : 'Xem & Ký Biên Bản BM03 Ngay'}
+                            </button>
+                        </div>
                     </div>
-                )}
+                );
+            })()}
+
+            {/* Submission Roadmap */}
+            <div className="submission-roadmap">
+                {studentTasks.map((task, idx) => {
+                    const locked = isStepLocked(task.taskType);
+                    const isCompleted = task.status === 'COMPLETED';
+                    const isCurrent = !locked && !isCompleted;
+                    const submissions = task.submissions || [];
+                    const lastSubmission = submissions.length > 0 ? submissions[0] : null;
+                    const canSubmit = !locked && ['OPEN', 'IN_PROGRESS', 'REVISION'].includes(task.status);
+                    const isOverdue = task.dueDate && new Date(task.dueDate).getTime() < Date.now() && task.status !== 'COMPLETED';
+
+                    return (
+                        <div
+                            key={task.id}
+                            className={`sub-card ${isCompleted ? 'completed' : isCurrent ? 'current' : 'pending'}`}
+                            style={{ opacity: locked ? 0.65 : 1 }}
+                        >
+                            <div className="sub-left">
+                                <div className="sub-step-num">{idx + 1}</div>
+                                <div className="sub-info">
+                                    <h4>{task.title}</h4>
+                                    <p>{task.description || 'Thực hiện và nộp biểu mẫu theo đúng biểu mẫu chuẩn của Viện.'}</p>
+                                    <div className="sub-meta-pill">
+                                        {isCompleted ? (
+                                            <span className="tag green">ĐÃ DUYỆT (PASS)</span>
+                                        ) : task.status === 'REVISION' ? (
+                                            <span className="tag red">YÊU CẦU CHỈNH SỬA</span>
+                                        ) : task.status === 'SUBMITTED' ? (
+                                            <span className="tag yellow">CHỜ GVHD PHÊ DUYỆT</span>
+                                        ) : locked ? (
+                                            <span className="tag gray">ĐANG KHÓA (CHỜ BƯỚC TRƯỚC)</span>
+                                        ) : isOverdue ? (
+                                            <span className="tag red">CẦN NỘP BÁO CÁO (QUÁ HẠN)</span>
+                                        ) : (
+                                            <span className="tag teal">ĐANG MỞ NỘP</span>
+                                        )}
+                                        {task.dueDate && (
+                                            <span style={{ color: isOverdue ? '#DC2626' : 'var(--muted)' }}>
+                                                · Hạn chót: {dayjs(task.dueDate).format('DD/MM/YYYY')}
+                                            </span>
+                                        )}
+                                        {lastSubmission?.feedback && (
+                                            <span style={{ color: 'var(--primary)', fontWeight: 600 }}>
+                                                · Nhận xét GVHD: "{lastSubmission.feedback}"
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                                {lastSubmission && (
+                                    <button
+                                        className="btn btn-secondary btn-sm"
+                                        onClick={() => handleOpenViewer(lastSubmission)}
+                                    >
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                            <circle cx="12" cy="12" r="3" />
+                                        </svg>
+                                        <span>Xem bài nộp</span>
+                                    </button>
+                                )}
+                                {canSubmit && (
+                                    <button
+                                        className="btn btn-primary btn-sm"
+                                        onClick={() => handleOpenSubmitModal(task)}
+                                    >
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                            <polyline points="17 8 12 3 7 8" />
+                                            <line x1="12" y1="3" x2="12" y2="15" />
+                                        </svg>
+                                        <span>{task.status === 'REVISION' ? 'Nộp lại bài' : 'Nộp bài ngay'}</span>
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })}
+
+                {/* BM04 Informational Card */}
+                <div className="sub-card pending" style={{ background: '#F8FAFC' }}>
+                    <div className="sub-left">
+                        <div className="sub-step-num" style={{ background: '#CCFBF1', color: '#0F766E' }}>★</div>
+                        <div className="sub-info">
+                            <h4>BM04 - Phiếu Nhận Xét & Thẩm Định Khóa Luận Của GVHD</h4>
+                            <p>
+                                Giảng viên hướng dẫn tổng hợp các mốc Checkpoint, đánh giá thái độ chuyên cần và ký quyết định ĐỒNG Ý / KHÔNG ĐỒNG Ý cho sinh viên ra Hội đồng bảo vệ.
+                            </p>
+                            <div className="sub-meta-pill">
+                                {registration.status === 'DEFENSE_READY' ? (
+                                    <span className="tag green">GVHD ĐÃ ĐỒNG Ý CHO BẢO VỆ</span>
+                                ) : (
+                                    <span className="tag teal">TỰ ĐỘNG CẬP NHẬT TỪ GVHD</span>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                    {['DEFENSE_READY', 'TERMINATED_BM04', 'DEFENDED', 'COMPLETED'].includes(registration.status) && (
+                        <Button onClick={handleViewBM04}>Xem phiếu BM04 đã ký</Button>
+                    )}
+                </div>
             </div>
 
-            {/* BM04 Gatekeeping Status Card */}
-            <div className="bg-white rounded-xl border border-slate-200/90 shadow-sm p-6 space-y-3">
-                <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-                    <SafetyCertificateOutlined className="text-emerald-600 text-lg" />
-                    <div>
-                        <h3 className="text-sm font-bold text-slate-800">Phiếu Nhận Xét BM04 & Quyết Định Ra Bảo Vệ</h3>
-                        <p className="text-xs text-slate-500">Quyết định chốt chặn thẩm định của Giảng viên hướng dẫn để được xếp vào Hội đồng bảo vệ</p>
+            {/* Meeting Logs Section */}
+            {meetingLogs.length > 0 && (
+                <div className="card" style={{ marginTop: 24, padding: 20 }}>
+                    <h3 className="h3" style={{ marginBottom: 14 }}>Nhật Ký Làm Việc & Trao Đổi Lab Với GVHD ({meetingLogs.length})</h3>
+                    <div className="table-container">
+                        <table className="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Buổi số</th>
+                                    <th>Thời gian</th>
+                                    <th>Hình thức / Địa điểm</th>
+                                    <th>Nội dung trao đổi</th>
+                                    <th>Kết quả & Kế hoạch tuần tới</th>
+                                    <th>Đánh giá của GVHD</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {meetingLogs.map((log, idx) => (
+                                    <tr key={log.id || idx}>
+                                        <td className="num" style={{ fontWeight: 700, color: 'var(--primary)' }}>#{idx + 1}</td>
+                                        <td>{dayjs(log.meetingDate).format('DD/MM/YYYY')}</td>
+                                        <td>
+                                            <span className="tag teal">{log.location || 'Văn phòng Lab'}</span>
+                                        </td>
+                                        <td style={{ maxWidth: 260 }}>{log.content}</td>
+                                        <td style={{ maxWidth: 260 }}>{log.nextPlan || 'Tiếp tục triển khai theo kế hoạch'}</td>
+                                        <td>
+                                            <span className="status-badge" style={{ background: 'var(--success-soft)', color: 'var(--success)' }}>
+                                                {log.mentorNote || 'Đạt tiến độ'}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
+            )}
 
-                {['DEFENSE_READY', 'DEFENDED', 'COMPLETED'].includes(registration.status) ? (
-                    <Alert
-                        type="success"
-                        showIcon
-                        icon={<CheckCircleOutlined className="text-lg" />}
-                        message={<span className="font-bold text-emerald-800 text-sm">GVHD ĐÃ ĐÁNH GIÁ ĐỒNG Ý CHO RA BẢO VỆ (BM04)</span>}
-                        description={
-                            <div className="space-y-1 mt-1 text-xs text-emerald-700">
-                                <p>Đề tài của bạn đã đủ điều kiện học vụ (DEFENSE_READY) và được chuyển sang Ban Quản Trị Viện để phân công vào Hội đồng bảo vệ tốt nghiệp.</p>
-                                {registration.outlineFeedback && (
-                                    <div className="bg-white/80 p-2.5 rounded border border-emerald-200 mt-2 font-mono whitespace-pre-wrap text-slate-700">
-                                        {registration.outlineFeedback}
-                                    </div>
-                                )}
-                            </div>
-                        }
-                    />
-                ) : ['DROPPED', 'TERMINATED_FAILED_PROGRESS'].includes(registration.status) ? (
-                    <Alert
-                        type="error"
-                        showIcon
-                        icon={<CloseCircleOutlined className="text-lg" />}
-                        message={<span className="font-bold text-rose-800 text-sm">
-                            {registration.status === 'TERMINATED_FAILED_PROGRESS'
-                                ? 'ĐỀ TÀI ĐÃ DỪNG THỰC HIỆN DO KHÔNG ĐẠT TIẾN ĐỘ BM03'
-                                : 'GVHD ĐÁNH GIÁ KHÔNG ĐỒNG Ý CHO RA BẢO VỆ'}
-                        </span>}
-                        description={
-                            <div className="space-y-1 mt-1 text-xs text-rose-700">
-                                <p>
-                                    {registration.status === 'TERMINATED_FAILED_PROGRESS'
-                                        ? 'Đề tài không đạt yêu cầu tại đợt Checkpoint định kỳ BM03 theo quy định đào tạo.'
-                                        : 'Tiến độ hoặc chất lượng đề tài chưa đạt yêu cầu để ra Hội đồng bảo vệ đợt này.'}
-                                </p>
-                                {registration.outlineFeedback && (
-                                    <div className="bg-white/80 p-2.5 rounded border border-rose-200 mt-2 whitespace-pre-wrap text-slate-700">
-                                        {registration.outlineFeedback}
-                                    </div>
-                                )}
-                            </div>
-                        }
-                    />
-                ) : (
-                    <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 text-xs text-slate-600 space-y-1.5">
-                        <div className="font-semibold text-slate-700 flex items-center gap-1.5">
-                            <ClockCircleOutlined className="text-amber-500" />
-                            Đang trong giai đoạn thực hiện đồ án
-                        </div>
-                        <p>
-                            GVHD sẽ tổng hợp minh chứng các buổi gặp gỡ định kỳ ({meetingLogs.length} buổi đã ghi nhận) và kết quả 2 đợt Checkpoint tiến độ BM03 để lập Phiếu nhận xét BM04 chính thức (gồm 4 tiêu chí bắt buộc) trước ngày bảo vệ.
-                        </p>
-                    </div>
-                )}
-            </div>
-
-            {/* Hybrid Form Modal */}
+            {/* Hybrid BM Form Modal */}
             <HybridBMFormModal
-                visible={modalVisible}
-                task={activeTask}
-                registration={registration}
+                open={modalVisible}
                 onClose={() => setModalVisible(false)}
                 onSubmit={handleSubmitForm}
-                submitting={submitting}
+                task={activeTask}
+                loading={submitting}
             />
+
+            {/* Submission Viewer Modal */}
+            <BMSubmissionViewer
+                open={viewerVisible}
+                onClose={() => setViewerVisible(false)}
+                submission={viewerSubmission}
+            />
+
+            <Modal
+                title="Phiếu Nhận Xét BM04 Đã Ký"
+                open={bm04ViewerOpen}
+                onCancel={() => setBm04ViewerOpen(false)}
+                footer={<Button onClick={() => setBm04ViewerOpen(false)}>Đóng</Button>}
+                width={720}
+            >
+                {bm04Evaluation && (
+                    <div style={{ display: 'grid', gap: 12 }}>
+                        <div><strong>GVHD:</strong> {bm04Evaluation.lecturer?.fullName || '-'}</div>
+                        <div><strong>1. Hình thức:</strong> {bm04Evaluation.thesisFormatScore}</div>
+                        <div><strong>2. Nội dung nghiên cứu:</strong> {bm04Evaluation.researchContentScore}</div>
+                        <div><strong>3. Tính ứng dụng:</strong> {bm04Evaluation.applicabilityScore}</div>
+                        <div><strong>4. Thái độ:</strong> {bm04Evaluation.attitudeScore}</div>
+                        <div>
+                            <strong>Kết luận:</strong>{' '}
+                            {bm04Evaluation.conclusion === 'AGREED_FOR_DEFENSE' ? 'Đồng ý cho bảo vệ' : 'Không đồng ý cho bảo vệ'}
+                        </div>
+                        <div><strong>Chữ ký:</strong> {bm04Evaluation.lecturerSignature}</div>
+                        <div><strong>Ngày ký:</strong> {bm04Evaluation.signedAt ? dayjs(bm04Evaluation.signedAt).format('DD/MM/YYYY HH:mm') : '-'}</div>
+                    </div>
+                )}
+            </Modal>
+
+            {/* Checkpoint Sign / Appeal Modal */}
+            {checkpointSignModalOpen && selectedCheckpoint && (
+                <CheckpointSignModal
+                    open={checkpointSignModalOpen}
+                    onClose={() => setCheckpointSignModalOpen(false)}
+                    checkpointEvaluation={selectedCheckpoint}
+                    currentStudentName={currentUser?.fullName || currentUser?.name || ''}
+                    onSuccess={() => {
+                        setCheckpointSignModalOpen(false);
+                        fetchData();
+                    }}
+                />
+            )}
         </div>
     );
 }

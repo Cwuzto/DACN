@@ -1,5 +1,7 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import RouteErrorPage from '../../pages/common/RouteErrorPage';
+import useAuthStore from '../../stores/authStore';
+import { getRoleHomePath, PORTAL_PATH } from '../../utils/authRedirect';
 
 const isMalformedPath = (pathname) => {
     if (!pathname || !pathname.startsWith('/')) return false;
@@ -19,13 +21,15 @@ const isMalformedPath = (pathname) => {
 
 function RouteFallbackHandler() {
     const location = useLocation();
+    const { isAuthenticated, user } = useAuthStore();
     const path = location.pathname;
 
     if (isMalformedPath(path)) {
         return <RouteErrorPage path={path} />;
     }
 
-    return <Navigate to="/login" replace />;
+    const redirectTo = isAuthenticated && user ? getRoleHomePath(user) : PORTAL_PATH;
+    return <Navigate to={redirectTo} replace />;
 }
 
 export default RouteFallbackHandler;

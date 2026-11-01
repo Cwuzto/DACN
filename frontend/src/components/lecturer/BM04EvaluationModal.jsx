@@ -97,7 +97,7 @@ export default function BM04EvaluationModal({
                     onFinish={handleSubmit}
                     requiredMark="optional"
                 >
-                    <Divider orientation="left" className="text-xs text-slate-400 uppercase tracking-wider !my-2">
+                    <Divider orientation="left" className="text-xs text-slate-600 font-bold uppercase tracking-wider !my-2">
                         4 Tiêu Chí Đánh Giá Bắt Buộc
                     </Divider>
 
@@ -145,7 +145,7 @@ export default function BM04EvaluationModal({
                         />
                     </Form.Item>
 
-                    <Divider orientation="left" className="text-xs text-slate-400 uppercase tracking-wider !my-2">
+                    <Divider orientation="left" className="text-xs text-slate-600 font-bold uppercase tracking-wider !my-2">
                         Kết Luận Thẩm Định Trước Bảo Vệ
                     </Divider>
 
@@ -170,7 +170,7 @@ export default function BM04EvaluationModal({
                                 </label>
 
                                 <label className="p-3 border rounded-lg cursor-pointer flex items-center gap-3 hover:bg-rose-50/50 has-[:checked]:border-rose-500 has-[:checked]:bg-rose-50">
-                                    <Radio value="NOT_AGREED" />
+                                    <Radio value="NOT_AGREED_FOR_DEFENSE" />
                                     <div>
                                         <div className="font-bold text-rose-800 flex items-center gap-1">
                                             <CloseCircleOutlined className="text-rose-600" />

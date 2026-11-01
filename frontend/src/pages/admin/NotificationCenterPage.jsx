@@ -29,8 +29,6 @@ import dayjs from 'dayjs';
 
 import notificationService from '../../services/notificationService';
 import councilService from '../../services/councilService';
-import PageHeader from '../../components/common/PageHeader';
-import StatCard from '../../components/common/StatCard';
 
 function NotificationCenterPage() {
     const [history, setHistory] = useState([]);
@@ -208,7 +206,7 @@ function NotificationCenterPage() {
                                 showInfo={false}
                                 size="small"
                                 status={percent >= 80 ? 'success' : 'active'}
-                                strokeColor="#1E3A5F"
+                                strokeColor="#0F766E"
                             />
                         </div>
                     );
@@ -230,64 +228,56 @@ function NotificationCenterPage() {
     const activeTemplatesCount = useMemo(() => templates.filter((t) => t.isActive).length, [templates]);
 
     return (
-        <div className="py-2 space-y-5">
-            <PageHeader
-                breadcrumb={[
-                    { label: 'Quản trị hệ thống' },
-                    { label: 'Truyền thông & Thông báo' },
-                    { label: 'Trung tâm Gửi thông báo' },
-                ]}
-                title="Trung tâm Gửi thông báo (Broadcast)"
-                subtitle="Gửi thông báo broadcast tức thì qua hệ thống và email, theo dõi tỉ lệ đọc và cấu hình các mẫu thông báo sự kiện tự động."
-                tags={[{ label: 'Broadcast & Automation', color: 'blue' }]}
-                actions={
-                    <Space>
-                        <Button
-                            icon={<ReloadOutlined />}
-                            onClick={() => {
-                                fetchHistory();
-                                fetchTemplates();
-                            }}
-                        >
-                            Làm mới
-                        </Button>
-                        <Button
-                            type="primary"
-                            icon={<SendOutlined />}
-                            onClick={() => {
-                                setIsSendModalOpen(true);
-                                form.resetFields();
-                            }}
-                        >
-                            Soạn thông báo mới
-                        </Button>
-                    </Space>
-                }
-            />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {/* Page Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 4, flexWrap: 'wrap', gap: 12 }}>
+                <div>
+                    <p className="eyebrow">BROADCAST & AUTOMATED NOTIFICATIONS</p>
+                    <h1 className="h1">Trung tâm Gửi Thông báo & Mẫu Sự kiện</h1>
+                </div>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    <button
+                        className="btn btn-secondary"
+                        onClick={() => {
+                            fetchHistory();
+                            fetchTemplates();
+                        }}
+                    >
+                        <ReloadOutlined />
+                        <span>Làm mới</span>
+                    </button>
+                    <button
+                        className="btn btn-primary"
+                        onClick={() => {
+                            setIsSendModalOpen(true);
+                            form.resetFields();
+                        }}
+                    >
+                        <SendOutlined />
+                        <span>+ Soạn thông báo mới</span>
+                    </button>
+                </div>
+            </div>
 
-            {/* 3 StatCards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <StatCard
-                    icon="send"
-                    iconBg="bg-teal-50"
-                    iconColor="text-teal-700"
-                    label="Tổng số lần gửi broadcast"
-                    value={history.length}
-                />
-                <StatCard
-                    icon="mark_email_read"
-                    iconBg="bg-emerald-50"
-                    iconColor="text-emerald-700"
-                    label="Tỉ lệ đã đọc trung bình"
-                    value={`${averageReadRate}%`}
-                />
-                <StatCard
-                    icon="auto_mode"
-                    iconBg="bg-indigo-50"
-                    iconColor="text-indigo-700"
-                    label="Template tự động kích hoạt"
-                    value={`${activeTemplatesCount} / ${templates.length}`}
-                />
+            {/* 3 KPI Cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+                <div className="card" style={{ padding: '14px 18px' }}>
+                    <span className="meta">Tổng lượt gửi broadcast</span>
+                    <p className="h2 num" style={{ marginTop: 2 }}>{history.length}</p>
+                    <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--muted)' }}>Lịch sử tin nhắn toàn trường</div>
+                </div>
+                <div className="card" style={{ padding: '14px 18px' }}>
+                    <span className="meta">Tỉ lệ đã đọc trung bình</span>
+                    <p className="h2 num" style={{ marginTop: 2, color: 'var(--accent)' }}>{averageReadRate}%</p>
+                    <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--accent)' }}>Hiệu quả tiếp cận thông tin</div>
+                </div>
+                <div className="card" style={{ padding: '14px 18px' }}>
+                    <span className="meta">Mẫu tự động (Active)</span>
+                    <p className="h2 num" style={{ marginTop: 2, color: 'var(--success)' }}>
+                        {activeTemplatesCount} / {templates.length}
+                    </p>
+                    <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--success)' }}>Đang tự kích hoạt theo sự kiện</div>
+                </div>
             </div>
 
             {/* Main Content Tabs Card */}

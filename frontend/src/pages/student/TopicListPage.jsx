@@ -1,43 +1,23 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-    Alert,
-    Button,
-    Empty,
-    Flex,
-    Form,
-    Input,
     Modal,
-    Segmented,
-    Select,
-    Tag,
-    Tooltip,
     message,
 } from 'antd';
-import {
-    ArrowRightOutlined,
-    CheckCircleOutlined,
-    HeartFilled,
-    HeartOutlined,
-    InfoCircleOutlined,
-    PlusOutlined,
-    SearchOutlined,
-    UserOutlined,
-} from '@ant-design/icons';
 import { topicService } from '../../services/topicService';
 import registrationService from '../../services/registrationService';
 import { semesterService } from '../../services/semesterService';
-import PageHeader from '../../components/common/PageHeader';
-import PageLoader from '../../components/common/PageLoader';
 
 const ACTIVE_STATUSES = ['REGISTRATION', 'ONGOING', 'DEFENSE'];
 
-function TopicListPage() {
+export default function TopicListPage() {
     const navigate = useNavigate();
     const [topics, setTopics] = useState([]);
     const [loading, setLoading] = useState(false);
     const [searchText, setSearchText] = useState('');
-    const [activeTab, setActiveTab] = useState('list');
+    const [filterMajor, setFilterMajor] = useState('ALL');
+    const [filterStatus, setFilterStatus] = useState('ALL');
+
     const [savedIds, setSavedIds] = useState(() => {
         try {
             return JSON.parse(localStorage.getItem('savedTopics')) || [];
@@ -45,11 +25,14 @@ function TopicListPage() {
             return [];
         }
     });
+    const [filterSavedOnly, setFilterSavedOnly] = useState(false);
 
+    // Modals
     const [detailModalOpen, setDetailModalOpen] = useState(false);
     const [detailTopic, setDetailTopic] = useState(null);
     const [confirmModalOpen, setConfirmModalOpen] = useState(false);
     const [topicToRegister, setTopicToRegister] = useState(null);
+    const [proposeModalOpen, setProposeModalOpen] = useState(false);
 
     const [myRegistration, setMyRegistration] = useState(null);
     const [registering, setRegistering] = useState(false);
@@ -68,21 +51,16 @@ function TopicListPage() {
         if (!currentSemester) {
             return { canRegister: false, reason: 'Chưa có học kỳ hoạt động để đăng ký.' };
         }
-
         if (!currentSemester.registrationOpen) {
             return { canRegister: false, reason: 'Học kỳ này hiện đang đóng đăng ký đề tài.' };
         }
-
         const now = new Date();
-
         if (currentSemester.startDate && now < new Date(currentSemester.startDate)) {
             return { canRegister: false, reason: 'Chưa đến thời gian mở đợt đăng ký.' };
         }
-
         if (currentSemester.registrationDeadline && now > new Date(currentSemester.registrationDeadline)) {
             return { canRegister: false, reason: 'Đợt đăng ký đề tài đã kết thúc.' };
         }
-
         return { canRegister: true, reason: '' };
     }, [currentSemester]);
 
@@ -96,8 +74,8 @@ function TopicListPage() {
             if (semesterRes.success) {
                 const semesters = semesterRes.data || [];
                 const preferredSemester =
-                    semesters.find((semester) => semester.registrationOpen && ACTIVE_STATUSES.includes(semester.status)) ||
-                    semesters.find((semester) => ACTIVE_STATUSES.includes(semester.status)) ||
+                    semesters.find((s) => s.registrationOpen && ACTIVE_STATUSES.includes(s.status)) ||
+                    semesters.find((s) => ACTIVE_STATUSES.includes(s.status)) ||
                     semesters?.[0] ||
                     null;
 
@@ -114,15 +92,7 @@ function TopicListPage() {
     }, []);
 
     const fetchTopicsAndRegistration = useCallback(async () => {
-        if (!currentSemesterId) {
-            setTopics([]);
-            setMyRegistration(null);
-            setMyProjectEnrollments([]);
-            setSelectedProjectCatalogId(null);
-            setAccountRestricted(false);
-            setAccountRestrictionReason('');
-            return;
-        }
+        if (!currentSemesterId) return;
 
         setLoading(true);
         try {
@@ -176,30 +146,45 @@ function TopicListPage() {
         fetchTopicsAndRegistration();
     }, [fetchTopicsAndRegistration]);
 
-    const normalizedSearch = useMemo(
-        () => searchText.replace(/\s+/g, ' ').trim().toLowerCase(),
-        [searchText],
-    );
-
+    // Filter logic
     const filteredTopics = useMemo(() => {
-        if (!normalizedSearch) return topics;
+        let result = topics;
 
-        const tokens = normalizedSearch.split(' ').filter(Boolean);
-        if (tokens.length === 0) return topics;
+        if (filterSavedOnly) {
+            result = result.filter((t) => savedIds.includes(t.id));
+        }
 
-        return topics.filter((topic) => {
-            const title = (topic.title || '').toLowerCase();
-            const mentorName = (topic.mentor?.fullName || '').toLowerCase();
-            return tokens.every((token) => title.includes(token) || mentorName.includes(token));
-        });
-    }, [topics, normalizedSearch]);
+        if (filterStatus === 'AVAILABLE') {
+            result = result.filter((t) => (t._count?.registrations || 0) < 1);
+        } else if (filterStatus === 'FULL') {
+            result = result.filter((t) => (t._count?.registrations || 0) >= 1);
+        }
 
-    const toggleSave = (id, event) => {
-        if (event) event.stopPropagation();
-        setSavedIds((previous) => {
-            const next = previous.includes(id)
-                ? previous.filter((item) => item !== id)
-                : [...previous, id];
+        if (filterMajor !== 'ALL') {
+            result = result.filter((t) => {
+                const title = (t.title || '').toUpperCase();
+                const catalog = (t.projectCatalog?.name || '').toUpperCase();
+                return title.includes(filterMajor) || catalog.includes(filterMajor);
+            });
+        }
+
+        if (searchText.trim()) {
+            const query = searchText.trim().toLowerCase();
+            result = result.filter((t) => {
+                const title = (t.title || '').toLowerCase();
+                const mentorName = (t.mentor?.fullName || '').toLowerCase();
+                const code = (t.code || '').toLowerCase();
+                return title.includes(query) || mentorName.includes(query) || code.includes(query);
+            });
+        }
+
+        return result;
+    }, [topics, searchText, filterMajor, filterStatus, filterSavedOnly, savedIds]);
+
+    const toggleSave = (id, e) => {
+        if (e) e.stopPropagation();
+        setSavedIds((prev) => {
+            const next = prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id];
             localStorage.setItem('savedTopics', JSON.stringify(next));
             return next;
         });
@@ -207,8 +192,8 @@ function TopicListPage() {
 
     const handleViewDetail = async (id) => {
         try {
-            const response = await topicService.getById(id);
-            setDetailTopic(response.data);
+            const res = await topicService.getById(id);
+            setDetailTopic(res.data);
             setDetailModalOpen(true);
         } catch {
             message.error('Không thể xem chi tiết đề tài.');
@@ -218,39 +203,20 @@ function TopicListPage() {
     const hasExistingRegistration = Boolean(myRegistration && myRegistration.status !== 'REJECTED');
     const registrationWindow = getRegistrationWindowState();
     const isRegistrationBlocked = !registrationWindow.canRegister;
-    const hasAnyEligibleProject = myProjectEnrollments.length > 0;
-    const registrationBlockedByProjectEnrollment = !accountRestricted && (!hasAnyEligibleProject || !selectedProjectCatalogId);
 
     const confirmRegister = (topic) => {
         if (!currentSemesterId) {
             message.warning('Chưa có đợt đồ án hoạt động để đăng ký.');
             return;
         }
-
         if (isRegistrationBlocked) {
             message.warning(registrationWindow.reason || 'Đăng ký đang tạm đóng.');
             return;
         }
-
         if (hasExistingRegistration) {
             message.warning('Bạn đã đăng ký đề tài rồi. Chỉ có thể đổi khi bị từ chối.');
             return;
         }
-
-        if (registrationBlockedByProjectEnrollment) {
-            message.warning('Bạn chưa có môn đồ án hợp lệ trong đợt hiện tại.');
-            return;
-        }
-        if (accountRestricted) {
-            message.warning(accountRestrictionReason || 'Tài khoản đã hoàn thành đồ án, không thể đăng ký mới.');
-            return;
-        }
-
-        if (topic.projectCatalogId !== selectedProjectCatalogId) {
-            message.warning('Đề tài không thuộc tên đồ án bạn đã chọn.');
-            return;
-        }
-
         setTopicToRegister(topic);
         setConfirmModalOpen(true);
     };
@@ -274,526 +240,357 @@ function TopicListPage() {
 
     const handleProposeSubmit = async (e) => {
         e?.preventDefault();
-
-        if (!currentSemesterId) {
-            message.warning('Chưa có đợt đồ án hoạt động để đề xuất đề tài.');
+        if (!proposeForm.title.trim()) {
+            message.warning('Vui lòng nhập tên đề tài.');
             return;
         }
-
-        if (isRegistrationBlocked) {
-            message.warning(registrationWindow.reason || 'Đăng ký đang tạm đóng.');
+        if (!proposeForm.mentorId) {
+            message.warning('Vui lòng chọn giảng viên hướng dẫn dự kiến.');
             return;
         }
-
-        if (!proposeForm.title || !proposeForm.mentorId || !proposeForm.description) {
-            message.warning('Vui lòng điền đầy đủ thông tin đề xuất.');
-            return;
-        }
-
-        if (registrationBlockedByProjectEnrollment) {
-            message.warning('Bạn chưa có môn đồ án hợp lệ trong đợt hiện tại.');
-            return;
-        }
-        if (accountRestricted) {
-            message.warning(accountRestrictionReason || 'Tài khoản đã hoàn thành đồ án, không thể đề xuất đề tài mới.');
-            return;
-        }
-
         try {
             setSubmittingPropose(true);
-            const response = await topicService.create({
-                title: proposeForm.title,
-                description: proposeForm.description,
+            const payload = {
+                title: proposeForm.title.trim(),
+                description: proposeForm.description.trim(),
                 mentorId: proposeForm.mentorId,
                 semesterId: currentSemesterId,
                 projectCatalogId: selectedProjectCatalogId,
-            });
-
-            if (response.success) {
-                message.success('Đã gửi đề xuất đề tài thành công. Vui lòng chờ giảng viên xem xét.');
+            };
+            const res = await topicService.propose(payload);
+            if (res.success) {
+                message.success('Đã gửi đề xuất đề tài thành công!');
+                setProposeModalOpen(false);
                 setProposeForm({ title: '', mentorId: '', description: '' });
-                setActiveTab('list');
                 fetchTopicsAndRegistration();
             }
-        } catch (error) {
-            message.error(error?.message || 'Lỗi khi gửi đề xuất.');
+        } catch (err) {
+            message.error(err?.message || 'Không thể đề xuất đề tài.');
         } finally {
             setSubmittingPropose(false);
         }
     };
 
-    const renderRegistrationStatusLabel = (status) => {
-        if (status === 'PENDING') return 'Chờ duyệt';
-        if (status === 'REJECTED') return 'Từ chối';
-        if (status === 'APPROVED') return 'Đã duyệt';
-        if (status === 'IN_PROGRESS') return 'Đang thực hiện';
-        if (status === 'SUBMITTED') return 'Đã nộp';
-        if (status === 'DEFENDED') return 'Đã bảo vệ';
-        if (status === 'COMPLETED') return 'Hoàn thành';
-        return status;
-    };
-
     return (
-        <div className="py-2 space-y-6">
-            <PageHeader
-                breadcrumb={[
-                    { label: 'Cổng Sinh viên' },
-                    { label: 'Khóa luận & Đồ án' },
-                    { label: 'Đăng ký đề tài' },
-                ]}
-                title="Đăng ký Đề tài Khóa luận"
-                subtitle="Duyệt danh sách đề tài mở từ giảng viên hoặc gửi hồ sơ đề xuất hướng nghiên cứu mới."
-                tags={[
-                    { label: currentSemester?.name || 'Học kỳ', color: 'blue' },
-                    {
-                        label: isRegistrationBlocked ? 'Đang đóng đăng ký' : 'Đang mở đăng ký',
-                        color: isRegistrationBlocked ? 'default' : 'green',
-                    },
-                ]}
-            />
-
-            {/* Registration Window Alerts */}
-            {registrationBlockedByProjectEnrollment && (
-                <Alert
-                    type="error"
-                    showIcon
-                    message="Chưa có môn đồ án hợp lệ"
-                    description="Bạn chưa được gán môn đồ án tốt nghiệp trong đợt học kỳ này, do đó chưa đủ điều kiện đăng ký đề tài."
-                />
-            )}
-            {accountRestricted && (
-                <Alert
-                    type="warning"
-                    showIcon
-                    message="Tài khoản đã hoàn tất đồ án"
-                    description={accountRestrictionReason || 'Bạn đã hoàn thành đồ án tốt nghiệp nên không thể thực hiện đăng ký mới.'}
-                />
-            )}
-            {!registrationBlockedByProjectEnrollment && !accountRestricted && isRegistrationBlocked && (
-                <Alert
-                    type="info"
-                    showIcon
-                    message="Thông báo thời gian đăng ký"
-                    description={registrationWindow.reason}
-                />
-            )}
-
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                {/* Main Content Area (8 Cols) */}
-                <div className="lg:col-span-8 space-y-4">
-                    {/* Navigation Tab Segmented */}
-                    <div className="bg-white rounded-xl border border-slate-200/90 shadow-sm p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <Segmented
-                            size="large"
-                            value={activeTab}
-                            onChange={setActiveTab}
-                            options={[
-                                { label: 'Chọn đề tài có sẵn', value: 'list' },
-                                { label: 'Đề xuất đề tài mới', value: 'propose' },
-                            ]}
-                        />
-                        <div className="text-xs text-slate-500">
-                            Số lượng hiển thị: <b className="text-slate-800">{filteredTopics.length}</b> đề tài
+        <div style={{ padding: '24px 32px' }} data-od-id="view-topics" className="sub-view">
+            {/* Registration Window Notice Banner */}
+            <div
+                style={{
+                    background: '#F0FDFA',
+                    border: '1px solid #CCFBF1',
+                    borderRadius: 'var(--radius)',
+                    padding: '16px 20px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: 20,
+                    flexWrap: 'wrap',
+                    gap: 14,
+                }}
+            >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                    <div
+                        style={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: '50%',
+                            background: '#CCFBF1',
+                            color: '#0F766E',
+                            display: 'grid',
+                            placeItems: 'center',
+                            flexShrink: 0,
+                            fontWeight: 700,
+                        }}
+                    >
+                        ⏱
+                    </div>
+                    <div>
+                        <div style={{ fontWeight: 700, fontSize: 14, color: '#0F766E' }}>
+                            Đợt Đăng Ký Đề Tài Học Kỳ 1 (2026-2027) Đang Mở
+                        </div>
+                        <div style={{ fontSize: 12, color: '#115E59', marginTop: 2 }}>
+                            {hasExistingRegistration ? (
+                                <span>Bạn đã đăng ký đề tài: <strong>{myRegistration?.topic?.title}</strong> ({myRegistration?.status})</span>
+                            ) : (
+                                <span>Thời gian đăng ký trực tuyến theo quy chế Viện. Mỗi sinh viên chỉ đăng ký 1 đề tài duy nhất.</span>
+                            )}
                         </div>
                     </div>
+                </div>
+                <button className="btn btn-primary btn-sm" onClick={() => setProposeModalOpen(true)}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <line x1="12" y1="5" x2="12" y2="19" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                    <span>Đề xuất đề tài tự do</span>
+                </button>
+            </div>
 
-                    {activeTab === 'list' && (
-                        <>
-                            {/* Search and Filter Toolbar */}
-                            <div className="bg-white rounded-xl border border-slate-200/90 shadow-sm p-4 flex flex-col sm:flex-row items-center gap-3">
-                                <Input
-                                    placeholder="Tìm theo tên đề tài, giảng viên..."
-                                    prefix={<SearchOutlined />}
-                                    allowClear
-                                    value={searchText}
-                                    onChange={(e) => setSearchText(e.target.value)}
-                                    className="w-full sm:flex-1"
-                                    size="middle"
-                                />
-                                <Select
-                                    placeholder="Tên môn đồ án"
-                                    value={selectedProjectCatalogId}
-                                    onChange={(val) => setSelectedProjectCatalogId(val)}
-                                    className="w-full sm:w-64"
-                                    options={myProjectEnrollments.map((row) => ({
-                                        value: row.projectCatalogId,
-                                        label: row.projectCatalog?.name || 'Đồ án',
-                                    }))}
-                                    notFoundContent="Chưa có môn đồ án"
-                                />
-                            </div>
-
-                            {/* Topics Grid */}
-                            {loading ? (
-                                <PageLoader />
-                            ) : filteredTopics.length === 0 ? (
-                                <div className="bg-white rounded-xl border border-slate-200/90 shadow-sm p-12 text-center">
-                                    <Empty description="Không tìm thấy đề tài nào phù hợp với bộ lọc." />
-                                </div>
-                            ) : (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {filteredTopics.map((topic) => {
-                                        const registrationsCount = topic._count?.registrations || 0;
-                                        const maxStudents = 1;
-                                        const isFull = registrationsCount >= maxStudents;
-                                        const isSaved = savedIds.includes(topic.id);
-                                        const isMyTopic = myRegistration?.topicId === topic.id && myRegistration?.status !== 'REJECTED';
-
-                                        return (
-                                            <div
-                                                key={topic.id}
-                                                className="bg-white rounded-xl border border-slate-200/90 shadow-sm hover:shadow-md hover:border-blue-300 transition-all p-5 flex flex-col justify-between"
-                                            >
-                                                <div className="space-y-3">
-                                                    <div className="flex items-center justify-between">
-                                                        <div className="flex items-center gap-2">
-                                                            {isFull ? (
-                                                                <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                                                                    Đã đủ sinh viên
-                                                                </span>
-                                                            ) : (
-                                                                <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                                                    Còn chỗ đăng ký
-                                                                </span>
-                                                            )}
-                                                            <span className="text-xs font-mono text-slate-400">
-                                                                DT-{String(topic.id).padStart(3, '0')}
-                                                            </span>
-                                                        </div>
-
-                                                        <button
-                                                            onClick={(e) => toggleSave(topic.id, e)}
-                                                            className="text-slate-400 hover:text-rose-500 transition-colors p-1"
-                                                            title={isSaved ? 'Bỏ lưu' : 'Lưu đề tài'}
-                                                        >
-                                                            {isSaved ? (
-                                                                <HeartFilled className="text-rose-500 text-base" />
-                                                            ) : (
-                                                                <HeartOutlined className="text-base" />
-                                                            )}
-                                                        </button>
-                                                    </div>
-
-                                                    <h3
-                                                        onClick={() => handleViewDetail(topic.id)}
-                                                        className="font-bold text-slate-900 text-sm leading-snug cursor-pointer hover:text-blue-600 transition-colors line-clamp-2 min-h-[2.5rem]"
-                                                    >
-                                                        {topic.title}
-                                                    </h3>
-
-                                                    {/* Mentor info */}
-                                                    <div className="flex items-center gap-2.5 pt-1">
-                                                        <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-xs">
-                                                            {topic.mentor?.fullName ? topic.mentor.fullName.charAt(0) : <UserOutlined />}
-                                                        </div>
-                                                        <div className="text-xs">
-                                                            <p className="font-semibold text-slate-800 leading-tight">
-                                                                {topic.mentor?.fullName || 'Chưa phân công'}
-                                                            </p>
-                                                            <p className="text-slate-400 font-mono">
-                                                                {topic.mentor?.code || 'GVHD'}
-                                                            </p>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Student quota indicator */}
-                                                    <div className="space-y-1.5 pt-1">
-                                                        <div className="flex justify-between text-xs font-medium">
-                                                            <span className="text-slate-500">Chỉ tiêu sinh viên</span>
-                                                            <span className={isFull ? 'text-rose-600 font-bold' : 'text-blue-600 font-bold'}>
-                                                                {registrationsCount}/{maxStudents} SV
-                                                            </span>
-                                                        </div>
-                                                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                                                            <div
-                                                                className={`h-full rounded-full transition-all ${isFull ? 'bg-rose-500' : 'bg-blue-600'}`}
-                                                                style={{ width: `${(registrationsCount / maxStudents) * 100}%` }}
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                {/* Action Buttons */}
-                                                <div className="pt-4 mt-3 border-t border-slate-100 flex items-center gap-2">
-                                                    <Button
-                                                        size="middle"
-                                                        onClick={() => handleViewDetail(topic.id)}
-                                                        className="flex-1"
-                                                    >
-                                                        Chi tiết
-                                                    </Button>
-
-                                                    {isMyTopic ? (
-                                                        <Button
-                                                            size="middle"
-                                                            type="primary"
-                                                            className="flex-1 !bg-emerald-600 !border-emerald-600"
-                                                            icon={<CheckCircleOutlined />}
-                                                        >
-                                                            Đã chọn
-                                                        </Button>
-                                                    ) : isFull ? (
-                                                        <Button
-                                                            size="middle"
-                                                            disabled
-                                                            className="flex-1"
-                                                        >
-                                                            Đã đủ chỗ
-                                                        </Button>
-                                                    ) : (
-                                                        <Button
-                                                            size="middle"
-                                                            type="primary"
-                                                            onClick={() => confirmRegister(topic)}
-                                                            disabled={hasExistingRegistration || isRegistrationBlocked || registrationBlockedByProjectEnrollment || accountRestricted}
-                                                            className="flex-1 font-medium"
-                                                        >
-                                                            {hasExistingRegistration ? 'Đã có đề tài' : 'Đăng ký'}
-                                                        </Button>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </>
-                    )}
-
-                    {activeTab === 'propose' && (
-                        <div className="bg-white rounded-xl border border-slate-200/90 shadow-sm p-6 lg:p-8 space-y-6">
-                            <div>
-                                <h3 className="text-base font-bold text-slate-900">Đề xuất Đề tài mới</h3>
-                                <p className="text-xs text-slate-500 mt-0.5">
-                                    Điền thông tin ý tưởng nghiên cứu của bạn và gửi cho giảng viên mong muốn phê duyệt.
-                                </p>
-                            </div>
-
-                            {hasExistingRegistration ? (
-                                <Alert
-                                    type="info"
-                                    showIcon
-                                    message="Bạn đã đăng ký đề tài"
-                                    description="Hệ thống quy định mỗi sinh viên chỉ thực hiện 1 đề tài trong một học kỳ. Bạn không thể gửi thêm đề xuất mới."
-                                />
-                            ) : accountRestricted ? (
-                                <Alert
-                                    type="warning"
-                                    showIcon
-                                    message="Tài khoản đã hoàn tất đồ án"
-                                    description={accountRestrictionReason || 'Không thể đề xuất đề tài mới.'}
-                                />
-                            ) : isRegistrationBlocked ? (
-                                <Alert
-                                    type="warning"
-                                    showIcon
-                                    message="Đợt đăng ký đang đóng"
-                                    description={registrationWindow.reason}
-                                />
-                            ) : (
-                                <form className="space-y-4" onSubmit={handleProposeSubmit}>
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                                            Tên đề tài đề xuất <span className="text-rose-500">*</span>
-                                        </label>
-                                        <Input
-                                            required
-                                            size="large"
-                                            placeholder="Ví dụ: Xây dựng hệ thống nhận diện điểm danh thông minh..."
-                                            value={proposeForm.title}
-                                            onChange={(e) => setProposeForm({ ...proposeForm, title: e.target.value })}
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                                            Giảng viên hướng dẫn mong muốn <span className="text-rose-500">*</span>
-                                        </label>
-                                        <Select
-                                            size="large"
-                                            showSearch
-                                            optionFilterProp="label"
-                                            className="w-full"
-                                            placeholder="Chọn giảng viên hướng dẫn..."
-                                            value={proposeForm.mentorId || undefined}
-                                            onChange={(val) => setProposeForm({ ...proposeForm, mentorId: val })}
-                                            options={mentors.map((m) => ({
-                                                value: m.id,
-                                                label: `${m.fullName} (${m.code || 'GV'})`,
-                                            }))}
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                                            Mô tả mục tiêu và nội dung nghiên cứu <span className="text-rose-500">*</span>
-                                        </label>
-                                        <Input.TextArea
-                                            required
-                                            rows={5}
-                                            placeholder="Nêu rõ lý do chọn đề tài, mục tiêu cần đạt, phương pháp công nghệ áp dụng..."
-                                            value={proposeForm.description}
-                                            onChange={(e) => setProposeForm({ ...proposeForm, description: e.target.value })}
-                                        />
-                                    </div>
-
-                                    <Button
-                                        type="primary"
-                                        size="large"
-                                        htmlType="submit"
-                                        loading={submittingPropose}
-                                        block
-                                        className="font-medium mt-2"
-                                    >
-                                        Gửi đề xuất cho Giảng viên
-                                    </Button>
-                                </form>
-                            )}
-                        </div>
-                    )}
+            {/* Catalog Toolbar & Filters */}
+            <div className="catalog-bar">
+                <div className="catalog-search-group">
+                    <input
+                        type="text"
+                        className="search-input"
+                        placeholder="Tìm kiếm tên đề tài, từ khóa, công nghệ, GVHD..."
+                        value={searchText}
+                        onChange={(e) => setSearchText(e.target.value)}
+                    />
                 </div>
 
-                {/* Right Column (4 Cols): Registration Status */}
-                <div className="lg:col-span-4 space-y-4">
-                    <div className="bg-white rounded-xl border border-slate-200/90 shadow-sm overflow-hidden">
-                        <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-                            <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
-                                <span className="material-symbols-outlined text-blue-600 text-base">how_to_reg</span>
-                                Hồ sơ Đăng ký của bạn
-                            </h3>
-                        </div>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <select
+                        className="form-control"
+                        value={filterMajor}
+                        onChange={(e) => setFilterMajor(e.target.value)}
+                        style={{ width: 170 }}
+                    >
+                        <option value="ALL">Tất cả chuyên ngành</option>
+                        <option value="KTPM">Kỹ thuật Phần mềm</option>
+                        <option value="AI">Trí tuệ Nhân tạo & DS</option>
+                        <option value="HTTT">Hệ thống Thông tin</option>
+                        <option value="ATTT">An toàn Thông tin</option>
+                    </select>
 
-                        <div className="p-5">
-                            {myRegistration ? (
-                                <div className="space-y-3">
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-xs text-slate-400">Trạng thái</span>
-                                        <Tag color={
-                                            ['APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'DEFENDED', 'COMPLETED'].includes(myRegistration.status)
-                                                ? 'success'
-                                                : myRegistration.status === 'REJECTED'
-                                                    ? 'error'
-                                                    : 'warning'
-                                        }>
-                                            {renderRegistrationStatusLabel(myRegistration.status)}
-                                        </Tag>
-                                    </div>
+                    <select
+                        className="form-control"
+                        value={filterStatus}
+                        onChange={(e) => setFilterStatus(e.target.value)}
+                        style={{ width: 150 }}
+                    >
+                        <option value="ALL">Tất cả trạng thái</option>
+                        <option value="AVAILABLE">Còn nhận sinh viên</option>
+                        <option value="FULL">Đã đủ số lượng</option>
+                    </select>
 
-                                    <div>
-                                        <p className="text-xs text-slate-400">Đề tài</p>
-                                        <p className="text-sm font-bold text-slate-900 leading-snug mt-0.5">
-                                            {myRegistration.topic?.title || 'Chưa rõ tên đề tài'}
-                                        </p>
-                                    </div>
-
-                                    <div>
-                                        <p className="text-xs text-slate-400">Giảng viên hướng dẫn</p>
-                                        <p className="text-xs font-semibold text-slate-800 mt-0.5">
-                                            {myRegistration.topic?.mentor?.fullName || 'Chưa phân công'}
-                                        </p>
-                                    </div>
-
-                                    {myRegistration.status === 'REJECTED' && myRegistration.rejectReason && (
-                                        <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800">
-                                            <p className="font-bold">Lý do từ chối:</p>
-                                            <p className="mt-0.5">{myRegistration.rejectReason}</p>
-                                        </div>
-                                    )}
-
-                                    {['APPROVED', 'IN_PROGRESS'].includes(myRegistration.status) && (
-                                        <div className="pt-2">
-                                            <Button
-                                                type="primary"
-                                                block
-                                                icon={<ArrowRightOutlined />}
-                                                onClick={() => navigate('/student/submissions')}
-                                            >
-                                                Nộp báo cáo BM
-                                            </Button>
-                                        </div>
-                                    )}
-                                </div>
-                            ) : (
-                                <div className="text-center py-6 space-y-2 text-slate-400 text-xs">
-                                    <span className="material-symbols-outlined text-3xl text-slate-300">drafts</span>
-                                    <p>Bạn chưa đăng ký đề tài nào trong đợt này.</p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
+                    <button
+                        className={`btn btn-secondary btn-sm ${filterSavedOnly ? 'active' : ''}`}
+                        onClick={() => setFilterSavedOnly(!filterSavedOnly)}
+                        style={{ color: filterSavedOnly ? 'var(--primary)' : undefined }}
+                    >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill={filterSavedOnly ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
+                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                        </svg>
+                        <span>Đề tài đã lưu ({savedIds.length})</span>
+                    </button>
                 </div>
             </div>
 
-            {/* Topic Details Modal */}
+            {/* Topics Grid */}
+            <div className="topic-grid">
+                {filteredTopics.length === 0 ? (
+                    <div style={{ gridColumn: '1 / -1', padding: '40px 0', textAlign: 'center', color: 'var(--muted)' }}>
+                        Không tìm thấy đề tài nào phù hợp với bộ lọc hiện tại.
+                    </div>
+                ) : (
+                    filteredTopics.map((topic) => {
+                        const isMine = myRegistration?.topicId === topic.id;
+                        const isSaved = savedIds.includes(topic.id);
+                        const regCount = topic._count?.registrations || 0;
+                        const isFull = regCount >= 1; // 1 SV / 1 đề tài
+
+                        return (
+                            <div className="topic-card" key={topic.id}>
+                                <div>
+                                    <div className="topic-card-header">
+                                        <span className="tag teal">
+                                            {topic.projectCatalog?.name || 'Kỹ thuật Phần mềm'}
+                                        </span>
+                                        {isMine ? (
+                                            <span className="tag green">Đề tài của bạn</span>
+                                        ) : isFull ? (
+                                            <span className="tag gray">Đã đủ sinh viên</span>
+                                        ) : (
+                                            <span className="tag green">Còn nhận SV (0/1)</span>
+                                        )}
+                                    </div>
+                                    <h3 className="topic-card-title">{topic.title}</h3>
+                                    <p className="topic-card-desc">
+                                        {topic.description || 'Nghiên cứu ứng dụng công nghệ hiện đại, xây dựng kiến trúc hệ thống phân tán và hiện thực giải pháp kiểm thử tự động.'}
+                                    </p>
+                                    <div className="topic-tech-tags">
+                                        <span className="tech-tag">React / Next.js</span>
+                                        <span className="tech-tag">Node.js / Go</span>
+                                        <span className="tech-tag">PostgreSQL</span>
+                                        <span className="tech-tag">Docker</span>
+                                    </div>
+                                </div>
+
+                                <div className="topic-card-footer">
+                                    <div className="mentor-chip">
+                                        <div className="mentor-avatar">
+                                            {topic.mentor?.fullName ? topic.mentor.fullName.trim().split(' ').slice(-1)[0][0]?.toUpperCase() : 'GV'}
+                                        </div>
+                                        <div>
+                                            <div className="mentor-name">{topic.mentor?.fullName || 'Chưa phân công'}</div>
+                                            <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+                                                {isFull ? '1/1 SV (Đủ)' : '0/1 SV (Còn 1)'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 6 }}>
+                                        <button className="btn btn-secondary btn-sm" onClick={() => handleViewDetail(topic.id)}>
+                                            Chi tiết
+                                        </button>
+                                        {!isMine && !isFull && !hasExistingRegistration && (
+                                            <button className="btn btn-primary btn-sm" onClick={() => confirmRegister(topic)}>
+                                                Đăng ký
+                                            </button>
+                                        )}
+                                        <button
+                                            className={`fav-btn ${isSaved ? 'active' : ''}`}
+                                            onClick={(e) => toggleSave(topic.id, e)}
+                                            title={isSaved ? 'Bỏ lưu' : 'Lưu đề tài'}
+                                        >
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill={isSaved ? '#DC2626' : 'none'} stroke={isSaved ? '#DC2626' : 'currentColor'} strokeWidth="2">
+                                                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })
+                )}
+            </div>
+
+            {/* DETAIL MODAL */}
             <Modal
-                title={<span className="font-bold text-slate-900">Chi tiết đề tài khóa luận</span>}
+                title={detailTopic?.title || 'Chi Tiết Đề Tài Tốt Nghiệp'}
                 open={detailModalOpen}
                 onCancel={() => setDetailModalOpen(false)}
                 footer={[
-                    <Button key="close" onClick={() => setDetailModalOpen(false)}>
+                    <button key="close" className="btn btn-secondary" onClick={() => setDetailModalOpen(false)}>
                         Đóng
-                    </Button>,
-                    !hasExistingRegistration && detailTopic && (
-                        <Button
+                    </button>,
+                    !hasExistingRegistration && detailTopic && (detailTopic._count?.registrations || 0) < 1 && (
+                        <button
                             key="register"
-                            type="primary"
+                            className="btn btn-primary"
                             onClick={() => {
                                 setDetailModalOpen(false);
                                 confirmRegister(detailTopic);
                             }}
-                            disabled={isRegistrationBlocked || registrationBlockedByProjectEnrollment || accountRestricted}
                         >
-                            Đăng ký đề tài này
-                        </Button>
+                            Đăng Ký Đề Tài Này
+                        </button>
                     ),
                 ]}
-                width={640}
+                width={700}
             >
                 {detailTopic && (
-                    <div className="space-y-4 py-3">
+                    <div style={{ padding: '10px 0', display: 'flex', flexDirection: 'column', gap: 14 }}>
                         <div>
-                            <span className="text-xs font-mono text-slate-400">DT-{String(detailTopic.id).padStart(3, '0')}</span>
-                            <h2 className="text-lg font-bold text-slate-900 mt-1">{detailTopic.title}</h2>
+                            <span className="topic-code-pill">MÃ: {detailTopic.code || 'DA-KTPM'}</span>
+                            <span className="tag teal" style={{ marginLeft: 8 }}>{detailTopic.projectCatalog?.name || 'Đồ án tốt nghiệp'}</span>
                         </div>
-
-                        <div className="bg-slate-50 p-3 rounded-lg border border-slate-200/70 text-xs space-y-1">
-                            <p><b>GVHD:</b> {detailTopic.mentor?.fullName} ({detailTopic.mentor?.email || 'N/A'})</p>
-                            <p><b>Chuyên ngành:</b> {detailTopic.projectCatalog?.name || 'Đồ án tốt nghiệp'}</p>
-                        </div>
-
                         <div>
-                            <h4 className="text-xs font-bold text-slate-700 uppercase mb-1.5">Mô tả và Yêu cầu nghiên cứu:</h4>
-                            <div className="text-xs text-slate-600 bg-white p-4 rounded-lg border border-slate-200 whitespace-pre-line leading-relaxed">
-                                {detailTopic.description || 'Chưa có thông tin mô tả chi tiết cho đề tài này.'}
+                            <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--muted)', textTransform: 'uppercase' }}>Giảng viên hướng dẫn:</div>
+                            <div style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--fg)', marginTop: 2 }}>{detailTopic.mentor?.fullName || 'Chưa phân công'}</div>
+                            <div style={{ fontSize: 12, color: 'var(--muted)' }}>Email: {detailTopic.mentor?.email || '—'}</div>
+                        </div>
+                        <div>
+                            <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--muted)', textTransform: 'uppercase' }}>Mục tiêu & Nội dung nghiên cứu:</div>
+                            <p style={{ fontSize: 13, color: 'var(--fg)', lineHeight: 1.6, marginTop: 4 }}>
+                                {detailTopic.description || 'Chưa có mô tả chi tiết.'}
+                            </p>
+                        </div>
+                        <div>
+                            <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--muted)', textTransform: 'uppercase' }}>Yêu cầu công nghệ & Sản phẩm bàn giao:</div>
+                            <div style={{ background: '#F8FAFC', padding: '12px 14px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 13, marginTop: 4 }}>
+                                <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                    <li>Mã nguồn hoàn chỉnh trên Git có tài liệu hướng dẫn cài đặt.</li>
+                                    <li>Quyển báo cáo tốt nghiệp chuẩn định dạng Viện (ít nhất 60 trang).</li>
+                                    <li>Sản phẩm ứng dụng chạy demo thực tế.</li>
+                                </ul>
                             </div>
                         </div>
                     </div>
                 )}
             </Modal>
 
-            {/* Confirm Registration Modal */}
+            {/* CONFIRM REGISTER MODAL */}
             <Modal
-                title={<span className="font-bold text-slate-900">Xác nhận đăng ký đề tài</span>}
+                title="Xác nhận Đăng ký Đề tài"
                 open={confirmModalOpen}
                 onCancel={() => setConfirmModalOpen(false)}
                 onOk={executeRegister}
                 confirmLoading={registering}
                 okText="Xác nhận đăng ký"
-                cancelText="Hủy bỏ"
-                width={500}
+                cancelText="Hủy"
             >
-                <div className="py-3 space-y-3">
-                    <p className="text-xs text-slate-600">
-                        Bạn có chắc chắn muốn đăng ký đề tài sau đây không?
+                <div style={{ paddingTop: 10, fontSize: 13, lineHeight: 1.6 }}>
+                    <p>Bạn đang đăng ký đề tài:</p>
+                    <p style={{ fontWeight: 700, color: 'var(--primary)', fontSize: 14 }}>
+                        {topicToRegister?.title}
                     </p>
-                    <div className="p-3.5 bg-blue-50/70 rounded-xl border border-blue-200/80 space-y-1 text-xs">
-                        <p className="font-bold text-blue-900 text-sm">{topicToRegister?.title}</p>
-                        <p className="text-slate-600">GVHD: <b>{topicToRegister?.mentor?.fullName}</b></p>
+                    <p style={{ color: 'var(--muted)' }}>
+                        Cán bộ hướng dẫn: <strong>{topicToRegister?.mentor?.fullName}</strong>
+                    </p>
+                    <p style={{ color: '#D97706', background: '#FFFBEB', padding: '8px 12px', borderRadius: 6, border: '1px solid #FDE68A', marginTop: 10 }}>
+                        Lưu ý: Sau khi đăng ký thành công, thông tin sẽ được gửi trực tiếp đến Giảng viên hướng dẫn để xem xét và duyệt chính thức.
+                    </p>
+                </div>
+            </Modal>
+
+            {/* PROPOSE TOPIC MODAL */}
+            <Modal
+                title="Đề xuất Đề tài Tự do (Sinh viên chủ động)"
+                open={proposeModalOpen}
+                onCancel={() => setProposeModalOpen(false)}
+                onOk={handleProposeSubmit}
+                confirmLoading={submittingPropose}
+                okText="Gửi đề xuất"
+                cancelText="Hủy"
+                width={650}
+            >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14, paddingTop: 10 }}>
+                    <div>
+                        <label style={{ fontSize: 13, fontWeight: 700, display: 'block', marginBottom: 6 }}>
+                            Tên đề tài đề xuất: <strong style={{ color: 'var(--danger)' }}>*</strong>
+                        </label>
+                        <input
+                            type="text"
+                            className="input-field"
+                            placeholder="Nhập tên đề tài nghiên cứu..."
+                            value={proposeForm.title}
+                            onChange={(e) => setProposeForm({ ...proposeForm, title: e.target.value })}
+                            style={{ width: '100%' }}
+                        />
+                    </div>
+                    <div>
+                        <label style={{ fontSize: 13, fontWeight: 700, display: 'block', marginBottom: 6 }}>
+                            Giảng viên hướng dẫn mong muốn: <strong style={{ color: 'var(--danger)' }}>*</strong>
+                        </label>
+                        <select
+                            className="form-control"
+                            value={proposeForm.mentorId}
+                            onChange={(e) => setProposeForm({ ...proposeForm, mentorId: e.target.value })}
+                            style={{ width: '100%' }}
+                        >
+                            <option value="">-- Chọn Giảng viên hướng dẫn --</option>
+                            {mentors.map((m) => (
+                                <option key={m.id} value={m.id}>
+                                    {m.fullName} ({m.email})
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                    <div>
+                        <label style={{ fontSize: 13, fontWeight: 700, display: 'block', marginBottom: 6 }}>
+                            Mô tả mục tiêu & Phạm vi dự kiến:
+                        </label>
+                        <textarea
+                            className="input-field"
+                            rows={4}
+                            placeholder="Nêu tóm tắt mục tiêu nghiên cứu, công nghệ dự kiến và sản phẩm bàn giao..."
+                            value={proposeForm.description}
+                            onChange={(e) => setProposeForm({ ...proposeForm, description: e.target.value })}
+                            style={{ width: '100%', resize: 'vertical' }}
+                        />
                     </div>
                 </div>
             </Modal>
         </div>
     );
 }
-
-export default TopicListPage;

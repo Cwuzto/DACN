@@ -16,6 +16,8 @@ import {
     Steps,
     Switch,
     Tooltip,
+    Table,
+    Tag,
 } from 'antd';
 import {
     ArrowRightOutlined,
@@ -27,13 +29,14 @@ import {
     CalendarOutlined,
     CheckCircleOutlined,
     FileDoneOutlined,
+    ReloadOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
 import registrationService from '../../services/registrationService';
 import { semesterService } from '../../services/semesterService';
 import { topicService } from '../../services/topicService';
-import PageHeader from '../../components/common/PageHeader';
+import useAuthStore from '../../stores/authStore';
 import { PROJECT_NAME, buildSemesterName, extractSemesterMeta, formatSemesterLabel } from '../../utils/semesterDisplay';
 
 const statusConfig = {
@@ -86,11 +89,11 @@ function PeriodTimeline({ milestones, status }) {
     const colorHexMap = {
         green: '#10B981',
         orange: '#F59E0B',
-        blue: '#2563EB',
+        blue: '#0F766E',
         purple: '#7C3AED',
         default: '#64748B',
     };
-    const activeHex = colorHexMap[statusConfig[status]?.color] || '#1E3A5F';
+    const activeHex = colorHexMap[statusConfig[status]?.color] || '#0F766E';
 
     return (
         <ConfigProvider theme={{ token: { colorPrimary: activeHex } }}>
@@ -102,7 +105,7 @@ function PeriodTimeline({ milestones, status }) {
                 items={milestones.map((milestone) => ({
                     title: <span className="text-xs font-semibold text-slate-700">{milestone.title}</span>,
                     description: milestone.date ? (
-                        <span className="text-[11px] text-slate-400 font-medium">{milestone.date}</span>
+                        <span className="text-[11px] text-slate-500 font-semibold">{milestone.date}</span>
                     ) : null,
                 }))}
                 style={{ width: '100%', maxWidth: 580, margin: '0 auto' }}
@@ -111,7 +114,7 @@ function PeriodTimeline({ milestones, status }) {
     );
 }
 
-function PeriodCard({ period, onEdit, onDelete, onClone, onIssueDecision }) {
+function PeriodCard({ period, onEdit, onDelete, onClone, onIssueDecision, onViewDecisionList, isAdmin = true }) {
     const isCompleted = period.status === 'COMPLETED';
     const cfg = statusConfig[period.status] || statusConfig.UPCOMING;
 
@@ -135,7 +138,7 @@ function PeriodCard({ period, onEdit, onDelete, onClone, onIssueDecision }) {
                         )}
                     </div>
                     <h4 className="text-base font-black text-slate-900 leading-snug">{period.name}</h4>
-                    <p className="text-xs text-slate-400 font-medium">Mã đợt: {period.code}</p>
+                    <p className="text-xs text-slate-500 font-medium">Mã đợt: {period.code}</p>
                 </div>
 
                 {/* Progress Steps Timeline */}
@@ -146,9 +149,9 @@ function PeriodCard({ period, onEdit, onDelete, onClone, onIssueDecision }) {
                 {/* Stats & Actions Strip */}
                 <div className="w-full xl:w-64 shrink-0 flex xl:flex-col items-center xl:items-end justify-between xl:justify-center gap-3 pt-3 xl:pt-0 border-t xl:border-t-0 border-slate-100">
                     {period.status === 'UPCOMING' ? (
-                        <p className="text-xs text-slate-400 italic">Chưa mở đợt</p>
+                        <p className="text-xs text-slate-500 italic font-medium">Chưa mở đợt</p>
                     ) : isCompleted ? (
-                        <p className="text-xs text-slate-400 italic">Đã kết thúc & lưu trữ</p>
+                        <p className="text-xs text-slate-500 italic font-medium">Đã kết thúc & lưu trữ</p>
                     ) : (
                         <div className="flex items-center gap-2 text-xs bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
                             <span className="text-slate-600">
@@ -175,14 +178,28 @@ function PeriodCard({ period, onEdit, onDelete, onClone, onIssueDecision }) {
                                 </Button>
                             </Tooltip>
                         )}
-                        <Tooltip title="Sao chép cấu hình">
-                            <Button
-                                icon={<CopyOutlined />}
-                                size="small"
-                                onClick={() => onClone(period)}
-                            />
-                        </Tooltip>
-                        {!isCompleted && (
+                        {onViewDecisionList && (
+                            <Tooltip title="Xem danh sách đề tài đã ban hành Quyết định">
+                                <Button
+                                    icon={<EyeOutlined />}
+                                    size="small"
+                                    className="!text-purple-700 hover:!text-purple-800 !border-purple-200 hover:!border-purple-400 bg-purple-50/50 font-medium"
+                                    onClick={() => onViewDecisionList(period)}
+                                >
+                                    Danh sách QĐ
+                                </Button>
+                            </Tooltip>
+                        )}
+                        {isAdmin && (
+                            <Tooltip title="Sao chép cấu hình">
+                                <Button
+                                    icon={<CopyOutlined />}
+                                    size="small"
+                                    onClick={() => onClone(period)}
+                                />
+                            </Tooltip>
+                        )}
+                        {!isCompleted && isAdmin && (
                             <Tooltip title="Chỉnh sửa đợt">
                                 <Button
                                     icon={<EditOutlined />}
@@ -191,7 +208,7 @@ function PeriodCard({ period, onEdit, onDelete, onClone, onIssueDecision }) {
                                 />
                             </Tooltip>
                         )}
-                        {!isCompleted && (
+                        {!isCompleted && isAdmin && (
                             <Tooltip title="Xóa đợt">
                                 <Button
                                     danger
@@ -209,6 +226,9 @@ function PeriodCard({ period, onEdit, onDelete, onClone, onIssueDecision }) {
 }
 
 function ProjectPeriodPage() {
+    const { user } = useAuthStore();
+    const isAdmin = user?.role === 'ADMIN';
+
     const [defaultSemesterId, setDefaultSemesterId] = useState(null);
     const [periods, setPeriods] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -221,6 +241,24 @@ function ProjectPeriodPage() {
     const [decisionPeriod, setDecisionPeriod] = useState(null);
     const [decisionSubmitting, setDecisionSubmitting] = useState(false);
     const [decisionForm] = Form.useForm();
+
+    const [allRegistrations, setAllRegistrations] = useState([]);
+    const [decisionListModalVisible, setDecisionListModalVisible] = useState(false);
+    const [selectedPeriodForDecisions, setSelectedPeriodForDecisions] = useState(null);
+
+    const handleOpenDecisionList = (period) => {
+        setSelectedPeriodForDecisions(period);
+        setDecisionListModalVisible(true);
+    };
+
+    const periodDecisionList = useMemo(() => {
+        if (!selectedPeriodForDecisions) return [];
+        return allRegistrations.filter(
+            (reg) =>
+                reg.semesterId === selectedPeriodForDecisions.id &&
+                (reg.decisionNumber || reg.status === 'DECISION_ISSUED')
+        );
+    }, [allRegistrations, selectedPeriodForDecisions]);
 
     const handleOpenIssueDecision = (period) => {
         setDecisionPeriod(period);
@@ -263,6 +301,8 @@ function ProjectPeriodPage() {
             ]);
 
             if (!semesterRes.success) return;
+
+            setAllRegistrations(registrationRes?.data || []);
 
             const topicsBySemester = (topicRes?.data || []).reduce((acc, topic) => {
                 acc[topic.semesterId] = (acc[topic.semesterId] || 0) + 1;
@@ -498,21 +538,59 @@ function ProjectPeriodPage() {
         }
     };
 
+    const activeCount = useMemo(() => periods.filter((p) => ['ONGOING', 'REGISTRATION'].includes(p.status)).length, [periods]);
+
     return (
-        <div className="py-2 space-y-6">
-            <PageHeader
-                title="Quản lý Đợt Đồ án"
-                subtitle={`Cấu hình học kỳ và các mốc thời gian quan trọng (${PROJECT_NAME})`}
-                actions={
-                    <Button
-                        type="primary"
-                        icon={<PlusOutlined />}
-                        onClick={handleAdd}
-                    >
-                        Tạo đợt đồ án mới
-                    </Button>
-                }
-            />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {/* Page Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 4, flexWrap: 'wrap', gap: 12 }}>
+                <div>
+                    <p className="eyebrow">ACADEMIC PERIODS & TIMELINE MANAGEMENT</p>
+                    <h1 className="h1">{isAdmin ? 'Quản lý Đợt Đồ án & Học kỳ Học vụ' : 'Đợt Đồ án & Ban hành Quyết định'}</h1>
+                </div>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    <button className="btn btn-secondary" onClick={fetchSemesters}>
+                        <ReloadOutlined />
+                        <span>Làm mới</span>
+                    </button>
+                    {isAdmin && (
+                        <button className="btn btn-primary" onClick={handleAdd}>
+                            <PlusOutlined />
+                            <span>Khởi tạo Đợt Đồ án mới</span>
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {/* 4 KPI Cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+                <div className="card" style={{ padding: '14px 18px' }}>
+                    <span className="meta">Tổng số đợt đồ án</span>
+                    <p className="h2 num" style={{ marginTop: 2 }}>{periods.length}</p>
+                    <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--muted)' }}>Toàn bộ các khóa học vụ</div>
+                </div>
+                <div className="card" style={{ padding: '14px 18px' }}>
+                    <span className="meta">Đợt đang hoạt động</span>
+                    <p className="h2 num" style={{ marginTop: 2, color: 'var(--accent)' }}>{activeCount}</p>
+                    <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--accent)' }}>Đang mở ĐK hoặc thực hiện</div>
+                </div>
+                <div className="card" style={{ padding: '14px 18px' }}>
+                    <span className="meta">Cổng đăng ký đợt chọn</span>
+                    <p className="h2 num" style={{ marginTop: 2, color: selectedPeriod?.registrationOpen ? 'var(--success)' : 'var(--danger)', fontSize: 16 }}>
+                        {selectedPeriod?.registrationOpen ? 'ĐANG MỞ CỔNG' : 'ĐANG ĐÓNG CỔNG'}
+                    </p>
+                    <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--muted)' }}>
+                        {selectedPeriod?.name || 'Chưa chọn đợt'}
+                    </div>
+                </div>
+                <div className="card" style={{ padding: '14px 18px' }}>
+                    <span className="meta">Quy mô đợt hiện hành</span>
+                    <p className="h2 num" style={{ marginTop: 2, color: 'var(--institutional)' }}>
+                        {selectedPeriod ? `${selectedPeriod.topics} đề tài · ${selectedPeriod.students} SV` : '0'}
+                    </p>
+                    <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--muted)' }}>Sinh viên đã có đề tài</div>
+                </div>
+            </div>
 
             {/* Registration Quick Switch Card */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -523,7 +601,7 @@ function ProjectPeriodPage() {
                         </div>
                         <div>
                             <p className="text-sm font-semibold text-slate-900">Cho phép đăng ký đề tài</p>
-                            <p className="text-xs text-slate-400 mt-0.5">
+                            <p className="text-xs text-slate-500 mt-0.5">
                                 Bật/tắt mở cổng đăng ký cho học kỳ đang chọn.
                             </p>
                         </div>
@@ -556,7 +634,7 @@ function ProjectPeriodPage() {
                         </div>
                         <div>
                             <p className="text-sm font-semibold text-slate-900">Học kỳ đang chọn</p>
-                            <p className="text-xs text-slate-400 mt-0.5">
+                            <p className="text-xs text-slate-500 mt-0.5">
                                 Cấu hình áp dụng cho đợt được chọn này.
                             </p>
                         </div>
@@ -576,7 +654,7 @@ function ProjectPeriodPage() {
                     <h3 className="text-base font-bold text-slate-900">
                         Danh sách Các Đợt Đồ Án
                     </h3>
-                    <span className="text-xs text-slate-400 font-medium">
+                    <span className="text-xs text-slate-500 font-medium">
                         Tổng cộng: {periods.length} đợt
                     </span>
                 </div>
@@ -585,10 +663,10 @@ function ProjectPeriodPage() {
                     <div className="space-y-4 min-h-[160px]">
                         {periods.length === 0 && !loading ? (
                             <div className="bg-white rounded-xl border border-slate-200/80 p-12 text-center">
-                                <span className="material-symbols-outlined text-4xl text-slate-300 mb-2 block">
+                                <span className="material-symbols-outlined text-4xl text-slate-400 mb-2 block">
                                     event_busy
                                 </span>
-                                <p className="text-sm text-slate-500 font-medium">Chưa có đợt đồ án nào được khởi tạo.</p>
+                                <p className="text-sm text-slate-600 font-medium">Chưa có đợt đồ án nào được khởi tạo.</p>
                                 <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd} className="mt-4">
                                     Tạo đợt đầu tiên
                                 </Button>
@@ -602,6 +680,8 @@ function ProjectPeriodPage() {
                                     onDelete={handleDelete}
                                     onClone={handleClone}
                                     onIssueDecision={handleOpenIssueDecision}
+                                    onViewDecisionList={handleOpenDecisionList}
+                                    isAdmin={isAdmin}
                                 />
                             ))
                         )}
@@ -762,6 +842,137 @@ function ProjectPeriodPage() {
                             </Button>
                         </div>
                     </Form>
+                </div>
+            </Modal>
+
+            {/* Modal Xem Danh sách Quyết định giao đề tài */}
+            <Modal
+                title={(
+                    <div className="flex items-center justify-between pr-6">
+                        <div className="flex items-center gap-2">
+                            <FileDoneOutlined className="text-purple-600 text-lg" />
+                            <span className="font-bold text-slate-800">
+                                Danh sách Đề tài được Ban hành Quyết định — {selectedPeriodForDecisions?.name}
+                            </span>
+                        </div>
+                        <Tag color="purple" className="font-semibold">
+                            {periodDecisionList.length} đề tài đã cấp QĐ
+                        </Tag>
+                    </div>
+                )}
+                open={decisionListModalVisible}
+                onCancel={() => {
+                    setDecisionListModalVisible(false);
+                    setSelectedPeriodForDecisions(null);
+                }}
+                footer={[
+                    <Button key="close" type="primary" onClick={() => setDecisionListModalVisible(false)}>
+                        Đóng
+                    </Button>
+                ]}
+                width={920}
+                destroyOnClose
+            >
+                <div className="py-2 space-y-4">
+                    {periodDecisionList.length > 0 ? (
+                        <div className="bg-purple-50/60 p-3.5 rounded-lg border border-purple-200/80 flex items-center justify-between text-xs">
+                            <div className="space-y-0.5">
+                                <p className="text-purple-900 font-semibold">
+                                    Số Quyết định tiêu biểu: <span className="font-bold text-purple-700">{periodDecisionList[0]?.decisionNumber || 'Chưa cập nhật'}</span>
+                                </p>
+                                <p className="text-purple-700">
+                                    Ngày ký ban hành: {periodDecisionList[0]?.decisionDate ? dayjs(periodDecisionList[0].decisionDate).format('DD/MM/YYYY') : 'Hôm nay'}
+                                </p>
+                            </div>
+                            <Tag color="green">Kích hoạt cửa sổ 7 ngày đổi tên đề tài</Tag>
+                        </div>
+                    ) : (
+                        <div className="bg-amber-50/60 p-3.5 rounded-lg border border-amber-200/80 text-xs text-amber-800">
+                            Chưa có đề tài nào được ban hành Quyết định trong học kỳ này. Bạn có thể nhấn nút <strong>"Ban hành QĐ"</strong> để cấp quyết định cho các sinh viên đã hoàn tất BM02.
+                        </div>
+                    )}
+
+                    <Table
+                        dataSource={periodDecisionList}
+                        rowKey="id"
+                        size="small"
+                        pagination={{ pageSize: 8, showTotal: (total) => `Tổng cộng: ${total} đề tài` }}
+                        columns={[
+                            {
+                                title: 'STT',
+                                key: 'stt',
+                                width: 55,
+                                align: 'center',
+                                render: (_, __, index) => index + 1,
+                            },
+                            {
+                                title: 'Sinh viên',
+                                key: 'student',
+                                width: 220,
+                                render: (_, record) => (
+                                    <div>
+                                        <div className="font-bold text-slate-900">{record.student?.fullName || 'N/A'}</div>
+                                        <div className="text-[11px] text-slate-600 font-mono font-medium">MSSV: {record.student?.code || 'N/A'}</div>
+                                        {record.student?.email && (
+                                            <div className="text-[11px] text-slate-500">{record.student.email}</div>
+                                        )}
+                                    </div>
+                                ),
+                            },
+                            {
+                                title: 'Tên đề tài',
+                                key: 'topic',
+                                render: (_, record) => (
+                                    <div>
+                                        <div className="font-semibold text-slate-800 leading-snug">
+                                            {record.adjustedTitle || record.topic?.title || 'Chưa có tên'}
+                                        </div>
+                                        {record.adjustedTitle && record.adjustedTitle !== record.topic?.title && (
+                                            <div className="text-[11px] text-emerald-600 mt-0.5">
+                                                (Đã điều chỉnh từ: <em>{record.topic?.title}</em>)
+                                            </div>
+                                        )}
+                                    </div>
+                                ),
+                            },
+                            {
+                                title: 'GVHD',
+                                key: 'mentor',
+                                width: 170,
+                                render: (_, record) => (
+                                    <span className="text-xs text-slate-700 font-medium">
+                                        {record.topic?.mentor?.fullName || 'Chưa phân công'}
+                                    </span>
+                                ),
+                            },
+                            {
+                                title: 'Số QĐ & Ngày',
+                                key: 'decisionInfo',
+                                width: 170,
+                                render: (_, record) => (
+                                    <div>
+                                        <div className="font-mono text-xs font-bold text-purple-700">
+                                            {record.decisionNumber || '—'}
+                                        </div>
+                                        <div className="text-[11px] text-slate-500 font-medium">
+                                            {record.decisionDate ? dayjs(record.decisionDate).format('DD/MM/YYYY') : '—'}
+                                        </div>
+                                    </div>
+                                ),
+                            },
+                            {
+                                title: 'Trạng thái',
+                                key: 'status',
+                                width: 140,
+                                align: 'center',
+                                render: (status) => (
+                                    <Tag color={status === 'DECISION_ISSUED' ? 'purple' : 'blue'}>
+                                        {status === 'DECISION_ISSUED' ? 'Đã ban hành QĐ' : status}
+                                    </Tag>
+                                ),
+                            },
+                        ]}
+                    />
                 </div>
             </Modal>
         </div>

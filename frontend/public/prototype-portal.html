@@ -1,0 +1,3388 @@
+
+<!doctype html>
+<html lang="vi">
+<head>
+ <meta charset="utf-8" />
+ <meta name="viewport" content="width=device-width, initial-scale=1" />
+ <title>Cổng Thông tin Học vụ & Đồ án Tốt nghiệp · Viện Công nghệ Số</title>
+
+ <!-- Google Fonts: Inter, Lexend, JetBrains Mono (Đồng bộ Không Gian Làm Việc Giảng Viên & Admin) -->
+ <link rel="preconnect" href="https://fonts.googleapis.com">
+ <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+ <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Lexend:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+ <style>
+ /* ─── TOKENS (Đồng bộ Không Gian Làm Việc Giảng Viên & Admin DACN) ── */
+  :root {
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Lexend', 'Inter', -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --bg: #F8FAFC;
+  --surface: #FFFFFF;
+  --surface-subtle: #F1F5F9;
+  --fg: #0F172A;
+  --muted: #64748B;
+  --border: #E2E8F0;
+  --border-light: #F1F5F9;
+  --border-subtle: color-mix(in oklch, var(--border) 60%, transparent);
+
+  /* Primary Brand (Deep Pine Teal - Đồng bộ 100% với Giảng viên & Admin) */
+  --primary: #0F766E;
+  --primary-hover: #115E59;
+  --primary-light: #F0FDFA;
+  --primary-border: #CCFBF1;
+  --primary-gradient: linear-gradient(135deg, #0F766E, #14B8A6);
+
+  /* Accent & Brand Tokens */
+  --accent: #0F766E;
+  --accent-hover: #115E59;
+  --accent-soft: #F0FDFA;
+  --accent-light: #EFF6FF;
+  --brand: #0F766E;
+  --brand-hover: #115E59;
+  --brand-soft: #F0FDFA;
+  --brand-border: #CCFBF1;
+  --brand-gradient: linear-gradient(135deg, #0F766E, #14B8A6);
+
+  /* Status Tokens */
+  --success: #16A34A;
+  --success-soft: #F0FDF4;
+  --success-light: #F0FDF4;
+  --warning: #D97706;
+  --warning-soft: #FFFBEB;
+  --warning-light: #FFFBEB;
+  --danger: #DC2626;
+  --danger-soft: #FEF2F2;
+  --danger-light: #FEF2F2;
+  --info: #0F766E;
+  --info-soft: #F0FDFA;
+  --info-light: #F0FDFA;
+
+  /* Derived */
+  --fg-soft: color-mix(in oklch, var(--fg) 5%, transparent);
+
+  /* Institutional Branding (Văn bản & Quyết định Học thuật) */
+  --institutional: #0F766E;
+  --institutional-dark: #115E59;
+  --institutional-soft: #F0FDFA;
+  --institutional-border: #CCFBF1;
+
+  /* scale */
+  --fs-h1: clamp(34px, 4.2vw, 54px);
+  --fs-h2: clamp(26px, 3vw, 36px);
+  --fs-h3: 20px;
+  --fs-lead: 17px;
+  --fs-body: 14.5px;
+  --fs-meta: 12.5px;
+
+  /* spacing */
+  --container: 1240px;
+  --radius: 10px;
+  --radius-lg: 14px;
+  --radius-full: 9999px;
+  }
+
+ *, *::before, *::after { box-sizing: border-box; }
+ html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+ body {
+ margin: 0;
+ background: var(--bg);
+ color: var(--fg);
+ font-family: var(--font-body);
+ font-size: var(--fs-body);
+ line-height: 1.6;
+ -webkit-font-smoothing: antialiased;
+ }
+
+ img, svg { display: block; max-width: 100%; }
+ a { color: inherit; text-decoration: none; }
+ button { font: inherit; cursor: pointer; border: none; background: none; }
+ h1, h2, h3, h4 { font-family: var(--font-display); text-wrap: balance; margin: 0; }
+ p { margin: 0; text-wrap: pretty; }
+
+ /* Layout Primitives */
+ .container { max-width: var(--container); margin: 0 auto; padding: 0 24px; }
+ .section { padding: 72px 0; }
+ .section-sm { padding: 48px 0; }
+
+ /* Topnav */
+ .topnav {
+ position: sticky;
+ top: 0;
+ z-index: 100;
+ background: color-mix(in oklch, var(--surface) 88%, transparent);
+ backdrop-filter: blur(12px);
+ -webkit-backdrop-filter: blur(12px);
+ border-bottom: 1px solid var(--border);
+ height: 68px;
+ transition: background-color 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
+ }
+ .topnav.is-scrolled {
+ background: color-mix(in oklch, var(--surface) 97%, transparent);
+ border-bottom-color: transparent;
+ box-shadow: 0 10px 28px rgba(15, 23, 42, 0.1);
+ }
+ .topnav > .container { max-width: 1440px; }
+ .topnav-inner {
+ display: flex;
+ align-items: center;
+ justify-content: space-between;
+ gap: clamp(24px, 3vw, 56px);
+ height: 100%;
+ }
+ .brand-group {
+ display: flex;
+ align-items: center;
+ flex: none;
+ gap: 14px;
+ }
+ .topnav .brand-group { gap: 16px; }
+ .brand-logo {
+ width: 107px;
+ height: 40px;
+ display: block;
+ object-fit: contain;
+ flex: none;
+ }
+ .brand-text h1 {
+ font-size: 16px;
+ font-weight: 700;
+ color: var(--brand);
+ letter-spacing: -0.3px;
+ line-height: 1.2;
+ }
+ .brand-text p {
+ font-size: 11.5px;
+ color: var(--muted);
+ letter-spacing: 0.2px;
+ text-transform: uppercase;
+ font-weight: 500;
+ }
+ .topnav .brand-text h1 {
+ font-size: 15px;
+ letter-spacing: -0.25px;
+ }
+ .topnav .brand-text p {
+ margin-top: 3px;
+ font-size: 10px;
+ letter-spacing: 0.35px;
+ }
+
+ .topnav-inner > nav {
+ flex: 1 1 auto;
+ min-width: 0;
+ }
+ .nav-links {
+ display: flex;
+ align-items: center;
+ justify-content: space-between;
+ width: 100%;
+ gap: clamp(16px, 2vw, 32px);
+ list-style: none;
+ padding: 0;
+ margin: 0;
+ }
+ .nav-link {
+ font-size: 14px;
+ font-weight: 500;
+ color: var(--muted);
+ transition: color 0.15s ease;
+ cursor: pointer;
+ }
+ .nav-link:hover, .nav-link.active {
+ color: var(--accent);
+ }
+
+ .nav-actions {
+ display: flex;
+ align-items: center;
+ justify-content: flex-end;
+ flex: none;
+ gap: 12px;
+ }
+
+ /* Buttons */
+ .btn {
+ display: inline-flex;
+ align-items: center;
+ justify-content: center;
+ gap: 8px;
+ padding: 9px 18px;
+ border-radius: var(--radius);
+ font-size: 13.5px;
+ font-weight: 600;
+ transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+ cursor: pointer;
+ }
+ .btn-primary {
+ background: var(--accent);
+ color: #fff;
+ box-shadow: 0 2px 6px color-mix(in oklch, var(--accent) 30%, transparent);
+ }
+ .btn-primary:hover {
+ background: color-mix(in oklch, var(--accent) 88%, #000);
+ transform: translateY(-1px);
+ box-shadow: 0 4px 12px color-mix(in oklch, var(--accent) 35%, transparent);
+ }
+ .btn-secondary {
+ background: var(--surface);
+ color: var(--fg);
+ border: 1px solid var(--border);
+ }
+ .btn-secondary:hover {
+ background: var(--bg);
+ border-color: color-mix(in oklch, var(--border) 80%, #000);
+ }
+ .btn-ghost {
+ color: var(--muted);
+ padding: 8px 14px;
+ }
+ .btn-ghost:hover {
+ color: var(--fg);
+ background: var(--fg-soft);
+ }
+ .btn-brand {
+ background: var(--brand);
+ color: #fff;
+ }
+ .btn-brand:hover {
+ background: color-mix(in oklch, var(--brand) 85%, #000);
+ }
+ .topnav-login {
+ min-height: 40px;
+ padding-inline: 16px;
+ border: 1px solid color-mix(in oklch, var(--brand) 25%, white);
+ box-shadow: 0 4px 12px color-mix(in oklch, var(--brand) 18%, transparent);
+ white-space: nowrap;
+ }
+ .topnav-login:hover {
+ transform: translateY(-1px);
+ box-shadow: 0 7px 16px color-mix(in oklch, var(--brand) 24%, transparent);
+ }
+
+ /* Badges & Tags */
+ .badge {
+ display: inline-flex;
+ align-items: center;
+ gap: 6px;
+ padding: 4px 10px;
+ border-radius: var(--radius-full);
+ font-size: 12px;
+ font-weight: 600;
+ line-height: 1;
+ }
+ .badge-primary { background: var(--accent-soft); color: var(--accent); }
+ .badge-brand { background: var(--brand-soft); color: var(--brand); }
+ .badge-success { background: #dcfce7; color: var(--success); }
+ .badge-warning { background: #fef3c7; color: var(--warning); }
+ .badge-danger { background: #fee2e2; color: var(--danger); }
+ .badge-neutral { background: #f1f5f9; color: var(--muted); }
+
+ .pulse-dot {
+ width: 7px;
+ height: 7px;
+ border-radius: 50%;
+ background: currentColor;
+ box-shadow: 0 0 0 0 currentColor;
+ animation: pulse 2s infinite;
+ }
+ @keyframes pulse {
+ 0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.7); }
+ 70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(22, 163, 74, 0); }
+ 100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); }
+ }
+
+ /* Cards */
+ .card {
+ background: var(--surface);
+ border: 1px solid var(--border);
+ border-radius: var(--radius-lg);
+ padding: 24px;
+ box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+ transition: all 0.2s ease;
+ }
+ .card-hover:hover {
+ transform: translateY(-2px);
+ box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+ border-color: color-mix(in oklch, var(--border) 70%, var(--accent));
+ }
+ .announcement-text-link {
+ min-width: 44px;
+ min-height: 44px;
+ display: inline-flex;
+ align-items: center;
+ justify-content: center;
+ gap: 4px;
+ color: var(--accent);
+ font-size: 12.5px;
+ font-weight: 600;
+ text-decoration: none;
+ transition: color 180ms ease;
+ }
+ .announcement-text-link:focus-visible {
+ outline: 3px solid color-mix(in oklch, var(--accent) 35%, transparent);
+ outline-offset: 3px;
+ border-radius: 4px;
+ }
+ @media (hover: hover) {
+ .announcement-text-link:hover { color: var(--accent-dark); }
+ }
+
+ /* Hero Section */
+ .hero-banner {
+ background: #0b3f3c;
+ border-bottom: 1px solid var(--border);
+ padding: 72px 0 62px;
+ position: relative;
+ overflow: hidden;
+ isolation: isolate;
+ min-height: calc(100vh - 68px);
+ min-height: calc(100svh - 68px);
+ display: flex;
+ align-items: center;
+ }
+ .hero-banner::before {
+ content: "";
+ position: absolute;
+ inset: -3%;
+ z-index: -2;
+ background-image: url("assets/tdmu-campus-hero.png");
+ background-position: center 44%;
+ background-size: cover;
+ transform: scale(1.04);
+ animation: heroCampusDrift 18s ease-in-out infinite alternate;
+ }
+ .hero-banner::after {
+ content: "";
+ position: absolute;
+ inset: 0;
+ z-index: -1;
+ background: rgba(5, 43, 41, 0.76);
+ }
+ @keyframes heroCampusDrift {
+ from { transform: scale(1.04) translate3d(0, 0, 0); }
+ to { transform: scale(1.1) translate3d(-1%, -0.75%, 0); }
+ }
+ .hero-grid {
+ display: grid;
+ grid-template-columns: 1.15fr 0.85fr;
+ gap: 48px;
+ align-items: center;
+ width: 100%;
+ }
+ .hero-copy,
+ .period-widget {
+ animation: heroEnter 360ms cubic-bezier(0.16, 1, 0.3, 1) both;
+ }
+ .period-widget { animation-delay: 70ms; }
+ @keyframes heroEnter {
+ from { opacity: 0; transform: translateY(12px); }
+ to { opacity: 1; transform: translateY(0); }
+ }
+ .hero-eyebrow {
+ display: inline-flex;
+ align-items: center;
+ gap: 8px;
+ background: rgba(255, 255, 255, 0.14);
+ color: #ffffff;
+ border: 1px solid rgba(255, 255, 255, 0.26);
+ padding: 6px 14px;
+ border-radius: var(--radius-full);
+ font-size: 13px;
+ font-weight: 600;
+ margin-bottom: 18px;
+ }
+ .hero-title {
+ font-size: var(--fs-h1);
+ font-weight: 700;
+ color: #ffffff;
+ line-height: 1.18;
+ letter-spacing: -0.8px;
+ margin-bottom: 18px;
+ text-shadow: 0 2px 18px rgba(0, 0, 0, 0.22);
+ }
+ .hero-subtitle {
+ font-size: var(--fs-lead);
+ color: rgba(255, 255, 255, 0.86);
+ line-height: 1.6;
+ margin-bottom: 32px;
+ max-width: 58ch;
+ }
+ .hero-ctas {
+ display: flex;
+ flex-wrap: wrap;
+ align-items: center;
+ gap: 14px;
+ margin-bottom: 36px;
+ }
+ .hero-banner .btn-primary {
+ background: #ffffff;
+ color: #0f5f59;
+ box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+ }
+ .hero-banner .btn-primary:hover {
+ background: #f0fdfa;
+ color: #0b4f4a;
+ }
+ .hero-banner .btn-secondary {
+ background: rgba(255, 255, 255, 0.1);
+ color: #ffffff;
+ border-color: rgba(255, 255, 255, 0.38);
+ }
+ .hero-banner .btn-secondary:hover {
+ background: rgba(255, 255, 255, 0.18);
+ border-color: rgba(255, 255, 255, 0.68);
+ }
+ .hero-meta {
+ display: flex;
+ align-items: center;
+ flex-wrap: wrap;
+ gap: 12px 20px;
+ font-size: 13px;
+ color: rgba(255, 255, 255, 0.84);
+ }
+ .hero-meta-item {
+ display: flex;
+ align-items: center;
+ gap: 6px;
+ }
+ .hero-meta-item svg { stroke: #86efac; }
+ .hero-scroll-indicator {
+ position: absolute;
+ left: 0;
+ right: 0;
+ bottom: 14px;
+ z-index: 2;
+ width: max-content;
+ min-width: 44px;
+ min-height: 44px;
+ margin-inline: auto;
+ display: flex;
+ flex-direction: column;
+ align-items: center;
+ justify-content: center;
+ gap: 3px;
+ color: rgba(255, 255, 255, 0.78);
+ font-size: 11.5px;
+ font-weight: 600;
+ letter-spacing: 0.2px;
+ transition: color 180ms ease;
+ }
+ .hero-scroll-indicator:hover { color: #ffffff; }
+ .hero-scroll-indicator .od-icon {
+ --od-icon-size: 18px;
+ animation: scrollCue 1.8s ease-in-out infinite;
+ }
+ @keyframes scrollCue {
+ 0%, 100% { transform: translateY(0); }
+ 50% { transform: translateY(5px); }
+ }
+
+ /* Live Period Tracker Widget */
+ .period-widget {
+ background: var(--surface);
+ border: 1px solid var(--border);
+ border-radius: var(--radius-lg);
+ padding: 24px;
+ box-shadow: 0 8px 28px rgba(15, 118, 110, 0.08);
+ position: relative;
+ }
+ .period-widget-header {
+ display: flex;
+ align-items: center;
+ justify-content: space-between;
+ margin-bottom: 18px;
+ padding-bottom: 14px;
+ border-bottom: 1px solid var(--border);
+ }
+ .period-stat-grid {
+ display: grid;
+ grid-template-columns: repeat(3, 1fr);
+ gap: 14px;
+ margin-bottom: 20px;
+ }
+ .period-stat-box {
+ background: var(--bg);
+ border-radius: var(--radius);
+ padding: 12px;
+ text-align: center;
+ border: 1px solid var(--border);
+ }
+ .period-stat-val {
+ font-family: var(--font-mono);
+ font-size: 20px;
+ font-weight: 700;
+ color: var(--fg);
+ }
+ .period-stat-lbl {
+ font-size: 11.5px;
+ color: var(--muted);
+ font-weight: 500;
+ margin-top: 2px;
+ }
+
+ /* 6-Stage Guided Academic Roadmap */
+ .roadmap-section {
+ background: var(--surface);
+ border-bottom: 1px solid var(--border);
+ }
+ .roadmap-grid {
+ display: grid;
+ grid-template-columns: repeat(6, 1fr);
+ gap: 14px;
+ margin-top: 36px;
+ position: relative;
+ }
+ .roadmap-card {
+ background: linear-gradient(145deg, #eaf8ef 0%, #f8fcf9 58%, #ffffff 100%);
+ border: 1px solid var(--border);
+ border-radius: var(--radius);
+ padding: 18px 14px;
+ position: relative;
+ transition: all 0.2s ease;
+ display: flex;
+ flex-direction: column;
+ justify-content: space-between;
+ min-height: 200px;
+ }
+ .roadmap-card:nth-child(2) { background: linear-gradient(145deg, #dff3e7 0%, #f4fbf6 58%, #ffffff 100%); }
+ .roadmap-card:nth-child(3) { background: linear-gradient(145deg, #eaf8ef 0%, #f8fcf9 58%, #ffffff 100%); }
+ .roadmap-card:nth-child(4) { background: linear-gradient(145deg, #dff3e7 0%, #f4fbf6 58%, #ffffff 100%); }
+ .roadmap-card:nth-child(5) { background: linear-gradient(145deg, #eaf8ef 0%, #f8fcf9 58%, #ffffff 100%); }
+ .roadmap-card:nth-child(6) { background: linear-gradient(145deg, #dff3e7 0%, #f4fbf6 58%, #ffffff 100%); }
+ .roadmap-card.active {
+ background: linear-gradient(145deg, #eaf8ef 0%, #f8fcf9 58%, #ffffff 100%);
+ border-color: var(--accent);
+ box-shadow: 0 4px 14px rgba(22, 119, 255, 0.12);
+ }
+ .roadmap-step-num {
+ font-family: var(--font-mono);
+ font-size: 12px;
+ font-weight: 700;
+ color: var(--muted);
+ margin-bottom: 8px;
+ }
+ .roadmap-card.active .roadmap-step-num {
+ color: var(--accent);
+ }
+ .roadmap-title {
+ font-size: 14px;
+ font-weight: 700;
+ color: var(--fg);
+ line-height: 1.35;
+ margin-bottom: 8px;
+ }
+ .roadmap-desc {
+ font-size: 12px;
+ color: var(--muted);
+ line-height: 1.45;
+ flex-grow: 1;
+ }
+ .roadmap-tag {
+ margin-top: 12px;
+ font-size: 11px;
+ font-weight: 600;
+ padding: 3px 8px;
+ border-radius: 4px;
+ width: fit-content;
+ }
+
+ /* Research Directory & Faculty Chỉ tiêu */
+ .faculty-grid {
+ display: grid;
+ grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+ gap: 20px;
+ margin-top: 28px;
+ }
+ .faculty-card {
+ --faculty-pastel-start: #f0fdf4;
+ --faculty-pastel-end: #ffffff;
+ background: linear-gradient(145deg, var(--faculty-pastel-start) 0%, var(--faculty-pastel-end) 100%);
+ border: 1px solid var(--border);
+ border-radius: var(--radius-lg);
+ padding: 22px;
+ display: flex;
+ flex-direction: column;
+ justify-content: space-between;
+ transition: all 0.2s ease;
+ }
+ .faculty-card:nth-child(6n + 1) { --faculty-pastel-start: #ecfdf5; --faculty-pastel-end: #f8fffb; }
+ .faculty-card:nth-child(6n + 2) { --faculty-pastel-start: #e8f9ef; --faculty-pastel-end: #f5fcf8; }
+ .faculty-card:nth-child(6n + 3) { --faculty-pastel-start: #e2f5ea; --faculty-pastel-end: #f2faf5; }
+ .faculty-card:nth-child(6n + 4) { --faculty-pastel-start: #dcf1e5; --faculty-pastel-end: #eff8f2; }
+ .faculty-card:nth-child(6n + 5) { --faculty-pastel-start: #d7ede1; --faculty-pastel-end: #edf7f0; }
+ .faculty-card:nth-child(6n) { --faculty-pastel-start: #d1e9dc; --faculty-pastel-end: #eaf5ee; }
+ .faculty-card:hover {
+ border-color: var(--accent);
+ box-shadow: 0 6px 20px rgba(0, 0, 0, 0.05);
+ }
+.faculty-more-card {
+ min-height: 220px;
+ border: 1px dashed color-mix(in oklch, var(--accent) 55%, var(--border));
+ border-radius: var(--radius-lg);
+ background: linear-gradient(145deg, #dff5e8 0%, #f4fbf7 100%);
+ color: var(--brand);
+ display: flex;
+ flex-direction: column;
+ align-items: center;
+ justify-content: center;
+ gap: 10px;
+ padding: 24px;
+ text-align: center;
+ cursor: pointer;
+ transition: transform 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
+}
+ .faculty-more-card .od-icon { --od-icon-size: 18px; }
+.faculty-more-card strong { font-size: 16px; }
+.faculty-more-card span { color: var(--muted); font-size: 13px; line-height: 1.5; }
+.faculty-more-card:focus-visible {
+ outline: 3px solid color-mix(in oklch, var(--accent) 35%, transparent);
+ outline-offset: 3px;
+}
+@media (hover: hover) {
+ .faculty-more-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--accent);
+  box-shadow: 0 8px 22px rgba(15, 118, 110, 0.1);
+ }
+}
+ .faculty-header {
+ display: flex;
+ align-items: flex-start;
+ gap: 14px;
+ margin-bottom: 14px;
+ }
+ .faculty-avatar {
+ width: 48px;
+ height: 48px;
+ border-radius: 50%;
+ background: var(--brand-soft);
+ color: var(--brand);
+ display: flex;
+ align-items: center;
+ justify-content: center;
+ font-weight: 700;
+ font-size: 15px;
+ flex-shrink: 0;
+ border: 2px solid #fff;
+ box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+ }
+ .faculty-name {
+ font-size: 15.5px;
+ font-weight: 700;
+ color: var(--fg);
+ line-height: 1.3;
+ }
+ .faculty-dept {
+ font-size: 12.5px;
+ color: var(--muted);
+ margin-top: 2px;
+ }
+ .faculty-topics {
+ margin: 14px 0;
+ }
+ .topic-pill-list {
+ display: flex;
+ flex-wrap: wrap;
+ gap: 6px;
+ margin-top: 8px;
+ }
+ .topic-pill {
+ font-size: 12px;
+ background: var(--bg);
+ border: 1px solid var(--border);
+ padding: 4px 10px;
+ border-radius: var(--radius-full);
+ color: var(--fg);
+ }
+
+ /* Chỉ tiêu Meter (≤ 10 SV/GV) */
+ .quota-box {
+ margin-top: 14px;
+ padding-top: 14px;
+ border-top: 1px dashed var(--border);
+ }
+ .quota-bar-wrapper {
+ height: 6px;
+ background: #f1f5f9;
+ border-radius: 3px;
+ overflow: hidden;
+ margin-top: 6px;
+ }
+ .quota-bar {
+ height: 100%;
+ background: var(--accent);
+ border-radius: 3px;
+ transition: width 0.3s ease;
+ }
+ .motion-ready .semester-progress-bar {
+ transform: scaleX(0);
+ transform-origin: left center;
+ transition: transform 380ms cubic-bezier(0.22, 1, 0.36, 1);
+ }
+ .motion-ready .semester-progress-bar.is-visible { transform: scaleX(1); }
+ .quota-bar.full { background: var(--danger); }
+ .quota-bar.near-full { background: var(--warning); }
+
+ /* Download & Templates Center */
+ .download-grid {
+ display: grid;
+ grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+ gap: 16px;
+ margin-top: 24px;
+ }
+ .download-card {
+ background: var(--surface);
+ border: 1px solid var(--border);
+ border-radius: var(--radius);
+ padding: 18px;
+ display: flex;
+ align-items: center;
+ gap: 14px;
+ transition: all 0.2s ease;
+ }
+ .download-card:hover {
+ border-color: var(--accent);
+ transform: translateY(-2px);
+ box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+ }
+
+ /* Scroll reveal & restrained micro-interactions */
+ .motion-ready .reveal-on-scroll {
+ opacity: 0;
+ transform: translateY(20px);
+ transition:
+ opacity 360ms ease-out var(--reveal-delay, 0ms),
+ transform 360ms cubic-bezier(0.16, 1, 0.3, 1) var(--reveal-delay, 0ms);
+ }
+ .motion-ready .reveal-on-scroll.is-visible {
+ opacity: 1;
+ transform: translateY(0);
+ }
+ @media (hover: hover) {
+ .roadmap-card:hover,
+ .faculty-card:hover,
+ .download-card:hover,
+ .motion-ready .reveal-on-scroll.is-visible.roadmap-card:hover,
+ .motion-ready .reveal-on-scroll.is-visible.faculty-card:hover,
+ .motion-ready .reveal-on-scroll.is-visible.download-card:hover {
+ transform: translateY(-4px);
+ }
+ .roadmap-card:hover {
+ border-color: color-mix(in oklch, var(--accent) 58%, var(--border));
+ box-shadow: 0 8px 22px rgba(15, 118, 110, 0.1);
+ }
+ }
+ .doc-icon {
+ width: 42px;
+ height: 42px;
+ border-radius: 8px;
+ background: #fee2e2;
+ color: #b91c1c;
+ display: flex;
+ align-items: center;
+ justify-content: center;
+ font-weight: 700;
+ font-size: 13px;
+ flex-shrink: 0;
+ }
+ .doc-icon.docx { background: #dbeafe; color: #1d4ed8; }
+
+ /* ─── MODAL LOGIN & CONTEXT GATEWAY ────────────────────────────────── */
+ .modal-backdrop {
+ position: fixed;
+ inset: 0;
+ background: rgba(15, 23, 42, 0.65);
+ backdrop-filter: blur(8px);
+ -webkit-backdrop-filter: blur(8px);
+ z-index: 1000;
+ display: none;
+ align-items: center;
+ justify-content: center;
+ padding: 20px;
+ }
+ .modal-backdrop.show { display: flex; }
+
+ .auth-modal {
+ background: var(--surface);
+ border-radius: var(--radius-lg);
+ width: 100%;
+ max-width: 480px;
+ box-shadow: 0 20px 48px rgba(0, 0, 0, 0.2);
+ overflow: hidden;
+ border: 1px solid var(--border);
+ animation: modalPop 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+ }
+ @keyframes modalPop {
+ from { opacity: 0; transform: scale(0.96) translateY(8px); }
+ to { opacity: 1; transform: scale(1) translateY(0); }
+ }
+
+ .auth-modal-header {
+ background: linear-gradient(135deg, #0F766E 0%, #115E59 100%);
+ color: #fff;
+ padding: 28px 24px;
+ text-align: center;
+ position: relative;
+ }
+ .modal-close-btn {
+ position: absolute;
+ top: 14px;
+ right: 14px;
+ color: rgba(255, 255, 255, 0.7);
+ width: 32px;
+ height: 32px;
+ border-radius: 50%;
+ display: flex;
+ align-items: center;
+ justify-content: center;
+ font-size: 18px;
+ }
+ .modal-close-btn:hover { color: #fff; background: rgba(255, 255, 255, 0.1); }
+
+ .auth-modal-body {
+ padding: 28px 24px;
+ }
+
+ /* Form Inputs */
+ .form-group {
+ margin-bottom: 18px;
+ }
+ .form-label {
+ display: block;
+ font-size: 13px;
+ font-weight: 600;
+ color: var(--fg);
+ margin-bottom: 6px;
+ }
+ .input-wrapper {
+ position: relative;
+ display: flex;
+ align-items: center;
+ }
+ .input-icon {
+ position: absolute;
+ left: 12px;
+ color: var(--muted);
+ font-size: 16px;
+ pointer-events: none;
+ }
+ .form-input {
+ width: 100%;
+ padding: 10px 14px 10px 38px;
+ border-radius: var(--radius);
+ border: 1px solid var(--border);
+ background: var(--bg);
+ font-family: var(--font-body);
+ font-size: 14px;
+ color: var(--fg);
+ outline: none;
+ transition: all 0.15s ease;
+ }
+ .form-input:focus {
+ border-color: var(--accent);
+ background: #fff;
+ box-shadow: 0 0 0 3px var(--accent-soft);
+ }
+
+ /* Demo Quick Logins */
+ .quick-login-pills {
+ display: flex;
+ gap: 8px;
+ margin-top: 14px;
+ }
+ .pill-btn {
+ flex: 1;
+ padding: 6px 8px;
+ border-radius: 6px;
+ border: 1px solid var(--border);
+ background: var(--bg);
+ font-size: 12px;
+ font-weight: 600;
+ color: var(--muted);
+ text-align: center;
+ cursor: pointer;
+ transition: all 0.15s ease;
+ }
+ .pill-btn:hover {
+ background: var(--surface);
+ color: var(--fg);
+ border-color: var(--accent);
+ }
+
+ /* Role Gateway Selector (Kiêm nhiệm) */
+ .role-selection-box {
+ margin-top: 20px;
+ border: 1px solid #bfdbfe;
+ background: #eff6ff;
+ border-radius: var(--radius);
+ padding: 16px;
+ display: none;
+ }
+ .role-selection-box.show { display: block; }
+ .role-option-card {
+ display: flex;
+ align-items: center;
+ justify-content: space-between;
+ padding: 12px 14px;
+ background: #fff;
+ border: 1px solid #dbeafe;
+ border-radius: 8px;
+ margin-top: 8px;
+ cursor: pointer;
+ transition: all 0.15s ease;
+ }
+ .role-option-card:hover {
+ border-color: var(--accent);
+ box-shadow: 0 2px 8px rgba(22, 119, 255, 0.15);
+ }
+
+ /* Filter Bar for Faculty / Topics */
+ .filter-bar {
+ display: flex;
+ align-items: center;
+ justify-content: space-between;
+ flex-wrap: wrap;
+ gap: 14px;
+ background: var(--surface);
+ padding: 16px 20px;
+ border-radius: var(--radius-lg);
+ border: 1px solid var(--border);
+ margin-top: 24px;
+ }
+ .search-input-box {
+ position: relative;
+ flex: 1;
+ min-width: 260px;
+ }
+ .search-input-box input {
+ width: 100%;
+ padding: 9px 14px 9px 36px;
+ border-radius: var(--radius);
+ border: 1px solid var(--border);
+ background: var(--bg);
+ font-size: 13.5px;
+ outline: none;
+ }
+ .search-input-box input:focus {
+ border-color: var(--accent);
+ background: #fff;
+ }
+ .filter-selects {
+ display: flex;
+ align-items: center;
+ gap: 10px;
+ }
+ .filter-select {
+ padding: 9px 12px;
+ border-radius: var(--radius);
+ border: 1px solid var(--border);
+ background: var(--bg);
+ font-size: 13px;
+ color: var(--fg);
+ outline: none;
+ cursor: pointer;
+ }
+
+ /* Footer */
+ .footer {
+ background: #0f172a;
+ color: #94a3b8;
+ padding: 56px 0 32px;
+ border-top: 1px solid #1e293b;
+ }
+ .footer-grid {
+ display: grid;
+ grid-template-columns: 1.5fr repeat(3, 1fr);
+ gap: 40px;
+ margin-bottom: 40px;
+ }
+ .footer h4 {
+ color: #fff;
+ font-size: 15px;
+ margin-bottom: 16px;
+ }
+ .footer-links {
+ list-style: none;
+ padding: 0;
+ margin: 0;
+ display: flex;
+ flex-direction: column;
+ gap: 10px;
+ font-size: 13.5px;
+ }
+ .footer-links a:hover { color: #fff; }
+
+ /* Back to top */
+ .back-to-top {
+ position: fixed;
+ right: 24px;
+ bottom: 24px;
+ z-index: 90;
+ width: 48px;
+ height: 48px;
+ display: flex;
+ align-items: center;
+ justify-content: center;
+ color: #ffffff;
+ background: var(--accent);
+ border-radius: 50%;
+ box-shadow: 0 12px 28px rgba(15, 118, 110, 0.28);
+ opacity: 0;
+ visibility: hidden;
+ pointer-events: none;
+ transform: translateY(12px);
+ transition: opacity 180ms ease, transform 180ms ease, visibility 0s linear 180ms, background-color 180ms ease;
+ }
+ .back-to-top.is-visible {
+ opacity: 1;
+ visibility: visible;
+ pointer-events: auto;
+ transform: translateY(0);
+ transition-delay: 0s;
+ }
+ .back-to-top .od-icon { --od-icon-size: 20px; }
+ .back-to-top:focus-visible {
+ outline: 3px solid #ffffff;
+ outline-offset: 3px;
+ }
+ @media (hover: hover) {
+ .back-to-top:hover { background: var(--accent-dark); }
+ }
+
+ /* Responsive */
+ @media (max-width: 920px) {
+ .hero-grid { grid-template-columns: 1fr; gap: 32px; }
+ .hero-banner { padding: 48px 0 84px; }
+ .hero-banner::before { background-position: 58% center; }
+ .roadmap-grid { grid-template-columns: repeat(2, 1fr); }
+ .footer-grid { grid-template-columns: 1fr 1fr; }
+ .topnav-inner > nav { display: none; }
+ .nav-links { display: none; }
+ .topnav .brand-text { display: none; }
+ }
+ @media (max-width: 640px) {
+ .hero-banner { padding: 40px 0 80px; }
+ .roadmap-grid { grid-template-columns: 1fr; }
+ .period-stat-grid { grid-template-columns: 1fr; }
+ .footer-grid { grid-template-columns: 1fr; }
+ .back-to-top { right: 16px; bottom: 16px; }
+ }
+ @media (prefers-reduced-motion: reduce) {
+ html { scroll-behavior: auto; }
+ .hero-banner::before,
+ .hero-copy,
+ .period-widget,
+ .hero-scroll-indicator .od-icon { animation: none; }
+ .topnav { transition: none; }
+ .motion-ready .semester-progress-bar,
+ .motion-ready .semester-progress-bar.is-visible {
+ transform: none;
+ transition: none;
+ }
+ .back-to-top { transition: none; }
+ .motion-ready .reveal-on-scroll,
+ .motion-ready .reveal-on-scroll.is-visible {
+ opacity: 1;
+ transform: none;
+ transition: none;
+ }
+ .roadmap-card,
+ .faculty-card,
+ .download-card { transition: none; }
+ }
+
+ /* ─── ANNOUNCEMENT DOCUMENT DETAIL VIEW ─────────────────────────── */
+ .doc-view-container {
+ padding: 16px 0 72px;
+ animation: docFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+ }
+ @keyframes docFadeIn {
+ from { opacity: 0; transform: translateY(8px); }
+ to { opacity: 1; transform: translateY(0); }
+ }
+
+ .doc-top-nav-bar {
+ display: flex;
+ justify-content: space-between;
+ align-items: center;
+ flex-wrap: wrap;
+ gap: 16px;
+ margin-bottom: 24px;
+ padding-bottom: 16px;
+ border-bottom: 1px solid var(--border);
+ }
+ .doc-breadcrumbs {
+ display: flex;
+ align-items: center;
+ gap: 8px;
+ font-size: 13px;
+ color: var(--muted);
+ flex-wrap: wrap;
+ }
+ .doc-breadcrumbs a {
+ color: var(--muted);
+ transition: color 0.15s ease;
+ display: inline-flex;
+ align-items: center;
+ gap: 4px;
+ }
+ .doc-breadcrumbs a:hover {
+ color: var(--accent);
+ }
+ .doc-breadcrumbs .separator {
+ color: var(--border);
+ }
+ .doc-breadcrumbs .current {
+ color: var(--fg);
+ font-weight: 600;
+ max-width: 480px;
+ white-space: nowrap;
+ overflow: hidden;
+ text-overflow: ellipsis;
+ }
+
+ .doc-actions-group {
+ display: flex;
+ align-items: center;
+ gap: 10px;
+ flex-wrap: wrap;
+ }
+
+ /* Document Layout Grid: Main Content (minmax) + Sidebar (340px) */
+ .doc-layout-grid {
+ display: grid;
+ grid-template-columns: minmax(0, 1fr) 340px;
+ gap: 32px;
+ align-items: start;
+ }
+
+ /* Document Official Paper Frame */
+ .doc-paper {
+ background: var(--surface);
+ border: 1px solid var(--border);
+ border-radius: var(--radius-lg);
+ box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+ padding: 44px 52px;
+ position: relative;
+ }
+
+ /* Official Administrative Header Strip */
+ .doc-admin-header {
+ display: grid;
+ grid-template-columns: 1.1fr 1fr;
+ gap: 20px;
+ padding-bottom: 24px;
+ border-bottom: 2px solid var(--fg);
+ margin-bottom: 28px;
+ }
+ .doc-origin-box {
+ font-size: 13px;
+ line-height: 1.45;
+ }
+ .doc-origin-unit {
+ font-weight: 700;
+ color: var(--brand);
+ text-transform: uppercase;
+ font-size: 13.5px;
+ letter-spacing: -0.2px;
+ }
+ .doc-origin-sub {
+ font-weight: 600;
+ color: var(--fg);
+ font-size: 13px;
+ }
+ .doc-origin-number {
+ font-family: var(--font-mono);
+ color: var(--muted);
+ font-size: 12.5px;
+ margin-top: 6px;
+ }
+
+ .doc-motto-box {
+ text-align: center;
+ line-height: 1.45;
+ }
+ .doc-nation {
+ font-weight: 700;
+ font-size: 13px;
+ letter-spacing: 0.5px;
+ text-transform: uppercase;
+ }
+ .doc-motto {
+ font-weight: 600;
+ font-size: 12.5px;
+ margin-top: 2px;
+ display: inline-block;
+ border-bottom: 1px solid var(--fg);
+ padding-bottom: 4px;
+ }
+ .doc-date-place {
+ font-style: italic;
+ color: var(--muted);
+ font-size: 12.5px;
+ margin-top: 8px;
+ }
+
+ /* Document Title & Subject */
+ .doc-subject-wrapper {
+ text-align: center;
+ margin-bottom: 28px;
+ }
+ .doc-category-badge {
+ margin-bottom: 12px;
+ }
+ .doc-headline {
+ font-size: clamp(20px, 2.3vw, 25px);
+ font-weight: 700;
+ color: var(--brand);
+ line-height: 1.35;
+ margin-bottom: 10px;
+ }
+ .doc-subtitle-ref {
+ font-size: 13.5px;
+ color: var(--muted);
+ font-style: italic;
+ max-width: 64ch;
+ margin: 0 auto;
+ }
+
+ /* Administrative Metadata Strip */
+ .doc-meta-strip {
+ background: var(--bg);
+ border: 1px solid var(--border);
+ border-radius: var(--radius);
+ padding: 16px 20px;
+ display: grid;
+ grid-template-columns: repeat(4, 1fr);
+ gap: 16px;
+ margin-bottom: 30px;
+ font-size: 12.5px;
+ }
+ .doc-meta-item-lbl {
+ color: var(--muted);
+ margin-bottom: 4px;
+ font-size: 11px;
+ text-transform: uppercase;
+ font-weight: 600;
+ letter-spacing: 0.4px;
+ }
+ .doc-meta-item-val {
+ font-weight: 600;
+ color: var(--fg);
+ }
+
+ /* Content Body */
+ .doc-body-text {
+ font-size: 14.5px;
+ line-height: 1.8;
+ color: #1e293b;
+ }
+ .doc-body-text p {
+ margin-bottom: 16px;
+ text-align: justify;
+ }
+ .doc-preamble {
+ font-style: italic;
+ color: var(--muted);
+ margin-bottom: 22px;
+ line-height: 1.7;
+ padding-left: 14px;
+ border-left: 2px solid var(--border);
+ }
+ .doc-article {
+ margin-bottom: 22px;
+ }
+ .doc-article-title {
+ font-size: 15px;
+ font-weight: 700;
+ color: var(--brand);
+ margin-bottom: 8px;
+ }
+ .doc-highlight-box {
+ background: #eff6ff;
+ border-left: 4px solid var(--accent);
+ padding: 14px 18px;
+ border-radius: 0 var(--radius) var(--radius) 0;
+ margin: 16px 0;
+ font-size: 13.5px;
+ color: #1e40af;
+ line-height: 1.6;
+ }
+ .doc-timeline-table {
+ width: 100%;
+ border-collapse: collapse;
+ margin: 18px 0;
+ font-size: 13px;
+ }
+ .doc-timeline-table th {
+ background: #f1f5f9;
+ color: var(--brand);
+ padding: 10px 14px;
+ text-align: left;
+ font-weight: 700;
+ border: 1px solid var(--border);
+ }
+ .doc-timeline-table td {
+ padding: 10px 14px;
+ border: 1px solid var(--border);
+ vertical-align: top;
+ }
+ .doc-timeline-table tr:nth-child(even) {
+ background: #f8fafc;
+ }
+
+ /* Signature & Recipient Area */
+ .doc-sign-area {
+ display: grid;
+ grid-template-columns: 1.1fr 1fr;
+ gap: 32px;
+ margin-top: 36px;
+ padding-top: 24px;
+ border-top: 1px dashed var(--border);
+ }
+ .doc-recipients {
+ font-size: 12px;
+ color: var(--muted);
+ line-height: 1.65;
+ }
+ .doc-recipients strong {
+ color: var(--fg);
+ display: block;
+ margin-bottom: 6px;
+ font-size: 12.5px;
+ }
+ .doc-sign-box {
+ text-align: center;
+ position: relative;
+ }
+ .doc-sign-role {
+ font-weight: 700;
+ text-transform: uppercase;
+ font-size: 13px;
+ color: var(--brand);
+ margin-bottom: 2px;
+ }
+ .doc-sign-delegate {
+ font-size: 12px;
+ font-weight: 600;
+ color: var(--muted);
+ margin-bottom: 12px;
+ }
+ .doc-digital-stamp {
+ display: inline-flex;
+ align-items: center;
+ gap: 12px;
+ padding: 10px 16px;
+ background: #fef2f2;
+ border: 1.5px solid #ef4444;
+ border-radius: 8px;
+ color: #991b1b;
+ font-size: 11.5px;
+ text-align: left;
+ margin: 10px 0;
+ box-shadow: 0 2px 8px rgba(239, 68, 68, 0.12);
+ }
+ .doc-signer-name {
+ font-weight: 700;
+ font-size: 14.5px;
+ color: var(--fg);
+ margin-top: 10px;
+ }
+
+ /* ─── ATTACHMENTS PANEL (IN-PAGE SECTION) ──────────────────────── */
+ .doc-attachments-panel {
+ margin-top: 36px;
+ padding-top: 28px;
+ border-top: 1px solid var(--border);
+ }
+ .doc-attachments-header {
+ display: flex;
+ justify-content: space-between;
+ align-items: center;
+ flex-wrap: wrap;
+ gap: 12px;
+ margin-bottom: 16px;
+ }
+ .doc-attachments-title {
+ font-size: 16px;
+ font-weight: 700;
+ color: var(--brand);
+ display: flex;
+ align-items: center;
+ gap: 8px;
+ }
+ .attachment-card {
+ background: var(--bg);
+ border: 1px solid var(--border);
+ border-radius: var(--radius);
+ padding: 14px 18px;
+ display: flex;
+ align-items: center;
+ justify-content: space-between;
+ gap: 16px;
+ margin-bottom: 12px;
+ transition: all 0.2s ease;
+ }
+ .attachment-card:hover {
+ border-color: var(--accent);
+ background: #fff;
+ box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+ }
+ .attachment-info-group {
+ display: flex;
+ align-items: center;
+ gap: 14px;
+ min-width: 0;
+ }
+ .attachment-badge {
+ width: 44px;
+ height: 44px;
+ border-radius: 8px;
+ display: flex;
+ flex-direction: column;
+ align-items: center;
+ justify-content: center;
+ font-weight: 800;
+ font-size: 11px;
+ letter-spacing: 0.5px;
+ flex-shrink: 0;
+ }
+ .attachment-badge.pdf { background: #fee2e2; color: #b91c1c; }
+ .attachment-badge.xlsx { background: #dcfce7; color: #15803d; }
+ .attachment-badge.docx { background: #dbeafe; color: #1d4ed8; }
+ .attachment-badge.zip { background: #fef3c7; color: #b45309; }
+
+ .attachment-meta {
+ min-width: 0;
+ }
+ .attachment-meta h4 {
+ font-size: 13.5px;
+ font-weight: 600;
+ color: var(--fg);
+ white-space: nowrap;
+ overflow: hidden;
+ text-overflow: ellipsis;
+ margin-bottom: 3px;
+ }
+ .attachment-meta p {
+ font-size: 12px;
+ color: var(--muted);
+ display: flex;
+ align-items: center;
+ gap: 8px;
+ flex-wrap: wrap;
+ }
+ .attachment-hash {
+ font-family: var(--font-mono);
+ font-size: 10.5px;
+ color: var(--muted);
+ background: rgba(0, 0, 0, 0.04);
+ padding: 2px 6px;
+ border-radius: 4px;
+ }
+
+ .attachment-actions {
+ display: flex;
+ align-items: center;
+ gap: 8px;
+ flex-shrink: 0;
+ }
+
+ /* Sidebar Widgets */
+ .doc-sidebar-widget {
+ background: var(--surface);
+ border: 1px solid var(--border);
+ border-radius: var(--radius-lg);
+ padding: 22px;
+ margin-bottom: 24px;
+ box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+ }
+ .doc-sidebar-title {
+ font-size: 14px;
+ font-weight: 700;
+ color: var(--brand);
+ margin-bottom: 14px;
+ display: flex;
+ align-items: center;
+ gap: 8px;
+ }
+ .related-doc-item {
+ padding: 12px 0;
+ border-bottom: 1px solid var(--border);
+ cursor: pointer;
+ transition: all 0.15s ease;
+ }
+ .related-doc-item:last-child {
+ border-bottom: none;
+ padding-bottom: 0;
+ }
+ .related-doc-item:hover .related-doc-title {
+ color: var(--accent);
+ }
+ .related-doc-title {
+ font-size: 13px;
+ font-weight: 600;
+ color: var(--fg);
+ line-height: 1.4;
+ margin-bottom: 4px;
+ transition: color 0.15s ease;
+ }
+ .related-doc-date {
+ font-size: 11.5px;
+ color: var(--muted);
+ font-family: var(--font-mono);
+ display: flex;
+ align-items: center;
+ gap: 6px;
+ }
+
+ /* ─── PDF / ATTACHMENT PREVIEW MODAL (IN-APP VIEWER) ───────────── */
+ .preview-modal-backdrop {
+ position: fixed;
+ inset: 0;
+ background: rgba(15, 23, 42, 0.75);
+ backdrop-filter: blur(8px);
+ -webkit-backdrop-filter: blur(8px);
+ z-index: 1200;
+ display: none;
+ align-items: center;
+ justify-content: center;
+ padding: 24px;
+ }
+ .preview-modal-backdrop.show {
+ display: flex;
+ }
+ .preview-modal-window {
+ background: #1e293b;
+ width: 100%;
+ max-width: 980px;
+ height: 90vh;
+ border-radius: var(--radius-lg);
+ display: flex;
+ flex-direction: column;
+ box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+ overflow: hidden;
+ border: 1px solid rgba(255, 255, 255, 0.1);
+ animation: modalPop 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+ }
+ .preview-modal-toolbar {
+ background: #0f172a;
+ padding: 12px 20px;
+ display: flex;
+ align-items: center;
+ justify-content: space-between;
+ color: #fff;
+ border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+ flex-shrink: 0;
+ }
+ .preview-toolbar-title {
+ display: flex;
+ align-items: center;
+ gap: 12px;
+ font-size: 13.5px;
+ font-weight: 600;
+ min-width: 0;
+ }
+ .preview-toolbar-title span {
+ white-space: nowrap;
+ overflow: hidden;
+ text-overflow: ellipsis;
+ max-width: 420px;
+ }
+ .preview-toolbar-actions {
+ display: flex;
+ align-items: center;
+ gap: 10px;
+ flex-shrink: 0;
+ }
+ .preview-viewport {
+ flex: 1;
+ background: #475569;
+ overflow-y: auto;
+ padding: 32px 20px;
+ display: flex;
+ justify-content: center;
+ }
+ .simulated-a4-page {
+ background: #ffffff;
+ width: 100%;
+ max-width: 740px;
+ min-height: 1040px;
+ box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+ padding: 48px 56px;
+ color: #0f172a;
+ font-size: 13.5px;
+ line-height: 1.65;
+ }
+
+ /* Print Formatting */
+ @media print {
+ body * { visibility: hidden !important; }
+ #announcementDetailView, #announcementDetailView * { visibility: visible !important; }
+ #announcementDetailView { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; padding: 0 !important; }
+ .doc-top-nav-bar, .doc-actions-group, .doc-sidebar-widget, .doc-attachments-panel, .topnav, .footer, .btn { display: none !important; }
+ .doc-layout-grid { grid-template-columns: 1fr !important; }
+ .doc-paper { border: none !important; box-shadow: none !important; padding: 0 !important; }
+ }
+
+ @media (max-width: 920px) {
+ .doc-layout-grid { grid-template-columns: 1fr; }
+ .doc-meta-strip { grid-template-columns: 1fr 1fr; }
+ .doc-paper { padding: 28px 24px; }
+ .doc-admin-header { grid-template-columns: 1fr; gap: 16px; }
+ .doc-sign-area { grid-template-columns: 1fr; gap: 24px; }
+ }
+</style>
+</head>
+<body>
+
+ <!-- ─── TOP NAVIGATION BAR ────────────────────────────────────────────── -->
+ <header class="topnav" data-od-id="public-topnav">
+ <div class="container topnav-inner">
+ <div class="brand-group">
+ <!-- Logo nguyên bản từ website chính thức TDMU: tdmu.edu.vn/img/brand/Logo_TDMU_2024_nguyen_ban.svg -->
+ <img class="brand-logo" src="assets/tdmu-logo.svg" alt="Đại học Thủ Dầu Một" width="107" height="40">
+ <div class="brand-text">
+ <h1>Viện Công nghệ Số</h1>
+ <p>Hệ thống Quản lý Đồ án</p>
+ </div>
+ </div>
+
+ <nav>
+ <ul class="nav-links">
+ <li><a href="#roadmap" class="nav-link">Lộ trình 6 Chặng</a></li>
+ <li><a href="#faculty" class="nav-link">Danh bạ GVHD & Hướng NC</a></li>
+ <li><a href="#downloads" class="nav-link">Biểu mẫu BM01-BM05</a></li>
+ <li><a href="#announcements" class="nav-link">Thông báo Học vụ</a></li>
+ </ul>
+ </nav>
+
+ <div class="nav-actions">
+ <button class="btn btn-brand topnav-login" type="button" onclick="openLoginModal('portal')" aria-label="Đăng nhập Cổng Học vụ">
+ <svg class="od-icon" style="--od-icon-size: 16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+ Đăng nhập
+ </button>
+ </div>
+
+ </div>
+ </header>
+
+ <!-- ─── MAIN PORTAL HOME VIEW ─────────────────────────────────────────── -->
+ <main id="portalHomeView">
+
+ <!-- ─── HERO SECTION & LIVE PERIOD DASHBOARD ──────────────────────────── -->
+ <!-- Background: official TDMU panorama, https://tuyensinh.tdmu.edu.vn/thu-vien-anh/toan-canh-tdmu -->
+ <section class="hero-banner" data-od-id="hero-section">
+ <div class="container hero-grid">
+ <div class="hero-copy">
+ <div class="hero-eyebrow">
+ <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>
+ Hạn chót Đăng ký Đề tài: 24/10/2026 (Còn 10 ngày)
+ </div>
+ <h1 class="hero-title">Khởi đầu Đồ án Tốt nghiệp với Quy chuẩn Học thuật Số</h1>
+ <p class="hero-subtitle">
+ Cổng thông tin chính thức của Viện Công nghệ Số dành cho sinh viên thực hiện Khóa luận & Đồ án Chuyên ngành. Tra cứu hướng nghiên cứu, kết nối Giảng viên hướng dẫn và nộp biểu mẫu BM01 - BM05 trực tuyến.
+ </p>
+ <div class="hero-ctas">
+ <a href="#faculty" class="btn btn-primary">
+ <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+ Tra cứu Giảng viên & Hướng NC
+ </a>
+ <a href="#downloads" class="btn btn-secondary">
+ <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+ Tải Mẫu Biểu BM01 - BM05
+ </a>
+ </div>
+
+ </div>
+
+ <!-- Live Period Status Card -->
+ <div class="period-widget" data-od-id="period-status-card">
+ <div class="period-widget-header">
+ <div>
+ <span class="badge badge-brand">Đợt tốt nghiệp chính thức</span>
+ <h3 style="font-size: 16px; margin-top: 6px; color: var(--brand);">Học kỳ 1 · Niên khóa 2026 - 2027</h3>
+ </div>
+ <span class="badge badge-success">Đang mở cổng</span>
+ </div>
+
+ <div class="period-stat-grid">
+ <div class="period-stat-box">
+ <div class="period-stat-val" data-count="128">128</div>
+ <div class="period-stat-lbl">SV đủ điều kiện</div>
+ </div>
+ <div class="period-stat-box">
+ <div class="period-stat-val" data-count="42" style="color: var(--accent);">42</div>
+ <div class="period-stat-lbl">Đề tài đã chốt</div>
+ </div>
+ <div class="period-stat-box">
+ <div class="period-stat-val" data-count="86" style="color: var(--success);">86</div>
+ <div class="period-stat-lbl">Suất còn trống</div>
+ </div>
+ </div>
+
+ <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+ <div style="display: flex; justify-content: space-between; font-size: 12.5px; font-weight: 600; margin-bottom: 6px;">
+ <span>Tiến độ giai đoạn hiện hành: <strong>GĐ 1 - Đăng ký đề tài</strong></span>
+ <span style="color: var(--accent); font-family: var(--font-mono);">32.8%</span>
+ </div>
+ <div class="quota-bar-wrapper">
+ <div class="quota-bar semester-progress-bar" style="width: 32.8%;"></div>
+ </div>
+ </div>
+
+ <div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--muted);">
+ <span>Thời gian toàn khóa: <strong>14 tuần</strong></span>
+ <a href="#roadmap" style="color: var(--accent); font-weight: 600;">Xem chi tiết lịch trình &rarr;</a>
+ </div>
+ </div>
+ </div>
+ <a class="hero-scroll-indicator" href="#roadmap" aria-label="Cuộn xuống xem lộ trình đồ án">
+ <span>Khám phá lộ trình</span>
+ <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+ </a>
+ </section>
+
+ <!-- ─── SECTION: 6-STAGE GUIDED ACADEMIC ROADMAP ──────────────────────── -->
+ <section id="roadmap" class="section roadmap-section" data-od-id="roadmap-section">
+ <div class="container">
+ <div style="text-align: center; max-width: 680px; margin: 0 auto;">
+ <span class="badge badge-primary">Quy chế đào tạo chính quy</span>
+ <h2 style="font-size: var(--fs-h2); color: var(--brand); margin-top: 10px;">Lộ Trình Đồ Án Tốt Nghiệp 6 Chặng</h2>
+ <p style="color: var(--muted); margin-top: 8px;">
+ Toàn bộ quy trình từ lúc đăng ký đến khi nhận Giấy chứng nhận hoàn thành đồ án được minh bạch hóa với các tiêu chí nghiệm thu rõ ràng.
+ </p>
+ </div>
+
+ <div class="roadmap-grid">
+ <!-- Chặng 1 -->
+ <div class="roadmap-card active" data-od-id="stage-card-1">
+ <div>
+ <div class="roadmap-step-num">CHẶNG 01 · TUẦN 01-02</div>
+ <div class="roadmap-title">Chuẩn bị & Đăng ký Đề tài</div>
+ <div class="roadmap-desc">SV liên hệ GVHD, gửi nguyện vọng đề tài theo danh bạ. GVHD duyệt chấp thuận trên hệ thống.</div>
+ </div>
+ <span class="roadmap-tag badge-primary">Đang diễn ra</span>
+ </div>
+
+ <!-- Chặng 2 -->
+ <div class="roadmap-card" data-od-id="stage-card-2">
+ <div>
+ <div class="roadmap-step-num">CHẶNG 02 · TUẦN 03-04</div>
+ <div class="roadmap-title">Đề cương & Xét duyệt (BM01/02)</div>
+ <div class="roadmap-desc">Nộp đề cương BM01, Hội đồng thẩm định góp ý. Nộp đơn BM02 chính thức trình Hiệu trưởng ký QĐ.</div>
+ </div>
+ <span class="roadmap-tag badge-neutral">Sắp tới</span>
+ </div>
+
+ <!-- Chặng 3 -->
+ <div class="roadmap-card" data-od-id="stage-card-3">
+ <div>
+ <div class="roadmap-step-num">CHẶNG 03 · TUẦN 05-11</div>
+ <div class="roadmap-title">Thực hiện & Theo dõi (BM03)</div>
+ <div class="roadmap-desc">Nghiên cứu, code thực nghiệm. Gặp GVHD định kỳ và vượt qua 2 buổi Checkpoint giữa kỳ.</div>
+ </div>
+ <span class="roadmap-tag badge-neutral">Tuần 05 - 11</span>
+ </div>
+
+ <!-- Chặng 4 -->
+ <div class="roadmap-card" data-od-id="stage-card-4">
+ <div>
+ <div class="roadmap-step-num">CHẶNG 04 · TUẦN 12</div>
+ <div class="roadmap-title">Thẩm định Bảo vệ (BM04)</div>
+ <div class="roadmap-desc">GVHD đánh giá toàn diện, lập phiếu nhận xét BM04 xác nhận ĐỒNG Ý cho sinh viên ra bảo vệ.</div>
+ </div>
+ <span class="roadmap-tag badge-warning">Cửa ải bắt buộc</span>
+ </div>
+
+ <!-- Chặng 5 -->
+ <div class="roadmap-card" data-od-id="stage-card-5">
+ <div>
+ <div class="roadmap-step-num">CHẶNG 05 · TUẦN 13</div>
+ <div class="roadmap-title">Hội đồng Chấm Bảo vệ</div>
+ <div class="roadmap-desc">Hội đồng 3 thành viên (Chủ tịch, Thư ký, Phản biện) chấm điểm độc lập theo thang điểm chuẩn. Xuất biên bản BM05.</div>
+ </div>
+ <span class="roadmap-tag badge-neutral">Bảo vệ chính thức</span>
+ </div>
+
+ <!-- Chặng 6 -->
+ <div class="roadmap-card" data-od-id="stage-card-6">
+ <div>
+ <div class="roadmap-step-num">CHẶNG 06 · TUẦN 14</div>
+ <div class="roadmap-title">Lưu chiểu & Cấp Chứng nhận</div>
+ <div class="roadmap-desc">Nộp quyển PDF hoàn chỉnh, video demo và link GitHub codebase. Nhận Giấy chứng nhận hoàn thành có mã QR.</div>
+ </div>
+ <span class="roadmap-tag badge-success">Hoàn thành</span>
+ </div>
+ </div>
+ </div>
+ </section>
+
+ <!-- ─── SECTION: FACULTY DIRECTORY & RESEARCH TOPICS ──────────────────── -->
+ <section id="faculty" class="section" data-od-id="faculty-section">
+ <div class="container">
+ <div style="display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 16px;">
+ <div>
+ <span class="badge badge-brand">Danh bạ Học thuật</span>
+ <h2 style="font-size: var(--fs-h2); color: var(--brand); margin-top: 8px;">Giảng Viên Hướng Dẫn & Hướng Nghiên Cứu</h2>
+ <p style="color: var(--muted); margin-top: 4px;">
+ Sinh viên chủ động liên hệ thầy cô theo đúng hướng nghiên cứu thế mạnh. Mỗi GVHD hướng dẫn tối đa 10 sinh viên.
+ </p>
+ </div>
+ <div style="font-size: 13px; color: var(--muted);">
+ Tổng số: <strong style="color: var(--fg);">18 Giảng viên cơ hữu</strong> · <span style="color: var(--success); font-weight: 600;">14 GV còn nhận sinh viên</span>
+ </div>
+ </div>
+
+ <!-- Filter Controls -->
+ <div class="filter-bar">
+ <div class="search-input-box">
+ <svg style="position: absolute; left: 12px; top: 10px; color: var(--muted);" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+ <input type="text" id="facultySearch" placeholder="Tìm kiếm theo tên GV, từ khóa hướng nghiên cứu (AI, Web, IoT...)" oninput="filterFaculty()">
+ </div>
+ <div class="filter-selects">
+ <select class="filter-select" id="deptFilter" onchange="filterFaculty()">
+ <option value="ALL">Tất cả Bộ môn</option>
+ <option value="KTPM">Kỹ thuật Phần mềm (KTPM)</option>
+ <option value="CNTT">Khoa học Dữ liệu & AI</option>
+ <option value="MMT">Mạng máy tính & An ninh mạng</option>
+ <option value="HTTT">Hệ thống thông tin quản lý</option>
+ </select>
+ <select class="filter-select" id="quotaFilter" onchange="filterFaculty()">
+ <option value="ALL">Tất cả trạng thái suất</option>
+ <option value="AVAILABLE">Còn nhận sinh viên (dưới 10 SV)</option>
+ <option value="FULL">Đã đủ 10/10 sinh viên</option>
+ </select>
+ </div>
+ </div>
+
+ <!-- Faculty Cards Grid -->
+ <div class="faculty-grid" id="facultyGridContainer">
+ 
+ <!-- GV 1 -->
+ <div class="faculty-card" data-dept="KTPM" data-quota="AVAILABLE">
+ <div>
+ <div class="faculty-header">
+ <div class="faculty-avatar">PT</div>
+ <div>
+ <div class="faculty-name">PGS. TS. Phan Thanh Tùng</div>
+ <div class="faculty-dept">Bộ môn Kỹ thuật Phần mềm · Trưởng PTN Kiến trúc Hệ thống</div>
+ </div>
+ </div>
+ <p style="font-size: 13px; color: var(--muted); line-height: 1.5;">
+ Chuyên sâu: Microservices, Cloud-Native Architecture, High-Concurrency Web Systems, Kubernetes Orchestration.
+ </p>
+ <div class="faculty-topics">
+ <div style="font-size: 11.5px; font-weight: 600; color: var(--muted); text-transform: uppercase;">Hướng nghiên cứu gợi ý:</div>
+ <div class="topic-pill-list">
+ <span class="topic-pill">Event-Driven Architecture</span>
+ <span class="topic-pill">Distributed Tracing</span>
+ <span class="topic-pill">Fintech Core Engine</span>
+ </div>
+ </div>
+ </div>
+ <div class="quota-box">
+ <div style="display: flex; justify-content: space-between; font-size: 12.5px;">
+ <span>Định mức hướng dẫn:</span>
+ <strong style="color: var(--accent); font-family: var(--font-mono);">6 / 10 SV (Còn 4 chỗ)</strong>
+ </div>
+ <div class="quota-bar-wrapper">
+ <div class="quota-bar" style="width: 60%;"></div>
+ </div>
+ </div>
+ </div>
+
+ <!-- GV 2 -->
+ <div class="faculty-card" data-dept="CNTT" data-quota="AVAILABLE">
+ <div>
+ <div class="faculty-header">
+ <div class="faculty-avatar" style="background: #fef3c7; color: #b45309;">LN</div>
+ <div>
+ <div class="faculty-name">TS. Lê Nhật Nam</div>
+ <div class="faculty-dept">Bộ môn Khoa học Dữ liệu & Trí tuệ Nhân tạo</div>
+ </div>
+ </div>
+ <p style="font-size: 13px; color: var(--muted); line-height: 1.5;">
+ Chuyên sâu: Large Language Models (LLM), Retrieval-Augmented Generation (RAG), Multimodal AI, Thị giác máy tính.
+ </p>
+ <div class="faculty-topics">
+ <div style="font-size: 11.5px; font-weight: 600; color: var(--muted); text-transform: uppercase;">Hướng nghiên cứu gợi ý:</div>
+ <div class="topic-pill-list">
+ <span class="topic-pill">Agentic Workflow</span>
+ <span class="topic-pill">Healthcare AI Diagnostics</span>
+ <span class="topic-pill">Vietnamese NLP</span>
+ </div>
+ </div>
+ </div>
+ <div class="quota-box">
+ <div style="display: flex; justify-content: space-between; font-size: 12.5px;">
+ <span>Định mức hướng dẫn:</span>
+ <strong style="color: var(--warning); font-family: var(--font-mono);">8 / 10 SV (Còn 2 chỗ)</strong>
+ </div>
+ <div class="quota-bar-wrapper">
+ <div class="quota-bar near-full" style="width: 80%;"></div>
+ </div>
+ </div>
+ </div>
+
+ <!-- GV 3 -->
+ <div class="faculty-card" data-dept="MMT" data-quota="AVAILABLE">
+ <div>
+ <div class="faculty-header">
+ <div class="faculty-avatar" style="background: #e0e7ff; color: #4338ca;">VH</div>
+ <div>
+ <div class="faculty-name">TS. Vũ Hoàng Hải</div>
+ <div class="faculty-dept">Bộ môn Mạng Máy tính & An toàn Thông tin</div>
+ </div>
+ </div>
+ <p style="font-size: 13px; color: var(--muted); line-height: 1.5;">
+ Chuyên sâu: Zero-Trust Security, Blockchain Consensus, IoT Firmware Security, Network Intrusion Detection (IDS/IPS).
+ </p>
+ <div class="faculty-topics">
+ <div style="font-size: 11.5px; font-weight: 600; color: var(--muted); text-transform: uppercase;">Hướng nghiên cứu gợi ý:</div>
+ <div class="topic-pill-list">
+ <span class="topic-pill">Smart Contract Audit</span>
+ <span class="topic-pill">IoT Edge Gateway</span>
+ <span class="topic-pill">Zero-Knowledge Proof</span>
+ </div>
+ </div>
+ </div>
+ <div class="quota-box">
+ <div style="display: flex; justify-content: space-between; font-size: 12.5px;">
+ <span>Định mức hướng dẫn:</span>
+ <strong style="color: var(--success); font-family: var(--font-mono);">4 / 10 SV (Còn 6 chỗ)</strong>
+ </div>
+ <div class="quota-bar-wrapper">
+ <div class="quota-bar" style="width: 40%; background: var(--success);"></div>
+ </div>
+ </div>
+ </div>
+
+ <!-- GV 4 (Đã đủ số lượng 10/10) -->
+ <div class="faculty-card" data-dept="HTTT" data-quota="FULL">
+ <div>
+ <div class="faculty-header">
+ <div class="faculty-avatar" style="background: #fee2e2; color: #991b1b;">TM</div>
+ <div>
+ <div class="faculty-name">TS. Trần Minh Đức</div>
+ <div class="faculty-dept">Bộ môn Hệ thống Thông tin Quản lý</div>
+ </div>
+ </div>
+ <p style="font-size: 13px; color: var(--muted); line-height: 1.5;">
+ Chuyên sâu: Enterprise Resource Planning (ERP), Chuyển đổi số doanh nghiệp, Business Intelligence & Data Warehouse.
+ </p>
+ <div class="faculty-topics">
+ <div style="font-size: 11.5px; font-weight: 600; color: var(--muted); text-transform: uppercase;">Hướng nghiên cứu gợi ý:</div>
+ <div class="topic-pill-list">
+ <span class="topic-pill">Supply Chain Automation</span>
+ <span class="topic-pill">Data Warehouse ETL</span>
+ </div>
+ </div>
+ </div>
+ <div class="quota-box">
+ <div style="display: flex; justify-content: space-between; font-size: 12.5px;">
+ <span>Định mức hướng dẫn:</span>
+ <strong style="color: var(--danger); font-family: var(--font-mono);">10 / 10 SV (Hết chỗ)</strong>
+ </div>
+ <div class="quota-bar-wrapper">
+ <div class="quota-bar full" style="width: 100%;"></div>
+ </div>
+ </div>
+ </div>
+
+ <button class="faculty-more-card" id="facultyMoreCard" type="button" aria-expanded="false" onclick="toggleFacultyList()">
+ <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+ <strong id="facultyMoreLabel">Xem thêm giảng viên</strong>
+ <span id="facultyMoreHint">Hiển thị đầy đủ danh bạ giảng viên hướng dẫn</span>
+ </button>
+
+ </div>
+ </div>
+ </section>
+
+ <!-- ─── SECTION: BIỂU MẪU HỌC THUẬT CHUẨN TẢI VỀ ─────────────────────── -->
+ <section id="downloads" class="section-sm" style="background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);" data-od-id="downloads-section">
+ <div class="container">
+ <div style="display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 14px;">
+ <div>
+ <span class="badge badge-brand">Kho tài nguyên biểu mẫu</span>
+ <p style="color: var(--muted); margin-top: 4px;">
+ Các biểu mẫu chuẩn định dạng PDF/DOCX do Viện Công nghệ Số ban hành phục vụ thẩm định và bảo vệ.
+ </p>
+ </div>
+ </div>
+
+ <div class="download-grid">
+ <div class="download-card">
+ <div class="doc-icon docx">DOCX</div>
+ <div style="flex-grow: 1;">
+ <div style="font-weight: 700; font-size: 14px; color: var(--fg);">Biểu mẫu BM01</div>
+ <div style="font-size: 12px; color: var(--muted);">Đề cương nghiên cứu chi tiết</div>
+ <div style="font-size: 11px; color: var(--accent); margin-top: 4px; font-weight: 600;">Phiên bản v2.4 · 142 KB</div>
+ </div>
+ <button class="btn-ghost" title="Tải về" onclick="alert('Đang tải BM01...')">
+ <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+ </button>
+ </div>
+
+ <div class="download-card">
+ <div class="doc-icon docx">DOCX</div>
+ <div style="flex-grow: 1;">
+ <div style="font-weight: 700; font-size: 14px; color: var(--fg);">Biểu mẫu BM02</div>
+ <div style="font-size: 12px; color: var(--muted);">Đơn đăng ký đề tài chính thức</div>
+ <div style="font-size: 11px; color: var(--accent); margin-top: 4px; font-weight: 600;">Phiên bản v2.0 · 98 KB</div>
+ </div>
+ <button class="btn-ghost" title="Tải về" onclick="alert('Đang tải BM02...')">
+ <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+ </button>
+ </div>
+
+ <div class="download-card">
+ <div class="doc-icon">PDF</div>
+ <div style="flex-grow: 1;">
+ <div style="font-weight: 700; font-size: 14px; color: var(--fg);">Biểu mẫu BM03</div>
+ <div style="font-size: 12px; color: var(--muted);">Nhật ký & Tiến độ gặp GVHD</div>
+ <div style="font-size: 11px; color: var(--accent); margin-top: 4px; font-weight: 600;">Quy chuẩn Checkpoint · 185 KB</div>
+ </div>
+ <button class="btn-ghost" title="Tải về" onclick="alert('Đang tải BM03...')">
+ <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+ </button>
+ </div>
+
+ <div class="download-card">
+ <div class="doc-icon">PDF</div>
+ <div style="flex-grow: 1;">
+ <div style="font-weight: 700; font-size: 14px; color: var(--fg);">Biểu mẫu BM04</div>
+ <div style="font-size: 12px; color: var(--muted);">Phiếu nhận xét GVHD cho bảo vệ</div>
+ <div style="font-size: 11px; color: var(--accent); margin-top: 4px; font-weight: 600;">Cửa ải bảo vệ · 110 KB</div>
+ </div>
+ <button class="btn-ghost" title="Tải về" onclick="alert('Đang tải BM04...')">
+ <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+ </button>
+ </div>
+ </div>
+ </div>
+ </section>
+
+ <!-- ─── SECTION: LATEST ANNOUNCEMENTS ─────────────────────────────────── -->
+ <section id="announcements" class="section" data-od-id="announcements-section">
+ <div class="container">
+ <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+ <div>
+ <span class="badge badge-brand">Bản tin học vụ</span>
+ <h2 style="font-size: var(--fs-h2); color: var(--brand); margin-top: 6px;">Thông Báo Điều Hành Mới Nhất</h2>
+ </div>
+ <a href="javascript:void(0)" style="font-size: 13.5px; color: var(--accent); font-weight: 600;">Xem tất cả thông báo &rarr;</a>
+ </div>
+
+ <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 20px;">
+ 
+ <!-- Announcement 1 -->
+ <div class="card card-hover" style="cursor: pointer;" onclick="showAnnouncementDetail('tb-142')">
+ <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+ <span class="badge badge-danger">Khẩn cấp</span>
+ <span style="font-size: 12px; color: var(--muted); font-family: var(--font-mono);">14/10/2026</span>
+ </div>
+ <h3 style="font-size: 16px; font-weight: 700; color: var(--fg); line-height: 1.35; margin-bottom: 8px;">
+ Thông báo gia hạn nộp đơn đề cương nghiên cứu BM01 đợt 1
+ </h3>
+ <p style="font-size: 13px; color: var(--muted); line-height: 1.5; margin-bottom: 16px;">
+ Căn cứ đề xuất của các Bộ môn, Ban Chủ nhiệm Viện quyết định gia hạn thời gian sinh viên nộp BM01 đến hết 17h00 ngày 24/10/2026.
+ </p>
+ <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed var(--border); padding-top: 12px;">
+ <span style="font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 5px;">
+ <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+ <strong>3 tệp</strong> (PDF, XLSX, DOCX)
+ </span>
+ <span style="font-size: 12.5px; font-weight: 600; color: var(--accent); display: inline-flex; align-items: center; gap: 4px;">
+ Đọc chi tiết văn bản &rarr;
+ </span>
+ </div>
+ </div>
+
+ <!-- Announcement 2 -->
+ <div class="card card-hover" style="cursor: pointer;" onclick="showAnnouncementDetail('qd-286')">
+ <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+ <span class="badge badge-primary">Quyết định</span>
+ <span style="font-size: 12px; color: var(--muted); font-family: var(--font-mono);">10/10/2026</span>
+ </div>
+ <h3 style="font-size: 16px; font-weight: 700; color: var(--fg); line-height: 1.35; margin-bottom: 8px;">
+ Danh sách chính thức 128 sinh viên đủ điều kiện làm đồ án tốt nghiệp
+ </h3>
+ <p style="font-size: 13px; color: var(--muted); line-height: 1.5; margin-bottom: 16px;">
+ Phòng Đào tạo công bố danh sách sinh viên các lớp K21-KTPM, K21-CNTT, K21-MMT đủ điều kiện tín chỉ tích lũy làm khóa luận.
+ </p>
+ <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed var(--border); padding-top: 12px;">
+ <span style="font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 5px;">
+ <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+ <strong>2 tệp</strong> (PDF, XLSX)
+ </span>
+ <span style="font-size: 12.5px; font-weight: 600; color: var(--accent); display: inline-flex; align-items: center; gap: 4px;">
+ Tra cứu danh sách &rarr;
+ </span>
+ </div>
+ </div>
+
+ <!-- Announcement 3 -->
+ <div class="card card-hover" style="cursor: pointer;" onclick="showAnnouncementDetail('hd-89')">
+ <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+ <span class="badge badge-brand">Hướng dẫn</span>
+ <span style="font-size: 12px; color: var(--muted); font-family: var(--font-mono);">05/10/2026</span>
+ </div>
+ <h3 style="font-size: 16px; font-weight: 700; color: var(--fg); line-height: 1.35; margin-bottom: 8px;">
+ Quy định kiểm tra đạo văn (Turnitin) và Liêm chính học thuật 2026
+ </h3>
+ <p style="font-size: 13px; color: var(--muted); line-height: 1.5; margin-bottom: 16px;">
+ Chỉ số tương đồng (Similarity Index) tối đa cho phép là 20%, không bao gồm tài liệu tham khảo và mã nguồn mở có trích dẫn.
+ </p>
+ <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed var(--border); padding-top: 12px;">
+ <span style="font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 5px;">
+ <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+ <strong>2 tệp</strong> (PDF scan, PDF HD)
+ </span>
+ <button type="button" class="announcement-text-link" aria-label="Xem quy chế liêm chính học thuật" onclick="event.stopPropagation(); showAnnouncementDetail('hd-89')">
+ Xem quy chế liêm chính <span aria-hidden="true">&rarr;</span>
+ </button>
+ </div>
+ </div>
+
+ </div>
+ </div>
+ </section>
+
+ </main> <!-- /#portalHomeView -->
+
+ <button class="back-to-top od-touch" id="backToTopButton" type="button" aria-label="Quay về đầu trang">
+ <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="18 15 12 9 6 15"/></svg>
+ </button>
+
+ <!-- ─── ANNOUNCEMENT DOCUMENT DETAIL VIEW (TRANG CHI TIẾT VĂN BẢN HỌC VỤ) ─── -->
+ <main id="announcementDetailView" class="doc-view-container" style="display: none;" data-od-id="announcement-detail-view">
+ <div class="container">
+ 
+ <!-- Top Action & Navigation Bar -->
+ <div class="doc-top-nav-bar">
+ <div class="doc-breadcrumbs">
+ <a href="javascript:void(0)" onclick="showPortalHome">
+ <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+ Trang chủ Cổng thông tin
+ </a>
+ <span class="separator">/</span>
+ <a href="javascript:void(0)" onclick="showPortalHome('#announcements')">Bản tin & Quyết định học vụ</a>
+ <span class="separator">/</span>
+ <span class="current" id="docBreadcrumbTitle">Chi tiết văn bản thông báo</span>
+ </div>
+
+ <div class="doc-actions-group">
+ <button class="btn btn-secondary" onclick="showPortalHome">
+ <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+ Quay lại Cổng học vụ
+ </button>
+ <button class="btn btn-secondary" onclick="window.print()">
+ <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+ In văn bản
+ </button>
+ <button class="btn btn-secondary" onclick="copyDocShareLink">
+ <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+ Sao chép liên kết
+ </button>
+ <button class="btn btn-primary" onclick="downloadAllCurrentAttachments">
+ <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+ Tải trọn bộ đính kèm (.zip)
+ </button>
+ </div>
+ </div>
+
+ <!-- Main Layout Grid: Document (Left) + Sidebar (Right) -->
+ <div class="doc-layout-grid">
+ 
+ <!-- Left: Official Academic Document Paper -->
+ <article class="doc-paper" id="docPaperContainer">
+ <!-- Populated by JavaScript -->
+ </article>
+
+ <!-- Right: Metadata & Related Announcements Sidebar -->
+ <aside>
+ <!-- Quick Meta Info Widget -->
+ <div class="doc-sidebar-widget">
+ <div class="doc-sidebar-title">
+ <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+ Tóm Tắt Chỉ Đạo Học Vụ
+ </div>
+ <div style="font-size: 13px; line-height: 1.6; color: var(--fg);" id="sidebarDocSummary">
+ <!-- Summary text -->
+ </div>
+ <div style="margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--border); font-size: 12px; color: var(--muted); line-height: 1.6;">
+ <div>Cơ quan ban hành: <strong style="color: var(--fg);" id="sidebarDocUnit">Viện Công nghệ Số</strong></div>
+ <div style="margin-top: 4px;">Người ký: <strong style="color: var(--fg);" id="sidebarDocSigner">TS. Lê Quang Dũng</strong></div>
+ <div style="margin-top: 4px;">Tính xác thực: <span class="badge badge-success" style="font-size: 11px; padding: 2px 8px;">Đã ký số điện tử hợp lệ</span></div>
+ </div>
+ </div>
+
+ <!-- Attachments Quick Jump Card -->
+ <div class="doc-sidebar-widget">
+ <div class="doc-sidebar-title">
+ <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+ Tệp Tin Đính Kèm (<span id="sidebarAttachCount">3</span>)
+ </div>
+ <div id="sidebarAttachmentsList">
+ <!-- Rendered by JS -->
+ </div>
+ <button class="btn btn-secondary" style="width: 100%; font-size: 12.5px; margin-top: 12px;" onclick="downloadAllCurrentAttachments">
+ <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+ Tải trọn bộ file (.zip)
+ </button>
+ </div>
+
+ <!-- Related Announcements Card -->
+ <div class="doc-sidebar-widget">
+ <div class="doc-sidebar-title">
+ <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+ Văn Bản Cùng Học Kỳ
+ </div>
+ <div id="relatedDocsList">
+ <!-- Rendered by JS -->
+ </div>
+ </div>
+
+ <!-- Direct Help Card -->
+ <div class="doc-sidebar-widget" style="background: linear-gradient(135deg, #F0FDFA 0%, #ffffff 100%); border-color: #CCFBF1;">
+ <div style="font-weight: 700; font-size: 13.5px; color: var(--brand); margin-bottom: 6px;">Hỗ Trợ Thủ Tục Học Vụ</div>
+ <p style="font-size: 12px; color: var(--muted); line-height: 1.5; margin-bottom: 12px;">
+ Sinh viên thắc mắc về thời hạn hoặc quy cách nộp biểu mẫu vui lòng liên hệ Văn phòng Giáo vụ Viện (P.402 Tòa H1) hoặc gửi tin nhắn trực tiếp qua cổng.
+ </p>
+ <button class="btn btn-primary" style="width: 100%; font-size: 12px; padding: 8px 12px;" onclick="openLoginModal('student')">
+ Đăng nhập để gửi yêu cầu hỗ trợ
+ </button>
+ </div>
+
+ </aside>
+
+ </div>
+
+ </div>
+ </main>
+
+ <!-- ─── FOOTER ────────────────────────────────────────────────────────── -->
+ <footer class="footer" data-od-id="public-footer">
+ <div class="container">
+ <div class="footer-grid">
+ <div>
+ <div class="brand-group" style="margin-bottom: 14px;">
+ <div class="brand-logo" style="background: var(--accent);">VCS</div>
+ <div class="brand-text">
+ <h1 style="color: #fff;">Viện Công nghệ Số</h1>
+ <p style="color: #94a3b8;">Trường Đại học Công nghệ</p>
+ </div>
+ </div>
+ <p style="font-size: 13px; line-height: 1.6; max-width: 42ch;">
+ Hệ thống Quản lý Đồ án Tốt nghiệp chuẩn hóa số hóa toàn diện từ đề cương, tiến độ đến hội đồng bảo vệ và lưu chiểu học thuật.
+ </p>
+ <div style="margin-top: 18px; font-size: 12px; color: #64748b;">
+ Văn phòng: Tầng 4, Tòa nhà H1, Khu Đô thị Đại học<br>
+ Hotline Giáo vụ: (024) 3754 8888 · Email: daotao@vcs.edu.vn
+ </div>
+ </div>
+
+ <div>
+ <h4>Phân Hệ Chức Năng</h4>
+ <ul class="footer-links">
+ <li><a href="javascript:void(0)" onclick="openLoginModal('admin')">Trang quản trị hệ thống</a></li>
+ <li><a href="javascript:void(0)" onclick="openLoginModal('lecturer')">Không gian học vụ Giảng viên</a></li>
+ <li><a href="javascript:void(0)" onclick="openLoginModal('student')">Hành trình đồ án Sinh viên</a></li>
+ <li><a href="javascript:void(0)" onclick="openLoginModal('dean')">Bàn làm việc Ban Chủ nhiệm</a></li>
+ </ul>
+ </div>
+
+ <div>
+ <h4>Tài Nguyên Học Thuật</h4>
+ <ul class="footer-links">
+ <li><a href="#downloads">Mẫu đề cương BM01</a></li>
+ <li><a href="#downloads">Đơn đăng ký BM02</a></li>
+ <li><a href="#downloads">Nhật ký BM03</a></li>
+ <li><a href="#downloads">Quy chuẩn đánh giá khóa luận</a></li>
+ </ul>
+ </div>
+
+ <div>
+ <h4>Tiêu Chuẩn Hệ Thống</h4>
+ <ul class="footer-links">
+ <li><span style="color: #cbd5e1;">WCAG 2.1 AA Compliant</span></li>
+ <li><span style="color: #cbd5e1;">Supabase PostgreSQL Backend</span></li>
+ <li><span style="color: #cbd5e1;">Bảo mật phân quyền RBAC</span></li>
+ <li><span style="color: #cbd5e1;">Chữ ký số & Mã QR lưu chiểu</span></li>
+ </ul>
+ </div>
+ </div>
+
+ <div style="border-top: 1px solid #1e293b; padding-top: 24px; display: flex; justify-content: space-between; font-size: 12.5px; color: #64748b; flex-wrap: wrap; gap: 12px;">
+ <div>© 2026 Viện Công nghệ Số · Bản quyền thuộc Trường Đại học Công nghệ.</div>
+ <div style="display: flex; gap: 20px;">
+ <a href="javascript:void(0)">Quy chế Học vụ</a>
+ <a href="javascript:void(0)">Bảo mật Thông tin</a>
+ <a href="javascript:void(0)">Hướng dẫn Sử dụng</a>
+ </div>
+ </div>
+ </div>
+ </footer>
+
+ <!-- ─── UNIFIED AUTH & ROLE GATEWAY MODAL (ĐĂNG NHẬP & KIÊM NHIỆM) ─────── -->
+ <div class="modal-backdrop" id="authModal" onclick="handleBackdropClick(event)">
+ <div class="auth-modal" onclick="event.stopPropagation()">
+ <div class="auth-modal-header">
+ <button class="modal-close-btn" onclick="closeLoginModal">&times;</button>
+ <div style="width: 44px; height: 44px; background: rgba(255,255,255,0.15); border-radius: 10px; margin: 0 auto 10px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 20px;">
+ VCS
+ </div>
+ <h2 style="font-size: 18px; font-weight: 700; color: #fff;">Đăng nhập Cổng Học vụ</h2>
+ <p style="font-size: 12.5px; color: rgba(255,255,255,0.75); margin-top: 2px;">
+ Hệ thống Quản lý Đào tạo & Nghiên cứu Khoa học
+ </p>
+ </div>
+
+ <div class="auth-modal-body">
+ 
+ <!-- Step 1: Standard Login Form -->
+ <div id="loginStepForm">
+ <form onsubmit="handleLoginSubmit(event)">
+ <div class="form-group">
+ <label class="form-label">Email tài khoản công vụ</label>
+ <div class="input-wrapper">
+ <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+ <input type="email" id="loginEmail" class="form-input" placeholder="account@vcs.edu.vn" value="tung.phan@vcs.edu.vn" required>
+ </div>
+ </div>
+
+ <div class="form-group">
+ <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+ <label class="form-label" style="margin: 0;">Mật khẩu</label>
+ <a href="javascript:void(0)" style="font-size: 12px; color: var(--accent); font-weight: 500;" onclick="alert('Vui lòng liên hệ Văn phòng Giáo vụ Viện để đặt lại mật khẩu.')">Quên mật khẩu?</a>
+ </div>
+ <div class="input-wrapper">
+ <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+ <input type="password" id="loginPassword" class="form-input" value="••••••••••••" required>
+ </div>
+ </div>
+
+ <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; font-size: 13px;">
+ <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--muted);">
+ <input type="checkbox" checked style="accent-color: var(--accent);">
+ <span>Ghi nhớ phiên làm việc</span>
+ </label>
+ <span class="badge badge-neutral" style="font-size: 11px;">RBAC Protected</span>
+ </div>
+
+ <button type="submit" class="btn btn-primary" style="width: 100%; padding: 12px; font-size: 14px;">
+ Xác thực & Tiếp tục
+ <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+ </button>
+ </form>
+
+ <!-- Quick Fill Demo Accounts -->
+ <div style="margin-top: 24px; padding-top: 18px; border-top: 1px dashed var(--border);">
+ <div style="font-size: 11.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; margin-bottom: 8px;">
+ Chọn nhanh tài khoản thử nghiệm:
+ </div>
+ <div class="quick-login-pills">
+ <button class="pill-btn" onclick="quickFillAccount('tung.phan@vcs.edu.vn', 'LECTURER_MULTIPLE')">
+ Thầy Tùng (Kiêm nhiệm)
+ </button>
+ <button class="pill-btn" onclick="quickFillAccount('admin.daotao@vcs.edu.vn', 'ADMIN')">
+ Admin Giáo vụ
+ </button>
+ <button class="pill-btn" onclick="quickFillAccount('sv.nguyenvanan@vcs.edu.vn', 'STUDENT')">
+ SV Nguyễn Văn An
+ </button>
+ </div>
+ </div>
+ </div>
+
+ <!-- Step 2: Role Gateway (Dành cho Giảng viên kiêm nhiệm nhiều vai trò) -->
+ <div id="roleGatewayStep" class="role-selection-box">
+ <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+ <span class="badge badge-primary">Xác thực thành công</span>
+ </div>
+ <h3 style="font-size: 15px; font-weight: 700; color: var(--brand);">Chọn Không Gian Tác Nghiệp</h3>
+ <p style="font-size: 12px; color: var(--muted); margin-top: 2px;">
+ Tài khoản <strong id="gatewayUserName">PGS. TS. Phan Thanh Tùng</strong> được phân công kiêm nhiệm nhiều chức danh học thuật trong đợt này.
+ </p>
+
+ <div style="margin-top: 14px;">
+ <!-- Option 1: GVHD -->
+ <div class="role-option-card" onclick="enterWorkspace('LECTURER')">
+ <div>
+ <div style="font-weight: 700; font-size: 13.5px; color: var(--fg);">Không gian Giảng viên Hướng dẫn</div>
+ <div style="font-size: 11.5px; color: var(--muted);">Quản lý 6 sinh viên, duyệt BM01-BM04, ghi nhận nhật ký gặp</div>
+ </div>
+ <span class="badge badge-brand">GVHD</span>
+ </div>
+
+ <!-- Option 2: Hội đồng Chấm -->
+ <div class="role-option-card" onclick="enterWorkspace('COUNCIL')">
+ <div>
+ <div style="font-weight: 700; font-size: 13.5px; color: var(--fg);">Chủ tịch Hội đồng Bảo vệ HĐ-01</div>
+ <div style="font-size: 11.5px; color: var(--muted);">Chấm điểm bảo vệ khóa luận, xem thuyết minh và ký biên bản BM05</div>
+ </div>
+ <span class="badge badge-warning">Hội đồng</span>
+ </div>
+
+ <!-- Option 3: Ban Chủ Nhiệm / Trưởng Bộ môn -->
+ <div class="role-option-card" onclick="enterWorkspace('ADMIN')">
+ <div>
+ <div style="font-weight: 700; font-size: 13.5px; color: var(--fg);">Trưởng Bộ môn Kỹ thuật Phần mềm</div>
+ <div style="font-size: 11.5px; color: var(--muted);">Thẩm định đề cương toàn bộ môn, điều phối quota hướng dẫn</div>
+ </div>
+ <span class="badge badge-danger">Trưởng BM</span>
+ </div>
+
+ <!-- Option 4: Không gian Sinh viên -->
+ <div class="role-option-card" onclick="enterWorkspace('STUDENT')">
+ <div>
+ <div style="font-weight: 700; font-size: 13.5px; color: var(--fg);">Không gian Sinh viên (Student Workspace)</div>
+ <div style="font-size: 11.5px; color: var(--muted);">Tra cứu đề tài, theo dõi lộ trình 6 bước, nộp BM01-BM04, xem điểm & lưu chiểu</div>
+ </div>
+ <span class="badge badge-brand">Sinh viên</span>
+ </div>
+ </div>
+ </div>
+
+ </div>
+ </div>
+ </div>
+
+ <!-- ─── JAVASCRIPT LOGIC ──────────────────────────────────────────────── -->
+ <script>
+ // Modal Open / Close
+ function openLoginModal(context) {
+ const modal = document.getElementById('authModal');
+ modal.classList.add('show');
+ document.body.style.overflow = 'hidden';
+
+ // Reset steps
+ document.getElementById('loginStepForm').style.display = 'block';
+ document.getElementById('roleGatewayStep').classList.remove('show');
+
+ if (context === 'admin') {
+ quickFillAccount('admin.daotao@vcs.edu.vn', 'ADMIN');
+ } else if (context === 'student') {
+ quickFillAccount('sv.nguyenvanan@vcs.edu.vn', 'STUDENT');
+ } else if (context === 'lecturer' || context) {
+ quickFillAccount('tung.phan@vcs.edu.vn', 'LECTURER_MULTIPLE');
+ }
+ }
+
+ function closeLoginModal() {
+ const modal = document.getElementById('authModal');
+ modal.classList.remove('show');
+ document.body.style.overflow = '';
+ }
+
+ function handleBackdropClick(event) {
+ if (event.target === document.getElementById('authModal')) {
+ closeLoginModal();
+ }
+ }
+
+ // Quick Fill Accounts
+ let currentRoleType = 'LECTURER_MULTIPLE';
+ function quickFillAccount(email, roleType) {
+ document.getElementById('loginEmail').value = email;
+ currentRoleType = roleType;
+ }
+
+ // Handle Login Submit
+ function handleLoginSubmit(event) {
+ event.preventDefault();
+ const email = document.getElementById('loginEmail').value;
+
+ if (currentRoleType === 'LECTURER_MULTIPLE') {
+ // Show Multi-Role Gateway for Lecturer with dual responsibilities
+ document.getElementById('loginStepForm').style.display = 'none';
+ document.getElementById('roleGatewayStep').classList.add('show');
+ } else if (currentRoleType === 'ADMIN') {
+ window.location.href = 'admin-dacn-prototype.html';
+ } else if (currentRoleType === 'LECTURER') {
+ window.location.href = 'lecturer-dacn-prototype.html';
+ } else {
+ window.location.href = 'student-dacn-prototype.html';
+ }
+ }
+
+ // Enter Specific Workspace
+ function enterWorkspace(workspace) {
+ if (workspace === 'ADMIN') {
+ window.location.href = 'admin-dacn-prototype.html';
+ } else if (workspace === 'COUNCIL') {
+ window.location.href = 'admin-dacn-prototype.html';
+ } else if (workspace === 'STUDENT') {
+ window.location.href = 'student-dacn-prototype.html';
+ } else {
+ window.location.href = 'lecturer-dacn-prototype.html';
+ }
+ }
+
+ // Faculty Directory: show 5 profiles first, then expand the full roster.
+ const additionalFaculty = [
+ { name: 'TS. Nguyễn Thu Hương', initials: 'NH', dept: 'CNTT', quota: 7 },
+ { name: 'TS. Vũ Thanh Tùng', initials: 'VT', dept: 'MMT', quota: 5 },
+ { name: 'ThS. Đặng Hoàng Minh', initials: 'ĐM', dept: 'HTTT', quota: 6 },
+ { name: 'TS. Hoàng Minh Trí', initials: 'HT', dept: 'KTPM', quota: 8 },
+ { name: 'TS. Lê Thị Mai', initials: 'LM', dept: 'KTPM', quota: 4 },
+ { name: 'TS. Nguyễn Thanh Sơn', initials: 'NS', dept: 'KTPM', quota: 9 },
+ { name: 'ThS. Đỗ Hoàng Nam', initials: 'ĐN', dept: 'KTPM', quota: 10 },
+ { name: 'TS. Vũ Đình Trọng', initials: 'VT', dept: 'KTPM', quota: 3 },
+ { name: 'PGS.TS. Đặng Hoài Bắc', initials: 'ĐB', dept: 'CNTT', quota: 6 },
+ { name: 'TS. Trần Quang Hưng', initials: 'TH', dept: 'CNTT', quota: 7 },
+ { name: 'TS. Phạm Minh Tuấn', initials: 'PT', dept: 'CNTT', quota: 10 },
+ { name: 'TS. Nguyễn Văn Hùng', initials: 'NH', dept: 'CNTT', quota: 5 },
+ { name: 'TS. Phan Văn Hải', initials: 'PH', dept: 'MMT', quota: 8 },
+ { name: 'PGS.TS. Trần Thị Hương', initials: 'TH', dept: 'HTTT', quota: 4 }
+ ];
+
+ const facultyDeptMeta = {
+ KTPM: { label: 'Bộ môn Kỹ thuật Phần mềm', focus: 'Kiến trúc phần mềm, hệ thống phân tán và phát triển ứng dụng', topics: ['Software Architecture', 'Cloud Systems'] },
+ CNTT: { label: 'Bộ môn Khoa học Dữ liệu & Trí tuệ Nhân tạo', focus: 'Khoa học dữ liệu, trí tuệ nhân tạo và học máy ứng dụng', topics: ['Machine Learning', 'Data Science'] },
+ MMT: { label: 'Bộ môn Mạng Máy tính & An toàn Thông tin', focus: 'Hạ tầng mạng, an toàn thông tin và điện toán biên', topics: ['Cybersecurity', 'Edge Computing'] },
+ HTTT: { label: 'Bộ môn Hệ thống Thông tin Quản lý', focus: 'Hệ thống thông tin, phân tích nghiệp vụ và chuyển đổi số', topics: ['Information Systems', 'Business Analytics'] }
+ };
+
+ let facultyExpanded = false;
+
+ function renderAdditionalFaculty() {
+ const grid = document.getElementById('facultyGridContainer');
+ const moreCard = document.getElementById('facultyMoreCard');
+ if (!grid || !moreCard) return;
+
+ additionalFaculty.forEach((faculty, index) => {
+  const meta = facultyDeptMeta[faculty.dept];
+  const isFull = faculty.quota >= 10;
+  const remaining = Math.max(0, 10 - faculty.quota);
+  const card = document.createElement('div');
+  card.className = 'faculty-card';
+  card.dataset.dept = faculty.dept;
+  card.dataset.quota = isFull ? 'FULL' : 'AVAILABLE';
+  card.innerHTML = `
+   <div>
+    <div class="faculty-header">
+     <div class="faculty-avatar" style="background: ${index % 2 ? '#e0f2fe' : '#ecfdf5'}; color: ${index % 2 ? '#075985' : '#047857'};">${faculty.initials}</div>
+     <div><div class="faculty-name">${faculty.name}</div><div class="faculty-dept">${meta.label}</div></div>
+    </div>
+    <p style="font-size: 13px; color: var(--muted); line-height: 1.5;">Chuyên sâu: ${meta.focus}.</p>
+    <div class="faculty-topics">
+     <div style="font-size: 11.5px; font-weight: 600; color: var(--muted); text-transform: uppercase;">Hướng nghiên cứu gợi ý:</div>
+     <div class="topic-pill-list">${meta.topics.map(topic => `<span class="topic-pill">${topic}</span>`).join('')}</div>
+    </div>
+   </div>
+   <div class="quota-box">
+    <div style="display: flex; justify-content: space-between; font-size: 12.5px;"><span>Định mức hướng dẫn:</span><strong style="color: ${isFull ? 'var(--danger)' : 'var(--accent)'}; font-family: var(--font-mono);">${faculty.quota} / 10 SV (${isFull ? 'Hết chỗ' : `Còn ${remaining} chỗ`})</strong></div>
+    <div class="quota-bar-wrapper"><div class="quota-bar${isFull ? ' full' : faculty.quota >= 8 ? ' near-full' : ''}" style="width: ${faculty.quota * 10}%;"></div></div>
+   </div>`;
+  grid.insertBefore(card, moreCard);
+ });
+
+ filterFaculty();
+ }
+
+ function toggleFacultyList() {
+ facultyExpanded = !facultyExpanded;
+ filterFaculty();
+ if (!facultyExpanded) document.getElementById('faculty').scrollIntoView({ behavior: 'smooth', block: 'start' });
+ }
+
+ function filterFaculty() {
+ const query = document.getElementById('facultySearch').value.toLowerCase();
+ const dept = document.getElementById('deptFilter').value;
+ const quota = document.getElementById('quotaFilter').value;
+ const cards = Array.from(document.querySelectorAll('.faculty-card'));
+ const matchingCards = cards.filter(card => {
+ const text = card.textContent.toLowerCase();
+ const cardDept = card.getAttribute('data-dept');
+ const cardQuota = card.getAttribute('data-quota');
+ const matchQuery = text.includes(query);
+ const matchDept = (dept === 'ALL' || cardDept === dept);
+ const matchQuota = (quota === 'ALL' || cardQuota === quota);
+ return matchQuery && matchDept && matchQuota;
+ });
+
+ cards.forEach(card => { card.style.display = 'none'; });
+ matchingCards.forEach((card, index) => {
+  card.style.display = facultyExpanded || index < 5 ? 'flex' : 'none';
+ });
+
+ const moreCard = document.getElementById('facultyMoreCard');
+ const moreLabel = document.getElementById('facultyMoreLabel');
+ const moreHint = document.getElementById('facultyMoreHint');
+ const hiddenCount = Math.max(0, matchingCards.length - 5);
+ moreCard.style.display = matchingCards.length > 5 ? 'flex' : 'none';
+ moreCard.setAttribute('aria-expanded', String(facultyExpanded));
+ moreLabel.textContent = facultyExpanded ? 'Thu gọn danh sách' : `Xem thêm ${hiddenCount} giảng viên`;
+ moreHint.textContent = facultyExpanded ? 'Chỉ hiển thị 5 hồ sơ đầu tiên' : `Hiển thị đầy đủ ${matchingCards.length} giảng viên phù hợp`;
+ }
+
+ // ESC key to close modal
+ document.addEventListener('keydown', (e) => {
+ if (e.key === 'Escape') {
+ closeLoginModal();
+ closeAttachmentPreview();
+ }
+ });
+
+ // ─── ANNOUNCEMENTS DATA REPOSITORY ─────────────────────────────────
+ const announcementsData = {
+ 'tb-142': {
+ id: 'tb-142',
+ docNumber: '142/TB-VCS-ĐT',
+ category: 'Khẩn cấp',
+ categoryClass: 'badge-danger',
+ issuedDate: '14/10/2026',
+ issuedPlace: 'Hà Nội',
+ effectiveDate: '14/10/2026 – 24/10/2026',
+ signerName: 'TS. Lê Quang Dũng',
+ signerRole: 'KT. VIỆN TRƯỞNG',
+ signerDelegate: 'PHÓ VIỆN TRƯỞNG PHỤ TRÁCH ĐÀO TẠO',
+ scope: 'Sinh viên K21, Cán bộ GVHD, Thư ký các Bộ môn',
+ title: 'THÔNG BÁO VỀ VIỆC GIA HẠN THỜI HẠN NỘP ĐƠN ĐỀ CƯƠNG NGHIÊN CỨU BM01 ĐỢT 1 NĂM HỌC 2026 - 2027',
+ subtitle: 'V/v điều chỉnh thời hạn hoàn thiện đề cương BM01 và kế hoạch thẩm định của các Bộ môn chuyên ngành',
+ summary: 'Căn cứ đề xuất của các Bộ môn và tình hình thực tế triển khai đợt tốt nghiệp HK1 năm học 2026-2027, Ban Chủ nhiệm Viện Công nghệ Số quyết định gia hạn thời hạn nộp đề cương chi tiết (BM01) đến hết 17h00 ngày 24/10/2026, đồng thời điều chỉnh lịch thẩm định của các Hội đồng chuyên môn.',
+ preamble: 'Căn cứ Quyết định số 1024/QĐ-ĐHCN ngày 15/08/2024 của Hiệu trưởng Trường Đại học Công nghệ về việc ban hành Quy chế Đào tạo trình độ Đại học chính quy;<br>Căn cứ Kế hoạch năm học 2026 - 2027 của Viện Công nghệ Số đối với khóa đào tạo K21;<br>Xét đề nghị của Trưởng các Bộ môn Kỹ thuật Phần mềm, Khoa học Dữ liệu & AI, Mạng Máy tính & ATTT, Hệ thống Thông tin Quản lý và Trợ lý Giáo vụ Viện,',
+ articles: [
+ {
+ title: 'Mục 1. Gia hạn thời hạn nộp Đề cương nghiên cứu chi tiết (BM01)',
+ content: 'Gia hạn thời gian nộp Biểu mẫu BM01 cho toàn thể 128 sinh viên đủ điều kiện làm đồ án tốt nghiệp đợt 1 năm học 2026 - 2027 thêm <strong>10 ngày</strong> làm việc.<br><strong>Thời hạn cuối cùng (Deadline cứng):</strong> Đúng <strong>17h00 ngày 24 tháng 10 năm 2026</strong>. Sau thời điểm này, cổng nộp bài trực tuyến trên hệ thống DACN sẽ tự động đóng và không tiếp nhận bất kỳ trường hợp nộp muộn nào trừ khi có văn bản xác nhận lý do bất khả kháng của Ban Giám hiệu.'
+ },
+ {
+ title: 'Mục 2. Quy chuẩn phương thức nộp biểu mẫu Hybrid (DACN Portal + File Scan)',
+ content: 'Sinh viên thực hiện nộp đề cương theo quy trình chuẩn 2 bước bắt buộc:<br>• <strong>Bước 1 (Trực tuyến):</strong> Đăng nhập Cổng DACN, điền tóm tắt mục tiêu nghiên cứu, phương pháp thực nghiệm, kiến trúc dự kiến và liên kết kho mã nguồn (GitHub/GitLab).<br>• <strong>Bước 2 (Văn bản scan):</strong> Xuất file BM01 từ hệ thống, xin ý kiến nhận xét và chữ ký chấp thuận của Giảng viên hướng dẫn (GVHD), sau đó tải bản scan PDF có đầy đủ chữ ký lên hệ thống để phục vụ công tác lưu trữ học vụ.'
+ },
+ {
+ title: 'Mục 3. Bảng điều chỉnh tiến độ các mốc học vụ tiếp theo',
+ isTimelineTable: true,
+ tableRows: [
+ { milestone: 'Hạn chót nộp BM01 gia hạn', oldDate: '14/10/2026', newDate: '24/10/2026 (17h00)', note: 'Đã gia hạn +10 ngày' },
+ { milestone: 'GVHD duyệt và ký xác nhận', oldDate: '16/10/2026', newDate: '26/10/2026', note: 'Thực hiện trên Cổng DACN' },
+ { milestone: 'Hội đồng Bộ môn thẩm định BM01/02', oldDate: '20/10 - 22/10/2026', newDate: '28/10 - 30/10/2026', note: '2 Giảng viên thẩm định độc lập' },
+ { milestone: 'Công bố kết quả thẩm định đề cương', oldDate: '24/10/2026', newDate: '02/11/2026', note: 'Đạt / Yêu cầu chỉnh sửa' }
+ ]
+ },
+ {
+ title: 'Mục 4. Chế tài đối với trường hợp không hoàn thành đề cương',
+ content: 'Sinh viên không nộp đề cương BM01 hoặc đề cương bị Hội đồng thẩm định đánh giá <strong>KHÔNG ĐẠT</strong> sau 02 lần chỉnh sửa sẽ bị hủy quyền làm đồ án tốt nghiệp trong học kỳ này và phải làm đơn đăng ký lại vào đợt kế tiếp theo Quy chế Đào tạo.'
+ }
+ ],
+ recipients: [
+ 'Ban Giám hiệu (để báo cáo);',
+ 'Phòng Đào tạo (để phối hợp);',
+ 'Các Bộ môn trực thuộc Viện (để thi hành);',
+ 'Cán bộ Giảng viên hướng dẫn;',
+ 'Toàn thể Sinh viên K21 đủ điều kiện;',
+ 'Lưu: Văn thư, Giáo vụ ĐT.'
+ ],
+ attachments: [
+ {
+ id: 'att-1',
+ name: '142_TB-VCS-ĐT_Gia-han-BM01.pdf',
+ title: 'Văn bản Thông báo chính thức có chữ ký số & dấu đỏ Viện',
+ type: 'pdf',
+ size: '245 KB',
+ version: 'Bản ký duyệt số hóa',
+ hash: 'SHA256: 4e8b...91f2',
+ canPreview: true
+ },
+ {
+ id: 'att-2',
+ name: 'Phu-luc-01_Lich-trinh-dieu-chinh-Dot1.xlsx',
+ title: 'Phụ lục phân công lịch thẩm định chi tiết 4 Bộ môn (KTPM, CNTT, MMT, HTTT)',
+ type: 'xlsx',
+ size: '182 KB',
+ version: 'v1.2 Cập nhật',
+ hash: 'SHA256: a12c...3d8e',
+ canPreview: false
+ },
+ {
+ id: 'att-3',
+ name: 'Mau-BM01_De-cuong-nghien-cuu_v2.4.docx',
+ title: 'Biểu mẫu BM01 Đề cương chuẩn hóa bổ sung điều khoản cam kết Liêm chính học thuật',
+ type: 'docx',
+ size: '142 KB',
+ version: 'Mẫu biểu v2.4',
+ hash: 'SHA256: 7f3a...c450',
+ canPreview: false
+ }
+ ]
+ },
+
+ 'qd-286': {
+ id: 'qd-286',
+ docNumber: '286/QĐ-ĐHCN-ĐT',
+ category: 'Quyết định',
+ categoryClass: 'badge-primary',
+ issuedDate: '10/10/2026',
+ issuedPlace: 'Hà Nội',
+ effectiveDate: 'Từ ngày ký ban hành',
+ signerName: 'GS. TS. Nguyễn Văn Hưng',
+ signerRole: 'HIỆU TRƯỞNG',
+ signerDelegate: 'TRƯỜNG ĐẠI HỌC CÔNG NGHỆ',
+ scope: 'Phòng Đào tạo, Viện Công nghệ Số, 128 sinh viên có tên',
+ title: 'QUYẾT ĐỊNH CÔNG NHẬN DANH SÁCH 128 SINH VIÊN ĐỦ ĐIỀU KIỆN THỰC HIỆN ĐỒ ÁN TỐT NGHIỆP',
+ subtitle: 'Khóa 21 (Niên khóa 2023 - 2027) ngành Công nghệ Thông tin, Kỹ thuật Phần mềm, Mạng máy tính',
+ summary: 'Hiệu trưởng Trường Đại học Công nghệ ký quyết định phê duyệt danh sách chính thức 128 sinh viên khóa K21 tích lũy đủ số tín chỉ quy định, không bị kỷ luật học vụ và đủ điều kiện làm khóa luận tốt nghiệp trong Học kỳ 1 năm học 2026 - 2027.',
+ preamble: 'Căn cứ Điều lệ Trường Đại học ban hành kèm theo Quyết định số 70/2014/QĐ-TTg của Thủ tướng Chính phủ;<br>Căn cứ Quy chế Đào tạo đại học chính quy hiện hành;<br>Xét đề nghị của Trưởng phòng Đào tạo và Viện trưởng Viện Công nghệ Số,',
+ articles: [
+ {
+ title: 'Điều 1. Công nhận danh sách sinh viên đủ điều kiện',
+ content: 'Công nhận <strong>128 sinh viên</strong> thuộc các chuyên ngành Kỹ thuật Phần mềm (48 SV), Khoa học Dữ liệu & AI (36 SV), Mạng máy tính & An toàn thông tin (26 SV), Hệ thống thông tin (18 SV) đủ điều kiện làm Đồ án / Khóa luận tốt nghiệp (có danh sách chi tiết kèm theo).'
+ },
+ {
+ title: 'Điều 2. Quy định về phân công Giảng viên hướng dẫn',
+ content: 'Giao Viện Công nghệ Số điều phối công tác lựa chọn đề tài và phân công Giảng viên hướng dẫn đúng quy chuẩn: Mỗi sinh viên làm 01 đề tài độc lập; Mỗi Giảng viên hướng dẫn không quá 10 sinh viên trong cùng một đợt.'
+ },
+ {
+ title: 'Điều 3. Trách nhiệm thi hành',
+ content: 'Trưởng phòng Đào tạo, Viện trưởng Viện Công nghệ Số, Thủ trưởng các đơn vị có liên quan và các sinh viên có tên trong danh sách chịu trách nhiệm thi hành Quyết định này.'
+ }
+ ],
+ recipients: [
+ 'Ban Giám hiệu (báo cáo);',
+ 'Phòng Đào tạo, Phòng CTSV;',
+ 'Viện Công nghệ Số;',
+ 'Các sinh viên có tên tại Điều 1;',
+ 'Lưu: VT, ĐT.'
+ ],
+ attachments: [
+ {
+ id: 'att-286-1',
+ name: '286_QD-DHCN-DT_Cong-nhan-DS-SV.pdf',
+ title: 'Quyết định công nhận danh sách 128 SV đủ điều kiện làm đồ án (Bản có dấu mộc đỏ)',
+ type: 'pdf',
+ size: '310 KB',
+ version: 'Quyết định gốc',
+ hash: 'SHA256: b29f...671a',
+ canPreview: true
+ },
+ {
+ id: 'att-286-2',
+ name: 'Danh-sach-128-SV-Du-Dieu-Kien-K21.xlsx',
+ title: 'Bảng tổng hợp điểm tích lũy, số tín chỉ và xếp lớp học phần của 128 sinh viên',
+ type: 'xlsx',
+ size: '220 KB',
+ version: 'Sổ bộ ĐT',
+ hash: 'SHA256: 88de...f402',
+ canPreview: false
+ }
+ ]
+ },
+
+ 'hd-89': {
+ id: 'hd-89',
+ docNumber: '89/HD-VCS',
+ category: 'Hướng dẫn',
+ categoryClass: 'badge-brand',
+ issuedDate: '05/10/2026',
+ issuedPlace: 'Hà Nội',
+ effectiveDate: 'Áp dụng cho niên khóa 2026 - 2027',
+ signerName: 'PGS. TS. Phan Thanh Tùng',
+ signerRole: 'CHỦ TỊCH HỘI ĐỒNG',
+ signerDelegate: 'HỘI ĐỒNG KHOA HỌC & ĐÀO TẠO VIỆN',
+ scope: 'Cán bộ GVHD, Giảng viên phản biện, Toàn thể sinh viên',
+ title: 'HƯỚNG DẪN QUY TRÌNH KIỂM TRA ĐẠO VĂN (TURNITIN) VÀ LIÊM CHÍNH HỌC THUẬT',
+ subtitle: 'Quy chuẩn chỉ số tương đồng và các biện pháp bảo đảm tính nguyên bản của công trình tốt nghiệp',
+ summary: 'Hướng dẫn cụ thể về chỉ số tương đồng cho phép (Similarity Index ≤ 20%), quy trình quét trùng lặp mã nguồn và thuyết minh báo cáo trên hệ thống bản quyền Turnitin của Nhà trường trước khi bước vào vòng bảo vệ Hội đồng.',
+ preamble: 'Nhằm nâng cao chất lượng nghiên cứu khoa học, xây dựng văn hóa liêm chính học thuật và bảo vệ quyền sở hữu trí tuệ của người học, Viện Công nghệ Số ban hành hướng dẫn kiểm tra đạo văn đối với toàn bộ các sản phẩm tốt nghiệp năm học 2026 - 2027,',
+ articles: [
+ {
+ title: 'Khoản 1. Chỉ số tương đồng cho phép (Similarity Threshold)',
+ content: '• Chỉ số tương đồng tổng thể (Overall Similarity Index) của toàn văn báo cáo không được vượt quá <strong>20%</strong>.<br>• Mức độ tương đồng với một nguồn đơn lẻ (Single Source Match) không được vượt quá <strong>5%</strong>.<br>• Hệ thống được cấu hình tự động loại trừ (Exclude): Trang bìa, Lời cảm ơn, Danh mục tài liệu tham khảo và các đoạn trích dẫn trực tiếp trong ngoặc kép theo chuẩn IEEE/APA.'
+ },
+ {
+ title: 'Khoản 2. Quy trình nộp báo cáo quét Turnitin',
+ content: 'Trước ngày bảo vệ tối thiểu 07 ngày, sinh viên phải nộp file PDF toàn văn qua lớp học Turnitin do Cổng DACN cung cấp. Hệ thống sẽ trả về <strong>Phiếu Kết Quả Phân Tích Tính Nguyên Bản</strong> có mã QR xác thực để kẹp vào hồ sơ bảo vệ BM04.'
+ },
+ {
+ title: 'Khoản 3. Xử lý vi phạm liêm chính học thuật',
+ content: 'Trường hợp phát hiện hành vi gian lận (sử dụng công cụ can thiệp ký tự trắng, mua bán đồ án hoặc sao chép mã nguồn nguyên bản không trích dẫn), sinh viên sẽ bị xử lý kỷ luật từ mức Đình chỉ bảo vệ đến Cảnh cáo học vụ theo Quy chế Đào tạo.'
+ }
+ ],
+ recipients: [
+ 'Hội đồng Khoa học & Đào tạo Viện;',
+ 'Các Bộ môn và Giảng viên;',
+ 'Sinh viên làm đồ án tốt nghiệp;',
+ 'Lưu: VT, KHCN.'
+ ],
+ attachments: [
+ {
+ id: 'att-89-1',
+ name: '89_HD-VCS_Quy-trinh-Turnitin-2026.pdf',
+ title: 'Hướng dẫn quy trình kiểm tra đạo văn và liêm chính học thuật 2026 (Bản PDF chính thức)',
+ type: 'pdf',
+ size: '195 KB',
+ version: 'v1.0 Ban hành',
+ hash: 'SHA256: 3c44...719b',
+ canPreview: true
+ },
+ {
+ id: 'att-89-2',
+ name: 'Huong-dan-cai-dat-tai-khoan-Turnitin-VCS.pdf',
+ title: 'Tài liệu hướng dẫn sinh viên kích hoạt tài khoản Turnitin trường cấp',
+ type: 'pdf',
+ size: '450 KB',
+ version: 'Tài liệu hướng dẫn',
+ hash: 'SHA256: dd21...a78e',
+ canPreview: true
+ }
+ ]
+ }
+ };
+
+ let currentDocId = 'tb-142';
+ let currentPreviewFile = null;
+
+ // ─── SHOW ANNOUNCEMENT DETAIL VIEW ─────────────────────────────────
+ function showAnnouncementDetail(docId) {
+ if (!announcementsData[docId]) docId = 'tb-142';
+ currentDocId = docId;
+ const doc = announcementsData[docId];
+
+ // Update Breadcrumb & Document Title
+ document.getElementById('docBreadcrumbTitle').textContent = doc.docNumber + ': ' + doc.title;
+ document.getElementById('sidebarDocSummary').textContent = doc.summary;
+ document.getElementById('sidebarDocUnit').textContent = 'Viện Công nghệ Số';
+ document.getElementById('sidebarDocSigner').textContent = doc.signerName;
+ document.getElementById('sidebarAttachCount').textContent = doc.attachments.length;
+
+ // Render Official Academic Paper Container
+ const paper = document.getElementById('docPaperContainer');
+ let articlesHtml = '';
+
+ doc.articles.forEach(art => {
+ if (art.isTimelineTable) {
+ let rowsHtml = '';
+ art.tableRows.forEach((r, idx) => {
+ rowsHtml += `
+ <tr>
+ <td style="font-weight: 600; color: var(--fg);">${idx + 1}. ${r.milestone}</td>
+ <td style="color: var(--muted); text-decoration: line-through; font-family: var(--font-mono);">${r.oldDate}</td>
+ <td style="color: var(--danger); font-weight: 700; font-family: var(--font-mono);">${r.newDate}</td>
+ <td style="color: var(--accent); font-size: 12px;">${r.note}</td>
+ </tr>
+ `;
+ });
+
+ articlesHtml += `
+ <div class="doc-article">
+ <div class="doc-article-title">${art.title}</div>
+ <table class="doc-timeline-table">
+ <thead>
+ <tr>
+ <th>Mốc Học Vụ</th>
+ <th>Lịch Ban Đầu</th>
+ <th>Lịch Điều Chỉnh Mới</th>
+ <th>Ghi Chú</th>
+ </tr>
+ </thead>
+ <tbody>${rowsHtml}</tbody>
+ </table>
+ </div>
+ `;
+ } else {
+ articlesHtml += `
+ <div class="doc-article">
+ <div class="doc-article-title">${art.title}</div>
+ <div style="line-height: 1.75; text-align: justify;">${art.content}</div>
+ </div>
+ `;
+ }
+ });
+
+ // Render Attachments List for Paper
+ let paperAttachHtml = '';
+ doc.attachments.forEach(att => {
+ const badgeClass = att.type === 'pdf' ? 'pdf' : (att.type === 'xlsx' ? 'xlsx' : 'docx');
+ const previewBtn = att.canPreview ? `
+ <button class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px;" onclick="previewAttachment('${att.name}', '${att.title}', '${doc.id}')">
+ <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+ Xem trước
+ </button>
+ ` : '';
+
+ paperAttachHtml += `
+ <div class="attachment-card">
+ <div class="attachment-info-group">
+ <div class="attachment-badge ${badgeClass}">${att.type.toUpperCase}</div>
+ <div class="attachment-meta">
+ <h4>${att.name}</h4>
+ <p>
+ <span>${att.title}</span> · 
+ <strong style="color: var(--fg); font-family: var(--font-mono);">${att.size}</strong> · 
+ <span class="attachment-hash">${att.hash}</span>
+ </p>
+ </div>
+ </div>
+ <div class="attachment-actions">
+ ${previewBtn}
+ <button class="btn btn-primary" style="font-size: 12px; padding: 6px 12px;" onclick="downloadAttachment('${att.name}')">
+ <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+ Tải về
+ </button>
+ </div>
+ </div>
+ `;
+ });
+
+ // Render Recipients List
+ let recipHtml = doc.recipients.map(r => `<div>- ${r}</div>`).join('');
+
+ paper.innerHTML = `
+ <!-- Administrative Header -->
+ <div class="doc-admin-header">
+ <div class="doc-origin-box">
+ <div class="doc-origin-unit">TRƯỜNG ĐẠI HỌC CÔNG NGHỆ</div>
+ <div class="doc-origin-sub">VIỆN CÔNG NGHỆ SỐ</div>
+ <div class="doc-origin-number">Số: <strong>${doc.docNumber}</strong></div>
+ </div>
+ <div class="doc-motto-box">
+ <div class="doc-nation">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
+ <div class="doc-motto">Độc lập - Tự do - Hạnh phúc</div>
+ <div class="doc-date-place">${doc.issuedPlace}, ngày ${doc.issuedDate}</div>
+ </div>
+ </div>
+
+ <!-- Subject & Title -->
+ <div class="doc-subject-wrapper">
+ <div class="doc-category-badge">
+ <span class="badge ${doc.categoryClass}">${doc.category}</span>
+ </div>
+ <h1 class="doc-headline">${doc.title}</h1>
+ <div class="doc-subtitle-ref">${doc.subtitle}</div>
+ </div>
+
+ <!-- Meta Strip -->
+ <div class="doc-meta-strip">
+ <div>
+ <div class="doc-meta-item-lbl">Số hiệu văn bản</div>
+ <div class="doc-meta-item-val" style="font-family: var(--font-mono); color: var(--accent);">${doc.docNumber}</div>
+ </div>
+ <div>
+ <div class="doc-meta-item-lbl">Ngày ban hành</div>
+ <div class="doc-meta-item-val" style="font-family: var(--font-mono);">${doc.issuedDate}</div>
+ </div>
+ <div>
+ <div class="doc-meta-item-lbl">Hiệu lực áp dụng</div>
+ <div class="doc-meta-item-val" style="color: var(--danger);">${doc.effectiveDate}</div>
+ </div>
+ <div>
+ <div class="doc-meta-item-lbl">Người ký ban hành</div>
+ <div class="doc-meta-item-val">${doc.signerName}</div>
+ </div>
+ </div>
+
+ <!-- Legal Preamble -->
+ <div class="doc-preamble">${doc.preamble}</div>
+
+ <!-- Articles Body -->
+ <div class="doc-body-text">
+ ${articlesHtml}
+ </div>
+
+ <!-- Signature & Recipients Area -->
+ <div class="doc-sign-area">
+ <div class="doc-recipients">
+ <strong>Nơi nhận:</strong>
+ ${recipHtml}
+ </div>
+ <div class="doc-sign-box">
+ <div class="doc-sign-role">${doc.signerRole}</div>
+ <div class="doc-sign-delegate">${doc.signerDelegate}</div>
+ <div class="doc-digital-stamp">
+ <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+ <div>
+ <strong style="display: block; font-size: 11px; text-transform: uppercase;">VIỆN CÔNG NGHỆ SỐ · ĐHCN</strong>
+ <span style="font-size: 10px;">Ký số bởi: ${doc.signerName}<br>Thời gian: ${doc.issuedDate} 08:30:15 +07:00</span>
+ </div>
+ </div>
+ <div class="doc-signer-name">${doc.signerName}</div>
+ </div>
+ </div>
+
+ <!-- Attachments Section (In Paper) -->
+ <div class="doc-attachments-panel" id="paperAttachmentsAnchor">
+ <div class="doc-attachments-header">
+ <div class="doc-attachments-title">
+ <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+ Danh Mục Tệp Đính Kèm Chính Thức (${doc.attachments.length} tệp)
+ </div>
+ <button class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px;" onclick="downloadAllCurrentAttachments">
+ <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+ Tải toàn bộ (.zip)
+ </button>
+ </div>
+ <div>${paperAttachHtml}</div>
+ </div>
+ `;
+
+ // Render Sidebar Attachments Quick List
+ const sidebarAttach = document.getElementById('sidebarAttachmentsList');
+ let sidebarAttachHtml = '';
+ doc.attachments.forEach(att => {
+ sidebarAttachHtml += `
+ <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12.5px;">
+ <div style="min-width: 0; padding-right: 8px;">
+ <div style="font-weight: 600; color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${att.name}</div>
+ <div style="font-size: 11px; color: var(--muted);">${att.size}</div>
+ </div>
+ <button class="btn-ghost" style="padding: 4px;" title="Tải file" onclick="downloadAttachment('${att.name}')">
+ <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+ </button>
+ </div>
+ `;
+ });
+ sidebarAttach.innerHTML = sidebarAttachHtml;
+
+ // Render Related Documents in Sidebar
+ const relatedList = document.getElementById('relatedDocsList');
+ let relatedHtml = '';
+ Object.keys(announcementsData).forEach(key => {
+ if (key !== docId) {
+ const item = announcementsData[key];
+ relatedHtml += `
+ <div class="related-doc-item" onclick="showAnnouncementDetail('${item.id}')">
+ <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+ <span class="badge ${item.categoryClass}" style="font-size: 10px; padding: 2px 6px;">${item.category}</span>
+ <span class="related-doc-date">${item.issuedDate}</span>
+ </div>
+ <div class="related-doc-title">${item.title}</div>
+ </div>
+ `;
+ }
+ });
+ relatedList.innerHTML = relatedHtml;
+
+ // Switch View
+ document.getElementById('portalHomeView').style.display = 'none';
+ document.getElementById('announcementDetailView').style.display = 'block';
+
+ // Update URL hash without causing reload
+ window.location.hash = 'announcement-' + docId;
+ window.scrollTo({ top: 0, behavior: 'smooth' });
+ }
+
+ // ─── SWITCH BACK TO PORTAL HOME VIEW ──────────────────────────────
+ function showPortalHome(hash) {
+ document.getElementById('announcementDetailView').style.display = 'none';
+ document.getElementById('portalHomeView').style.display = 'block';
+
+ if (hash) {
+ window.location.hash = hash;
+ const target = document.querySelector(hash);
+ if (target) target.scrollIntoView({ behavior: 'smooth' });
+ } else {
+ window.location.hash = '';
+ window.scrollTo({ top: 0, behavior: 'smooth' });
+ }
+ }
+
+ // ─── IN-APP ATTACHMENT PREVIEW MODAL ──────────────────────────────
+ function previewAttachment(filename, title, docId) {
+ currentPreviewFile = filename;
+ const modal = document.getElementById('attachmentPreviewModal');
+ document.getElementById('previewModalFileName').textContent = filename;
+ document.body.style.overflow = 'hidden';
+ modal.classList.add('show');
+
+ const doc = announcementsData[docId] || announcementsData['tb-142'];
+
+ // Render simulated authentic A4 page
+ const a4 = document.getElementById('simulatedA4Container');
+ a4.innerHTML = `
+ <div style="display: flex; justify-content: space-between; border-bottom: 2px solid #000; padding-bottom: 16px; margin-bottom: 24px;">
+ <div style="font-size: 12px; line-height: 1.4;">
+ <div style="font-weight: 700; text-transform: uppercase;">TRƯỜNG ĐẠI HỌC CÔNG NGHỆ</div>
+ <div style="font-weight: 700;">VIỆN CÔNG NGHỆ SỐ</div>
+ <div style="color: #64748b; font-family: var(--font-mono); margin-top: 4px;">Số: ${doc.docNumber}</div>
+ </div>
+ <div style="text-align: center; font-size: 12px; line-height: 1.4;">
+ <div style="font-weight: 700;">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
+ <div style="font-weight: 700; border-bottom: 1px solid #000; display: inline-block; padding-bottom: 2px;">Độc lập - Tự do - Hạnh phúc</div>
+ <div style="font-style: italic; color: #64748b; margin-top: 4px;">${doc.issuedPlace}, ngày ${doc.issuedDate}</div>
+ </div>
+ </div>
+
+ <div style="text-align: center; margin: 24px 0 20px;">
+ <h2 style="font-size: 18px; font-weight: 700; text-transform: uppercase; color: var(--brand); line-height: 1.4;">${doc.title}</h2>
+ <p style="font-size: 12px; font-style: italic; color: #64748b; margin-top: 4px;">${doc.subtitle}</p>
+ </div>
+
+ <div style="font-size: 12.5px; line-height: 1.7; text-align: justify; margin-bottom: 20px;">
+ <p style="font-style: italic; margin-bottom: 14px;">${doc.preamble}</p>
+ ${doc.articles.map(a => `<div style="margin-bottom: 14px;"><strong>${a.title}</strong><br>${a.content || 'Xem bảng phụ lục chi tiết ban hành kèm theo.'}</div>`).join('')}
+ </div>
+
+ <div style="display: flex; justify-content: space-between; margin-top: 40px; padding-top: 16px; border-top: 1px dashed #cbd5e1; font-size: 11.5px;">
+ <div>
+ <strong>Nơi nhận:</strong>
+ ${doc.recipients.map(r => `<div>- ${r}</div>`).join('')}
+ </div>
+ <div style="text-align: center;">
+ <div style="font-weight: 700; text-transform: uppercase;">${doc.signerRole}</div>
+ <div style="font-size: 11px; color: #64748b; margin-bottom: 12px;">${doc.signerDelegate}</div>
+ <div style="display: inline-block; border: 1.5px solid #dc2626; background: #fef2f2; color: #991b1b; padding: 6px 12px; border-radius: 6px; font-size: 10px; text-align: left; margin: 8px 0;">
+ <div>[ĐÃ KÝ SỐ ĐIỆN TỬ]</div>
+ <div>VIỆN CÔNG NGHỆ SỐ - ĐHCN</div>
+ <div>Ký ngày: ${doc.issuedDate}</div>
+ </div>
+ <div style="font-weight: 700; margin-top: 6px;">${doc.signerName}</div>
+ </div>
+ </div>
+ `;
+ }
+
+ function closeAttachmentPreview() {
+ const modal = document.getElementById('attachmentPreviewModal');
+ modal.classList.remove('show');
+ document.body.style.overflow = '';
+ currentPreviewFile = null;
+ }
+
+ function handlePreviewBackdropClick(event) {
+ if (event.target === document.getElementById('attachmentPreviewModal')) {
+ closeAttachmentPreview();
+ }
+ }
+
+ function downloadCurrentPreviewFile() {
+ if (currentPreviewFile) {
+ downloadAttachment(currentPreviewFile);
+ }
+ }
+
+ function downloadAttachment(filename) {
+ alert(`Đang tiến hành tải xuống tệp tin học vụ chính thức:\n• Tên tệp: ${filename}\n• Trạng thái: Đã kiểm tra chữ ký số SHA-256 an toàn.`);
+ }
+
+ function downloadAllCurrentAttachments() {
+ const doc = announcementsData[currentDocId];
+ alert(`Đang nén và tải trọn bộ ${doc.attachments.length} tệp đính kèm của văn bản [${doc.docNumber}] (.zip)...`);
+ }
+
+ function copyDocShareLink() {
+ const url = window.location.origin + window.location.pathname + '#announcement-' + currentDocId;
+ navigator.clipboard.writeText(url).then(() => {
+ alert('Đã sao chép liên kết văn bản vào bộ nhớ tạm:\n' + url);
+ }).catch(() => {
+ alert('Liên kết văn bản: ' + url);
+ });
+ }
+
+ function initMotionEffects() {
+ const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+ if (reduceMotion) return;
+
+ const sectionHeaders = document.querySelectorAll(
+ '#roadmap > .container > div:first-child, #faculty > .container > div:first-child, #downloads > .container > div:first-child, #announcements > .container > div:first-child'
+ );
+ const cardGroups = document.querySelectorAll('.roadmap-grid, .faculty-grid, .download-grid');
+ const targets = [...sectionHeaders];
+
+ cardGroups.forEach(group => {
+ Array.from(group.children).forEach((card, index) => {
+ card.style.setProperty('--reveal-delay', `${Math.min(index, 4) * 40}ms`);
+ targets.push(card);
+ });
+ });
+
+ document.documentElement.classList.add('motion-ready');
+ targets.forEach(target => target.classList.add('reveal-on-scroll'));
+
+ if (!('IntersectionObserver' in window)) {
+ targets.forEach(target => target.classList.add('is-visible'));
+ return;
+ }
+
+ const observer = new IntersectionObserver(entries => {
+ entries.forEach(entry => {
+ if (!entry.isIntersecting) return;
+ entry.target.classList.add('is-visible');
+ observer.unobserve(entry.target);
+ });
+ }, { threshold: 0.12, rootMargin: '0px 0px -8% 0px' });
+
+ targets.forEach(target => observer.observe(target));
+ }
+
+ function initTopnavScrollState() {
+ const topnav = document.querySelector('.topnav');
+ const backToTopButton = document.getElementById('backToTopButton');
+ const portalHome = document.getElementById('portalHomeView');
+ const hero = document.querySelector('.hero-banner');
+ const navLinks = Array.from(document.querySelectorAll('.nav-link[href^="#"]'));
+ const sections = navLinks.map(link => ({
+ link,
+ section: document.querySelector(link.getAttribute('href'))
+ })).filter(item => item.section);
+ const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+ if (!topnav) return;
+
+ let framePending = false;
+ const updateState = () => {
+ const scrollPosition = window.scrollY;
+ const homeIsVisible = !portalHome || portalHome.style.display !== 'none';
+ const revealThreshold = hero ? hero.offsetTop + (hero.offsetHeight * 0.7) : 480;
+ const readingLine = scrollPosition + topnav.offsetHeight + Math.min(window.innerHeight * 0.28, 220);
+
+ topnav.classList.toggle('is-scrolled', scrollPosition > 16);
+ if (backToTopButton) {
+ backToTopButton.classList.toggle('is-visible', homeIsVisible && scrollPosition > revealThreshold);
+ }
+
+ let activeSection = null;
+ if (homeIsVisible) {
+ sections.forEach(item => {
+ if (readingLine >= item.section.offsetTop) activeSection = item;
+ });
+ }
+ sections.forEach(item => {
+ const isActive = item === activeSection;
+ item.link.classList.toggle('active', isActive);
+ if (isActive) item.link.setAttribute('aria-current', 'location');
+ else item.link.removeAttribute('aria-current');
+ });
+ framePending = false;
+ };
+
+ const requestUpdate = () => {
+ if (framePending) return;
+ framePending = true;
+ window.requestAnimationFrame(updateState);
+ };
+
+ updateState();
+ window.addEventListener('scroll', requestUpdate, { passive: true });
+ window.addEventListener('resize', requestUpdate, { passive: true });
+ if (backToTopButton) {
+ backToTopButton.addEventListener('click', () => {
+ window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
+ });
+ }
+ }
+
+ function initSemesterProgress() {
+ const progressBar = document.querySelector('.semester-progress-bar');
+ if (!progressBar) return;
+
+ if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || !('IntersectionObserver' in window)) {
+ progressBar.classList.add('is-visible');
+ return;
+ }
+
+ const progressObserver = new IntersectionObserver(entries => {
+ if (!entries.some(entry => entry.isIntersecting)) return;
+ progressBar.classList.add('is-visible');
+ progressObserver.disconnect();
+ }, { threshold: 0.65 });
+
+ progressObserver.observe(progressBar);
+ }
+
+ function initStatCounters() {
+ if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+ const statGrid = document.querySelector('.period-stat-grid');
+ const counters = document.querySelectorAll('.period-stat-val[data-count]');
+ if (!statGrid || !counters.length) return;
+
+ const runCounters = () => {
+ counters.forEach((counter, index) => {
+ const target = Number(counter.dataset.count);
+ const duration = 380;
+ const delay = index * 40;
+
+ window.setTimeout(() => {
+ const startTime = performance.now();
+ counter.textContent = '0';
+
+ const tick = now => {
+ const progress = Math.min((now - startTime) / duration, 1);
+ const eased = 1 - Math.pow(1 - progress, 3);
+ counter.textContent = String(Math.round(target * eased));
+ if (progress < 1) window.requestAnimationFrame(tick);
+ };
+
+ window.requestAnimationFrame(tick);
+ }, delay);
+ });
+ };
+
+ if (!('IntersectionObserver' in window)) {
+ runCounters();
+ return;
+ }
+
+ const counterObserver = new IntersectionObserver(entries => {
+ if (!entries.some(entry => entry.isIntersecting)) return;
+ runCounters();
+ counterObserver.disconnect();
+ }, { threshold: 0.55 });
+
+ counterObserver.observe(statGrid);
+ }
+
+ // ─── INITIAL HASH CHECK & ROUTING ─────────────────────────────────
+ window.addEventListener('DOMContentLoaded', () => {
+ renderAdditionalFaculty();
+ initMotionEffects();
+ initTopnavScrollState();
+ initStatCounters();
+ initSemesterProgress();
+ const hash = window.location.hash;
+ if (hash && hash.startsWith('#announcement-')) {
+ const docId = hash.replace('#announcement-', '');
+ showAnnouncementDetail(docId);
+ }
+ });
+
+ window.addEventListener('hashchange', () => {
+ const hash = window.location.hash;
+ if (hash && hash.startsWith('#announcement-')) {
+ const docId = hash.replace('#announcement-', '');
+ showAnnouncementDetail(docId);
+ } else if (hash === '' || hash === '#') {
+ showPortalHome();
+ }
+ });
+ </script>
+
+ <!-- ─── ATTACHMENT PREVIEW MODAL (IN-APP PDF / DOCUMENT VIEWER) ───────── -->
+ <div class="preview-modal-backdrop" id="attachmentPreviewModal" onclick="handlePreviewBackdropClick(event)">
+ <div class="preview-modal-window" onclick="event.stopPropagation">
+ <div class="preview-modal-toolbar">
+ <div class="preview-toolbar-title">
+ <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+ <span id="previewModalFileName">142_TB-VCS-ĐT_Gia-han-BM01.pdf</span>
+ <span class="badge badge-success" style="font-size: 11px; padding: 2px 8px;">Dấu mộc & Ký số SHA-256</span>
+ </div>
+ <div class="preview-toolbar-actions">
+ <button class="btn btn-secondary" style="color: #fff; border-color: rgba(255,255,255,0.2); padding: 6px 12px; font-size: 12px;" onclick="window.print">
+ <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+ In PDF
+ </button>
+ <button class="btn btn-primary" style="padding: 6px 14px; font-size: 12px;" onclick="downloadCurrentPreviewFile()">
+ <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+ Tải File
+ </button>
+ <button class="btn btn-ghost" style="color: #fff; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px;" onclick="closeAttachmentPreview()">
+ &times;
+ </button>
+ </div>
+ </div>
+
+ <div class="preview-viewport">
+ <div class="simulated-a4-page" id="simulatedA4Container">
+ <!-- Populated by JavaScript preview renderer -->
+ </div>
+ </div>
+ </div>
+ </div>
+</body>
+</html>

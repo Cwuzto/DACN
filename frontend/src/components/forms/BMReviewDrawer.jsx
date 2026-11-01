@@ -111,9 +111,9 @@ export default function BMReviewDrawer({
                                 Sinh viên thực hiện
                             </div>
                             <div className="font-bold text-slate-800 text-base flex items-center gap-2">
-                                <UserOutlined className="text-slate-400" />
+                                <UserOutlined className="text-slate-500" />
                                 {registration?.student?.fullName || 'Sinh viên'}
-                                <span className="text-xs text-slate-500 font-normal">
+                                <span className="text-xs text-slate-600 font-mono font-medium">
                                     ({registration?.student?.code || 'N/A'})
                                 </span>
                             </div>
@@ -133,7 +133,7 @@ export default function BMReviewDrawer({
                 {/* Task Details */}
                 <div>
                     <h4 className="font-bold text-slate-800 text-sm mb-1">{task?.title}</h4>
-                    <p className="text-xs text-slate-500">{task?.content}</p>
+                    <p className="text-xs text-slate-600 font-medium">{task?.content}</p>
                 </div>
 
                 <Divider className="my-3 border-slate-100" />
@@ -145,7 +145,7 @@ export default function BMReviewDrawer({
                             <FileTextOutlined className="text-blue-600" /> Nội dung sinh viên đã nộp
                         </span>
                         {submissions.length > 1 && (
-                            <span className="text-xs text-slate-400">
+                            <span className="text-xs text-slate-600 font-medium">
                                 Lần nộp thứ {submissions.length}
                             </span>
                         )}

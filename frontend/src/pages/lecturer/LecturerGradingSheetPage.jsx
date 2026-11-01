@@ -1,25 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import {
-    Alert,
-    Button,
-    Card,
-    Input,
-    InputNumber,
-    message,
-    Space,
-    Tag,
-    Tooltip,
-} from 'antd';
-import {
-    ArrowLeftOutlined,
-    CheckCircleOutlined,
-    FilePdfOutlined,
-    LockOutlined,
-    PrinterOutlined,
-    SaveOutlined,
-    WarningOutlined,
-} from '@ant-design/icons';
+import { message } from 'antd';
 import dayjs from 'dayjs';
 import evaluationService from '../../services/evaluationService';
 import PageLoader from '../../components/common/PageLoader';
@@ -32,6 +13,17 @@ const ROLE_LABELS = {
 };
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+
+const getGradeClassification = (score) => {
+    if (score >= 9.0) return { label: 'XUẤT SẮC (A+)', color: 'var(--success)' };
+    if (score >= 8.5) return { label: 'GIỎI (A)', color: '#0F766E' };
+    if (score >= 8.0) return { label: 'KHÁ GIỎI (B+)', color: 'var(--accent)' };
+    if (score >= 7.0) return { label: 'KHÁ (B)', color: 'var(--accent)' };
+    if (score >= 6.0) return { label: 'TRUNG BÌNH KHÁ (C+)', color: 'var(--warning)' };
+    if (score >= 5.0) return { label: 'TRUNG BÌNH (C)', color: 'var(--warning)' };
+    if (score >= 4.0) return { label: 'YẾU (D)', color: '#EA580C' };
+    return { label: 'KÉM / KHÔNG ĐẠT (F)', color: 'var(--danger)' };
+};
 
 export default function LecturerGradingSheetPage() {
     const { registrationId } = useParams();
@@ -48,6 +40,7 @@ export default function LecturerGradingSheetPage() {
     const [scoresMap, setScoresMap] = useState({});
     const [commentsMap, setCommentsMap] = useState({});
     const [generalComment, setGeneralComment] = useState('');
+    const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
 
     useEffect(() => {
         const loadScoreSheet = async () => {
@@ -69,10 +62,8 @@ export default function LecturerGradingSheetPage() {
                     totalMaxScore: rubric.totalMaxScore || 10.0,
                 });
 
-                // Cấu trúc Categories & Criteria
                 let rawCategories = rubric.categories || [];
                 if (!rawCategories.length && rubric.criteria?.length) {
-                    // Fallback nếu dữ liệu chỉ có mảng criteria phẳng
                     rawCategories = [
                         {
                             code: 'DEFAULT_CAT',
@@ -84,7 +75,6 @@ export default function LecturerGradingSheetPage() {
                 }
                 setCategories(rawCategories);
 
-                // Điền điểm đã chấm trước đó
                 const sMap = {};
                 const cMap = {};
                 (payload.scores || []).forEach((item) => {
@@ -105,13 +95,12 @@ export default function LecturerGradingSheetPage() {
         loadScoreSheet();
     }, [registrationId]);
 
-    // Danh sách phẳng tất cả tiêu chí
     const allCriteria = useMemo(() => {
         return categories.flatMap((cat) => cat.criteria || []);
     }, [categories]);
 
-    // Cập nhật điểm cho một tiêu chí
     const handleScoreChange = (criterionCode, value, maxScore) => {
+        if (scoreLocked) return;
         if (value === null || value === undefined || value === '') {
             setScoresMap((prev) => ({ ...prev, [criterionCode]: null }));
             return;
@@ -124,12 +113,11 @@ export default function LecturerGradingSheetPage() {
         setScoresMap((prev) => ({ ...prev, [criterionCode]: round2(numVal) }));
     };
 
-    // Cập nhật nhận xét cho tiêu chí
     const handleCommentChange = (criterionCode, value) => {
+        if (scoreLocked) return;
         setCommentsMap((prev) => ({ ...prev, [criterionCode]: value }));
     };
 
-    // Tổng điểm thời gian thực
     const totalScore = useMemo(() => {
         const sum = allCriteria.reduce((acc, cri) => {
             const val = scoresMap[cri.code];
@@ -138,7 +126,6 @@ export default function LecturerGradingSheetPage() {
         return round2(sum);
     }, [allCriteria, scoresMap]);
 
-    // Kiểm tra đã nhập đủ tất cả các ô điểm chưa
     const isCompleted = useMemo(() => {
         if (!allCriteria.length) return false;
         return allCriteria.every((cri) => {
@@ -147,7 +134,8 @@ export default function LecturerGradingSheetPage() {
         });
     }, [allCriteria, scoresMap]);
 
-    // Lưu phiếu chấm
+    const gradeInfo = useMemo(() => getGradeClassification(totalScore), [totalScore]);
+
     const handleSave = async () => {
         if (!isCompleted) {
             message.warning('Vui lòng nhập đầy đủ điểm cho tất cả các tiêu chí trong barem trước khi lưu.');
@@ -167,7 +155,7 @@ export default function LecturerGradingSheetPage() {
 
             const res = await evaluationService.saveScoreSheet(registrationId, payload);
             if (res.success) {
-                message.success('Đã lưu phiếu chấm điểm thành công!');
+                message.success('Đã lưu điểm Rubric (' + totalScore + 'đ) và ký số biên bản điện tử thành công!');
             }
         } catch (e) {
             message.error(e.message || 'Lưu phiếu chấm thất bại');
@@ -176,7 +164,6 @@ export default function LecturerGradingSheetPage() {
         }
     };
 
-    // Xuất PDF
     const handleExportPdf = async () => {
         try {
             setExporting(true);
@@ -195,267 +182,299 @@ export default function LecturerGradingSheetPage() {
     if (loading) return <PageLoader />;
 
     return (
-        <div className="bg-slate-200/80 min-h-screen py-6 px-4 select-text">
-            {/* Action Bar (Sticky Top) */}
-            <div className="max-w-[950px] mx-auto mb-4 bg-white/95 backdrop-blur-md p-3.5 rounded-xl border border-slate-300 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-3 print:hidden">
-                <div className="flex items-center gap-3">
-                    <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/lecturer/grading')}>
-                        Quay lại
-                    </Button>
+        <section id="view-grading-sheet" className="view-pane active">
+            {/* Top Back Bar */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+                <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => navigate('/lecturer/grading')}
+                    type="button"
+                >
+                    ← Quay lại danh sách Hội đồng
+                </button>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <button
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => setIsPrintModalOpen(true)}
+                        type="button"
+                    >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <polyline points="6 9 6 2 18 2 18 9" />
+                            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                            <rect x="6" y="14" width="12" height="8" />
+                        </svg>
+                        In Phiếu Chấm Cá Nhân (A4)
+                    </button>
+                    <button
+                        className="btn btn-secondary btn-sm"
+                        onClick={handleExportPdf}
+                        disabled={exporting}
+                        type="button"
+                    >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                            <polyline points="14 2 14 8 20 8" />
+                            <line x1="16" y1="13" x2="8" y2="13" />
+                            <line x1="16" y1="17" x2="8" y2="17" />
+                        </svg>
+                        {exporting ? 'Đang xuất PDF...' : 'Xuất PDF'}
+                    </button>
+                    <button
+                        className="btn btn-primary btn-sm"
+                        onClick={handleSave}
+                        disabled={saving || scoreLocked}
+                        type="button"
+                    >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                            <polyline points="17 21 17 13 7 13 7 21" />
+                            <polyline points="7 3 7 8 15 8" />
+                        </svg>
+                        {saving ? 'Đang lưu...' : 'Lưu Điểm & Ký Số Điện Tử'}
+                    </button>
+                </div>
+            </div>
+
+            {/* Locked Warning */}
+            {scoreLocked && (
+                <div style={{
+                    background: '#FFFBEB',
+                    border: '1px solid #FDE68A',
+                    borderRadius: 'var(--radius)',
+                    padding: '12px 16px',
+                    marginBottom: 20,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    color: '#B45309'
+                }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
                     <div>
-                        <div className="flex items-center gap-2">
-                            <span className="font-bold text-slate-800 text-sm">
-                                Phiếu Chấm Điểm Đồ Án Tốt Nghiệp
+                        <strong>Phiếu điểm đã được khóa:</strong> Điểm số đã nộp vào biên bản Hội đồng và không thể thay đổi trực tiếp.
+                    </div>
+                </div>
+            )}
+
+            {/* Student & Topic Banner */}
+            <div className="card" style={{ background: 'white', borderLeft: '4px solid var(--primary)', marginBottom: 20 }}>
+                <div style={{ padding: '18px 22px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 14 }}>
+                    <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                            <h2 style={{ fontSize: 18, margin: 0 }} id="sheet-student-name">
+                                {registration?.student?.fullName || 'Sinh viên'}
+                            </h2>
+                            <span className="mono" style={{ fontSize: 13, color: 'var(--muted)' }} id="sheet-student-mssv">
+                                MSSV: {registration?.student?.code || '—'}
                             </span>
-                            <Tag color="teal" className="font-semibold text-xs m-0">
-                                Barem {rubricInfo?.version?.toUpperCase()}
-                            </Tag>
+                            <span className="tag blue">
+                                {registration?.council?.name || 'Hội đồng Bảo vệ'} · {registration?.council?.defenseLocation || 'Phòng P.402'}
+                            </span>
                         </div>
-                        <span className="text-xs text-slate-500">
-                            Sinh viên: <b className="text-slate-800">{registration?.student?.fullName}</b> ({registration?.student?.code})
+                        <div style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--fg)', marginTop: 4 }} id="sheet-topic-title">
+                            {registration?.topic?.title || 'Chưa có tên đề tài'}
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
+                            Vai trò của bạn: <strong style={{ color: 'var(--primary)' }}>{ROLE_LABELS[currentEvaluator?.roleInCouncil] || currentEvaluator?.roleInCouncil || 'Thành viên'}</strong>
+                            {registration?.topic?.mentor?.fullName && (
+                                <span> · Giảng viên hướng dẫn: <strong>{registration.topic.mentor.fullName}</strong></span>
+                            )}
+                        </div>
+                    </div>
+
+                    <div style={{ textAlign: 'right', background: '#F0FDFA', padding: '10px 18px', borderRadius: 'var(--radius)', border: '1px solid #CCFBF1', minWidth: 160 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#0F766E', textTransform: 'uppercase' }}>Tổng Điểm Đánh Giá</div>
+                        <div className="mono" style={{ fontSize: 28, fontWeight: 900, color: '#0F766E' }} id="sheet-total-score">
+                            {totalScore.toFixed(2)}
+                        </div>
+                        <div style={{ fontSize: '11.5px', fontWeight: 700, color: gradeInfo.color }} id="sheet-grade-text">
+                            XẾP LOẠI: {gradeInfo.label}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Tiêu Chí Rubric Đánh Giá Khóa Luận */}
+            <div className="card" style={{ marginBottom: 20 }}>
+                <div className="card-head" style={{ flexWrap: 'wrap', gap: 10 }}>
+                    <div>
+                        <div className="card-title">Bảng Tiêu Chí Đánh Giá Khóa Luận (Rubric)</div>
+                        <div className="card-subtitle">Kéo thanh trượt hoặc nhập điểm trực tiếp cho từng tiêu chí thành phần</div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span className="tag teal" id="rubric-total-scale-tag">
+                            Thang điểm chuẩn Viện: {rubricInfo?.totalMaxScore || 10.0}đ
+                        </span>
+                        <span className="tag" style={{ background: '#F8FAFC', color: 'var(--muted)', border: '1px solid var(--border)', fontSize: '11.5px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                            </svg>
+                            Tiêu chí chuẩn do Quản trị viên ban hành
                         </span>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
-                    <Tooltip title="Tổng điểm chấm hiện tại">
-                        <Tag
-                            color={isCompleted ? '#059669' : '#D97706'}
-                            className="font-bold text-sm px-3 py-1 flex items-center gap-1.5"
-                        >
-                            {isCompleted ? <CheckCircleOutlined /> : <WarningOutlined />}
-                            Tổng: {totalScore} / 10.0đ
-                        </Tag>
-                    </Tooltip>
+                <div style={{ padding: 20 }}>
+                    <div id="rubric-groups-container">
+                        {categories.map((group, gIdx) => {
+                            const groupCriteria = group.criteria || [];
+                            const groupMax = groupCriteria.reduce((sum, c) => sum + (parseFloat(c.maxScore) || 0), 0);
+                            const groupScore = groupCriteria.reduce((sum, c) => sum + (parseFloat(scoresMap[c.code]) || 0), 0);
 
-                    <Button icon={<PrinterOutlined />} onClick={() => window.print()}>
-                        In phiếu
-                    </Button>
-                    <Button icon={<FilePdfOutlined />} onClick={handleExportPdf} loading={exporting}>
-                        Xuất PDF
-                    </Button>
-                    <Button
-                        type="primary"
-                        icon={<SaveOutlined />}
-                        className="bg-[#0F766E] hover:bg-[#115E59]"
-                        onClick={handleSave}
-                        loading={saving}
-                        disabled={scoreLocked}
-                    >
-                        Lưu phiếu điểm
-                    </Button>
+                            return (
+                                <div className="rubric-group" key={group.code || gIdx}>
+                                    <div className="rubric-group-title">
+                                        <span>{group.name} (TỐI ĐA {groupMax.toFixed(2)} ĐIỂM)</span>
+                                        <span className="mono" style={{ color: 'var(--primary)' }}>
+                                            {groupScore.toFixed(2)} / {groupMax.toFixed(2)}đ
+                                        </span>
+                                    </div>
+                                    <div>
+                                        {groupCriteria.map((c) => {
+                                            const currentVal = scoresMap[c.code];
+                                            const max = Number(c.maxScore) || 1.0;
+                                            return (
+                                                <div className="rubric-row" key={c.code} style={{ alignItems: 'center' }}>
+                                                    <div>
+                                                        <div className="rubric-name">{c.name}</div>
+                                                        <div className="rubric-desc">{c.description || 'Tiêu chí đánh giá chất lượng khóa luận'}</div>
+                                                    </div>
+                                                    <div className="rubric-max-badge">
+                                                        Tối đa: <span className="mono">{max.toFixed(2)}</span>đ
+                                                    </div>
+                                                    <input
+                                                        type="range"
+                                                        className="rubric-slider"
+                                                        min="0"
+                                                        max={max}
+                                                        step={c.step || 0.05}
+                                                        value={currentVal !== null && currentVal !== undefined ? currentVal : 0}
+                                                        disabled={scoreLocked}
+                                                        onChange={(e) => handleScoreChange(c.code, e.target.value, max)}
+                                                    />
+                                                    <input
+                                                        type="number"
+                                                        className="rubric-input r-val mono"
+                                                        min="0"
+                                                        max={max}
+                                                        step={c.step || 0.05}
+                                                        value={currentVal !== null && currentVal !== undefined ? currentVal : ''}
+                                                        placeholder="0.00"
+                                                        disabled={scoreLocked}
+                                                        onChange={(e) => handleScoreChange(c.code, e.target.value, max)}
+                                                    />
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* General Comment */}
+                    <div style={{ marginTop: 20 }}>
+                        <label style={{ display: 'block', fontWeight: 600, fontSize: 13, marginBottom: 6 }}>
+                            Nhận xét chung của Giám khảo đối với Khóa luận & Buổi bảo vệ:
+                        </label>
+                        <textarea
+                            className="input-field"
+                            rows={3}
+                            style={{ width: '100%', resize: 'vertical' }}
+                            placeholder="Nhập nhận xét về tính thực tiễn, ưu nhược điểm, phong cách thuyết trình..."
+                            value={generalComment}
+                            disabled={scoreLocked}
+                            onChange={(e) => setGeneralComment(e.target.value)}
+                        />
+                    </div>
                 </div>
             </div>
 
-            {/* Score Locked Alert */}
-            {scoreLocked && (
-                <div className="max-w-[950px] mx-auto mb-4 print:hidden">
-                    <Alert
-                        type="warning"
-                        showIcon
-                        icon={<LockOutlined />}
-                        message="Phiếu điểm đã được khóa"
-                        description="Hồ sơ điểm của bạn cho sinh viên này đã bị khóa bởi Hội đồng hoặc Quản trị viên. Bạn hiện chỉ có thể xem hoặc in phiếu."
-                        className="border border-amber-300 bg-amber-50"
-                    />
+            {/* Modal: In Phiếu Chấm Cá Nhân (A4) */}
+            {isPrintModalOpen && (
+                <div className="modal-overlay open" onClick={(e) => { if (e.target === e.currentTarget) setIsPrintModalOpen(false); }}>
+                    <div className="modal-box" style={{ maxWidth: 720 }}>
+                        <div className="modal-head">
+                            <div className="modal-title">Phiếu Chấm Điểm Cá Nhân Của Thành Viên Hội Đồng</div>
+                            <button className="modal-close" onClick={() => setIsPrintModalOpen(false)} type="button">×</button>
+                        </div>
+                        <div className="modal-body" style={{ background: '#FAFAFA', padding: 20 }}>
+                            <div style={{ background: 'white', border: '1px solid var(--border)', padding: 24, fontSize: '12.5px', lineHeight: 1.5 }}>
+                                <div style={{ textAlign: 'center', marginBottom: 14 }}>
+                                    <div style={{ fontWeight: 700, textTransform: 'uppercase' }}>TRƯỜNG ĐẠI HỌC THỦ DẦU MỘT · KHOA CÔNG NGHỆ THÔNG TIN</div>
+                                    <div style={{ fontSize: 15, fontWeight: 900, color: '#0F766E', marginTop: 4, textTransform: 'uppercase' }}>
+                                        PHIẾU ĐÁNH GIÁ KHÓA LUẬN TỐT NGHIỆP ĐẠI HỌC
+                                    </div>
+                                    <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>(Dành cho Thành viên Hội đồng chấm bảo vệ)</div>
+                                </div>
+
+                                <div style={{ marginBottom: 12, borderBottom: '1px solid #E2E8F0', paddingBottom: 8 }}>
+                                    <p style={{ margin: '4px 0' }}>Họ tên sinh viên: <strong>{registration?.student?.fullName?.toUpperCase() || '—'}</strong> · MSSV: <strong className="mono">{registration?.student?.code || '—'}</strong></p>
+                                    <p style={{ margin: '4px 0' }}>Tên đề tài: <strong>{registration?.topic?.title || '—'}</strong></p>
+                                    <p style={{ margin: '4px 0' }}>Hội đồng chấm: <strong>{registration?.council?.name || 'Hội đồng Khoá luận'}</strong> · Phòng thi: <strong>{registration?.council?.defenseLocation || 'P.402'}</strong></p>
+                                    <p style={{ margin: '4px 0' }}>Họ tên Giám khảo chấm: <strong>{currentEvaluator?.fullName || '—'}</strong> · Vai trò: <strong>{ROLE_LABELS[currentEvaluator?.roleInCouncil] || currentEvaluator?.roleInCouncil || 'Thành viên'}</strong></p>
+                                </div>
+
+                                <div style={{ marginBottom: 14 }}>
+                                    <table style={{ width: '100%', border: '1px solid #CBD5E1', fontSize: 12, borderCollapse: 'collapse' }}>
+                                        <thead style={{ background: '#F1F5F9' }}>
+                                            <tr>
+                                                <th style={{ border: '1px solid #CBD5E1', padding: 6, textAlign: 'left' }}>Nội dung đánh giá</th>
+                                                <th style={{ border: '1px solid #CBD5E1', padding: 6, textAlign: 'center', width: 90 }}>Điểm tối đa</th>
+                                                <th style={{ border: '1px solid #CBD5E1', padding: 6, textAlign: 'center', width: 90 }}>Điểm chấm</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {categories.map((g, idx) => {
+                                                const gCriteria = g.criteria || [];
+                                                const gMax = gCriteria.reduce((sum, c) => sum + (parseFloat(c.maxScore) || 0), 0);
+                                                const gScore = gCriteria.reduce((sum, c) => sum + (parseFloat(scoresMap[c.code]) || 0), 0);
+                                                return (
+                                                    <tr key={g.code || idx}>
+                                                        <td style={{ border: '1px solid #CBD5E1', padding: 6 }}>{g.name}</td>
+                                                        <td style={{ border: '1px solid #CBD5E1', padding: 6, textAlign: 'center' }}>{gMax.toFixed(2)}</td>
+                                                        <td style={{ border: '1px solid #CBD5E1', padding: 6, textAlign: 'center', fontWeight: 700 }}>{gScore.toFixed(2)}</td>
+                                                    </tr>
+                                                );
+                                            })}
+                                            <tr style={{ background: '#F0FDFA', fontWeight: 700 }}>
+                                                <td style={{ border: '1px solid #CBD5E1', padding: 6, color: '#0F766E' }}>TỔNG ĐIỂM ĐÁNH GIÁ (HỆ 10)</td>
+                                                <td style={{ border: '1px solid #CBD5E1', padding: 6, textAlign: 'center', color: '#0F766E' }}>{rubricInfo?.totalMaxScore || 10.0}</td>
+                                                <td style={{ border: '1px solid #CBD5E1', padding: 6, textAlign: 'center', color: '#0F766E', fontSize: 14 }}>{totalScore.toFixed(2)}</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {generalComment && (
+                                    <div style={{ marginBottom: 14, fontSize: 12 }}>
+                                        <strong>Nhận xét chung:</strong>
+                                        <p style={{ margin: '4px 0', fontStyle: 'italic', color: '#334155' }}>{generalComment}</p>
+                                    </div>
+                                )}
+
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 18 }}>
+                                    <div style={{ textAlign: 'center' }}>
+                                        <div><em>Bình Dương, ngày {dayjs().format('DD')} tháng {dayjs().format('MM')} năm {dayjs().format('YYYY')}</em></div>
+                                        <div style={{ fontWeight: 700, marginTop: 2 }}>GIÁM KHẢO CHẤM ĐIỂM</div>
+                                        <div style={{ height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'cursive', color: '#0F766E', fontSize: 15 }}>
+                                            {currentEvaluator?.fullName || 'Cán bộ chấm thi'}
+                                        </div>
+                                        <div style={{ fontSize: '10.5px', color: 'var(--success)', fontWeight: 600 }}>(Đã ký số SHA-256)</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="modal-foot">
+                            <button className="btn btn-secondary" onClick={() => setIsPrintModalOpen(false)} type="button">Đóng</button>
+                            <button className="btn btn-primary" onClick={() => window.print()} type="button">In Phiếu Điểm (Ctrl+P)</button>
+                        </div>
+                    </div>
                 </div>
             )}
-
-            {/* A4 Sheet Container */}
-            <div className="max-w-[950px] mx-auto bg-white p-8 md:p-12 shadow-lg border border-slate-300 rounded-lg print:shadow-none print:border-none print:p-0 print:m-0 font-serif text-[13px] leading-relaxed text-black">
-                {/* Header section: Quốc hiệu & Tiêu ngữ */}
-                <div className="flex justify-between items-start text-center mb-6">
-                    <div className="w-[45%]">
-                        <p className="uppercase font-bold text-xs">TRƯỜNG ĐẠI HỌC THỦ DẦU MỘT</p>
-                        <p className="uppercase font-bold text-sm text-teal-900 border-b-2 border-black inline-block pb-0.5">
-                            VIỆN CÔNG NGHỆ SỐ
-                        </p>
-                    </div>
-                    <div className="w-[50%]">
-                        <p className="uppercase font-bold text-xs">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
-                        <p className="font-bold text-xs border-b border-black inline-block pb-0.5">
-                            Độc lập - Tự do - Hạnh phúc
-                        </p>
-                        <p className="italic text-xs text-slate-600 mt-1">
-                            Bình Dương, ngày {dayjs().format('DD')} tháng {dayjs().format('MM')} năm {dayjs().format('YYYY')}
-                        </p>
-                    </div>
-                </div>
-
-                {/* Title */}
-                <div className="text-center my-6">
-                    <h2 className="text-base md:text-lg font-bold uppercase tracking-wide">
-                        PHIẾU ĐÁNH GIÁ BÁO CÁO TỐT NGHIỆP
-                    </h2>
-                    <p className="italic text-xs text-slate-600 mt-0.5">
-                        (Dành cho thành viên Hội đồng đánh giá khóa luận/đồ án tốt nghiệp)
-                    </p>
-                </div>
-
-                {/* Information Info Section */}
-                <div className="border border-slate-300 rounded p-4 mb-6 space-y-1.5 text-xs bg-slate-50/40">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        <div>
-                            <span>Họ và tên sinh viên: </span>
-                            <b className="uppercase text-slate-900">{registration?.student?.fullName || '—'}</b>
-                        </div>
-                        <div>
-                            <span>Mã số sinh viên: </span>
-                            <b className="font-mono text-slate-900">{registration?.student?.code || '—'}</b>
-                        </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        <div>
-                            <span>Ngành / Chuyên ngành: </span>
-                            <b>{registration?.student?.department || 'Công nghệ Thông tin'}</b>
-                        </div>
-                        <div>
-                            <span>Khóa học: </span>
-                            <b>{registration?.student?.course || '2022 - 2026'}</b>
-                        </div>
-                    </div>
-                    <div>
-                        <span>Tên đề tài: </span>
-                        <b className="text-slate-900">{registration?.topic?.title || '—'}</b>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1 border-t border-slate-200">
-                        <div>
-                            <span>Cán bộ đánh giá: </span>
-                            <b className="text-slate-900">{currentEvaluator?.fullName || '—'}</b>
-                        </div>
-                        <div>
-                            <span>Vai trò trong Hội đồng: </span>
-                            <b className="text-teal-800">
-                                {ROLE_LABELS[currentEvaluator?.roleInCouncil] || currentEvaluator?.roleInCouncil || 'Thành viên'}
-                            </b>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Rubric Dynamic Table */}
-                <div className="overflow-x-auto mb-6">
-                    <table className="w-full border-collapse border border-black text-xs">
-                        <thead>
-                            <tr className="bg-slate-100 font-bold text-center">
-                                <th className="border border-black p-2 w-10">STT</th>
-                                <th className="border border-black p-2 text-left">Nội dung đánh giá & Tiêu chí</th>
-                                <th className="border border-black p-2 w-20">Điểm tối đa</th>
-                                <th className="border border-black p-2 w-28">Điểm chấm</th>
-                                <th className="border border-black p-2 w-44 print:w-32">Ghi chú</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {categories.map((cat, catIdx) => (
-                                <div key={cat.code || catIdx} style={{ display: 'contents' }}>
-                                    {/* Category Header Row */}
-                                    <tr className="bg-slate-100/90 font-bold">
-                                        <td className="border border-black p-2 text-center text-slate-800">
-                                            {String.fromCharCode(65 + catIdx)}
-                                        </td>
-                                        <td className="border border-black p-2 text-slate-900 uppercase">
-                                            {cat.name}
-                                        </td>
-                                        <td className="border border-black p-2 text-center font-bold text-slate-900">
-                                            {cat.maxScore}đ
-                                        </td>
-                                        <td className="border border-black p-2 text-center bg-slate-50 text-slate-400">
-                                            —
-                                        </td>
-                                        <td className="border border-black p-2 bg-slate-50"></td>
-                                    </tr>
-
-                                    {/* Criteria Rows in this Category */}
-                                    {(cat.criteria || []).map((cri, criIdx) => {
-                                        const currentScore = scoresMap[cri.code];
-                                        const currentComment = commentsMap[cri.code] || '';
-
-                                        return (
-                                            <tr key={cri.code || criIdx} className="hover:bg-slate-50/50">
-                                                <td className="border border-black p-2 text-center font-mono text-slate-600">
-                                                    {catIdx + 1}.{criIdx + 1}
-                                                </td>
-                                                <td className="border border-black p-2">
-                                                    <div className="font-bold text-slate-900">{cri.label}</div>
-                                                    {cri.description && (
-                                                        <div className="text-[11px] text-slate-600 italic mt-0.5 leading-snug">
-                                                            {cri.description}
-                                                        </div>
-                                                    )}
-                                                </td>
-                                                <td className="border border-black p-2 text-center font-bold text-slate-800">
-                                                    {cri.maxScore}
-                                                </td>
-                                                <td className="border border-black p-2 text-center">
-                                                    <InputNumber
-                                                        min={0}
-                                                        max={cri.maxScore}
-                                                        step={0.05}
-                                                        value={currentScore}
-                                                        onChange={(val) => handleScoreChange(cri.code, val, cri.maxScore)}
-                                                        disabled={scoreLocked}
-                                                        className="w-full text-center font-bold text-xs"
-                                                        placeholder="0.00"
-                                                    />
-                                                </td>
-                                                <td className="border border-black p-1.5">
-                                                    <Input
-                                                        value={currentComment}
-                                                        onChange={(e) => handleCommentChange(cri.code, e.target.value)}
-                                                        disabled={scoreLocked}
-                                                        placeholder="Nhận xét..."
-                                                        className="text-xs"
-                                                    />
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </div>
-                            ))}
-
-                            {/* Total Score Summary Row */}
-                            <tr className="bg-slate-100 font-bold text-sm">
-                                <td colSpan={2} className="border border-black p-2.5 text-right uppercase text-slate-900">
-                                    TỔNG SỐ ĐIỂM ĐÁNH GIÁ (Thang điểm 10):
-                                </td>
-                                <td className="border border-black p-2.5 text-center text-slate-900">
-                                    10.0
-                                </td>
-                                <td className="border border-black p-2.5 text-center text-emerald-800 text-base">
-                                    {totalScore}
-                                </td>
-                                <td className="border border-black p-2.5 text-center text-xs text-slate-600">
-                                    {isCompleted ? 'Đầy đủ điểm' : 'Chưa hoàn tất'}
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                {/* General Comment Section */}
-                <div className="border border-black rounded p-3 mb-8">
-                    <label className="block font-bold text-xs uppercase mb-1">
-                        Nhận xét chung của Cán bộ đánh giá:
-                    </label>
-                    <Input.TextArea
-                        rows={3}
-                        value={generalComment}
-                        onChange={(e) => setGeneralComment(e.target.value)}
-                        disabled={scoreLocked}
-                        placeholder="Ghi nhận xét về ưu điểm, khuyết điểm chính của đề tài và kỹ năng bảo vệ của sinh viên..."
-                        className="text-xs font-serif"
-                    />
-                </div>
-
-                {/* Signature Section */}
-                <div className="flex justify-between items-start text-center pt-2">
-                    <div className="w-[45%]"></div>
-                    <div className="w-[45%]">
-                        <p className="font-bold text-xs uppercase">CÁN BỘ ĐÁNH GIÁ</p>
-                        <p className="italic text-[11px] text-slate-500 mb-16">(Ký và ghi rõ họ tên)</p>
-                        <p className="font-bold text-sm text-slate-900">{currentEvaluator?.fullName || ''}</p>
-                    </div>
-                </div>
-            </div>
-        </div>
+        </section>
     );
 }

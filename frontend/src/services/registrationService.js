@@ -5,6 +5,13 @@ const wrapServiceError = (error, fallbackMessage) => {
     return { success: false, message: fallbackMessage };
 };
 
+const idempotencyConfig = () => ({
+    headers: {
+        'Idempotency-Key': globalThis.crypto?.randomUUID?.()
+            || `workflow-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    },
+});
+
 const registrationService = {
     getMyRegistration: async (params = {}) => {
         try {
@@ -47,14 +54,14 @@ const registrationService = {
     },
     dropRegistration: async (id, reason) => {
         try {
-            return await api.patch(`/registrations/${id}/drop`, { reason });
+            return await api.patch(`/registrations/${id}/drop`, { reason }, idempotencyConfig());
         } catch (error) {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi hủy đăng ký đồ án');
         }
     },
     withdrawRegistration: async (id, reason) => {
         try {
-            return await api.post(`/registrations/${id}/withdraw`, { reason });
+            return await api.post(`/registrations/${id}/withdraw`, { reason }, idempotencyConfig());
         } catch (error) {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi rút đăng ký');
         }
@@ -69,7 +76,7 @@ const registrationService = {
 
     cancelRegistration: async (id) => {
         try {
-            return await api.delete(`/registrations/${id}`);
+            return await api.delete(`/registrations/${id}`, idempotencyConfig());
         } catch (error) {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi hủy đăng ký');
         }
@@ -77,25 +84,25 @@ const registrationService = {
 
     updateOutlineReview: async (id, payload) => {
         try {
-            return await api.patch(`/registrations/${id}/outline-review`, payload);
+            return await api.patch(`/registrations/${id}/outline-review`, payload, idempotencyConfig());
         } catch (error) {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi cập nhật kết quả thẩm định đề cương');
         }
     },
 
-    reviewBM04: async (id, { decision, feedback, score } = {}) => {
+    submitBM02: async (data) => {
         try {
-            return await api.post(`/registrations/${id}/bm04-review`, { decision, feedback, score });
+            return await api.post('/registrations/bm02-submit', data, idempotencyConfig());
         } catch (error) {
-            throw wrapServiceError(error, 'Đã xảy ra lỗi khi lập phiếu nhận xét BM04');
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi nộp BM02');
         }
     },
 
-    submitBM02: async (data) => {
+    reviewBM02: async (registrationId, data) => {
         try {
-            return await api.post('/registrations/bm02-submit', data);
+            return await api.post(`/registrations/bm02/${registrationId}/review`, data, idempotencyConfig());
         } catch (error) {
-            throw wrapServiceError(error, 'Đã xảy ra lỗi khi nộp BM02');
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi thẩm định BM02');
         }
     },
 
@@ -128,6 +135,22 @@ const registrationService = {
             return await api.get('/registrations/adjust-title/pending');
         } catch (error) {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi tải danh sách chờ duyệt đổi tên');
+        }
+    },
+
+    transferTopicMentor: async (registrationId, data) => {
+        try {
+            return await api.post(`/registrations/${registrationId}/transfer-mentor`, data, idempotencyConfig());
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi điều chuyển GVHD');
+        }
+    },
+
+    getAllowedActions: async (registrationId) => {
+        try {
+            return await api.get(`/registrations/${registrationId}/allowed-actions`);
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi kiểm tra quyền thao tác');
         }
     },
 };

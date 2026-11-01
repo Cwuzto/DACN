@@ -5,6 +5,13 @@ const wrapServiceError = (error, fallbackMessage) => {
     return { success: false, message: fallbackMessage };
 };
 
+const idempotencyConfig = (idempotencyKey) => ({
+    headers: {
+        'Idempotency-Key': idempotencyKey || globalThis.crypto?.randomUUID?.()
+            || `bm01-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    },
+});
+
 const evaluationService = {
     getGradingStudents: async (params = {}) => {
         try {
@@ -46,6 +53,54 @@ const evaluationService = {
         }
     },
 
+    approveDefenseResult: async (id, data) => {
+        try {
+            return await api.post(`/evaluations/admin-defense-center/${id}/result-approval`, data, idempotencyConfig());
+        } catch (error) {
+            throw wrapServiceError(error, 'Không thể phê duyệt kết quả bảo vệ');
+        }
+    },
+
+    correctDefenseResult: async (id, data) => {
+        try {
+            return await api.post(`/evaluations/admin-defense-center/${id}/result-approval/correction`, data, idempotencyConfig());
+        } catch (error) {
+            throw wrapServiceError(error, 'Không thể điều chỉnh kết quả bảo vệ');
+        }
+    },
+
+    previewResultPublication: async (semesterId) => {
+        try {
+            return await api.get(`/evaluations/semesters/${semesterId}/result-publications/preview`);
+        } catch (error) {
+            throw wrapServiceError(error, 'Không thể xem trước dữ liệu công bố');
+        }
+    },
+
+    publishDefenseResults: async (semesterId, data, idempotencyKey) => {
+        try {
+            return await api.post(`/evaluations/semesters/${semesterId}/result-publications`, data, idempotencyConfig(idempotencyKey));
+        } catch (error) {
+            throw wrapServiceError(error, 'Không thể công bố kết quả');
+        }
+    },
+
+    getResultPublicationHistory: async (semesterId) => {
+        try {
+            return await api.get(`/evaluations/semesters/${semesterId}/result-publications`);
+        } catch (error) {
+            throw wrapServiceError(error, 'Không thể tải lịch sử công bố');
+        }
+    },
+
+    getMyPublishedResult: async () => {
+        try {
+            return await api.get('/evaluations/my-published-result');
+        } catch (error) {
+            throw wrapServiceError(error, 'Không thể tải kết quả chính thức');
+        }
+    },
+
     exportScoreSheetPdf: async (registrationId, data = {}) => {
         try {
             return await api.post(`/evaluations/${registrationId}/score-sheet/export-pdf`, data);
@@ -70,9 +125,17 @@ const evaluationService = {
         }
     },
 
+    submitBM01: async (registrationId, data) => {
+        try {
+            return await api.post(`/evaluations/bm01-submit/${registrationId}`, data, idempotencyConfig());
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi nộp đề cương BM01');
+        }
+    },
+
     resubmitBM01: async (registrationId, data) => {
         try {
-            return await api.post(`/evaluations/bm01-resubmit/${registrationId}`, data);
+            return await api.post(`/evaluations/bm01-resubmit/${registrationId}`, data, idempotencyConfig());
         } catch (error) {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi nộp lại đề cương BM01');
         }
@@ -80,7 +143,7 @@ const evaluationService = {
 
     approveResubmittedBM01: async (registrationId, data = {}) => {
         try {
-            return await api.post(`/evaluations/bm01-gvhd-approve/${registrationId}`, data);
+            return await api.post(`/evaluations/bm01-gvhd-approve/${registrationId}`, data, idempotencyConfig());
         } catch (error) {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi thẩm định đề cương BM01');
         }
@@ -99,6 +162,54 @@ const evaluationService = {
             return await api.get(`/evaluations/bm04/${registrationId}`);
         } catch (error) {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi lấy phiếu đánh giá BM04');
+        }
+    },
+
+    issueCheckpoint: async (data) => {
+        try {
+            return await api.post('/evaluations/checkpoint-issue', data, idempotencyConfig());
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi phát hành biên bản BM03 Checkpoint');
+        }
+    },
+
+    signCheckpoint: async (data) => {
+        try {
+            return await api.post('/evaluations/checkpoint-sign', data, idempotencyConfig());
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi ký xác nhận biên bản BM03 Checkpoint');
+        }
+    },
+
+    handleCheckpointOverdue: async (data) => {
+        try {
+            return await api.post('/evaluations/checkpoint-overdue', data, idempotencyConfig());
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi xử lý quá hạn ký Checkpoint');
+        }
+    },
+
+    submitCheckpointAppeal: async (data) => {
+        try {
+            return await api.post('/evaluations/checkpoint-appeal-submit', data, idempotencyConfig());
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi nộp đơn khiếu nại chữ ký Checkpoint');
+        }
+    },
+
+    reviewCheckpointAppeal: async (data) => {
+        try {
+            return await api.post('/evaluations/checkpoint-appeal-review', data, idempotencyConfig());
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi thẩm định khiếu nại chữ ký Checkpoint');
+        }
+    },
+
+    getCheckpointEvaluations: async (registrationId) => {
+        try {
+            return await api.get(`/evaluations/checkpoint/${registrationId}`);
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi tải thông tin Checkpoint');
         }
     },
 };

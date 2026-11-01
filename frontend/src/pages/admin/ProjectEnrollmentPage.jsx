@@ -11,7 +11,6 @@ import {
     DeleteOutlined,
 } from '@ant-design/icons';
 
-import PageHeader from '../../components/common/PageHeader';
 import ExcelImportModal from '../../components/common/ExcelImportModal';
 import projectEnrollmentService from '../../services/projectEnrollmentService';
 import registrationService from '../../services/registrationService';
@@ -349,14 +348,14 @@ function ProjectEnrollmentPage() {
             key: 'student',
             render: (_, row) => (
                 <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-[#1E3A5F]/10 text-[#1E3A5F] flex items-center justify-center font-bold text-xs shrink-0">
+                    <div className="w-8 h-8 rounded-lg bg-teal-50 text-teal-800 flex items-center justify-center font-bold text-xs shrink-0 border border-teal-100">
                         {row.student?.fullName?.[0]?.toUpperCase() || 'S'}
                     </div>
                     <div className="min-w-0">
                         <div className="font-bold text-slate-900 text-sm truncate">
                             {row.student?.fullName || 'Chưa có tên'}
                         </div>
-                        <div className="text-xs text-slate-400 font-mono">
+                        <div className="text-xs text-slate-600 font-mono font-medium">
                             {row.student?.code || 'Chưa có mã'}
                         </div>
                     </div>
@@ -414,52 +413,57 @@ function ProjectEnrollmentPage() {
     ];
 
     return (
-        <div className="py-2 space-y-6">
-            <PageHeader
-                title="Gán Môn Đồ Án"
-                subtitle="Quản lý danh sách sinh viên đủ điều kiện làm Khóa luận / Đồ án tốt nghiệp theo từng học kỳ"
-                actions={
-                    <div className="flex items-center gap-2.5">
-                        <Button
-                            type={showAssignPanel ? 'default' : 'dashed'}
-                            icon={<UserAddOutlined />}
-                            onClick={() => setShowAssignPanel((prev) => !prev)}
-                        >
-                            {showAssignPanel ? 'Ẩn form gán' : 'Gán thủ công'}
-                        </Button>
-                        <Button
-                            icon={<UploadOutlined />}
-                            onClick={() => setIsExcelModalOpen(true)}
-                            className="bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100 font-semibold"
-                        >
-                            Gán bằng Excel
-                        </Button>
-                        <Button
-                            icon={<DownloadOutlined />}
-                            loading={exporting}
-                            onClick={handleExport}
-                        >
-                            Xuất Excel
-                        </Button>
-                    </div>
-                }
-            />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {/* Page Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 4, flexWrap: 'wrap', gap: 12 }}>
+                <div>
+                    <p className="eyebrow">PROJECT ENROLLMENT & ELIGIBILITY</p>
+                    <h1 className="h1">Gán Môn Đồ Án & Danh Sách Đủ Điều Kiện</h1>
+                </div>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    <button
+                        className={`btn ${showAssignPanel ? 'btn-primary' : 'btn-secondary'}`}
+                        onClick={() => setShowAssignPanel((prev) => !prev)}
+                    >
+                        <UserAddOutlined />
+                        <span>{showAssignPanel ? 'Ẩn form gán' : 'Gán thủ công'}</span>
+                    </button>
+                    <button
+                        className="btn btn-secondary"
+                        onClick={() => setIsExcelModalOpen(true)}
+                    >
+                        <UploadOutlined />
+                        <span>Gán bằng Excel</span>
+                    </button>
+                    <button
+                        className="btn btn-primary"
+                        onClick={handleExport}
+                        disabled={exporting}
+                    >
+                        <DownloadOutlined />
+                        <span>{exporting ? 'Đang xuất...' : 'Xuất Excel'}</span>
+                    </button>
+                </div>
+            </div>
 
             {/* 3 Metric Stat Strip */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="bg-white rounded-lg border border-slate-200 p-4 shadow-xs">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Tổng sinh viên đã gán</p>
-                    <p className="text-2xl font-bold text-slate-900 mt-1">{rows.length}</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+                <div className="card" style={{ padding: '14px 18px' }}>
+                    <span className="meta">Tổng sinh viên đã gán</span>
+                    <p className="h2 num" style={{ marginTop: 2 }}>{rows.length}</p>
+                    <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--muted)' }}>Trong học kỳ được chọn</div>
                 </div>
-                <div className="bg-emerald-50/80 rounded-lg border border-emerald-200 p-4 shadow-xs">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-800">Đang có hiệu lực</p>
-                    <p className="text-2xl font-bold text-emerald-900 mt-1">
+                <div className="card" style={{ padding: '14px 18px' }}>
+                    <span className="meta">Đang có hiệu lực</span>
+                    <p className="h2 num" style={{ marginTop: 2, color: 'var(--success)' }}>
                         {rows.filter((r) => r.status === 'ACTIVE').length}
                     </p>
+                    <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--success)' }}>Đủ điều kiện đăng ký đề tài</div>
                 </div>
-                <div className="bg-white rounded-lg border border-slate-200 p-4 shadow-xs">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Sinh viên đang chọn (hàng loạt)</p>
-                    <p className="text-2xl font-bold text-[#0F766E] mt-1">{selectedStudentIds.length}</p>
+                <div className="card" style={{ padding: '14px 18px' }}>
+                    <span className="meta">Sinh viên đang chọn (hàng loạt)</span>
+                    <p className="h2 num" style={{ marginTop: 2, color: 'var(--accent)' }}>{selectedStudentIds.length}</p>
+                    <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--muted)' }}>Sẵn sàng xử lý gán hàng loạt</div>
                 </div>
             </div>
 
@@ -471,7 +475,7 @@ function ProjectEnrollmentPage() {
                             <span className="material-symbols-outlined text-[#0F766E] text-[18px]">person_add</span>
                             Gán Sinh viên Thủ công vào Đợt Đồ Án
                         </h4>
-                        <span className="text-xs text-slate-400">Chọn 1 hoặc nhiều sinh viên</span>
+                        <span className="text-xs text-slate-600 font-medium">Chọn 1 hoặc nhiều sinh viên</span>
                     </div>
 
                     <Form form={form} layout="vertical" onFinish={handleAssignSingle}>
@@ -548,7 +552,7 @@ function ProjectEnrollmentPage() {
                             allowClear
                         />
                     </div>
-                    <span className="text-xs text-slate-400 font-medium">
+                    <span className="text-xs text-slate-600 font-medium">
                         Hiển thị {rows.length} sinh viên
                     </span>
                 </div>
@@ -561,8 +565,8 @@ function ProjectEnrollmentPage() {
                     pagination={{ pageSize: 10, showSizeChanger: true }}
                     locale={{
                         emptyText: (
-                            <div className="py-8 text-center text-slate-400">
-                                <span className="material-symbols-outlined text-4xl mb-2 text-slate-300 block">school</span>
+                            <div className="py-8 text-center text-slate-500 font-medium">
+                                <span className="material-symbols-outlined text-4xl mb-2 text-slate-400 block">school</span>
                                 Chưa có sinh viên nào được gán vào đợt đồ án này.
                             </div>
                         ),

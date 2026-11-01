@@ -284,7 +284,7 @@ export default function HybridBMFormModal({
                             <span className="font-medium text-slate-700">
                                 Tệp đính kèm minh chứng {config.fileRequired && <span className="text-red-500">*</span>}
                             </span>
-                            <span className="text-xs text-slate-400">Định dạng: PDF, DOCX, ZIP</span>
+                            <span className="text-xs text-slate-600 font-medium">Định dạng: PDF, DOCX, ZIP</span>
                         </div>
 
                         {uploadedFile ? (
@@ -324,7 +324,7 @@ export default function HybridBMFormModal({
                                 <p className="text-sm font-medium text-slate-700">
                                     {uploading ? 'Đang tải tệp lên...' : 'Nhấp hoặc kéo thả tệp vào đây để tải lên'}
                                 </p>
-                                <p className="text-xs text-slate-400 mt-1">{config.fileHint}</p>
+                                <p className="text-xs text-slate-600 font-medium mt-1">{config.fileHint}</p>
                             </Upload.Dragger>
                         )}
                     </div>

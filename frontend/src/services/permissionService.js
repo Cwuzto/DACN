@@ -67,6 +67,24 @@ const permissionService = {
             throw wrapServiceError(error, 'Lỗi khi xóa nhóm quyền');
         }
     },
+
+    /** GET /api/permissions/matrix — Ma trận phân quyền (Roles x Modules x Permissions) */
+    getPermissionMatrix: async () => {
+        try {
+            return await api.get('/permissions/matrix');
+        } catch (error) {
+            throw wrapServiceError(error, 'Lỗi khi tải ma trận phân quyền');
+        }
+    },
+
+    /** POST /api/permissions/matrix/bulk — Cập nhật hàng loạt ma trận phân quyền */
+    bulkUpdatePermissionMatrix: async (payload) => {
+        try {
+            return await api.post('/permissions/matrix/bulk', payload);
+        } catch (error) {
+            throw wrapServiceError(error, 'Lỗi khi lưu ma trận phân quyền');
+        }
+    },
 };
 
 export default permissionService;

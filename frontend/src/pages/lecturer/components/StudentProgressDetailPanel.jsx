@@ -76,12 +76,12 @@ function StudentProgressDetailPanel({
     openTaskReviewModal,
     openTaskModal,
     timelineItems,
-    // New props for Gói 1
+    // Props for Meeting Logs
     meetingLogs = [],
     openMeetingModal,
     handleDeleteMeetingLog,
     openBM04Modal,
-    // New props for Gói 2: Archive & Certificate
+    // Props for Archive & Certificate
     archiveData = null,
     openArchiveReviewModal,
     handleOpenCertificate,
@@ -89,78 +89,115 @@ function StudentProgressDetailPanel({
 }) {
     if (!selectedRegistration) return null;
 
+    const initials = selectedRegistration.student?.fullName
+        ? selectedRegistration.student.fullName.trim().split(' ').slice(-1)[0][0]?.toUpperCase()
+        : 'S';
+
+    const topicCode = selectedRegistration.topic?.code || `DT-${String(selectedRegistration.topic?.id || '').padStart(3, '0')}`;
+
     return (
-        <div className="mt-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <div className="mt-4 grid grid-cols-1 lg:grid-cols-12 gap-5">
             <div className="lg:col-span-8 space-y-4">
-                {/* Student & Topic Summary Card */}
-                <Card bordered={false} style={{ borderRadius: 14 }}>
-                    <Flex justify="space-between" align="start" wrap="wrap" gap={12}>
-                        <Flex gap={12}>
-                            <Avatar size={64} icon={<UserOutlined />} style={{ backgroundColor: '#e6f4ff', color: '#0958d9' }} />
-                            <Flex vertical>
-                                <Title level={4} style={{ margin: 0 }}>{selectedRegistration.student?.fullName || 'Sinh viên'}</Title>
-                                <Text type="secondary">{selectedRegistration.student?.code || 'N/A'}</Text>
-                                <Text strong className="text-slate-800">{selectedRegistration.topic?.title || 'Chưa đăng ký đề tài'}</Text>
-                            </Flex>
-                        </Flex>
-                        <Flex vertical align="end" gap={8}>
-                            <StatusBadge status={selectedRegistration.status} />
-                            <Flex gap={8} wrap="wrap">
-                                {openMeetingModal && (
-                                    <Button
-                                        icon={<TeamOutlined />}
-                                        onClick={() => openMeetingModal(selectedRegistration)}
-                                    >
-                                        Ghi nhận buổi gặp
-                                    </Button>
-                                )}
-                                {openBM04Modal && (
-                                    <Button
-                                        type="primary"
-                                        icon={<SafetyCertificateOutlined />}
-                                        onClick={() => openBM04Modal(selectedRegistration)}
-                                        style={{ backgroundColor: '#10b981', borderColor: '#10b981' }}
-                                    >
-                                        Lập Phiếu BM04
-                                    </Button>
-                                )}
+                {/* Student & Topic Summary Card matching OpenDesign Header */}
+                <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs border-l-4 border-l-[#0F766E]">
+                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                        <div className="flex items-start gap-3.5">
+                            <div className="w-12 h-12 rounded-full bg-teal-100 text-[#0F766E] font-bold text-base flex items-center justify-center shrink-0 border border-teal-200">
+                                {initials}
+                            </div>
+                            <div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <h3 className="text-base font-bold text-slate-900 m-0">
+                                        {selectedRegistration.student?.fullName || 'Sinh viên'}
+                                    </h3>
+                                    <span className="font-mono text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                                        MSSV: {selectedRegistration.student?.code || 'N/A'}
+                                    </span>
+                                    <StatusBadge status={selectedRegistration.status} />
+                                </div>
+                                <div className="text-sm font-semibold text-slate-800 mt-1">
+                                    <span className="font-mono text-[#0F766E] mr-1">{topicCode}:</span>
+                                    {selectedRegistration.topic?.title || 'Chưa đăng ký đề tài'}
+                                </div>
+                                <div className="text-xs text-slate-500 mt-0.5 font-medium">
+                                    {selectedRegistration.semester?.name || 'Học kỳ hiện tại'}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Top Action Buttons */}
+                        <div className="flex items-center gap-2 flex-wrap self-start">
+                            {openMeetingModal && (
                                 <Button
-                                    type="primary"
-                                    icon={<PlusOutlined />}
-                                    onClick={() => openTaskModal(selectedRegistration)}
+                                    size="small"
+                                    icon={<TeamOutlined />}
+                                    onClick={() => openMeetingModal(selectedRegistration)}
+                                    className="font-medium text-xs border-slate-200 text-slate-700 hover:text-[#0F766E]"
                                 >
-                                    Giao nhiệm vụ
+                                    + Ghi nhận buổi gặp
                                 </Button>
-                            </Flex>
-                        </Flex>
-                    </Flex>
-                    <div className="mt-3">
+                            )}
+                            {openBM04Modal && (
+                                <Button
+                                    size="small"
+                                    type="primary"
+                                    icon={<SafetyCertificateOutlined />}
+                                    onClick={() => openBM04Modal(selectedRegistration)}
+                                    className="!bg-[#0F766E] hover:!bg-[#115E59] font-medium text-xs"
+                                >
+                                    Đánh giá BM04
+                                </Button>
+                            )}
+                            <Button
+                                size="small"
+                                type="primary"
+                                icon={<PlusOutlined />}
+                                onClick={() => openTaskModal(selectedRegistration)}
+                                className="!bg-[#0F766E] hover:!bg-[#115E59] font-medium text-xs"
+                            >
+                                Giao việc
+                            </Button>
+                        </div>
+                    </div>
+
+                    {/* Progress Bar & Metric Pills */}
+                    <div className="mt-4 pt-3 border-t border-slate-100">
+                        <div className="flex items-center justify-between text-xs mb-1">
+                            <span className="font-medium text-slate-600">Tiến độ nhiệm vụ tổng thể:</span>
+                            <span className="font-bold text-[#0F766E] font-mono">{taskOverview.progress}%</span>
+                        </div>
                         <Progress
                             percent={taskOverview.progress}
-                            strokeColor={taskOverview.progress < 40 ? '#ff4d4f' : taskOverview.progress < 70 ? '#faad14' : '#52c41a'}
+                            strokeColor="#0F766E"
+                            size="small"
+                            showInfo={false}
                         />
-                        <Flex gap={8} wrap="wrap" align="center" className="mt-2">
-                            <Tag>Tổng task: {taskOverview.total}</Tag>
-                            <Tag color="blue">Đã nộp: {taskOverview.submitted}</Tag>
-                            <Tag color="success">Hoàn thành: {taskOverview.completed}</Tag>
-                            <Tag color={taskOverview.overdue > 0 ? 'error' : 'default'}>Quá hạn: {taskOverview.overdue}</Tag>
-                            <Tag color="purple">Buổi làm việc: {meetingLogs.length}</Tag>
-                        </Flex>
+                        <div className="flex gap-2 flex-wrap items-center mt-2.5 text-xs">
+                            <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-medium">Tổng task: {taskOverview.total}</span>
+                            <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-medium">Đã nộp: {taskOverview.submitted}</span>
+                            <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-medium">Hoàn thành: {taskOverview.completed}</span>
+                            {taskOverview.overdue > 0 && (
+                                <span className="px-2 py-0.5 rounded bg-red-50 text-red-700 font-bold">Quá hạn: {taskOverview.overdue}</span>
+                            )}
+                            <span className="px-2 py-0.5 rounded bg-teal-50 text-[#0F766E] font-bold">
+                                {meetingLogs.length} buổi gặp Lab
+                            </span>
+                        </div>
                     </div>
-                </Card>
+                </div>
 
-                {/* Main Content Tabs: Nhiệm vụ vs Sổ Nhật Ký */}
-                <Card bordered={false} style={{ borderRadius: 14 }}>
+                {/* Main Content Tabs: Nhiệm vụ vs Sổ Nhật Ký vs Hồ sơ lưu chiểu */}
+                <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
                     <Tabs
                         defaultActiveKey="tasks"
                         items={[
                             {
                                 key: 'tasks',
-                                label: <span className="font-bold">Nhiệm vụ & Biểu mẫu ({taskOverview.total})</span>,
+                                label: <span className="font-bold text-xs">Nhiệm vụ & Báo cáo tuần ({taskOverview.total})</span>,
                                 children: (
-                                    <div className="space-y-3">
-                                        <Flex justify="space-between" align="center" wrap="wrap" gap={8} style={{ marginBottom: 10 }}>
-                                            <Flex gap={8} wrap="wrap">
+                                    <div className="space-y-3 pt-2">
+                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                                            <div className="flex gap-2 flex-wrap">
                                                 <Segmented
                                                     size="small"
                                                     value={weekScopeFilter}
@@ -184,107 +221,118 @@ function StudentProgressDetailPanel({
                                                         { label: 'Yêu cầu sửa', value: 'REVISION' },
                                                     ]}
                                                 />
-                                            </Flex>
+                                            </div>
                                             <Button
+                                                size="small"
                                                 icon={<NotificationOutlined />}
                                                 loading={remindLoading}
                                                 onClick={handleBulkRemind}
                                                 disabled={remindableTaskIds.length === 0}
+                                                className="text-xs"
                                             >
                                                 Nhắc nộp ({remindableTaskIds.length})
                                             </Button>
-                                        </Flex>
+                                        </div>
 
                                         {taskOverview.overdue > 0 && (
                                             <Alert
                                                 type="warning"
                                                 showIcon
                                                 message={`Có ${taskOverview.overdue} nhiệm vụ quá hạn cần theo dõi`}
-                                                style={{ marginBottom: 12 }}
+                                                className="text-xs"
                                             />
                                         )}
 
                                         <Spin spinning={taskLoading}>
                                             {!visibleTasks.length ? (
-                                                <Empty description="Không có nhiệm vụ phù hợp bộ lọc hiện tại" />
+                                                <Empty description="Không có nhiệm vụ phù hợp bộ lọc hiện tại" className="py-6" />
                                             ) : (
                                                 Object.entries(tasksByWeek).map(([week, tasks]) => (
-                                                    <Card key={week} size="small" style={{ marginBottom: 12 }}>
-                                                        <Flex align="center" gap={8} style={{ marginBottom: 8 }}>
-                                                            <CalendarOutlined style={{ color: '#1677ff' }} />
-                                                            <Text strong>{week}</Text>
-                                                        </Flex>
+                                                    <div key={week} className="bg-slate-50/70 border border-slate-200 rounded-lg p-3.5 mb-3 space-y-2.5">
+                                                        <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+                                                            <CalendarOutlined className="text-[#0F766E]" />
+                                                            <span>{week}</span>
+                                                        </div>
                                                         <List
                                                             dataSource={tasks}
                                                             renderItem={(task) => {
                                                                 const submissions = task.submissions || [];
                                                                 const latestSubmission = submissions.length > 0 ? submissions[submissions.length - 1] : null;
                                                                 const overdue = isOverdueTask(task);
-                                                                const dueText = task.dueDate ? new Date(task.dueDate).toLocaleString('vi-VN') : 'Không có hạn';
+                                                                const dueText = task.dueDate ? dayjs(task.dueDate).format('DD/MM/YYYY HH:mm') : 'Không có hạn';
 
                                                                 return (
-                                                                    <List.Item>
-                                                                        <Card
-                                                                            size="small"
-                                                                            style={{
-                                                                                width: '100%',
-                                                                                border: overdue ? '1px solid #ffa39e' : '1px solid #f0f0f0',
-                                                                                background: overdue ? '#fff2f0' : '#fff',
-                                                                            }}
-                                                                        >
-                                                                            <Flex justify="space-between" align="start" gap={8}>
-                                                                                <Flex vertical gap={6} style={{ flex: 1 }}>
-                                                                                    <Flex align="center" gap={8} wrap="wrap">
-                                                                                        <Text strong>{task.title}</Text>
-                                                                                        <Tag color={statusColorMap[task.status] || 'default'}>
-                                                                                            {taskStatusOptions.find((opt) => opt.value === task.status)?.label || task.status}
-                                                                                        </Tag>
-                                                                                        {task.taskType && (
-                                                                                            <Tag color="blue">{task.taskType}</Tag>
-                                                                                        )}
-                                                                                        {overdue ? <Tag color="error">Quá hạn</Tag> : null}
-                                                                                    </Flex>
-                                                                                    {task.content && <Text type="secondary" style={{ fontSize: 13 }}>{task.content}</Text>}
-                                                                                    <Text type="secondary" style={{ fontSize: 12 }}><ClockCircleOutlined /> Hạn nộp: {dueText}</Text>
-                                                                                    {latestSubmission ? (
-                                                                                        <Flex vertical gap={4}>
-                                                                                            <Flex gap={8} wrap="wrap" align="center">
-                                                                                                <Tag color="cyan">Đã nộp lúc: {new Date(latestSubmission.submittedAt).toLocaleDateString('vi-VN')}</Tag>
-                                                                                                {latestSubmission.fileName && (
-                                                                                                    <Tag color="blue">{latestSubmission.fileName}</Tag>
-                                                                                                )}
-                                                                                                {latestSubmission.fileUrl && (
-                                                                                                    <Button type="link" icon={<DownloadOutlined />} href={latestSubmission.fileUrl} target="_blank" rel="noopener noreferrer" style={{ paddingInline: 0 }}>
-                                                                                                        Tải bài nộp
-                                                                                                    </Button>
-                                                                                                )}
-                                                                                            </Flex>
-                                                                                        </Flex>
-                                                                                    ) : (
-                                                                                        <Tooltip title="Sinh viên chưa nộp bài">
-                                                                                            <Text type="secondary" style={{ fontSize: 12 }}><FileTextOutlined /> Chưa nộp</Text>
-                                                                                        </Tooltip>
+                                                                    <div
+                                                                        key={task.id}
+                                                                        className={`p-3.5 rounded-lg border mb-2 text-xs space-y-2 ${
+                                                                            overdue
+                                                                                ? 'bg-rose-50/50 border-rose-200'
+                                                                                : 'bg-white border-slate-200'
+                                                                        }`}
+                                                                    >
+                                                                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                                                                            <div className="space-y-1 flex-1">
+                                                                                <div className="flex items-center gap-2 flex-wrap">
+                                                                                    <strong className="text-slate-900 text-xs">{task.title}</strong>
+                                                                                    <Tag color={statusColorMap[task.status] || 'default'} className="text-[10px] m-0">
+                                                                                        {taskStatusOptions.find((opt) => opt.value === task.status)?.label || task.status}
+                                                                                    </Tag>
+                                                                                    {task.taskType && (
+                                                                                        <Tag color="cyan" className="text-[10px] m-0">{task.taskType}</Tag>
                                                                                     )}
-                                                                                </Flex>
+                                                                                    {overdue && <Tag color="error" className="text-[10px] m-0">Quá hạn</Tag>}
+                                                                                </div>
+                                                                                {task.content && (
+                                                                                    <p className="text-slate-500 text-xs">{task.content}</p>
+                                                                                )}
+                                                                                <div className="text-[11px] text-slate-600 flex items-center gap-1 font-mono font-medium">
+                                                                                    <ClockCircleOutlined /> Hạn: {dueText}
+                                                                                </div>
+                                                                                {latestSubmission ? (
+                                                                                    <div className="flex gap-2 flex-wrap items-center pt-1">
+                                                                                        <span className="text-[11px] text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
+                                                                                            Đã nộp: {dayjs(latestSubmission.submittedAt).format('DD/MM HH:mm')}
+                                                                                        </span>
+                                                                                        {latestSubmission.fileName && (
+                                                                                            <span className="text-[11px] text-slate-600 font-mono bg-slate-100 px-2 py-0.5 rounded">
+                                                                                                {latestSubmission.fileName}
+                                                                                            </span>
+                                                                                        )}
+                                                                                        {latestSubmission.fileUrl && (
+                                                                                            <Button
+                                                                                                type="link"
+                                                                                                size="small"
+                                                                                                icon={<DownloadOutlined />}
+                                                                                                href={latestSubmission.fileUrl}
+                                                                                                target="_blank"
+                                                                                                rel="noopener noreferrer"
+                                                                                                className="text-xs p-0 text-[#0F766E]"
+                                                                                            >
+                                                                                                Tải file
+                                                                                            </Button>
+                                                                                        )}
+                                                                                    </div>
+                                                                                ) : (
+                                                                                    <span className="text-[11px] text-slate-500 italic font-medium">Chưa có bài nộp</span>
+                                                                                )}
+                                                                            </div>
 
-                                                                                <Flex vertical gap={8} style={{ minWidth: 140 }} align="end">
-                                                                                    <Button
-                                                                                        type="primary"
-                                                                                        icon={<CheckCircleOutlined />}
-                                                                                        loading={updatingTaskId === task.id}
-                                                                                        onClick={() => openTaskReviewModal(task)}
-                                                                                        style={{ backgroundColor: '#0052a3' }}
-                                                                                    >
-                                                                                        Xem & Đánh giá
-                                                                                    </Button>
-                                                                                </Flex>
-                                                                            </Flex>
-                                                                        </Card>
-                                                                    </List.Item>
+                                                                            <Button
+                                                                                size="small"
+                                                                                type="primary"
+                                                                                icon={<CheckCircleOutlined />}
+                                                                                loading={updatingTaskId === task.id}
+                                                                                onClick={() => openTaskReviewModal(task)}
+                                                                                className="!bg-[#0F766E] hover:!bg-[#115E59] font-medium text-xs self-start"
+                                                                            >
+                                                                                Đánh giá
+                                                                            </Button>
+                                                                        </div>
+                                                                    </div>
                                                                 );
                                                             }}
                                                         />
-                                                    </Card>
+                                                    </div>
                                                 ))
                                             )}
                                         </Spin>
@@ -293,41 +341,43 @@ function StudentProgressDetailPanel({
                             },
                             {
                                 key: 'meetingLogs',
-                                label: <span className="font-bold">Sổ Nhật Ký Buổi Gặp ({meetingLogs.length})</span>,
+                                label: <span className="font-bold text-xs">Sổ Nhật Ký Buổi Gặp Lab ({meetingLogs.length})</span>,
                                 children: (
-                                    <div className="space-y-4">
-                                        <Flex justify="space-between" align="center">
+                                    <div className="space-y-4 pt-2">
+                                        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                                             <div>
-                                                <h4 className="font-bold text-slate-800 text-sm">Lịch sử làm việc & gặp gỡ sinh viên</h4>
-                                                <p className="text-xs text-slate-500">Ghi nhận trực tiếp tại Lab, Văn phòng hoặc Online phục vụ minh chứng BM04</p>
+                                                <h4 className="font-bold text-slate-800 text-xs">Lịch sử làm việc & gặp gỡ sinh viên</h4>
+                                                <p className="text-[11px] text-slate-500">Minh chứng cho điều kiện thẩm định BM04 trước khi xét duyệt bảo vệ</p>
                                             </div>
                                             {openMeetingModal && (
                                                 <Button
+                                                    size="small"
                                                     type="primary"
                                                     icon={<PlusOutlined />}
                                                     onClick={() => openMeetingModal(selectedRegistration)}
+                                                    className="!bg-[#0F766E] hover:!bg-[#115E59] font-medium text-xs"
                                                 >
-                                                    Thêm buổi gặp mới
+                                                    Thêm buổi gặp
                                                 </Button>
                                             )}
-                                        </Flex>
+                                        </div>
 
                                         {meetingLogs.length === 0 ? (
-                                            <Empty description="Chưa có buổi làm việc nào được ghi nhận cho sinh viên này" />
+                                            <Empty description="Chưa có buổi làm việc nào được ghi nhận" className="py-6" />
                                         ) : (
                                             <div className="space-y-3">
                                                 {meetingLogs.map((log, idx) => (
-                                                    <div key={log.id} className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
-                                                        <Flex justify="space-between" align="center" wrap="wrap" gap={8}>
-                                                            <Flex align="center" gap={8}>
-                                                                <CalendarOutlined className="text-blue-600" />
-                                                                <Text strong>
+                                                    <div key={log.id} className="bg-slate-50 border border-slate-200 rounded-lg p-3.5 space-y-2 text-xs">
+                                                        <div className="flex items-center justify-between flex-wrap gap-2">
+                                                            <div className="flex items-center gap-2">
+                                                                <CalendarOutlined className="text-[#0F766E]" />
+                                                                <strong className="text-slate-800">
                                                                     Buổi {meetingLogs.length - idx}: {dayjs(log.meetingDate).format('DD/MM/YYYY')}
-                                                                </Text>
-                                                                <Tag color={log.meetingType === 'LAB' ? 'green' : log.meetingType === 'ONLINE' ? 'blue' : 'orange'}>
+                                                                </strong>
+                                                                <Tag color={log.meetingType === 'LAB' ? 'green' : log.meetingType === 'ONLINE' ? 'blue' : 'orange'} className="text-[10px] m-0">
                                                                     {log.meetingType === 'LAB' ? 'Tại Lab' : log.meetingType === 'ONLINE' ? 'Online Meet' : 'Văn phòng'}
                                                                 </Tag>
-                                                            </Flex>
+                                                            </div>
                                                             {handleDeleteMeetingLog && (
                                                                 <Popconfirm
                                                                     title="Xóa buổi gặp này?"
@@ -339,15 +389,15 @@ function StudentProgressDetailPanel({
                                                                     <Button size="small" type="text" danger icon={<DeleteOutlined />} />
                                                                 </Popconfirm>
                                                             )}
-                                                        </Flex>
+                                                        </div>
 
-                                                        <div className="bg-white p-3 rounded-lg border border-slate-100 text-xs space-y-1 text-slate-700">
+                                                        <div className="bg-white p-3 rounded border border-slate-100 text-xs space-y-1.5 text-slate-700">
                                                             <div><strong>Sinh viên đã báo cáo:</strong> {log.studentWorkSummary}</div>
                                                             {log.nextPlan && (
                                                                 <div><strong>Kế hoạch tiếp theo:</strong> {log.nextPlan}</div>
                                                             )}
                                                             {log.supervisorNotes && (
-                                                                <div className="text-blue-700 pt-1 border-t border-slate-100">
+                                                                <div className="text-teal-800 pt-1 border-t border-slate-100">
                                                                     <strong>Góp ý & Dặn dò của GV:</strong> {log.supervisorNotes}
                                                                 </div>
                                                             )}
@@ -362,141 +412,101 @@ function StudentProgressDetailPanel({
                             {
                                 key: 'archive',
                                 label: (
-                                    <span className="font-bold">
+                                    <span className="font-bold text-xs">
                                         Hồ Sơ Lưu Chiểu {archiveData ? (
-                                            archiveData.status === 'APPROVED' ? <Tag color="green" className="ml-1 text-[11px]">Đã duyệt</Tag> :
-                                            archiveData.status === 'REVISION_REQUIRED' ? <Tag color="red" className="ml-1 text-[11px]">Cần sửa</Tag> :
-                                            <Tag color="orange" className="ml-1 text-[11px]">Chờ duyệt</Tag>
+                                            archiveData.status === 'APPROVED' ? <Tag color="green" className="ml-1 text-[10px]">Đã duyệt</Tag> :
+                                            archiveData.status === 'REVISION_REQUIRED' ? <Tag color="red" className="ml-1 text-[10px]">Cần sửa</Tag> :
+                                            <Tag color="orange" className="ml-1 text-[10px]">Chờ duyệt</Tag>
                                         ) : ''}
                                     </span>
                                 ),
                                 children: (
-                                    <div className="space-y-4">
-                                        <Flex justify="space-between" align="center" wrap="wrap" gap={8}>
+                                    <div className="space-y-4 pt-2">
+                                        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                                             <div>
-                                                <h4 className="font-bold text-slate-800 text-sm">Hồ sơ lưu chiểu toàn khóa sau bảo vệ</h4>
-                                                <p className="text-xs text-slate-500">Kiểm tra bản thuyết minh, slide, video demo và link mã nguồn để hoàn tất thủ tục tốt nghiệp</p>
+                                                <h4 className="font-bold text-slate-800 text-xs">Hồ sơ lưu chiểu toàn khóa sau bảo vệ</h4>
+                                                <p className="text-[11px] text-slate-500">Kiểm tra bản thuyết minh, slide, video demo và link mã nguồn</p>
                                             </div>
                                             {archiveData && openArchiveReviewModal && archiveData.status === 'SUBMITTED' && (
                                                 <Button
+                                                    size="small"
                                                     type="primary"
                                                     icon={<CheckOutlined />}
                                                     onClick={() => openArchiveReviewModal(archiveData)}
-                                                    style={{ backgroundColor: '#10b981', borderColor: '#10b981' }}
+                                                    className="!bg-[#0F766E] hover:!bg-[#115E59] font-medium text-xs"
                                                 >
                                                     Nghiệm thu lưu chiểu
                                                 </Button>
                                             )}
                                             {archiveData && archiveData.status === 'APPROVED' && handleOpenCertificate && (
                                                 <Button
+                                                    size="small"
                                                     type="primary"
                                                     icon={<SafetyCertificateOutlined />}
                                                     onClick={handleOpenCertificate}
-                                                    className="bg-emerald-600 hover:bg-emerald-500 font-bold"
+                                                    className="!bg-[#0F766E] hover:!bg-[#115E59] font-bold text-xs"
                                                 >
-                                                    Xem Giấy Xác Nhận Tốt Nghiệp
+                                                    Xem Giấy Xác Nhận
                                                 </Button>
                                             )}
-                                        </Flex>
+                                        </div>
 
                                         {!archiveData ? (
                                             <Alert
                                                 type="info"
                                                 showIcon
                                                 message="Sinh viên chưa nộp hồ sơ lưu chiểu"
-                                                description="Sinh viên sau khi bảo vệ trước Hội đồng cần chỉnh sửa hoàn thiện báo cáo và nộp lưu chiểu trên hệ thống để được cấp Giấy xác nhận tốt nghiệp."
+                                                description="Sinh viên sau khi bảo vệ trước Hội đồng cần nộp lưu chiểu trên hệ thống để được cấp Giấy xác nhận tốt nghiệp."
+                                                className="text-xs"
                                             />
                                         ) : (
                                             <div className="space-y-3">
-                                                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
-                                                    <Flex justify="space-between" align="center" wrap="wrap" gap={8}>
+                                                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3.5 space-y-3">
+                                                    <div className="flex items-center justify-between flex-wrap gap-2 text-xs">
                                                         <div>
-                                                            <span className="text-xs text-slate-500">Trạng thái hồ sơ:</span>
-                                                            <div className="mt-0.5">
-                                                                <Tag
-                                                                    color={
-                                                                        archiveData.status === 'APPROVED' ? 'green' :
-                                                                        archiveData.status === 'REVISION_REQUIRED' ? 'red' : 'orange'
-                                                                    }
-                                                                    className="font-bold text-xs px-2.5 py-0.5"
-                                                                >
-                                                                    {archiveData.status === 'APPROVED' ? '✓ ĐÃ NGHIỆM THU CHÍNH THỨC' :
-                                                                     archiveData.status === 'REVISION_REQUIRED' ? '⚠ YÊU CẦU CHỈNH SỬA' :
-                                                                     '⏳ ĐANG CHỜ GVHD NGHIỆM THU'}
-                                                                </Tag>
-                                                            </div>
+                                                            <span className="text-slate-500">Trạng thái: </span>
+                                                            <Tag
+                                                                color={
+                                                                    archiveData.status === 'APPROVED' ? 'green' :
+                                                                    archiveData.status === 'REVISION_REQUIRED' ? 'red' : 'orange'
+                                                                }
+                                                                className="font-bold text-[11px] ml-1"
+                                                            >
+                                                                {archiveData.status === 'APPROVED' ? '✓ ĐÃ NGHIỆM THU' :
+                                                                 archiveData.status === 'REVISION_REQUIRED' ? '⚠ YÊU CẦU SỬA' :
+                                                                 '⏳ CHỜ NGHIỆM THU'}
+                                                            </Tag>
                                                         </div>
-                                                        <div className="text-right">
-                                                            <span className="text-xs text-slate-500">Thời gian nộp:</span>
-                                                            <div className="font-semibold text-xs text-slate-800">
-                                                                {dayjs(archiveData.submittedAt).format('DD/MM/YYYY HH:mm')}
-                                                            </div>
-                                                        </div>
-                                                    </Flex>
-
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
-                                                        <div className="p-3 bg-white rounded-lg border border-slate-200 text-xs space-y-1">
-                                                            <span className="text-slate-500 font-medium">Báo cáo Thuyết minh:</span>
-                                                            {archiveData.reportFileUrl ? (
-                                                                <div className="flex items-center gap-2">
-                                                                    <FilePdfOutlined className="text-rose-500 text-base" />
-                                                                    <a href={archiveData.reportFileUrl} target="_blank" rel="noopener noreferrer" className="font-bold text-blue-600 hover:underline truncate">
-                                                                        {archiveData.reportFileName || 'Xem tệp Báo cáo PDF'}
-                                                                    </a>
-                                                                </div>
-                                                            ) : <div className="text-slate-400 italic">Chưa tải lên</div>}
-                                                        </div>
-
-                                                        <div className="p-3 bg-white rounded-lg border border-slate-200 text-xs space-y-1">
-                                                            <span className="text-slate-500 font-medium">Slide Thuyết trình:</span>
-                                                            {archiveData.slideFileUrl ? (
-                                                                <div className="flex items-center gap-2">
-                                                                    <FilePptOutlined className="text-amber-500 text-base" />
-                                                                    <a href={archiveData.slideFileUrl} target="_blank" rel="noopener noreferrer" className="font-bold text-blue-600 hover:underline truncate">
-                                                                        {archiveData.slideFileName || 'Xem Slide PPTX'}
-                                                                    </a>
-                                                                </div>
-                                                            ) : <div className="text-slate-400 italic">Chưa tải lên</div>}
-                                                        </div>
-
-                                                        <div className="p-3 bg-white rounded-lg border border-slate-200 text-xs space-y-1">
-                                                            <span className="text-slate-500 font-medium">Video Demo Sản phẩm:</span>
-                                                            {archiveData.demoVideoUrl ? (
-                                                                <div className="flex items-center gap-2">
-                                                                    <YoutubeOutlined className="text-red-500 text-base" />
-                                                                    <a href={archiveData.demoVideoUrl} target="_blank" rel="noopener noreferrer" className="font-bold text-blue-600 hover:underline truncate">
-                                                                        Xem Video Demo (Drive/YouTube)
-                                                                    </a>
-                                                                </div>
-                                                            ) : <div className="text-slate-400 italic">Chưa cung cấp</div>}
-                                                        </div>
-
-                                                        <div className="p-3 bg-white rounded-lg border border-slate-200 text-xs space-y-1">
-                                                            <span className="text-slate-500 font-medium">Kho Mã Nguồn (Repository):</span>
-                                                            {archiveData.sourceCodeUrl ? (
-                                                                <div className="flex items-center gap-2">
-                                                                    <GithubOutlined className="text-slate-800 text-base" />
-                                                                    <a href={archiveData.sourceCodeUrl} target="_blank" rel="noopener noreferrer" className="font-bold text-blue-600 hover:underline truncate">
-                                                                        Mở Kho Mã Nguồn
-                                                                    </a>
-                                                                </div>
-                                                            ) : <div className="text-slate-400 italic">Chưa cung cấp</div>}
+                                                        <div className="font-mono text-slate-500 text-[11px]">
+                                                            {dayjs(archiveData.submittedAt).format('DD/MM/YYYY HH:mm')}
                                                         </div>
                                                     </div>
 
-                                                    {archiveData.summary && (
-                                                        <div className="bg-white p-3 rounded-lg border border-slate-100 text-xs">
-                                                            <span className="font-bold text-slate-700">Tóm tắt kết quả: </span>
-                                                            <span className="text-slate-600">{archiveData.summary}</span>
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                                                        <div className="p-3 bg-white rounded border border-slate-200 text-xs space-y-1">
+                                                            <span className="text-slate-500 font-medium">Báo cáo Thuyết minh:</span>
+                                                            {archiveData.reportFileUrl ? (
+                                                                <div className="flex items-center gap-2">
+                                                                    <FilePdfOutlined className="text-rose-500" />
+                                                                    <a href={archiveData.reportFileUrl} target="_blank" rel="noopener noreferrer" className="font-bold text-blue-600 hover:underline truncate">
+                                                                        {archiveData.reportFileName || 'Xem tệp PDF'}
+                                                                    </a>
+                                                                </div>
+                                                            ) : <div className="text-slate-500 italic font-medium">Chưa tải lên</div>}
                                                         </div>
-                                                    )}
 
-                                                    {archiveData.reviewerNotes && (
-                                                        <div className="bg-amber-50 p-3 rounded-lg border border-amber-200 text-xs">
-                                                            <span className="font-bold text-amber-800">Nhận xét nghiệm thu: </span>
-                                                            <span className="text-amber-700">{archiveData.reviewerNotes}</span>
+                                                        <div className="p-3 bg-white rounded border border-slate-200 text-xs space-y-1">
+                                                            <span className="text-slate-600 font-medium">Kho Mã Nguồn:</span>
+                                                            {archiveData.sourceCodeUrl ? (
+                                                                <div className="flex items-center gap-2">
+                                                                    <GithubOutlined className="text-slate-800" />
+                                                                    <a href={archiveData.sourceCodeUrl} target="_blank" rel="noopener noreferrer" className="font-bold text-blue-600 hover:underline truncate">
+                                                                        Mở Repository
+                                                                    </a>
+                                                                </div>
+                                                            ) : <div className="text-slate-500 italic font-medium">Chưa cung cấp</div>}
                                                         </div>
-                                                    )}
+                                                    </div>
                                                 </div>
                                             </div>
                                         )}
@@ -505,13 +515,21 @@ function StudentProgressDetailPanel({
                             },
                         ]}
                     />
-                </Card>
+                </div>
             </div>
 
+            {/* Right Column: Timeline / History */}
             <div className="lg:col-span-4">
-                <Card bordered={false} style={{ borderRadius: 14 }} title="Lịch sử trao đổi">
-                    {timelineItems.length ? <Timeline items={timelineItems} /> : <Empty description="Chưa có lịch sử" />}
-                </Card>
+                <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-3">
+                    <h4 className="font-bold font-display text-slate-900 text-xs tracking-wider uppercase">
+                        Nhật Ký Tương Tác
+                    </h4>
+                    {timelineItems.length ? (
+                        <Timeline items={timelineItems} className="text-xs" />
+                    ) : (
+                        <Empty description="Chưa có tương tác nào" className="py-6" />
+                    )}
+                </div>
             </div>
         </div>
     );
