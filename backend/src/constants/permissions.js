@@ -45,6 +45,7 @@ const PERMISSION_CATALOG = [
   { code: 'PERMISSION_GROUP_MANAGE', label: 'Quản lý nhóm quyền', module: 'ADMIN' },
   { code: 'AUDIT_LOG_VIEW', label: 'Xem audit log', module: 'ADMIN' },
   { code: 'SYSTEM_CONFIG_MANAGE', label: 'Cấu hình hệ thống', module: 'ADMIN' },
+  { code: 'PORTAL_CONTENT_MANAGE', label: 'Quản trị nội dung Portal', module: 'PORTAL' },
   { code: 'SEMESTER_MANAGE', label: 'Quản lý học kỳ', module: 'ADMIN' },
   { code: 'PROJECT_CATALOG_MANAGE', label: 'Quản lý danh mục đồ án', module: 'ADMIN' },
   { code: 'ENROLLMENT_MANAGE', label: 'Quản lý enrollment', module: 'ADMIN' },
@@ -90,7 +91,7 @@ const DEFAULT_GROUPS = [
       'USER_MANAGE', 'USER_IMPORT', 'PERMISSION_GROUP_MANAGE', 'PUBLIC_ANNOUNCEMENT_MANAGE',
       'SYSTEM_CONFIG_MANAGE', 'SEMESTER_MANAGE', 'PROJECT_CATALOG_MANAGE',
       'ENROLLMENT_MANAGE', 'AUDIT_LOG_VIEW', 'REPORT_VIEW', 'RUBRIC_MANAGE',
-      'NOTIFICATION_MANAGE', 'LEGACY_REVIEW_MANAGE',
+      'NOTIFICATION_MANAGE', 'LEGACY_REVIEW_MANAGE', 'PORTAL_CONTENT_MANAGE',
     ],
   },
 ];

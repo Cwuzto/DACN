@@ -106,6 +106,8 @@ model User {
   transferredMentorshipsApproved MentorTransfer[] @relation("ApprovedMentorTransfer")
   approvedDefenseResults DefenseResultApproval[] @relation("DefenseResultApprovedBy")
   publishedResultPublications ResultPublication[] @relation("ResultPublicationPublishedBy")
+  portalContentRevisionsCreated PortalContentRevision[] @relation("PortalContentRevisionCreatedBy")
+  portalContentRevisionsPublished PortalContentRevision[] @relation("PortalContentRevisionPublishedBy")
 
   @@map("users")
 }
@@ -781,6 +783,8 @@ model PublicAnnouncement {
   fileName    String?  @map("file_name")
   isPinned    Boolean  @default(false) @map("is_pinned")
   isPublished Boolean  @default(true) @map("is_published")
+  announcementType AnnouncementType @default(RICH_TEXT) @map("announcement_type")
+  currentPublishedRevisionId Int? @unique @map("current_published_revision_id")
   authorId    Int?     @map("author_id")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
@@ -789,10 +793,76 @@ model PublicAnnouncement {
   @@map("public_announcements")
 }
 
+model PortalConfiguration {
+  id                         Int       @id @default(1)
+  currentPublishedRevisionId Int?      @unique @map("current_published_revision_id")
+  createdAt                  DateTime  @default(now()) @map("created_at")
+  updatedAt                  DateTime  @updatedAt @map("updated_at")
+
+  @@map("portal_configurations")
+}
+
+model PortalLink {
+  id                         Int       @id @default(autoincrement())
+  currentPublishedRevisionId Int?      @unique @map("current_published_revision_id")
+  createdAt                  DateTime  @default(now()) @map("created_at")
+  updatedAt                  DateTime  @updatedAt @map("updated_at")
+
+  @@map("portal_links")
+}
+
+model PortalTemplate {
+  id                         Int       @id @default(autoincrement())
+  currentPublishedRevisionId Int?      @unique @map("current_published_revision_id")
+  createdAt                  DateTime  @default(now()) @map("created_at")
+  updatedAt                  DateTime  @updatedAt @map("updated_at")
+
+  @@map("portal_templates")
+}
+
+model PortalContentRevision {
+  id           Int                       @id @default(autoincrement())
+  resourceType PortalContentResourceType @map("resource_type")
+  resourceId   Int                       @map("resource_id")
+  version      Int
+  status       PortalRevisionStatus      @default(DRAFT)
+  payload      Json
+  createdById  Int?                      @map("created_by_id")
+  publishedById Int?                     @map("published_by_id")
+  publishedAt  DateTime?                 @map("published_at")
+  archivedAt   DateTime?                 @map("archived_at")
+  createdAt    DateTime                  @default(now()) @map("created_at")
+  updatedAt    DateTime                  @updatedAt @map("updated_at")
+  createdBy    User?                     @relation("PortalContentRevisionCreatedBy", fields: [createdById], references: [id])
+  publishedBy  User?                     @relation("PortalContentRevisionPublishedBy", fields: [publishedById], references: [id])
+
+  @@unique([resourceType, resourceId, version])
+  @@index([resourceType, resourceId, status])
+  @@map("portal_content_revisions")
+}
+
 enum UserRole {
   ADMIN
   LECTURER
   STUDENT
+}
+
+enum AnnouncementType {
+  PDF
+  RICH_TEXT
+}
+
+enum PortalContentResourceType {
+  CONFIGURATION
+  LINK
+  TEMPLATE
+  ANNOUNCEMENT
+}
+
+enum PortalRevisionStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
 }
 
 enum AcademicTitle {
