@@ -145,12 +145,9 @@ function ProjectOversightPage() {
     const [isManualReviewModalOpen, setIsManualReviewModalOpen] = useState(false);
     const [manualReviewTotal, setManualReviewTotal] = useState(0);
 
-    // Danh sách checkpointSignatureAppeals từ hệ thống & registrations
-    const registrationAppeals = useMemo(() => {
-        return registrations.flatMap((r) => r.checkpointSignatureAppeals || (r.status?.includes('CHECKPOINT_SIGNATURE_APPEAL') ? [r] : []));
-    }, [registrations]);
+    // Danh sách checkpointSignatureAppeals liên kết trực tiếp với dữ liệu CheckpointSignatureAppeal
     const [checkpointAppeals, setCheckpointAppeals] = useState([]);
-    const checkpointSignatureAppeals = checkpointAppeals.length > 0 ? checkpointAppeals : registrationAppeals;
+    const checkpointSignatureAppeals = checkpointAppeals;
     const [appealsLoading, setAppealsLoading] = useState(false);
     const [appealStatusFilter, setAppealStatusFilter] = useState('ALL');
     const [isAppealReviewModalOpen, setIsAppealReviewModalOpen] = useState(false);
@@ -1633,10 +1630,7 @@ function ProjectOversightPage() {
                                                         <div className="flex items-center gap-3">
                                                             <Select
                                                                 value={appealStatusFilter}
-                                                                onChange={(val) => {
-                                                                    setAppealStatusFilter(val);
-                                                                    fetchCheckpointAppeals(val, semesterFilter);
-                                                                }}
+                                                                onChange={(val) => setAppealStatusFilter(val)}
                                                                 style={{ width: 220 }}
                                                                 options={[
                                                                     { label: 'Tất cả trạng thái', value: 'ALL' },

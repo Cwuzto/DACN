@@ -48,7 +48,7 @@ export default function CheckpointAppealReviewModal({
 
     // Kiem tra xung dot loi ich: GVHD khong duoc tu tham dinh don khieu nai cua sinh vien minh huong dan
     const mentorId = appeal?.registration?.topic?.mentorId || appeal?.topic?.mentorId || appeal?.mentorId;
-    const isMentorConflict = Boolean(currentUserId && mentorId && currentUserId === mentorId);
+    const isMentorConflict = Boolean(currentUserId && mentorId && Number(currentUserId) === Number(mentorId));
 
     const isProcessed = appeal?.status === 'APPROVED' || appeal?.status === 'REJECTED';
 

@@ -23,19 +23,22 @@ test('SubmissionPage provides pre-defense checklist and archival submission when
     assert.match(pageSource, /sourceCodeUrl/);
 });
 
-test('CheckpointAppealReviewModal enforces conflict-of-interest guard and handles APPROVED / REJECTED', () => {
+test('CheckpointAppealReviewModal enforces conflict-of-interest guard with type-safe numeric check and handles APPROVED / REJECTED', () => {
     const modalPath = 'src/components/admin/CheckpointAppealReviewModal.jsx';
     assert.ok(fs.existsSync(path.join(root, modalPath)), 'CheckpointAppealReviewModal.jsx must exist');
     const modalSource = read(modalPath);
     assert.match(modalSource, /reviewCheckpointAppeal/);
     assert.match(modalSource, /Xung đột lợi ích: Giảng viên hướng dẫn không được thẩm định khiếu nại của sinh viên mình hướng dẫn/);
+    assert.match(modalSource, /Number\(currentUserId\)\s*===\s*Number\(mentorId\)/);
     assert.match(modalSource, /APPROVED/);
     assert.match(modalSource, /REJECTED/);
     assert.match(modalSource, /reviewNotes/);
 });
 
-test('ProjectOversightPage embeds checkpoint signature appeal review queue and modal', () => {
+test('ProjectOversightPage embeds checkpoint signature appeal review queue and modal directly without registration fallback', () => {
     const pageSource = read('src/pages/admin/ProjectOversightPage.jsx');
     assert.match(pageSource, /CheckpointAppealReviewModal/);
-    assert.match(pageSource, /checkpointSignatureAppeals|CHECKPOINT_SIGNATURE_APPEAL/);
+    assert.match(pageSource, /checkpointSignatureAppeals\s*=\s*checkpointAppeals/);
+    assert.match(pageSource, /CHECKPOINT_SIGNATURE_APPEAL_QUEUE/);
+    assert.doesNotMatch(pageSource, /registrationAppeals/);
 });
