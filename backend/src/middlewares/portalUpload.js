@@ -26,8 +26,16 @@ const createPortalUpload = (kind) => {
   const wrap = (multerFn) => (req, res, next) => {
     multerFn(req, res, (err) => {
       if (err) return next(err);
-      if (req.file) {
-        const check = validateFileMagicBytes(req.file.buffer, req.file.mimetype);
+      const filesToValidate = [];
+      if (req.file) filesToValidate.push(req.file);
+      if (Array.isArray(req.files)) filesToValidate.push(...req.files);
+      if (req.files && typeof req.files === 'object' && !Array.isArray(req.files)) {
+        Object.values(req.files).forEach((arr) => {
+          if (Array.isArray(arr)) filesToValidate.push(...arr);
+        });
+      }
+      for (const file of filesToValidate) {
+        const check = validateFileMagicBytes(file.buffer, file.mimetype);
         if (!check.valid) {
           const error = new Error(check.error || 'Nội dung tệp không khớp với định dạng khai báo.');
           error.statusCode = 400;

@@ -27,4 +27,5 @@ const sanitizeRichText = (html) => sanitizeHtml(String(html || ''), {
 
 module.exports = {
   sanitizeRichText,
+  sanitizePortalHtml: sanitizeRichText,
 };

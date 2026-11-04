@@ -1,5 +1,6 @@
 const prisma = require('../config/database');
 const { auditLog } = require('./auditLogService');
+const { sanitizePortalHtml } = require('./portalContentSanitizer');
 
 const RESOURCE_TYPES = new Set(['CONFIGURATION', 'LINK', 'TEMPLATE', 'ANNOUNCEMENT']);
 const RESOURCE_MODEL_BY_TYPE = {
@@ -7,6 +8,63 @@ const RESOURCE_MODEL_BY_TYPE = {
   LINK: 'portalLink',
   TEMPLATE: 'portalTemplate',
   ANNOUNCEMENT: 'publicAnnouncement',
+};
+
+const assertResourceType = (resourceType) => {
+  if (!RESOURCE_TYPES.has(resourceType)) throw new Error('Unsupported portal resource type');
+};
+
+const createPortalResource = async ({ resourceType, actorId }) => {
+  assertResourceType(resourceType);
+
+  if (resourceType === 'CONFIGURATION') {
+    return prisma.portalConfiguration.upsert({
+      where: { id: 1 },
+      update: {},
+      create: { id: 1 },
+    });
+  }
+
+  if (resourceType === 'ANNOUNCEMENT') {
+    return prisma.publicAnnouncement.create({
+      data: {
+        title: 'Bản nháp thông báo',
+        isPublished: false,
+        announcementType: 'RICH_TEXT',
+        authorId: actorId || null,
+      },
+    });
+  }
+
+  return prisma[RESOURCE_MODEL_BY_TYPE[resourceType]].create({ data: {} });
+};
+
+const getAdminResources = async (resourceType) => {
+  assertResourceType(resourceType);
+  const model = prisma[RESOURCE_MODEL_BY_TYPE[resourceType]];
+  const configuration = resourceType === 'CONFIGURATION'
+    ? await model.findUnique({ where: { id: 1 } })
+    : null;
+  const resources = resourceType === 'CONFIGURATION'
+    ? (configuration ? [configuration] : [])
+    : await model.findMany();
+  const resourceIds = resources.map((resource) => resource.id);
+  if (resourceIds.length === 0) return [];
+
+  const revisions = await prisma.portalContentRevision.findMany({
+    where: { resourceType, resourceId: { in: resourceIds } },
+    orderBy: { version: 'desc' },
+  });
+  const revisionsByResource = new Map();
+  for (const revision of revisions) {
+    const current = revisionsByResource.get(revision.resourceId) || [];
+    current.push(revision);
+    revisionsByResource.set(revision.resourceId, current);
+  }
+  return resources.map((resource) => ({
+    ...resource,
+    revisions: revisionsByResource.get(resource.id) || [],
+  }));
 };
 
 const requireNonEmptyString = (value, fieldName) => {
@@ -35,10 +93,15 @@ const validateAnnouncementPayload = (payload) => {
 };
 
 const validatePortalPayload = (resourceType, payload) => {
-  if (!RESOURCE_TYPES.has(resourceType)) throw new Error('Unsupported portal resource type');
+  assertResourceType(resourceType);
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('Portal payload must be an object');
 
-  if (resourceType === 'ANNOUNCEMENT') validateAnnouncementPayload(payload);
+  if (resourceType === 'ANNOUNCEMENT') {
+    validateAnnouncementPayload(payload);
+    if (payload.richContentHtml) {
+      payload.richContentHtml = sanitizePortalHtml(payload.richContentHtml);
+    }
+  }
   return payload;
 };
 
@@ -111,8 +174,21 @@ const getPublicPortalContent = async () => {
     prisma.portalLink.findMany({ select: { id: true, currentPublishedRevisionId: true } }),
     prisma.portalTemplate.findMany({ select: { id: true, currentPublishedRevisionId: true } }),
     prisma.publicAnnouncement.findMany({
-      where: { currentPublishedRevisionId: { not: null } },
-      select: { id: true, currentPublishedRevisionId: true },
+      where: {
+        OR: [
+          { isPublished: true },
+          { currentPublishedRevisionId: { not: null } },
+        ],
+      },
+      orderBy: [
+        { isPinned: 'desc' },
+        { createdAt: 'desc' },
+      ],
+      include: {
+        author: {
+          select: { fullName: true, email: true },
+        },
+      },
     }),
   ]);
 
@@ -131,15 +207,56 @@ const getPublicPortalContent = async () => {
   const payloadByRevision = new Map(revisions.map((revision) => [revision.id, revision.payload]));
   const withPayload = (resource) => ({ id: resource.id, ...(payloadByRevision.get(resource.currentPublishedRevisionId) || {}) });
 
+  const formattedAnnouncements = announcements
+    .map((ann) => {
+      const revisionPayload = ann.currentPublishedRevisionId ? payloadByRevision.get(ann.currentPublishedRevisionId) : null;
+      if (revisionPayload) {
+        return {
+          id: ann.id,
+          title: revisionPayload.title || ann.title,
+          content: revisionPayload.richContentHtml || revisionPayload.content || ann.content,
+          category: revisionPayload.category || ann.category || 'ANNOUNCEMENT',
+          fileUrl: revisionPayload.fileUrl || ann.fileUrl,
+          fileName: revisionPayload.fileName || ann.fileName,
+          isPinned: revisionPayload.isPinned ?? ann.isPinned,
+          isPublished: ann.isPublished,
+          authorName: ann.author?.fullName || null,
+          createdAt: ann.createdAt,
+          updatedAt: ann.updatedAt,
+          ...revisionPayload,
+        };
+      }
+      if (ann.isPublished) {
+        return {
+          id: ann.id,
+          title: ann.title,
+          content: ann.content,
+          category: ann.category || 'ANNOUNCEMENT',
+          fileUrl: ann.fileUrl,
+          fileName: ann.fileName,
+          isPinned: ann.isPinned,
+          isPublished: ann.isPublished,
+          authorName: ann.author?.fullName || null,
+          createdAt: ann.createdAt,
+          updatedAt: ann.updatedAt,
+        };
+      }
+      return null;
+    })
+
+    .filter(Boolean);
+
   return {
     configuration: payloadByRevision.get(configuration?.currentPublishedRevisionId) || null,
     links: links.filter((item) => payloadByRevision.has(item.currentPublishedRevisionId)).map(withPayload),
     templates: templates.filter((item) => payloadByRevision.has(item.currentPublishedRevisionId)).map(withPayload),
-    announcements: announcements.filter((item) => payloadByRevision.has(item.currentPublishedRevisionId)).map(withPayload),
+    announcements: formattedAnnouncements,
   };
 };
 
 module.exports = {
+  createPortalResource,
+  getAdminResources,
   validatePortalPayload,
   createDraftRevision,
   publishRevision,
