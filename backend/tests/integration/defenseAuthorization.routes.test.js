@@ -98,6 +98,25 @@ describe('Defense and archive capability boundaries', () => {
         expect(response.status).toBe(403);
     });
 
+    test('result lock capability does not grant member score locking', async () => {
+        const response = await request(app)
+            .post('/api/evaluations/member-score/lock')
+            .set('Authorization', 'Bearer resultLock')
+            .send({ registrationId: 101 });
+
+        expect(response.status).toBe(403);
+    });
+
+    test('member score lock requires Idempotency-Key header', async () => {
+        const response = await request(app)
+            .post('/api/evaluations/member-score/lock')
+            .set('Authorization', 'Bearer scoreSubmit')
+            .send({ registrationId: 101 });
+
+        expect(response.status).toBe(400);
+        expect(response.body.code).toBe('IDEMPOTENCY_KEY_REQUIRED');
+    });
+
     test('approval endpoint rejects an unauthenticated caller', async () => {
         const response = await request(app)
             .post('/api/evaluations/admin-defense-center/101/result-approval')

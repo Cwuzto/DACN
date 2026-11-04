@@ -273,9 +273,9 @@ describe('defenseScoringService', () => {
                             ],
                         },
                         memberScores: [
-                            { evaluatorId: 21, finalScore: 9.0 },
-                            { evaluatorId: 22, finalScore: 8.5 },
-                            { evaluatorId: 23, finalScore: 9.5 },
+                            { evaluatorId: 21, finalScore: 9.0, scoreLocked: true },
+                            { evaluatorId: 22, finalScore: 8.5, scoreLocked: true },
+                            { evaluatorId: 23, finalScore: 9.5, scoreLocked: true },
                         ],
                     }),
                     updateMany: jest.fn().mockResolvedValue({ count: 1 }),

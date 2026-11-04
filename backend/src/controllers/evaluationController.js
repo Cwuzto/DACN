@@ -13,7 +13,7 @@ const {
     reviewSignatureAppeal,
 } = require('../services/checkpointWorkflowService');
 const { WorkflowTransitionError } = require('../services/registrationTransitionService');
-const { lockDefenseScores } = require('../services/defenseScoringService');
+const { lockDefenseScores, lockMemberScoreSheet } = require('../services/defenseScoringService');
 const { approveDefenseResult, createResultPublication, getEligibleApprovals, listResultPublications, getDefenseResultApproval, getStudentPublishedResult } = require('../services/defenseResultPublicationService');
 
 const getRequestIp = (req) => req.ip || req.headers['x-forwarded-for'] || null;
@@ -877,6 +877,57 @@ const saveScoreSheet = async (req, res, next) => {
     }
 };
 
+const lockMemberScore = async (req, res, next) => {
+    try {
+        const { registrationId, scores, generalComment, targetRubricVersion } = req.body;
+        const regId = parsePositiveInt(registrationId);
+        if (!regId) {
+            return res.status(400).json({ success: false, message: 'registrationId không hợp lệ.' });
+        }
+
+        const idempotencyKey = getIdempotencyKey(req);
+        if (!idempotencyKey) {
+            return res.status(400).json({
+                success: false,
+                code: 'IDEMPOTENCY_KEY_REQUIRED',
+                message: 'Bắt buộc phải có Idempotency-Key header.',
+            });
+        }
+
+        const result = await lockMemberScoreSheet({
+            registrationId: regId,
+            evaluatorId: req.user.id,
+            actorId: req.user.id,
+            actorRole: req.user.role,
+            scores,
+            generalComment,
+            targetRubricVersion,
+            idempotencyKey,
+        });
+
+        await auditLog(
+            req.user.id,
+            'LOCK_MEMBER_SCORE_SHEET',
+            'DefenseMemberScore',
+            result.memberScoreId,
+            { registrationId: regId, finalScore: result.finalScore, idempotent: result.idempotent },
+            getRequestIp(req),
+        );
+
+        return res.status(200).json({
+            success: true,
+            message: 'Đã khóa phiếu điểm cá nhân thành công.',
+            data: result,
+        });
+    } catch (error) {
+        if (sendWorkflowError(res, error)) return;
+        if (error.code === 'IDEMPOTENCY_KEY_REUSED') {
+            return res.status(409).json({ success: false, code: error.code, message: error.message });
+        }
+        next(error);
+    }
+};
+
 const remindDefenseGrading = async (req, res, next) => {
     try {
         const { registrationIds } = req.body;
@@ -987,6 +1038,8 @@ const setDefenseScoreLock = async (req, res, next) => {
             registrationId,
             action,
             actorId: req.user.id,
+            actorRole: req.user.role,
+            actorPermissions: req.user.permissions,
             idempotencyKey: getIdempotencyKey(req) || `defense-score-lock-${registrationId}-${action}-${Date.now()}`,
         });
 
@@ -1005,6 +1058,7 @@ const setDefenseScoreLock = async (req, res, next) => {
             data: updated,
         });
     } catch (error) {
+        if (sendWorkflowError(res, error)) return;
         next(error);
     }
 };
@@ -1803,6 +1857,7 @@ module.exports = {
     getAdminDefenseCenter,
     getScoreSheet,
     saveScoreSheet,
+    lockMemberScore,
     remindDefenseGrading,
     setDefenseScoreLock,
     getDefenseResultApprovalAction,

@@ -25,6 +25,21 @@ router.get(
     evaluationController.getGradingStudents,
 );
 
+router.post(
+    '/member-score/lock',
+    authorizePermission(PERMISSIONS.DEFENSE_SCORE_SUBMIT),
+    [
+        body('registrationId').isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
+        body('scores').optional().isArray({ min: 1 }).withMessage('scores phải là mảng hợp lệ.'),
+        body('scores.*.criterionCode').optional().isString().trim().notEmpty(),
+        body('scores.*.score').optional().isFloat({ min: 0 }),
+        body('scores.*.comment').optional({ nullable: true }).isString(),
+        body('generalComment').optional({ nullable: true }).isString(),
+        validateRequest,
+    ],
+    evaluationController.lockMemberScore,
+);
+
 router.get(
     '/:registrationId/score-sheet',
     authorizePermission(PERMISSIONS.DEFENSE_SCORE_VIEW),
