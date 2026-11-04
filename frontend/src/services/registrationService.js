@@ -114,6 +114,14 @@ const registrationService = {
         }
     },
 
+    reviewBM02Submission: async (registrationId, data) => {
+        try {
+            return await api.post(`/registrations/bm02/${registrationId}/review`, data, idempotencyConfig());
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi thẩm định BM02');
+        }
+    },
+
     requestTitleAdjustment: async (data) => {
         try {
             return await api.post('/registrations/adjust-title', data);
@@ -162,5 +170,28 @@ const registrationService = {
         }
     },
 };
+
+export const {
+    getMyRegistration,
+    getMyProjectEnrollments,
+    getAllRegistrations,
+    registerTopic,
+    handleRegistration,
+    dropRegistration,
+    withdrawRegistration,
+    forceDecisionRegistration,
+    cancelRegistration,
+    reviewOutlineTopic,
+    updateOutlineReview,
+    submitBM02,
+    reviewBM02,
+    reviewBM02Submission,
+    requestTitleAdjustment,
+    reviewTitleAdjustment,
+    getMyTitleAdjustments,
+    getPendingTitleAdjustments,
+    transferTopicMentor,
+    getAllowedActions,
+} = registrationService;
 
 export default registrationService;

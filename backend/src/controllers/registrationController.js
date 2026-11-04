@@ -533,6 +533,14 @@ const getAllRegistrations = async (req, res, next) => {
                 bm04Evaluation: true,
                 titleAdjustments: { orderBy: { requestedAt: 'desc' } },
                 currentBM02Submission: true,
+                assignmentDecisions: {
+                    include: {
+                        amendments: {
+                            orderBy: { createdAt: 'desc' },
+                        },
+                    },
+                    orderBy: { issuedAt: 'desc' },
+                },
             },
             orderBy: { createdAt: 'desc' },
         });

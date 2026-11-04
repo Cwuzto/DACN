@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+    Alert,
+    Badge,
     Button,
     Col,
     ConfigProvider,
@@ -15,20 +17,24 @@ import {
     Spin,
     Steps,
     Switch,
+    Tabs,
     Tooltip,
     Table,
     Tag,
 } from 'antd';
 import {
     ArrowRightOutlined,
+    AuditOutlined,
+    CalendarOutlined,
+    CheckCircleOutlined,
     CopyOutlined,
     DeleteOutlined,
     EditOutlined,
     EyeOutlined,
-    PlusOutlined,
-    CalendarOutlined,
-    CheckCircleOutlined,
     FileDoneOutlined,
+    FilePdfOutlined,
+    HistoryOutlined,
+    PlusOutlined,
     ReloadOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -38,6 +44,7 @@ import { semesterService } from '../../services/semesterService';
 import { topicService } from '../../services/topicService';
 import useAuthStore from '../../stores/authStore';
 import { PROJECT_NAME, buildSemesterName, extractSemesterMeta, formatSemesterLabel } from '../../utils/semesterDisplay';
+import BM02ReviewDrawer from '../../components/admin/BM02ReviewDrawer';
 
 const statusConfig = {
     ONGOING: { label: 'Đang diễn ra', color: 'green', tw: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
@@ -246,6 +253,19 @@ function ProjectPeriodPage() {
     const [decisionListModalVisible, setDecisionListModalVisible] = useState(false);
     const [selectedPeriodForDecisions, setSelectedPeriodForDecisions] = useState(null);
 
+    // BM02 Review Queue state
+    const [activeTab, setActiveTab] = useState('periods');
+    const [bm02SemesterFilter, setBm02SemesterFilter] = useState('ALL');
+    const [bm02StatusFilter, setBm02StatusFilter] = useState('PENDING');
+    const [bm02DrawerOpen, setBm02DrawerOpen] = useState(false);
+    const [selectedBm02Registration, setSelectedBm02Registration] = useState(null);
+
+    // Decision Amendment state
+    const [amendmentModalOpen, setAmendmentModalOpen] = useState(false);
+    const [selectedDecisionRecord, setSelectedDecisionRecord] = useState(null);
+    const [amendmentSubmitting, setAmendmentSubmitting] = useState(false);
+    const [amendmentForm] = Form.useForm();
+
     const handleOpenDecisionList = (period) => {
         setSelectedPeriodForDecisions(period);
         setDecisionListModalVisible(true);
@@ -259,6 +279,103 @@ function ProjectPeriodPage() {
                 (reg.decisionNumber || reg.status === 'DECISION_ISSUED')
         );
     }, [allRegistrations, selectedPeriodForDecisions]);
+
+    // Danh sách BM02 đang chờ duyệt
+    const pendingBm02List = useMemo(() => {
+        return allRegistrations.filter((reg) =>
+            ['BM02_SUBMITTED', 'BM02_RESUBMITTED'].includes(reg.status)
+        );
+    }, [allRegistrations]);
+
+    // Danh sách hiển thị trong hàng đợi BM02
+    const bm02QueueList = useMemo(() => {
+        return allRegistrations.filter((reg) => {
+            if (bm02SemesterFilter !== 'ALL' && reg.semesterId !== Number(bm02SemesterFilter)) {
+                return false;
+            }
+            if (bm02StatusFilter === 'PENDING') {
+                return ['BM02_SUBMITTED', 'BM02_RESUBMITTED'].includes(reg.status);
+            }
+            if (bm02StatusFilter === 'REVISION') {
+                return reg.status === 'BM02_NEEDS_REVISION';
+            }
+            if (bm02StatusFilter === 'APPROVED') {
+                return ['APPROVED', 'DECISION_ISSUED'].includes(reg.status)
+                    || reg.currentBM02Submission?.outcome === 'APPROVED';
+            }
+            // 'ALL'
+            return [
+                'BM02_SUBMITTED',
+                'BM02_RESUBMITTED',
+                'BM02_NEEDS_REVISION',
+                'APPROVED',
+                'DECISION_ISSUED',
+            ].includes(reg.status) || Boolean(reg.currentBM02Submission);
+        });
+    }, [allRegistrations, bm02SemesterFilter, bm02StatusFilter]);
+
+    const handleOpenBm02Review = (record) => {
+        setSelectedBm02Registration(record);
+        setBm02DrawerOpen(true);
+    };
+
+    const handleBm02ReviewSuccess = () => {
+        fetchSemesters();
+    };
+
+    const handleOpenAmendmentModal = (record) => {
+        setSelectedDecisionRecord(record);
+        amendmentForm.resetFields();
+        amendmentForm.setFieldsValue({
+            amendmentNumber: `QĐ-ĐC-${record.decisionNumber || record.id}/${dayjs().year()}`,
+            reason: '',
+            adjustedTitle: record.adjustedTitle || record.topic?.title || '',
+            note: '',
+            effectiveAt: dayjs(),
+        });
+        setAmendmentModalOpen(true);
+    };
+
+    const handleSubmitDecisionAmendment = async (values) => {
+        if (!selectedDecisionRecord) return;
+        const decisionId = selectedDecisionRecord.assignmentDecisions?.[0]?.id
+            || selectedDecisionRecord.assignmentDecisionId
+            || selectedDecisionRecord.decisionId
+            || selectedDecisionRecord.id;
+
+        const changes = {};
+        if (values.adjustedTitle?.trim()) {
+            changes.topicTitle = values.adjustedTitle.trim();
+            changes.adjustedTitle = values.adjustedTitle.trim();
+        }
+        if (values.note?.trim()) {
+            changes.note = values.note.trim();
+        }
+        if (Object.keys(changes).length === 0) {
+            changes.summary = 'Điều chỉnh thông tin quyết định giao đề tài';
+        }
+
+        try {
+            setAmendmentSubmitting(true);
+            const res = await semesterService.createDecisionAmendment(decisionId, {
+                amendmentNumber: values.amendmentNumber.trim(),
+                reason: values.reason.trim(),
+                changes,
+                effectiveAt: values.effectiveAt ? values.effectiveAt.toISOString() : new Date().toISOString(),
+            });
+            if (res.success || res.data) {
+                message.success('Đã ban hành Quyết định Điều chỉnh thành công!');
+                setAmendmentModalOpen(false);
+                fetchSemesters();
+            } else {
+                message.error(res.message || 'Không thể tạo Quyết định Điều chỉnh');
+            }
+        } catch (error) {
+            message.error(error?.message || 'Lỗi khi tạo Quyết định Điều chỉnh');
+        } finally {
+            setAmendmentSubmitting(false);
+        }
+    };
 
     const handleOpenIssueDecision = (period) => {
         setDecisionPeriod(period);
@@ -574,13 +691,13 @@ function ProjectPeriodPage() {
                     <p className="h2 num" style={{ marginTop: 2, color: 'var(--accent)' }}>{activeCount}</p>
                     <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--accent)' }}>Đang mở ĐK hoặc thực hiện</div>
                 </div>
-                <div className="card" style={{ padding: '14px 18px' }}>
-                    <span className="meta">Cổng đăng ký đợt chọn</span>
-                    <p className="h2 num" style={{ marginTop: 2, color: selectedPeriod?.registrationOpen ? 'var(--success)' : 'var(--danger)', fontSize: 16 }}>
-                        {selectedPeriod?.registrationOpen ? 'ĐANG MỞ CỔNG' : 'ĐANG ĐÓNG CỔNG'}
+                <div className="card" style={{ padding: '14px 18px', cursor: 'pointer' }} onClick={() => setActiveTab('bm02Queue')}>
+                    <span className="meta">Đơn BM02 chờ thẩm định</span>
+                    <p className="h2 num" style={{ marginTop: 2, color: pendingBm02List.length > 0 ? '#E11D48' : '#0F766E' }}>
+                        {pendingBm02List.length}
                     </p>
                     <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--muted)' }}>
-                        {selectedPeriod?.name || 'Chưa chọn đợt'}
+                        {pendingBm02List.length > 0 ? 'Cần Viện trưởng thẩm định' : 'Không có hồ sơ tồn đọng'}
                     </div>
                 </div>
                 <div className="card" style={{ padding: '14px 18px' }}>
@@ -648,48 +765,242 @@ function ProjectPeriodPage() {
                 </div>
             </div>
 
-            {/* List of Period Cards */}
-            <div className="space-y-4">
-                <div className="flex items-center justify-between pb-1">
-                    <h3 className="text-base font-bold text-slate-900">
-                        Danh sách Các Đợt Đồ Án
-                    </h3>
-                    <span className="text-xs text-slate-500 font-medium">
-                        Tổng cộng: {periods.length} đợt
-                    </span>
-                </div>
+            {/* Navigation Tabs: Quản lý Đợt đồ án & Hàng đợi Thẩm định BM02 */}
+            <Tabs
+                activeKey={activeTab}
+                onChange={setActiveTab}
+                type="card"
+                className="project-period-tabs"
+                items={[
+                    {
+                        key: 'periods',
+                        label: (
+                            <span className="flex items-center gap-2 font-medium px-1">
+                                <CalendarOutlined />
+                                <span>Quản lý Đợt Đồ Án & Ban Hành QĐ</span>
+                            </span>
+                        ),
+                        children: (
+                            <div className="space-y-4 pt-1">
+                                <div className="flex items-center justify-between pb-1">
+                                    <h3 className="text-base font-bold text-slate-900">
+                                        Danh sách Các Đợt Đồ Án
+                                    </h3>
+                                    <span className="text-xs text-slate-500 font-medium">
+                                        Tổng cộng: {periods.length} đợt
+                                    </span>
+                                </div>
 
-                <Spin spinning={loading}>
-                    <div className="space-y-4 min-h-[160px]">
-                        {periods.length === 0 && !loading ? (
-                            <div className="bg-white rounded-xl border border-slate-200/80 p-12 text-center">
-                                <span className="material-symbols-outlined text-4xl text-slate-400 mb-2 block">
-                                    event_busy
-                                </span>
-                                <p className="text-sm text-slate-600 font-medium">Chưa có đợt đồ án nào được khởi tạo.</p>
-                                <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd} className="mt-4">
-                                    Tạo đợt đầu tiên
-                                </Button>
+                                <Spin spinning={loading}>
+                                    <div className="space-y-4 min-h-[160px]">
+                                        {periods.length === 0 && !loading ? (
+                                            <div className="bg-white rounded-xl border border-slate-200/80 p-12 text-center">
+                                                <span className="material-symbols-outlined text-4xl text-slate-400 mb-2 block">
+                                                    event_busy
+                                                </span>
+                                                <p className="text-sm text-slate-600 font-medium">Chưa có đợt đồ án nào được khởi tạo.</p>
+                                                <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd} className="mt-4">
+                                                    Tạo đợt đầu tiên
+                                                </Button>
+                                            </div>
+                                        ) : (
+                                            periods.map((period) => (
+                                                <PeriodCard
+                                                    key={period.key}
+                                                    period={period}
+                                                    onEdit={handleEdit}
+                                                    onDelete={handleDelete}
+                                                    onClone={handleClone}
+                                                    onIssueDecision={handleOpenIssueDecision}
+                                                    onViewDecisionList={handleOpenDecisionList}
+                                                    isAdmin={isAdmin}
+                                                />
+                                            ))
+                                        )}
+                                    </div>
+                                </Spin>
                             </div>
-                        ) : (
-                            periods.map((period) => (
-                                <PeriodCard
-                                    key={period.key}
-                                    period={period}
-                                    onEdit={handleEdit}
-                                    onDelete={handleDelete}
-                                    onClone={handleClone}
-                                    onIssueDecision={handleOpenIssueDecision}
-                                    onViewDecisionList={handleOpenDecisionList}
-                                    isAdmin={isAdmin}
-                                />
-                            ))
-                        )}
-                    </div>
-                </Spin>
-            </div>
+                        ),
+                    },
+                    {
+                        key: 'bm02Queue',
+                        label: (
+                            <span className="flex items-center gap-2 font-medium px-1">
+                                <CheckCircleOutlined />
+                                <span>Hàng đợi Thẩm định BM02</span>
+                                {pendingBm02List.length > 0 && (
+                                    <Badge count={pendingBm02List.length} overflowCount={99} />
+                                )}
+                            </span>
+                        ),
+                        children: (
+                            <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-5 space-y-4">
+                                <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                                    <div>
+                                        <h3 className="text-base font-bold text-slate-900">
+                                            Hàng Đợi Thẩm Định Đơn Đề Cương BM02
+                                        </h3>
+                                        <p className="text-xs text-slate-500 mt-0.5">
+                                            Thẩm định đơn BM02 của sinh viên theo quy chuẩn Viện. Hồ sơ được phê duyệt sẽ đủ điều kiện ban hành Quyết định giao đề tài.
+                                        </p>
+                                    </div>
+                                    <Space wrap>
+                                        <Select
+                                            value={bm02SemesterFilter}
+                                            onChange={setBm02SemesterFilter}
+                                            style={{ width: 220 }}
+                                            options={[
+                                                { value: 'ALL', label: 'Tất cả các học kỳ' },
+                                                ...periods.map((p) => ({ value: p.id, label: p.name })),
+                                            ]}
+                                        />
+                                        <Select
+                                            value={bm02StatusFilter}
+                                            onChange={setBm02StatusFilter}
+                                            style={{ width: 220 }}
+                                            options={[
+                                                { value: 'PENDING', label: 'Chờ thẩm định (Lần 1 & 2)' },
+                                                { value: 'ALL', label: 'Tất cả trạng thái BM02' },
+                                                { value: 'REVISION', label: 'Cần chỉnh sửa (BM02)' },
+                                                { value: 'APPROVED', label: 'Đã duyệt BM02 / Cấp QĐ' },
+                                            ]}
+                                        />
+                                    </Space>
+                                </div>
 
-            {/* Modal Form */}
+                                <Table
+                                    dataSource={bm02QueueList}
+                                    rowKey="id"
+                                    size="middle"
+                                    pagination={{ pageSize: 10, showTotal: (total) => `Tổng cộng: ${total} hồ sơ BM02` }}
+                                    columns={[
+                                        {
+                                            title: 'STT',
+                                            key: 'stt',
+                                            width: 55,
+                                            align: 'center',
+                                            render: (_, __, index) => index + 1,
+                                        },
+                                        {
+                                            title: 'Sinh viên',
+                                            key: 'student',
+                                            width: 220,
+                                            render: (_, record) => (
+                                                <div>
+                                                    <div className="font-bold text-slate-900">{record.student?.fullName || 'N/A'}</div>
+                                                    <div className="text-[11px] text-slate-600 font-mono font-medium">MSSV: {record.student?.code || 'N/A'}</div>
+                                                    {record.student?.class && (
+                                                        <div className="text-[11px] text-slate-500">Lớp: {record.student.class}</div>
+                                                    )}
+                                                </div>
+                                            ),
+                                        },
+                                        {
+                                            title: 'Tên đề tài',
+                                            key: 'topic',
+                                            render: (_, record) => (
+                                                <div>
+                                                    <div className="font-semibold text-slate-800 leading-snug">
+                                                        {record.adjustedTitle || record.topic?.title || 'Chưa có tên'}
+                                                    </div>
+                                                    {record.adjustedTitle && record.adjustedTitle !== record.topic?.title && (
+                                                        <div className="text-[11px] text-emerald-600 mt-0.5">
+                                                            (Đã điều chỉnh từ: <em>{record.topic?.title}</em>)
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ),
+                                        },
+                                        {
+                                            title: 'GVHD',
+                                            key: 'mentor',
+                                            width: 170,
+                                            render: (_, record) => (
+                                                <span className="text-xs text-slate-700 font-medium">
+                                                    {record.topic?.mentor?.fullName || 'Chưa phân công'}
+                                                </span>
+                                            ),
+                                        },
+                                        {
+                                            title: 'Lần nộp',
+                                            key: 'attempt',
+                                            width: 100,
+                                            align: 'center',
+                                            render: (_, record) => {
+                                                const attemptNo = record.currentBM02Submission?.attemptNo || record.attemptNo || 1;
+                                                return (
+                                                    <Tag color={attemptNo > 1 ? 'volcano' : 'blue'}>
+                                                        Lần {attemptNo}
+                                                    </Tag>
+                                                );
+                                            },
+                                        },
+                                        {
+                                            title: 'Trạng thái',
+                                            key: 'status',
+                                            width: 160,
+                                            align: 'center',
+                                            render: (status) => {
+                                                const statusMap = {
+                                                    BM02_SUBMITTED: { label: 'Chờ duyệt lần 1', color: 'blue' },
+                                                    BM02_RESUBMITTED: { label: 'Chờ duyệt nộp lại', color: 'purple' },
+                                                    BM02_NEEDS_REVISION: { label: 'Yêu cầu chỉnh sửa', color: 'orange' },
+                                                    APPROVED: { label: 'Đã duyệt BM02', color: 'green' },
+                                                    DECISION_ISSUED: { label: 'Đã ban hành QĐ', color: 'cyan' },
+                                                };
+                                                const item = statusMap[status] || { label: status, color: 'default' };
+                                                return <Tag color={item.color}>{item.label}</Tag>;
+                                            },
+                                        },
+                                        {
+                                            title: 'Tệp BM02',
+                                            key: 'file',
+                                            width: 110,
+                                            align: 'center',
+                                            render: (_, record) => {
+                                                const fileUrl = record.currentBM02Submission?.fileUrl;
+                                                if (!fileUrl) return <span className="text-slate-400 text-xs">—</span>;
+                                                return (
+                                                    <Tooltip title="Xem tệp đề cương BM02">
+                                                        <a
+                                                            href={fileUrl}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="text-teal-600 hover:text-teal-800 text-xs inline-flex items-center gap-1 font-medium bg-teal-50 px-2 py-1 rounded border border-teal-200"
+                                                        >
+                                                            <FilePdfOutlined />
+                                                            <span>Xem PDF</span>
+                                                        </a>
+                                                    </Tooltip>
+                                                );
+                                            },
+                                        },
+                                        {
+                                            title: 'Thao tác',
+                                            key: 'actions',
+                                            width: 150,
+                                            align: 'center',
+                                            render: (_, record) => (
+                                                <Button
+                                                    type="primary"
+                                                    size="small"
+                                                    icon={<CheckCircleOutlined />}
+                                                    className="!bg-teal-600 hover:!bg-teal-700 font-medium text-xs"
+                                                    onClick={() => handleOpenBm02Review(record)}
+                                                >
+                                                    Thẩm định BM02
+                                                </Button>
+                                            ),
+                                        },
+                                    ]}
+                                />
+                            </div>
+                        ),
+                    },
+                ]}
+            />
+
+            {/* Modal Form Tạo/Sửa Đợt đồ án */}
             <Modal
                 title={modalMode === 'add' ? 'Tạo đợt đồ án mới' : 'Cập nhật đợt đồ án'}
                 open={isModalVisible}
@@ -870,7 +1181,7 @@ function ProjectPeriodPage() {
                         Đóng
                     </Button>
                 ]}
-                width={920}
+                width={960}
                 destroyOnClose
             >
                 <div className="py-2 space-y-4">
@@ -908,7 +1219,7 @@ function ProjectPeriodPage() {
                             {
                                 title: 'Sinh viên',
                                 key: 'student',
-                                width: 220,
+                                width: 200,
                                 render: (_, record) => (
                                     <div>
                                         <div className="font-bold text-slate-900">{record.student?.fullName || 'N/A'}</div>
@@ -938,7 +1249,7 @@ function ProjectPeriodPage() {
                             {
                                 title: 'GVHD',
                                 key: 'mentor',
-                                width: 170,
+                                width: 160,
                                 render: (_, record) => (
                                     <span className="text-xs text-slate-700 font-medium">
                                         {record.topic?.mentor?.fullName || 'Chưa phân công'}
@@ -948,7 +1259,7 @@ function ProjectPeriodPage() {
                             {
                                 title: 'Số QĐ & Ngày',
                                 key: 'decisionInfo',
-                                width: 170,
+                                width: 160,
                                 render: (_, record) => (
                                     <div>
                                         <div className="font-mono text-xs font-bold text-purple-700">
@@ -963,7 +1274,7 @@ function ProjectPeriodPage() {
                             {
                                 title: 'Trạng thái',
                                 key: 'status',
-                                width: 140,
+                                width: 130,
                                 align: 'center',
                                 render: (status) => (
                                     <Tag color={status === 'DECISION_ISSUED' ? 'purple' : 'blue'}>
@@ -971,10 +1282,184 @@ function ProjectPeriodPage() {
                                     </Tag>
                                 ),
                             },
+                            {
+                                title: 'Hành động',
+                                key: 'actions',
+                                width: 150,
+                                align: 'center',
+                                render: (_, record) => (
+                                    <Space direction="vertical" size={2} align="center">
+                                        <Button
+                                            type="primary"
+                                            size="small"
+                                            ghost
+                                            icon={<EditOutlined />}
+                                            className="!text-purple-700 !border-purple-300 hover:!border-purple-500 hover:!text-purple-900 text-xs font-medium"
+                                            onClick={() => handleOpenAmendmentModal(record)}
+                                        >
+                                            Điều chỉnh QĐ
+                                        </Button>
+                                        {record.assignmentDecisions?.[0]?.amendments?.length > 0 && (
+                                            <Tag color="geekblue" className="!mr-0 text-[10px]">
+                                                Đã có {record.assignmentDecisions[0].amendments.length} lần ĐC
+                                            </Tag>
+                                        )}
+                                    </Space>
+                                ),
+                            },
                         ]}
                     />
                 </div>
             </Modal>
+
+            {/* Modal Ban hành Quyết định Điều chỉnh */}
+            <Modal
+                title={(
+                    <div className="flex items-center gap-2">
+                        <EditOutlined className="text-purple-600 text-lg" />
+                        <span className="font-bold text-slate-800">
+                            Ban hành Quyết định Điều chỉnh
+                        </span>
+                    </div>
+                )}
+                open={amendmentModalOpen}
+                onCancel={() => setAmendmentModalOpen(false)}
+                footer={[
+                    <Button key="cancel" onClick={() => setAmendmentModalOpen(false)} disabled={amendmentSubmitting}>
+                        Hủy
+                    </Button>,
+                    <Button
+                        key="submit"
+                        type="primary"
+                        loading={amendmentSubmitting}
+                        onClick={() => amendmentForm.submit()}
+                        className="!bg-purple-600 hover:!bg-purple-700"
+                    >
+                        Ký Ban Hành QĐ Điều Chỉnh
+                    </Button>,
+                ]}
+                width={680}
+                destroyOnClose
+            >
+                <div className="py-2 space-y-4">
+                    {selectedDecisionRecord && (
+                        <div className="bg-purple-50/70 p-3.5 rounded-lg border border-purple-200 text-xs space-y-1.5">
+                            <div className="flex justify-between items-center">
+                                <span className="text-purple-900 font-bold">
+                                    Hồ sơ: {selectedDecisionRecord.student?.fullName} ({selectedDecisionRecord.student?.code})
+                                </span>
+                                <Tag color="purple">QĐ gốc: {selectedDecisionRecord.decisionNumber || '—'}</Tag>
+                            </div>
+                            <div className="text-purple-800">
+                                <strong>Đề tài hiện tại:</strong> {selectedDecisionRecord.adjustedTitle || selectedDecisionRecord.topic?.title}
+                            </div>
+                            <div className="text-purple-700 text-[11px]">
+                                <strong>GVHD:</strong> {selectedDecisionRecord.topic?.mentor?.fullName || 'Chưa phân công'}
+                            </div>
+                        </div>
+                    )}
+
+                    <Alert
+                        message="Quy chuẩn Học vụ về Quyết định Điều chỉnh"
+                        description="Quyết định gốc giữ nguyên tính toàn vẹn. Khi có thay đổi về tên đề tài, thông tin sinh viên hoặc người hướng dẫn, Viện trưởng ký ban hành Quyết định điều chỉnh bổ sung."
+                        type="info"
+                        showIcon
+                        className="text-xs"
+                    />
+
+                    <Form
+                        form={amendmentForm}
+                        layout="vertical"
+                        onFinish={handleSubmitDecisionAmendment}
+                        style={{ marginTop: 12 }}
+                    >
+                        <Row gutter={16}>
+                            <Col span={14}>
+                                <Form.Item
+                                    name="amendmentNumber"
+                                    label="Số Quyết định điều chỉnh"
+                                    rules={[{ required: true, message: 'Vui lòng nhập số quyết định điều chỉnh' }]}
+                                >
+                                    <Input placeholder="VD: QĐ-ĐC-01/2026/QĐ-VIEN" />
+                                </Form.Item>
+                            </Col>
+                            <Col span={10}>
+                                <Form.Item
+                                    name="effectiveAt"
+                                    label="Ngày ký / Ngày hiệu lực"
+                                    rules={[{ required: true, message: 'Chọn ngày hiệu lực' }]}
+                                >
+                                    <DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} />
+                                </Form.Item>
+                            </Col>
+                        </Row>
+
+                        <Form.Item
+                            name="reason"
+                            label="Lý do điều chỉnh (Căn cứ theo văn bản / đề xuất)"
+                            rules={[{ required: true, message: 'Vui lòng nhập lý do điều chỉnh quyết định' }]}
+                        >
+                            <Input.TextArea
+                                rows={3}
+                                placeholder="VD: Căn cứ đề nghị xin điều chỉnh tên đề tài tốt nghiệp của sinh viên đã được GVHD phê duyệt..."
+                            />
+                        </Form.Item>
+
+                        <Form.Item
+                            name="adjustedTitle"
+                            label="Tên đề tài mới sau điều chỉnh (Nếu có thay đổi tên)"
+                        >
+                            <Input placeholder="Nhập tên đề tài mới..." />
+                        </Form.Item>
+
+                        <Form.Item
+                            name="note"
+                            label="Ghi chú nội dung thay đổi khác"
+                        >
+                            <Input.TextArea
+                                rows={2}
+                                placeholder="Ghi chú thêm về nội dung, phạm vi hoặc điều chỉnh khác..."
+                            />
+                        </Form.Item>
+                    </Form>
+
+                    {/* Lịch sử các lần điều chỉnh trước đó (nếu có) */}
+                    {selectedDecisionRecord?.assignmentDecisions?.[0]?.amendments?.length > 0 && (
+                        <div className="mt-4 border-t pt-3">
+                            <h4 className="text-xs font-bold text-slate-700 uppercase mb-2">
+                                Lịch sử Quyết định Điều chỉnh đã ban hành ({selectedDecisionRecord.assignmentDecisions[0].amendments.length})
+                            </h4>
+                            <div className="space-y-2 max-h-48 overflow-y-auto">
+                                {selectedDecisionRecord.assignmentDecisions[0].amendments.map((amend, idx) => (
+                                    <div key={amend.id || idx} className="bg-slate-50 p-2.5 rounded border border-slate-200 text-xs">
+                                        <div className="flex justify-between items-center font-semibold text-slate-800">
+                                            <span className="font-mono text-purple-700">{amend.amendmentNumber}</span>
+                                            <span className="text-slate-500 font-normal">{dayjs(amend.effectiveAt).format('DD/MM/YYYY')}</span>
+                                        </div>
+                                        <p className="text-slate-600 mt-1 mb-0.5"><strong>Lý do:</strong> {amend.reason}</p>
+                                        {amend.changes && (
+                                            <p className="text-[11px] text-slate-500 m-0">
+                                                <strong>Thay đổi:</strong> {typeof amend.changes === 'object' ? JSON.stringify(amend.changes) : amend.changes}
+                                            </p>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </Modal>
+
+            {/* Drawer Thẩm định BM02 */}
+            <BM02ReviewDrawer
+                open={bm02DrawerOpen}
+                onClose={() => {
+                    setBm02DrawerOpen(false);
+                    setSelectedBm02Registration(null);
+                }}
+                registration={selectedBm02Registration}
+                onSuccess={handleBm02ReviewSuccess}
+            />
         </div>
     );
 }
