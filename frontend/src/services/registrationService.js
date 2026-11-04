@@ -82,6 +82,14 @@ const registrationService = {
         }
     },
 
+    reviewOutlineTopic: async (registrationId, data) => {
+        try {
+            return await api.put('/registrations/' + registrationId + '/outline-review', data, idempotencyConfig());
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi thẩm định đề cương');
+        }
+    },
+
     updateOutlineReview: async (id, payload) => {
         try {
             return await api.patch(`/registrations/${id}/outline-review`, payload, idempotencyConfig());

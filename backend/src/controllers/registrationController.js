@@ -361,7 +361,23 @@ const getMyRegistration = async (req, res, next) => {
                     orderBy: { dueDate: 'asc' },
                 },
                 council: { select: { id: true, name: true, councilType: true, defenseDate: true, location: true } },
-                outlineCouncil: { select: { id: true, name: true, councilType: true, defenseDate: true, location: true } },
+                outlineCouncil: {
+                    select: {
+                        id: true,
+                        name: true,
+                        councilType: true,
+                        defenseDate: true,
+                        location: true,
+                        members: {
+                            select: {
+                                lecturerId: true,
+                                roleInCouncil: true,
+                                lecturer: { select: { id: true, fullName: true, code: true } },
+                            },
+                        },
+                    },
+                },
+                submissions: { orderBy: { submittedAt: 'desc' }, take: 5 },
                 defenseCouncil: { select: { id: true, name: true, councilType: true, defenseDate: true, location: true } },
                 defenseResult: true,
                 bm01Evaluations: { orderBy: { attemptNo: 'desc' }, take: 2 },
@@ -440,17 +456,28 @@ const getMyProjectEnrollments = async (req, res, next) => {
 const getAllRegistrations = async (req, res, next) => {
     try {
         const { role, id: userId } = req.user;
-        const { semesterId, status, unassignedCouncilOnly, councilType, stalePendingOnly } = req.query;
+        const { semesterId, status, unassignedCouncilOnly, councilType, stalePendingOnly, asCouncilChairman } = req.query;
 
         const where = {};
 
         if (role === 'LECTURER') {
-            where.topic = { mentorId: userId };
+            if (asCouncilChairman === 'true') {
+                where.outlineCouncil = {
+                    members: {
+                        some: {
+                            lecturerId: userId,
+                            roleInCouncil: 'CHAIRMAN',
+                        },
+                    },
+                };
+            } else {
+                where.topic = { mentorId: userId };
+            }
         }
 
         if (semesterId) {
             where.semesterId = parseInt(semesterId, 10);
-        } else if (role === 'LECTURER') {
+        } else if (role === 'LECTURER' && asCouncilChairman !== 'true') {
             const defaultSemester = await getDefaultSemester({ id: true });
             if (!defaultSemester) {
                 return res.json({ success: true, data: [] });
@@ -459,7 +486,13 @@ const getAllRegistrations = async (req, res, next) => {
         }
 
         if (status) {
-            where.status = status;
+            if (status.includes(',')) {
+                where.status = { in: status.split(',').map((s) => s.trim()) };
+            } else {
+                where.status = status;
+            }
+        } else if (role === 'LECTURER' && asCouncilChairman === 'true') {
+            where.status = { in: ['BM01_SUBMITTED', 'BM01_RESUBMITTED', 'BM01_NEEDS_REVISION', 'BM01_PASSED'] };
         }
 
         if (unassignedCouncilOnly === 'true') {
@@ -977,27 +1010,29 @@ const cancelRegistration = async (req, res, next) => {
 };
 
 /**
- * PATCH /api/registrations/:id/outline-review
- * Cập nhật kết quả xét duyệt đề cương của Hội đồng
+ * PATCH or PUT /api/registrations/:id/outline-review
+ * Cập nhật kết quả xét duyệt đề cương của Chủ tịch Hội đồng thẩm định (BM01)
  */
 const updateOutlineReview = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { status, feedback } = req.body;
+        const status = req.body.status || req.body.decision;
+        const feedback = req.body.feedback || req.body.reviewComment;
 
         const registrationId = parseInt(id, 10);
         if (!registrationId) {
             return res.status(400).json({ success: false, message: 'ID đăng ký không hợp lệ.' });
         }
 
-        const validStatuses = ['PASSED', 'REVISION_REQUIRED', 'FAILED'];
-        if (!validStatuses.includes(status)) {
+        const validStatuses = ['PASSED', 'REVISION_REQUIRED', 'NEEDS_REVISION', 'FAILED'];
+        if (!status || !validStatuses.includes(status)) {
             return res.status(400).json({ success: false, message: 'Trạng thái xét duyệt đề cương không hợp lệ.' });
         }
 
         const existing = await prisma.topicRegistration.findUnique({
             where: { id: registrationId },
             include: {
+                topic: true,
                 outlineCouncil: {
                     include: { members: true },
                 },
@@ -1008,9 +1043,20 @@ const updateOutlineReview = async (req, res, next) => {
             return res.status(404).json({ success: false, message: 'Không tìm thấy lượt đăng ký.' });
         }
 
-        const isCouncilMember = existing.outlineCouncil?.members?.some((m) => m.lecturerId === req.user.id);
+        const userPermissions = req.user?.permissions || [];
+        const hasApproveCapability = userPermissions.includes('OUTLINE_APPROVE');
+        const councilMembers = existing.outlineCouncil?.members || [];
+        const membership = councilMembers.find((m) => m.lecturerId === req.user.id);
 
-        if (!isCouncilMember) {
+        if (membership) {
+            if (membership.roleInCouncil !== 'CHAIRMAN') {
+                return res.status(403).json({
+                    success: false,
+                    code: 'ONLY_CHAIRMAN_CAN_APPROVE_OUTLINE',
+                    message: 'Chỉ Chủ tịch Hội đồng thẩm định đề cương mới có quyền kết luận duyệt hoặc yêu cầu chỉnh sửa đề cương.',
+                });
+            }
+        } else if (!hasApproveCapability) {
             return res.status(403).json({
                 success: false,
                 message: 'Bạn không có quyền cập nhật kết quả xét duyệt đề cương này.',

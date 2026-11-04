@@ -34,6 +34,7 @@ router.get(
     [
         authorizePermission(
             PERMISSIONS.BM03_REVIEW,
+            PERMISSIONS.OUTLINE_REVIEW,
             PERMISSIONS.REPORT_VIEW,
             PERMISSIONS.OUTLINE_COUNCIL_MANAGE,
             PERMISSIONS.DEFENSE_COUNCIL_MANAGE,
@@ -41,8 +42,26 @@ router.get(
         query('semesterId').optional().isInt({ min: 1 }).withMessage('semesterId phải là số nguyên dương.'),
         query('status')
             .optional()
-            .isIn(['PENDING', 'APPROVED', 'REJECTED', 'IN_PROGRESS', 'SUBMITTED', 'AWAITING_SCORES', 'AWAITING_FINAL_APPROVAL', 'DEFENSE_PASSED', 'DEFENSE_FAILED', 'DEFENDED', 'COMPLETED', 'DROPPED', 'WITHDRAWN'])
-            .withMessage('status không hợp lệ.'),
+            .custom((val) => {
+                const validStatuses = [
+                    'REGISTERED', 'PENDING', 'APPROVED', 'REJECTED',
+                    'BM01_SUBMITTED', 'BM01_NEEDS_REVISION', 'BM01_PASSED',
+                    'BM02_SUBMITTED', 'BM02_NEEDS_REVISION', 'BM02_RESUBMITTED', 'BM02_EXCEPTION_REVIEW',
+                    'DECISION_ISSUED', 'IN_PROGRESS', 'IN_PROGRESS_BM03',
+                    'BM03_SIGNATURE_PENDING', 'CHECKPOINT_SIGNATURE_APPEAL_OPEN',
+                    'CHECKPOINT_SIGNATURE_APPEAL_SUBMITTED', 'CHECKPOINT_SIGNATURE_APPEAL_REVIEW',
+                    'SIGNATURE_APPEAL_RESOLVED', 'BM03_PASSED', 'BM04_REVIEW',
+                    'DEFENSE_READY', 'AWAITING_SCORES', 'AWAITING_FINAL_APPROVAL',
+                    'DEFENSE_PASSED', 'DEFENSE_FAILED', 'SUBMITTED', 'DEFENDED',
+                    'COMPLETED', 'DROPPED', 'WITHDRAWN',
+                    'TERMINATED_FAILED_PROGRESS', 'TERMINATED_BM01', 'TERMINATED_BM02', 'TERMINATED_BM04',
+                ];
+                const parts = String(val).split(',').map((s) => s.trim());
+                if (!parts.every((p) => validStatuses.includes(p))) {
+                    throw new Error('status không hợp lệ.');
+                }
+                return true;
+            }),
         query('unassignedCouncilOnly')
             .optional()
             .isIn(['true', 'false'])
@@ -55,6 +74,10 @@ router.get(
             .optional()
             .isIn(['true', 'false'])
             .withMessage('stalePendingOnly chỉ nhận true/false.'),
+        query('asCouncilChairman')
+            .optional()
+            .isIn(['true', 'false'])
+            .withMessage('asCouncilChairman chỉ nhận true/false.'),
         validateRequest,
     ],
     registrationController.getAllRegistrations,
@@ -122,15 +145,30 @@ router.patch(
     registrationController.forceDecisionRegistration,
 );
 
+const outlineReviewGuards = [
+    authorizePermission(PERMISSIONS.OUTLINE_APPROVE, PERMISSIONS.OUTLINE_REVIEW),
+    param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
+    body().custom((body) => {
+        const val = body.status || body.decision;
+        if (!val || !['PASSED', 'REVISION_REQUIRED', 'NEEDS_REVISION', 'FAILED'].includes(val)) {
+            throw new Error('Trạng thái hoặc quyết định xét duyệt đề cương không hợp lệ.');
+        }
+        return true;
+    }),
+    body('feedback').optional({ nullable: true }).isString(),
+    body('reviewComment').optional({ nullable: true }).isString(),
+    validateRequest,
+];
+
 router.patch(
     '/:id/outline-review',
-    [
-        authorizePermission(PERMISSIONS.OUTLINE_APPROVE),
-        param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
-        body('status').isIn(['PASSED', 'REVISION_REQUIRED', 'FAILED']).withMessage('status không hợp lệ.'),
-        body('feedback').optional({ nullable: true }).isString(),
-        validateRequest,
-    ],
+    outlineReviewGuards,
+    registrationController.updateOutlineReview,
+);
+
+router.put(
+    '/:id/outline-review',
+    outlineReviewGuards,
     registrationController.updateOutlineReview,
 );
 
