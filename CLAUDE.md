@@ -820,4 +820,207 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 3. **Kết quả sinh viên chỉ lấy từ snapshot**: điểm thành viên và aggregate nội bộ không được dùng làm kết quả hiển thị trước công bố, giảm rò rỉ và tránh UI tự suy diễn kết quả.
 4. **Không giả lập authority scope**: capability hiện tại không mang mô hình phạm vi học kỳ/Viện độc lập; guard scope sẽ chỉ được bổ sung sau khi có dữ liệu scope chính thức, tránh một bypass role cứng không kiểm chứng được.
 
+### Phiên 01/11/2026 — Reset dữ liệu demo có kiểm soát
+
+#### 1. Những phần đã hoàn thành
+
+1. **Reset và seed lại dữ liệu ứng dụng**:
+   - Thay seed lịch sử/ngẫu nhiên bằng bộ dữ liệu xác định: 1 Admin, 12 GVHD, 120 sinh viên, 120 đề tài/enrollment/đăng ký.
+   - `lecturer01@university.edu.vn` là base role `LECTURER`, được gán cả nhóm quyền `GVHD` và `VIEN_TRUONG`; quản lý cố định `sv001` đến `sv010`. Mỗi giảng viên còn lại quản lý đúng 10 sinh viên kế tiếp.
+   - Tạo một đợt `Đồ án tốt nghiệp — HK1 2026–2027`: triển khai từ 01/08/2026, mốc thực hiện đến 30/11/2026, bảo vệ 15/12/2026, `Semester.endDate` 20/12/2026 để tương thích state `DEFENSE`.
+2. **Guard reset an toàn**:
+   - Lệnh reset bắt buộc `SEED_RESET_CONFIRM=RESET_DACN_DEMO`, log target DB đã che credentials, preflight FK dependency và chỉ truncate allow-list bảng Prisma-managed trong schema `public`.
+   - Không đụng `_prisma_migrations`, Supabase `auth`, Storage hoặc schema nền tảng khác.
+3. **Kiểm thử**:
+   - Backend: 40 suites / 264 tests PASS; Prisma validate và migration status PASS; frontend production build PASS.
+
+#### 2. Trạng thái cập nhật của từng phần
+
+- **Database/Prisma**: `RESET / SEEDED`; có 133 user (1 Admin, 12 Lecturer, 120 Student), 1 semester, 120 enrollment, 120 topic registration và state history tương ứng.
+- **Backend seed**: `PARTIALLY COMPLETE`; reset guard, account mapping, enrollment/topic/registration state fixtures đã hoạt động.
+- **Test**: `PASS`; có unit tests cho reset token/preflight, mapping/lịch, workflow fixture và summary validator.
+
+#### 3. Lỗ hổng phát hiện cần xử lý (P0)
+
+1. **Thiếu fixture E2E cho bảo vệ/công bố kết quả**: seed hiện chưa tạo `Council`, `CouncilMember`, `DefenseResult`, 3 `DefenseMemberScore` đã khóa, `DefenseResultApproval` hay `ResultPublication` (`INITIAL`/`SUPPLEMENTARY`/`CORRECTION`). Vì vậy chưa dùng được để smoke test đầy đủ chấm bảo vệ, approval, snapshot publication và correction.
+2. **Validator chưa chứng minh đúng bất biến defense**: kiểm tra conflict hội đồng đang là giá trị hằng, `failedCompleted` đang đếm mọi registration `COMPLETED` thay vì kiểm tra approval outcome `FAILED`, và quota đang group theo topic thay vì xác minh registration/student/topic mapping thực tế.
+3. **Mốc kết thúc 30/11 chưa có dữ liệu nghiệp vụ đi kèm**: `implementationEndDate` mới là metadata; cần seed task/checkpoint/submission có deadline trong tháng 8–11 để timeline được phản ánh trong UI/API.
+4. **Reset/seed chưa atomic end-to-end**: lỗi sau `TRUNCATE` có thể để database ở trạng thái rỗng hoặc seed dở. Cần refactor permission/account/workflow seed dùng cùng transaction hoặc cơ chế recover rõ ràng trước khi coi script đủ an toàn cho môi trường dùng chung.
+
+#### 4. Bước tiếp theo cần làm (Next Session Plan)
+
+1. **P0** — Hoàn thiện fixture hội đồng và evidence khóa: cấp council không xung đột GVHD, 3 member score/rubric/aggregate locked, approval và snapshot publication đủ evidence/fingerprint.
+2. **P0** — Sửa validator thành query thực tế cho council conflict, approval `FAILED` không `COMPLETED`, quota 10 registration/GVHD và timeline task/checkpoint.
+3. **P0** — Bọc toàn bộ reset + catalog + account + workflow seed trong transaction/recovery-safe boundary; test lỗi giữa chừng phải rollback hoặc khôi phục được.
+4. **P1** — Chạy E2E browser bằng `lecturer01`, `lecturer02`, `admin`, `sv001` và một sinh viên thuộc nhóm khác.
+
+#### 5. Quyết định quan trọng (Decisions & Rationale)
+
+1. **Giữ `lecturer01` là `LECTURER` kèm capability `VIEN_TRUONG`**: không tạo role base mới, tương thích mô hình RBAC và vẫn cho phép người này làm GVHD.
+2. **`endDate` sau ngày bảo vệ**: giữ mốc thực hiện đến 30/11 nhưng đặt end date 20/12 để controller có cửa sổ state `DEFENSE`; nếu end date trước defense thì state này không thể hoạt động.
+3. **Không che giấu khoảng trống E2E**: seed hiện tại đủ kiểm thử account/ownership/register workflow, nhưng không được dùng để tuyên bố đã test được toàn bộ approval/publication cho tới khi các fixture P0 bên trên hoàn tất.
+
+### Phiên 01/11/2026 — Hoàn tất P0 seed demo và đơn giản hóa cổng Giảng viên
+
+#### 1. Những phần đã hoàn thành
+
+1. **Hoàn tất P0 seed demo có kiểm soát**:
+   - Bổ sung 4 hội đồng bảo vệ/12 thành viên, đồng thời bảo đảm GVHD không thuộc hội đồng chấm hồ sơ mình hướng dẫn.
+   - Tạo mốc BM03 trong giai đoạn 08–11/2026, evidence điểm khóa, kết quả tổng hợp khóa, approval và chuỗi publication `INITIAL` → `SUPPLEMENTARY` → `CORRECTION`.
+   - Validator đọc dữ liệu thực để kiểm tra quota 10 SV/GVHD, enrollment active, xung đột hội đồng, approval `FAILED` không làm hồ sơ `COMPLETED` và timeline task.
+   - Bọc truncate, catalog quyền, account và toàn bộ fixture trong cùng transaction; reset thực tế đã chạy với token xác nhận của người dùng.
+2. **Đơn giản hóa đăng nhập Giảng viên**:
+   - Bỏ lựa chọn “Không gian tác nghiệp”; giảng viên đăng nhập xong đi thẳng đến `/lecturer/dashboard`.
+   - Backend trả về `hasDefenseCouncilAssignment` dựa trên thành viên hội đồng bảo vệ thực tế.
+   - Sidebar chỉ hiển thị “Hội đồng chấm điểm” khi có phân công; mục Viện chỉ hiển thị khi có capability `PROJECT_ASSIGNMENT_PUBLISH`.
+
+#### 2. Trạng thái cập nhật của từng phần
+
+- **Database/Prisma**: `RESET / SEEDED`; 133 account (1 Admin, 12 Lecturer, 120 Student), 120 enrollment/registration, 4 hội đồng và 3 publication snapshot theo lineage.
+- **Backend**: `PASS`; seed guard/transaction/validator và contract auth về trạng thái phân công hội đồng đã được cập nhật.
+- **Frontend**: `BUILD PASS`; luồng login giảng viên trực tiếp, navigation ẩn/hiện theo capability và council assignment.
+- **Test**: backend seed suite trước reset: 40 suites/267 tests PASS; auth integration sau thay đổi: 3/3 PASS; frontend production build PASS.
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+
+1. **P0** — E2E browser với `lecturer01`, `lecturer02`, `admin`, `sv001` và một giảng viên có/không có phân công hội đồng để xác nhận visibility + action guard.
+2. **P0** — Bổ sung integration test cho transaction rollback của seed và persistence của approval/publication fixture, thay vì chỉ unit fixture/validator.
+3. **P1** — Rà soát state consumers legacy còn tham chiếu `DEFENDED`/`COMPLETED`, sau đó tách các thay đổi hiện có thành commit nhỏ theo backend/frontend/test.
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+
+1. **Không dùng “workspace role” tạm thời sau login**: `LECTURER` là base role duy nhất; quyền bổ sung là capability/phân công thực, tránh UI cho người dùng chọn một vai trò không được cấp.
+2. **Chức năng Hội đồng dựa trên `CouncilMember` thực**: capability vẫn là route-level guard, còn sidebar chỉ hiện khi có ít nhất một assignment hội đồng bảo vệ; điều này tránh hiển thị chức năng trống cho toàn bộ GVHD.
+3. **Chức năng Viện dựa trên capability**: giữ `PROJECT_ASSIGNMENT_PUBLISH` làm nguồn chân lý cho Viện trưởng, không suy ra từ tên role hay client-side mock.
+
+### Phiên 02/11/2026 — Khởi tạo CMS quản trị Portal
+
+#### 1. Những phần đã hoàn thành
+
+1. **Thiết kế và kế hoạch triển khai Portal CMS**:
+   - Viết đặc tả `docs/superpowers/specs/2026-11-02-portal-content-management-design.md` và kế hoạch `docs/superpowers/plans/2026-11-02-portal-content-management-implementation-plan.md`.
+   - Chốt CMS có cấu trúc: Admin kỹ thuật quản trị Hero/CTA, logo, footer/liên hệ, link, biểu mẫu và thông báo; dữ liệu workflow/học vụ vẫn là nguồn chân lý riêng.
+2. **Nền tảng CSDL/RBAC/revision**:
+   - Thêm migration `20261102090000_portal_content_management`, identity records Portal và `PortalContentRevision` immutable; migration ánh xạ announcement cũ theo PDF/rich-text/remediation.
+   - Thêm capability `PORTAL_CONTENT_MANAGE`, chỉ cấp mặc định cho `QUAN_TRI_VIEN`.
+   - Thực thi draft/publish/archive và public projection dựa trên pointer revision, không làm revision cũ tự xuất hiện lại.
+3. **Bảo mật content và upload**:
+   - Thêm rich-text sanitizer server-side với allow-list; ghim `sanitize-html@2.13.0` do bản mới không tương thích CommonJS/Jest hiện hữu.
+   - Tạo upload boundary riêng cho Portal: ảnh JPEG/PNG/WebP, tài liệu PDF/DOC/DOCX; chặn ZIP/RAR/SVG; server quyết định thư mục storage.
+   - Thêm upload API `/api/portal/uploads/image|document` và CMS revision API/public API `/api/portal/*`, đều có capability guard trừ public endpoint đã khai báo exemption.
+4. **Kiểm thử/commit**:
+   - Các commit Portal: `4489dc5`, `03b4151`, `0574f2d`, `122ce82`, `7b0d820`.
+   - Backend suite tại thời điểm chốt backend API: 45 suites / 277 tests PASS; Prisma validate PASS.
+
+#### 2. Trạng thái cập nhật của từng phần
+
+- **Database/Prisma**: `IMPLEMENTED / NOT APPLIED IN THIS SESSION`; migration CMS đã commit nhưng không chạy migration/reset DB thực tế.
+- **Backend API**: `PARTIALLY COMPLETE`; revision, public projection, sanitizer, upload boundary và command API đã có. Chưa có resource-creation/admin-read API đầy đủ để UI tạo mới link/template/announcement identity.
+- **Frontend SPA**: `NOT COMPLETE`; đã có `frontend/src/services/portalContentService.js` chưa commit. Chưa có `/admin/portal`, rich-text editor, PDF preview, public HomePage dynamic rendering hoặc dọn ZIP UI.
+- **Test**: Backend targeted/full suites đã PASS như trên; chưa chạy frontend build/test sau khi tạo client service và chưa có E2E Portal CMS.
+- **MCP/External services**: Không thay đổi cấu hình connector; Supabase Storage được dùng theo service hiện có, chưa upload asset thực tế.
+- **Git/worktree**: User từ chối worktree cách ly; làm việc trực tiếp trên `redesign-with-opendesign`. Giữ nguyên thay đổi seed/auth/frontend có sẵn ngoài phạm vi Portal.
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+
+1. **P0** — Hoàn thiện backend CMS: API tạo resource identity và admin read/list, audit cho publish/archive, integration tests 401/403/public-draft isolation/PDF-rich-text exclusivity.
+2. **P0** — Xây `/admin/portal`: tabs Branding/Hero, Footer/Contact, Links, Templates, Announcements; draft/preview/publish/archive, rich-text chèn ảnh và preview PDF.
+3. **P0** — Chuyển `HomePage` từ hard-code sang `GET /api/portal/public`; giữ roadmap workflow static, bỏ fallback announcement mẫu.
+4. **P0** — Bỏ toàn bộ CTA tải ZIP/bulk-download ở public portal, Student Dashboard và Rubric Admin, vẫn giữ download file đơn và không đổi upload BM.
+5. **P0** — Viết bootstrap draft idempotent, chạy Prisma validate/migration status, backend suite, frontend tests/build, E2E với Admin có/không có capability và public visitor.
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+
+1. **Versioned structured CMS thay JSON/page builder tự do**: mỗi thay đổi tạo draft revision, chỉ publish mới đổi pointer public; vừa có preview/audit vừa tránh nội dung dở hiển thị ra portal.
+2. **PDF và rich-text là hai loại thông báo loại trừ nhau**: PDF chỉ preview/download file đơn; rich-text chỉ dùng HTML đã sanitize + ảnh upload, tránh nội dung lai mơ hồ và giảm bề mặt XSS.
+3. **Không bỏ ZIP/RAR khỏi upload nghiệp vụ**: yêu cầu chỉ loại bỏ nút tải ZIP; các luồng BM vẫn có thể upload ZIP/RAR cho tới khi có thay đổi nghiệp vụ riêng.
+4. **Không chạm thay đổi ngoài phạm vi**: các file seed/auth/lecturer UI sẵn có được giữ nguyên để không trộn lịch sử với Portal CMS.
+
+### Phiên 02/11/2026 — Hoàn thiện giao diện Portal CMS
+
+#### 1. Những phần đã hoàn thành
+
+1. **Bổ sung contract backend cho Portal CMS**:
+   - Thêm API có capability guard để tạo và liệt kê resource identity Portal, giúp frontend không cần suy đoán `resourceId` trước khi tạo draft.
+   - Bổ sung test service/controller cho resource identity và revision metadata.
+2. **Xây console quản trị `/admin/portal`**:
+   - Route/sidebar yêu cầu `PORTAL_CONTENT_MANAGE`.
+   - Có form cấu trúc cho Branding/Hero & Footer, Links, Templates và Announcements; hỗ trợ lưu nháp, công bố, archive và preview PDF.
+   - Rich-text editor bị giới hạn; việc sanitize vẫn do backend quyết định.
+3. **Chuyển public portal sang CMS**:
+   - `HomePage` đọc `GET /api/portal/public` cho announcements, templates, branding, Hero/CTA, contact/footer và các nhóm link `QUICK_LINK`, `LEGAL`, `SOCIAL`.
+   - Chỉ còn fallback thương hiệu tối thiểu khi chưa có revision public; không fallback announcement mẫu.
+   - Bỏ CTA ZIP/bulk-download trong public portal, Student Dashboard và Rubric Admin; chỉ giữ download một file đã publish.
+
+#### 2. Trạng thái cập nhật của từng phần
+
+- **Database/Prisma**: `IMPLEMENTED / NOT APPLIED IN THIS SESSION`; không chạy migration hay reset database thật.
+- **Backend API**: `IMPLEMENTED / VERIFIED`; public projection, resource identity admin, revision commands và upload boundary hiện có trong worktree.
+- **Frontend SPA**: `IMPLEMENTED / BUILD PASS`; `/admin/portal` và public CMS binding đã có trong worktree.
+- **Test**: Backend `45 suites / 280 tests PASS`; frontend `20 tests PASS`; `npm run build` PASS; `npx prisma validate` PASS; `git diff --check` sạch.
+- **MCP/External services**: không đổi connector hoặc cấu hình Supabase; chưa upload asset/không thực hiện publish content thật.
+- **Git/worktree**: thay đổi Portal và các thay đổi seed/auth/lecturer có sẵn vẫn chưa commit; không stage/commit để tránh trộn lịch sử không liên quan.
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+
+1. **P0** — Chạy migration CMS ở môi trường được phê duyệt, chạy bootstrap draft idempotent, sau đó Admin preview/publish từng content type.
+2. **P0** — E2E browser: Admin có/không có `PORTAL_CONTENT_MANAGE`, public visitor chỉ thấy published revision, và luồng PDF/rich-text riêng biệt.
+3. **P1** — Hoàn thiện upload/chèn ảnh vào rich-text editor và kiểm tra MIME thực tế với Supabase Storage.
+4. **P1** — Tách các thay đổi worktree thành commit nhỏ theo Portal CMS, controlled seed, auth và lecturer UI sau khi review phạm vi.
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+
+1. **Bổ sung resource identity API trước UI**: frontend cần identity thật để tạo draft/publish; tránh hard-code ID hoặc tạo mock client-side.
+2. **Public portal chỉ dùng projection đã publish**: draft/archive không được dùng làm fallback, nhờ đó content dở không thể lộ ra public.
+3. **Fallback public giới hạn ở branding tối thiểu**: khi chưa có config public, portal vẫn có nhãn nhận diện; nhưng announcements/templates/links không bịa dữ liệu mẫu.
+4. **Không thay đổi upload nghiệp vụ BM**: chỉ loại nút tải ZIP/bulk-download ở UI Portal; ZIP/RAR của các luồng nộp bài nghiệp vụ vẫn giữ nguyên.
+
+### Phiên 05/11/2026 — Hoàn tất Khắc Phục Lỗ Hổng Hậu Audit & Chuẩn Hóa Toàn Tuyến Quy Trình (Tasks 1–12)
+
+#### 1. Những phần đã hoàn thành
+1. **Toàn bộ 12 Tasks thuộc 3 Phase của Kế hoạch Remediation đã hoàn thành và được kiểm thử độc lập**:
+   - **Phase 1: Security-First Containment (Task 1 -> Task 5)**:
+     - *Task 1* (`b84a5b4`): Chặn toàn bộ bypass qua `gradeSubmission` đối với BM01–BM04 (mã lỗi `USE_DEDICATED_WORKFLOW_COMMAND`); khóa cứng generic task không thể thay đổi `TopicRegistration.status`; bắt buộc `Idempotency-Key` khi ban hành quyết định giao đề tài hàng loạt.
+     - *Task 2* (`2b6fb06`, `2ce79e4`): Triển khai quy trình khóa điểm 2 bước. Bước 1 `POST /evaluations/member-score/lock` với 5 lớp guard bảo mật (danh tính, tư cách hội đồng, chống xung đột GVHD, tính bất biến, idempotency). Bước 2 `lockDefenseScores` yêu cầu capability `RESULT_LOCK`, đủ 3 phiếu chấm cá nhân của `CHAIRMAN`, `SECRETARY`, `REVIEWER`, và chuyển trạng thái nguyên tử bằng CAS sang `AWAITING_FINAL_APPROVAL`.
+     - *Task 3* (`85d206b`): Chặn triệt để `DEFENSE_FAILED` chuyển sang `COMPLETED` tại `reviewArchive` (HTTP 403 `CANNOT_COMPLETE_FAILED_DEFENSE`); che giấu điểm bảo vệ chưa công bố đối với sinh viên trên toàn bộ API (`getMyGrades`, `getRegistrationArchive`) và thông báo (`notificationService.safeNotify`).
+     - *Task 4* (`b5a66fe`, `72d038b`): Triệt tiêu Stored XSS trong CMS Portal Sanitizer bằng allowlist thẻ/thuộc tính nghiêm ngặt; kiểm tra Magic Bytes nhị phân cho tệp tải lên (PDF, DOC, DOCX, PNG, JPG, ZIP, RAR); sửa lỗi crash runtime trên `GradeViewPage.jsx`.
+     - *Task 5* (`c66f3b9`, `16882d4`): Bắt buộc ghim chính sách quy trình tự động (`auto-pin`) theo cơ chế fail-closed khi đăng ký đề tài; kiểm soát quota tối đa 10 SV/GVHD chống race condition bằng `acquireMentorLock` kết hợp transaction `Serializable`; mở rộng `MENTOR_ACTIVE_REGISTRATION_STATUSES` bao quát toàn bộ trạng thái sống.
+   - **Phase 2: Workflow Engines & Pre-Defense Archival (Task 6 -> Task 9)**:
+     - *Task 6* (`2c7f65c`): Thêm enum `ArchivePhase` (`PRE_DEFENSE`, `POST_DEFENSE`) vào `ProjectArchive` với migration `20261105020000_add_pre_defense_archive_phase`; xây dựng script backfill phân loại dữ liệu legacy an toàn; mở endpoint `POST /archives/pre-defense` cho sinh viên sau khi đạt BM03.
+     - *Task 7* (`b23152d`, `beb5285`): Tách biệt logic chấm BM04 sang domain service `bm04WorkflowService.submitBM04`; bắt buộc có hồ sơ `PRE_DEFENSE` trước khi GVHD tick "ĐỒNG Ý"; chuyển đổi trạng thái sang `DEFENSE_READY` bằng CAS nguyên tử; chặn trùng lặp thông báo khi gửi lại idempotent.
+     - *Task 8* (`e2e9ee6`, `7f03f84`): Khơi thông dead-end appeal chữ ký, phục hồi hồ sơ về `BM03_SIGNATURE_PENDING` với hạn ký động tính từ policy ghim (`Asia/Ho_Chi_Minh`); xây dựng worker chạy nền `checkpointDeadlineOverdueJob.js` với PostgreSQL advisory lock (`108032601`), CAS chống xung đột khi sinh viên ký đúng lúc worker quét, tự động dừng hồ sơ khi quá hạn không khiếu nại.
+     - *Task 9* (`16bb9b0`, `14f83e5`): Xây dựng checklist nộp hồ sơ Pre-defense trên `SubmissionPage.jsx`; tạo modal thẩm định khiếu nại chữ ký `CheckpointAppealReviewModal.jsx` với kiểm tra xung đột lợi ích chuẩn số (`Number(currentUserId) === Number(mentorId)`); nối hàng đợi khiếu nại trực tiếp trên `ProjectOversightPage.jsx`.
+   - **Phase 3: UI Completion & AllowedActions Contracts (Task 10 -> Task 12)**:
+     - *Task 10* (`5145f42`, `1a24f64`): Cổng Giảng viên - Tab Thẩm định đề cương BM01 lần đầu chỉ mở cho Chủ tịch Hội đồng; bổ sung `OutlineReviewModal.jsx`; trả về đầy đủ `submissions`, `student.class`, `mentor.email` và mặc định lọc theo học kỳ hiện hành.
+     - *Task 11* (`ffcdc27`): Cổng Điều hành Viện - Drawer thẩm định BM02 trên `/lecturer/institute` chỉ gồm 2 hành động `APPROVE` và `RETURN_FOR_REVISION` (loại bỏ hoàn toàn `EXCEPTION_REVIEW`); tích hợp modal xem và ban hành Quyết định điều chỉnh (`DecisionAmendment`) gọi `semesterService.createDecisionAmendment`.
+     - *Task 12* (`d253250`): Nối nút "Nộp & Khóa phiếu cá nhân" kèm Popconfirm trên `LecturerGradingSheetPage.jsx`; hiển thị huy hiệu khóa từng ủy viên và chỉ kích hoạt nút "Khóa sổ điểm hội đồng" khi đủ 3 phiếu khóa và có quyền `RESULT_LOCK` trên `GradingDefensePage.jsx`; áp dụng hợp đồng `allowedActions[]` lên toàn bộ giao diện Sinh viên và Giảng viên.
+
+2. **Kiểm thử và Nghiệm thu Toàn tuyến (Whole-Branch Acceptance)**:
+   - Toàn bộ 54 test suites backend (343 tests) PASS 100%.
+   - Toàn bộ 35 unit/contract tests frontend PASS 100%.
+   - Tổng cộng: **378 automated tests PASS**.
+   - Frontend Production build (`vite build`): PASS (10.30s, 0 lỗi).
+   - Kiểm tra mã hóa UTF-8 (no BOM): 100% tệp tin đạt chuẩn.
+   - Không tồn tại mã nguồn sử dụng mô hình cũ `group/groupMember`.
+
+#### 2. Trạng thái cập nhật của từng phần
+- **Database/Prisma**: `UP TO DATE / MIGRATED`; migration `20261105020000_add_pre_defense_archive_phase` đã được thiết kế và kiểm thử; schema đồng bộ mô hình `TopicRegistration`, `ArchivePhase`, `IdempotencyRecord`.
+- **Backend API**: `PRODUCTION READY`; toàn bộ 12 luồng nghiệp vụ cốt lõi đã được gia cố với Zero Bypass, Fail-Closed, và CAS Concurrency Control.
+- **Frontend SPA**: `PRODUCTION READY`; các trang Student, Lecturer, Admin/Viện trưởng kết nối API thực tế, hiển thị theo `allowedActions[]`, giao diện OpenDesign đồng nhất.
+- **Background Jobs**: Worker `checkpointDeadlineOverdueJob.js` bảo vệ bởi PostgreSQL Advisory Lock và CAS `stateVersion`.
+- **Testing**: 378/378 tests PASS (54 suites backend, 35 tests frontend).
+- **Git Branch**: Branch remediation gồm 19 commits sạch, có review package chi tiết cho từng task và toàn nhánh (`review-7b0d820..d253250.diff`).
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+1. **Deploy Production Database Migration**: Chạy `npx prisma migrate deploy` trên môi trường Production để áp dụng enum `ArchivePhase`.
+2. **Backfill Archive Data**: Chạy script `node backend/scripts/migrations/backfillArchivePhases.js --dry-run=false` với tài khoản quản trị để phân loại chính xác các hồ sơ lưu chiểu cũ.
+3. **End-to-End User Acceptance Test (UAT)**: Thực hiện kịch bản kiểm chứng thực tế từ tài khoản `sv001`, `lecturer01` (Trưởng Viện / GVHD), `lecturer02` (Chủ tịch HĐ) và `admin` theo 10 bước của Kế hoạch Nghiệm thu Toàn tuyến.
+4. **CI/CD Polish**: Bổ sung cờ `--forceExit` vào script test trong `backend/package.json` để tự động ngắt kết nối database pool sau khi Jest hoàn tất.
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+1. **Loại bỏ hoàn toàn `EXCEPTION_REVIEW`**: Do chưa có đặc tả trạng thái, actor, hạn nộp, và audit trail rõ ràng, cơ chế này dễ trở thành cửa sau (bypass) trá hình. Chỉ giữ lại 2 hành động học thuật minh bạch: `APPROVE` và `RETURN_FOR_REVISION`.
+2. **Quy trình Khóa Điểm Bảo Vệ 2 Bước Độc Lập**: Tách biệt rõ ràng giữa "Khóa phiếu cá nhân của từng Giám khảo" (bước 1) và "Khóa sổ điểm Hội đồng" (bước 2). Admin không có quyền học thuật tự ý khóa nếu chưa đủ 3 phiếu khóa của Chủ tịch, Thư ký và Phản biện.
+3. **Che Điểm Hoàn Toàn Trước Công Bố**: Tránh việc sinh viên xem được điểm thô trước khi Hội đồng/Viện trưởng phê duyệt và ban hành snapshot công bố chính thức, ngăn ngừa khiếu nại sai quy trình và rò rỉ thông tin học vụ.
+4. **Chống Race Condition Quota 10 SV Bằng 2 Tầng**: Không chỉ dựa vào kiểm tra ở controller, mà sử dụng cả khóa đồng thời `acquireMentorLock` ở tầng service và mức cô lập giao dịch `Serializable` ở tầng CSDL để đảm bảo không thể vượt quá 10 SV/GVHD dưới tải đồng thời.
+
 
