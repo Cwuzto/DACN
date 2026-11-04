@@ -1,5 +1,9 @@
 const prisma = require('../config/database');
-const { getMentorMaxSlots } = require('../constants/mentorCapacity');
+const {
+    DEFAULT_MAX_STUDENTS_PER_MENTOR,
+    ACTIVE_REGISTRATION_STATUSES,
+    getMentorMaxSlots,
+} = require('../constants/mentorCapacity');
 const { PENDING_REMINDER_DAYS } = require('../constants/registrationLimits');
 const { auditLog } = require('../services/auditLogService');
 const { safeNotify } = require('../services/notificationService');
@@ -13,7 +17,10 @@ const { transferMentor } = require('../services/mentorTransferService');
 const { computeAllowedActions } = require('../services/workflowActionService');
 
 const SERIALIZATION_ERROR_CODE = 'P2034';
-const MENTOR_ACTIVE_REGISTRATION_STATUSES = ['PENDING', 'APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'AWAITING_SCORES', 'AWAITING_FINAL_APPROVAL', 'DEFENSE_PASSED', 'DEFENSE_FAILED', 'DEFENDED', 'COMPLETED'];
+const MENTOR_ACTIVE_REGISTRATION_STATUSES = Array.from(new Set([
+    'PENDING',
+    ...(ACTIVE_REGISTRATION_STATUSES || []),
+]));
 const MENTOR_APPROVED_REGISTRATION_STATUSES = ['APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'AWAITING_SCORES', 'AWAITING_FINAL_APPROVAL', 'DEFENSE_PASSED', 'DEFENSE_FAILED', 'DEFENDED', 'COMPLETED'];
 const PRE_DECISION_CANCELLABLE_STATUSES = [
     'PENDING',
@@ -24,10 +31,28 @@ const PRE_DECISION_CANCELLABLE_STATUSES = [
     'BM02_SUBMITTED',
 ];
 
-const createHttpError = (statusCode, message) => {
+const createHttpError = (statusCode, message, code = null) => {
     const error = new Error(message);
     error.statusCode = statusCode;
+    if (code) error.code = code;
     return error;
+};
+
+const mentorLocks = new Map();
+
+const acquireMentorLock = async (mentorId) => {
+    while (mentorLocks.has(mentorId)) {
+        await mentorLocks.get(mentorId);
+    }
+    let release;
+    const lockPromise = new Promise((resolve) => {
+        release = resolve;
+    });
+    mentorLocks.set(mentorId, lockPromise);
+    return () => {
+        mentorLocks.delete(mentorId);
+        release();
+    };
 };
 
 const isSerializationConflict = (error) => error?.code === SERIALIZATION_ERROR_CODE;
@@ -115,100 +140,150 @@ const registerTopic = async (req, res, next) => {
             });
         }
 
-        const { registration, mentorId, topicTitle } = await prisma.$transaction(async (tx) => {
-            const existingReg = await tx.topicRegistration.findUnique({
-                where: { studentId_semesterId: { studentId, semesterId: semesterIdInt } },
-            });
+        const preCheckTopic = await prisma.topic.findUnique({
+            where: { id: topicIdInt },
+            select: { mentorId: true },
+        });
 
-            if (existingReg) {
-                if (existingReg.status === 'REJECTED') {
-                    await tx.topicRegistration.delete({ where: { id: existingReg.id } });
-                } else {
+        const releaseMentorLock = preCheckTopic?.mentorId
+            ? await acquireMentorLock(preCheckTopic.mentorId)
+            : null;
+
+        let registration;
+        let mentorId;
+        let topicTitle;
+
+        try {
+            const txResult = await prisma.$transaction(async (tx) => {
+                const activePolicies = await tx.periodWorkflowPolicyVersion.findMany({
+                    where: { semesterId: semesterIdInt, isActive: true },
+                });
+
+                if (!activePolicies || activePolicies.length === 0) {
                     throw createHttpError(
                         400,
-                        'Bạn đã đăng ký đề tài trong kỳ này. Chỉ có thể đổi khi bị từ chối.',
+                        'Đợt đồ án chưa cấu hình chính sách quy trình hợp lệ.',
+                        'POLICY_UNAVAILABLE',
                     );
                 }
-            }
 
-            const topic = await tx.topic.findUnique({
-                where: { id: topicIdInt },
-                include: {
-                    mentor: { select: { id: true, academicTitle: true } },
-                    _count: { select: { registrations: true } },
-                    projectCatalog: { select: { id: true, name: true } },
-                },
-            });
+                if (activePolicies.length > 1) {
+                    throw createHttpError(
+                        409,
+                        'Phát hiện nhiều hơn 1 phiên bản chính sách quy trình đang hoạt động đồng thời. Vui lòng liên hệ Quản trị viên để chuẩn hóa.',
+                        'POLICY_UNAVAILABLE',
+                    );
+                }
 
-            if (!topic || topic.status !== 'APPROVED') {
-                throw createHttpError(400, 'Đề tài không tồn tại hoặc chưa được duyệt.');
-            }
+                const activePolicy = activePolicies[0];
 
-            if (topic.semesterId !== semesterIdInt) {
-                throw createHttpError(400, 'Đề tài không thuộc đợt đăng ký hiện tại.');
-            }
+                const existingReg = await tx.topicRegistration.findUnique({
+                    where: { studentId_semesterId: { studentId, semesterId: semesterIdInt } },
+                });
 
-            if (!topic.projectCatalogId) {
-                throw createHttpError(400, 'Đề tài chưa được gắn tên đồ án. Vui lòng liên hệ quản trị viên.');
-            }
+                if (existingReg) {
+                    if (existingReg.status === 'REJECTED') {
+                        await tx.topicRegistration.delete({ where: { id: existingReg.id } });
+                    } else {
+                        throw createHttpError(
+                            400,
+                            'Bạn đã đăng ký đề tài trong kỳ này. Chỉ có thể đổi khi bị từ chối.',
+                        );
+                    }
+                }
 
-            const enrollment = await tx.studentProjectEnrollment.findFirst({
-                where: {
-                    studentId,
-                    semesterId: semesterIdInt,
-                    projectCatalogId: topic.projectCatalogId,
-                    status: 'ACTIVE',
-                },
-                select: { id: true },
-            });
+                const topic = await tx.topic.findUnique({
+                    where: { id: topicIdInt },
+                    include: {
+                        mentor: { select: { id: true, academicTitle: true } },
+                        _count: { select: { registrations: true } },
+                        projectCatalog: { select: { id: true, name: true } },
+                    },
+                });
 
-            if (!enrollment) {
-                throw createHttpError(
-                    400,
-                    `Bạn chưa đăng ký môn "${topic.projectCatalog?.name || 'đồ án này'}" trong đợt hiện tại nên không thể đăng ký đề tài.`,
-                );
-            }
+                if (!topic || topic.status !== 'APPROVED') {
+                    throw createHttpError(400, 'Đề tài không tồn tại hoặc chưa được duyệt.');
+                }
 
-            if (topic._count.registrations >= 1) {
-                throw createHttpError(400, 'Đề tài này đã có sinh viên đăng ký.');
-            }
+                if (topic.semesterId !== semesterIdInt) {
+                    throw createHttpError(400, 'Đề tài không thuộc đợt đăng ký hiện tại.');
+                }
 
-            const maxSlots = getMentorMaxSlots(topic.mentor?.academicTitle);
-            const mentorStudentCount = await tx.topicRegistration.count({
-                where: {
-                    topic: { mentorId: topic.mentorId, semesterId: semesterIdInt },
-                    status: { in: MENTOR_ACTIVE_REGISTRATION_STATUSES },
-                },
-            });
+                if (!topic.projectCatalogId) {
+                    throw createHttpError(400, 'Đề tài chưa được gắn tên đồ án. Vui lòng liên hệ quản trị viên.');
+                }
 
-            if (mentorStudentCount >= maxSlots) {
-                throw createHttpError(400, `Giảng viên đã đạt giới hạn hướng dẫn (${maxSlots} sinh viên).`);
-            }
+                const enrollment = await tx.studentProjectEnrollment.findFirst({
+                    where: {
+                        studentId,
+                        semesterId: semesterIdInt,
+                        projectCatalogId: topic.projectCatalogId,
+                        status: 'ACTIVE',
+                    },
+                    select: { id: true },
+                });
 
-            const created = await tx.topicRegistration.create({
-                data: {
-                    topicId: topicIdInt,
-                    studentId,
-                    semesterId: semesterIdInt,
-                    status: 'PENDING',
-                },
-                include: {
-                    topic: {
-                        select: {
-                            title: true,
-                            mentor: { select: { fullName: true } },
-                            projectCatalog: { select: { id: true, name: true } },
+                if (!enrollment) {
+                    throw createHttpError(
+                        400,
+                        `Bạn chưa đăng ký môn "${topic.projectCatalog?.name || 'đồ án này'}" trong đợt hiện tại nên không thể đăng ký đề tài.`,
+                    );
+                }
+
+                if (topic._count.registrations >= 1) {
+                    throw createHttpError(400, 'Đề tài này đã có sinh viên đăng ký.');
+                }
+
+                const maxSlots = getMentorMaxSlots(topic.mentor?.academicTitle) || DEFAULT_MAX_STUDENTS_PER_MENTOR || 10;
+                const mentorStudentCount = await tx.topicRegistration.count({
+                    where: {
+                        topic: { mentorId: topic.mentorId, semesterId: semesterIdInt },
+                        status: { in: MENTOR_ACTIVE_REGISTRATION_STATUSES },
+                    },
+                });
+
+                if (mentorStudentCount >= maxSlots) {
+                    throw createHttpError(
+                        400,
+                        `Giảng viên đã đạt giới hạn hướng dẫn (${maxSlots} sinh viên).`,
+                        'MENTOR_CAPACITY_EXCEEDED',
+                    );
+                }
+
+                const created = await tx.topicRegistration.create({
+                    data: {
+                        topicId: topicIdInt,
+                        studentId,
+                        semesterId: semesterIdInt,
+                        status: 'PENDING',
+                        periodPolicyVersionId: activePolicy.id,
+                    },
+                    include: {
+                        topic: {
+                            select: {
+                                title: true,
+                                mentor: { select: { fullName: true } },
+                                projectCatalog: { select: { id: true, name: true } },
+                            },
                         },
                     },
-                },
-            });
+                });
 
-            return {
-                registration: created,
-                mentorId: topic.mentorId,
-                topicTitle: topic.title,
-            };
-        }, { isolationLevel: 'Serializable' });
+                return {
+                    registration: created,
+                    mentorId: topic.mentorId,
+                    topicTitle: topic.title,
+                };
+            }, { isolationLevel: 'Serializable' });
+
+            registration = txResult.registration;
+            mentorId = txResult.mentorId;
+            topicTitle = txResult.topicTitle;
+        } finally {
+            if (releaseMentorLock) {
+                releaseMentorLock();
+            }
+        }
 
         await safeNotify(
             {
@@ -233,7 +308,9 @@ const registerTopic = async (req, res, next) => {
             });
         }
         if (error.statusCode) {
-            return res.status(error.statusCode).json({ success: false, message: error.message });
+            const payload = { success: false, message: error.message };
+            if (error.code) payload.code = error.code;
+            return res.status(error.statusCode).json(payload);
         }
         next(error);
     }

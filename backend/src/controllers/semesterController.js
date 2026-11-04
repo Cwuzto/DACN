@@ -395,8 +395,34 @@ const issuePeriodDecision = async (req, res, next) => {
             include: {
                 student: { select: { id: true, fullName: true, code: true } },
                 topic: { select: { id: true, title: true, mentorId: true } },
+                currentBM02Submission: true,
             },
         });
+
+        for (const reg of eligibleRegistrations) {
+            const bm02 = reg.currentBM02Submission;
+            if (bm02 && bm02.registrationId !== undefined && bm02.registrationId !== reg.id) {
+                return res.status(400).json({
+                    success: false,
+                    code: 'INVALID_BM02_SUBMISSION',
+                    message: `Hồ sơ BM02 không thuộc về đăng ký của sinh viên (ID: ${reg.id}).`,
+                });
+            }
+            if (reg.periodPolicyVersionId && bm02?.policyVersionId && bm02.policyVersionId !== reg.periodPolicyVersionId) {
+                return res.status(400).json({
+                    success: false,
+                    code: 'POLICY_VERSION_MISMATCH',
+                    message: `Phiên bản chính sách của hồ sơ BM02 không khớp với đăng ký (ID: ${reg.id}).`,
+                });
+            }
+            if (bm02 && bm02.outcome && bm02.outcome !== 'APPROVED') {
+                return res.status(400).json({
+                    success: false,
+                    code: 'BM02_CURRENT_APPROVAL_REQUIRED',
+                    message: `Hồ sơ BM02 của sinh viên chưa được phê duyệt (ID: ${reg.id}).`,
+                });
+            }
+        }
 
         if (eligibleRegistrations.length === 0) {
             return res.status(400).json({
@@ -411,32 +437,32 @@ const issuePeriodDecision = async (req, res, next) => {
 
         const registrationIds = eligibleRegistrations.map((r) => r.id);
 
-        for (const reg of eligibleRegistrations) {
-            await issueAssignmentDecision({
-                registrationId: reg.id,
-                issuedById: userId,
-                decisionNumber: generatedDecisionNumber,
-                issuedAt: effectiveDecisionDate,
-                idempotencyKey: `${requestKey}:${reg.id}`,
-            });
-        }
+        await prisma.$transaction(async (tx) => {
+            for (const reg of eligibleRegistrations) {
+                await issueAssignmentDecision({
+                    registrationId: reg.id,
+                    issuedById: userId,
+                    decisionNumber: generatedDecisionNumber,
+                    issuedAt: effectiveDecisionDate,
+                    idempotencyKey: `${requestKey}:${reg.id}`,
+                }, { tx });
 
-        for (const reg of eligibleRegistrations) {
-            const hasBM03 = await prisma.task.findFirst({
-                where: { registrationId: reg.id, taskType: 'BM03_CHECKPOINT_1' },
-            });
-            if (!hasBM03) {
-                await prisma.task.create({
-                    data: {
-                        registrationId: reg.id,
-                        title: 'BM03 - Báo cáo tiến độ Đợt 1 (Tuần 6)',
-                        content: 'Báo cáo tiến độ thực hiện đồ án đợt 1: khối lượng công việc hoàn thành và kế hoạch giai đoạn tiếp theo.',
-                        taskType: 'BM03_CHECKPOINT_1',
-                        status: 'OPEN',
-                    },
+                const hasBM03 = await tx.task.findFirst({
+                    where: { registrationId: reg.id, taskType: 'BM03_CHECKPOINT_1' },
                 });
+                if (!hasBM03) {
+                    await tx.task.create({
+                        data: {
+                            registrationId: reg.id,
+                            title: 'BM03 - Báo cáo tiến độ Đợt 1 (Tuần 6)',
+                            content: 'Báo cáo tiến độ thực hiện đồ án đợt 1: khối lượng công việc hoàn thành và kế hoạch giai đoạn tiếp theo.',
+                            taskType: 'BM03_CHECKPOINT_1',
+                            status: 'OPEN',
+                        },
+                    });
+                }
             }
-        }
+        });
 
         for (const reg of eligibleRegistrations) {
             await safeNotify(
@@ -503,6 +529,13 @@ const issuePeriodDecision = async (req, res, next) => {
 
         res.json(responsePayload);
     } catch (error) {
+        if (error instanceof WorkflowTransitionError) {
+            return res.status(error.status || 400).json({
+                success: false,
+                code: error.code,
+                message: error.message,
+            });
+        }
         next(error);
     }
 };

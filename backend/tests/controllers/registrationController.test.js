@@ -24,6 +24,9 @@ jest.mock('../../src/config/database', () => ({
     task: {
         groupBy: jest.fn(),
     },
+    periodWorkflowPolicyVersion: {
+        findMany: jest.fn(),
+    },
 }));
 
 jest.mock('../../src/constants/mentorCapacity', () => ({
@@ -45,6 +48,9 @@ describe('registrationController', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         prisma.$transaction.mockImplementation(async (callback) => callback(prisma));
+        if (prisma.periodWorkflowPolicyVersion?.findMany) {
+            prisma.periodWorkflowPolicyVersion.findMany.mockResolvedValue([{ id: 1, version: 1, isActive: true }]);
+        }
     });
 
     test('registerTopic creates registration successfully', async () => {

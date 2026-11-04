@@ -75,6 +75,9 @@ jest.mock('../../src/config/database', () => ({
     registrationStateHistory: {
         create: jest.fn(),
     },
+    periodWorkflowPolicyVersion: {
+        findMany: jest.fn(),
+    },
 }));
 
 jest.mock('../../src/constants/mentorCapacity', () => ({
@@ -115,6 +118,7 @@ describe('Full 6-Stage Graduation Project Lifecycle Integration Test Suite', () 
         process.env.JWT_SECRET = 'test-secret';
         prisma.$transaction.mockImplementation(async (callback) => callback(prisma));
         prisma.notification.create.mockResolvedValue({});
+        prisma.periodWorkflowPolicyVersion.findMany.mockResolvedValue([{ id: 1, version: 1, isActive: true }]);
 
         jwt.verify.mockImplementation((token) => {
             if (token === 'student-token') return { userId: 10, role: 'STUDENT' };

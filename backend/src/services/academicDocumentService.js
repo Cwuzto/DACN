@@ -110,10 +110,10 @@ async function submitBM02({ registrationId, studentId, content, fileUrl, fileNam
 }
 
 async function issueAssignmentDecision({ registrationId, issuedById, decisionNumber, issuedAt = new Date(), idempotencyKey }, options = {}) {
-    const db = options.db || prisma;
+    const db = options.db || options.tx || prisma;
     const key = commandKey('issue-assignment-decision', idempotencyKey);
-    try {
-        return await db.$transaction(async (tx) => {
+
+    const executeIssue = async (tx) => {
         const existing = await tx.assignmentDecision.findUnique({ where: { idempotencyKey: key } });
         if (existing) {
             if (existing.registrationId !== registrationId
@@ -129,7 +129,12 @@ async function issueAssignmentDecision({ registrationId, issuedById, decisionNum
         });
         if (!registration?.periodPolicyVersionId || !registration.currentBM02SubmissionId) throw new WorkflowTransitionError('BM02_CURRENT_APPROVAL_REQUIRED', 409);
         const bm02 = await tx.bM02Submission.findUnique({ where: { id: registration.currentBM02SubmissionId } });
-        if (!bm02 || bm02.outcome !== 'APPROVED') throw new WorkflowTransitionError('BM02_CURRENT_APPROVAL_REQUIRED', 409);
+        if (!bm02 || bm02.outcome !== 'APPROVED' || (bm02.registrationId !== undefined && bm02.registrationId !== registration.id)) {
+            throw new WorkflowTransitionError('BM02_CURRENT_APPROVAL_REQUIRED', 409);
+        }
+        if (registration.periodPolicyVersionId && bm02.policyVersionId && bm02.policyVersionId !== registration.periodPolicyVersionId) {
+            throw new WorkflowTransitionError('BM02_POLICY_VERSION_MISMATCH', 409);
+        }
         if (!['BM02_SUBMITTED', 'BM02_RESUBMITTED'].includes(registration.status)) throw new WorkflowTransitionError('INVALID_TRANSITION', 409);
         const decision = await tx.assignmentDecision.create({
             data: { registrationId, bm02SubmissionId: bm02.id, decisionNumber, issuedAt, effectiveAt: issuedAt, issuedById, policyVersionId: registration.periodPolicyVersionId, idempotencyKey: key },
@@ -142,7 +147,13 @@ async function issueAssignmentDecision({ registrationId, issuedById, decisionNum
             changes: { decisionNumber, decisionDate: issuedAt },
         }, { tx });
         return { ...decision, idempotent: false };
-        });
+    };
+
+    try {
+        if (options.tx) {
+            return await executeIssue(options.tx);
+        }
+        return await db.$transaction(async (tx) => executeIssue(tx));
     } catch (error) {
         if (error?.code === 'P2002') {
             const existing = await db.assignmentDecision.findUnique({ where: { idempotencyKey: key } });
