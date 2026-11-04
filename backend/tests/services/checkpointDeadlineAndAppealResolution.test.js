@@ -343,4 +343,78 @@ describe('Dynamic Policy Deadlines & Concurrent Overdue Worker', () => {
             }),
         );
     });
+
+    it('should query checkpointEvaluations with proper ordering [checkpointNo desc, attemptNo desc, id desc]', async () => {
+        const now = new Date('2026-11-06T12:00:00.000Z');
+        mockDb.topicRegistration.findMany.mockResolvedValue([]);
+
+        await runCheckpointDeadlineOverdueJob({
+            db: mockDb,
+            now,
+            actorId: 0,
+        });
+
+        expect(mockDb.topicRegistration.findMany).toHaveBeenCalledWith(
+            expect.objectContaining({
+                include: expect.objectContaining({
+                    checkpointEvaluations: expect.objectContaining({
+                        orderBy: [
+                            { checkpointNo: 'desc' },
+                            { attemptNo: 'desc' },
+                            { id: 'desc' },
+                        ],
+                    }),
+                }),
+            }),
+        );
+    });
+
+    it('should gracefully skip when PostgreSQL advisory lock is held by another instance', async () => {
+        const now = new Date('2026-11-06T12:00:00.000Z');
+        mockDb.$queryRawUnsafe = jest.fn().mockResolvedValue([{ locked: false }]);
+
+        const workerResult = await runCheckpointDeadlineOverdueJob({
+            db: mockDb,
+            now,
+            actorId: 0,
+        });
+
+        expect(workerResult).toEqual(
+            expect.objectContaining({
+                skipped: true,
+                reason: 'LOCKED_BY_ANOTHER_INSTANCE',
+                scanned: 0,
+                processedCount: 0,
+            }),
+        );
+        expect(mockDb.topicRegistration.findMany).not.toHaveBeenCalled();
+    });
+
+    it('should acquire and release PostgreSQL advisory lock around worker execution', async () => {
+        const now = new Date('2026-11-06T12:00:00.000Z');
+        mockDb.$queryRawUnsafe = jest.fn().mockImplementation((query) => {
+            if (query.includes('pg_try_advisory_lock')) {
+                return Promise.resolve([{ locked: true }]);
+            }
+            if (query.includes('pg_advisory_unlock')) {
+                return Promise.resolve([{ unlocked: true }]);
+            }
+            return Promise.resolve([]);
+        });
+        mockDb.topicRegistration.findMany.mockResolvedValue([]);
+
+        const workerResult = await runCheckpointDeadlineOverdueJob({
+            db: mockDb,
+            now,
+            actorId: 0,
+        });
+
+        expect(workerResult.scanned).toBe(0);
+        expect(mockDb.$queryRawUnsafe).toHaveBeenCalledWith(
+            expect.stringContaining('SELECT pg_try_advisory_lock(108032601)'),
+        );
+        expect(mockDb.$queryRawUnsafe).toHaveBeenCalledWith(
+            expect.stringContaining('SELECT pg_advisory_unlock(108032601)'),
+        );
+    });
 });
