@@ -477,7 +477,7 @@ const getAllRegistrations = async (req, res, next) => {
 
         if (semesterId) {
             where.semesterId = parseInt(semesterId, 10);
-        } else if (role === 'LECTURER' && asCouncilChairman !== 'true') {
+        } else if (role === 'LECTURER') {
             const defaultSemester = await getDefaultSemester({ id: true });
             if (!defaultSemester) {
                 return res.json({ success: true, data: [] });
@@ -513,11 +513,20 @@ const getAllRegistrations = async (req, res, next) => {
         const registrations = await prisma.topicRegistration.findMany({
             where,
             include: {
-                student: { select: { id: true, fullName: true, code: true, email: true } },
-                topic: { select: { id: true, title: true, mentorId: true, mentor: { select: { id: true, fullName: true } } } },
+                student: { select: { id: true, fullName: true, code: true, email: true, class: true } },
+                topic: { select: { id: true, title: true, mentorId: true, mentor: { select: { id: true, fullName: true, email: true } } } },
                 council: { select: { id: true, name: true, councilType: true, defenseDate: true, location: true } },
-                outlineCouncil: { select: { id: true, name: true, councilType: true, defenseDate: true, location: true } },
+                outlineCouncil: {
+                    include: {
+                        members: {
+                            include: {
+                                lecturer: { select: { id: true, fullName: true, email: true } },
+                            },
+                        },
+                    },
+                },
                 defenseCouncil: { select: { id: true, name: true, councilType: true, defenseDate: true, location: true } },
+                submissions: { orderBy: { submittedAt: 'desc' }, take: 5 },
                 _count: { select: { submissions: true } },
                 tasks: { select: { id: true, status: true, taskType: true } },
                 meetingLogs: { select: { id: true, meetingDate: true }, orderBy: { meetingDate: 'desc' } },
@@ -1024,7 +1033,7 @@ const updateOutlineReview = async (req, res, next) => {
             return res.status(400).json({ success: false, message: 'ID đăng ký không hợp lệ.' });
         }
 
-        const validStatuses = ['PASSED', 'REVISION_REQUIRED', 'NEEDS_REVISION', 'FAILED'];
+        const validStatuses = ['PASSED', 'REVISION_REQUIRED', 'NEEDS_REVISION'];
         if (!status || !validStatuses.includes(status)) {
             return res.status(400).json({ success: false, message: 'Trạng thái xét duyệt đề cương không hợp lệ.' });
         }

@@ -4,6 +4,8 @@ const jwt = require('jsonwebtoken');
 jest.mock('../../src/config/database', () => ({
     user: { findUnique: jest.fn() },
     topicRegistration: { findUnique: jest.fn(), findMany: jest.fn() },
+    semester: { findFirst: jest.fn() },
+    task: { groupBy: jest.fn() },
     notification: { create: jest.fn() },
 }));
 
@@ -90,6 +92,9 @@ describe('Council Chairman Outline Review BM01 (Task 10)', () => {
         });
 
         prisma.topicRegistration.findUnique.mockResolvedValue(sampleRegistration);
+        prisma.topicRegistration.findMany.mockResolvedValue([]);
+        prisma.semester.findFirst.mockResolvedValue({ id: 10, name: 'HK1 2026-2027' });
+        prisma.task.groupBy.mockResolvedValue([]);
     });
 
     it('should allow Council CHAIRMAN to update outline review', async () => {
@@ -200,5 +205,47 @@ describe('Council Chairman Outline Review BM01 (Task 10)', () => {
         expect(res.status).toBe(200);
         expect(res.body.success).toBe(true);
         expect(reviewBM01).toHaveBeenCalled();
+    });
+
+    it('should reject status FAILED for outline review attempt 1 with 400', async () => {
+        const res = await request(app)
+            .patch('/api/registrations/101/outline-review')
+            .set('Authorization', 'Bearer chairman-token')
+            .set('Idempotency-Key', 'chairman-failed-attempt-001')
+            .send({ status: 'FAILED', feedback: 'Không hợp lệ cho lần 1' });
+
+        expect(res.status).toBe(400);
+        expect(reviewBM01).not.toHaveBeenCalled();
+    });
+
+    it('should fetch registrations with outlineCouncil and submissions when asCouncilChairman=true and enforce default semester', async () => {
+        const res = await request(app)
+            .get('/api/registrations?asCouncilChairman=true')
+            .set('Authorization', 'Bearer chairman-token');
+
+        expect(res.status).toBe(200);
+        expect(prisma.topicRegistration.findMany).toHaveBeenCalled();
+
+        const findManyArgs = prisma.topicRegistration.findMany.mock.calls[0][0];
+
+        // 1. Where clause enforces default semester and council chairman role
+        expect(findManyArgs.where.semesterId).toBe(10);
+        expect(findManyArgs.where.outlineCouncil).toEqual({
+            members: {
+                some: {
+                    lecturerId: 201,
+                    roleInCouncil: 'CHAIRMAN',
+                },
+            },
+        });
+
+        // 2. Includes submissions, student.class, mentor.email, and detailed outlineCouncil
+        expect(findManyArgs.include.submissions).toEqual({
+            orderBy: { submittedAt: 'desc' },
+            take: 5,
+        });
+        expect(findManyArgs.include.student.select.class).toBe(true);
+        expect(findManyArgs.include.topic.select.mentor.select.email).toBe(true);
+        expect(findManyArgs.include.outlineCouncil.include.members).toBeDefined();
     });
 });

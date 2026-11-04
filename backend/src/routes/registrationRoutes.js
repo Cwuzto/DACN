@@ -150,7 +150,7 @@ const outlineReviewGuards = [
     param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
     body().custom((body) => {
         const val = body.status || body.decision;
-        if (!val || !['PASSED', 'REVISION_REQUIRED', 'NEEDS_REVISION', 'FAILED'].includes(val)) {
+        if (!val || !['PASSED', 'REVISION_REQUIRED', 'NEEDS_REVISION'].includes(val)) {
             throw new Error('Trạng thái hoặc quyết định xét duyệt đề cương không hợp lệ.');
         }
         return true;
