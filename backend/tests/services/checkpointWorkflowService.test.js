@@ -369,6 +369,61 @@ describe('checkpointWorkflowService', () => {
                 expect.anything(),
             );
         });
+
+        test('Admin duyệt chấp thuận khiếu nại chữ ký -> khơi thông về BM03_SIGNATURE_PENDING gia hạn ký', async () => {
+            const appeal = {
+                id: 601,
+                checkpointEvaluationId: 501,
+                registration: {
+                    id: 50,
+                    status: 'CHECKPOINT_SIGNATURE_APPEAL_SUBMITTED',
+                    stateVersion: 8,
+                    topic: { mentorId: 20 },
+                    periodPolicyVersion: {
+                        policy: { checkpointSignWindowDays: 4 },
+                    },
+                },
+                checkpointEvaluation: {
+                    id: 501,
+                    checkpointNo: 1,
+                    attemptNo: 1,
+                    studentSignDeadlineAt: new Date(Date.now() - 10000),
+                },
+            };
+
+            const db = dbFor(baseRegistration, {
+                checkpointSignatureAppeal: {
+                    findUnique: jest.fn().mockResolvedValue(appeal),
+                    update: jest.fn().mockResolvedValue({ id: 601, status: 'APPROVED' }),
+                },
+            });
+
+            const result = await reviewSignatureAppeal({
+                appealId: 601,
+                decision: 'APPROVED',
+                reviewNotes: 'Lý do chính đáng, chấp thuận gia hạn ký',
+                actorId: 1, // Admin
+                idempotencyKey: 'idem-key-admin-approve-appeal',
+            }, { db });
+
+            expect(result.decision).toBe('APPROVED');
+            expect(result.isAppealed).toBe(true);
+            expect(result.studentSignDeadlineAt).toBeDefined();
+            expect(transitionRegistration).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    targetStatus: 'BM03_SIGNATURE_PENDING',
+                }),
+                expect.anything(),
+            );
+            expect(db.tx.checkpointEvaluation.update).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    where: { id: 501 },
+                    data: expect.objectContaining({
+                        isAppealed: true,
+                    }),
+                }),
+            );
+        });
     });
 
     describe('mentorTransferService', () => {

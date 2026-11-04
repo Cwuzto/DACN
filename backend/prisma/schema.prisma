@@ -1024,6 +1024,7 @@ model CheckpointEvaluation {
   studentSignedAt        DateTime?                   @map("student_signed_at")
   studentSignature       String?                     @map("student_signature")
   studentSignDeadlineAt  DateTime?                   @map("student_sign_deadline_at")
+  isAppealed             Boolean                     @default(false) @map("is_appealed")
   notifiedAt             DateTime?                   @map("notified_at")
   supersedesEvaluationId Int?                        @unique @map("supersedes_evaluation_id")
   policyVersionId        Int                         @map("policy_version_id")

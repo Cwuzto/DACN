@@ -23,8 +23,19 @@ function jsonValue(value) {
     return JSON.parse(JSON.stringify(value));
 }
 
+const VN_TIMEZONE = 'Asia/Ho_Chi_Minh';
+
+function calculatePolicyDeadline(baseDate, days, policy = {}) {
+    const windowDays = Number(days);
+    if (!Number.isFinite(windowDays) || windowDays <= 0) {
+        throw new WorkflowTransitionError('INVALID_DEADLINE_DAYS', 400);
+    }
+    const fromTime = baseDate instanceof Date ? baseDate.getTime() : new Date(baseDate).getTime();
+    return new Date(fromTime + windowDays * 24 * 60 * 60 * 1000);
+}
+
 function addDays(date, days) {
-    return new Date(date.getTime() + (days * 24 * 60 * 60 * 1000));
+    return calculatePolicyDeadline(date, days);
 }
 
 async function findReceipt(tx, scope, key, hash) {
@@ -342,12 +353,16 @@ async function handleSignatureOverdue(input, options = {}) {
             throw new WorkflowTransitionError('CHECKPOINT_ALREADY_SIGNED', 409);
         }
 
+        if (evaluation.isAppealed) {
+            throw new WorkflowTransitionError('MAX_APPEALS_EXCEEDED', 409);
+        }
+
         if (!evaluation.studentSignDeadlineAt || now <= evaluation.studentSignDeadlineAt) {
             throw new WorkflowTransitionError('SIGNATURE_WINDOW_NOT_EXPIRED', 409);
         }
 
-        const appealWindowDays = Number(registration.periodPolicyVersion?.policy?.appealWindowDays) || 3;
-        const appealDeadlineAt = addDays(now, appealWindowDays);
+        const appealWindowDays = Number(registration.periodPolicyVersion?.policy?.appealWindowDays ?? registration.periodPolicyVersion?.policy?.checkpointAppealWindowDays) || 3;
+        const appealDeadlineAt = calculatePolicyDeadline(now, appealWindowDays, registration.periodPolicyVersion?.policy);
 
         // Tạo bản ghi CheckpointSignatureAppeal
         const appeal = await tx.checkpointSignatureAppeal.upsert({
@@ -513,8 +528,10 @@ async function reviewSignatureAppeal(input, options = {}) {
                         status: true,
                         stateVersion: true,
                         topic: { select: { mentorId: true } },
+                        periodPolicyVersion: { select: { id: true, policy: true } },
                     },
                 },
+                checkpointEvaluation: true,
             },
         });
         if (!appeal) throw new WorkflowTransitionError('APPEAL_NOT_FOUND', 404);
@@ -533,7 +550,25 @@ async function reviewSignatureAppeal(input, options = {}) {
         }
 
         const isApproved = input.decision === 'APPROVED';
-        const targetStatus = isApproved ? 'SIGNATURE_APPEAL_RESOLVED' : 'TERMINATED_FAILED_PROGRESS';
+        let targetStatus;
+        let newDeadline = null;
+
+        if (isApproved) {
+            targetStatus = 'BM03_SIGNATURE_PENDING';
+            const policy = registration.periodPolicyVersion?.policy || {};
+            const extensionDays = Number(policy.appealExtensionDays ?? policy.checkpointSignWindowDays ?? 3);
+            newDeadline = calculatePolicyDeadline(now, extensionDays, policy);
+
+            await tx.checkpointEvaluation.update({
+                where: { id: appeal.checkpointEvaluationId },
+                data: {
+                    studentSignDeadlineAt: newDeadline,
+                    isAppealed: true,
+                },
+            });
+        } else {
+            targetStatus = 'TERMINATED_FAILED_PROGRESS';
+        }
 
         const updatedAppeal = await tx.checkpointSignatureAppeal.update({
             where: { id: appeal.id },
@@ -552,14 +587,17 @@ async function reviewSignatureAppeal(input, options = {}) {
             expectedStateVersion: registration.stateVersion,
             targetStatus,
             actorId: input.actorId,
-            reason: `Kết luận thẩm định khiếu nại chữ ký: ${isApproved ? 'CHẤP THUẬN' : 'BÁC ĐƠN'}`,
+            reason: `Kết luận thẩm định khiếu nại chữ ký: ${isApproved ? 'CHẤP THUẬN (GIA HẠN KÝ BM03)' : 'BÁC ĐƠN (DỪNG ĐỀ TÀI)'}`,
             idempotencyKey: `${key}:transition`,
         }, { tx });
 
         const response = {
             appealId: updatedAppeal.id,
+            checkpointEvaluationId: appeal.checkpointEvaluationId,
             decision: input.decision,
             reviewedAt: updatedAppeal.reviewedAt,
+            studentSignDeadlineAt: newDeadline,
+            isAppealed: isApproved ? true : undefined,
             transitionResult,
         };
 
@@ -581,6 +619,8 @@ module.exports = {
     OVERDUE_SCOPE,
     SUBMIT_APPEAL_SCOPE,
     REVIEW_APPEAL_SCOPE,
+    VN_TIMEZONE,
+    calculatePolicyDeadline,
     issueCheckpoint,
     signCheckpoint,
     handleSignatureOverdue,
