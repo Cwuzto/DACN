@@ -662,6 +662,8 @@ export default function GradingDefensePage() {
                                 const scores = memberScores.map((m) => Number(m.finalScore)).filter((n) => Number.isFinite(n));
                                 const delta = scores.length >= 2 ? Math.max(...scores) - Math.min(...scores) : 0;
                                 const hasDiscrepancy = delta >= 1.5;
+                                const lockedCount = memberScores.filter((m) => m.scoreLocked).length;
+                                const allLocked = memberScores.length >= 3 && memberScores.every((m) => m.scoreLocked);
 
                                 return (
                                     <tr key={id} style={{ background: isSelected ? 'var(--primary-light)' : undefined }}>
@@ -738,7 +740,7 @@ export default function GradingDefensePage() {
                                             <div style={{ fontSize: 10.5, color: 'var(--muted)' }}>20%</div>
                                         </td>
                                         <td style={{ textAlign: 'center' }}>
-                                            <div style={{ display: 'flex', gap: 4, justifyContent: 'center', flexWrap: 'wrap' }}>
+                                            <div style={{ display: 'flex', gap: 4, justifyContent: 'center', flexWrap: 'wrap', alignItems: 'center' }}>
                                                 {memberScores.length > 0 ? (
                                                     memberScores.map((m, idx) => (
                                                         <span
@@ -750,15 +752,42 @@ export default function GradingDefensePage() {
                                                                 padding: '2px 6px',
                                                                 borderRadius: 4,
                                                                 color: '#334155',
+                                                                display: 'inline-flex',
+                                                                alignItems: 'center',
+                                                                gap: 4,
                                                             }}
                                                         >
-                                                            {m.evaluator?.fullName ? m.evaluator.fullName.split(' ').slice(-1)[0] : `GK${idx + 1}`}:
-                                                            <strong style={{ marginLeft: 3 }}>{m.finalScore ?? '—'}</strong>
+                                                            <span>{m.evaluator?.fullName ? m.evaluator.fullName.split(' ').slice(-1)[0] : `GK${idx + 1}`}: <strong>{m.finalScore ?? '—'}</strong></span>
+                                                            {m.scoreLocked ? (
+                                                                <span style={{ fontSize: 9.5, padding: '1px 4px', borderRadius: 3, background: '#DCFCE7', color: '#15803D', fontWeight: 600 }}>
+                                                                    Đã khóa
+                                                                </span>
+                                                            ) : (
+                                                                <span style={{ fontSize: 9.5, padding: '1px 4px', borderRadius: 3, background: '#FEF3C7', color: '#B45309', fontWeight: 600 }}>
+                                                                    Chưa khóa
+                                                                </span>
+                                                            )}
                                                         </span>
                                                     ))
                                                 ) : (
                                                     <span style={{ fontSize: 11.5, color: 'var(--muted)', fontStyle: 'italic' }}>Chưa có phiếu</span>
                                                 )}
+                                            </div>
+                                            <div style={{ marginTop: 4 }}>
+                                                <span
+                                                    className="badge"
+                                                    style={{
+                                                        fontSize: 10.5,
+                                                        padding: '2px 6px',
+                                                        borderRadius: 4,
+                                                        background: allLocked ? '#ECFDF5' : '#FFFBEB',
+                                                        color: allLocked ? '#047857' : '#B45309',
+                                                        border: `1px solid ${allLocked ? '#A7F3D0' : '#FDE68A'}`,
+                                                        fontWeight: 600,
+                                                    }}
+                                                >
+                                                    {lockedCount}/3 phiếu đã khóa
+                                                </span>
                                             </div>
                                             {hasDiscrepancy && (
                                                 <div style={{ marginTop: 4 }}>
@@ -811,15 +840,21 @@ export default function GradingDefensePage() {
                                                         Mở khóa
                                                     </button>
                                                 ) : (
-                                                    <button
-                                                        className="btn btn-primary btn-sm"
-                                                        onClick={() => handleScoreLock(id, 'LOCK')}
-                                                        disabled={lockingId === id}
-                                                        style={{ padding: '4px 8px' }}
-                                                        title="Khóa điểm chính thức"
+                                                    <Tooltip
+                                                        title={!allLocked ? `Cần đủ 3 thành viên hội đồng nộp & khóa phiếu chấm trước khi khóa sổ điểm hội đồng (Hiện tại: ${lockedCount}/3)` : ''}
                                                     >
-                                                        Khóa
-                                                    </button>
+                                                        <span>
+                                                            <button
+                                                                className="btn btn-primary btn-sm"
+                                                                onClick={() => handleScoreLock(id, 'LOCK')}
+                                                                disabled={!allLocked || lockingId === id}
+                                                                style={{ padding: '4px 8px' }}
+                                                                title={allLocked ? "Khóa sổ điểm hội đồng" : undefined}
+                                                            >
+                                                                Khóa sổ điểm hội đồng
+                                                            </button>
+                                                        </span>
+                                                    </Tooltip>
                                                 ))}
                                                 {canApproveResult && r.status === 'AWAITING_FINAL_APPROVAL' && (
                                                     <>
@@ -937,8 +972,23 @@ export default function GradingDefensePage() {
 
                     {/* Jury Members Comparison Cards */}
                     <div style={{ marginTop: 16 }}>
-                        <div className="drawer-section-title">
-                            Điểm số Từng Thành viên Hội đồng (Click chọn người đang chấm)
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                            <div className="drawer-section-title" style={{ marginBottom: 0 }}>
+                                Điểm số Từng Thành viên Hội đồng (Click chọn người đang chấm)
+                            </div>
+                            <span
+                                className="badge"
+                                style={{
+                                    fontSize: 11,
+                                    padding: '2px 8px',
+                                    borderRadius: 4,
+                                    background: memberScoresList.filter(m => m.scoreLocked).length >= 3 ? '#ECFDF5' : '#FFFBEB',
+                                    color: memberScoresList.filter(m => m.scoreLocked).length >= 3 ? '#047857' : '#B45309',
+                                    fontWeight: 600,
+                                }}
+                            >
+                                {memberScoresList.filter(m => m.scoreLocked).length}/3 phiếu đã khóa
+                            </span>
                         </div>
                         <div className="rubric-jury-strip">
                             {memberScoresList.map((m, idx) => (
@@ -950,7 +1000,18 @@ export default function GradingDefensePage() {
                                         setSelectedEvaluatorId(m.evaluatorId);
                                     }}
                                 >
-                                    <span className="jury-role-label">{m.role || `Giám khảo ${idx + 1}`}</span>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span className="jury-role-label">{m.role || `Giám khảo ${idx + 1}`}</span>
+                                        {m.scoreLocked ? (
+                                            <span style={{ fontSize: 9.5, padding: '1px 4px', borderRadius: 3, background: '#DCFCE7', color: '#15803D', fontWeight: 600 }}>
+                                                Đã khóa
+                                            </span>
+                                        ) : (
+                                            <span style={{ fontSize: 9.5, padding: '1px 4px', borderRadius: 3, background: '#FEF3C7', color: '#B45309', fontWeight: 600 }}>
+                                                Chưa khóa
+                                            </span>
+                                        )}
+                                    </div>
                                     <span className="jury-person-name">{m.evaluatorName || m.evaluator?.fullName || `GK ${idx + 1}`}</span>
                                     <span className="rubric-jury-score num">
                                         {activeJuryIndex === idx ? activeEvaluatorScore.toFixed(1) : (m.finalScore ?? '—')}

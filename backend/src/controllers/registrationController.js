@@ -581,6 +581,7 @@ const getAllRegistrations = async (req, res, next) => {
 
             return {
                 ...reg,
+                allowedActions: computeAllowedActions(reg, req.user),
                 progress,
                 overdueTaskCount,
                 hasOverdueTask: overdueTaskCount > 0,

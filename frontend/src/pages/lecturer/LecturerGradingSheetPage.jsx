@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { message } from 'antd';
+import { message, Popconfirm } from 'antd';
 import dayjs from 'dayjs';
 import evaluationService from '../../services/evaluationService';
 import PageLoader from '../../components/common/PageLoader';
@@ -31,6 +31,7 @@ export default function LecturerGradingSheetPage() {
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [locking, setLocking] = useState(false);
     const [exporting, setExporting] = useState(false);
     const [scoreLocked, setScoreLocked] = useState(false);
     const [registration, setRegistration] = useState(null);
@@ -164,6 +165,37 @@ export default function LecturerGradingSheetPage() {
         }
     };
 
+    const handleLockMemberScore = async () => {
+        if (!isCompleted) {
+            message.warning('Vui lòng nhập đầy đủ điểm cho tất cả các tiêu chí trong barem trước khi khóa.');
+            return;
+        }
+
+        try {
+            setLocking(true);
+            const payload = {
+                registrationId: Number(registrationId),
+                scores: allCriteria.map((cri) => ({
+                    criterionCode: cri.code,
+                    score: Number(scoresMap[cri.code] || 0),
+                    comment: commentsMap[cri.code] || null,
+                })),
+                generalComment: generalComment ? generalComment.trim() : '',
+                targetRubricVersion: rubricInfo?.version || 'v1',
+            };
+
+            const res = await evaluationService.lockMemberScoreSheet(payload);
+            if (res.success) {
+                setScoreLocked(true);
+                message.success('Đã nộp và khóa phiếu chấm cá nhân thành công!');
+            }
+        } catch (e) {
+            message.error(e.message || 'Khóa phiếu chấm thất bại');
+        } finally {
+            setLocking(false);
+        }
+    };
+
     const handleExportPdf = async () => {
         try {
             setExporting(true);
@@ -220,7 +252,7 @@ export default function LecturerGradingSheetPage() {
                         {exporting ? 'Đang xuất PDF...' : 'Xuất PDF'}
                     </button>
                     <button
-                        className="btn btn-primary btn-sm"
+                        className="btn btn-secondary btn-sm"
                         onClick={handleSave}
                         disabled={saving || scoreLocked}
                         type="button"
@@ -230,8 +262,30 @@ export default function LecturerGradingSheetPage() {
                             <polyline points="17 21 17 13 7 13 7 21" />
                             <polyline points="7 3 7 8 15 8" />
                         </svg>
-                        {saving ? 'Đang lưu...' : 'Lưu Điểm & Ký Số Điện Tử'}
+                        {saving ? 'Đang lưu...' : 'Lưu Điểm Nháp'}
                     </button>
+                    <Popconfirm
+                        title="Khóa phiếu chấm cá nhân"
+                        description="Sau khi khóa phiếu, điểm số cá nhân của bạn sẽ được chốt và nộp vào hội đồng. Bạn sẽ không thể chỉnh sửa thêm. Bạn có chắc chắn muốn nộp và khóa phiếu?"
+                        onConfirm={handleLockMemberScore}
+                        okText="Xác nhận khóa"
+                        cancelText="Hủy"
+                        disabled={scoreLocked || !isCompleted || locking}
+                    >
+                        <button
+                            className="btn btn-primary btn-sm"
+                            disabled={scoreLocked || !isCompleted || locking}
+                            type="button"
+                            title={!isCompleted ? 'Vui lòng chấm đủ tất cả các tiêu chí trước khi khóa' : undefined}
+                            style={{ background: scoreLocked ? undefined : '#0F766E', borderColor: scoreLocked ? undefined : '#0F766E' }}
+                        >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                            </svg>
+                            {locking ? 'Đang khóa...' : 'Nộp & Khóa phiếu cá nhân'}
+                        </button>
+                    </Popconfirm>
                 </div>
             </div>
 
@@ -253,7 +307,7 @@ export default function LecturerGradingSheetPage() {
                         <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                     </svg>
                     <div>
-                        <strong>Phiếu điểm đã được khóa:</strong> Điểm số đã nộp vào biên bản Hội đồng và không thể thay đổi trực tiếp.
+                        <strong>Đã nộp và khóa phiếu chấm cá nhân:</strong> Điểm số đã nộp vào biên bản Hội đồng và không thể thay đổi trực tiếp.
                     </div>
                 </div>
             )}

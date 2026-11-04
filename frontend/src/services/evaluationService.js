@@ -125,6 +125,14 @@ const evaluationService = {
         }
     },
 
+    lockMemberScoreSheet: async (payload) => {
+        try {
+            return await api.post('/evaluations/member-score/lock', payload, idempotencyConfig());
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi nộp và khóa phiếu điểm cá nhân');
+        }
+    },
+
     submitBM01: async (registrationId, data) => {
         try {
             return await api.post(`/evaluations/bm01-submit/${registrationId}`, data, idempotencyConfig());

@@ -42,6 +42,7 @@ export default function StudentDashboardPage() {
 
     const [, setLoading] = useState(true);
     const [data, setData] = useState(null);
+    const [allowedActions, setAllowedActions] = useState([]);
     const [withdrawModalOpen, setWithdrawModalOpen] = useState(false);
     const [withdrawReason, setWithdrawReason] = useState('');
     const [withdrawing, setWithdrawing] = useState(false);
@@ -54,6 +55,21 @@ export default function StudentDashboardPage() {
             const res = await dashboardService.getStudentStats();
             if (res.success) {
                 setData(res.data);
+                const regId = res.data?.registrationDetails?.registrationId || res.data?.registrationDetails?.id;
+                if (regId) {
+                    try {
+                        const actionRes = await registrationService.getAllowedActions(regId);
+                        if (actionRes.success && Array.isArray(actionRes.data?.allowedActions)) {
+                            setAllowedActions(actionRes.data.allowedActions);
+                        } else {
+                            setAllowedActions([]);
+                        }
+                    } catch {
+                        setAllowedActions([]);
+                    }
+                } else {
+                    setAllowedActions([]);
+                }
             }
         } catch (error) {
             console.error(error);
@@ -69,7 +85,7 @@ export default function StudentDashboardPage() {
     const { hasRegistration, registrationDetails, taskStatus, upcomingDeadlines } = data || {};
     const hasAnyRegistration = hasRegistration ?? false;
     const currentRegistration = registrationDetails ?? null;
-    const canWithdraw = hasAnyRegistration && WITHDRAWABLE_STATUSES.includes(currentRegistration?.status);
+    const canWithdraw = hasAnyRegistration && allowedActions.includes('CANCEL_REGISTRATION');
     const nearestDeadline = upcomingDeadlines && upcomingDeadlines.length > 0 ? upcomingDeadlines[0] : null;
     const titleAdjustmentDeadline = currentRegistration?.decisionDate
         ? dayjs(currentRegistration.decisionDate).add(7, 'day')
@@ -113,6 +129,10 @@ export default function StudentDashboardPage() {
     };
 
     const handleWithdrawRegistration = async () => {
+        if (!allowedActions.includes('CANCEL_REGISTRATION')) {
+            message.warning('Trạng thái hiện tại của hồ sơ không cho phép rút đăng ký.');
+            return;
+        }
         if (!withdrawReason.trim()) {
             message.warning('Vui lòng nhập lý do rút đăng ký.');
             return;
@@ -195,7 +215,7 @@ export default function StudentDashboardPage() {
                                     {currentRegistration?.status === 'CHECKPOINT_SIGNATURE_APPEAL_OPEN' ? '⚠️ Khiếu nại BM03' : '✍️ Ký Biên Bản BM03 Ngay'}
                                 </button>
                             )}
-                            {currentRegistration?.status === 'DECISION_ISSUED' && (
+                            {allowedActions.includes('REQUEST_TITLE_CHANGE') && (
                                 <button
                                     className="btn btn-outline-primary btn-sm"
                                     disabled={!titleAdjustmentOpen}
@@ -225,7 +245,7 @@ export default function StudentDashboardPage() {
                         </div>
                     </div>
 
-                    {currentRegistration?.status === 'DECISION_ISSUED' && titleAdjustmentDeadline && (
+                    {allowedActions.includes('REQUEST_TITLE_CHANGE') && titleAdjustmentDeadline && (
                         <div
                             role="status"
                             style={{
@@ -609,10 +629,6 @@ export default function StudentDashboardPage() {
                                 <li style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12.5 }}>
                                     <span>BM03: Mẫu báo cáo tiến độ định kỳ (.docx)</span>
                                     <button className="btn btn-secondary btn-sm" onClick={() => message.success('Đang tải BM03_BaoCaoTienDo.docx...')}>Tải về</button>
-                                </li>
-                                <li style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12.5 }}>
-                                    <span>Khung mẫu LaTeX báo cáo tốt nghiệp (.zip)</span>
-                                    <button className="btn btn-secondary btn-sm" onClick={() => message.success('Đang tải DACN_LaTeX_Template.zip...')}>Tải về</button>
                                 </li>
                                 <li style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12.5 }}>
                                     <span>Mẫu Slide báo cáo bảo vệ Hội đồng (.pptx)</span>

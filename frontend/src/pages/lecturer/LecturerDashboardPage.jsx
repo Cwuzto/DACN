@@ -119,6 +119,11 @@ export default function LecturerDashboardPage() {
     };
 
     const handleApproveRevisedBM01 = async (registrationId) => {
+        const target = bm01RevisionQueue.find((r) => r.id === registrationId);
+        if (target?.allowedActions && !target.allowedActions.includes('APPROVE_BM01_REVISION')) {
+            message.warning('Trạng thái hồ sơ không cho phép thẩm định duyệt lại BM01.');
+            return;
+        }
         const key = `bm01-${registrationId}`;
         try {
             setProcessingWorkflowKey(key);
@@ -373,22 +378,25 @@ export default function LecturerDashboardPage() {
                     <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
                         {bm01RevisionQueue.length === 0 ? (
                             <div style={{ color: 'var(--muted)', fontSize: 13 }}>Không có BM01 chỉnh sửa đang chờ xử lý.</div>
-                        ) : bm01RevisionQueue.map((registration) => (
-                            <div key={registration.id} style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 12, display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
-                                <div>
-                                    <strong>{registration.student?.fullName || 'Sinh viên'}</strong>
-                                    <div style={{ color: 'var(--muted)', fontSize: 12 }}>{registration.student?.code || '-'} · {registration.topic?.title || 'Đề tài'}</div>
+                        ) : bm01RevisionQueue.map((registration) => {
+                            const canApprove = !registration.allowedActions || registration.allowedActions.includes('APPROVE_BM01_REVISION');
+                            return (
+                                <div key={registration.id} style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 12, display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+                                    <div>
+                                        <strong>{registration.student?.fullName || 'Sinh viên'}</strong>
+                                        <div style={{ color: 'var(--muted)', fontSize: 12 }}>{registration.student?.code || '-'} · {registration.topic?.title || 'Đề tài'}</div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        className="btn btn-primary btn-sm"
+                                        disabled={processingWorkflowKey === `bm01-${registration.id}` || !canApprove}
+                                        onClick={() => handleApproveRevisedBM01(registration.id)}
+                                    >
+                                        {processingWorkflowKey === `bm01-${registration.id}` ? 'Đang duyệt...' : 'Duyệt đạt'}
+                                    </button>
                                 </div>
-                                <button
-                                    type="button"
-                                    className="btn btn-primary btn-sm"
-                                    disabled={processingWorkflowKey === `bm01-${registration.id}`}
-                                    onClick={() => handleApproveRevisedBM01(registration.id)}
-                                >
-                                    {processingWorkflowKey === `bm01-${registration.id}` ? 'Đang duyệt...' : 'Duyệt đạt'}
-                                </button>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
 
