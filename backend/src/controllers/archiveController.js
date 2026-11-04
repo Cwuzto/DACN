@@ -1,5 +1,7 @@
 const prisma = require('../config/database');
 const { PERMISSIONS } = require('../constants/permissions');
+const { auditLog } = require('../services/auditLogService');
+const { safeNotify } = require('../services/notificationService');
 
 const parsePositiveInt = (value) => {
     const parsed = parseInt(value, 10);
@@ -122,11 +124,39 @@ const getArchiveByRegistration = async (req, res, next) => {
         }
         delete responseRegistration.resultPublicationItems;
 
+        const archiveData = registration.archive;
+        const phase = archiveData?.phase || (archiveData ? 'POST_DEFENSE' : null);
+        const preDefenseDocuments = archiveData ? {
+            reportFileUrl: archiveData.reportFileUrl || null,
+            reportFileName: archiveData.reportFileName || null,
+            slideFileUrl: archiveData.slideFileUrl || null,
+            slideFileName: archiveData.slideFileName || null,
+            sourceCodeUrl: archiveData.sourceCodeUrl || null,
+            notes: archiveData.summary || null,
+        } : null;
+        const postDefenseDocuments = archiveData?.phase === 'POST_DEFENSE' ? {
+            reportFileUrl: archiveData.reportFileUrl || null,
+            reportFileName: archiveData.reportFileName || null,
+            slideFileUrl: archiveData.slideFileUrl || null,
+            slideFileName: archiveData.slideFileName || null,
+            sourceCodeUrl: archiveData.sourceCodeUrl || null,
+            demoVideoUrl: archiveData.demoVideoUrl || null,
+            bm03FileUrl: archiveData.bm03FileUrl || null,
+            bm04FileUrl: archiveData.bm04FileUrl || null,
+            summary: archiveData.summary || null,
+        } : null;
+
         res.json({
             success: true,
             data: {
                 registration: responseRegistration,
-                archive: registration.archive || null,
+                archive: archiveData ? {
+                    ...archiveData,
+                    phase,
+                } : null,
+                phase,
+                preDefenseDocuments,
+                postDefenseDocuments,
             },
         });
     } catch (error) {
@@ -194,6 +224,7 @@ const submitArchive = async (req, res, next) => {
         const archive = await prisma.projectArchive.upsert({
             where: { registrationId },
             update: {
+                phase: 'POST_DEFENSE',
                 reportFileUrl: reportFileUrl || undefined,
                 reportFileName: reportFileName || undefined,
                 slideFileUrl: slideFileUrl || undefined,
@@ -209,6 +240,7 @@ const submitArchive = async (req, res, next) => {
             },
             create: {
                 registrationId,
+                phase: 'POST_DEFENSE',
                 reportFileUrl,
                 reportFileName,
                 slideFileUrl,
@@ -675,10 +707,140 @@ const getHealthRadarStats = async (req, res, next) => {
     }
 };
 
+// Sinh vien nop ho so luu chieu so bo truoc bao ve (Pre-defense)
+const submitPreDefenseArchive = async (req, res, next) => {
+    try {
+        const registrationId = parsePositiveInt(req.params.registrationId || req.body.registrationId);
+
+        let registration;
+        if (registrationId) {
+            registration = await prisma.topicRegistration.findUnique({
+                where: { id: registrationId },
+                include: { topic: true },
+            });
+        } else {
+            registration = await prisma.topicRegistration.findFirst({
+                where: {
+                    studentId: req.user.id,
+                    status: 'BM03_PASSED',
+                },
+                include: { topic: true },
+                orderBy: { id: 'desc' },
+            });
+        }
+
+        if (!registration) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy hồ sơ đăng ký đề tài.' });
+        }
+
+        const { role, id: userId } = req.user;
+        const isOwner = role === 'STUDENT' && registration.studentId === userId;
+
+        if (!isOwner) {
+            return res.status(403).json({ success: false, message: 'Chỉ sinh viên sở hữu đề tài mới được nộp hồ sơ lưu chiểu sơ bộ.' });
+        }
+
+        if (registration.status !== 'BM03_PASSED') {
+            return res.status(400).json({
+                success: false,
+                message: 'Chỉ hồ sơ ở trạng thái hoàn thành tiến độ (BM03_PASSED) mới được nộp hồ sơ lưu chiểu sơ bộ trước bảo vệ.',
+            });
+        }
+
+        const {
+            reportFileUrl,
+            reportFileName,
+            slideFileUrl,
+            slideFileName,
+            sourceCodeUrl,
+            demoVideoUrl,
+            notes,
+            summary,
+        } = req.body;
+
+        if (!reportFileUrl && !slideFileUrl && !sourceCodeUrl && !demoVideoUrl) {
+            return res.status(400).json({
+                success: false,
+                message: 'Vui lòng cung cấp ít nhất tệp báo cáo toàn văn, slide thuyết trình hoặc link mã nguồn.',
+            });
+        }
+
+        const notesContent = notes !== undefined ? notes : summary;
+
+        const archive = await prisma.projectArchive.upsert({
+            where: { registrationId: registration.id },
+            update: {
+                phase: 'PRE_DEFENSE',
+                status: 'SUBMITTED',
+                reportFileUrl: reportFileUrl || undefined,
+                reportFileName: reportFileName || undefined,
+                slideFileUrl: slideFileUrl || undefined,
+                slideFileName: slideFileName || undefined,
+                sourceCodeUrl: sourceCodeUrl || undefined,
+                demoVideoUrl: demoVideoUrl || undefined,
+                summary: notesContent !== undefined ? notesContent : undefined,
+                submittedAt: new Date(),
+                reviewerNotes: null,
+            },
+            create: {
+                registrationId: registration.id,
+                phase: 'PRE_DEFENSE',
+                status: 'SUBMITTED',
+                reportFileUrl: reportFileUrl || null,
+                reportFileName: reportFileName || null,
+                slideFileUrl: slideFileUrl || null,
+                slideFileName: slideFileName || null,
+                sourceCodeUrl: sourceCodeUrl || null,
+                demoVideoUrl: demoVideoUrl || null,
+                summary: notesContent || null,
+                submittedAt: new Date(),
+            },
+            include: {
+                reviewer: { select: { id: true, fullName: true, role: true } },
+            },
+        });
+
+        // Thong bao an toan cho GVHD
+        if (registration.topic?.mentorId) {
+            await safeNotify({
+                userId: registration.topic.mentorId,
+                type: 'SUBMISSION',
+                title: 'Sinh viên đã nộp hồ sơ lưu chiểu sơ bộ (Pre-defense)',
+                content: `Sinh viên đã nộp tài liệu lưu chiểu sơ bộ cho đề tài "${registration.topic.title}". Vui lòng kiểm tra và thẩm định BM04.`,
+                referenceUrl: '/lecturer/progress-tracking',
+            }, 'archive_pre_defense_submit');
+        }
+
+        await auditLog(
+            userId,
+            'SUBMIT_PRE_DEFENSE_ARCHIVE',
+            'PROJECT_ARCHIVE',
+            archive.id,
+            {
+                registrationId: registration.id,
+                phase: 'PRE_DEFENSE',
+                hasReport: !!archive.reportFileUrl,
+                hasSlide: !!archive.slideFileUrl,
+                hasSourceCode: !!archive.sourceCodeUrl,
+            },
+            req.ip
+        );
+
+        res.json({
+            success: true,
+            message: 'Đã nộp hồ sơ lưu chiểu sơ bộ (Pre-defense) thành công! Hồ sơ đã sẵn sàng để Giảng viên hướng dẫn thẩm định BM04.',
+            data: archive,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     getArchiveByRegistration,
     getRegistrationArchive: getArchiveByRegistration,
     submitArchive,
+    submitPreDefenseArchive,
     reviewArchive,
     getAllArchives,
     getClearanceCertificate,

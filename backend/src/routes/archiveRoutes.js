@@ -44,6 +44,43 @@ router.get(
     archiveController.getArchiveByRegistration,
 );
 
+// 3.5. Sinh vien nop ho so luu chieu so bo truoc bao ve (Pre-defense)
+router.post(
+    '/pre-defense',
+    authorize('STUDENT'),
+    [
+        body('registrationId').optional().isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
+        body('reportFileUrl').optional({ nullable: true }).isString(),
+        body('reportFileName').optional({ nullable: true }).isString(),
+        body('slideFileUrl').optional({ nullable: true }).isString(),
+        body('slideFileName').optional({ nullable: true }).isString(),
+        body('sourceCodeUrl').optional({ nullable: true }).isString(),
+        body('demoVideoUrl').optional({ nullable: true }).isString(),
+        body('notes').optional({ nullable: true }).isString(),
+        body('summary').optional({ nullable: true }).isString(),
+        validateRequest,
+    ],
+    archiveController.submitPreDefenseArchive,
+);
+
+router.post(
+    '/registrations/:registrationId/pre-defense',
+    authorize('STUDENT'),
+    [
+        param('registrationId').isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
+        body('reportFileUrl').optional({ nullable: true }).isString(),
+        body('reportFileName').optional({ nullable: true }).isString(),
+        body('slideFileUrl').optional({ nullable: true }).isString(),
+        body('slideFileName').optional({ nullable: true }).isString(),
+        body('sourceCodeUrl').optional({ nullable: true }).isString(),
+        body('demoVideoUrl').optional({ nullable: true }).isString(),
+        body('notes').optional({ nullable: true }).isString(),
+        body('summary').optional({ nullable: true }).isString(),
+        validateRequest,
+    ],
+    archiveController.submitPreDefenseArchive,
+);
+
 // 4. Sinh vien nop hoac cap nhat ho so luu chieu
 router.post(
     '/registrations/:registrationId',

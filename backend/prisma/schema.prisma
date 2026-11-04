@@ -423,6 +423,7 @@ model ProjectArchive {
   bm03FileUrl    String?           @map("bm03_file_url")
   bm04FileUrl    String?           @map("bm04_file_url")
   summary        String?           @db.Text
+  phase          ArchivePhase      @default(POST_DEFENSE) @map("phase")
   status         ArchiveStatus     @default(SUBMITTED)
   reviewedBy     Int?              @map("reviewed_by")
   reviewerNotes  String?           @db.Text @map("reviewer_notes")
@@ -434,6 +435,7 @@ model ProjectArchive {
   registration   TopicRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
   reviewer       User?             @relation(fields: [reviewedBy], references: [id])
 
+  @@index([registrationId, phase])
   @@map("project_archives")
 }
 
@@ -1178,6 +1180,11 @@ enum OutlineReviewStatus {
   PASSED
   REVISION_REQUIRED
   FAILED
+}
+
+enum ArchivePhase {
+  PRE_DEFENSE
+  POST_DEFENSE
 }
 
 enum ArchiveStatus {
