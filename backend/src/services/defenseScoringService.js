@@ -254,10 +254,13 @@ async function lockMemberScoreSheet(input, options = {}) {
     }
 
     const cleanIdempotencyKey = idempotencyKey.trim();
-    const commandHash = crypto.createHash('sha256').update(JSON.stringify({
+    const hashInput = {
         registrationId,
         evaluatorId: effectiveEvaluatorId,
-    })).digest('hex');
+    };
+    if (scores) hashInput.scores = scores;
+    if (generalComment) hashInput.generalComment = generalComment;
+    const commandHash = crypto.createHash('sha256').update(JSON.stringify(hashInput)).digest('hex');
 
     return await db.$transaction(async (tx) => {
         // Idempotency check
@@ -340,6 +343,16 @@ async function lockMemberScoreSheet(input, options = {}) {
             );
         }
 
+        // Kiểm tra trạng thái hồ sơ: Phải ở DEFENSE_READY hoặc DEFENDED (khi chưa khóa)
+        const eligibleStatuses = ['DEFENSE_READY', 'DEFENDED', 'SUBMITTED'];
+        if (!eligibleStatuses.includes(registration.status)) {
+            throw new WorkflowTransitionError(
+                'INVALID_STATUS_FOR_DEFENSE_GRADING',
+                409,
+                `Trạng thái đề tài không hợp lệ (${registration.status}). Chỉ được khóa điểm khi ở trạng thái: ${eligibleStatuses.join(', ')}.`,
+            );
+        }
+
         // Kiểm tra phiếu điểm cá nhân có bị khóa chưa
         let memberScore = await tx.defenseMemberScore.findUnique({
             where: {
@@ -361,7 +374,17 @@ async function lockMemberScoreSheet(input, options = {}) {
         const now = new Date();
 
         if (scores && Array.isArray(scores) && scores.length > 0) {
-            const totalScore = scores.reduce((sum, item) => sum + (Number(item.score) || 0), 0);
+            for (const row of scores) {
+                const s = Number(row.score);
+                if (row.score === null || row.score === undefined || isNaN(s) || s < 0) {
+                    throw new WorkflowTransitionError(
+                        'INVALID_CRITERION_SCORE',
+                        400,
+                        `Điểm tiêu chí ${row.criterionCode || ''} không hợp lệ (phải là số thực >= 0).`,
+                    );
+                }
+            }
+            const totalScore = scores.reduce((sum, item) => sum + Number(item.score), 0);
             const finalScore = round2(totalScore);
 
             if (!memberScore) {
@@ -401,7 +424,7 @@ async function lockMemberScoreSheet(input, options = {}) {
                     criterionCode: row.criterionCode,
                     criterionLabel: row.criterionLabel || row.criterionCode,
                     maxScore: Number(row.maxScore) || 10,
-                    score: Number(row.score) || 0,
+                    score: Number(row.score),
                     comment: row.comment || null,
                 })),
             });
@@ -668,8 +691,6 @@ async function lockDefenseScores(input, options = {}) {
                 where: { registrationId },
                 data: {
                     scoreLocked: true,
-                    lockedAt: new Date(),
-                    lockedBy: actorId,
                 },
             });
 
