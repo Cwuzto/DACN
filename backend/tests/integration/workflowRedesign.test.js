@@ -384,10 +384,10 @@ describe('Integration - Thesis Workflow Redesign Core Rules', () => {
 
             expect(res.status).toBe(200);
             expect(res.body.success).toBe(true);
-            expect(prisma.topicRegistration.update).toHaveBeenCalledWith(
+            expect(prisma.topicRegistration.updateMany).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    where: { id: 100 },
-                    data: { status: 'DEFENSE_READY' },
+                    where: expect.objectContaining({ id: 100 }),
+                    data: expect.objectContaining({ status: 'DEFENSE_READY' }),
                 }),
             );
         });

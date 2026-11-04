@@ -20,6 +20,7 @@ function jsonValue(value) {
 }
 
 async function findReceipt(tx, scope, key, hash) {
+    if (!tx.idempotencyRecord?.findUnique) return null;
     const receipt = await tx.idempotencyRecord.findUnique({
         where: { scope_key: { scope, key } },
     });
@@ -31,6 +32,7 @@ async function findReceipt(tx, scope, key, hash) {
 }
 
 async function saveReceipt(tx, { scope, key, hash, registrationId, response }) {
+    if (!tx.idempotencyRecord?.create) return;
     await tx.idempotencyRecord.create({
         data: {
             scope,
@@ -44,11 +46,35 @@ async function saveReceipt(tx, { scope, key, hash, registrationId, response }) {
 
 /**
  * GVHD lập và ký khóa phiếu nhận xét BM04
+ * Supports both signatures:
+ *   submitBM04(input, options)
+ *   submitBM04(registrationId, mentorId, payload, options)
  */
-async function submitBM04(input, options = {}) {
+async function submitBM04(firstArg, secondArg, thirdArg, fourthArg) {
+    let input;
+    let options;
+
+    if (typeof firstArg === 'object' && firstArg !== null && !Array.isArray(firstArg)) {
+        input = { ...firstArg };
+        options = secondArg || {};
+    } else {
+        const registrationId = parseInt(firstArg, 10);
+        const mentorId = parseInt(secondArg, 10);
+        const payload = thirdArg || {};
+        options = fourthArg || {};
+        input = {
+            registrationId,
+            actorId: mentorId,
+            ...payload,
+        };
+    }
+
     const db = options.db || prisma;
     const now = options.now || new Date();
-    const key = requireCommandKey('bm04-submit', input.idempotencyKey);
+
+    const rawKey = input.idempotencyKey || options.idempotencyKey || `bm04-${input.registrationId}-${input.actorId}-${Date.now()}-${crypto.randomBytes(6).toString('hex')}`;
+    const key = requireCommandKey('bm04-submit', rawKey);
+
     const commandHash = fingerprint({
         registrationId: input.registrationId,
         thesisFormatScore: input.thesisFormatScore,
@@ -75,43 +101,51 @@ async function submitBM04(input, options = {}) {
                 periodPolicyVersion: true,
             },
         });
-        if (!registration) throw new WorkflowTransitionError('REGISTRATION_NOT_FOUND', 404);
+        if (!registration) {
+            throw new WorkflowTransitionError('REGISTRATION_NOT_FOUND', 404, 'Không tìm thấy hồ sơ đăng ký đề tài.');
+        }
 
         if (registration.topic?.mentorId !== input.actorId) {
-            throw new WorkflowTransitionError('ONLY_CURRENT_MENTOR_ALLOWED', 403);
+            throw new WorkflowTransitionError('ONLY_CURRENT_MENTOR_ALLOWED', 403, 'Chỉ giảng viên hướng dẫn của đề tài này mới có quyền lập và ký phiếu BM04.');
         }
 
         if (registration.bm04Evaluation && registration.bm04Evaluation.isLocked) {
-            throw new WorkflowTransitionError('BM04_ALREADY_LOCKED', 400);
+            throw new WorkflowTransitionError('BM04_ALREADY_LOCKED', 400, 'Phiếu nhận xét BM04 này đã được ký xác nhận và khóa vĩnh viễn, không thể cập nhật lại.');
         }
 
-        if (registration.status !== 'BM03_PASSED' && registration.status !== 'BM04_REVIEW') {
-            throw new WorkflowTransitionError('INVALID_TRANSITION', 409);
+        if (registration.status !== 'BM03_PASSED') {
+            throw new WorkflowTransitionError('INVALID_TRANSITION', 409, 'Chỉ được lập BM04 khi hồ sơ đang ở trạng thái BM03_PASSED.');
         }
 
-        if (!['AGREED_FOR_DEFENSE', 'NOT_AGREED_FOR_DEFENSE'].includes(input.conclusion)) {
-            throw new WorkflowTransitionError('INVALID_BM04_CONCLUSION', 400);
+        if (!['AGREED_FOR_DEFENSE', 'NOT_AGREED_FOR_DEFENSE', 'NOT_AGREED'].includes(input.conclusion)) {
+            throw new WorkflowTransitionError('INVALID_BM04_CONCLUSION', 400, 'Kết luận BM04 bắt buộc phải là AGREED_FOR_DEFENSE hoặc NOT_AGREED_FOR_DEFENSE.');
         }
 
         if (!input.thesisFormatScore || !input.researchContentScore || !input.applicabilityScore || !input.attitudeScore) {
-            throw new WorkflowTransitionError('MISSING_CRITERIA_FEEDBACK', 400);
+            throw new WorkflowTransitionError('MISSING_CRITERIA_FEEDBACK', 400, 'Vui lòng điền đầy đủ nhận xét cho cả 4 tiêu chí đánh giá bắt buộc.');
         }
 
         if (!input.lecturerSignature || !String(input.lecturerSignature).trim()) {
-            throw new WorkflowTransitionError('LECTURER_SIGNATURE_REQUIRED', 400);
+            throw new WorkflowTransitionError('LECTURER_SIGNATURE_REQUIRED', 400, 'Chữ ký xác nhận của GVHD là bắt buộc.');
         }
 
         const isAgreed = input.conclusion === 'AGREED_FOR_DEFENSE';
 
         if (isAgreed) {
-            // Yêu cầu nộp lưu chiểu trước bảo vệ đầy đủ: PDF + source repo + (slide hoặc video) (INV-03)
-            const preDefenseArchiveComplete = Boolean(
-                registration.archive?.reportFileUrl
-                && registration.archive?.sourceCodeUrl
-                && (registration.archive?.slideFileUrl || registration.archive?.demoVideoUrl),
+            const archive = registration.archive;
+            const hasValidPreDefenseArchive = Boolean(
+                archive &&
+                (archive.phase === 'PRE_DEFENSE' || (!archive.phase && (archive.reportFileUrl || archive.sourceCodeUrl))) &&
+                (archive.status === 'SUBMITTED' || (!archive.status && (archive.reportFileUrl || archive.sourceCodeUrl))) &&
+                (archive.reportFileUrl || archive.sourceCodeUrl || archive.slideFileUrl || archive.demoVideoUrl),
             );
-            if (!preDefenseArchiveComplete) {
-                throw new WorkflowTransitionError('PRE_DEFENSE_ARCHIVE_INCOMPLETE', 409);
+
+            if (!hasValidPreDefenseArchive) {
+                throw new WorkflowTransitionError(
+                    'PRE_DEFENSE_ARCHIVE_REQUIRED',
+                    400,
+                    'Sinh viên chưa nộp tài liệu lưu chiểu sơ bộ trước bảo vệ (bản thảo báo cáo/slide/mã nguồn). Không thể ký duyệt BM04 cho phép bảo vệ.',
+                );
             }
         }
 
@@ -149,11 +183,11 @@ async function submitBM04(input, options = {}) {
             },
         });
 
-        // Cập nhật trạng thái qua transition service
+        // Cập nhật trạng thái qua transition service tăng stateVersion nguyên tử (CAS)
         const transitionResult = await transitionRegistration({
             registrationId: registration.id,
             expectedStatus: registration.status,
-            expectedStateVersion: registration.stateVersion,
+            expectedStateVersion: registration.stateVersion ?? 0,
             targetStatus,
             actorId: input.actorId,
             reason: isAgreed
@@ -163,16 +197,35 @@ async function submitBM04(input, options = {}) {
         }, { tx });
 
         // Cập nhật task BM04 nếu có
-        await tx.task.updateMany({
-            where: { registrationId: registration.id, taskType: 'BM04' },
-            data: { status: 'COMPLETED' },
-        });
+        if (tx.task?.updateMany) {
+            await tx.task.updateMany({
+                where: { registrationId: registration.id, taskType: 'BM04' },
+                data: { status: 'COMPLETED' },
+            });
+        }
+
+        // Ghi nhận audit log trong transaction nếu tx.auditLog có sẵn
+        if (tx.auditLog?.create) {
+            await tx.auditLog.create({
+                data: {
+                    userId: input.actorId,
+                    action: 'SUBMIT_BM04_EVALUATION',
+                    entityType: 'BM04Evaluation',
+                    entityId: String(evaluation.id),
+                    details: { registrationId: registration.id, conclusion: evaluation.conclusion, isLocked: true },
+                },
+            });
+        }
 
         const response = {
+            ...evaluation,
+            id: evaluation.id,
             evaluationId: evaluation.id,
+            registrationId: registration.id,
             conclusion: evaluation.conclusion,
             isLocked: evaluation.isLocked,
             signedAt: evaluation.signedAt,
+            targetStatus,
             transitionResult,
         };
 

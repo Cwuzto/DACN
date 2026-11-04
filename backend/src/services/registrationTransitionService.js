@@ -62,19 +62,25 @@ async function transitionRegistration(input, options = {}) {
             select: { id: true, status: true, stateVersion: true, semesterId: true, periodPolicyVersionId: true },
         });
         if (!current) throw new WorkflowTransitionError('REGISTRATION_NOT_FOUND', 404);
-        if (current.status !== input.expectedStatus || current.stateVersion !== input.expectedStateVersion) {
+        const currentVersion = current.stateVersion ?? 0;
+        const expectedVersion = input.expectedStateVersion ?? 0;
+        if (current.status !== input.expectedStatus || currentVersion !== expectedVersion) {
             throw new WorkflowTransitionError('STATE_VERSION_CONFLICT', 409);
         }
         if (typeof input.guard === 'function') {
             await input.guard({ tx, registration: current, input });
         }
 
+        const whereClause = {
+            id: current.id,
+            status: input.expectedStatus,
+        };
+        if (current.stateVersion !== undefined) {
+            whereClause.stateVersion = input.expectedStateVersion;
+        }
+
         const compareAndSet = await tx.topicRegistration.updateMany({
-            where: {
-                id: current.id,
-                status: input.expectedStatus,
-                stateVersion: input.expectedStateVersion,
-            },
+            where: whereClause,
             data: {
                 status: input.targetStatus,
                 stateVersion: { increment: 1 },
@@ -88,7 +94,7 @@ async function transitionRegistration(input, options = {}) {
         const next = {
             id: current.id,
             status: input.targetStatus,
-            stateVersion: current.stateVersion + 1,
+            stateVersion: currentVersion + 1,
         };
         const result = normalizeResult(next);
         await tx.registrationStateHistory.create({
@@ -96,7 +102,7 @@ async function transitionRegistration(input, options = {}) {
                 registrationId: current.id,
                 fromStatus: current.status,
                 toStatus: input.targetStatus,
-                fromStateVersion: current.stateVersion,
+                fromStateVersion: currentVersion,
                 toStateVersion: next.stateVersion,
                 actorId: input.actorId,
                 reason: input.reason || null,

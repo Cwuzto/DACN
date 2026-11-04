@@ -344,10 +344,7 @@ describe('Full 6-Stage Graduation Project Lifecycle Integration Test Suite', () 
                 conclusion: 'AGREED_FOR_DEFENSE',
                 isLocked: true,
             });
-            prisma.topicRegistration.update.mockResolvedValue({
-                id: 501,
-                status: 'DEFENSE_READY',
-            });
+            prisma.topicRegistration.updateMany.mockResolvedValue({ count: 1 });
 
             const res = await request(app)
                 .post('/api/evaluations/bm04-submit')
@@ -364,8 +361,8 @@ describe('Full 6-Stage Graduation Project Lifecycle Integration Test Suite', () 
 
             expect(res.status).toBe(200);
             expect(res.body.success).toBe(true);
-            expect(prisma.topicRegistration.update).toHaveBeenCalledWith(
-                expect.objectContaining({ data: { status: 'DEFENSE_READY' } }),
+            expect(prisma.topicRegistration.updateMany).toHaveBeenCalledWith(
+                expect.objectContaining({ data: expect.objectContaining({ status: 'DEFENSE_READY' }) }),
             );
         });
 
