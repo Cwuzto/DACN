@@ -537,6 +537,7 @@ describe('Full 6-Stage Graduation Project Lifecycle Integration Test Suite', () 
             prisma.topicRegistration.findUnique.mockResolvedValue({
                 id: 501,
                 studentId: 10,
+                status: 'DEFENSE_PASSED',
                 topic: { mentorId: 20, title: 'Hệ thống Quản lý Đồ án' },
                 archive: {
                     id: 11,

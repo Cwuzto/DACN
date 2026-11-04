@@ -31,6 +31,41 @@ const canAccessRegistrationArchive = (user, registration) => {
     return isOwner || isMentor || hasInstituteArchiveScope(user);
 };
 
+const isResultPublished = async (registration) => {
+    if (Array.isArray(registration.resultPublicationItems) && registration.resultPublicationItems.length > 0) {
+        return registration.resultPublicationItems.some((item) => {
+            const pub = item.publication;
+            if (!pub) return false;
+            const validSemester = !registration.semesterId || !pub.semesterId || registration.semesterId === pub.semesterId;
+            const validType = ['INITIAL', 'SUPPLEMENTARY', 'CORRECTION'].includes(pub.type);
+            return validSemester && validType;
+        });
+    }
+
+    if (prisma.resultPublicationItem?.findFirst) {
+        try {
+            const item = await prisma.resultPublicationItem.findFirst({
+                where: {
+                    registrationId: registration.id,
+                    publication: {
+                        type: { in: ['INITIAL', 'SUPPLEMENTARY', 'CORRECTION'] },
+                    },
+                },
+                include: { publication: true },
+            });
+            if (item && item.publication) {
+                const validSemester = !registration.semesterId || !item.publication.semesterId || registration.semesterId === item.publication.semesterId;
+                const validType = ['INITIAL', 'SUPPLEMENTARY', 'CORRECTION'].includes(item.publication.type);
+                return validSemester && validType;
+            }
+        } catch (_) {
+            return false;
+        }
+    }
+
+    return false;
+};
+
 // 1. Lay thong tin ho so luu chieu cua 1 de tai
 const getArchiveByRegistration = async (req, res, next) => {
     try {
@@ -57,6 +92,12 @@ const getArchiveByRegistration = async (req, res, next) => {
                         reviewer: { select: { id: true, fullName: true, code: true, role: true } },
                     },
                 },
+                resultPublicationItems: {
+                    include: {
+                        publication: { select: { id: true, semesterId: true, type: true, publishedAt: true } },
+                    },
+                    orderBy: { createdAt: 'desc' },
+                },
             },
         });
 
@@ -68,10 +109,23 @@ const getArchiveByRegistration = async (req, res, next) => {
             return res.status(403).json({ success: false, message: 'Bạn không có quyền truy cập hồ sơ lưu chiểu này.' });
         }
 
+        const registrationStudentId = registration.studentId ?? registration.student?.id;
+        const isOwner = req.user.role === 'STUDENT' && registrationStudentId === req.user.id;
+
+        // C04, SEC-12: Mask defenseResult for student until result is officially promulgated
+        const responseRegistration = { ...registration };
+        if (isOwner) {
+            const published = await isResultPublished(registration);
+            if (!published) {
+                responseRegistration.defenseResult = null;
+            }
+        }
+        delete responseRegistration.resultPublicationItems;
+
         res.json({
             success: true,
             data: {
-                registration,
+                registration: responseRegistration,
                 archive: registration.archive || null,
             },
         });
@@ -213,6 +267,7 @@ const reviewArchive = async (req, res, next) => {
             include: {
                 topic: true,
                 archive: true,
+                defenseResult: true,
             },
         });
 
@@ -235,10 +290,19 @@ const reviewArchive = async (req, res, next) => {
         const isApproved = decision === 'APPROVED';
 
         if (isApproved) {
+            // C02: Nghiêm cấm nghiệm thu và chuyển sang COMPLETED khi hồ sơ không ở DEFENSE_PASSED
+            if (registration.status !== 'DEFENSE_PASSED') {
+                return res.status(403).json({
+                    success: false,
+                    code: 'CANNOT_COMPLETE_FAILED_DEFENSE',
+                    message: 'Chỉ hồ sơ bảo vệ thành công (DEFENSE_PASSED) mới được nghiệm thu và hoàn thành đề tài.',
+                });
+            }
+
             // INV-06: Không chuyển đề tài bảo vệ không đạt (điểm < 5.0) sang COMPLETED
             const finalScore = registration.defenseResult?.finalScore;
             if (finalScore !== null && finalScore !== undefined && Number(finalScore) < 5.0) {
-                return res.status(409).json({
+                return res.status(403).json({
                     success: false,
                     code: 'CANNOT_COMPLETE_FAILED_DEFENSE',
                     message: 'Đề tài có điểm bảo vệ dưới 5.0 (không đạt), không thể nghiệm thu hoàn tất đồ án.',
@@ -613,6 +677,7 @@ const getHealthRadarStats = async (req, res, next) => {
 
 module.exports = {
     getArchiveByRegistration,
+    getRegistrationArchive: getArchiveByRegistration,
     submitArchive,
     reviewArchive,
     getAllArchives,

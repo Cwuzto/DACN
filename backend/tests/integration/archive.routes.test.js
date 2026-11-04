@@ -182,6 +182,7 @@ describe('Integration - Project Archive & Clearance Certificate', () => {
             prisma.topicRegistration.findUnique.mockResolvedValue({
                 id: 101,
                 studentId: 10,
+                status: 'DEFENSE_PASSED',
                 topic: { mentorId: 2, title: 'Ứng dụng AI' },
                 archive: { id: 5, status: 'SUBMITTED' },
             });

@@ -283,11 +283,73 @@ const getMyGrades = async (req, res, next) => {
                         evaluator: { select: { id: true, fullName: true } },
                     },
                 },
+                resultPublicationItems: {
+                    include: {
+                        publication: {
+                            select: { id: true, semesterId: true, type: true, publishedAt: true },
+                        },
+                    },
+                    orderBy: { createdAt: 'desc' },
+                },
             },
             orderBy: { createdAt: 'desc' },
         });
 
-        res.json({ success: true, data: registrations });
+        const isResultPublished = async (reg) => {
+            if (Array.isArray(reg.resultPublicationItems) && reg.resultPublicationItems.length > 0) {
+                return reg.resultPublicationItems.some((item) => {
+                    const pub = item.publication;
+                    if (!pub) return false;
+                    const validSemester = !reg.semesterId || !pub.semesterId || reg.semesterId === pub.semesterId;
+                    const validType = ['INITIAL', 'SUPPLEMENTARY', 'CORRECTION'].includes(pub.type);
+                    return validSemester && validType;
+                });
+            }
+
+            if (prisma.resultPublicationItem?.findFirst) {
+                try {
+                    const item = await prisma.resultPublicationItem.findFirst({
+                        where: {
+                            registrationId: reg.id,
+                            publication: {
+                                type: { in: ['INITIAL', 'SUPPLEMENTARY', 'CORRECTION'] },
+                            },
+                        },
+                        include: { publication: true },
+                    });
+                    if (item && item.publication) {
+                        const validSemester = !reg.semesterId || !item.publication.semesterId || reg.semesterId === item.publication.semesterId;
+                        const validType = ['INITIAL', 'SUPPLEMENTARY', 'CORRECTION'].includes(item.publication.type);
+                        return validSemester && validType;
+                    }
+                } catch (_) {
+                    return false;
+                }
+            }
+
+            return false;
+        };
+
+        const sanitized = await Promise.all(
+            registrations.map(async (reg) => {
+                const published = await isResultPublished(reg);
+                const { resultPublicationItems, ...rest } = reg;
+                if (!published) {
+                    return {
+                        ...rest,
+                        defenseResult: null,
+                        memberScores: [],
+                        isPublished: false,
+                    };
+                }
+                return {
+                    ...rest,
+                    isPublished: true,
+                };
+            })
+        );
+
+        res.json({ success: true, data: sanitized });
     } catch (error) {
         next(error);
     }
@@ -821,15 +883,8 @@ const saveScoreSheet = async (req, res, next) => {
             return { registration, memberScore, defenseResult, aggregateFinalScore };
         });
 
-        await safeNotify(
-            {
-                userId: updated.registration.studentId,
-                title: 'Diem bao ve da duoc cap nhat',
-                content: `Diem bao ve de tai "${updated.registration.topic?.title || 'N/A'}" da duoc cap nhat: ${updated.aggregateFinalScore ?? validScore.finalScore}.`,
-                type: 'DEFENSE',
-            },
-            'saveScoreSheet',
-        );
+        // SEC-12: Do not leak defense scores to students upon saving score sheet.
+        // Scores are strictly withheld until formal ResultPublication snapshot promulgation.
 
         await auditLog(
             evaluatorId,
