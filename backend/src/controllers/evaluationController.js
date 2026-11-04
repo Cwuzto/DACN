@@ -1591,7 +1591,7 @@ const submitBM04Evaluation = async (req, res, next) => {
             include: { topic: true },
         });
 
-        if (registration?.studentId) {
+        if (!result.idempotent && registration?.studentId) {
             await safeNotify(
                 {
                     userId: registration.studentId,
