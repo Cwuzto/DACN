@@ -24,6 +24,24 @@ const archiveService = {
         }
     },
 
+    // 2.5. Sinh vien nop ho so luu chieu so bo truoc bao ve (Pre-Defense Archive)
+    submitPreDefenseArchive: async (registrationId, payload) => {
+        try {
+            const data = (typeof registrationId === 'object' && !payload) ? registrationId : payload;
+            const regId = (typeof registrationId === 'number' || typeof registrationId === 'string')
+                ? registrationId
+                : data?.registrationId;
+
+            const url = regId
+                ? `/archives/registrations/${regId}/pre-defense`
+                : '/archives/pre-defense';
+
+            return await api.post(url, data);
+        } catch (error) {
+            throw wrapServiceError(error, 'Không thể nộp hồ sơ lưu chiểu sơ bộ trước bảo vệ');
+        }
+    },
+
     // 3. GVHD / Admin nghiem thu ho so luu chieu
     reviewArchive: async (registrationId, payload) => {
         try {

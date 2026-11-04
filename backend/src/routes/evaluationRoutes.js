@@ -286,6 +286,12 @@ router.post(
 );
 
 router.get(
+    '/checkpoint-appeals',
+    authorizeRoleOrPermission(['ADMIN'], [PERMISSIONS.BM03_CHECKPOINT_DECIDE]),
+    evaluationController.getCheckpointAppeals,
+);
+
+router.get(
     '/checkpoint/:registrationId',
     [
         authorizeRoleOrPermission(['STUDENT'], [PERMISSIONS.BM03_REVIEW]),

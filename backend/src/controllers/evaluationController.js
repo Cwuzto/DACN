@@ -1786,6 +1786,56 @@ const reviewCheckpointAppeal = async (req, res, next) => {
     }
 };
 
+const getCheckpointAppeals = async (req, res, next) => {
+    try {
+        const { status, semesterId } = req.query;
+        const where = {};
+        if (status && status !== 'ALL') {
+            where.status = status;
+        }
+        if (semesterId) {
+            where.registration = { semesterId: parseInt(semesterId, 10) };
+        }
+        const appeals = await prisma.checkpointSignatureAppeal.findMany({
+            where,
+            include: {
+                student: { select: { id: true, fullName: true, code: true, email: true } },
+                registration: {
+                    select: {
+                        id: true,
+                        status: true,
+                        stateVersion: true,
+                        semesterId: true,
+                        topic: {
+                            select: {
+                                id: true,
+                                title: true,
+                                mentorId: true,
+                                mentor: { select: { id: true, fullName: true, code: true } },
+                            },
+                        },
+                    },
+                },
+                checkpointEvaluation: {
+                    select: {
+                        id: true,
+                        checkpointNo: true,
+                        attemptNo: true,
+                        status: true,
+                        studentSignDeadlineAt: true,
+                        isAppealed: true,
+                    },
+                },
+                reviewedBy: { select: { id: true, fullName: true, code: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+        res.json({ success: true, data: appeals });
+    } catch (error) {
+        next(error);
+    }
+};
+
 const getCheckpointEvaluations = async (req, res, next) => {
     try {
         const regIdInt = parseInt(req.params.registrationId, 10);
@@ -1836,6 +1886,7 @@ module.exports = {
     submitCheckpointAppeal,
     reviewCheckpointAppeal,
     getCheckpointEvaluations,
+    getCheckpointAppeals,
 };
 
 

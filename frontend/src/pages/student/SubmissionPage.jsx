@@ -1,8 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
+    Alert,
     Button,
     Empty,
+    Input,
     Modal,
+    Tag,
     message,
     Tooltip,
 } from 'antd';
@@ -10,6 +13,9 @@ import {
     CheckCircleOutlined,
     ClockCircleOutlined,
     ExclamationCircleOutlined,
+    FolderOpenOutlined,
+    GithubOutlined,
+    LinkOutlined,
     LockOutlined,
     ReloadOutlined,
 } from '@ant-design/icons';
@@ -17,6 +23,7 @@ import dayjs from 'dayjs';
 import taskService from '../../services/taskService';
 import registrationService from '../../services/registrationService';
 import evaluationService from '../../services/evaluationService';
+import archiveService from '../../services/archiveService';
 import meetingLogService from '../../services/meetingLogService';
 import HybridBMFormModal from '../../components/forms/HybridBMFormModal';
 import BMSubmissionViewer from '../../components/forms/BMSubmissionViewer';
@@ -39,6 +46,16 @@ export default function SubmissionPage() {
     const [viewerSubmission, setViewerSubmission] = useState(null);
     const [bm04ViewerOpen, setBm04ViewerOpen] = useState(false);
     const [bm04Evaluation, setBm04Evaluation] = useState(null);
+
+    // Pre-defense archive state
+    const [preDefenseArchive, setPreDefenseArchive] = useState(null);
+    const [preDefenseSubmitting, setPreDefenseSubmitting] = useState(false);
+    const [reportFileUrl, setReportFileUrl] = useState('');
+    const [reportFileName, setReportFileName] = useState('');
+    const [slideFileUrl, setSlideFileUrl] = useState('');
+    const [slideFileName, setSlideFileName] = useState('');
+    const [sourceCodeUrl, setSourceCodeUrl] = useState('');
+    const [notes, setNotes] = useState('');
 
     // Checkpoint state
     const [checkpoints, setCheckpoints] = useState([]);
@@ -70,20 +87,35 @@ export default function SubmissionPage() {
                 const regData = regRes.data;
                 setRegistration(regData);
 
-                const [taskRes, logRes, cpRes] = await Promise.all([
+                const [taskRes, logRes, cpRes, archiveRes] = await Promise.all([
                     taskService.getTasksByRegistration(regData.id).catch(() => ({ success: false, data: [] })),
                     meetingLogService.getMeetingLogs(regData.id).catch(() => ({ success: false, data: [] })),
                     evaluationService.getCheckpointEvaluations(regData.id).catch(() => ({ success: false, data: [] })),
+                    archiveService.getArchiveByRegistration(regData.id).catch(() => ({ success: false })),
                 ]);
 
                 if (taskRes.success) setTasks(taskRes.data || []);
                 if (logRes.success) setMeetingLogs(logRes.data || []);
                 if (cpRes.success) setCheckpoints(cpRes.data || []);
+
+                if (archiveRes?.success && archiveRes.data) {
+                    const arch = archiveRes.data.archive || archiveRes.data;
+                    setPreDefenseArchive(arch);
+                    if (arch) {
+                        setReportFileUrl(arch.reportFileUrl || '');
+                        setReportFileName(arch.reportFileName || '');
+                        setSlideFileUrl(arch.slideFileUrl || '');
+                        setSlideFileName(arch.slideFileName || '');
+                        setSourceCodeUrl(arch.sourceCodeUrl || '');
+                        setNotes(arch.summary || arch.notes || '');
+                    }
+                }
             } else {
                 setRegistration(null);
                 setTasks([]);
                 setMeetingLogs([]);
                 setCheckpoints([]);
+                setPreDefenseArchive(null);
             }
         } catch (error) {
             message.error(error?.message || 'Không thể tải dữ liệu nộp biểu mẫu.');
@@ -167,6 +199,36 @@ export default function SubmissionPage() {
         }
     };
 
+    const handleSubmitPreDefense = async (e) => {
+        if (e?.preventDefault) e.preventDefault();
+        if (!reportFileUrl && !slideFileUrl && !sourceCodeUrl) {
+            message.warning('Vui lòng cung cấp ít nhất link bản thảo báo cáo, slide thuyết trình hoặc link mã nguồn.');
+            return;
+        }
+        try {
+            setPreDefenseSubmitting(true);
+            const payload = {
+                reportFileUrl: reportFileUrl.trim() || null,
+                reportFileName: reportFileName.trim() || (reportFileUrl ? 'Bản thảo báo cáo khóa luận' : null),
+                slideFileUrl: slideFileUrl.trim() || null,
+                slideFileName: slideFileName.trim() || (slideFileUrl ? 'Slide thuyết trình bảo vệ' : null),
+                sourceCodeUrl: sourceCodeUrl.trim() || null,
+                notes: notes.trim() || null,
+            };
+            const res = await archiveService.submitPreDefenseArchive(registration.id, payload);
+            if (res.success) {
+                message.success('Nộp tài liệu sơ bộ trước bảo vệ thành công! GVHD đã có thể đánh giá và ký duyệt BM04.');
+                fetchData();
+            } else {
+                message.error(res.message || 'Không thể nộp tài liệu lưu chiểu sơ bộ.');
+            }
+        } catch (error) {
+            message.error(error?.message || 'Đã xảy ra lỗi khi nộp tài liệu trước bảo vệ.');
+        } finally {
+            setPreDefenseSubmitting(false);
+        }
+    };
+
     const studentTasks = useMemo(() => {
         return tasks.filter((t) => t.taskType !== 'BM04');
     }, [tasks]);
@@ -204,7 +266,7 @@ export default function SubmissionPage() {
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
                 <div>
-                    <h1 className="h1" style={{ fontSize: 20 }}>Quy Trình Giao Nộp Biểu Mẫu & Báo Cáo Tiến Độ</h1>
+                    <h1 className="h1" style={{ fontSize: 20 }}>Quy Trình Giao Nộp Biểu Mẫu &amp; Báo Cáo Tiến Độ</h1>
                     <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
                         Tất cả biểu mẫu phải được GVHD ký duyệt điện tử và lưu trữ số trên hệ thống DACN.
                     </p>
@@ -307,6 +369,125 @@ export default function SubmissionPage() {
                 );
             })()}
 
+            {/* Pre-Defense Archival Submission Section (Guard for BM04) */}
+            {['BM03_PASSED', 'DEFENSE_READY', 'DEFENDED', 'COMPLETED'].includes(registration?.status) && (
+                <div
+                    className="card"
+                    style={{
+                        marginBottom: 24,
+                        padding: '20px 24px',
+                        background: '#F0FDF4',
+                        borderColor: '#86EFAC',
+                        borderLeftWidth: 6,
+                    }}
+                >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+                        <div>
+                            <div style={{ fontSize: 16, fontWeight: 700, color: '#166534', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <FolderOpenOutlined />
+                                <span>HỒ SƠ LƯU CHIỂU SƠ BỘ TRƯỚC BẢO VỆ (PRE-DEFENSE CHECKLIST)</span>
+                                {preDefenseArchive?.status === 'SUBMITTED' ? (
+                                    <Tag color="green">ĐÃ NỘP HỒ SƠ SƠ BỘ</Tag>
+                                ) : (
+                                    <Tag color="gold">CẦN NỘP TRƯỚC KHI KÝ BM04</Tag>
+                                )}
+                            </div>
+                            <div style={{ fontSize: 13, marginTop: 6, color: '#15803D' }}>
+                                <strong>Quy định bắt buộc:</strong> Bắt buộc nộp bản thảo báo cáo, slide hoặc mã nguồn trước khi GVHD có thể đánh giá và ký duyệt BM04 cho phép bảo vệ.
+                            </div>
+                        </div>
+                        {preDefenseArchive?.submittedAt && (
+                            <div style={{ fontSize: 12, color: '#166534' }}>
+                                Thời gian nộp: <b>{dayjs(preDefenseArchive.submittedAt).format('DD/MM/YYYY HH:mm')}</b>
+                            </div>
+                        )}
+                    </div>
+
+                    <div style={{ marginTop: 16, background: '#FFFFFF', padding: 16, borderRadius: 8, border: '1px solid #BBF7D0' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+                            <div>
+                                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 4 }}>
+                                    1. Bản thảo báo cáo khóa luận (URL / Cloud file):
+                                </label>
+                                <Input
+                                    placeholder="https://drive.google.com/... hoặc link PDF báo cáo"
+                                    value={reportFileUrl}
+                                    onChange={(e) => setReportFileUrl(e.target.value)}
+                                    disabled={registration?.status !== 'BM03_PASSED' && preDefenseArchive?.status === 'SUBMITTED'}
+                                />
+                                <div style={{ marginTop: 6 }}>
+                                    <Input
+                                        placeholder="Tên tệp (VD: Bao_cao_khoa_luan_draft.pdf)"
+                                        value={reportFileName}
+                                        onChange={(e) => setReportFileName(e.target.value)}
+                                        size="small"
+                                        disabled={registration?.status !== 'BM03_PASSED' && preDefenseArchive?.status === 'SUBMITTED'}
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 4 }}>
+                                    2. Slide thuyết trình bảo vệ (URL):
+                                </label>
+                                <Input
+                                    placeholder="https://canva.com/... hoặc link Slide PDF / PPT"
+                                    value={slideFileUrl}
+                                    onChange={(e) => setSlideFileUrl(e.target.value)}
+                                    disabled={registration?.status !== 'BM03_PASSED' && preDefenseArchive?.status === 'SUBMITTED'}
+                                />
+                                <div style={{ marginTop: 6 }}>
+                                    <Input
+                                        placeholder="Tên tệp slide (VD: Slide_thuyet_trinh_bao_ve.pptx)"
+                                        value={slideFileName}
+                                        onChange={(e) => setSlideFileName(e.target.value)}
+                                        size="small"
+                                        disabled={registration?.status !== 'BM03_PASSED' && preDefenseArchive?.status === 'SUBMITTED'}
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 4 }}>
+                                    3. Kho lưu trữ mã nguồn (Git Repository URL):
+                                </label>
+                                <Input
+                                    placeholder="https://github.com/username/repository"
+                                    value={sourceCodeUrl}
+                                    onChange={(e) => setSourceCodeUrl(e.target.value)}
+                                    disabled={registration?.status !== 'BM03_PASSED' && preDefenseArchive?.status === 'SUBMITTED'}
+                                />
+                            </div>
+
+                            <div>
+                                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 4 }}>
+                                    4. Ghi chú tóm tắt gửi GVHD:
+                                </label>
+                                <Input.TextArea
+                                    rows={2}
+                                    placeholder="Ghi chú về tiến độ hoàn thiện, link demo, hoặc hướng dẫn chạy sản phẩm..."
+                                    value={notes}
+                                    onChange={(e) => setNotes(e.target.value)}
+                                    disabled={registration?.status !== 'BM03_PASSED' && preDefenseArchive?.status === 'SUBMITTED'}
+                                />
+                            </div>
+                        </div>
+
+                        {registration?.status === 'BM03_PASSED' && (
+                            <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                                <Button
+                                    type="primary"
+                                    loading={preDefenseSubmitting}
+                                    onClick={handleSubmitPreDefense}
+                                >
+                                    {preDefenseArchive?.status === 'SUBMITTED' ? 'Cập Nhật Hồ Sơ Sơ Bộ' : 'Nộp Hồ Sơ Sơ Bộ Trước Bảo Vệ'}
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {/* Submission Roadmap */}
             <div className="submission-roadmap">
                 {studentTasks.map((task, idx) => {
@@ -393,7 +574,7 @@ export default function SubmissionPage() {
                     <div className="sub-left">
                         <div className="sub-step-num" style={{ background: '#CCFBF1', color: '#0F766E' }}>★</div>
                         <div className="sub-info">
-                            <h4>BM04 - Phiếu Nhận Xét & Thẩm Định Khóa Luận Của GVHD</h4>
+                            <h4>BM04 - Phiếu Nhận Xét &amp; Thẩm Định Khóa Luận Của GVHD</h4>
                             <p>
                                 Giảng viên hướng dẫn tổng hợp các mốc Checkpoint, đánh giá thái độ chuyên cần và ký quyết định ĐỒNG Ý / KHÔNG ĐỒNG Ý cho sinh viên ra Hội đồng bảo vệ.
                             </p>
@@ -415,7 +596,7 @@ export default function SubmissionPage() {
             {/* Meeting Logs Section */}
             {meetingLogs.length > 0 && (
                 <div className="card" style={{ marginTop: 24, padding: 20 }}>
-                    <h3 className="h3" style={{ marginBottom: 14 }}>Nhật Ký Làm Việc & Trao Đổi Lab Với GVHD ({meetingLogs.length})</h3>
+                    <h3 className="h3" style={{ marginBottom: 14 }}>Nhật Ký Làm Việc &amp; Trao Đổi Lab Với GVHD ({meetingLogs.length})</h3>
                     <div className="table-container">
                         <table className="data-table">
                             <thead>
@@ -424,7 +605,7 @@ export default function SubmissionPage() {
                                     <th>Thời gian</th>
                                     <th>Hình thức / Địa điểm</th>
                                     <th>Nội dung trao đổi</th>
-                                    <th>Kết quả & Kế hoạch tuần tới</th>
+                                    <th>Kết quả &amp; Kế hoạch tuần tới</th>
                                     <th>Đánh giá của GVHD</th>
                                 </tr>
                             </thead>

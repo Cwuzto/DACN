@@ -212,6 +212,14 @@ const evaluationService = {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi tải thông tin Checkpoint');
         }
     },
+
+    getCheckpointAppeals: async (params = {}) => {
+        try {
+            return await api.get('/evaluations/checkpoint-appeals', { params });
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi tải danh sách khiếu nại chữ ký Checkpoint');
+        }
+    },
 };
 
 export default evaluationService;

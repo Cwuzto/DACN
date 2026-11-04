@@ -54,6 +54,8 @@ import useAuthStore from '../../stores/authStore';
 import { formatSemesterLabel } from '../../utils/semesterDisplay';
 import ClearanceCertificateModal from '../../components/forms/ClearanceCertificateModal';
 import ManualReviewModal from '../../components/admin/ManualReviewModal';
+import CheckpointAppealReviewModal from '../../components/admin/CheckpointAppealReviewModal';
+import evaluationService from '../../services/evaluationService';
 import PageHeader from '../../components/common/PageHeader';
 import StatusBadge from '../../components/common/StatusBadge';
 import StatCard from '../../components/common/StatCard';
@@ -125,7 +127,7 @@ function ProjectOversightPage() {
     // Gói 2: Archive & Health Radar states
     const [activeMainTab, setActiveMainTab] = useState('TOPIC_OVERSIGHT');
     const [healthRadarStats, setHealthRadarStats] = useState(null);
-    const [healthRadarLoading, setHealthRadarLoading] = useState(false);
+    const [, setHealthRadarLoading] = useState(false);
     const [isHealthModalOpen, setIsHealthModalOpen] = useState(false);
     const [archivesList, setArchivesList] = useState([]);
     const [archivesLoading, setArchivesLoading] = useState(false);
@@ -133,7 +135,7 @@ function ProjectOversightPage() {
     const [archiveSearchText, setArchiveSearchText] = useState('');
     const [certModalOpen, setCertModalOpen] = useState(false);
     const [certificateData, setCertificateData] = useState(null);
-    const [certLoading, setCertLoading] = useState(false);
+    const [, setCertLoading] = useState(false);
 
     // Gói 3: Manual Review Queue states
     const [manualReviewCases, setManualReviewCases] = useState([]);
@@ -142,6 +144,36 @@ function ProjectOversightPage() {
     const [selectedCaseForReview, setSelectedCaseForReview] = useState(null);
     const [isManualReviewModalOpen, setIsManualReviewModalOpen] = useState(false);
     const [manualReviewTotal, setManualReviewTotal] = useState(0);
+
+    // Danh sách checkpointSignatureAppeals từ hệ thống & registrations
+    const registrationAppeals = useMemo(() => {
+        return registrations.flatMap((r) => r.checkpointSignatureAppeals || (r.status?.includes('CHECKPOINT_SIGNATURE_APPEAL') ? [r] : []));
+    }, [registrations]);
+    const [checkpointAppeals, setCheckpointAppeals] = useState([]);
+    const checkpointSignatureAppeals = checkpointAppeals.length > 0 ? checkpointAppeals : registrationAppeals;
+    const [appealsLoading, setAppealsLoading] = useState(false);
+    const [appealStatusFilter, setAppealStatusFilter] = useState('ALL');
+    const [isAppealReviewModalOpen, setIsAppealReviewModalOpen] = useState(false);
+    const [selectedAppealForReview, setSelectedAppealForReview] = useState(null);
+
+    const fetchCheckpointAppeals = async (status = appealStatusFilter, semId = semesterFilter) => {
+        try {
+            setAppealsLoading(true);
+            const res = await evaluationService.getCheckpointAppeals({
+                status: status !== 'ALL' ? status : undefined,
+                semesterId: semId || undefined,
+            });
+            if (res.success) {
+                setCheckpointAppeals(res.data || []);
+            } else {
+                setCheckpointAppeals([]);
+            }
+        } catch {
+            setCheckpointAppeals([]);
+        } finally {
+            setAppealsLoading(false);
+        }
+    };
 
     const fetchHealthRadar = async (semId) => {
         if (!canReviewArchive) {
@@ -221,6 +253,7 @@ function ProjectOversightPage() {
             fetchHealthRadar(semesterFilter);
             fetchArchives(semesterFilter, archiveStatusFilter);
             fetchManualReviewCases(manualReviewStatusFilter, semesterFilter);
+            fetchCheckpointAppeals(appealStatusFilter, semesterFilter);
         } catch (error) {
             message.error(error?.message || 'Không thể tải dữ liệu giám sát');
         } finally {
@@ -266,7 +299,8 @@ function ProjectOversightPage() {
     useEffect(() => {
         fetchHealthRadar(semesterFilter);
         fetchArchives(semesterFilter, archiveStatusFilter);
-    }, [semesterFilter, archiveStatusFilter]);
+        fetchCheckpointAppeals(appealStatusFilter, semesterFilter);
+    }, [semesterFilter, archiveStatusFilter, appealStatusFilter]);
 
     const currentSemesters = useMemo(() => {
         const now = dayjs();
@@ -1072,6 +1106,117 @@ function ProjectOversightPage() {
         },
     ];
 
+    const checkpointAppealColumns = [
+        {
+            title: 'Mã & Tên Sinh Viên',
+            key: 'student',
+            width: 200,
+            render: (_, record) => (
+                <div>
+                    <div className="font-semibold text-slate-800">{record.student?.fullName || '—'}</div>
+                    <div className="text-xs text-slate-500">{record.student?.code || '—'}</div>
+                </div>
+            ),
+        },
+        {
+            title: 'Đề Tài Đồ Án',
+            key: 'topic',
+            ellipsis: true,
+            render: (_, record) => (
+                <div>
+                    <div className="font-medium text-slate-800">{record.registration?.topic?.title || '—'}</div>
+                    <div className="text-xs text-slate-500">
+                        GVHD: {record.registration?.topic?.mentor?.fullName || '—'}
+                    </div>
+                </div>
+            ),
+        },
+        {
+            title: 'Mốc Checkpoint',
+            key: 'checkpoint',
+            width: 150,
+            render: (_, record) => (
+                <Tag color="cyan">
+                    Checkpoint {record.checkpointEvaluation?.checkpointNo || 1} (Lần {record.checkpointEvaluation?.attemptNo || 1})
+                </Tag>
+            ),
+        },
+        {
+            title: 'Lý Do Khiếu Nại',
+            dataIndex: 'reason',
+            key: 'reason',
+            width: 250,
+            ellipsis: true,
+            render: (text, record) => (
+                <div>
+                    <Tooltip title={text}>
+                        <span className="text-slate-700">{text || '—'}</span>
+                    </Tooltip>
+                    {record.evidenceUrl && (
+                        <div className="mt-1">
+                            <a
+                                href={record.evidenceUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-xs text-blue-600 underline flex items-center gap-1"
+                            >
+                                <FilePdfOutlined />
+                                <span>{record.evidenceName || 'Minh chứng'}</span>
+                            </a>
+                        </div>
+                    )}
+                </div>
+            ),
+        },
+        {
+            title: 'Bối Cảnh Hạn Chót',
+            key: 'deadlines',
+            width: 180,
+            render: (_, record) => (
+                <div className="text-xs space-y-0.5">
+                    <div>
+                        <span className="text-slate-500">Hạn ký gốc: </span>
+                        <b>{record.checkpointEvaluation?.studentSignDeadlineAt ? dayjs(record.checkpointEvaluation.studentSignDeadlineAt).format('DD/MM/YYYY') : '—'}</b>
+                    </div>
+                    <div>
+                        <span className="text-slate-500">Hạn nộp đơn: </span>
+                        <b>{record.appealDeadlineAt ? dayjs(record.appealDeadlineAt).format('DD/MM/YYYY') : '—'}</b>
+                    </div>
+                </div>
+            ),
+        },
+        {
+            title: 'Trạng Thái',
+            dataIndex: 'status',
+            key: 'status',
+            width: 150,
+            render: (status) => {
+                if (status === 'APPROVED') return <Tag color="green">ĐÃ GIA HẠN (APPROVED)</Tag>;
+                if (status === 'REJECTED') return <Tag color="red">ĐÃ BÁC ĐƠN (REJECTED)</Tag>;
+                if (status === 'SUBMITTED') return <Tag color="gold">CHỜ THẨM ĐỊNH</Tag>;
+                return <Tag color="blue">{status}</Tag>;
+            },
+        },
+        {
+            title: 'Thao Tác',
+            key: 'actions',
+            width: 160,
+            align: 'right',
+            render: (_, record) => (
+                <Button
+                    size="small"
+                    type={record.status === 'SUBMITTED' ? 'primary' : 'default'}
+                    onClick={() => {
+                        setSelectedAppealForReview(record);
+                        setIsAppealReviewModalOpen(true);
+                    }}
+                >
+                    {record.status === 'SUBMITTED' ? 'Thẩm định khiếu nại' : 'Xem chi tiết'}
+                </Button>
+            ),
+        },
+    ];
+
     const lecturerOptions = lecturers.map((lecturer) => ({
         value: lecturer.id,
         label: `${lecturer.fullName} (${lecturer.code})`,
@@ -1466,51 +1611,118 @@ function ProjectOversightPage() {
                         label: (
                             <span className="flex items-center gap-2 font-semibold text-sm">
                                 <SafetyCertificateOutlined />
-                                Hàng Đợi Thẩm Định Legacy ({manualReviewTotal})
+                                Hàng Đợi Thẩm Định ({manualReviewTotal + checkpointSignatureAppeals.length})
                             </span>
                         ),
                         children: (
                             <div className="space-y-5 pt-2">
-                                <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-4 lg:p-6 space-y-4">
-                                    <div className="flex flex-wrap items-center justify-between gap-3">
-                                        <div className="flex items-center gap-3">
-                                            <Select
-                                                value={manualReviewStatusFilter}
-                                                onChange={(val) => {
-                                                    setManualReviewStatusFilter(val);
-                                                    fetchManualReviewCases(val, semesterFilter);
-                                                }}
-                                                style={{ width: 220 }}
-                                                options={[
-                                                    { label: 'Chờ thẩm định (OPEN)', value: 'OPEN' },
-                                                    { label: 'Đã giải quyết (RESOLVED)', value: 'RESOLVED' },
-                                                    { label: 'Tất cả trạng thái', value: 'ALL' },
-                                                ]}
-                                            />
-                                            <Button
-                                                icon={<ReloadOutlined />}
-                                                onClick={() => fetchManualReviewCases(manualReviewStatusFilter, semesterFilter)}
-                                            >
-                                                Làm mới
-                                            </Button>
-                                        </div>
-                                        <div className="text-xs text-slate-500">
-                                            Danh sách <b>{manualReviewTotal}</b> hồ sơ cần xác nhận minh chứng và gán phiên bản quy trình chuẩn (Workflow Policy Version).
-                                        </div>
-                                    </div>
+                                <Tabs
+                                    defaultActiveKey="CHECKPOINT_SIGNATURE_APPEAL_QUEUE"
+                                    type="card"
+                                    items={[
+                                        {
+                                            key: 'CHECKPOINT_SIGNATURE_APPEAL_QUEUE',
+                                            label: (
+                                                <span className="font-semibold text-sm">
+                                                    Khiếu Nại Chữ Ký Checkpoint ({checkpointSignatureAppeals.length})
+                                                </span>
+                                            ),
+                                            children: (
+                                                <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-4 lg:p-6 space-y-4">
+                                                    <div className="flex flex-wrap items-center justify-between gap-3">
+                                                        <div className="flex items-center gap-3">
+                                                            <Select
+                                                                value={appealStatusFilter}
+                                                                onChange={(val) => {
+                                                                    setAppealStatusFilter(val);
+                                                                    fetchCheckpointAppeals(val, semesterFilter);
+                                                                }}
+                                                                style={{ width: 220 }}
+                                                                options={[
+                                                                    { label: 'Tất cả trạng thái', value: 'ALL' },
+                                                                    { label: 'Chờ thẩm định (SUBMITTED)', value: 'SUBMITTED' },
+                                                                    { label: 'Đã chấp thuận (APPROVED)', value: 'APPROVED' },
+                                                                    { label: 'Đã bác đơn (REJECTED)', value: 'REJECTED' },
+                                                                ]}
+                                                            />
+                                                            <Button
+                                                                icon={<ReloadOutlined />}
+                                                                onClick={() => fetchCheckpointAppeals(appealStatusFilter, semesterFilter)}
+                                                            >
+                                                                Làm mới
+                                                            </Button>
+                                                        </div>
+                                                        <div className="text-xs text-slate-500">
+                                                            Danh sách đơn giải trình quá hạn ký BM03 Checkpoint cần Ban chủ nhiệm / Viện trưởng thẩm định gia hạn.
+                                                        </div>
+                                                    </div>
 
-                                    <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
-                                        <Table
-                                            loading={manualReviewLoading}
-                                            dataSource={manualReviewCases}
-                                            rowKey="id"
-                                            columns={manualReviewColumns}
-                                            scroll={{ x: 1200 }}
-                                            pagination={{ pageSize: 12, showSizeChanger: true, showTotal: (t) => `Tổng cộng ${t} hồ sơ thẩm định` }}
-                                            size="middle"
-                                        />
-                                    </div>
-                                </div>
+                                                    <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+                                                        <Table
+                                                            loading={appealsLoading}
+                                                            dataSource={checkpointSignatureAppeals}
+                                                            rowKey="id"
+                                                            columns={checkpointAppealColumns}
+                                                            scroll={{ x: 1100 }}
+                                                            pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (t) => `Tổng cộng ${t} đơn khiếu nại` }}
+                                                            size="middle"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            ),
+                                        },
+                                        {
+                                            key: 'LEGACY_CASES',
+                                            label: (
+                                                <span className="font-semibold text-sm">
+                                                    Hồ Sơ Chuyển Giao Legacy ({manualReviewTotal})
+                                                </span>
+                                            ),
+                                            children: (
+                                                <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-4 lg:p-6 space-y-4">
+                                                    <div className="flex flex-wrap items-center justify-between gap-3">
+                                                        <div className="flex items-center gap-3">
+                                                            <Select
+                                                                value={manualReviewStatusFilter}
+                                                                onChange={(val) => {
+                                                                    setManualReviewStatusFilter(val);
+                                                                    fetchManualReviewCases(val, semesterFilter);
+                                                                }}
+                                                                style={{ width: 220 }}
+                                                                options={[
+                                                                    { label: 'Chờ thẩm định (OPEN)', value: 'OPEN' },
+                                                                    { label: 'Đã giải quyết (RESOLVED)', value: 'RESOLVED' },
+                                                                    { label: 'Tất cả trạng thái', value: 'ALL' },
+                                                                ]}
+                                                            />
+                                                            <Button
+                                                                icon={<ReloadOutlined />}
+                                                                onClick={() => fetchManualReviewCases(manualReviewStatusFilter, semesterFilter)}
+                                                            >
+                                                                Làm mới
+                                                            </Button>
+                                                        </div>
+                                                        <div className="text-xs text-slate-500">
+                                                            Danh sách <b>{manualReviewTotal}</b> hồ sơ cần xác nhận minh chứng và gán phiên bản quy trình chuẩn (Workflow Policy Version).
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+                                                        <Table
+                                                            loading={manualReviewLoading}
+                                                            dataSource={manualReviewCases}
+                                                            rowKey="id"
+                                                            columns={manualReviewColumns}
+                                                            scroll={{ x: 1200 }}
+                                                            pagination={{ pageSize: 12, showSizeChanger: true, showTotal: (t) => `Tổng cộng ${t} hồ sơ thẩm định` }}
+                                                            size="middle"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            ),
+                                        },
+                                    ]}
+                                />
                             </div>
                         ),
                     },
@@ -1803,6 +2015,16 @@ function ProjectOversightPage() {
             />
 
             {/* Manual Review Modal */}
+            <CheckpointAppealReviewModal
+                open={isAppealReviewModalOpen}
+                onClose={() => setIsAppealReviewModalOpen(false)}
+                appeal={selectedAppealForReview}
+                onSuccess={() => {
+                    fetchCheckpointAppeals(appealStatusFilter, semesterFilter);
+                    fetchData();
+                }}
+            />
+
             <ManualReviewModal
                 open={isManualReviewModalOpen}
                 caseItem={selectedCaseForReview}
