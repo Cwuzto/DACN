@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const prisma = require('../config/database');
 const { safeNotify } = require('../services/notificationService');
 const { auditLog } = require('../services/auditLogService');
@@ -333,8 +334,48 @@ const issuePeriodDecision = async (req, res, next) => {
         const { decisionNumber, decisionDate, note } = req.body;
         const userId = req.user.id;
 
+        const requestKey = req.headers['idempotency-key'] || req.get('Idempotency-Key');
+        if (!requestKey || String(requestKey).trim().length < 8) {
+            return res.status(400).json({
+                success: false,
+                code: 'IDEMPOTENCY_KEY_REQUIRED',
+                message: 'Idempotency-Key là bắt buộc khi ban hành Quyết định.',
+            });
+        }
+
         if (!Number.isInteger(semesterId) || semesterId <= 0) {
             return res.status(400).json({ success: false, message: 'ID học kỳ không hợp lệ.' });
+        }
+
+        const normalizedDecisionNumber = decisionNumber && String(decisionNumber).trim()
+            ? String(decisionNumber).trim()
+            : null;
+        const normalizedDecisionDate = decisionDate ? new Date(decisionDate).toISOString().split('T')[0] : null;
+        const commandHash = crypto.createHash('sha256').update(JSON.stringify({
+            semesterId,
+            decisionNumber: normalizedDecisionNumber,
+            decisionDate: normalizedDecisionDate,
+            note: note || null,
+        })).digest('hex');
+
+        const existingReceipt = await prisma.idempotencyRecord.findUnique({
+            where: {
+                scope_key: {
+                    scope: 'ISSUE_PERIOD_DECISION',
+                    key: requestKey,
+                },
+            },
+        });
+
+        if (existingReceipt) {
+            if (existingReceipt.commandHash !== commandHash) {
+                return res.status(409).json({
+                    success: false,
+                    code: 'IDEMPOTENCY_KEY_REUSED',
+                    message: 'Idempotency-Key đã được sử dụng với nội dung lệnh khác.',
+                });
+            }
+            return res.json(existingReceipt.response);
         }
 
         const semester = await prisma.semester.findUnique({
@@ -364,17 +405,12 @@ const issuePeriodDecision = async (req, res, next) => {
             });
         }
 
-        const generatedDecisionNumber = decisionNumber && String(decisionNumber).trim()
-            ? String(decisionNumber).trim()
-            : `QĐ-${semester.name.replace(/\s+/g, '')}-${Date.now().toString().slice(-4)}`;
+        const generatedDecisionNumber = normalizedDecisionNumber
+            || `QĐ-${semester.name.replace(/\s+/g, '')}-${Date.now().toString().slice(-4)}`;
         const effectiveDecisionDate = decisionDate ? new Date(decisionDate) : new Date();
 
         const registrationIds = eligibleRegistrations.map((r) => r.id);
 
-        const requestKey = req.get('Idempotency-Key');
-        if (!requestKey || requestKey.length < 8) {
-            return res.status(400).json({ success: false, code: 'IDEMPOTENCY_KEY_REQUIRED', message: 'Idempotency-Key là bắt buộc khi ban hành Quyết định.' });
-        }
         for (const reg of eligibleRegistrations) {
             await issueAssignmentDecision({
                 registrationId: reg.id,
@@ -428,7 +464,7 @@ const issuePeriodDecision = async (req, res, next) => {
             req.ip || null,
         );
 
-        res.json({
+        const responsePayload = {
             success: true,
             message: `Đã ban hành Quyết định số ${generatedDecisionNumber} thành công cho ${registrationIds.length} sinh viên.`,
             data: {
@@ -437,7 +473,35 @@ const issuePeriodDecision = async (req, res, next) => {
                 studentCount: registrationIds.length,
                 registrationIds,
             },
-        });
+        };
+
+        try {
+            await prisma.idempotencyRecord.create({
+                data: {
+                    scope: 'ISSUE_PERIOD_DECISION',
+                    key: requestKey,
+                    commandHash,
+                    response: responsePayload,
+                },
+            });
+        } catch (idempErr) {
+            if (idempErr?.code === 'P2002') {
+                const raceReceipt = await prisma.idempotencyRecord.findUnique({
+                    where: {
+                        scope_key: {
+                            scope: 'ISSUE_PERIOD_DECISION',
+                            key: requestKey,
+                        },
+                    },
+                });
+                if (raceReceipt && raceReceipt.commandHash === commandHash) {
+                    return res.json(raceReceipt.response);
+                }
+            }
+            throw idempErr;
+        }
+
+        res.json(responsePayload);
     } catch (error) {
         next(error);
     }

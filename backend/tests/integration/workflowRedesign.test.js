@@ -255,7 +255,7 @@ describe('Integration - Thesis Workflow Redesign Core Rules', () => {
     });
 
     describe('3. BM03 Strict Checkpoint Termination', () => {
-        it('GVHD chấm Checkpoint FAILED -> đề tài lập tức chuyển TERMINATED_FAILED_PROGRESS', async () => {
+        it('chặn chấm Checkpoint qua endpoint generic gradeSubmission và yêu cầu dùng command chuyên biệt', async () => {
             prisma.submission.findUnique.mockResolvedValue({
                 id: 501,
                 registrationId: 100,
@@ -282,14 +282,10 @@ describe('Integration - Thesis Workflow Redesign Core Rules', () => {
                     feedback: 'Không đáp ứng khối lượng tối thiểu Checkpoint 1',
                 });
 
-            expect(res.status).toBe(200);
-            expect(res.body.success).toBe(true);
-            expect(prisma.topicRegistration.update).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    where: { id: 100 },
-                    data: expect.objectContaining({ status: 'TERMINATED_FAILED_PROGRESS' }),
-                }),
-            );
+            expect(res.status).toBe(400);
+            expect(res.body.success).toBe(false);
+            expect(res.body.code).toBe('USE_DEDICATED_WORKFLOW_COMMAND');
+            expect(prisma.topicRegistration.update).not.toHaveBeenCalled();
         });
     });
 

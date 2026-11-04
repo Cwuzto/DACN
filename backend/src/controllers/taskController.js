@@ -401,20 +401,19 @@ const gradeSubmission = async (req, res, next) => {
 
         if (!submission) return res.status(404).json({ success: false, message: 'Báo cáo không tồn tại.' });
 
-        if (submission.task.taskType === 'BM04') {
-            return res.status(409).json({
+        const ACADEMIC_TASK_TYPES = ['BM01', 'BM02', 'BM03_CHECKPOINT_1', 'BM03_CHECKPOINT_2', 'BM03_CHECKPOINT', 'BM04'];
+        if (ACADEMIC_TASK_TYPES.includes(submission.task?.taskType)) {
+            return res.status(400).json({
                 success: false,
-                code: 'USE_BM04_EVALUATION_COMMAND',
-                message: 'Không được duyệt BM04 qua API chấm submission. Hãy sử dụng API đánh giá BM04 chuyên biệt.',
+                message: 'Nhiệm vụ học vụ này bắt buộc phải thẩm định qua quy trình biểu mẫu chuyên biệt.',
+                code: 'USE_DEDICATED_WORKFLOW_COMMAND',
             });
         }
 
-        const mentor = submission.task.registration.topic.mentorId;
+        const mentor = submission.task?.registration?.topic?.mentorId;
         if (mentor !== mentorId) {
             return res.status(403).json({ success: false, message: 'Chỉ giảng viên hướng dẫn mới được nhận xét.' });
         }
-
-        const isCheckpoint = ['BM03_CHECKPOINT_1', 'BM03_CHECKPOINT_2', 'BM03_CHECKPOINT'].includes(submission.task.taskType);
 
         const updatedSubmission = await prisma.submission.update({
             where: { id: submissionId },
@@ -428,88 +427,6 @@ const gradeSubmission = async (req, res, next) => {
             where: { id: submission.taskId },
             data: { status: normalizedDecision === 'FAILED' ? 'COMPLETED' : normalizedDecision },
         });
-
-        // Xử lý Checkpoint BM03 theo nghiệp vụ
-        if (isCheckpoint) {
-            if (normalizedDecision === 'FAILED') {
-                // Đánh giá KHÔNG ĐẠT Checkpoint -> Dừng thực hiện đề tài ngay lập tức
-                await prisma.topicRegistration.update({
-                    where: { id: submission.registrationId },
-                    data: {
-                        status: 'TERMINATED_FAILED_PROGRESS',
-                        rejectReason: `Không đạt tại mốc tiến độ ${submission.task.title}: ${feedback || 'Không đạt khối lượng yêu cầu.'}`,
-                    },
-                });
-
-                await safeNotify(
-                    {
-                        userId: submission.submittedBy,
-                        title: 'Đề tài bị dừng thực hiện (Không đạt tiến độ BM03)',
-                        content: `GVHD đã đánh giá KHÔNG ĐẠT tại ${submission.task.title}. Đề tài "${submission.task.registration?.topic?.title || ''}" đã dừng thực hiện trong đợt này.`,
-                        type: 'APPROVAL',
-                    },
-                    'gradeSubmission_FAILED',
-                );
-
-                return res.json({
-                    success: true,
-                    message: 'Đã ghi nhận kết quả KHÔNG ĐẠT. Đề tài đã tự động chuyển sang trạng thái Dừng thực hiện (TERMINATED_FAILED_PROGRESS).',
-                    data: updatedSubmission,
-                });
-            } else if (normalizedDecision === 'COMPLETED') {
-                if (submission.task.taskType === 'BM03_CHECKPOINT_1' || submission.task.taskType === 'BM03_CHECKPOINT') {
-                    await prisma.topicRegistration.update({
-                        where: { id: submission.registrationId },
-                        data: { status: 'IN_PROGRESS_BM03' },
-                    });
-
-                    // Đảm bảo có task Checkpoint 2
-                    const hasCP2 = await prisma.task.findFirst({
-                        where: { registrationId: submission.registrationId, taskType: 'BM03_CHECKPOINT_2' },
-                    });
-                    if (!hasCP2) {
-                        await prisma.task.create({
-                            data: {
-                                registrationId: submission.registrationId,
-                                title: 'BM03 - Báo cáo tiến độ Đợt 2 (Tuần 10)',
-                                content: 'Báo cáo tiến độ thực hiện đồ án đợt 2: hoàn thiện sản phẩm và bản thảo báo cáo.',
-                                taskType: 'BM03_CHECKPOINT_2',
-                                status: 'OPEN',
-                            },
-                        });
-                    }
-                } else if (submission.task.taskType === 'BM03_CHECKPOINT_2') {
-                    // Cả 2 Checkpoint đã đạt -> chuyển sang BM03_PASSED
-                    await prisma.topicRegistration.update({
-                        where: { id: submission.registrationId },
-                        data: { status: 'BM03_PASSED' },
-                    });
-
-                    // Đảm bảo có task BM04
-                    const hasBM04 = await prisma.task.findFirst({
-                        where: { registrationId: submission.registrationId, taskType: 'BM04' },
-                    });
-                    if (!hasBM04) {
-                        await prisma.task.create({
-                            data: {
-                                registrationId: submission.registrationId,
-                                title: 'BM04 - Phiếu nhận xét và đánh giá của GVHD',
-                                content: 'GVHD trực tiếp lập phiếu nhận xét 4 tiêu chí và quyết định đồng ý cho ra bảo vệ.',
-                                taskType: 'BM04',
-                                status: 'OPEN',
-                            },
-                        });
-                    }
-                }
-            }
-        } else if (normalizedDecision === 'COMPLETED') {
-            if (submission.task.taskType === 'BM01') {
-                await prisma.topicRegistration.update({
-                    where: { id: submission.registrationId },
-                    data: { status: 'BM01_PASSED' },
-                });
-            }
-        }
 
         await safeNotify(
             {
