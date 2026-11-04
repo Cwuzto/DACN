@@ -1,20 +1,14 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
     Button,
     Empty,
     Modal,
-    Checkbox,
     Input,
     message,
     Spin,
 } from 'antd';
 import {
-    CheckCircleOutlined,
-    ClockCircleOutlined,
-    ExclamationCircleOutlined,
-    FileTextOutlined,
     ReloadOutlined,
-    TrophyOutlined,
 } from '@ant-design/icons';
 import evaluationService from '../../services/evaluationService';
 import registrationService from '../../services/registrationService';
@@ -47,12 +41,12 @@ export default function GradeViewPage() {
 
     // Score Appeal state
     const [appealModalOpen, setAppealModalOpen] = useState(false);
-    const [appealComponents, setAppealComponents] = useState(['council']);
+    const [appealComponents, setAppealComponents] = useState(['defense_score']);
     const [appealReason, setAppealReason] = useState('');
     const [appealProofUrl, setAppealProofUrl] = useState('');
     const [submittingAppeal, setSubmittingAppeal] = useState(false);
 
-    const fetchGrades = async () => {
+    const fetchGrades = useCallback(async () => {
         try {
             setLoading(true);
             const [gradeRes, regRes, publishedRes] = await Promise.all([
@@ -79,21 +73,24 @@ export default function GradeViewPage() {
             }
 
             setRegistrations(list);
-            if (list.length > 0 && !selectedRegId) {
-                // Prioritize registration with defense result or active one
-                const withScore = list.find((item) => item.defenseResult || item.finalScore !== null && item.finalScore !== undefined);
-                setSelectedRegId((withScore || list[0]).id);
+            if (list.length > 0) {
+                setSelectedRegId((prev) => {
+                    if (prev) return prev;
+                    // Prioritize registration with defense result or active one
+                    const withScore = list.find((item) => item.defenseResult || (item.finalScore !== null && item.finalScore !== undefined));
+                    return (withScore || list[0]).id;
+                });
             }
         } catch (error) {
             message.error(error?.message || 'Không thể tải dữ liệu điểm.');
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
         fetchGrades();
-    }, []);
+    }, [fetchGrades]);
 
     const selectedRegistration = useMemo(() => {
         if (!registrations.length) return null;
@@ -104,7 +101,7 @@ export default function GradeViewPage() {
         return registrations[0];
     }, [registrations, selectedRegId]);
 
-    const fetchArchive = async (regId) => {
+    const fetchArchive = useCallback(async (regId) => {
         if (!regId) return;
         try {
             const res = await archiveService.getArchiveByRegistration(regId);
@@ -114,13 +111,13 @@ export default function GradeViewPage() {
         } catch {
             setArchiveData(null);
         }
-    };
+    }, []);
 
     useEffect(() => {
         if (selectedRegistration?.id) {
             fetchArchive(selectedRegistration.id);
         }
-    }, [selectedRegistration?.id]);
+    }, [fetchArchive, selectedRegistration?.id]);
 
     const handleOpenCertificate = async () => {
         if (!selectedRegistration?.id) return;
@@ -140,7 +137,7 @@ export default function GradeViewPage() {
 
     const handleSubmitAppeal = async () => {
         if (!appealComponents.length) {
-            message.warning('Vui lòng chọn ít nhất một thành phần điểm cần phúc khảo.');
+            message.warning('Vui lòng chọn ít nhất một thành phần cần phúc khảo.');
             return;
         }
         if (!appealReason.trim()) {
@@ -192,7 +189,7 @@ export default function GradeViewPage() {
     const hasScore = finalScore !== null && finalScore !== undefined && !isNaN(finalScore);
     const gradeInfo = getLetterGrade(finalScore);
 
-    const semesterName = selectedRegistration.topic?.semester?.name || selectedRegistration.semester?.name || 'Học kỳ 1 (2026 - 2027)';
+    const semesterName = selectedRegistration.topic?.semester?.name || selectedRegistration.semester?.name || 'Học kỳ hiện tại';
 
     // Student-facing results are sourced exclusively from a publication item.
     // Council member scores remain internal, including after publication.
@@ -431,7 +428,7 @@ export default function GradeViewPage() {
                 </div>
             </div>
 
-            {/* Rubric Criteria Assessment Details */}
+            {/* Official Result Publication Snapshot Card (Replaces fake CLO mock table) */}
             <div className="card">
                 <div className="card-header" style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 13.5 }}>
@@ -441,68 +438,52 @@ export default function GradeViewPage() {
                             <line x1="16" y1="13" x2="8" y2="13" />
                             <line x1="16" y1="17" x2="8" y2="17" />
                         </svg>
-                        <span>Chi Tiết Rubric Đánh Giá Chuẩn ABET / CDIO của Hội Đồng</span>
+                        <span>Thông Tin Quyết Định & Snapshot Công Bố Kết Quả Đồ Án</span>
                     </div>
-                    <span className="tag teal">Phiên bản Rubric v2.1</span>
+                    <span className={`tag ${isOfficialResult ? 'green' : 'teal'}`}>
+                        {isOfficialResult ? 'Đã công bố chính thức' : 'Chưa công bố chính thức'}
+                    </span>
                 </div>
-                <div className="card-body" style={{ padding: 0 }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                        <thead>
-                            <tr style={{ background: '#F8FAFC', borderBottom: '1px solid var(--border)', textAlign: 'left', fontSize: 12 }}>
-                                <th style={{ width: 120, padding: '10px 14px' }}>Tiêu chí (CLO)</th>
-                                <th style={{ padding: '10px 14px' }}>Nội dung đánh giá</th>
-                                <th style={{ width: 100, padding: '10px 14px' }}>Trọng số</th>
-                                <th style={{ width: 120, padding: '10px 14px' }}>Mức đạt được</th>
-                                <th style={{ width: 120, padding: '10px 14px', textAlign: 'right' }}>Điểm quy đổi</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr style={{ borderBottom: '1px solid #F1F5F9' }}>
-                                <td className="mono" style={{ padding: '12px 14px', fontWeight: 700 }}>CLO-1</td>
-                                <td style={{ padding: '12px 14px' }}>Khả năng phân tích bài toán và tổng quan các công trình nghiên cứu quốc tế</td>
-                                <td className="mono" style={{ padding: '12px 14px' }}>20%</td>
-                                <td style={{ padding: '12px 14px' }}>
-                                    <span className="tag green">{hasScore ? 'Xuất sắc' : 'Đang đánh giá'}</span>
-                                </td>
-                                <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700 }} className="mono">
-                                    {hasScore ? '9.0 / 10' : '—'}
-                                </td>
-                            </tr>
-                            <tr style={{ borderBottom: '1px solid #F1F5F9' }}>
-                                <td className="mono" style={{ padding: '12px 14px', fontWeight: 700 }}>CLO-2</td>
-                                <td style={{ padding: '12px 14px' }}>Thiết kế hệ thống, kiến trúc giải thuật và áp dụng công nghệ mới tiên tiến</td>
-                                <td className="mono" style={{ padding: '12px 14px' }}>30%</td>
-                                <td style={{ padding: '12px 14px' }}>
-                                    <span className="tag green">{hasScore ? 'Xuất sắc' : 'Đang đánh giá'}</span>
-                                </td>
-                                <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700 }} className="mono">
-                                    {hasScore ? '9.2 / 10' : '—'}
-                                </td>
-                            </tr>
-                            <tr style={{ borderBottom: '1px solid #F1F5F9' }}>
-                                <td className="mono" style={{ padding: '12px 14px', fontWeight: 700 }}>CLO-3</td>
-                                <td style={{ padding: '12px 14px' }}>Sản phẩm phần mềm thực nghiệm, mức độ hoàn thiện tính năng và kiểm thử</td>
-                                <td className="mono" style={{ padding: '12px 14px' }}>30%</td>
-                                <td style={{ padding: '12px 14px' }}>
-                                    <span className="tag teal">{hasScore ? 'Tốt / Khá' : 'Đang đánh giá'}</span>
-                                </td>
-                                <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700 }} className="mono">
-                                    {hasScore ? '8.5 / 10' : '—'}
-                                </td>
-                            </tr>
-                            <tr>
-                                <td className="mono" style={{ padding: '12px 14px', fontWeight: 700 }}>CLO-4</td>
-                                <td style={{ padding: '12px 14px' }}>Kỹ năng trình bày báo cáo, bảo vệ quan điểm khoa học và đạo đức liêm chính</td>
-                                <td className="mono" style={{ padding: '12px 14px' }}>20%</td>
-                                <td style={{ padding: '12px 14px' }}>
-                                    <span className="tag green">{hasScore ? 'Xuất sắc' : 'Đang đánh giá'}</span>
-                                </td>
-                                <td style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700 }} className="mono">
-                                    {hasScore ? '8.8 / 10' : '—'}
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+                <div className="card-body" style={{ padding: 18 }}>
+                    {isOfficialResult && publishedResult ? (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
+                            <div style={{ padding: '12px 14px', background: '#F8FAFC', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
+                                <div style={{ fontSize: 11.5, color: 'var(--muted)', fontWeight: 600 }}>KẾT LUẬN HỘI ĐỒNG (SNAPSHOT)</div>
+                                <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <span className={`tag ${publishedResult.outcomeSnapshot === 'PASSED' ? 'green' : 'red'}`} style={{ fontSize: 12, fontWeight: 700 }}>
+                                        {publishedResult.outcomeSnapshot === 'PASSED' ? 'ĐẠT (PASSED)' : 'KHÔNG ĐẠT (FAILED)'}
+                                    </span>
+                                </div>
+                            </div>
+                            <div style={{ padding: '12px 14px', background: '#F8FAFC', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
+                                <div style={{ fontSize: 11.5, color: 'var(--muted)', fontWeight: 600 }}>ĐIỂM SỐ CHÍNH THỨC</div>
+                                <div style={{ marginTop: 6, fontSize: 15, fontWeight: 800, color: '#0F766E' }} className="mono">
+                                    {Number(publishedResult.finalScoreSnapshot).toFixed(2)} / 10 ({gradeInfo.letter})
+                                </div>
+                            </div>
+                            <div style={{ padding: '12px 14px', background: '#F8FAFC', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
+                                <div style={{ fontSize: 11.5, color: 'var(--muted)', fontWeight: 600 }}>THỜI ĐIỂM CÔNG BỐ</div>
+                                <div style={{ marginTop: 6, fontSize: 12.5, fontWeight: 600 }}>
+                                    {publishedResult.publication?.publishedAt ? new Date(publishedResult.publication.publishedAt).toLocaleString('vi-VN') : (publishedResult.createdAt ? new Date(publishedResult.createdAt).toLocaleString('vi-VN') : '—')}
+                                </div>
+                            </div>
+                            <div style={{ padding: '12px 14px', background: '#F8FAFC', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
+                                <div style={{ fontSize: 11.5, color: 'var(--muted)', fontWeight: 600 }}>ĐỢT CÔNG BỐ & MÃ BẢN GHI</div>
+                                <div style={{ marginTop: 6, fontSize: 12, fontFamily: 'monospace' }}>
+                                    Đợt #{publishedResult.publicationId || '—'} · Mục #{publishedResult.id || '—'}
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div style={{ textAlign: 'center', padding: '24px 16px', color: 'var(--muted)', fontSize: 13 }}>
+                            <p style={{ margin: 0 }}>
+                                Hồ sơ bảo vệ đang trong quy trình đánh giá hoặc chờ Viện trưởng ký phê duyệt đợt công bố kết quả.
+                            </p>
+                            <p style={{ margin: '6px 0 0 0', fontSize: 12 }}>
+                                Dữ liệu điểm số chỉ được hiển thị chính thức sau khi ban hành quyết định công bố (ResultPublication Snapshot).
+                            </p>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -555,55 +536,55 @@ export default function GradeViewPage() {
                 <div style={{ marginTop: 14 }}>
                     <div style={{ padding: '12px 14px', background: '#F8FAFC', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', marginBottom: 14 }}>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 12 }}>
-                            <div>Sinh viên: <strong>Nguyễn Trường An (21120489)</strong></div>
-                            <div>Hội đồng chấm: <strong>{council?.name || 'Hội đồng 03 (P.402 · Tòa H1)'}</strong></div>
+                            <div>Sinh viên: <strong>{publishedResult?.studentNameSnapshot || selectedRegistration?.student?.fullName || 'Sinh viên'} ({publishedResult?.studentCodeSnapshot || selectedRegistration?.student?.code || '—'})</strong></div>
+                            <div>Hội đồng chấm: <strong>{council?.name || 'Hội đồng Bảo vệ'}</strong></div>
                             <div>Điểm công bố: <strong style={{ color: '#0F766E' }} className="mono">{compositeScore} / 10 ({gradeInfo.letter})</strong></div>
-                            <div>Ngày bảo vệ: <strong>24/10/2026</strong></div>
+                            <div>Ngày bảo vệ: <strong>{council?.defenseDate ? new Date(council.defenseDate).toLocaleDateString('vi-VN') : (publishedResult?.createdAt ? new Date(publishedResult.createdAt).toLocaleDateString('vi-VN') : '—')}</strong></div>
                         </div>
                     </div>
 
                     <div style={{ marginBottom: 14 }}>
                         <label className="form-label" style={{ fontWeight: 600, display: 'block', marginBottom: 6 }}>
-                            Chọn thành phần điểm cần đề nghị phúc khảo *
+                            Chọn thành phần cần đề nghị phúc khảo *
                         </label>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                             <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', background: '#FFFFFF' }}>
                                 <input
                                     type="checkbox"
-                                    checked={appealComponents.includes('council')}
+                                    checked={appealComponents.includes('defense_score')}
                                     onChange={(e) => {
-                                        if (e.target.checked) setAppealComponents([...appealComponents, 'council']);
-                                        else setAppealComponents(appealComponents.filter((c) => c !== 'council'));
+                                        if (e.target.checked) setAppealComponents([...appealComponents, 'defense_score']);
+                                        else setAppealComponents(appealComponents.filter((c) => c !== 'defense_score'));
                                     }}
                                 />
                                 <span style={{ fontSize: 12.5 }}>
-                                    Điểm Hội đồng Bảo vệ (Trọng số 60% · Điểm hiện tại: <strong className="mono">{councilScore !== null ? Number(councilScore).toFixed(2) : '—'}</strong>)
+                                    Điểm Đánh Giá Hội Đồng Bảo Vệ (Điểm công bố: <strong className="mono">{hasScore ? Number(finalScore).toFixed(2) : '—'}</strong>)
                                 </span>
                             </label>
                             <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', background: '#FFFFFF' }}>
                                 <input
                                     type="checkbox"
-                                    checked={appealComponents.includes('reviewer')}
+                                    checked={appealComponents.includes('rubric_criteria')}
                                     onChange={(e) => {
-                                        if (e.target.checked) setAppealComponents([...appealComponents, 'reviewer']);
-                                        else setAppealComponents(appealComponents.filter((c) => c !== 'reviewer'));
+                                        if (e.target.checked) setAppealComponents([...appealComponents, 'rubric_criteria']);
+                                        else setAppealComponents(appealComponents.filter((c) => c !== 'rubric_criteria'));
                                     }}
                                 />
                                 <span style={{ fontSize: 12.5 }}>
-                                    Điểm Cán bộ Phản biện (Trọng số 20% · Điểm hiện tại: <strong className="mono">{reviewerScore !== null ? Number(reviewerScore).toFixed(2) : '—'}</strong>)
+                                    Nội dung & Biên bản thẩm định Rubric chuyên môn
                                 </span>
                             </label>
                             <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', background: '#FFFFFF' }}>
                                 <input
                                     type="checkbox"
-                                    checked={appealComponents.includes('mentor')}
+                                    checked={appealComponents.includes('calculation_process')}
                                     onChange={(e) => {
-                                        if (e.target.checked) setAppealComponents([...appealComponents, 'mentor']);
-                                        else setAppealComponents(appealComponents.filter((c) => c !== 'mentor'));
+                                        if (e.target.checked) setAppealComponents([...appealComponents, 'calculation_process']);
+                                        else setAppealComponents(appealComponents.filter((c) => c !== 'calculation_process'));
                                     }}
                                 />
                                 <span style={{ fontSize: 12.5 }}>
-                                    Điểm Cán bộ Hướng dẫn (Trọng số 20% · Điểm hiện tại: <strong className="mono">{mentorScore !== null ? Number(mentorScore).toFixed(2) : '—'}</strong>)
+                                    Quy trình tổng hợp điểm số và kết luận bảo vệ
                                 </span>
                             </label>
                         </div>
@@ -615,7 +596,7 @@ export default function GradeViewPage() {
                         </label>
                         <Input.TextArea
                             rows={3}
-                            placeholder="Nêu rõ căn cứ kỹ thuật (ví dụ: phát hiện cộng thiếu điểm tiêu chí Rubric CLO3, hoặc nhóm có minh chứng đã demo thành công phần kiểm thử tương thích Pact nhưng biên bản thư ký ghi nhận chưa đầy đủ)..."
+                            placeholder="Nêu rõ căn cứ kỹ thuật (ví dụ: phát hiện cộng thiếu điểm tiêu chí Rubric hoặc có minh chứng đã demo thành công phần kiểm thử tương thích nhưng biên bản ghi nhận chưa đầy đủ)..."
                             value={appealReason}
                             onChange={(e) => setAppealReason(e.target.value)}
                         />
