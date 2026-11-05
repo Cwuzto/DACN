@@ -37,6 +37,15 @@ function classifyArchiveRecord(archive, registration) {
  * Supports both dry-run and apply mode.
  */
 async function backfillArchivePhases({ dryRun = true, db = prisma, actorId = null } = {}) {
+    if (!actorId) {
+        if (typeof db?.user?.findFirst === 'function') {
+            const adminUser = await db.user.findFirst({ where: { role: 'ADMIN' }, select: { id: true } }).catch(() => null);
+            actorId = adminUser?.id || 1;
+        } else {
+            actorId = 1;
+        }
+    }
+
     const archives = await db.projectArchive.findMany({
         include: {
             registration: true,
@@ -173,12 +182,14 @@ async function backfillArchivePhases({ dryRun = true, db = prisma, actorId = nul
 }
 
 if (require.main === module) {
-    const apply = process.argv.includes('--apply');
-    const dryRunArg = process.argv.includes('--dry-run');
+    const apply = process.argv.includes('--apply') || process.argv.includes('--dry-run=false');
+    const dryRunArg = process.argv.includes('--dry-run') && !process.argv.includes('--dry-run=false');
     const dryRun = dryRunArg ? true : !apply;
+    const actorArg = process.argv.find((a) => a.startsWith('--actor-id='));
+    const actorId = actorArg ? parseInt(actorArg.split('=')[1], 10) : null;
 
     console.log(`[backfillArchivePhases] Running in ${dryRun ? 'DRY-RUN' : 'APPLY'} mode...`);
-    backfillArchivePhases({ dryRun })
+    backfillArchivePhases({ dryRun, actorId })
         .then((summary) => {
             console.log('[backfillArchivePhases] Summary:', JSON.stringify(summary, null, 2));
             process.exit(0);
