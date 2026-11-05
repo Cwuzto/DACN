@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
     Alert,
     Badge,
@@ -11,6 +12,7 @@ import {
     InputNumber,
     message,
     Modal,
+    Popconfirm,
     Row,
     Select,
     Space,
@@ -42,9 +44,18 @@ import dayjs from 'dayjs';
 import registrationService from '../../services/registrationService';
 import { semesterService } from '../../services/semesterService';
 import { topicService } from '../../services/topicService';
+import delegationService from '../../services/delegationService';
+import userService from '../../services/userService';
 import useAuthStore from '../../stores/authStore';
 import { PROJECT_NAME, buildSemesterName, extractSemesterMeta, formatSemesterLabel } from '../../utils/semesterDisplay';
 import BM02ReviewDrawer from '../../components/admin/BM02ReviewDrawer';
+
+const GRANTABLE_CAPABILITIES = [
+    { value: 'OUTLINE_REVIEW', label: 'Thẩm định đề cương BM01 (OUTLINE_REVIEW)' },
+    { value: 'BM02_REVIEW', label: 'Duyệt đơn BM02 (BM02_REVIEW)' },
+    { value: 'DEFENSE_SCORE_SUBMIT', label: 'Chấm điểm bảo vệ đồ án (DEFENSE_SCORE_SUBMIT)' },
+    { value: 'DEFENSE_RESULT_APPROVE', label: 'Phê duyệt kết quả bảo vệ (DEFENSE_RESULT_APPROVE)' },
+];
 
 const statusConfig = {
     ONGOING: { label: 'Đang diễn ra', color: 'green', tw: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
@@ -234,7 +245,18 @@ function PeriodCard({ period, onEdit, onDelete, onClone, onIssueDecision, onView
 
 function ProjectPeriodPage() {
     const { user } = useAuthStore();
+    const location = useLocation();
     const isAdmin = user?.role === 'ADMIN';
+
+    const userPermissions = useMemo(() => user?.permissions || [], [user?.permissions]);
+    const canViewDelegations = useMemo(
+        () => userPermissions.includes('VIEW_ACADEMIC_DELEGATIONS') || userPermissions.includes('PERMISSION_ASSIGN_ACADEMIC'),
+        [userPermissions]
+    );
+    const canAssignAcademic = useMemo(
+        () => userPermissions.includes('PERMISSION_ASSIGN_ACADEMIC'),
+        [userPermissions]
+    );
 
     const [defaultSemesterId, setDefaultSemesterId] = useState(null);
     const [periods, setPeriods] = useState([]);
@@ -253,8 +275,116 @@ function ProjectPeriodPage() {
     const [decisionListModalVisible, setDecisionListModalVisible] = useState(false);
     const [selectedPeriodForDecisions, setSelectedPeriodForDecisions] = useState(null);
 
+    // Navigation Tabs state
+    const [activeTab, setActiveTab] = useState(() => {
+        try {
+            const params = new URLSearchParams(window?.location?.search || '');
+            if (params.get('tab') === 'delegations') return 'delegations';
+            if (params.get('tab') === 'bm02') return 'bm02Queue';
+        } catch {}
+        return 'periods';
+    });
+
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const tabParam = params.get('tab');
+        if (tabParam === 'delegations') {
+            setActiveTab('delegations');
+        } else if (tabParam === 'bm02') {
+            setActiveTab('bm02Queue');
+        }
+    }, [location.search]);
+
+    // Academic Delegation state
+    const [delegations, setDelegations] = useState([]);
+    const [delegationsLoading, setDelegationsLoading] = useState(false);
+    const [delegationModalOpen, setDelegationModalOpen] = useState(false);
+    const [delegationSubmitting, setDelegationSubmitting] = useState(false);
+    const [departmentLecturers, setDepartmentLecturers] = useState([]);
+    const [delegationForm] = Form.useForm();
+
+    const fetchDelegations = useCallback(async () => {
+        if (!canViewDelegations) return;
+        setDelegationsLoading(true);
+        try {
+            const res = await delegationService.getDelegations();
+            if (res?.success && Array.isArray(res.data)) {
+                setDelegations(res.data);
+            }
+        } catch (err) {
+            message.error(err?.message || 'Không thể tải danh sách ủy quyền chuyên môn');
+        } finally {
+            setDelegationsLoading(false);
+        }
+    }, [canViewDelegations]);
+
+    const fetchDepartmentLecturers = useCallback(async () => {
+        try {
+            const res = await userService.getPublicLecturers({
+                department: user?.department || undefined,
+            });
+            if (res?.success && Array.isArray(res.data)) {
+                setDepartmentLecturers(res.data.filter((lec) => lec.id !== user?.id));
+            }
+        } catch {}
+    }, [user?.department, user?.id]);
+
+    useEffect(() => {
+        if (canViewDelegations) {
+            fetchDelegations();
+        }
+        if (canAssignAcademic) {
+            fetchDepartmentLecturers();
+        }
+    }, [canViewDelegations, canAssignAcademic, fetchDelegations, fetchDepartmentLecturers]);
+
+    const handleSubmitCreateDelegation = async (values) => {
+        setDelegationSubmitting(true);
+        try {
+            const payload = {
+                delegateeId: values.delegateeId,
+                capabilityCode: values.capabilityCode,
+                semesterId: values.semesterId || undefined,
+                effectiveFrom: values.dateRange[0].toISOString(),
+                effectiveTo: values.dateRange[1].toISOString(),
+                reason: values.reason?.trim(),
+            };
+            const idempotencyKey = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `delegation-${Date.now()}`;
+            const res = await delegationService.createDelegation(payload, idempotencyKey);
+            if (res?.success) {
+                message.success('Ủy quyền chuyên môn thành công');
+                setDelegationModalOpen(false);
+                delegationForm.resetFields();
+                fetchDelegations();
+            } else {
+                message.error(res?.message || 'Không thể tạo ủy quyền chuyên môn');
+            }
+        } catch (error) {
+            message.error(error?.message || 'Lỗi khi tạo ủy quyền chuyên môn');
+        } finally {
+            setDelegationSubmitting(false);
+        }
+    };
+
+    const handleRevokeDelegation = async (id) => {
+        try {
+            const res = await delegationService.revokeDelegation(id);
+            if (res?.success) {
+                message.success('Thu hồi ủy quyền thành công');
+                fetchDelegations();
+            } else {
+                message.error(res?.message || 'Không thể thu hồi ủy quyền');
+            }
+        } catch (error) {
+            message.error(error?.message || 'Lỗi khi thu hồi ủy quyền');
+        }
+    };
+
+    const activeDelegationsCount = useMemo(() => {
+        return delegations.filter((d) => d.status === 'ACTIVE').length;
+    }, [delegations]);
+
     // BM02 Review Queue state
-    const [activeTab, setActiveTab] = useState('periods');
     const [bm02SemesterFilter, setBm02SemesterFilter] = useState('ALL');
     const [bm02StatusFilter, setBm02StatusFilter] = useState('PENDING');
     const [bm02DrawerOpen, setBm02DrawerOpen] = useState(false);
@@ -997,6 +1127,182 @@ function ProjectPeriodPage() {
                             </div>
                         ),
                     },
+                    ...(canViewDelegations
+                        ? [
+                            {
+                                key: 'delegations',
+                                label: (
+                                    <span className="flex items-center gap-2 font-medium px-1">
+                                        <AuditOutlined />
+                                        <span>Ủy quyền chuyên môn</span>
+                                        {activeDelegationsCount > 0 && (
+                                            <Badge count={activeDelegationsCount} overflowCount={99} />
+                                        )}
+                                    </span>
+                                ),
+                                children: (
+                                    <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-5 space-y-4">
+                                        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                                            <div>
+                                                <h3 className="text-base font-bold text-slate-900">
+                                                    Danh Sách Ủy Quyền Chuyên Môn Học Thuật
+                                                </h3>
+                                                <p className="text-xs text-slate-500 mt-0.5">
+                                                    Ủy quyền quyền thẩm định và chấm điểm đồ án cho giảng viên cùng khoa/viện theo chuẩn phân quyền hai tầng.
+                                                </p>
+                                            </div>
+                                            <Space wrap>
+                                                <Button
+                                                    icon={<ReloadOutlined />}
+                                                    onClick={fetchDelegations}
+                                                    loading={delegationsLoading}
+                                                >
+                                                    Làm mới
+                                                </Button>
+                                                {canAssignAcademic && (
+                                                    <Button
+                                                        type="primary"
+                                                        icon={<PlusOutlined />}
+                                                        className="!bg-teal-600 hover:!bg-teal-700 font-medium"
+                                                        onClick={() => {
+                                                            delegationForm.resetFields();
+                                                            setDelegationModalOpen(true);
+                                                        }}
+                                                    >
+                                                        Tạo ủy quyền mới
+                                                    </Button>
+                                                )}
+                                            </Space>
+                                        </div>
+
+                                        <Table
+                                            dataSource={delegations}
+                                            rowKey="id"
+                                            loading={delegationsLoading}
+                                            pagination={{ pageSize: 10, showSizeChanger: false }}
+                                            locale={{ emptyText: 'Chưa có bản ghi ủy quyền chuyên môn nào.' }}
+                                            columns={[
+                                                {
+                                                    title: 'Người được ủy quyền',
+                                                    key: 'delegatee',
+                                                    width: 220,
+                                                    render: (_, record) => (
+                                                        <div>
+                                                            <div className="font-semibold text-slate-900">
+                                                                {record.delegatee?.fullName || '—'}
+                                                            </div>
+                                                            <div className="text-xs text-slate-500">
+                                                                {record.delegatee?.code || record.delegatee?.email || ''}
+                                                                {record.delegatee?.department ? ` • Khoa ${record.delegatee.department}` : ''}
+                                                            </div>
+                                                        </div>
+                                                    ),
+                                                },
+                                                {
+                                                    title: 'Quyền ủy quyền (Capability)',
+                                                    dataIndex: 'capabilityCode',
+                                                    key: 'capabilityCode',
+                                                    width: 210,
+                                                    render: (code) => {
+                                                        const capConfig = {
+                                                            OUTLINE_REVIEW: { label: 'Thẩm định BM01', color: 'cyan' },
+                                                            BM02_REVIEW: { label: 'Duyệt đơn BM02', color: 'blue' },
+                                                            DEFENSE_SCORE_SUBMIT: { label: 'Chấm điểm bảo vệ', color: 'purple' },
+                                                            DEFENSE_RESULT_APPROVE: { label: 'Duyệt kết quả bảo vệ', color: 'magenta' },
+                                                        };
+                                                        const conf = capConfig[code] || { label: code, color: 'default' };
+                                                        return (
+                                                            <div>
+                                                                <Tag color={conf.color}>{conf.label}</Tag>
+                                                                <div className="text-[11px] text-slate-400 font-mono mt-0.5">{code}</div>
+                                                            </div>
+                                                        );
+                                                    },
+                                                },
+                                                {
+                                                    title: 'Phạm vi học kỳ',
+                                                    key: 'semester',
+                                                    width: 150,
+                                                    render: (_, record) => record.semester?.name || <Tag>Toàn viện</Tag>,
+                                                },
+                                                {
+                                                    title: 'Thời hạn hiệu lực',
+                                                    key: 'period',
+                                                    width: 190,
+                                                    render: (_, record) => (
+                                                        <div className="text-xs">
+                                                            <div>Từ: {dayjs(record.effectiveFrom).format('DD/MM/YYYY')}</div>
+                                                            <div>Đến: {dayjs(record.effectiveTo).format('DD/MM/YYYY')}</div>
+                                                        </div>
+                                                    ),
+                                                },
+                                                {
+                                                    title: 'Lý do ủy quyền',
+                                                    dataIndex: 'reason',
+                                                    key: 'reason',
+                                                    render: (reason) => (
+                                                        <span className="text-xs text-slate-700 italic">{reason || '—'}</span>
+                                                    ),
+                                                },
+                                                {
+                                                    title: 'Người ủy quyền',
+                                                    key: 'delegator',
+                                                    width: 160,
+                                                    render: (_, record) => (
+                                                        <div className="text-xs">
+                                                            <div className="font-medium text-slate-800">{record.delegator?.fullName || '—'}</div>
+                                                            <div className="text-slate-400">{record.delegator?.code || ''}</div>
+                                                        </div>
+                                                    ),
+                                                },
+                                                {
+                                                    title: 'Trạng thái',
+                                                    dataIndex: 'status',
+                                                    key: 'status',
+                                                    width: 120,
+                                                    align: 'center',
+                                                    render: (status) => {
+                                                        const statusMap = {
+                                                            ACTIVE: { label: 'Đang hiệu lực', color: 'green' },
+                                                            REVOKED: { label: 'Đã thu hồi', color: 'volcano' },
+                                                            EXPIRED: { label: 'Hết hạn', color: 'default' },
+                                                        };
+                                                        const conf = statusMap[status] || { label: status, color: 'default' };
+                                                        return <Tag color={conf.color}>{conf.label}</Tag>;
+                                                    },
+                                                },
+                                                {
+                                                    title: 'Thao tác',
+                                                    key: 'action',
+                                                    width: 110,
+                                                    align: 'center',
+                                                    render: (_, record) => {
+                                                        if (record.status !== 'ACTIVE' || !canAssignAcademic) {
+                                                            return <span className="text-slate-400 text-xs">—</span>;
+                                                        }
+                                                        return (
+                                                            <Popconfirm
+                                                                title="Thu hồi ủy quyền"
+                                                                description="Bạn có chắc chắn muốn thu hồi ủy quyền này ngay lập tức?"
+                                                                onConfirm={() => handleRevokeDelegation(record.id)}
+                                                                okText="Thu hồi"
+                                                                cancelText="Hủy"
+                                                                okButtonProps={{ danger: true }}
+                                                            >
+                                                                <Button danger size="small" icon={<DeleteOutlined />}>
+                                                                    Thu hồi
+                                                                </Button>
+                                                            </Popconfirm>
+                                                        );
+                                                    },
+                                                },
+                                            ]}
+                                        />
+                                    </div>
+                                ),
+                            },
+                        ]
+                        : []),
                 ]}
             />
 
@@ -1448,6 +1754,109 @@ function ProjectPeriodPage() {
                         </div>
                     )}
                 </div>
+            </Modal>
+
+            {/* Modal Tạo Ủy Quyền Chuyên Môn */}
+            <Modal
+                title="Tạo Ủy Quyền Chuyên Môn Học Thuật"
+                open={delegationModalOpen}
+                onCancel={() => setDelegationModalOpen(false)}
+                footer={null}
+                width={620}
+                destroyOnClose
+            >
+                <div className="mb-4">
+                    <Alert
+                        type="info"
+                        showIcon
+                        message="Chính sách ủy quyền chuyên môn"
+                        description="Việc ủy quyền chỉ áp dụng cho giảng viên thuộc cùng khoa/viện và có hiệu lực trong khoảng thời gian xác định. Mọi hành động được thực hiện qua ủy quyền sẽ ghi nhận đầy đủ Audit Log."
+                    />
+                </div>
+
+                <Form
+                    form={delegationForm}
+                    layout="vertical"
+                    onFinish={handleSubmitCreateDelegation}
+                    initialValues={{
+                        dateRange: [dayjs(), dayjs().add(30, 'day')],
+                    }}
+                >
+                    <Form.Item
+                        name="delegateeId"
+                        label="Giảng viên nhận ủy quyền"
+                        rules={[{ required: true, message: 'Vui lòng chọn giảng viên nhận ủy quyền' }]}
+                    >
+                        <Select
+                            placeholder={`Chọn giảng viên cùng khoa ${user?.department ? `(${user.department})` : ''}`}
+                            showSearch
+                            optionFilterProp="label"
+                            options={departmentLecturers.map((lec) => ({
+                                value: lec.id,
+                                label: `${lec.fullName} (${lec.code || lec.email})${lec.department ? ` - Khoa ${lec.department}` : ''}`,
+                            }))}
+                        />
+                    </Form.Item>
+
+                    <Form.Item
+                        name="capabilityCode"
+                        label="Quyền chuyên môn (Capability)"
+                        rules={[{ required: true, message: 'Vui lòng chọn quyền ủy quyền' }]}
+                    >
+                        <Select
+                            placeholder="Chọn quyền chuyên môn ủy quyền"
+                            options={GRANTABLE_CAPABILITIES}
+                        />
+                    </Form.Item>
+
+                    <Form.Item
+                        name="semesterId"
+                        label="Phạm vi Đợt đồ án / Học kỳ (Tùy chọn)"
+                    >
+                        <Select
+                            allowClear
+                            placeholder="Tất cả đợt đồ án thuộc khoa/viện"
+                            options={periods.map((p) => ({ value: p.id, label: p.name }))}
+                        />
+                    </Form.Item>
+
+                    <Form.Item
+                        name="dateRange"
+                        label="Thời hạn hiệu lực ủy quyền"
+                        rules={[{ required: true, message: 'Vui lòng chọn thời hạn ủy quyền' }]}
+                    >
+                        <DatePicker.RangePicker
+                            style={{ width: '100%' }}
+                            format="DD/MM/YYYY"
+                            placeholder={['Ngày bắt đầu', 'Ngày hết hạn']}
+                        />
+                    </Form.Item>
+
+                    <Form.Item
+                        name="reason"
+                        label="Lý do ủy quyền"
+                        rules={[{ required: true, message: 'Vui lòng nhập lý do ủy quyền' }]}
+                    >
+                        <Input.TextArea
+                            rows={3}
+                            placeholder="Nhập lý do ủy quyền chuyên môn (VD: Đi công tác, phân công nhiệm vụ phụ trách đợt...)"
+                        />
+                    </Form.Item>
+
+                    <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                        <Button onClick={() => setDelegationModalOpen(false)} disabled={delegationSubmitting}>
+                            Hủy
+                        </Button>
+                        <Button
+                            type="primary"
+                            htmlType="submit"
+                            loading={delegationSubmitting}
+                            className="!bg-teal-600 hover:!bg-teal-700"
+                        >
+                            Xác nhận ủy quyền
+                        </Button>
+                    </div>
+                </Form>
             </Modal>
 
             {/* Drawer Thẩm định BM02 */}

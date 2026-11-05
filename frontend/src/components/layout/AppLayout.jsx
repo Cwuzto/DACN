@@ -373,7 +373,7 @@ function AppLayout({ role }) {
 // permissions: ['PORTAL_CONTENT_MANAGE']
 // permissions: ['NOTIFICATION_MANAGE']
 // permissions: ['RUBRIC_MANAGE']
-// permissions: ['LEGACY_REVIEW_MANAGE']
+// permissions: ['PROJECT_OVERSIGHT_MANAGE']
 // permissions: ['BM03_REVIEW']
 // permissions: ['TOPIC_CREATE']
 // permissions: ['TOPIC_UPDATE_OWN']

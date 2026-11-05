@@ -1,7 +1,7 @@
 import AppLayout from './AppLayout';
 
 function LecturerLayout() {
-    return <AppLayout role="LECTURER" />;
+    return <AppLayout />;
 }
 
 export default LecturerLayout;

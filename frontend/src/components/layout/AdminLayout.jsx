@@ -1,7 +1,7 @@
 import AppLayout from './AppLayout';
 
 function AdminLayout() {
-    return <AppLayout role="ADMIN" />;
+    return <AppLayout />;
 }
 
 export default AdminLayout;

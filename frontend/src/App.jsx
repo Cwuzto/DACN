@@ -81,6 +81,7 @@ const academicPineTheme = {
 };
 
 // Layouts
+import AppLayout from './components/layout/AppLayout';
 import AdminLayout from './components/layout/AdminLayout';
 import LecturerLayout from './components/layout/LecturerLayout';
 import StudentLayout from './components/layout/StudentLayout';
@@ -145,74 +146,79 @@ function App() {
                             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
                         </Route>
 
-                        <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
-                            <Route path="/admin" element={<AdminLayout />}>
+                        {/* Authenticated Workspace Routes — Unified under AppLayout and Capability Guards */}
+                        <Route element={<ProtectedRoute />}>
+                            {/* Admin & Academic Governance Routes */}
+                            <Route path="/admin" element={<AppLayout />}>
                                 <Route index element={<Navigate to="dashboard" replace />} />
-                                <Route element={<ProtectedRoute allowedRoles={['ADMIN']} requiredPermissions={['REPORT_VIEW']} />}>
-                                    <Route path="dashboard" element={<DashboardPage />} />
-                                </Route>
-                                <Route element={<ProtectedRoute allowedRoles={['ADMIN']} requiredPermissions={['USER_MANAGE', 'PERMISSION_GROUP_MANAGE']} />}>
+                                <Route path="dashboard" element={<DashboardPage />} />
+                                <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_USERS', 'USER_MANAGE', 'PERMISSION_GROUP_MANAGE']} />}>
                                     <Route path="users" element={<UserManagementPage />} />
                                 </Route>
-                                <Route element={<ProtectedRoute allowedRoles={['ADMIN']} requiredPermissions={['SEMESTER_MANAGE']} />}>
+                                <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_PROJECT_PERIODS', 'SEMESTER_MANAGE']} />}>
                                     <Route path="project-periods" element={<ProjectPeriodPage />} />
                                 </Route>
-                                <Route path="topics" element={<AdminTopicManagementPage />} />
-                                <Route element={<ProtectedRoute allowedRoles={['ADMIN']} requiredPermissions={['REPORT_VIEW', 'LEGACY_REVIEW_MANAGE']} />}>
+                                <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_ALL_TOPICS', 'TOPIC_REVIEW']} />}>
+                                    <Route path="topics" element={<AdminTopicManagementPage />} />
+                                </Route>
+                                <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_PROJECT_OVERSIGHT', 'REPORT_VIEW', 'PROJECT_OVERSIGHT_MANAGE']} />}>
                                     <Route path="oversight" element={<ProjectOversightPage />} />
                                 </Route>
-                                <Route element={<ProtectedRoute allowedRoles={['ADMIN']} requiredPermissions={['DEFENSE_SCORE_VIEW']} />}>
+                                <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_DEFENSE_LOCK_LEDGER', 'DEFENSE_SCORE_VIEW', 'RESULT_LOCK']} />}>
                                     <Route path="grading" element={<GradingDefensePage />} />
                                 </Route>
-                                <Route element={<ProtectedRoute allowedRoles={['ADMIN']} requiredPermissions={['RUBRIC_MANAGE']} />}>
+                                <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_RUBRIC_CONFIG', 'RUBRIC_MANAGE']} />}>
                                     <Route path="rubric-management" element={<RubricManagementPage />} />
                                 </Route>
-                                <Route element={<ProtectedRoute allowedRoles={['ADMIN']} requiredAnyPermissions={['OUTLINE_COUNCIL_MANAGE', 'DEFENSE_COUNCIL_MANAGE']} />}>
+                                <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_COUNCIL_ASSIGNMENTS', 'OUTLINE_COUNCIL_MANAGE', 'DEFENSE_COUNCIL_MANAGE']} />}>
                                     <Route path="councils" element={<CouncilAssignmentPage />} />
                                 </Route>
-                                <Route element={<ProtectedRoute allowedRoles={['ADMIN']} requiredPermissions={['ENROLLMENT_MANAGE', 'PROJECT_CATALOG_MANAGE']} />}>
+                                <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_PROJECT_ENROLLMENTS', 'ENROLLMENT_MANAGE', 'PROJECT_CATALOG_MANAGE']} />}>
                                     <Route path="project-enrollments" element={<ProjectEnrollmentPage />} />
                                 </Route>
-                                <Route element={<ProtectedRoute allowedRoles={['ADMIN']} requiredPermissions={['PUBLIC_ANNOUNCEMENT_MANAGE']} />}>
+                                <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_ANNOUNCEMENTS', 'PUBLIC_ANNOUNCEMENT_MANAGE']} />}>
                                     <Route path="announcements" element={<AnnouncementManagementPage />} />
                                 </Route>
-                                <Route element={<ProtectedRoute allowedRoles={['ADMIN']} requiredPermissions={['PORTAL_CONTENT_MANAGE']} />}>
+                                <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_PORTAL_CONTENT', 'PORTAL_CONTENT_MANAGE']} />}>
                                     <Route path="portal" element={<PortalContentManagementPage />} />
                                 </Route>
-                                <Route element={<ProtectedRoute allowedRoles={['ADMIN']} requiredPermissions={['PERMISSION_GROUP_MANAGE']} />}>
+                                <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_PERMISSIONS', 'PERMISSION_GROUP_MANAGE']} />}>
                                     <Route path="permissions" element={<PermissionGroupPage />} />
                                 </Route>
-                                <Route element={<ProtectedRoute allowedRoles={['ADMIN']} requiredPermissions={['NOTIFICATION_MANAGE']} />}>
+                                <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_NOTIFICATIONS', 'NOTIFICATION_MANAGE']} />}>
                                     <Route path="notifications" element={<NotificationCenterPage />} />
                                 </Route>
                                 <Route path="profile" element={<ProfilePage />} />
                             </Route>
-                        </Route>
 
-                        <Route element={<ProtectedRoute allowedRoles={['LECTURER']} />}>
-                            <Route element={<ProtectedRoute allowedRoles={['LECTURER']} requiredPermissions={['DEFENSE_SCORE_VIEW', 'DEFENSE_SCORE_SUBMIT']} />}>
+                            {/* Lecturer Routes & Scoring Sheet */}
+                            <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_DEFENSE_GRADING', 'DEFENSE_SCORE_VIEW', 'DEFENSE_SCORE_SUBMIT']} />}>
                                 <Route path="/lecturer/grading/sheet/:registrationId" element={<LecturerGradingSheetPage />} />
                             </Route>
-                            <Route path="/lecturer" element={<LecturerLayout />}>
+                            <Route path="/lecturer" element={<AppLayout />}>
                                 <Route index element={<Navigate to="dashboard" replace />} />
-                                <Route element={<ProtectedRoute allowedRoles={['LECTURER']} requiredPermissions={['BM03_REVIEW']} />}>
-                                    <Route path="dashboard" element={<LecturerDashboardPage />} />
+                                <Route path="dashboard" element={<LecturerDashboardPage />} />
+                                <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_CHECKPOINTS', 'VIEW_BM04_EVALUATIONS', 'BM03_REVIEW']} />}>
                                     <Route path="progress" element={<ProgressTrackingPage />} />
                                 </Route>
-                                <Route element={<ProtectedRoute allowedRoles={['LECTURER']} requiredPermissions={['TOPIC_CREATE', 'TOPIC_UPDATE_OWN']} />}>
+                                <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_MY_TOPICS', 'TOPIC_CREATE', 'TOPIC_UPDATE_OWN']} />}>
                                     <Route path="topics" element={<LecturerTopicManagementPage />} />
                                 </Route>
-                                <Route element={<ProtectedRoute allowedRoles={['LECTURER']} requiredPermissions={['MENTOR_REQUEST_REVIEW', 'OUTLINE_REVIEW']} />}>
+                                <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_MENTORED_STUDENTS', 'VIEW_OUTLINE_REVIEWS', 'MENTOR_REQUEST_REVIEW', 'OUTLINE_REVIEW']} />}>
                                     <Route path="approvals" element={<TopicApprovalPage />} />
                                 </Route>
-                                <Route element={<ProtectedRoute allowedRoles={['LECTURER']} requiredPermissions={['DEFENSE_SCORE_VIEW']} />}>
+                                <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_DEFENSE_GRADING', 'DEFENSE_SCORE_VIEW']} />}>
                                     <Route path="grading" element={<GradingPage />} />
                                 </Route>
                                 <Route
                                     element={(
                                         <ProtectedRoute
-                                            allowedRoles={['LECTURER']}
-                                            requiredPermissions={['PROJECT_ASSIGNMENT_PUBLISH']}
+                                            requiredAnyPermissions={[
+                                                'VIEW_BM02_REVIEWS',
+                                                'VIEW_ASSIGNMENT_DECISIONS',
+                                                'VIEW_ACADEMIC_DELEGATIONS',
+                                                'PROJECT_ASSIGNMENT_PUBLISH',
+                                            ]}
                                         />
                                     )}
                                 >
@@ -221,15 +227,20 @@ function App() {
                                 <Route path="notifications" element={<NotificationsPage />} />
                                 <Route path="profile" element={<ProfilePage />} />
                             </Route>
-                        </Route>
 
-                        <Route element={<ProtectedRoute allowedRoles={['STUDENT']} />}>
-                            <Route path="/student" element={<StudentLayout />}>
+                            {/* Student Routes */}
+                            <Route path="/student" element={<AppLayout />}>
                                 <Route index element={<Navigate to="dashboard" replace />} />
                                 <Route path="dashboard" element={<StudentDashboardPage />} />
-                                <Route path="topics" element={<TopicListPage />} />
-                                <Route path="submissions" element={<SubmissionPage />} />
-                                <Route path="grades" element={<GradeViewPage />} />
+                                <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_MY_REGISTRATION', 'REGISTER_TOPIC']} />}>
+                                    <Route path="topics" element={<TopicListPage />} />
+                                </Route>
+                                <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_MY_SUBMISSIONS', 'SUBMIT_BM01', 'SUBMIT_BM02', 'SUBMIT_TASK']} />}>
+                                    <Route path="submissions" element={<SubmissionPage />} />
+                                </Route>
+                                <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_MY_GRADES']} />}>
+                                    <Route path="grades" element={<GradeViewPage />} />
+                                </Route>
                                 <Route path="notifications" element={<NotificationsPage />} />
                                 <Route path="profile" element={<ProfilePage />} />
                             </Route>
