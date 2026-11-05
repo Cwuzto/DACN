@@ -338,15 +338,33 @@ function ProjectPeriodPage() {
         }
     }, [canViewDelegations, canAssignAcademic, fetchDelegations, fetchDepartmentLecturers]);
 
+    const handleTabChange = (key) => {
+        setActiveTab(key);
+        try {
+            const params = new URLSearchParams(window?.location?.search || '');
+            if (key === 'delegations') {
+                params.set('tab', 'delegations');
+            } else if (key === 'bm02Queue') {
+                params.set('tab', 'bm02');
+            } else {
+                params.delete('tab');
+            }
+            const newSearch = params.toString();
+            window.history.replaceState(null, '', `${window.location.pathname}${newSearch ? `?${newSearch}` : ''}`);
+        } catch {}
+    };
+
     const handleSubmitCreateDelegation = async (values) => {
         setDelegationSubmitting(true);
         try {
+            const fromDate = values.dateRange[0]?.startOf ? values.dateRange[0].startOf('day') : values.dateRange[0];
+            const toDate = values.dateRange[1]?.endOf ? values.dateRange[1].endOf('day') : values.dateRange[1];
             const payload = {
                 delegateeId: values.delegateeId,
                 capabilityCode: values.capabilityCode,
                 semesterId: values.semesterId || undefined,
-                effectiveFrom: values.dateRange[0].toISOString(),
-                effectiveTo: values.dateRange[1].toISOString(),
+                effectiveFrom: fromDate.toISOString(),
+                effectiveTo: toDate.toISOString(),
                 reason: values.reason?.trim(),
             };
             const idempotencyKey = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `delegation-${Date.now()}`;
@@ -898,7 +916,7 @@ function ProjectPeriodPage() {
             {/* Navigation Tabs: Quản lý Đợt đồ án & Hàng đợi Thẩm định BM02 */}
             <Tabs
                 activeKey={activeTab}
-                onChange={setActiveTab}
+                onChange={handleTabChange}
                 type="card"
                 className="project-period-tabs"
                 items={[
