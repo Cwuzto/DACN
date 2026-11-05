@@ -2,7 +2,7 @@
 
 - **Tài liệu**: `docs/superpowers/specs/2026-11-05-capability-matrix-navigation-redesign.md`
 - **Ngày lập**: 05/11/2026
-- **Trạng thái**: Draft - Đã hoàn thiện rà soát kiến trúc & Sẵn sàng Builder Check
+- **Trạng thái**: Hoàn thiện - Sẵn sàng Lập Kế hoạch Triển khai (Ready for Planning)
 
 ---
 
@@ -181,15 +181,23 @@ Mọi yêu cầu mutation đều phải đi qua pipeline kiểm soát chặt ch�
 
 1. **Tách biệt Quyền Sở hữu (Possession) và Quyền Ủy quyền (Delegation)**:
    - Sở hữu một capability (ví dụ: `RESULT_LOCK`) **KHÔNG** đồng nghĩa với việc có quyền cấp `RESULT_LOCK` cho người khác.
-   - Chỉ người dùng sở hữu quyền quản trị ủy quyền (`PERMISSION_GROUP_MANAGE` hoặc capability chuyên biệt `PERMISSION_ASSIGN_ACADEMIC`) mới được phép gán nhóm/quyền cho người khác.
-   - Thao tác gán quyền bị giới hạn bởi danh mục `grantablePermissionCodes` được quy định chặt chẽ theo phân cấp quản trị.
+   - Thao tác gán quyền bị giới hạn bởi danh mục `grantablePermissionCodes` được quy định chặt chẽ:
+     - **Quản trị viên hệ thống (`PERMISSION_GROUP_MANAGE`)**: Chỉ được phép gán các nhóm quyền được định nghĩa sẵn (`QUAN_TRI_VIEN`, `VIEN_TRUONG`, `GVHD`) cho tài khoản người dùng; không được phép bóc tách để tự cấp lẻ các quyền học thuật chuyên môn và không được tự cấp quyền cho chính mình (`targetUserId !== req.user.id`).
+     - **Lãnh đạo học vụ / Viện trưởng (`PERMISSION_ASSIGN_ACADEMIC`)**: Được phép phân quyền ủy quyền chuyên môn học thuật (như gán vai trò chấm đề cương BM01, thẩm định BM02, hội đồng bảo vệ) cho các giảng viên trong phạm vi viện/khoa.
 2. **Cấm tự nâng quyền (Anti-Self-Escalation)**:
    - Người dùng thực hiện không được phép tự gán thêm quyền hoặc đổi nhóm quyền cho chính mình (`targetUserId !== req.user.id`).
 3. **Bảo vệ nhóm hệ thống**:
    - Nhóm `SYSTEM_STUDENT_BASE` mang cờ `isSystem: true` không được phép chỉnh sửa danh sách quyền, không được đổi tên hoặc xóa qua API/UI.
-4. **Server-Authoritative Permission Resolution**:
+4. **Server-Authoritative Permission Resolution & Token Refresh Flow**:
    - JWT chỉ mang `userId`, `role` và `permissionVersion`, **không mang quyền tối hậu**.
-   - Server nạp quyền từ CSDL hoặc in-memory cache theo `userId + permissionVersion`. Khi Admin thay đổi phân quyền của User A, `permissionVersion` của A tăng lên `+1`. Yêu cầu mutation tiếp theo mang version cũ sẽ bị từ chối ngay với mã lỗi `PERMISSION_VERSION_STALE`.
+   - Server nạp quyền từ CSDL hoặc in-memory cache theo `userId + permissionVersion`. Khi Admin thay đổi phân quyền của User A, `permissionVersion` của A tăng lên `+1`.
+   - **Xử lý `PERMISSION_VERSION_STALE` không gây Deadlock**:
+     - Khi một request mutation hoặc đọc nhạy cảm mang token có version cũ, backend trả về HTTP `409 Conflict` với body `{ error: 'PERMISSION_VERSION_STALE', message: 'Phiên bản quyền đã được cập nhật.' }`.
+     - Endpoint `GET /api/auth/me` là endpoint đọc thông tin cơ bản an toàn, **luôn bỏ qua kiểm tra stale version** (để tránh deadlock vòng lặp), đồng thời nạp quyền mới nhất từ DB và trả về Access Token mới `{ success: true, data: user, token: refreshedAccessToken }`.
+     - Phía client, Axios interceptor khi bắt lỗi `409 Conflict` (với mã `PERMISSION_VERSION_STALE`) sẽ:
+       1. Gọi `authService.getMe()`.
+       2. Cập nhật `effectivePermissions`, `permissionVersion` và `token` mới vào `authStore`.
+       3. Replay (thử lại) request gốc một lần duy nhất với token mới một cách trong suốt.
 5. **Tính bất biến & Audit**:
    - Mọi thao tác gán/thu hồi quyền bắt buộc phải có `Idempotency-Key`, ghi nhật ký `AuditLog` chi tiết (actor, target, old permissions, new permissions).
 
