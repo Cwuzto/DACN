@@ -2,16 +2,16 @@
 
 - **Tài liệu**: `docs/superpowers/specs/2026-11-05-capability-matrix-navigation-redesign.md`
 - **Ngày lập**: 05/11/2026
-- **Trạng thái**: Hoàn thiện - Sẵn sàng Lập Kế hoạch Triển khai (Ready for Planning)
+- **Trạng thái**: Bản thảo Hoàn thiện (Final Specification) - Sẵn sàng Triển khai
 
 ---
 
 ## 1. Bối Cảnh & Mục Tiêu Nghiệp Vụ (Intent & Why)
 
-Hệ thống Quản lý Đồ án Tốt nghiệp (DACN) chuyển dịch từ cơ chế kiểm soát truy cập cứng theo vai trò (Role-Based Access Control - RBAC) sang mô hình phân quyền hướng năng lực (Capability-Driven Access Control):
-1. **Frontend**: Thay thế hoàn toàn việc rào chắn bằng `allowedRoles: ['ADMIN', 'LECTURER', 'STUDENT']` trên router bằng việc kiểm tra năng lực hiển thị (`VIEW_*`) qua một Navigation Registry cố định. Thanh menu bên trái được gom thành 7 khối nghiệp vụ chuyên môn; người dùng có capability nào thì khối nghiệp vụ và menu tương ứng sẽ hiển thị.
-2. **Backend**: Tách quyền hiển thị (`VIEW_*`) và quyền thao tác thay đổi dữ liệu (`*_CREATE`, `*_SUBMIT`, `*_REVIEW`, `*_APPROVE`, `*_LOCK`, `*_PUBLISH`,...). Tuyệt đối không dùng `VIEW_*` để bảo vệ API mutation.
-3. **Vai trò (STUDENT / LECTURER / ADMIN)**: Đóng vai trò là thuộc tính hồ sơ và ngữ cảnh nghiệp vụ (xác thực liên kết GVHD, sinh viên, hội đồng), **không tự động cấp quyền truy cập học thuật**.
+Hệ thống Quản lý Đồ án Tốt nghiệp (DACN) chuyển dịch hoàn toàn từ cơ chế kiểm soát truy cập cứng theo vai trò (Role-Based Access Control - RBAC) sang mô hình phân quyền hướng năng lực hai tầng (2-Tier Capability-Driven Access Control):
+1. **Frontend**: Xóa bỏ hoàn toàn rào chắn bằng `allowedRoles` trên React Router. Thay thế bằng Navigation Registry cố định gồm 7 khối nghiệp vụ chuyên môn; mỗi mục menu được bảo vệ bởi đúng một quyền xem (`VIEW_*`). Người dùng có capability nào thì khối nghiệp vụ và menu con tương ứng mới xuất hiện.
+2. **Backend**: Tách bạch tuyệt đối quyền xem giao diện (`VIEW_*`) khỏi quyền thao tác thay đổi dữ liệu (`*_CREATE`, `*_SUBMIT`, `*_REVIEW`, `*_APPROVE`, `*_LOCK`, `*_PUBLISH`,...). Tuyệt đối không dùng `VIEW_*` để bảo vệ API mutation.
+3. **Phân định vai trò (STUDENT / LECTURER / ADMIN)**: Đóng vai trò là thuộc tính hồ sơ và ngữ cảnh nghiệp vụ (định danh liên kết hướng dẫn, sinh viên phụ trách, hội đồng), **hoàn toàn không tự động cấp quyền truy cập hay bypass học thuật**.
 
 ---
 
@@ -19,25 +19,28 @@ Hệ thống Quản lý Đồ án Tốt nghiệp (DACN) chuyển dịch từ cơ
 
 ### Goals
 1. **Mô hình phân quyền 2 tầng**:
-   - *Tầng hiển thị*: Mỗi mục menu tương ứng đúng 1 quyền xem (`VIEW_*`).
-   - *Tầng thao tác*: Mọi mutation được bảo vệ bởi action capability riêng biệt.
-2. **Navigation Registry cố định 7 khối**: Frontend định nghĩa danh mục menu tĩnh, lọc qua `effectivePermissions`, loại bỏ hoàn toàn logic rẽ nhánh role.
-3. **Phòng thủ 3 lớp (Defense-in-Depth)**:
-   - *Lớp 1 (Capability)*: Kiểm tra action capability từ server cache/DB (không tin cậy JWT thô).
+   - *Tầng hiển thị*: Mỗi mục menu tương ứng duy nhất 1 quyền xem (`VIEW_*`).
+   - *Tầng thao tác*: Mọi mutation được bảo vệ độc lập bởi action capability cụ thể.
+2. **Navigation Registry cố định 7 khối đầy đủ 26 mục**: Không chứa code logic rẽ nhánh role; client lọc registry qua `effectivePermissions`.
+3. **Phòng thủ 3 lớp (Defense-in-Depth)** trên toàn bộ API backend:
+   - *Lớp 1 (Capability)*: Kiểm tra action capability từ CSDL / Cache (không tin cậy JWT thô).
    - *Lớp 2 (Domain Scope)*: Kiểm tra ownership, gán GVHD, thành viên hội đồng.
    - *Lớp 3 (Academic Invariants)*: Kiểm tra trạng thái máy quy trình, đủ 3 phiếu chấm, hạn chót, không xung đột lợi ích (COI).
-4. **Bảo tồn URL hiện hữu (In-place Refactoring)**: Giữ nguyên các route path hiện tại (`/student/*`, `/lecturer/*`, `/admin/*`) bọc trong một `AppLayout` duy nhất, bảo toàn 378 unit/integration test.
-5. **Cơ chế cấp quyền Sinh viên chuẩn quy chuẩn**: Cấp qua nhóm quyền hệ thống bất biến `SYSTEM_STUDENT_BASE` (`isSystem: true`) khi provisioning tài khoản, không suy diễn từ role.
-6. **Đồng bộ quyền qua vòng đời client & BroadcastChannel**: Cập nhật tức thì giữa các tab cùng trình duyệt khi có thay đổi quyền mà không cần WebSocket/SSE.
-7. **Tách biệt quyền sở hữu và quyền ủy quyền**: Phân định rõ ràng giữa việc sở hữu capability và quyền được cấp capability đó cho người khác (`grantablePermissionCodes` / `PERMISSION_ASSIGN_ACADEMIC`).
+4. **Bảo tồn URL hiện hữu (In-place Refactoring)**: Giữ nguyên các route path hiện tại (`/student/*`, `/lecturer/*`, `/admin/*`) bọc trong một `AppLayout` duy nhất, bảo toàn nguyên vẹn 378 unit/integration test.
+5. **Cơ chế cấp quyền Sinh viên qua Nhóm Bất biến `SYSTEM_STUDENT_BASE`**: Nhóm quyền hệ thống mang cờ `isSystem: true` được cấp tự động khi khởi tạo tài khoản sinh viên, không suy diễn từ role và khóa cấm Admin chỉnh sửa.
+6. **Đồng bộ phiên an toàn & Phân định Replay khi Stale**:
+   - Chỉ logout khi token 401 hoặc tài khoản bị vô hiệu hóa (`ACCOUNT_DISABLED`). Giữ nguyên session khi gặp lỗi domain 403.
+   - Xử lý mã `409 Conflict` (`PERMISSION_VERSION_STALE`): Chỉ tự động replay các request `GET` hoặc mutation có `Idempotency-Key`; các mutation không có Idempotency-Key bắt buộc yêu cầu người dùng xác nhận gửi lại.
+   - Đồng bộ đa tab qua `BroadcastChannel` mà không cần WebSocket/SSE.
+7. **Tách biệt quyền sở hữu và quyền ủy quyền**: Người có capability học thuật không được tự ý cấp capability đó cho người khác; Admin kỹ thuật (`PERMISSION_GROUP_MANAGE`) không được phép gán nhóm học thuật (`VIEN_TRUONG`, `GVHD`).
 
 ### Non-Goals
-1. Không tái cấu trúc URL thành đường dẫn phẳng `/manage/...` trong đợt này để tránh rủi ro hồi quy.
+1. Không tái cấu trúc URL thành đường dẫn phẳng `/manage/...` trong đợt này nhằm loại trừ nguy cơ hồi quy test suite.
 2. Không mở nhóm quyền học thuật cơ bản của sinh viên cho quản trị viên tùy biến trên giao diện.
 
 ### Anti-Goals
 1. **Tuyệt đối cấm dùng `VIEW_*` để bảo vệ API mutation**: Quyền xem menu không bao giờ cho phép thực thi hành động nghiệp vụ.
-2. **Không có đặc quyền Admin học thuật mặc định (Zero-Trust Admin)**: Tài khoản `ADMIN` không thể can thiệp điểm số hay quy trình học thuật nếu không có capability và quyết định phân công.
+2. **Không có đặc quyền Admin học thuật mặc định (Zero-Trust Admin)**: Tài khoản `ADMIN` không thể can thiệp điểm số hay quy trình học thuật nếu không có capability và quyết định phân công hội đồng.
 3. **Không dùng `VIEW_*` cho nút hành động trên từng bản ghi (CTA Invariant)**: Nút hành động trên từng hồ sơ bắt buộc phải kiểm tra mảng `allowedActions[]` do backend tính toán và trả về.
 4. **Không dùng JWT làm nguồn quyền tối hậu**: Server luôn resolve quyền từ CSDL/cache theo `permissionVersion` hiện hành.
 
@@ -67,34 +70,34 @@ Hệ thống Quản lý Đồ án Tốt nghiệp (DACN) chuyển dịch từ cơ
 
 ### 5.1. Bảng Phân Bổ 7 Khối Nghiệp Vụ (Navigation Registry)
 
-| Nhóm nghiệp vụ (Group) | Tên Menu hiển thị (Label) | Quyền xem duy nhất (`VIEW_*`) | Đường dẫn Route hiện tại | Quyền thao tác tách riêng (Action Capabilities) |
-|---|---|---|---|---|
-| **1. Hồ sơ của tôi** | Đề tài đăng ký | `VIEW_MY_REGISTRATION` | `/student/topics` | `REGISTER_TOPIC`, `RENAME_TOPIC` |
-| | Đề tài phụ trách | `VIEW_MY_TOPICS` | `/lecturer/topics` | `TOPIC_CREATE`, `TOPIC_UPDATE_OWN` |
-| | Hồ sơ & Nộp bài | `VIEW_MY_SUBMISSIONS` | `/student/submissions` | `SUBMIT_BM01`, `SUBMIT_BM02`, `SUBMIT_TASK` |
-| | Lưu chiểu số | `VIEW_MY_ARCHIVE` | `/student/submissions?tab=archive` | `SUBMIT_PRE_DEFENSE_ARCHIVE`, `SUBMIT_FINAL_ARCHIVE` |
-| | Điểm đồ án của tôi | `VIEW_MY_GRADES` | `/student/grades` | — (Chỉ đọc snapshot công bố) |
-| **2. Hướng dẫn & tiến độ** | Sinh viên hướng dẫn | `VIEW_MENTORED_STUDENTS` | `/lecturer/approvals` | `MENTOR_REQUEST_REVIEW` |
-| | Checkpoint tiến độ | `VIEW_CHECKPOINTS` | `/lecturer/progress` | `CHECKPOINT_ISSUE`, `CHECKPOINT_SIGN`, `SIGNATURE_APPEAL_REVIEW` |
-| | Đánh giá BM04 | `VIEW_BM04_EVALUATIONS` | `/lecturer/progress?tab=bm04` | `BM04_SUBMIT`, `BM04_REVIEW` |
-| **3. Thẩm định & quyết định** | Thẩm định BM01 | `VIEW_OUTLINE_REVIEWS` | `/lecturer/approvals?tab=bm01` | `OUTLINE_REVIEW`, `OUTLINE_APPROVE` |
-| | Duyệt đơn BM02 | `VIEW_BM02_REVIEWS` | `/lecturer/institute` | `BM02_REVIEW` |
-| | Quyết định giao đề tài | `VIEW_ASSIGNMENT_DECISIONS` | `/lecturer/institute?tab=decisions` | `PROJECT_ASSIGNMENT_PUBLISH`, `DECISION_AMENDMENT_SIGN` |
-| **4. Hội đồng & bảo vệ** | Phân công Hội đồng | `VIEW_COUNCIL_ASSIGNMENTS` | `/admin/councils` | `OUTLINE_COUNCIL_MANAGE`, `DEFENSE_COUNCIL_MANAGE` |
-| | Phiếu chấm bảo vệ | `VIEW_DEFENSE_GRADING` | `/lecturer/grading` | `DEFENSE_SCORE_SUBMIT` |
-| | Trung tâm chấm & Khóa sổ | `VIEW_DEFENSE_LOCK_LEDGER` | `/admin/grading` | `RESULT_LOCK`, `DEFENSE_RESULT_APPROVE` |
-| **5. Kết quả & công bố** | Phê duyệt kết quả | `VIEW_DEFENSE_RESULT_APPROVALS`| `/admin/grading?tab=approvals` | `DEFENSE_RESULT_APPROVE` |
-| | Công bố kết quả | `VIEW_RESULT_PUBLICATIONS` | `/admin/grading?tab=publish` | `RESULT_PUBLICATION_PUBLISH` |
-| | Tiêu chí chấm (Rubric) | `VIEW_RUBRIC_CONFIG` | `/admin/rubric-management` | `RUBRIC_MANAGE` |
-| **6. Quản trị học vụ** | Đợt đồ án & Học kỳ | `VIEW_PROJECT_PERIODS` | `/admin/project-periods` | `SEMESTER_MANAGE` |
-| | Gán môn đồ án (Enrollment)| `VIEW_PROJECT_ENROLLMENTS` | `/admin/project-enrollments` | `ENROLLMENT_MANAGE`, `PROJECT_CATALOG_MANAGE` |
-| | Quản lý đề tài chung | `VIEW_ALL_TOPICS` | `/admin/topics` | `TOPIC_REVIEW` |
-| | Giám sát tiến độ & rà soát | `VIEW_PROJECT_OVERSIGHT` | `/admin/oversight` | `PROJECT_OVERSIGHT_MANAGE`, `REPORT_VIEW` |
-| **7. Quản trị hệ thống** | Quản lý người dùng | `VIEW_USERS` | `/admin/users` | `USER_MANAGE`, `USER_IMPORT` |
-| | Phân quyền & Nhóm quyền | `VIEW_PERMISSIONS` | `/admin/permissions` | `PERMISSION_GROUP_MANAGE`, `PERMISSION_ASSIGN_ACADEMIC` |
-| | Bản tin Portal | `VIEW_ANNOUNCEMENTS` | `/admin/announcements` | `PUBLIC_ANNOUNCEMENT_MANAGE` |
-| | Biểu mẫu & CMS Portal | `VIEW_PORTAL_CONTENT` | `/admin/portal` | `PORTAL_CONTENT_MANAGE` |
-| | Gửi thông báo người dùng | `VIEW_NOTIFICATIONS` | `/admin/notifications` | `NOTIFICATION_MANAGE` |
+| STT | Nhóm nghiệp vụ (Group) | Tên Menu hiển thị (Label) | Quyền xem duy nhất (`VIEW_*`) | Đường dẫn Route hiện tại | Quyền thao tác tách riêng (Action Capabilities) |
+|---|---|---|---|---|---|
+| 1 | **Hồ sơ của tôi** | Đề tài đăng ký | `VIEW_MY_REGISTRATION` | `/student/topics` | `REGISTER_TOPIC`, `RENAME_TOPIC` |
+| 2 | | Đề tài phụ trách | `VIEW_MY_TOPICS` | `/lecturer/topics` | `TOPIC_CREATE`, `TOPIC_UPDATE_OWN` |
+| 3 | | Hồ sơ & Nộp bài | `VIEW_MY_SUBMISSIONS` | `/student/submissions` | `SUBMIT_BM01`, `SUBMIT_BM02`, `SUBMIT_TASK` |
+| 4 | | Lưu chiểu số | `VIEW_MY_ARCHIVE` | `/student/submissions?tab=archive` | `SUBMIT_PRE_DEFENSE_ARCHIVE`, `SUBMIT_FINAL_ARCHIVE` |
+| 5 | | Điểm đồ án của tôi | `VIEW_MY_GRADES` | `/student/grades` | — (Chỉ đọc snapshot công bố của chính mình) |
+| 6 | **Hướng dẫn & tiến độ** | Sinh viên hướng dẫn | `VIEW_MENTORED_STUDENTS` | `/lecturer/approvals` | `MENTOR_REQUEST_REVIEW` |
+| 7 | | Checkpoint tiến độ | `VIEW_CHECKPOINTS` | `/lecturer/progress` | `CHECKPOINT_ISSUE`, `CHECKPOINT_SIGN`, `SIGNATURE_APPEAL_REVIEW` |
+| 8 | | Đánh giá BM04 | `VIEW_BM04_EVALUATIONS` | `/lecturer/progress?tab=bm04` | `BM04_SUBMIT`, `BM04_REVIEW` |
+| 9 | **Thẩm định & quyết định**| Thẩm định BM01 | `VIEW_OUTLINE_REVIEWS` | `/lecturer/approvals?tab=bm01` | `OUTLINE_REVIEW`, `OUTLINE_APPROVE` |
+| 10 | | Duyệt đơn BM02 | `VIEW_BM02_REVIEWS` | `/lecturer/institute` | `BM02_REVIEW` |
+| 11 | | Quyết định giao đề tài | `VIEW_ASSIGNMENT_DECISIONS` | `/lecturer/institute?tab=decisions` | `PROJECT_ASSIGNMENT_PUBLISH`, `DECISION_AMENDMENT_SIGN` |
+| 12 | **Hội đồng & bảo vệ** | Phân công Hội đồng | `VIEW_COUNCIL_ASSIGNMENTS` | `/admin/councils` | `OUTLINE_COUNCIL_MANAGE`, `DEFENSE_COUNCIL_MANAGE` |
+| 13 | | Phiếu chấm bảo vệ | `VIEW_DEFENSE_GRADING` | `/lecturer/grading` | `DEFENSE_SCORE_SUBMIT` |
+| 14 | | Trung tâm chấm & Khóa sổ | `VIEW_DEFENSE_LOCK_LEDGER` | `/admin/grading` | `RESULT_LOCK`, `DEFENSE_RESULT_APPROVE` |
+| 15 | **Kết quả & công bố** | Phê duyệt kết quả | `VIEW_DEFENSE_RESULT_APPROVALS`| `/admin/grading?tab=approvals` | `DEFENSE_RESULT_APPROVE` |
+| 16 | | Công bố kết quả | `VIEW_RESULT_PUBLICATIONS` | `/admin/grading?tab=publish` | `RESULT_PUBLICATION_PUBLISH` |
+| 17 | | Tiêu chí chấm (Rubric) | `VIEW_RUBRIC_CONFIG` | `/admin/rubric-management` | `RUBRIC_MANAGE` |
+| 18 | **Quản trị học vụ** | Đợt đồ án & Học kỳ | `VIEW_PROJECT_PERIODS` | `/admin/project-periods` | `SEMESTER_MANAGE` |
+| 19 | | Gán môn đồ án (Enrollment)| `VIEW_PROJECT_ENROLLMENTS` | `/admin/project-enrollments` | `ENROLLMENT_MANAGE`, `PROJECT_CATALOG_MANAGE` |
+| 20 | | Quản lý đề tài chung | `VIEW_ALL_TOPICS` | `/admin/topics` | `TOPIC_REVIEW` |
+| 21 | | Giám sát tiến độ & rà soát | `VIEW_PROJECT_OVERSIGHT` | `/admin/oversight` | `PROJECT_OVERSIGHT_MANAGE`, `REPORT_VIEW` |
+| 22 | **Quản trị hệ thống** | Quản lý người dùng | `VIEW_USERS` | `/admin/users` | `USER_MANAGE`, `USER_IMPORT` |
+| 23 | | Phân quyền kỹ thuật & Nhóm | `VIEW_PERMISSIONS` | `/admin/permissions` | `PERMISSION_GROUP_MANAGE` (Chỉ nhóm kỹ thuật) |
+| 24 | | Bản tin Portal | `VIEW_ANNOUNCEMENTS` | `/admin/announcements` | `PUBLIC_ANNOUNCEMENT_MANAGE` |
+| 25 | | Biểu mẫu & CMS Portal | `VIEW_PORTAL_CONTENT` | `/admin/portal` | `PORTAL_CONTENT_MANAGE` |
+| 26 | | Gửi thông báo người dùng | `VIEW_NOTIFICATIONS` | `/admin/notifications` | `NOTIFICATION_MANAGE` |
 
 ---
 
@@ -104,7 +107,10 @@ Hệ thống Quản lý Đồ án Tốt nghiệp (DACN) chuyển dịch từ cơ
    - CSDL định nghĩa nhóm quyền hệ thống `SYSTEM_STUDENT_BASE` (`isSystem: true`) chứa các quyền cơ sở của sinh viên: `VIEW_MY_REGISTRATION`, `VIEW_MY_SUBMISSIONS`, `VIEW_MY_ARCHIVE`, `VIEW_MY_GRADES`, `REGISTER_TOPIC`, `SUBMIT_BM01`, `SUBMIT_BM02`, `SUBMIT_TASK`, `SUBMIT_PRE_DEFENSE_ARCHIVE`, `SUBMIT_FINAL_ARCHIVE`.
    - Nhóm quyền này được cấp tự động khi khởi tạo/import tài khoản sinh viên.
    - Bị khóa bất biến: cấm chỉnh sửa, đổi tên, thu hồi hoặc xóa trên UI/API.
-   - Backend kiểm tra 100% bằng capability + domain guard: *'Người dùng có hồ sơ sinh viên hợp lệ và có enrollment ACTIVE trong học kỳ'*. Tuyệt đối không suy diễn quyền dựa trên `role === 'STUDENT'`.
+   - Backend kiểm tra 100% bằng capability, kết hợp domain guard:
+     - *Với các mutation đăng ký/nộp bài đợt hiện hành (`REGISTER_TOPIC`, `SUBMIT_BM01`, `SUBMIT_BM02`, `SUBMIT_TASK`)*: Bắt buộc sinh viên có enrollment `ACTIVE` trong học kỳ hiện tại.
+     - *Với các truy vấn tra cứu lịch sử (`VIEW_MY_GRADES`, `VIEW_MY_ARCHIVE`)*: Không đòi hỏi enrollment hiện tại phải active, cho phép sinh viên đã tốt nghiệp tra cứu kết quả bảo vệ cũ và hồ sơ lưu chiểu hợp lệ của chính mình (`registration.studentId === req.user.id`).
+     - Tuyệt đối không suy diễn quyền dựa trên `role === 'STUDENT'`.
 
 2. **Loại bỏ hoàn toàn logic rẽ nhánh role trong Registry**:
    - Tách bạch 2 entry độc lập: `my-registration` (`VIEW_MY_REGISTRATION` $\to$ `/student/topics`) và `my-topics` (`VIEW_MY_TOPICS` $\to$ `/lecturer/topics`).
@@ -121,7 +127,8 @@ Hệ thống Quản lý Đồ án Tốt nghiệp (DACN) chuyển dịch từ cơ
 
 5. **Nguyên tắc In-page CTA vs `VIEW_*`**:
    - `VIEW_*` CHỈ được dùng để quyết định hiển thị mục menu trên sidebar và route truy cập trang.
-   - Mọi nút bấm hành động nghiệp vụ (Khóa điểm, Ký duyệt checkpoint, Duyệt đề cương, Ban hành quyết định) trên từng dòng dữ liệu **BẮT BUỘC phải căn cứ vào mảng `allowedActions[]` do backend tính toán và trả về theo từng bản ghi**.
+   - Mọi nút bấm hành động nghiệp vụ trên từng hồ sơ/vòng đời đề tài (Khóa điểm, Ký duyệt checkpoint, Duyệt đề cương, Ban hành quyết định) **BẮT BUỘC phải căn cứ vào mảng `allowedActions[]` do backend tính toán qua `workflowActionService.js` và trả về theo từng bản ghi**.
+   - Các thực thể không thuộc vòng đời đề tài (User, Semester, Rubric, Portal Content): hiển thị nút thao tác dựa trên action capability tương ứng (`USER_MANAGE`, `SEMESTER_MANAGE`, `RUBRIC_MANAGE`) trong `effectivePermissions`.
 
 6. **Loại bỏ hoàn toàn khái niệm `LEGACY_REVIEW_MANAGE`**:
    - Thay thế bằng `PROJECT_OVERSIGHT_MANAGE`, phục vụ thuần túy rà soát tiến độ và kiểm toán học vụ, xóa bỏ hoàn toàn nguy cơ bypass nghiệp vụ.
@@ -143,7 +150,7 @@ Mọi yêu cầu mutation đều phải đi qua pipeline kiểm soát chặt ch�
 │    - VÍ DỤ: 'RESULT_LOCK'                              │
 └────────────────────────────────────────────────────────┘
    │
-   ▼ Pass (Nếu Version cũ -> Trả PERMISSION_VERSION_STALE)
+   ▼ Pass (Nếu Version cũ -> Trả 409 PERMISSION_VERSION_STALE)
 ┌────────────────────────────────────────────────────────┐
 │ 2. Domain Scope & Membership Guard                     │
 │    - Người dùng có thuộc hội đồng được chấm?           │
@@ -168,10 +175,10 @@ Mọi yêu cầu mutation đều phải đi qua pipeline kiểm soát chặt ch�
 
 | Route Endpoint | Phương thức | Middleware cũ | Middleware mới (Capability) | Domain Guard bổ sung |
 |---|---|---|---|---|
-| `/api/registrations/register` | `POST` | `authorize('STUDENT')` | `authorizePermission('REGISTER_TOPIC')` | Kiểm tra sinh viên có enrollment ACTIVE |
+| `/api/registrations/register` | `POST` | `authorize('STUDENT')` | `authorizePermission('REGISTER_TOPIC')` | Kiểm tra sinh viên có enrollment ACTIVE trong kỳ |
 | `/api/registrations/:id/status` | `PATCH` | `authorize('LECTURER')` | `authorizePermission('MENTOR_REQUEST_REVIEW')` | Ràng buộc `topic.mentorId === req.user.id` |
 | `/api/evaluations/councils/:id/lock-scores` | `POST` | `authorizePermission('RESULT_LOCK')` | `authorizePermission('RESULT_LOCK')` | Ràng buộc Hội đồng, 3 phiếu chấm cá nhân |
-| `/api/semesters/:id/decisions` | `POST` | `authorizePermission('PROJECT_ASSIGNMENT_PUBLISH')` | `authorizePermission('PROJECT_ASSIGNMENT_PUBLISH')` | Ràng buộc Viện trưởng/Khoa, Idempotency-Key |
+| `/api/semesters/:id/decisions` | `POST` | `authorizePermission('PROJECT_ASSIGNMENT_PUBLISH')` | `authorizePermission('PROJECT_ASSIGNMENT_PUBLISH')` | Ràng buộc Lãnh đạo Khoa/Viện, Idempotency-Key |
 | `/api/evaluations/my-grades` | `GET` | `authorize('STUDENT')` | `authorizePermission('VIEW_MY_GRADES')` | Ràng buộc `registration.studentId === req.user.id` và chỉ trả snapshot đã công bố chính thức |
 | `/api/dashboards/overview` | `GET` | Tách lẻ 3 route | `authenticate` (Dùng chung) | Widget lọc theo tập `req.user.permissions` |
 
@@ -179,25 +186,21 @@ Mọi yêu cầu mutation đều phải đi qua pipeline kiểm soát chặt ch�
 
 ### 6.1. Rào Chắn Chống Leo Thang Quyền & Tách Biệt Quyền Ủy Quyền (Delegation Boundary)
 
-1. **Tách biệt Quyền Sở hữu (Possession) và Quyền Ủy quyền (Delegation)**:
-   - Sở hữu một capability (ví dụ: `RESULT_LOCK`) **KHÔNG** đồng nghĩa với việc có quyền cấp `RESULT_LOCK` cho người khác.
-   - Thao tác gán quyền bị giới hạn bởi danh mục `grantablePermissionCodes` được quy định chặt chẽ:
-     - **Quản trị viên hệ thống (`PERMISSION_GROUP_MANAGE`)**: Chỉ được phép gán các nhóm quyền được định nghĩa sẵn (`QUAN_TRI_VIEN`, `VIEN_TRUONG`, `GVHD`) cho tài khoản người dùng; không được phép bóc tách để tự cấp lẻ các quyền học thuật chuyên môn và không được tự cấp quyền cho chính mình (`targetUserId !== req.user.id`).
-     - **Lãnh đạo học vụ / Viện trưởng (`PERMISSION_ASSIGN_ACADEMIC`)**: Được phép phân quyền ủy quyền chuyên môn học thuật (như gán vai trò chấm đề cương BM01, thẩm định BM02, hội đồng bảo vệ) cho các giảng viên trong phạm vi viện/khoa.
-2. **Cấm tự nâng quyền (Anti-Self-Escalation)**:
-   - Người dùng thực hiện không được phép tự gán thêm quyền hoặc đổi nhóm quyền cho chính mình (`targetUserId !== req.user.id`).
-3. **Bảo vệ nhóm hệ thống**:
+1. **Tách biệt Quyền Quản trị Hệ thống và Quyền Ủy quyền Học thuật**:
+   - `PERMISSION_GROUP_MANAGE` (Quản trị hệ thống): Chỉ được quản lý các nhóm kỹ thuật/hệ thống (`QUAN_TRI_VIEN`). **Tuyệt đối không được phép tự gán các nhóm chứa capability học thuật chuyên môn như `VIEN_TRUONG` hoặc `GVHD`**. Việc bổ nhiệm chức danh học vụ phải xuất phát từ hồ sơ tổ chức/nhân sự được audit chính thức.
+   - `PERMISSION_ASSIGN_ACADEMIC` (Lãnh đạo học vụ / Viện trưởng): Chỉ lãnh đạo học vụ mới có thẩm quyền ủy quyền các capability chuyên môn học thuật (chấm đề cương BM01, thẩm định BM02, hội đồng bảo vệ) cho giảng viên trong đúng phạm vi viện/khoa phụ trách theo danh mục `grantablePermissionCodes`.
+   - Cấm tự nâng quyền (Anti-Self-Escalation): Cấm tự gán thêm quyền cho chính tài khoản của mình (`targetUserId !== req.user.id`).
+2. **Bảo vệ nhóm hệ thống**:
    - Nhóm `SYSTEM_STUDENT_BASE` mang cờ `isSystem: true` không được phép chỉnh sửa danh sách quyền, không được đổi tên hoặc xóa qua API/UI.
-4. **Server-Authoritative Permission Resolution & Token Refresh Flow**:
+3. **Server-Authoritative Permission Resolution**:
    - JWT chỉ mang `userId`, `role` và `permissionVersion`, **không mang quyền tối hậu**.
-   - Server nạp quyền từ CSDL hoặc in-memory cache theo `userId + permissionVersion`. Khi Admin thay đổi phân quyền của User A, `permissionVersion` của A tăng lên `+1`.
-   - **Xử lý `PERMISSION_VERSION_STALE` không gây Deadlock**:
-     - Khi một request mutation hoặc đọc nhạy cảm mang token có version cũ, backend trả về HTTP `409 Conflict` với body `{ error: 'PERMISSION_VERSION_STALE', message: 'Phiên bản quyền đã được cập nhật.' }`.
-     - Endpoint `GET /api/auth/me` là endpoint đọc thông tin cơ bản an toàn, **luôn bỏ qua kiểm tra stale version** (để tránh deadlock vòng lặp), đồng thời nạp quyền mới nhất từ DB và trả về Access Token mới `{ success: true, data: user, token: refreshedAccessToken }`.
-     - Phía client, Axios interceptor khi bắt lỗi `409 Conflict` (với mã `PERMISSION_VERSION_STALE`) sẽ:
-       1. Gọi `authService.getMe()`.
-       2. Cập nhật `effectivePermissions`, `permissionVersion` và `token` mới vào `authStore`.
-       3. Replay (thử lại) request gốc một lần duy nhất với token mới một cách trong suốt.
+   - Server nạp quyền từ CSDL hoặc in-memory cache theo `userId + permissionVersion`. Khi phân quyền của User A thay đổi, `permissionVersion` của A tăng lên `+1`.
+4. **Quy tắc Replay an toàn khi gặp `PERMISSION_VERSION_STALE`**:
+   - Khi một request mutation hoặc đọc nhạy cảm mang token có version cũ, backend trả về HTTP `409 Conflict` với body `{ error: 'PERMISSION_VERSION_STALE', message: 'Phiên bản quyền đã được cập nhật.' }`.
+   - Endpoint `GET /api/auth/me` bỏ qua kiểm tra stale version (tránh deadlock) nhưng **vẫn bắt buộc kiểm tra token hợp lệ và tài khoản chưa bị vô hiệu hóa** (`isActive === true`), nạp quyền mới nhất từ DB và trả về Access Token mới `{ success: true, data: user, token: refreshedAccessToken }`.
+   - Axios interceptor ở client:
+     - Với request `GET`: Tự động gọi `authService.getMe()`, cập nhật `token`, `effectivePermissions`, `permissionVersion` và retry (thử lại) request gốc một lần duy nhất.
+     - Với mutation (`POST`, `PUT`, `PATCH`, `DELETE`): **CHỈ tự động retry khi request gốc có header `Idempotency-Key`**. Nếu request không có `Idempotency-Key`, client chỉ refetch session rồi hiển thị thông báo yêu cầu người dùng chủ động nhấn xác nhận gửi lại nhằm ngăn chặn duplicate mutation.
 5. **Tính bất biến & Audit**:
    - Mọi thao tác gán/thu hồi quyền bắt buộc phải có `Idempotency-Key`, ghi nhật ký `AuditLog` chi tiết (actor, target, old permissions, new permissions).
 
@@ -205,12 +208,13 @@ Mọi yêu cầu mutation đều phải đi qua pipeline kiểm soát chặt ch�
 
 ## 7. Kiến Trúc Frontend Navigation Registry & Session Sync
 
-### 7.1. Cấu Trúc Navigation Registry (`frontend/src/config/navigationRegistry.js`)
+### 7.1. Cấu Trúc Navigation Registry Đầy Đủ 26 Mục (`frontend/src/config/navigationRegistry.js`)
 
 Registry là hằng số cố định, không tạo động từ chuỗi server và không chứa logic rẽ nhánh role:
 
 ```javascript
 export const NAVIGATION_REGISTRY = [
+  // KHỐI 1: HỒ SƠ CỦA TÔI
   {
     key: 'my-registration',
     label: 'Đề tài đăng ký',
@@ -228,9 +232,95 @@ export const NAVIGATION_REGISTRY = [
     route: '/lecturer/topics',
   },
   {
+    key: 'my-submissions',
+    label: 'Hồ sơ & Nộp bài',
+    icon: 'cloud_upload',
+    group: 'Hồ sơ của tôi',
+    requiredPermission: 'VIEW_MY_SUBMISSIONS',
+    route: '/student/submissions',
+  },
+  {
+    key: 'my-archive',
+    label: 'Lưu chiểu số',
+    icon: 'inventory_2',
+    group: 'Hồ sơ của tôi',
+    requiredPermission: 'VIEW_MY_ARCHIVE',
+    route: '/student/submissions?tab=archive',
+  },
+  {
+    key: 'my-grades',
+    label: 'Điểm đồ án của tôi',
+    icon: 'workspace_premium',
+    group: 'Hồ sơ của tôi',
+    requiredPermission: 'VIEW_MY_GRADES',
+    route: '/student/grades',
+  },
+
+  // KHỐI 2: HƯỚNG DẪN & TIẾN ĐỘ
+  {
+    key: 'mentored-students',
+    label: 'Sinh viên hướng dẫn',
+    icon: 'school',
+    group: 'Hướng dẫn & tiến độ',
+    requiredPermission: 'VIEW_MENTORED_STUDENTS',
+    route: '/lecturer/approvals',
+  },
+  {
+    key: 'progress-checkpoints',
+    label: 'Checkpoint tiến độ',
+    icon: 'fact_check',
+    group: 'Hướng dẫn & tiến độ',
+    requiredPermission: 'VIEW_CHECKPOINTS',
+    route: '/lecturer/progress',
+  },
+  {
+    key: 'bm04-evaluations',
+    label: 'Đánh giá BM04',
+    icon: 'assignment_turned_in',
+    group: 'Hướng dẫn & tiến độ',
+    requiredPermission: 'VIEW_BM04_EVALUATIONS',
+    route: '/lecturer/progress?tab=bm04',
+  },
+
+  // KHỐI 3: THẨM ĐỊNH & QUYẾT ĐỊNH
+  {
+    key: 'outline-reviews',
+    label: 'Thẩm định BM01',
+    icon: 'rate_review',
+    group: 'Thẩm định & quyết định',
+    requiredPermission: 'VIEW_OUTLINE_REVIEWS',
+    route: '/lecturer/approvals?tab=bm01',
+  },
+  {
+    key: 'bm02-reviews',
+    label: 'Duyệt đơn BM02',
+    icon: 'verified',
+    group: 'Thẩm định & quyết định',
+    requiredPermission: 'VIEW_BM02_REVIEWS',
+    route: '/lecturer/institute',
+  },
+  {
+    key: 'assignment-decisions',
+    label: 'Quyết định giao đề tài',
+    icon: 'gavel',
+    group: 'Thẩm định & quyết định',
+    requiredPermission: 'VIEW_ASSIGNMENT_DECISIONS',
+    route: '/lecturer/institute?tab=decisions',
+  },
+
+  // KHỐI 4: HỘI ĐỒNG & BẢO VỆ
+  {
+    key: 'council-assignments',
+    label: 'Phân công Hội đồng',
+    icon: 'groups',
+    group: 'Hội đồng & bảo vệ',
+    requiredPermission: 'VIEW_COUNCIL_ASSIGNMENTS',
+    route: '/admin/councils',
+  },
+  {
     key: 'defense-grading',
     label: 'Phiếu chấm bảo vệ',
-    icon: 'rate_review',
+    icon: 'edit_note',
     group: 'Hội đồng & bảo vệ',
     requiredPermission: 'VIEW_DEFENSE_GRADING',
     route: '/lecturer/grading',
@@ -243,7 +333,108 @@ export const NAVIGATION_REGISTRY = [
     requiredPermission: 'VIEW_DEFENSE_LOCK_LEDGER',
     route: '/admin/grading',
   },
-  // ... Đầy đủ 22 mục tương ứng 7 nhóm nghiệp vụ (mỗi mục đúng 1 route và 1 VIEW_*)
+
+  // KHỐI 5: KẾT QUẢ & CÔNG BỐ
+  {
+    key: 'defense-result-approvals',
+    label: 'Phê duyệt kết quả',
+    icon: 'approval',
+    group: 'Kết quả & công bố',
+    requiredPermission: 'VIEW_DEFENSE_RESULT_APPROVALS',
+    route: '/admin/grading?tab=approvals',
+  },
+  {
+    key: 'result-publications',
+    label: 'Công bố kết quả',
+    icon: 'campaign',
+    group: 'Kết quả & công bố',
+    requiredPermission: 'VIEW_RESULT_PUBLICATIONS',
+    route: '/admin/grading?tab=publish',
+  },
+  {
+    key: 'rubric-config',
+    label: 'Tiêu chí chấm (Rubric)',
+    icon: 'rule',
+    group: 'Kết quả & công bố',
+    requiredPermission: 'VIEW_RUBRIC_CONFIG',
+    route: '/admin/rubric-management',
+  },
+
+  // KHỐI 6: QUẢN TRỊ HỌC VỤ
+  {
+    key: 'project-periods',
+    label: 'Đợt đồ án & Học kỳ',
+    icon: 'calendar_month',
+    group: 'Quản trị học vụ',
+    requiredPermission: 'VIEW_PROJECT_PERIODS',
+    route: '/admin/project-periods',
+  },
+  {
+    key: 'project-enrollments',
+    label: 'Gán môn đồ án (Enrollment)',
+    icon: 'playlist_add_check',
+    group: 'Quản trị học vụ',
+    requiredPermission: 'VIEW_PROJECT_ENROLLMENTS',
+    route: '/admin/project-enrollments',
+  },
+  {
+    key: 'all-topics',
+    label: 'Quản lý đề tài chung',
+    icon: 'list_alt',
+    group: 'Quản trị học vụ',
+    requiredPermission: 'VIEW_ALL_TOPICS',
+    route: '/admin/topics',
+  },
+  {
+    key: 'project-oversight',
+    label: 'Giám sát tiến độ & rà soát',
+    icon: 'policy',
+    group: 'Quản trị học vụ',
+    requiredPermission: 'VIEW_PROJECT_OVERSIGHT',
+    route: '/admin/oversight',
+  },
+
+  // KHỐI 7: QUẢN TRỊ HỆ THỐNG
+  {
+    key: 'users',
+    label: 'Quản lý người dùng',
+    icon: 'group',
+    group: 'Quản trị hệ thống',
+    requiredPermission: 'VIEW_USERS',
+    route: '/admin/users',
+  },
+  {
+    key: 'permissions',
+    label: 'Phân quyền kỹ thuật & Nhóm',
+    icon: 'shield_lock',
+    group: 'Quản trị hệ thống',
+    requiredPermission: 'VIEW_PERMISSIONS',
+    route: '/admin/permissions',
+  },
+  {
+    key: 'announcements',
+    label: 'Bản tin Portal',
+    icon: 'feed',
+    group: 'Quản trị hệ thống',
+    requiredPermission: 'VIEW_ANNOUNCEMENTS',
+    route: '/admin/announcements',
+  },
+  {
+    key: 'portal-content',
+    label: 'Biểu mẫu & CMS Portal',
+    icon: 'file_copy',
+    group: 'Quản trị hệ thống',
+    requiredPermission: 'VIEW_PORTAL_CONTENT',
+    route: '/admin/portal',
+  },
+  {
+    key: 'notifications',
+    label: 'Gửi thông báo người dùng',
+    icon: 'notifications_active',
+    group: 'Quản trị hệ thống',
+    requiredPermission: 'VIEW_NOTIFICATIONS',
+    route: '/admin/notifications',
+  },
 ];
 ```
 
@@ -259,8 +450,8 @@ export const NAVIGATION_REGISTRY = [
    - Khi đăng nhập thành công hoặc refresh token.
    - Khi chuyển route điều hướng trong ứng dụng.
    - Khi quay lại tab trình duyệt (`window.focus` hoặc sự kiện `visibilitychange` khi tab chuyển từ ẩn sang hiện).
-   - Ngay sau khi Admin thực hiện thao tác lưu phân quyền trên modal.
-   - Khi API backend trả về lỗi `PERMISSION_VERSION_STALE`.
+   - Ngay sau khi Admin lưu phân quyền thành công trên modal.
+   - Khi API backend trả về lỗi `409 Conflict` kèm mã `PERMISSION_VERSION_STALE`.
 2. **Đồng bộ đa Tab không cần Server Push (BroadcastChannel)**:
    - Khởi tạo kênh `const authChannel = new BroadcastChannel('dacn_auth_sync');`.
    - Khi Admin cập nhật phân quyền tại Tab 1, client phát thông điệp `authChannel.postMessage({ type: 'PERMISSIONS_UPDATED', userId })`.
@@ -268,14 +459,13 @@ export const NAVIGATION_REGISTRY = [
 3. **Phân biệt rành mạch giữa 401, 403 và Stale Version (Không logout hàng loạt)**:
    - **401 Unauthorized** hoặc `ACCOUNT_DISABLED`: Token hết hạn / tài khoản bị vô hiệu hóa $\to$ Xóa sạch session, reset `authStore` và điều hướng về trang đăng nhập.
    - **403 Forbidden**: Lỗi nghiệp vụ domain (xung đột lợi ích COI, ngoài thẩm quyền hội đồng, sai trạng thái quy trình, quá hạn chót) $\to$ **GIỮ NGUYÊN session đăng nhập**, hiển thị thông báo lỗi/toast giải thích rõ lý do từ chối cho người dùng. Tuyệt đối không xóa session và không logout.
-   - **PERMISSION_VERSION_STALE**: Quyền vừa bị quản trị viên thay đổi $\to$ Client tự động gọi `authService.getMe()`, cập nhật `authStore` và điều hướng an toàn về trang phù hợp hoặc thử lại thao tác.
+   - **PERMISSION_VERSION_STALE**: Quyền vừa bị quản trị viên thay đổi $\to$ Client tự động gọi `authService.getMe()`, cập nhật `authStore` và điều hướng an toàn về trang phù hợp hoặc thử lại thao tác theo quy tắc an toàn tại Mục 6.1.4.
 4. **Chính sách Cache**:
    - Cho phép cache client cục bộ tối đa 1–3 phút để tối ưu hiệu năng gọi API `getMe()`, nhưng **tuyệt đối không dùng cache client làm nguồn xác thực quyền học thuật**. Mọi quyết định tối hậu thuộc về backend.
 
 ---
 
 ## 8. Các Phần Dành Cho Builder Tự Quyết (What's Left to Builder)
-1. Thống kê chi tiết danh sách icon Google Material Symbols phù hợp nhất cho từng menu con trong 7 khối.
-2. Thiết kế logic chuyển hướng tại `/dashboard` (tự động load widget thống kê tương ứng với quyền cao nhất của người dùng).
-3. Viết script seed / migration cập nhật bảng `Permission` và `PermissionGroup` trong CSDL Supabase PostgreSQL.
-4. Cập nhật unit test `rbacUiContracts.test.js` và `platformAuthorization.routes.test.js` để kiểm thử toàn diện mô hình mới.
+1. Thiết kế logic chuyển hướng tại `/dashboard` (tự động load widget thống kê tương ứng với quyền cao nhất của người dùng).
+2. Viết script seed / migration cập nhật bảng `Permission` và `PermissionGroup` trong CSDL Supabase PostgreSQL.
+3. Cập nhật unit test `rbacUiContracts.test.js` và `platformAuthorization.routes.test.js` để kiểm thử toàn diện mô hình mới.
