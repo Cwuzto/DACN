@@ -104,11 +104,11 @@ Hệ thống Quản lý Đồ án Tốt nghiệp (DACN) chuyển dịch hoàn to
 ### 5.2. Quyết Định Kỹ Thuật Chi Tiết (Architectural Decisions)
 
 1. **Nhóm quyền hệ thống bất biến `SYSTEM_STUDENT_BASE`**:
-   - CSDL định nghĩa nhóm quyền hệ thống `SYSTEM_STUDENT_BASE` (`isSystem: true`) chứa các quyền cơ sở của sinh viên: `VIEW_MY_REGISTRATION`, `VIEW_MY_SUBMISSIONS`, `VIEW_MY_ARCHIVE`, `VIEW_MY_GRADES`, `REGISTER_TOPIC`, `SUBMIT_BM01`, `SUBMIT_BM02`, `SUBMIT_TASK`, `SUBMIT_PRE_DEFENSE_ARCHIVE`, `SUBMIT_FINAL_ARCHIVE`.
+   - CSDL định nghĩa nhóm quyền hệ thống `SYSTEM_STUDENT_BASE` (`isSystem: true`) chứa đầy đủ 14 capability cơ sở của sinh viên: `VIEW_MY_REGISTRATION`, `VIEW_MY_SUBMISSIONS`, `VIEW_MY_ARCHIVE`, `VIEW_MY_GRADES`, `REGISTER_TOPIC`, `RENAME_TOPIC`, `REGISTRATION_CANCEL`, `SUBMIT_BM01`, `SUBMIT_BM02`, `SUBMIT_TASK`, `CHECKPOINT_SIGN`, `SIGNATURE_APPEAL_SUBMIT`, `SUBMIT_PRE_DEFENSE_ARCHIVE`, `SUBMIT_FINAL_ARCHIVE`.
    - Nhóm quyền này được cấp tự động khi khởi tạo/import tài khoản sinh viên.
    - Bị khóa bất biến: cấm chỉnh sửa, đổi tên, thu hồi hoặc xóa trên UI/API.
    - Backend kiểm tra 100% bằng capability, kết hợp domain guard:
-     - *Với các mutation đăng ký/nộp bài đợt hiện hành (`REGISTER_TOPIC`, `SUBMIT_BM01`, `SUBMIT_BM02`, `SUBMIT_TASK`)*: Bắt buộc sinh viên có enrollment `ACTIVE` trong học kỳ hiện tại.
+     - *Với các mutation đăng ký/nộp bài đợt hiện hành (`REGISTER_TOPIC`, `SUBMIT_BM01`, `SUBMIT_BM02`, `SUBMIT_TASK`, `RENAME_TOPIC`, `REGISTRATION_CANCEL`)*: Bắt buộc sinh viên có enrollment `ACTIVE` trong học kỳ hiện tại.
      - *Với các truy vấn tra cứu lịch sử (`VIEW_MY_GRADES`, `VIEW_MY_ARCHIVE`)*: Không đòi hỏi enrollment hiện tại phải active, cho phép sinh viên đã tốt nghiệp tra cứu kết quả bảo vệ cũ và hồ sơ lưu chiểu hợp lệ của chính mình (`registration.studentId === req.user.id`).
      - Tuyệt đối không suy diễn quyền dựa trên `role === 'STUDENT'`.
 
@@ -186,10 +186,18 @@ Mọi yêu cầu mutation đều phải đi qua pipeline kiểm soát chặt ch�
 
 ### 6.1. Rào Chắn Chống Leo Thang Quyền & Tách Biệt Quyền Ủy Quyền (Delegation Boundary)
 
-1. **Tách biệt Quyền Quản trị Hệ thống và Quyền Ủy quyền Học thuật**:
-   - `PERMISSION_GROUP_MANAGE` (Quản trị hệ thống): Chỉ được quản lý các nhóm kỹ thuật/hệ thống (`QUAN_TRI_VIEN`). **Tuyệt đối không được phép tự gán các nhóm chứa capability học thuật chuyên môn như `VIEN_TRUONG` hoặc `GVHD`**. Việc bổ nhiệm chức danh học vụ phải xuất phát từ hồ sơ tổ chức/nhân sự được audit chính thức.
-   - `PERMISSION_ASSIGN_ACADEMIC` (Lãnh đạo học vụ / Viện trưởng): Chỉ lãnh đạo học vụ mới có thẩm quyền ủy quyền các capability chuyên môn học thuật (chấm đề cương BM01, thẩm định BM02, hội đồng bảo vệ) cho giảng viên trong đúng phạm vi viện/khoa phụ trách theo danh mục `grantablePermissionCodes`.
-   - Cấm tự nâng quyền (Anti-Self-Escalation): Cấm tự gán thêm quyền cho chính tài khoản của mình (`targetUserId !== req.user.id`).
+1. **Tách biệt Quyền Quản trị Kỹ thuật, Lãnh đạo Học vụ và Phân công Hướng dẫn**:
+   - **Quản trị viên kỹ thuật (`PERMISSION_GROUP_MANAGE`)**: Chỉ có thẩm quyền tạo tài khoản, khóa/mở tài khoản, và quản lý các nhóm kỹ thuật (`QUAN_TRI_VIEN`). **Tuyệt đối không được phép tự gán các nhóm chứa capability học thuật như `VIEN_TRUONG` hoặc `GVHD`** trên giao diện `/admin/permissions` để ngăn chặn tạo quyền học thuật gián tiếp.
+   - **Chức danh tổ chức `VIEN_TRUONG`**: Không phải là nhóm quyền tự do gán từ UI dropdown. Việc bổ nhiệm Viện trưởng bắt nguồn từ quyết định nhân sự/hồ sơ tổ chức được audit độc lập hoặc seed hệ thống cấp trên.
+   - **Lãnh đạo học vụ / Viện trưởng (`PERMISSION_ASSIGN_ACADEMIC`)**: Thao tác ủy quyền học thuật được tổ chức thành một tab riêng biệt **"Ủy quyền chuyên môn" tại `/lecturer/institute?tab=delegations`**, chỉ người dùng có `PERMISSION_ASSIGN_ACADEMIC` và thuộc đúng viện/khoa mới được phép truy cập.
+   - **Quy chuẩn Tab "Ủy quyền chuyên môn"**: Bắt buộc phải có các trường:
+     - Người được ủy quyền (`delegateeUserId`) — phải là giảng viên thuộc cùng viện/khoa (`department`).
+     - Capability chuyên môn được ủy quyền — bắt buộc thuộc danh mục `grantablePermissionCodes` (`OUTLINE_REVIEW`, `BM02_REVIEW`, `DEFENSE_SCORE_SUBMIT`, `DEFENSE_RESULT_APPROVE`).
+     - Phạm vi ủy quyền: Viện/khoa hoặc đợt đồ án/học kỳ cụ thể.
+     - Thời hạn hiệu lực: Ngày bắt đầu (`effectiveFrom`) và ngày hết hạn (`effectiveTo`).
+     - Lý do ủy quyền (`reason`) và `Idempotency-Key`.
+     - Cấm tự ủy quyền cho chính mình (`delegateeUserId !== req.user.id`), cấm ủy quyền vượt phạm vi đơn vị, và cấm ủy quyền lại nếu không có quyền tái ủy quyền riêng.
+   - **Bản chất của GVHD**: Hướng dẫn đề tài chủ yếu là quan hệ phân công trên từng `TopicRegistration`. Capability học thuật chỉ cho phép giảng viên vào chức năng màn hình; còn quan hệ `topic.mentorId === req.user.id` mới là điều kiện quyết định hồ sơ nào họ được phép thao tác.
 2. **Bảo vệ nhóm hệ thống**:
    - Nhóm `SYSTEM_STUDENT_BASE` mang cờ `isSystem: true` không được phép chỉnh sửa danh sách quyền, không được đổi tên hoặc xóa qua API/UI.
 3. **Server-Authoritative Permission Resolution**:
