@@ -131,7 +131,13 @@ function AppLayout({ role }) {
             return location.pathname === targetPath && location.search === `?${targetQuery}`;
         }
         if (location.search && targetPath === location.pathname) {
-            return false;
+            const hasRegisteredTabSibling = NAVIGATION_REGISTRY.some((item) => {
+                const [iPath, iQuery] = item.route.split('?');
+                return iPath === targetPath && iQuery && location.search.includes(iQuery);
+            });
+            if (hasRegisteredTabSibling) {
+                return false;
+            }
         }
         return location.pathname === targetPath || location.pathname.startsWith(targetPath + '/');
     };
