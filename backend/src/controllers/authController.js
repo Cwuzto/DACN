@@ -27,6 +27,10 @@ const login = async (req, res, next) => {
                         permissionGroup: { include: { permissions: { include: { permission: true } } } },
                     },
                 },
+                councilMembers: {
+                    where: { council: { councilType: 'DEFENSE_COUNCIL' } },
+                    select: { id: true },
+                },
             },
         });
 
@@ -88,6 +92,7 @@ const login = async (req, res, next) => {
                     avatarUrl: user.avatarUrl,
                     permissionGroups: groupCodes,
                     permissions: [...new Set(permissions)],
+                    hasDefenseCouncilAssignment: Boolean(user.councilMembers?.length),
                 },
             },
         });

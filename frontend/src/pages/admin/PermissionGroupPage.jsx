@@ -15,6 +15,7 @@ import {
     Tabs,
     Card,
     Alert,
+    Spin,
 } from 'antd';
 import {
     PlusOutlined,
@@ -38,8 +39,8 @@ import {
 import permissionService from '../../services/permissionService';
 
 const MODULE_COLORS = {
+    PORTAL: 'cyan',
     ANNOUNCEMENT: 'blue',
-    ELIGIBILITY: 'cyan',
     LECTURER: 'geekblue',
     MENTOR: 'purple',
     TOPIC: 'magenta',
@@ -53,10 +54,10 @@ const MODULE_COLORS = {
 };
 
 const MODULE_TITLES = {
-    ANNOUNCEMENT: 'Bản tin & Thông báo công khai',
-    ELIGIBILITY: 'Điều kiện làm đồ án tốt nghiệp',
-    LECTURER: 'Hồ sơ & Danh bạ Giảng viên',
-    MENTOR: 'Đăng ký & Phân công GVHD',
+    PORTAL: 'Cổng thông tin & Biểu mẫu Portal',
+    ANNOUNCEMENT: 'Bản tin & Quyết định học vụ',
+    LECTURER: 'Danh bạ Giảng viên',
+    MENTOR: 'Phân công hướng dẫn (GVHD)',
     TOPIC: 'Đề tài & Xét duyệt chuyên môn',
     OUTLINE: 'Đề cương BM01 & Hội đồng thẩm định',
     REGISTRATION: 'Đơn BM02 & Quyết định giao đề tài',
@@ -64,7 +65,7 @@ const MODULE_TITLES = {
     DEFENSE: 'Hội đồng Chấm bảo vệ & Điểm số',
     REVISION: 'Lưu chiểu số & Sau bảo vệ',
     REPORT: 'Báo cáo & Thống kê học vụ',
-    ADMIN: 'Quản trị hệ thống & RBAC',
+    ADMIN: 'Quản trị hệ thống & Đào tạo',
 };
 
 function PermissionGroupPage() {
@@ -101,7 +102,7 @@ function PermissionGroupPage() {
                 // Khởi tạo localMatrix: { [roleId]: Set([permissionId, ...]) }
                 const local = {};
                 (data.roles || []).forEach((r) => {
-                    const permIds = data.role_permissions[String(r.id)] || [];
+                    const permIds = data.role_permissions?.[String(r.id)] || [];
                     local[r.id] = new Set(permIds);
                 });
                 setLocalMatrix(local);
@@ -190,7 +191,7 @@ function PermissionGroupPage() {
     const handleResetMatrix = () => {
         const local = {};
         (matrixData.roles || []).forEach((r) => {
-            const permIds = matrixData.role_permissions[String(r.id)] || [];
+            const permIds = matrixData.role_permissions?.[String(r.id)] || [];
             local[r.id] = new Set(permIds);
         });
         setLocalMatrix(local);
@@ -912,7 +913,7 @@ function PermissionGroupPage() {
                                     <div className="flex items-center gap-2">
                                         <SlidersOutlined className="text-[#0F766E] text-lg" />
                                         <span className="text-sm font-semibold text-slate-800">
-                                            Danh mục 46 Quyền nguyên tử được bảo vệ bởi RBAC Guards
+                                            Danh mục {allPermissions.length} Quyền nguyên tử được bảo vệ bởi RBAC Guards
                                         </span>
                                     </div>
                                 </div>

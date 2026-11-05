@@ -4,7 +4,8 @@ import { getRoleHomePath } from '../../utils/authRedirect';
 import useAuthStore from '../../stores/authStore';
 import { authService } from '../../services/authService';
 import userService from '../../services/userService';
-import { announcementService } from '../../services/announcementService';
+import portalContentService from '../../services/portalContentService';
+import { getPublicPortalView } from '../../utils/portalContent';
 import { semesterService } from '../../services/semesterService';
 import OpenModal from '../../components/common/OpenModal';
 import AuthModal from '../../components/auth/AuthModal';
@@ -333,6 +334,9 @@ export default function HomePage() {
     // Data State
     const [lecturers, setLecturers] = useState([]);
     const [announcements, setAnnouncements] = useState([]);
+    const [portalContent, setPortalContent] = useState({ configuration: null, links: [], templates: [] });
+    const publicPortalView = useMemo(() => getPublicPortalView(portalContent), [portalContent]);
+    const { configuration: portalConfiguration, linksByGroup } = publicPortalView;
     const [currentSemester, setCurrentSemester] = useState(null);
     const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
     const [selectedStage, setSelectedStage] = useState(null);
@@ -377,6 +381,19 @@ export default function HomePage() {
         });
     }, [lecturers, facultySearch, deptFilter, quotaFilter]);
 
+    const sortedTemplates = useMemo(() => {
+        const list = Array.isArray(portalContent.templates) ? [...portalContent.templates] : [];
+        return list.sort((a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0) || String(a.code || '').localeCompare(String(b.code || '')));
+    }, [portalContent.templates]);
+
+    const formatFileSize = (bytes) => {
+        if (!bytes || bytes === 0) return '';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    };
+
     useEffect(() => {
         let framePending = false;
         const handleScroll = () => {
@@ -392,7 +409,7 @@ export default function HomePage() {
                 for (const id of sections) {
                     const el = document.getElementById(id);
                     if (el) {
-                        const top = el.offsetTop - 140;
+                        const top = el.offsetTop - 13;
                         if (scrollY >= top) {
                             current = id;
                         }
@@ -560,22 +577,17 @@ export default function HomePage() {
             })
             .catch(() => {});
 
-        // 3. Public Announcements
-        announcementService.getAnnouncements({ limit: 6 })
+        // 3. Published Portal CMS content only. There is intentionally no local sample-data fallback.
+        portalContentService.getPublicContent()
             .then((res) => {
                 if (isMounted && res?.success) {
-                    const list = res.data?.announcements || (Array.isArray(res.data) ? res.data : []);
-                    if (list.length > 0) {
-                        setAnnouncements(list);
-                    } else {
-                        setAnnouncements(Object.values(ANNOUNCEMENTS_DATA));
-                    }
-                } else {
-                    setAnnouncements(Object.values(ANNOUNCEMENTS_DATA));
+                    const content = res.data || {};
+                    setPortalContent({ configuration: content.configuration || null, links: content.links || [], templates: content.templates || [] });
+                    setAnnouncements(content.announcements || []);
                 }
             })
             .catch(() => {
-                setAnnouncements(Object.values(ANNOUNCEMENTS_DATA));
+                if (isMounted) setAnnouncements([]);
             });
 
         return () => {
@@ -589,7 +601,7 @@ export default function HomePage() {
             const hash = window.location.hash;
             if (hash && hash.startsWith('#announcement-')) {
                 const docId = hash.replace('#announcement-', '');
-                const targetDoc = ANNOUNCEMENTS_DATA[docId] || announcements.find((a) => a.id === docId);
+                const targetDoc = announcements.find((a) => String(a.id) === docId);
                 if (targetDoc) {
                     setSelectedAnnouncement(targetDoc);
                     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -661,20 +673,30 @@ export default function HomePage() {
 
     // Document Detail Actions
     const handleOpenAnnouncementDetail = (ann) => {
-        const fullDoc = ANNOUNCEMENTS_DATA[ann.id] || ann;
-        setSelectedAnnouncement(fullDoc);
+        setSelectedAnnouncement(ann);
         window.location.hash = 'announcement-' + ann.id;
         window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const scrollToSection = (targetSelector) => {
+        const target = targetSelector.startsWith('#')
+            ? document.querySelector(targetSelector)
+            : document.getElementById(targetSelector);
+        if (target) {
+            const topnav = document.querySelector('.topnav');
+            const headerOffset = topnav ? topnav.offsetHeight : 68;
+            const targetPosition = target.getBoundingClientRect().top + window.scrollY - headerOffset;
+            window.scrollTo({ top: targetPosition, behavior: 'smooth' });
+        }
     };
 
     const handleBackToPortal = (hash = '') => {
         setSelectedAnnouncement(null);
         if (hash) {
-            window.location.hash = hash;
-            const target = document.querySelector(hash);
-            if (target) target.scrollIntoView({ behavior: 'smooth' });
+            window.history.replaceState(null, '', hash);
+            scrollToSection(hash);
         } else {
-            window.location.hash = '';
+            window.history.replaceState(null, '', window.location.pathname);
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
     };
@@ -688,11 +710,6 @@ export default function HomePage() {
         } else {
             showToast(`Liên kết: ${url}`);
         }
-    };
-
-    const handleDownloadAllAttachments = () => {
-        const count = selectedAnnouncement?.attachments?.length || 2;
-        showToast(`Đang nén và tải trọn bộ ${count} tệp đính kèm (${selectedAnnouncement?.docNumber || 'VCS'}) (.zip)...`);
     };
 
     const handleDownloadAttachment = (filename) => {
@@ -714,17 +731,17 @@ export default function HomePage() {
                             height="40"
                         />
                         <div className="brand-text">
-                            <h1>Viện Công nghệ Số</h1>
-                            <p>Hệ thống Quản lý Đồ án</p>
+                            <h1>{portalConfiguration.institutionName}</h1>
+                            <p>{portalConfiguration.siteTitle}</p>
                         </div>
                     </div>
 
                     <nav>
                         <ul className="nav-links">
-                            <li><a href="#roadmap" className={`nav-link ${activeNavSection === 'roadmap' ? 'active' : ''}`} onClick={() => handleBackToPortal('#roadmap')}>Lộ trình 6 Chặng</a></li>
-                            <li><a href="#faculty" className={`nav-link ${activeNavSection === 'faculty' ? 'active' : ''}`} onClick={() => handleBackToPortal('#faculty')}>Danh bạ GVHD & Hướng NC</a></li>
-                            <li><a href="#downloads" className={`nav-link ${activeNavSection === 'downloads' ? 'active' : ''}`} onClick={() => handleBackToPortal('#downloads')}>Biểu mẫu BM01-BM05</a></li>
-                            <li><a href="#announcements" className={`nav-link ${activeNavSection === 'announcements' ? 'active' : ''}`} onClick={() => handleBackToPortal('#announcements')}>Thông báo Học vụ</a></li>
+                            <li><a href="#roadmap" className={`nav-link ${activeNavSection === 'roadmap' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); handleBackToPortal('#roadmap'); }}>Lộ trình 6 Chặng</a></li>
+                            <li><a href="#faculty" className={`nav-link ${activeNavSection === 'faculty' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); handleBackToPortal('#faculty'); }}>Danh bạ GVHD & Hướng NC</a></li>
+                            <li><a href="#downloads" className={`nav-link ${activeNavSection === 'downloads' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); handleBackToPortal('#downloads'); }}>Biểu mẫu BM01-BM05</a></li>
+                            <li><a href="#announcements" className={`nav-link ${activeNavSection === 'announcements' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); handleBackToPortal('#announcements'); }}>Bản tin &amp; Quyết định</a></li>
                         </ul>
                     </nav>
 
@@ -763,7 +780,7 @@ export default function HomePage() {
 
             {/* ─── CONDITIONAL: ANNOUNCEMENT DETAIL VIEW OR MAIN PORTAL ─── */}
             {selectedAnnouncement ? (
-                /* Document Official Paper Frame */
+                /* Document Real Content View Frame */
                 <main id="announcementDetailView" className="doc-view-container" style={{ display: 'block' }} data-od-id="announcement-detail-view">
                     <div className="container">
                         {/* Top Action & Navigation */}
@@ -777,9 +794,11 @@ export default function HomePage() {
                                     Trang chủ Cổng thông tin
                                 </a>
                                 <span className="separator">/</span>
-                                <a href="javascript:void(0)" onClick={() => handleBackToPortal('#announcements')}>Bản tin & Quyết định học vụ</a>
+                                <a href="javascript:void(0)" onClick={() => handleBackToPortal('#announcements')}>Bản tin &amp; Quyết định</a>
                                 <span className="separator">/</span>
-                                <span className="current">{selectedAnnouncement.docNumber}: {selectedAnnouncement.title}</span>
+                                <span className="current" style={{ maxWidth: 360, display: 'inline-block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'bottom' }}>
+                                    {selectedAnnouncement.title}
+                                </span>
                             </div>
 
                             <div className="doc-actions-group">
@@ -796,7 +815,7 @@ export default function HomePage() {
                                         <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
                                         <rect x="6" y="14" width="12" height="8"/>
                                     </svg>
-                                    In văn bản
+                                    In thông báo
                                 </button>
                                 <button className="btn btn-secondary" onClick={handleCopyDocShareLink}>
                                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -805,228 +824,147 @@ export default function HomePage() {
                                     </svg>
                                     Sao chép liên kết
                                 </button>
-                                <button className="btn btn-primary" onClick={handleDownloadAllAttachments}>
-                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                                        <polyline points="7 10 12 15 17 10"/>
-                                        <line x1="12" y1="15" x2="12" y2="3"/>
-                                    </svg>
-                                    Tải trọn bộ đính kèm (.zip)
-                                </button>
+                                {selectedAnnouncement.fileUrl && (
+                                    <a
+                                        className="btn btn-primary"
+                                        href={selectedAnnouncement.fileUrl}
+                                        download={selectedAnnouncement.fileName || true}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        onClick={() => showToast(`Đang tải tệp: ${selectedAnnouncement.fileName || 'tai-lieu.pdf'}`)}
+                                    >
+                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                            <polyline points="7 10 12 15 17 10"/>
+                                            <line x1="12" y1="15" x2="12" y2="3"/>
+                                        </svg>
+                                        Tải tệp đính kèm
+                                    </a>
+                                )}
                             </div>
                         </div>
 
-                        {/* Document Layout Grid: Left (Official Paper) + Right (Sidebar) */}
+                        {/* Document Layout Grid: Left (Real Content Article) + Right (Sidebar) */}
                         <div className="doc-layout-grid">
-                            {/* Left: Official Administrative Document Paper */}
+                            {/* Left: Real Announcement Content */}
                             <article className="doc-paper" id="docPaperContainer">
-                                {/* Administrative Header */}
-                                <div className="doc-admin-header">
-                                    <div className="doc-origin-box">
-                                        <div className="doc-origin-unit">TRƯỜNG ĐẠI HỌC CÔNG NGHỆ</div>
-                                        <div className="doc-origin-sub">VIỆN CÔNG NGHỆ SỐ</div>
-                                        <div className="doc-origin-number">Số: <strong>{selectedAnnouncement.docNumber || '142/TB-VCS-ĐT'}</strong></div>
-                                    </div>
-                                    <div className="doc-motto-box">
-                                        <div className="doc-nation">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
-                                        <div className="doc-motto">Độc lập - Tự do - Hạnh phúc</div>
-                                        <div className="doc-date-place">{selectedAnnouncement.issuedPlace || 'Hà Nội'}, ngày {selectedAnnouncement.issuedDate || selectedAnnouncement.date || '14/10/2026'}</div>
-                                    </div>
-                                </div>
-
-                                {/* Subject & Title */}
-                                <div className="doc-subject-wrapper">
-                                    <div className="doc-category-badge">
-                                        <span className={`badge ${selectedAnnouncement.categoryClass || selectedAnnouncement.badgeClass || 'badge-danger'}`}>
-                                            {selectedAnnouncement.category || selectedAnnouncement.badge || 'Thông báo chính thức'}
+                                {/* Header thông tin thực tế */}
+                                <div style={{ borderBottom: '2px solid var(--border)', paddingBottom: 20, marginBottom: 24 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
+                                        <span className="badge badge-brand" style={{ fontSize: 12, padding: '4px 10px' }}>
+                                            {selectedAnnouncement.category === 'NEWS' ? 'Tin tức & Sự kiện' : 'Thông báo & Quyết định học vụ'}
+                                        </span>
+                                        <span style={{ fontSize: 12.5, color: 'var(--muted)', fontFamily: 'var(--font-mono)' }}>
+                                            Mã văn bản: <strong>#{selectedAnnouncement.id}</strong>
                                         </span>
                                     </div>
-                                    <h1 className="doc-headline">{selectedAnnouncement.title}</h1>
-                                    <div className="doc-subtitle-ref">{selectedAnnouncement.subtitle || 'V/v triển khai quy chuẩn học thuật và kế hoạch thực hiện đồ án tốt nghiệp'}</div>
-                                </div>
 
-                                {/* Meta Strip */}
-                                <div className="doc-meta-strip">
-                                    <div>
-                                        <div className="doc-meta-item-lbl">Số hiệu văn bản</div>
-                                        <div className="doc-meta-item-val" style={{ fontFamily: 'var(--font-mono)', color: 'var(--brand)' }}>{selectedAnnouncement.docNumber || '142/TB-VCS-ĐT'}</div>
-                                    </div>
-                                    <div>
-                                        <div className="doc-meta-item-lbl">Ngày ban hành</div>
-                                        <div className="doc-meta-item-val" style={{ fontFamily: 'var(--font-mono)' }}>{selectedAnnouncement.issuedDate || selectedAnnouncement.date || '14/10/2026'}</div>
-                                    </div>
-                                    <div>
-                                        <div className="doc-meta-item-lbl">Hiệu lực áp dụng</div>
-                                        <div className="doc-meta-item-val" style={{ color: 'var(--danger)' }}>{selectedAnnouncement.effectiveDate || 'Đang có hiệu lực'}</div>
-                                    </div>
-                                    <div>
-                                        <div className="doc-meta-item-lbl">Người ký ban hành</div>
-                                        <div className="doc-meta-item-val">{selectedAnnouncement.signerName || selectedAnnouncement.signer || 'TS. Lê Quang Dũng'}</div>
-                                    </div>
-                                </div>
+                                    <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--fg)', lineHeight: 1.35, margin: '0 0 16px' }}>
+                                        {selectedAnnouncement.title}
+                                    </h1>
 
-                                {/* Legal Preamble */}
-                                {selectedAnnouncement.preamble && (
-                                    <div className="doc-preamble" style={{ whiteSpace: 'pre-line' }}>
-                                        {selectedAnnouncement.preamble}
-                                    </div>
-                                )}
-
-                                {/* Articles Body */}
-                                <div className="doc-body-text">
-                                    {selectedAnnouncement.articles && selectedAnnouncement.articles.length > 0 ? (
-                                        selectedAnnouncement.articles.map((art, idx) => (
-                                            <div key={idx} className="doc-article">
-                                                <div className="doc-article-title">{art.title}</div>
-                                                {art.isTimelineTable ? (
-                                                    <table className="doc-timeline-table">
-                                                        <thead>
-                                                            <tr>
-                                                                <th>Mốc Học Vụ</th>
-                                                                <th>Lịch Ban Đầu</th>
-                                                                <th>Lịch Điều Chỉnh Mới</th>
-                                                                <th>Ghi Chú</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                            {art.tableRows?.map((row, rIdx) => (
-                                                                <tr key={rIdx}>
-                                                                    <td style={{ fontWeight: 600, color: 'var(--fg)' }}>{rIdx + 1}. {row.milestone}</td>
-                                                                    <td style={{ color: 'var(--muted)', textDecoration: 'line-through', fontFamily: 'var(--font-mono)' }}>{row.oldDate}</td>
-                                                                    <td style={{ color: 'var(--danger)', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{row.newDate}</td>
-                                                                    <td style={{ color: 'var(--brand)', fontSize: 12 }}>{row.note}</td>
-                                                                </tr>
-                                                            ))}
-                                                        </tbody>
-                                                    </table>
-                                                ) : (
-                                                    <div style={{ lineHeight: 1.75, textAlign: 'justify', whiteSpace: 'pre-line' }}>
-                                                        {art.content}
-                                                    </div>
-                                                )}
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 18, fontSize: 13, color: 'var(--muted)', background: 'var(--bg)', padding: '12px 16px', borderRadius: 8, border: '1px solid var(--border)' }}>
+                                        <div>
+                                            <span style={{ color: 'var(--muted)' }}>Ngày đăng: </span>
+                                            <strong style={{ color: 'var(--fg)' }}>
+                                                {selectedAnnouncement.createdAt ? new Date(selectedAnnouncement.createdAt).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }) : 'Học kỳ hiện hành'}
+                                            </strong>
+                                        </div>
+                                        <div>
+                                            <span style={{ color: 'var(--muted)' }}>Cơ quan phát hành: </span>
+                                            <strong style={{ color: 'var(--brand)' }}>
+                                                {portalConfiguration.institutionName || 'Viện Công nghệ Số'}
+                                            </strong>
+                                        </div>
+                                        {selectedAnnouncement.authorName && (
+                                            <div>
+                                                <span style={{ color: 'var(--muted)' }}>Người đăng: </span>
+                                                <strong style={{ color: 'var(--fg)' }}>{selectedAnnouncement.authorName}</strong>
                                             </div>
-                                        ))
-                                    ) : (
+                                        )}
+                                        <div>
+                                            <span style={{ color: 'var(--muted)' }}>Trạng thái: </span>
+                                            <span className="badge badge-success" style={{ fontSize: 11, padding: '2px 8px' }}>Đã công khai</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Nội dung thực tế bản tin */}
+                                <div style={{ fontSize: 15, lineHeight: 1.8, color: 'var(--fg)', textAlign: 'justify', marginBottom: 28 }}>
+                                    {selectedAnnouncement.content ? (
                                         <div style={{ whiteSpace: 'pre-line' }}>{selectedAnnouncement.content}</div>
+                                    ) : selectedAnnouncement.richContentHtml ? (
+                                        <div dangerouslySetInnerHTML={{ __html: selectedAnnouncement.richContentHtml }} />
+                                    ) : (
+                                        <p style={{ color: 'var(--muted)', fontStyle: 'italic' }}>
+                                            Toàn văn nội dung quyết định học vụ được đính kèm trong tệp tài liệu chính thức bên dưới.
+                                        </p>
                                     )}
                                 </div>
 
-                                {/* Signature & Recipients Area */}
-                                <div className="doc-sign-area">
-                                    <div className="doc-recipients">
-                                        <strong>Nơi nhận:</strong>
-                                        {selectedAnnouncement.recipients && selectedAnnouncement.recipients.length > 0 ? (
-                                            selectedAnnouncement.recipients.map((r, idx) => <div key={idx}>- {r}</div>)
-                                        ) : (
-                                            <>
-                                                <div>- Ban Giám hiệu (báo cáo);</div>
-                                                <div>- Toàn thể GVHD & Sinh viên;</div>
-                                                <div>- Lưu: VT, Cổng Học vụ VCS.</div>
-                                            </>
-                                        )}
-                                    </div>
-                                    <div className="doc-sign-box">
-                                        <div className="doc-sign-role">{selectedAnnouncement.signerRole || 'KT. VIỆN TRƯỞNG'}</div>
-                                        <div className="doc-sign-delegate">{selectedAnnouncement.signerDelegate || 'PHÓ VIỆN TRƯỞNG PHỤ TRÁCH ĐÀO TẠO'}</div>
-                                        <div className="doc-digital-stamp">
-                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                                            </svg>
-                                            <div>
-                                                <strong style={{ display: 'block', fontSize: 11, textTransform: 'uppercase' }}>VIỆN CÔNG NGHỆ SỐ · ĐHCN</strong>
-                                                <span style={{ fontSize: 10 }}>Ký số bởi: {selectedAnnouncement.signerName || selectedAnnouncement.signer || 'TS. Lê Quang Dũng'}<br />Thời gian: {selectedAnnouncement.issuedDate || selectedAnnouncement.date || '14/10/2026'} 08:30:15 +07:00</span>
+                                {/* Khung tệp đính kèm & Nhúng xem trước PDF trực tiếp */}
+                                {selectedAnnouncement.fileUrl && (
+                                    <div style={{ borderTop: '1px solid var(--border)', paddingTop: 24, marginTop: 20 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                <div style={{ width: 40, height: 40, borderRadius: 8, background: '#FEF2F2', border: '1px solid #FECACA', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#DC2626' }}>
+                                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                                        <polyline points="14 2 14 8 20 8"/>
+                                                    </svg>
+                                                </div>
+                                                <div>
+                                                    <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0, color: 'var(--fg)' }}>
+                                                        {selectedAnnouncement.fileName || 'Tài liệu đính kèm'}
+                                                    </h3>
+                                                    <p style={{ fontSize: 12, color: 'var(--muted)', margin: '2px 0 0' }}>
+                                                        Tệp văn bản chính thức ban hành kèm theo thông báo
+                                                    </p>
+                                                </div>
                                             </div>
+                                            <a
+                                                className="btn btn-primary"
+                                                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '7px 16px' }}
+                                                href={selectedAnnouncement.fileUrl}
+                                                download={selectedAnnouncement.fileName || true}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                onClick={() => showToast(`Đang tải tệp: ${selectedAnnouncement.fileName || 'tai-lieu.pdf'}`)}
+                                            >
+                                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                                    <polyline points="7 10 12 15 17 10"/>
+                                                    <line x1="12" y1="15" x2="12" y2="3"/>
+                                                </svg>
+                                                Tải file về máy ({selectedAnnouncement.fileName?.split('.').pop()?.toUpperCase() || 'PDF'})
+                                            </a>
                                         </div>
-                                        <div className="doc-signer-name">{selectedAnnouncement.signerName || selectedAnnouncement.signer || 'TS. Lê Quang Dũng'}</div>
-                                    </div>
-                                </div>
 
-                                {/* Attachments Section (In Paper) */}
-                                <div className="doc-attachments-panel" id="paperAttachmentsAnchor">
-                                    <div className="doc-attachments-header">
-                                        <div className="doc-attachments-title">
-                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
-                                            </svg>
-                                            Danh Mục Tệp Đính Kèm Chính Thức ({selectedAnnouncement.attachments?.length || 2} tệp)
-                                        </div>
-                                        <button className="btn btn-secondary" style={{ fontSize: 12, padding: '6px 12px' }} onClick={handleDownloadAllAttachments}>
-                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                                                <polyline points="7 10 12 15 17 10"/>
-                                                <line x1="12" y1="15" x2="12" y2="3"/>
-                                            </svg>
-                                            Tải toàn bộ (.zip)
-                                        </button>
-                                    </div>
-
-                                    <div>
-                                        {selectedAnnouncement.attachments && selectedAnnouncement.attachments.length > 0 ? (
-                                            selectedAnnouncement.attachments.map((att) => (
-                                                <div key={att.id} className="attachment-card">
-                                                    <div className="attachment-info-group">
-                                                        <div className={`attachment-badge ${att.type}`}>
-                                                            {att.type.toUpperCase()}
-                                                        </div>
-                                                        <div className="attachment-meta">
-                                                            <h4>{att.name}</h4>
-                                                            <p>
-                                                                <span>{att.title}</span> ·
-                                                                <strong style={{ color: 'var(--fg)', fontFamily: 'var(--font-mono)' }}>{att.size}</strong> ·
-                                                                <span className="attachment-hash">{att.hash}</span>
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                    <div className="attachment-actions">
-                                                        {att.canPreview && (
-                                                            <button
-                                                                className="btn btn-secondary"
-                                                                style={{ fontSize: 12, padding: '6px 12px' }}
-                                                                onClick={() => setPreviewModalFile({ ...att, doc: selectedAnnouncement })}
-                                                            >
-                                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                                                                    <circle cx="12" cy="12" r="3"/>
-                                                                </svg>
-                                                                Xem trước
-                                                            </button>
-                                                        )}
-                                                        <button
-                                                            className="btn btn-primary"
-                                                            style={{ fontSize: 12, padding: '6px 12px' }}
-                                                            onClick={() => handleDownloadAttachment(att.name)}
-                                                        >
-                                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                                                                <polyline points="7 10 12 15 17 10"/>
-                                                                <line x1="12" y1="15" x2="12" y2="3"/>
-                                                            </svg>
-                                                            Tải về
-                                                        </button>
-                                                    </div>
+                                        {/* Trình xem PDF nhúng trực tiếp nếu tệp là PDF */}
+                                        {(selectedAnnouncement.fileUrl.toLowerCase().includes('.pdf') || selectedAnnouncement.fileName?.toLowerCase().endsWith('.pdf')) && (
+                                            <div style={{ marginTop: 14, borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border)', boxShadow: '0 4px 16px rgba(0,0,0,0.06)' }}>
+                                                <div style={{ background: '#F8FAFC', padding: '8px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12, color: 'var(--muted)' }}>
+                                                    <span style={{ fontWeight: 600, color: 'var(--fg)' }}>Xem trước trực tiếp tài liệu</span>
+                                                    <a href={selectedAnnouncement.fileUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: 600 }}>
+                                                        Mở toàn màn hình &rarr;
+                                                    </a>
                                                 </div>
-                                            ))
-                                        ) : (
-                                            <div className="attachment-card">
-                                                <div className="attachment-info-group">
-                                                    <div className="attachment-badge pdf">PDF</div>
-                                                    <div className="attachment-meta">
-                                                        <h4>Van_ban_ky_so_chinh_thuc.pdf</h4>
-                                                        <p>Bản ký duyệt số hóa có dấu mộc · 245 KB</p>
-                                                    </div>
-                                                </div>
-                                                <button className="btn btn-primary" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => handleDownloadAttachment('Van_ban_ky_so_chinh_thuc.pdf')}>
-                                                    Tải về
-                                                </button>
+                                                <iframe
+                                                    src={`${selectedAnnouncement.fileUrl}#toolbar=1`}
+                                                    title={selectedAnnouncement.title}
+                                                    width="100%"
+                                                    height="750px"
+                                                    style={{ border: 'none', display: 'block', background: '#FFFFFF' }}
+                                                />
                                             </div>
                                         )}
                                     </div>
-                                </div>
+                                )}
                             </article>
 
-                            {/* Right: Metadata & Related Announcements Sidebar */}
+                            {/* Right: Sidebar */}
                             <aside>
-                                {/* Quick Meta Info Widget */}
+                                {/* Widget Tóm tắt */}
                                 <div className="doc-sidebar-widget">
                                     <div className="doc-sidebar-title">
                                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1034,85 +972,62 @@ export default function HomePage() {
                                             <line x1="12" y1="16" x2="12" y2="12"/>
                                             <line x1="12" y1="8" x2="12.01" y2="8"/>
                                         </svg>
-                                        Tóm Tắt Chỉ Đạo Học Vụ
+                                        Thông Tin Bản Tin
                                     </div>
-                                    <div style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--fg)' }}>
-                                        {selectedAnnouncement.summary || selectedAnnouncement.title}
+                                    <div style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--fg)', fontWeight: 600 }}>
+                                        {selectedAnnouncement.title}
                                     </div>
-                                    <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px dashed var(--border)', fontSize: 12, color: 'var(--muted)', lineHeight: 1.6 }}>
-                                        <div>Cơ quan ban hành: <strong style={{ color: 'var(--fg)' }}>Viện Công nghệ Số</strong></div>
-                                        <div style={{ marginTop: 4 }}>Người ký: <strong style={{ color: 'var(--fg)' }}>{selectedAnnouncement.signerName || selectedAnnouncement.signer || 'TS. Lê Quang Dũng'}</strong></div>
-                                        <div style={{ marginTop: 4 }}>Tính xác thực: <span className="badge badge-success" style={{ fontSize: 11, padding: '2px 8px' }}>Đã ký số điện tử hợp lệ</span></div>
+                                    <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px dashed var(--border)', fontSize: 12, color: 'var(--muted)', lineHeight: 1.7 }}>
+                                        <div>Cơ quan ban hành: <strong style={{ color: 'var(--fg)' }}>{portalConfiguration.institutionName || 'Viện Công nghệ Số'}</strong></div>
+                                        {selectedAnnouncement.authorName && (
+                                            <div>Người đăng: <strong style={{ color: 'var(--fg)' }}>{selectedAnnouncement.authorName}</strong></div>
+                                        )}
+                                        {selectedAnnouncement.fileName && (
+                                            <div style={{ wordBreak: 'break-all' }}>Tệp đính kèm: <strong style={{ color: 'var(--accent)' }}>{selectedAnnouncement.fileName}</strong></div>
+                                        )}
+                                        <div>Tính xác thực: <span className="badge badge-success" style={{ fontSize: 11, padding: '2px 8px' }}>Chính thức từ Cổng Portal</span></div>
                                     </div>
                                 </div>
 
-                                {/* Attachments Quick Jump Card */}
-                                <div className="doc-sidebar-widget">
-                                    <div className="doc-sidebar-title">
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
-                                        </svg>
-                                        Tệp Tin Đính Kèm ({selectedAnnouncement.attachments?.length || 2})
-                                    </div>
-                                    <div>
-                                        {(selectedAnnouncement.attachments || []).map((att) => (
-                                            <div key={att.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: 12.5 }}>
-                                                <div style={{ minWidth: 0, paddingRight: 8 }}>
-                                                    <div style={{ fontWeight: 600, color: 'var(--fg)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{att.name}</div>
-                                                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>{att.size}</div>
-                                                </div>
-                                                <button className="btn-ghost" style={{ padding: 4 }} title="Tải file" onClick={() => handleDownloadAttachment(att.name)}>
-                                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                                                        <polyline points="7 10 12 15 17 10"/>
-                                                        <line x1="12" y1="15" x2="12" y2="3"/>
-                                                    </svg>
-                                                </button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <button className="btn btn-secondary" style={{ width: '100%', fontSize: 12.5, marginTop: 12 }} onClick={handleDownloadAllAttachments}>
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                                            <polyline points="7 10 12 15 17 10"/>
-                                            <line x1="12" y1="15" x2="12" y2="3"/>
-                                        </svg>
-                                        Tải trọn bộ file (.zip)
-                                    </button>
-                                </div>
-
-                                {/* Related Announcements Card */}
-                                <div className="doc-sidebar-widget">
-                                    <div className="doc-sidebar-title">
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                                            <polyline points="14 2 14 8 20 8"/>
-                                        </svg>
-                                        Văn Bản Cùng Học Kỳ
-                                    </div>
-                                    <div>
-                                        {Object.values(ANNOUNCEMENTS_DATA)
-                                            .filter((doc) => doc.id !== selectedAnnouncement.id)
-                                            .map((item) => (
-                                                <div key={item.id} className="related-doc-item" onClick={() => handleOpenAnnouncementDetail(item)}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                                                        <span className={`badge ${item.categoryClass}`} style={{ fontSize: 10, padding: '2px 6px' }}>{item.category}</span>
-                                                        <span className="related-doc-date">{item.issuedDate}</span>
+                                {/* Widget Các bản tin khác */}
+                                {announcements.filter((doc) => doc.id !== selectedAnnouncement.id).length > 0 && (
+                                    <div className="doc-sidebar-widget">
+                                        <div className="doc-sidebar-title">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                                <polyline points="14 2 14 8 20 8"/>
+                                            </svg>
+                                            Bản Tin &amp; Quyết Định Khác
+                                        </div>
+                                        <div>
+                                            {announcements
+                                                .filter((doc) => doc.id !== selectedAnnouncement.id)
+                                                .slice(0, 5)
+                                                .map((item) => (
+                                                    <div key={item.id} className="related-doc-item" onClick={() => handleOpenAnnouncementDetail(item)}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                                                            <span className="badge badge-primary" style={{ fontSize: 10, padding: '2px 6px' }}>
+                                                                {item.category === 'NEWS' ? 'Tin tức' : 'Thông báo'}
+                                                            </span>
+                                                            <span className="related-doc-date">
+                                                                {item.createdAt ? new Date(item.createdAt).toLocaleDateString('vi-VN') : ''}
+                                                            </span>
+                                                        </div>
+                                                        <div className="related-doc-title">{item.title}</div>
                                                     </div>
-                                                    <div className="related-doc-title">{item.cardTitle || item.title}</div>
-                                                </div>
-                                            ))}
+                                                ))}
+                                        </div>
                                     </div>
-                                </div>
+                                )}
 
-                                {/* Direct Help Card */}
+                                {/* Widget Trợ giúp */}
                                 <div className="doc-sidebar-widget" style={{ background: 'linear-gradient(135deg, #F0FDFA 0%, #FFFFFF 100%)', borderColor: '#CCFBF1' }}>
                                     <div style={{ fontWeight: 700, fontSize: 13.5, color: 'var(--brand)', marginBottom: 6 }}>Hỗ Trợ Thủ Tục Học Vụ</div>
                                     <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.5, marginBottom: 12 }}>
-                                        Sinh viên thắc mắc về thời hạn hoặc quy cách nộp biểu mẫu vui lòng liên hệ Văn phòng Giáo vụ Viện (P.402 Tòa H1) hoặc gửi yêu cầu trực tiếp qua cổng.
+                                        Sinh viên có thắc mắc liên quan đến bản tin hoặc quyết định học vụ vui lòng liên hệ Văn phòng Giáo vụ Viện hoặc đăng nhập để gửi yêu cầu hỗ trợ.
                                     </p>
                                     <button className="btn btn-primary" style={{ width: '100%', fontSize: 12, padding: '8px 12px' }} onClick={() => setIsLoginModalOpen(true)}>
-                                        Đăng nhập để gửi yêu cầu hỗ trợ
+                                        Đăng nhập Cổng DACN
                                     </button>
                                 </div>
                             </aside>
@@ -1134,21 +1049,26 @@ export default function HomePage() {
                                     Hạn chót Đăng ký Đề tài: 24/10/2026 (Còn 10 ngày)
                                 </div>
 
-                                <h1 className="hero-title">
-                                    Khởi đầu Đồ án<br />Tốt nghiệp với Quy chuẩn Học thuật Số
-                                </h1>
+                                <h1 className="hero-title">{portalConfiguration.heroTitle}</h1>
 
                                 <p className="hero-subtitle">
-                                    Cổng thông tin chính thức của Viện Công nghệ Số dành cho sinh viên thực hiện Khóa luận & Đồ án Chuyên ngành. Tra cứu hướng nghiên cứu, kết nối Giảng viên hướng dẫn và nộp biểu mẫu BM01 - BM05 trực tuyến.
+                                    {portalConfiguration.heroDescription}
                                 </p>
 
                                 <div className="hero-ctas">
-                                    <a href="#faculty" className="btn btn-primary" onClick={() => handleBackToPortal('#faculty')}>
+                                    <a
+                                        href={portalConfiguration.primaryCtaHref}
+                                        className="btn btn-primary"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            scrollToSection(portalConfiguration.primaryCtaHref || 'faculty');
+                                        }}
+                                    >
                                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                             <circle cx="11" cy="11" r="8" />
                                             <line x1="21" y1="21" x2="16.65" y2="16.65" />
                                         </svg>
-                                        <span>Tra cứu Giảng viên & Hướng NC</span>
+                                        <span>{portalConfiguration.primaryCtaLabel}</span>
                                     </a>
                                 </div>
                             </div>
@@ -1192,7 +1112,16 @@ export default function HomePage() {
 
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12, color: 'var(--muted)' }}>
                                     <span>Thời gian toàn khóa: <strong>14 tuần</strong></span>
-                                    <a href="#roadmap" style={{ color: 'var(--accent)', fontWeight: 600 }}>Xem chi tiết lịch trình &rarr;</a>
+                                    <a
+                                        href="#roadmap"
+                                        style={{ color: 'var(--accent)', fontWeight: 600 }}
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            scrollToSection('roadmap');
+                                        }}
+                                    >
+                                        Xem chi tiết lịch trình &rarr;
+                                    </a>
                                 </div>
                             </div>
                         </div>
@@ -1203,7 +1132,7 @@ export default function HomePage() {
                             aria-label="Cuộn xuống xem lộ trình đồ án"
                             onClick={(e) => {
                                 e.preventDefault();
-                                document.getElementById('roadmap')?.scrollIntoView({ behavior: 'smooth' });
+                                scrollToSection('roadmap');
                             }}
                         >
                             <span>Khám phá lộ trình</span>
@@ -1421,45 +1350,121 @@ export default function HomePage() {
                     {/* ─── SECTION: DOWNLOAD & TEMPLATES CENTER ──────────────── */}
                     <section id="downloads" className="section" data-od-id="downloads-section">
                         <div className="container">
-                            <div>
-                                <span className="badge badge-brand">Kho tài nguyên biểu mẫu</span>
-                                <h2 style={{ fontSize: 'var(--fs-h2)', color: 'var(--brand)', marginTop: 8 }}>
-                                    Hệ Thống Biểu Mẫu Chuẩn BM01 - BM05
-                                </h2>
-                                <p style={{ color: 'var(--muted)', marginTop: 4 }}>
-                                    Các biểu mẫu chuẩn định dạng PDF/DOCX do Viện Công nghệ Số ban hành phục vụ thẩm định và bảo vệ.
-                                </p>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
+                                <div>
+                                    <span className="badge badge-brand">Kho tài nguyên học vụ</span>
+                                    <h2 style={{ fontSize: 'var(--fs-h2)', color: 'var(--brand)', marginTop: 8 }}>
+                                        Hệ Thống Biểu Mẫu Chuẩn BM01 – BM05
+                                    </h2>
+                                    <p style={{ color: 'var(--muted)', marginTop: 4 }}>
+                                        Toàn bộ biểu mẫu và văn bản chính thức phục vụ các giai đoạn đăng ký đề tài, duyệt đề cương, theo dõi tiến độ và báo cáo nghiệm thu.
+                                    </p>
+                                </div>
+                                <div style={{ fontSize: 13, color: 'var(--muted)' }}>
+                                    Tổng số: <strong style={{ color: 'var(--fg)' }}>{sortedTemplates.length} biểu mẫu đã ban hành</strong>
+                                </div>
                             </div>
 
-                            <div className="download-grid">
-                                {DOWNLOAD_TEMPLATES.map((tpl) => (
-                                    <div key={tpl.code} className="download-card">
-                                        <div className={`doc-icon ${tpl.type === 'DOCX' ? 'docx' : ''}`}>{tpl.type}</div>
-                                        <div style={{ flexGrow: 1 }}>
-                                            <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--fg)' }}>
-                                                {tpl.code}
+                            {sortedTemplates.length === 0 ? (
+                                <div style={{ padding: '48px 20px', textAlign: 'center', background: 'white', borderRadius: 'var(--radius, 12px)', border: '1px solid var(--border)' }}>
+                                    <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ margin: '0 auto 12px', color: '#94a3b8' }}>
+                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                        <polyline points="14 2 14 8 20 8" />
+                                        <line x1="16" y1="13" x2="8" y2="13" />
+                                        <line x1="16" y1="17" x2="8" y2="17" />
+                                        <polyline points="10 9 9 9 8 9" />
+                                    </svg>
+                                    <h3 style={{ fontSize: 15, fontWeight: 600, color: 'var(--fg)', marginBottom: 4 }}>
+                                        Chưa có biểu mẫu nào được công bố trên Cổng thông tin
+                                    </h3>
+                                    <p style={{ color: 'var(--muted)', fontSize: 13, maxWidth: 520, margin: '0 auto' }}>
+                                        Các biểu mẫu BM01 đến BM05 đang được rà soát và cập nhật phiên bản mới cho học kỳ hiện tại. Vui lòng liên hệ Văn phòng Giáo vụ Viện nếu bạn cần tài liệu gấp.
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="template-grid">
+                                    {sortedTemplates.map((tpl) => {
+                                        const isDocx = tpl.mimeType?.includes('word') || tpl.mimeType?.includes('officedocument') || tpl.fileName?.endsWith('.docx') || tpl.fileName?.endsWith('.doc');
+                                        const isPdf = tpl.mimeType?.includes('pdf') || tpl.fileName?.endsWith('.pdf');
+                                        const isExcel = tpl.mimeType?.includes('excel') || tpl.mimeType?.includes('spreadsheet') || tpl.fileName?.endsWith('.xlsx') || tpl.fileName?.endsWith('.xls');
+
+                                        const extLabel = isDocx ? 'DOCX' : isPdf ? 'PDF' : isExcel ? 'XLSX' : 'FILE';
+                                        const iconColor = isDocx ? '#2563EB' : isPdf ? '#E11D48' : isExcel ? '#059669' : '#64748B';
+                                        const iconBg = isDocx ? '#EFF6FF' : isPdf ? '#FFF1F2' : isExcel ? '#ECFDF5' : '#F8FAFC';
+
+                                        return (
+                                            <div key={tpl.id || tpl.code} className="template-card card-hover">
+                                                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                        <span className="template-badge">{tpl.code || 'BM'}</span>
+                                                        {tpl.version && (
+                                                            <span className="badge" style={{ background: '#F1F5F9', color: '#475569', fontSize: 11, padding: '2px 6px' }}>
+                                                                v{tpl.version}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div
+                                                        style={{
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            gap: 4,
+                                                            fontSize: 11,
+                                                            fontWeight: 700,
+                                                            padding: '4px 8px',
+                                                            borderRadius: 6,
+                                                            color: iconColor,
+                                                            background: iconBg,
+                                                            border: `1px solid ${iconColor}25`,
+                                                        }}
+                                                    >
+                                                        {extLabel}
+                                                    </div>
+                                                </div>
+
+                                                <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--fg)', lineHeight: 1.4, marginBottom: 6 }}>
+                                                    {tpl.title || tpl.code}
+                                                </h3>
+
+                                                <p style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.5, marginBottom: 16, flexGrow: 1, minHeight: 38 }}>
+                                                    {tpl.description || 'Biểu mẫu chuẩn phục vụ quá trình thực hiện và nghiệm thu đồ án tốt nghiệp.'}
+                                                </p>
+
+                                                <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                                                    <div style={{ fontSize: 11.5, color: '#64748B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '60%' }} title={tpl.fileName || tpl.title}>
+                                                        {tpl.fileName ? tpl.fileName : `${tpl.code || 'BM'}.${extLabel.toLowerCase()}`}
+                                                        {tpl.fileSize ? ` · ${formatFileSize(tpl.fileSize)}` : ''}
+                                                    </div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                                                        {tpl.fileUrl ? (
+                                                            <a
+                                                                className="btn btn-primary"
+                                                                style={{ padding: '6px 14px', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 5 }}
+                                                                href={tpl.fileUrl}
+                                                                download={tpl.fileName || `${tpl.code}_${tpl.title}.${extLabel.toLowerCase()}`}
+                                                                target="_blank"
+                                                                rel="noreferrer"
+                                                                onClick={() => showToast(`Bắt đầu tải về: ${tpl.fileName || tpl.title}`)}
+                                                            >
+                                                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                                                    <polyline points="7 10 12 15 17 10" />
+                                                                    <line x1="12" y1="15" x2="12" y2="3" />
+                                                                </svg>
+                                                                Tải về
+                                                            </a>
+                                                        ) : (
+                                                            <span style={{ fontSize: 11.5, color: '#94A3B8', fontStyle: 'italic' }}>Chưa có tệp</span>
+                                                        )}
+                                                    </div>
+                                                </div>
                                             </div>
-                                            <div style={{ fontSize: 12, color: 'var(--muted)' }}>{tpl.title}</div>
-                                            <div style={{ fontSize: 11, color: 'var(--accent)', marginTop: 4, fontWeight: 600 }}>
-                                                {tpl.meta}
-                                            </div>
-                                        </div>
-                                        <button
-                                            className="btn-ghost"
-                                            title="Tải về"
-                                            onClick={() => showToast(`Đang tải tệp biểu mẫu: ${tpl.code} - ${tpl.title}`)}
-                                        >
-                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                                                <polyline points="7 10 12 15 17 10" />
-                                                <line x1="12" y1="15" x2="12" y2="3" />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </div>
                     </section>
+
 
                     {/* ─── SECTION: LATEST ANNOUNCEMENTS ─────────────────────── */}
                     <section id="announcements" className="section" data-od-id="announcements-section">
@@ -1468,16 +1473,21 @@ export default function HomePage() {
                                 <div>
                                     <span className="badge badge-brand">Bản tin học vụ</span>
                                     <h2 style={{ fontSize: 'var(--fs-h2)', color: 'var(--brand)', marginTop: 6 }}>
-                                        Thông Báo Điều Hành Mới Nhất
+                                        Bản Tin &amp; Quyết Định Học Vụ Mới Nhất
                                     </h2>
                                 </div>
                                 <a href="javascript:void(0)" style={{ fontSize: 13.5, color: 'var(--accent)', fontWeight: 600 }}>
-                                    Xem tất cả thông báo &rarr;
+                                    Xem tất cả bản tin &rarr;
                                 </a>
                             </div>
 
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 20 }}>
-                                {announcements.map((ann) => (
+                                {announcements.length === 0 ? (
+                                    <div style={{ gridColumn: '1 / -1', padding: '48px 20px', textAlign: 'center', background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                                        <p style={{ color: 'var(--muted)', fontSize: 14 }}>Hiện chưa có bản tin hoặc quyết định học vụ mới được công bố.</p>
+                                    </div>
+                                ) : (
+                                    announcements.map((ann) => (
                                     <div
                                         key={ann.id}
                                         className="card card-hover"
@@ -1506,14 +1516,14 @@ export default function HomePage() {
                                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                                     <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
                                                 </svg>
-                                                <strong>{ann.fileLabel || `${ann.attachments?.length || 2} tệp`}</strong>
+                                                <strong>{ann.fileLabel || (ann.fileName ? '1 tệp đính kèm' : (ann.attachments?.length ? `${ann.attachments.length} tệp` : 'Văn bản điện tử'))}</strong>
                                             </span>
                                             <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--accent)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                                                 Đọc chi tiết văn bản &rarr;
                                             </span>
                                         </div>
                                     </div>
-                                ))}
+                                )))}
                             </div>
                         </div>
                     </section>
@@ -1543,16 +1553,16 @@ export default function HomePage() {
                                     }}
                                 />
                                 <div className="brand-text">
-                                    <h1 style={{ color: '#fff', fontSize: '1.05rem', margin: 0, fontWeight: 700 }}>Hệ Thống Quản Lý Đồ Án</h1>
-                                    <p style={{ color: '#94a3b8', margin: 0, fontSize: '0.85rem' }}>Trường Đại học Thủ Dầu Một</p>
+                                    <h1 style={{ color: '#fff', fontSize: '1.05rem', margin: 0, fontWeight: 700 }}>{portalConfiguration.siteTitle}</h1>
+                                    <p style={{ color: '#94a3b8', margin: 0, fontSize: '0.85rem' }}>{portalConfiguration.institutionName}</p>
                                 </div>
                             </div>
                             <p style={{ fontSize: 13, lineHeight: 1.6, maxWidth: '42ch' }}>
                                 Hệ thống Quản lý Đồ án Tốt nghiệp chuẩn hóa số hóa toàn diện từ đề cương, tiến độ đến hội đồng bảo vệ và lưu chiểu học thuật.
                             </p>
                             <div style={{ marginTop: 18, fontSize: 12, color: '#64748b', lineHeight: 1.6 }}>
-                                Văn phòng: Số 06 Trần Văn Ơn, P. Phú Hòa, TP. Thủ Dầu Một, Bình Dương<br />
-                                Hotline Giáo vụ: (0274) 382 2058 · Email: dacn@tdmu.edu.vn
+                                {portalConfiguration.address && <>Văn phòng: {portalConfiguration.address}<br /></>}
+                                {portalConfiguration.phone && <>Hotline Giáo vụ: {portalConfiguration.phone} · </>}Email: {portalConfiguration.email || 'dacn@tdmu.edu.vn'}
                             </div>
                         </div>
 
@@ -1567,14 +1577,26 @@ export default function HomePage() {
                         </div>
 
                         <div>
-                            <h4>Tài Nguyên Học Thuật</h4>
+                            <h4>Biểu Mẫu &amp; Tài Liệu</h4>
                             <ul className="footer-links">
-                                <li><a href="#downloads" onClick={() => handleBackToPortal('#downloads')}>Mẫu đề cương BM01</a></li>
-                                <li><a href="#downloads" onClick={() => handleBackToPortal('#downloads')}>Đơn đăng ký BM02</a></li>
-                                <li><a href="#downloads" onClick={() => handleBackToPortal('#downloads')}>Nhật ký BM03</a></li>
-                                <li><a href="#downloads" onClick={() => handleBackToPortal('#downloads')}>Quy chuẩn đánh giá khóa luận</a></li>
+                                {sortedTemplates.length > 0 ? (
+                                    sortedTemplates.slice(0, 4).map((tpl) => (
+                                        <li key={tpl.id || tpl.code}>
+                                            <a href="#downloads" onClick={() => handleBackToPortal('#downloads')}>
+                                                {tpl.code ? `${tpl.code} - ` : ''}{tpl.title}
+                                            </a>
+                                        </li>
+                                    ))
+                                ) : (
+                                    <>
+                                        <li><a href="#downloads" onClick={() => handleBackToPortal('#downloads')}>Kho biểu mẫu BM01 – BM05</a></li>
+                                        <li><a href="#downloads" onClick={() => handleBackToPortal('#downloads')}>Quy chuẩn đánh giá khóa luận</a></li>
+                                        <li><a href="#downloads" onClick={() => handleBackToPortal('#downloads')}>Mẫu đề cương nghiên cứu</a></li>
+                                    </>
+                                )}
                             </ul>
                         </div>
+
 
                         <div>
                             <h4>Tiêu Chuẩn Hệ Thống</h4>
@@ -1587,12 +1609,15 @@ export default function HomePage() {
                         </div>
                     </div>
 
+                    {linksByGroup.QUICK_LINK.length > 0 && (
+                        <div className="footer-links" style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginBottom: 20 }}>
+                            {linksByGroup.QUICK_LINK.map((link) => <a key={link.id} href={link.href}>{link.label}</a>)}
+                        </div>
+                    )}
                     <div style={{ borderTop: '1px solid #1e293b', paddingTop: 24, display: 'flex', justifyContent: 'space-between', fontSize: 12.5, color: '#64748b', flexWrap: 'wrap', gap: 12 }}>
-                        <div>© 2026 Hệ thống Quản lý Đồ án · Bản quyền thuộc Trường Đại học Thủ Dầu Một.</div>
+                        <div>{portalConfiguration.copyrightText}</div>
                         <div style={{ display: 'flex', gap: 20 }}>
-                            <a href="javascript:void(0)" style={{ color: '#64748b' }}>Quy chế Học vụ</a>
-                            <a href="javascript:void(0)" style={{ color: '#64748b' }}>Bảo mật Thông tin</a>
-                            <a href="javascript:void(0)" style={{ color: '#64748b' }}>Hướng dẫn Sử dụng</a>
+                            {linksByGroup.LEGAL.concat(linksByGroup.SOCIAL).map((link) => <a key={link.id} href={link.href} style={{ color: '#64748b' }}>{link.label}</a>)}
                         </div>
                     </div>
                 </div>

@@ -1,5 +1,6 @@
 // src/pages/admin/AnnouncementManagementPage.jsx
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
     Table,
     Button,
@@ -13,6 +14,7 @@ import {
     message,
     Popconfirm,
     Tooltip,
+    Alert,
 } from 'antd';
 import {
     PlusOutlined,
@@ -36,6 +38,7 @@ const CATEGORY_OPTIONS = [
 ];
 
 function AnnouncementManagementPage() {
+    const navigate = useNavigate();
     const [announcements, setAnnouncements] = useState([]);
     const [loading, setLoading] = useState(false);
     const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 });
@@ -343,8 +346,8 @@ function AnnouncementManagementPage() {
             {/* Page Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 4, flexWrap: 'wrap', gap: 12 }}>
                 <div>
-                    <p className="eyebrow">COMMUNICATION & PORTAL BROADCAST</p>
-                    <h1 className="h1">Quản lý Bản tin & Thông báo Đào tạo</h1>
+                    <p className="eyebrow">PUBLIC PORTAL BROADCAST • TRANG CHỦ CỔNG THÔNG TIN</p>
+                    <h1 className="h1">Bản Tin &amp; Quyết Định Học Vụ Portal</h1>
                 </div>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                     <button
@@ -359,27 +362,49 @@ function AnnouncementManagementPage() {
                         onClick={openCreateModal}
                     >
                         <PlusOutlined />
-                        <span>+ Tạo thông báo mới</span>
+                        <span>Soạn bản tin Portal</span>
                     </button>
                 </div>
             </div>
 
+            {/* Quick Navigation Banner to BM01-BM05 Templates */}
+            <Alert
+                type="info"
+                showIcon
+                className="rounded-xl border-blue-200 bg-blue-50/80"
+                message={
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="text-xs sm:text-sm text-slate-700">
+                            <b>Đang ở: Quản lý Bản tin &amp; Quyết định Portal.</b> Nếu bạn cần tạo, tải lên file Word/PDF hoặc công bố <b>Biểu mẫu BM01–BM05</b> để sinh viên tải về ở chân trang, hãy chuyển sang khu vực Biểu mẫu Portal.
+                        </div>
+                        <Button
+                            type="primary"
+                            size="small"
+                            onClick={() => navigate('/admin/portal?tab=TEMPLATE')}
+                            className="bg-primary hover:bg-primary-hover text-white text-xs font-semibold shrink-0"
+                        >
+                            Quản lý Biểu mẫu BM01–BM05 &rarr;
+                        </Button>
+                    </div>
+                }
+            />
+
             {/* 3 KPI Cards */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
                 <div className="card" style={{ padding: '14px 18px' }}>
-                    <span className="meta">Tổng số thông báo</span>
+                    <span className="meta">Tổng số bản tin / quyết định</span>
                     <p className="h2 num" style={{ marginTop: 2 }}>{pagination.total || announcements.length}</p>
                     <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--muted)' }}>Tất cả các chuyên mục</div>
                 </div>
                 <div className="card" style={{ padding: '14px 18px' }}>
-                    <span className="meta">Thông báo được ghim</span>
+                    <span className="meta">Bản tin được ghim</span>
                     <p className="h2 num" style={{ marginTop: 2, color: 'var(--warning)' }}>{pinnedCount}</p>
-                    <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--warning)' }}>Ưu tiên hiển thị đầu trang</div>
+                    <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--warning)' }}>Ưu tiên hiển thị đầu trang Portal</div>
                 </div>
                 <div className="card" style={{ padding: '14px 18px' }}>
                     <span className="meta">Đang công khai</span>
                     <p className="h2 num" style={{ marginTop: 2, color: 'var(--success)' }}>{publishedCount}</p>
-                    <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--success)' }}>Hiển thị trên Cổng thông tin</div>
+                    <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--success)' }}>Hiển thị trực tiếp trên trang chủ Portal</div>
                 </div>
             </div>
 
@@ -435,14 +460,14 @@ function AnnouncementManagementPage() {
             <Modal
                 title={
                     <div className="text-base font-bold text-slate-900">
-                        {editingItem ? 'Chỉnh sửa Thông báo' : 'Soạn Thông báo mới'}
+                        {editingItem ? 'Chỉnh sửa Bản tin / Quyết định Portal' : 'Soạn Bản tin / Quyết định Portal mới'}
                     </div>
                 }
                 open={modalVisible}
                 onCancel={() => setModalVisible(false)}
                 onOk={handleSubmit}
                 confirmLoading={submitting}
-                okText={editingItem ? 'Lưu thay đổi' : 'Đăng thông báo'}
+                okText={editingItem ? 'Lưu thay đổi' : 'Đăng lên Portal'}
                 cancelText="Hủy"
                 width={680}
                 centered
@@ -451,15 +476,15 @@ function AnnouncementManagementPage() {
                 <Form form={form} layout="vertical" className="pt-2">
                     <Form.Item
                         name="title"
-                        label="Tiêu đề thông báo"
-                        rules={[{ required: true, message: 'Vui lòng nhập tiêu đề thông báo.' }]}
+                        label="Tiêu đề bài đăng Portal"
+                        rules={[{ required: true, message: 'Vui lòng nhập tiêu đề bài đăng.' }]}
                     >
-                        <Input placeholder="VD: Thông báo nộp đề cương và đăng ký bảo vệ khóa luận đợt 1" maxLength={255} showCount />
+                        <Input placeholder="VD: Thông báo gia hạn nộp đơn đề cương nghiên cứu BM01 đợt 1" maxLength={255} showCount />
                     </Form.Item>
 
-                    <Form.Item name="content" label="Nội dung chi tiết">
+                    <Form.Item name="content" label="Nội dung bài viết chi tiết">
                         <TextArea
-                            placeholder="Nhập nội dung thông báo chi tiết..."
+                            placeholder="Nhập nội dung bài viết, quyết định hoặc hướng dẫn học vụ công khai..."
                             rows={6}
                             maxLength={5000}
                             showCount
@@ -475,7 +500,7 @@ function AnnouncementManagementPage() {
                             <Form.Item name="isPinned" label="Ghim lên đầu" valuePropName="checked" className="mb-0">
                                 <Switch checkedChildren="Có" unCheckedChildren="Không" />
                             </Form.Item>
-                            <Form.Item name="isPublished" label="Công khai ngay" valuePropName="checked" className="mb-0">
+                            <Form.Item name="isPublished" label="Hiển thị ngay trên Portal" valuePropName="checked" className="mb-0">
                                 <Switch checkedChildren="Có" unCheckedChildren="Không" />
                             </Form.Item>
                         </div>

@@ -50,6 +50,10 @@ const authenticate = async (req, res, next) => {
                         },
                     },
                 },
+                councilMembers: {
+                    where: { council: { councilType: 'DEFENSE_COUNCIL' } },
+                    select: { id: true },
+                },
             },
         });
 
@@ -72,6 +76,7 @@ const authenticate = async (req, res, next) => {
                 .map(({ permissionGroup }) => permissionGroup?.code)
                 .filter(Boolean),
             permissions: [...permissionSet],
+            hasDefenseCouncilAssignment: Boolean(user.councilMembers?.length),
         };
         next();
     } catch (error) {

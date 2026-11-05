@@ -16,6 +16,7 @@ test('platform admin routes require the same capabilities as backend routes', ()
         'ENROLLMENT_MANAGE',
         'PROJECT_CATALOG_MANAGE',
         'PUBLIC_ANNOUNCEMENT_MANAGE',
+        'PORTAL_CONTENT_MANAGE',
         'NOTIFICATION_MANAGE',
         'RUBRIC_MANAGE',
         'LEGACY_REVIEW_MANAGE',

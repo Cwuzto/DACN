@@ -232,8 +232,8 @@ function NotificationCenterPage() {
             {/* Page Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 4, flexWrap: 'wrap', gap: 12 }}>
                 <div>
-                    <p className="eyebrow">BROADCAST & AUTOMATED NOTIFICATIONS</p>
-                    <h1 className="h1">Trung tâm Gửi Thông báo & Mẫu Sự kiện</h1>
+                    <p className="eyebrow">USER IN-APP ALERTS • THÔNG BÁO TÀI KHOẢN NGƯỜI DÙNG</p>
+                    <h1 className="h1">Gửi Thông Báo Người Dùng (In-App)</h1>
                 </div>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                     <button
@@ -254,7 +254,7 @@ function NotificationCenterPage() {
                         }}
                     >
                         <SendOutlined />
-                        <span>+ Soạn thông báo mới</span>
+                        <span>Gửi thông báo người dùng</span>
                     </button>
                 </div>
             </div>
@@ -390,19 +390,22 @@ function NotificationCenterPage() {
                 title={
                     <div className="flex items-center gap-2 text-base font-bold text-slate-900">
                         <SendOutlined className="text-primary" />
-                        Soạn Thông báo Broadcast Mới
+                        Soạn Thông Báo Gửi Người Dùng (In-App Alert)
                     </div>
                 }
                 open={isSendModalOpen}
                 onCancel={() => setIsSendModalOpen(false)}
                 onOk={handleSendNotification}
-                okText="Phát thông báo ngay"
+                okText="Gửi thông báo ngay"
                 cancelText="Hủy bỏ"
                 width={680}
                 confirmLoading={sending}
                 centered
             >
-                <Form form={form} layout="vertical" className="pt-2">
+                <div className="text-xs text-blue-700 bg-blue-50 p-2.5 rounded-lg border border-blue-200 mb-3">
+                    🔔 <b>Lưu ý:</b> Tính năng này gửi tin nhắn trực tiếp đến quả chuông của tài khoản cá nhân người dùng (Sinh viên/Giảng viên/Hội đồng). Nếu bạn muốn đăng tin tức hoặc quyết định công khai lên trang chủ Portal, vui lòng dùng mục <b>Bản tin & Quyết định Portal</b>.
+                </div>
+                <Form form={form} layout="vertical" className="pt-1">
                     <Form.Item
                         name="audience"
                         label={<span className="text-xs font-bold text-slate-700">Đối tượng nhận thông báo</span>}

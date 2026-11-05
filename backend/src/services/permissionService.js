@@ -94,23 +94,30 @@ const hasPermission = async (userId, permissionCode) => {
   return count > 0;
 };
 
-const seedPermissionCatalog = async () => {
+const seedPermissionCatalog = async (db = prisma) => {
+  const catalogCodes = PERMISSION_CATALOG.map((item) => item.code);
+  await db.permissionGroupPermission.deleteMany({
+    where: { permission: { code: { notIn: catalogCodes } } },
+  });
+  await db.permission.deleteMany({
+    where: { code: { notIn: catalogCodes } },
+  });
   for (const item of PERMISSION_CATALOG) {
-    await prisma.permission.upsert({
+    await db.permission.upsert({
       where: { code: item.code },
       update: { label: item.label, module: item.module },
       create: item,
     });
   }
   for (const group of DEFAULT_GROUPS) {
-    const existing = await prisma.permissionGroup.findUnique({ where: { code: group.code } });
-    const permissionIds = await prisma.permission.findMany({
+    const existing = await db.permissionGroup.findUnique({ where: { code: group.code } });
+    const permissionIds = await db.permission.findMany({
       where: { code: { in: group.permissions } },
       select: { id: true },
     });
     if (existing) {
-      await prisma.permissionGroupPermission.deleteMany({ where: { permissionGroupId: existing.id } });
-      await prisma.permissionGroup.update({
+      await db.permissionGroupPermission.deleteMany({ where: { permissionGroupId: existing.id } });
+      await db.permissionGroup.update({
         where: { id: existing.id },
         data: {
           name: group.name,
@@ -119,7 +126,7 @@ const seedPermissionCatalog = async () => {
         },
       });
     } else {
-      await prisma.permissionGroup.create({
+      await db.permissionGroup.create({
         data: {
           code: group.code,
           name: group.name,

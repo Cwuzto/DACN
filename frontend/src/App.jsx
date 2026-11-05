@@ -106,6 +106,7 @@ const ProjectEnrollmentPage = lazy(() => import('./pages/admin/ProjectEnrollment
 const PermissionGroupPage = lazy(() => import('./pages/admin/PermissionGroupPage'));
 const AnnouncementManagementPage = lazy(() => import('./pages/admin/AnnouncementManagementPage'));
 const RubricManagementPage = lazy(() => import('./pages/admin/RubricManagementPage'));
+const PortalContentManagementPage = lazy(() => import('./pages/admin/PortalContentManagementPage'));
 
 // Lecturer pages
 const LecturerDashboardPage = lazy(() => import('./pages/lecturer/LecturerDashboardPage'));
@@ -174,6 +175,9 @@ function App() {
                                 </Route>
                                 <Route element={<ProtectedRoute allowedRoles={['ADMIN']} requiredPermissions={['PUBLIC_ANNOUNCEMENT_MANAGE']} />}>
                                     <Route path="announcements" element={<AnnouncementManagementPage />} />
+                                </Route>
+                                <Route element={<ProtectedRoute allowedRoles={['ADMIN']} requiredPermissions={['PORTAL_CONTENT_MANAGE']} />}>
+                                    <Route path="portal" element={<PortalContentManagementPage />} />
                                 </Route>
                                 <Route element={<ProtectedRoute allowedRoles={['ADMIN']} requiredPermissions={['PERMISSION_GROUP_MANAGE']} />}>
                                     <Route path="permissions" element={<PermissionGroupPage />} />

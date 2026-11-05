@@ -7,10 +7,10 @@ jest.mock('../../src/config/database', () => ({
     update: jest.fn(),
     findMany: jest.fn(),
   },
-  publicAnnouncement: { update: jest.fn(), findMany: jest.fn() },
-  portalConfiguration: { findUnique: jest.fn() },
-  portalLink: { findMany: jest.fn() },
-  portalTemplate: { findMany: jest.fn() },
+  publicAnnouncement: { update: jest.fn(), findMany: jest.fn(), create: jest.fn() },
+  portalConfiguration: { findUnique: jest.fn(), upsert: jest.fn() },
+  portalLink: { findMany: jest.fn(), create: jest.fn() },
+  portalTemplate: { findMany: jest.fn(), create: jest.fn() },
 }));
 
 jest.mock('../../src/services/auditLogService', () => ({ auditLog: jest.fn() }));
@@ -184,7 +184,56 @@ describe('portal public projection', () => {
         title: 'Thông báo công khai',
         type: 'RICH_TEXT',
         richContentHtml: '<p>Nội dung</p>',
+        content: '<p>Nội dung</p>',
+        category: 'ANNOUNCEMENT',
+        authorName: null,
+        fileName: undefined,
+        fileUrl: undefined,
+        isPinned: undefined,
+        isPublished: undefined,
+        createdAt: undefined,
+        updatedAt: undefined,
       }],
     });
+  });
+});
+
+describe('portal admin resource identities', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test('creates a typed identity before the first immutable draft', async () => {
+    const { createPortalResource } = require('../../src/services/portalContentService');
+    prisma.publicAnnouncement.create.mockResolvedValue({ id: 31, title: 'Bản nháp thông báo', isPublished: false });
+
+    await expect(createPortalResource({ resourceType: 'ANNOUNCEMENT', actorId: 7 }))
+      .resolves.toMatchObject({ id: 31 });
+
+    expect(prisma.publicAnnouncement.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        title: 'Bản nháp thông báo',
+        isPublished: false,
+        authorId: 7,
+      }),
+    });
+  });
+
+  test('lists admin identities with their draft and published revision metadata', async () => {
+    const { getAdminResources } = require('../../src/services/portalContentService');
+    prisma.publicAnnouncement.findMany.mockResolvedValue([{ id: 31, currentPublishedRevisionId: 12 }]);
+    prisma.portalContentRevision.findMany.mockResolvedValue([
+      { id: 12, resourceType: 'ANNOUNCEMENT', resourceId: 31, version: 1, status: 'PUBLISHED', payload: { title: 'Đã công bố' } },
+      { id: 13, resourceType: 'ANNOUNCEMENT', resourceId: 31, version: 2, status: 'DRAFT', payload: { title: 'Bản nháp' } },
+    ]);
+
+    await expect(getAdminResources('ANNOUNCEMENT')).resolves.toEqual([{
+      id: 31,
+      currentPublishedRevisionId: 12,
+      revisions: expect.arrayContaining([
+        expect.objectContaining({ id: 12, status: 'PUBLISHED' }),
+        expect.objectContaining({ id: 13, status: 'DRAFT' }),
+      ]),
+    }]);
   });
 });

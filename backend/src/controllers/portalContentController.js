@@ -19,10 +19,33 @@ const getPublicContent = async (req, res, next) => {
   }
 };
 
+const normalizeResourceType = (value) => String(value || '').toUpperCase();
+
+const createResource = async (req, res, next) => {
+  try {
+    const data = await portalContentService.createPortalResource({
+      resourceType: normalizeResourceType(req.params.resourceType),
+      actorId: req.user.id,
+    });
+    return res.status(201).json({ success: true, data });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+const listResources = async (req, res, next) => {
+  try {
+    const data = await portalContentService.getAdminResources(normalizeResourceType(req.params.resourceType));
+    return res.json({ success: true, data });
+  } catch (error) {
+    return next(error);
+  }
+};
+
 const createDraft = async (req, res, next) => {
   try {
     const data = await portalContentService.createDraftRevision({
-      resourceType: String(req.params.resourceType || '').toUpperCase(),
+      resourceType: normalizeResourceType(req.params.resourceType),
       resourceId: parsePositiveInt(req.params.resourceId, 'Resource'),
       payload: req.body,
       actorId: req.user.id,
@@ -36,7 +59,7 @@ const createDraft = async (req, res, next) => {
 const publishDraft = async (req, res, next) => {
   try {
     const data = await portalContentService.publishRevision({
-      resourceType: String(req.params.resourceType || '').toUpperCase(),
+      resourceType: normalizeResourceType(req.params.resourceType),
       resourceId: parsePositiveInt(req.params.resourceId, 'Resource'),
       revisionId: parsePositiveInt(req.params.revisionId, 'Revision'),
       actorId: req.user.id,
@@ -50,7 +73,7 @@ const publishDraft = async (req, res, next) => {
 const archive = async (req, res, next) => {
   try {
     const data = await portalContentService.archiveResource({
-      resourceType: String(req.params.resourceType || '').toUpperCase(),
+      resourceType: normalizeResourceType(req.params.resourceType),
       resourceId: parsePositiveInt(req.params.resourceId, 'Resource'),
     });
     return res.json({ success: true, data });
@@ -59,4 +82,4 @@ const archive = async (req, res, next) => {
   }
 };
 
-module.exports = { getPublicContent, createDraft, publishDraft, archive };
+module.exports = { getPublicContent, createResource, listResources, createDraft, publishDraft, archive };

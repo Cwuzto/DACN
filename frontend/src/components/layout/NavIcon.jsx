@@ -31,6 +31,7 @@ export default function NavIcon({ name, className = '', size = 18 }) {
         case 'list_alt':
         case 'folder_open':
         case 'description':
+        case 'file_copy':
             return (
                 <svg {...props}>
                     <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />

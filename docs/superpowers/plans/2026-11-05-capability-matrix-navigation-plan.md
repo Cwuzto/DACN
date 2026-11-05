@@ -422,3 +422,4 @@ Expected: Vite build thành công 100%, 0 lỗi cú pháp hoặc đóng gói.
 ```bash
 git commit --allow-empty -m "chore(release): complete 2-tier capability matrix and dynamic navigation redesign"
 ```
+

@@ -522,7 +522,7 @@ function UserManagementPage() {
                             icon={<PlusOutlined />}
                             onClick={handleAdd}
                         >
-                            + Thêm Người Dùng
+                            Thêm Người Dùng
                         </Button>
                     </Space>
                 }

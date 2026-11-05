@@ -58,7 +58,7 @@ const NAV_CONFIG = {
             {
                 title: 'HỘI ĐỒNG & CHẤM ĐIỂM',
                 items: [
-                    { path: '/lecturer/grading', icon: 'rate_review', label: 'Hội đồng chấm điểm', permissions: ['DEFENSE_SCORE_VIEW'] },
+                    { path: '/lecturer/grading', icon: 'rate_review', label: 'Hội đồng chấm điểm', permissions: ['DEFENSE_SCORE_VIEW'], requiresDefenseCouncil: true },
                 ],
             },
         ],
@@ -103,8 +103,9 @@ const NAV_CONFIG = {
                 items: [
                     { path: '/admin/users', icon: 'group', label: 'Quản lý người dùng', permissions: ['USER_MANAGE', 'PERMISSION_GROUP_MANAGE'] },
                     { path: '/admin/permissions', icon: 'shield_lock', label: 'Quản lý phân quyền', permissions: ['PERMISSION_GROUP_MANAGE'] },
-                    { path: '/admin/announcements', icon: 'campaign', label: 'Quản lý thông báo', permissions: ['PUBLIC_ANNOUNCEMENT_MANAGE'] },
-                    { path: '/admin/notifications', icon: 'send', label: 'Trung tâm Gửi tin', permissions: ['NOTIFICATION_MANAGE'] },
+                    { path: '/admin/announcements', icon: 'feed', label: 'Bản tin & Quyết định Portal', permissions: ['PUBLIC_ANNOUNCEMENT_MANAGE'] },
+                    { path: '/admin/portal', icon: 'file_copy', label: 'Biểu mẫu & Giao diện Portal', permissions: ['PORTAL_CONTENT_MANAGE'] },
+                    { path: '/admin/notifications', icon: 'notifications_active', label: 'Gửi thông báo Người dùng', permissions: ['NOTIFICATION_MANAGE'] },
                 ],
             },
         ],
@@ -195,11 +196,12 @@ function AppLayout({ role }) {
         .map((section) => ({
             ...section,
             items: section.items.filter((item) => (
-                !item.permissions || (
+                (!item.requiresDefenseCouncil || user?.hasDefenseCouncilAssignment) &&
+                (!item.permissions || (
                     item.permissionMode === 'any'
                         ? item.permissions.some((permission) => permissionSet.has(permission))
                         : item.permissions.every((permission) => permissionSet.has(permission))
-                )
+                ))
             )),
         }))
         .filter((section) => section.items.length > 0), [config, permissionSet]);
@@ -407,35 +409,6 @@ function AppLayout({ role }) {
                     </div>
 
                     <div className="topbar-right">
-                        {/* Quick Actions depending on role */}
-                        {role === 'LECTURER' && (
-                            <button
-                                type="button"
-                                className="btn btn-primary btn-sm hidden sm:inline-flex"
-                                onClick={() => navigate('/lecturer/topics')}
-                            >
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <line x1="12" y1="5" x2="12" y2="19"></line>
-                                    <line x1="5" y1="12" x2="19" y2="12"></line>
-                                </svg>
-                                <span>Đề xuất Đề tài</span>
-                            </button>
-                        )}
-
-                        {role === 'ADMIN' && (
-                            <button
-                                type="button"
-                                className="btn btn-primary btn-sm hidden sm:inline-flex"
-                                onClick={() => navigate('/admin/project-periods')}
-                            >
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <line x1="12" y1="5" x2="12" y2="19"></line>
-                                    <line x1="5" y1="12" x2="19" y2="12"></line>
-                                </svg>
-                                <span>Đợt Đồ án</span>
-                            </button>
-                        )}
-
                         {/* Notifications Quick Link */}
                         <button
                             type="button"
