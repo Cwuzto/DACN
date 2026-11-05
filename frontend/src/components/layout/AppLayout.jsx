@@ -44,8 +44,14 @@ function AppLayout({ role }) {
     // Refresh current user session and sync across tabs & visibility changes
     useEffect(() => {
         let isMounted = true;
+        let lastSyncTime = 0;
 
-        const handleSync = () => {
+        const handleSync = (force = false) => {
+            const now = Date.now();
+            if (!force && now - lastSyncTime < 2000) {
+                return;
+            }
+            lastSyncTime = now;
             if (typeof refreshSession === 'function') {
                 refreshSession().catch(() => {});
             } else {
@@ -61,7 +67,7 @@ function AppLayout({ role }) {
         };
 
         // Initial sync on mount
-        handleSync();
+        handleSync(true);
 
         const handleVisibilityChange = () => {
             if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
@@ -83,7 +89,7 @@ function AppLayout({ role }) {
                 channel.onmessage = (event) => {
                     const type = event?.data?.type;
                     if (type === 'PERMISSION_VERSION_UPDATED' || type === 'PERMISSIONS_UPDATED') {
-                        handleSync();
+                        handleSync(true);
                     }
                 };
             } catch {}

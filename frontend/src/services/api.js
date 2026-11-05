@@ -142,16 +142,17 @@ api.interceptors.response.use(
                     }
                 }
 
+                const effectiveToken = newToken || (typeof localStorage !== 'undefined' && localStorage.getItem('token')) || (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('token'));
                 if (isSafeMethod || idempotencyKey) {
                     if (config.headers) {
                         if (typeof config.headers.set === 'function') {
-                            config.headers.set('Authorization', `Bearer ${newToken}`);
+                            config.headers.set('Authorization', `Bearer ${effectiveToken}`);
                         } else {
-                            config.headers.Authorization = `Bearer ${newToken}`;
-                            config.headers['Authorization'] = `Bearer ${newToken}`;
+                            config.headers.Authorization = `Bearer ${effectiveToken}`;
+                            config.headers['Authorization'] = `Bearer ${effectiveToken}`;
                         }
                     } else {
-                        config.headers = { Authorization: `Bearer ${newToken}` };
+                        config.headers = { Authorization: `Bearer ${effectiveToken}` };
                     }
                     return api(config);
                 }
@@ -183,6 +184,12 @@ api.interceptors.response.use(
                 sessionStorage.removeItem('token');
                 sessionStorage.removeItem('user');
             }
+
+            try {
+                if (typeof useAuthStore?.getState === 'function') {
+                    useAuthStore.getState().logout?.();
+                }
+            } catch {}
 
             // Phiên không còn hợp lệ: rời phân hệ bảo vệ và trở về portal công khai.
             if (!isPublicPath && typeof window !== 'undefined' && window.location?.replace) {
