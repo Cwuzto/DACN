@@ -31,6 +31,13 @@ const createGroup = async (data, actor) => {
 
 const updateGroup = async (id, data, actor) => {
   const idInt = parseInt(id, 10);
+  const existing = await prisma.permissionGroup.findUnique({ where: { id: idInt } });
+  if (existing?.isSystem) {
+    const error = new Error('Không thể chỉnh sửa nhóm quyền hệ thống.');
+    error.statusCode = 403;
+    error.code = 'CANNOT_MODIFY_SYSTEM_GROUP';
+    throw error;
+  }
   const { name, description, permissionCodes } = data;
   const result = await prisma.$transaction(async (tx) => {
     const updateData = {};
@@ -48,6 +55,13 @@ const updateGroup = async (id, data, actor) => {
 
 const deleteGroup = async (id, actor) => {
   const idInt = parseInt(id, 10);
+  const existing = await prisma.permissionGroup.findUnique({ where: { id: idInt } });
+  if (existing?.isSystem) {
+    const error = new Error('Không thể xóa nhóm quyền hệ thống.');
+    error.statusCode = 403;
+    error.code = 'CANNOT_MODIFY_SYSTEM_GROUP';
+    throw error;
+  }
   const deleted = await prisma.permissionGroup.delete({ where: { id: idInt } });
   await auditLog(actor?.id, 'DELETE_PERMISSION_GROUP', 'PermissionGroup', idInt, { code: deleted.code }, getRequestIp(actor));
   return deleted;
@@ -62,6 +76,29 @@ const mapPermissions = async (tx, codes) => {
 const setUserGroups = async (userId, groupIds, actor) => {
   const userIdInt = parseInt(userId, 10);
   const groupIdsInt = Array.isArray(groupIds) ? groupIds.map((value) => parseInt(value, 10)) : [];
+
+  if (actor?.id && userIdInt === actor.id) {
+    const error = new Error('Không thể tự gán nhóm quyền cho chính mình.');
+    error.statusCode = 403;
+    error.code = 'CANNOT_ASSIGN_PERMISSIONS_TO_SELF';
+    throw error;
+  }
+
+  const selectedGroups = await prisma.permissionGroup.findMany({
+    where: { id: { in: groupIdsInt } },
+    select: { id: true, code: true, isSystem: true },
+  });
+
+  const hasAcademicDelegation = (actor?.permissions || []).includes('PERMISSION_ASSIGN_ACADEMIC');
+  const hasAcademicGroup = selectedGroups.some((g) => ['VIEN_TRUONG', 'GVHD'].includes(g.code));
+
+  if (hasAcademicGroup && !hasAcademicDelegation) {
+    const error = new Error('Quản trị viên kỹ thuật không được phép gán nhóm quyền học thuật (VIEN_TRUONG, GVHD).');
+    error.statusCode = 403;
+    error.code = 'FORBIDDEN_ACADEMIC_GROUP_ASSIGNMENT';
+    throw error;
+  }
+
   const result = await prisma.$transaction(async (tx) => {
     await tx.userPermissionGroup.deleteMany({ where: { userId: userIdInt } });
     if (groupIdsInt.length) {
@@ -69,6 +106,10 @@ const setUserGroups = async (userId, groupIds, actor) => {
         data: groupIdsInt.map((permissionGroupId) => ({ userId: userIdInt, permissionGroupId })),
       });
     }
+    await tx.user.update({
+      where: { id: userIdInt },
+      data: { permissionVersion: { increment: 1 } },
+    });
   });
   await auditLog(actor?.id, 'SET_USER_PERMISSION_GROUPS', 'User', userIdInt, { groupIds: groupIdsInt }, getRequestIp(actor));
   return result;

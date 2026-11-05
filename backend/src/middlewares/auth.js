@@ -43,6 +43,7 @@ const authenticate = async (req, res, next) => {
                 role: true,
                 department: true,
                 isActive: true,
+                permissionVersion: true,
                 permissionGroups: {
                     include: {
                         permissionGroup: {
@@ -64,6 +65,23 @@ const authenticate = async (req, res, next) => {
             });
         }
 
+        const isGetMe = Boolean((req.originalUrl && req.originalUrl.includes('/api/auth/me')) || req.path === '/me');
+        const tokenVersion = decoded.permissionVersion;
+        const userVersion = user.permissionVersion;
+
+        if (
+            !isGetMe &&
+            typeof tokenVersion === 'number' &&
+            typeof userVersion === 'number' &&
+            tokenVersion < userVersion
+        ) {
+            return res.status(409).json({
+                success: false,
+                error: 'PERMISSION_VERSION_STALE',
+                message: 'Phiên bản quyền đã được cập nhật.',
+            });
+        }
+
         const permissionSet = new Set();
         (user.permissionGroups || []).forEach(({ permissionGroup }) => {
             (permissionGroup?.permissions || []).forEach(({ permission }) => {
@@ -72,6 +90,7 @@ const authenticate = async (req, res, next) => {
         });
         req.user = {
             ...user,
+            permissionVersion: user.permissionVersion,
             permissionGroups: (user.permissionGroups || [])
                 .map(({ permissionGroup }) => permissionGroup?.code)
                 .filter(Boolean),
@@ -215,6 +234,7 @@ const optionalAuthenticate = async (req, res, next) => {
                 role: true,
                 department: true,
                 isActive: true,
+                permissionVersion: true,
                 permissionGroups: {
                     include: {
                         permissionGroup: {

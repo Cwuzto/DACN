@@ -64,8 +64,12 @@ const login = async (req, res, next) => {
             ? (process.env.JWT_REMEMBER_EXPIRES_IN || '30d')
             : (process.env.JWT_EXPIRES_IN || '1d');
 
+        const tokenPayload = { userId: user.id, role: user.role };
+        if (typeof user.permissionVersion === 'number') {
+            tokenPayload.permissionVersion = user.permissionVersion;
+        }
         const token = jwt.sign(
-            { userId: user.id, role: user.role },
+            tokenPayload,
             process.env.JWT_SECRET,
             { expiresIn }
         );
@@ -107,9 +111,21 @@ const login = async (req, res, next) => {
  */
 const getMe = async (req, res, next) => {
     try {
+        const expiresIn = process.env.JWT_EXPIRES_IN || '1d';
+        const tokenPayload = { userId: req.user.id, role: req.user.role };
+        if (typeof req.user.permissionVersion === 'number') {
+            tokenPayload.permissionVersion = req.user.permissionVersion;
+        }
+        const token = jwt.sign(
+            tokenPayload,
+            process.env.JWT_SECRET,
+            { expiresIn }
+        );
+
         res.json({
             success: true,
             data: req.user,
+            token,
         });
     } catch (error) {
         next(error);

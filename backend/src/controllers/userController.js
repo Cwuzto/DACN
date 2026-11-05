@@ -409,22 +409,55 @@ const getUserPermissions = async (req, res, next) => {
 const updateUserPermissionGroups = async (req, res, next) => {
     try {
         const { id } = req.params;
+        const targetUserId = parseInt(id, 10);
         const { groupIds } = req.body;
 
-        const existing = await prisma.user.findUnique({ where: { id: parseInt(id) } });
+        const existing = await prisma.user.findUnique({ where: { id: targetUserId } });
         if (!existing) {
             return res.status(404).json({ success: false, message: 'Không tìm thấy người dùng.' });
+        }
+
+        if (targetUserId === req.user?.id) {
+            return res.status(403).json({
+                success: false,
+                error: 'CANNOT_ASSIGN_PERMISSIONS_TO_SELF',
+                message: 'Không thể tự gán nhóm quyền cho chính mình.',
+            });
         }
 
         if (!Array.isArray(groupIds)) {
             return res.status(400).json({ success: false, message: 'groupIds phải là mảng.' });
         }
 
+        const groupIdsInt = groupIds.map((v) => parseInt(v, 10)).filter((v) => !isNaN(v));
+        const selectedGroups = await prisma.permissionGroup.findMany({
+            where: { id: { in: groupIdsInt } },
+            select: { id: true, code: true, isSystem: true },
+        });
+
+        const hasAcademicDelegation = (req.user?.permissions || []).includes('PERMISSION_ASSIGN_ACADEMIC');
+        const hasAcademicGroup = selectedGroups.some((g) => ['VIEN_TRUONG', 'GVHD'].includes(g.code));
+
+        if (hasAcademicGroup && !hasAcademicDelegation) {
+            return res.status(403).json({
+                success: false,
+                error: 'FORBIDDEN_ACADEMIC_GROUP_ASSIGNMENT',
+                message: 'Quản trị viên kỹ thuật không được phép gán nhóm quyền học thuật (VIEN_TRUONG, GVHD).',
+            });
+        }
+
         const { setUserGroups } = require('../services/permissionService');
-        await setUserGroups(id, groupIds, req.user);
+        await setUserGroups(targetUserId, groupIdsInt, req.user);
 
         res.json({ success: true, message: 'Cập nhật nhóm quyền thành công.' });
     } catch (error) {
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({
+                success: false,
+                error: error.code,
+                message: error.message,
+            });
+        }
         next(error);
     }
 };

@@ -61,9 +61,23 @@ const updateExistingGroup = async (req, res, next) => {
     if (!existing) {
       return res.status(404).json({ success: false, message: 'Không tìm thấy nhóm quyền.' });
     }
+    if (existing.isSystem) {
+      return res.status(403).json({
+        success: false,
+        error: 'CANNOT_MODIFY_SYSTEM_GROUP',
+        message: 'Không thể chỉnh sửa nhóm quyền hệ thống.',
+      });
+    }
     const group = await updateGroup(req.params.id, { name, description, permissionCodes }, req.user);
     res.json({ success: true, message: 'Cập nhật nhóm quyền thành công.', data: group });
   } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        success: false,
+        error: error.code,
+        message: error.message,
+      });
+    }
     next(error);
   }
 };
@@ -75,11 +89,22 @@ const deleteExistingGroup = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Không tìm thấy nhóm quyền.' });
     }
     if (existing.isSystem) {
-      return res.status(400).json({ success: false, message: 'Không thể xóa nhóm quyền hệ thống.' });
+      return res.status(403).json({
+        success: false,
+        error: 'CANNOT_MODIFY_SYSTEM_GROUP',
+        message: 'Không thể xóa nhóm quyền hệ thống.',
+      });
     }
     await deleteGroup(req.params.id, req.user);
     res.json({ success: true, message: 'Xóa nhóm quyền thành công.' });
   } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        success: false,
+        error: error.code,
+        message: error.message,
+      });
+    }
     next(error);
   }
 };
