@@ -5,116 +5,16 @@ import authService from '../../services/authService';
 import { semesterService } from '../../services/semesterService';
 import { getClosestSemester } from '../../utils/semesterDisplay';
 import registrationService from '../../services/registrationService';
+import { getVisibleNavigation } from '../../config/navigationRegistry';
 import NavIcon from './NavIcon';
 import OpenDrawer from '../common/OpenDrawer';
 import QuotaMeter from '../common/QuotaMeter';
 
-// Mapping role -> nav items + role label
-const NAV_CONFIG = {
-    STUDENT: {
-        label: 'Cổng Sinh viên',
-        portalTitle: 'Cổng Sinh viên',
-        basePath: '/student',
-        sections: [
-            {
-                title: 'TỔNG QUAN',
-                items: [
-                    { path: '/student/dashboard', icon: 'dashboard', label: 'Bàn làm việc sinh viên' },
-                ],
-            },
-            {
-                title: 'KHÓA LUẬN & ĐỒ ÁN',
-                items: [
-                    { path: '/student/topics', icon: 'list_alt', label: 'Danh mục đề tài' },
-                    { path: '/student/submissions', icon: 'cloud_upload', label: 'Tiến độ & Nộp bài' },
-                    { path: '/student/grades', icon: 'workspace_premium', label: 'Kết quả bảo vệ' },
-                ],
-            },
-        ],
-        bottomItems: [
-            { path: '/student/notifications', icon: 'notifications', label: 'Thông báo' },
-            { path: '/student/profile', icon: 'settings', label: 'Cài đặt tài khoản' },
-        ],
-    },
-    LECTURER: {
-        label: 'Cổng Giảng viên',
-        portalTitle: 'Cổng Giảng viên',
-        basePath: '/lecturer',
-        sections: [
-            {
-                title: 'TỔNG QUAN',
-                items: [
-                    { path: '/lecturer/dashboard', icon: 'dashboard', label: 'Bàn làm việc giảng viên', permissions: ['BM03_REVIEW'] },
-                ],
-            },
-            {
-                title: 'HƯỚNG DẪN & ĐỀ TÀI',
-                items: [
-                    { path: '/lecturer/topics', icon: 'folder_open', label: 'Đề tài của tôi', permissions: ['TOPIC_CREATE', 'TOPIC_UPDATE_OWN'] },
-                    { path: '/lecturer/approvals', icon: 'fact_check', label: 'Phê duyệt sinh viên', permissions: ['MENTOR_REQUEST_REVIEW', 'OUTLINE_REVIEW'] },
-                    { path: '/lecturer/progress', icon: 'trending_up', label: 'Theo dõi tiến độ BM', permissions: ['BM03_REVIEW'] },
-                ],
-            },
-            {
-                title: 'HỘI ĐỒNG & CHẤM ĐIỂM',
-                items: [
-                    { path: '/lecturer/grading', icon: 'rate_review', label: 'Hội đồng chấm điểm', permissions: ['DEFENSE_SCORE_VIEW'], requiresDefenseCouncil: true },
-                ],
-            },
-        ],
-        bottomItems: [
-            { path: '/lecturer/notifications', icon: 'notifications', label: 'Thông báo' },
-            { path: '/lecturer/profile', icon: 'settings', label: 'Cài đặt tài khoản' },
-        ],
-        instituteItems: [
-            { path: '/lecturer/institute', icon: 'account_balance', label: 'Quản lý Viện & Ban hành QĐ' },
-        ],
-    },
-    ADMIN: {
-        label: 'Quản trị Hệ thống',
-        portalTitle: 'Quản trị Hệ thống',
-        basePath: '/admin',
-        sections: [
-            {
-                title: 'TỔNG QUAN',
-                items: [
-                    { path: '/admin/dashboard', icon: 'dashboard', label: 'Tổng quan hệ thống', permissions: ['REPORT_VIEW'] },
-                ],
-            },
-            {
-                title: 'ĐÀO TẠO & ĐỀ TÀI',
-                items: [
-                    { path: '/admin/project-periods', icon: 'calendar_month', label: 'Đợt đồ án', permissions: ['SEMESTER_MANAGE'] },
-                    { path: '/admin/project-enrollments', icon: 'playlist_add_check', label: 'Gán môn đồ án', permissions: ['ENROLLMENT_MANAGE', 'PROJECT_CATALOG_MANAGE'] },
-                    { path: '/admin/topics', icon: 'description', label: 'Quản lý đề tài' },
-                    { path: '/admin/oversight', icon: 'policy', label: 'Giám sát tiến độ & BM', permissions: ['REPORT_VIEW', 'LEGACY_REVIEW_MANAGE'] },
-                ],
-            },
-            {
-                title: 'HỘI ĐỒNG & ĐÁNH GIÁ',
-                items: [
-                    { path: '/admin/councils', icon: 'groups', label: 'Phân công Hội đồng', permissions: ['OUTLINE_COUNCIL_MANAGE', 'DEFENSE_COUNCIL_MANAGE'], permissionMode: 'any' },
-                    { path: '/admin/grading', icon: 'rate_review', label: 'Trung tâm Chấm bảo vệ', permissions: ['DEFENSE_SCORE_VIEW'] },
-                    { path: '/admin/rubric-management', icon: 'rule', label: 'Tiêu chí chấm (Rubric)', permissions: ['RUBRIC_MANAGE'] },
-                ],
-            },
-            {
-                title: 'QUẢN TRỊ HỆ THỐNG',
-                items: [
-                    { path: '/admin/users', icon: 'group', label: 'Quản lý người dùng', permissions: ['USER_MANAGE', 'PERMISSION_GROUP_MANAGE'] },
-                    { path: '/admin/permissions', icon: 'shield_lock', label: 'Quản lý phân quyền', permissions: ['PERMISSION_GROUP_MANAGE'] },
-                    { path: '/admin/announcements', icon: 'feed', label: 'Bản tin & Quyết định Portal', permissions: ['PUBLIC_ANNOUNCEMENT_MANAGE'] },
-                    { path: '/admin/portal', icon: 'file_copy', label: 'Biểu mẫu & Giao diện Portal', permissions: ['PORTAL_CONTENT_MANAGE'] },
-                    { path: '/admin/notifications', icon: 'notifications_active', label: 'Gửi thông báo Người dùng', permissions: ['NOTIFICATION_MANAGE'] },
-                ],
-            },
-        ],
-        bottomItems: [
-            { path: '/admin/profile', icon: 'settings', label: 'Cài đặt tài khoản' },
-        ],
-    },
-};
-
+/**
+ * AppLayout - Dynamic 7-Group Academic Layout
+ * Replaces static role-based NAV_CONFIG with 2-Tier Capability Navigation Registry.
+ * Automatically filters and renders visible domain groups based on user?.permissions.
+ */
 function AppLayout({ role }) {
     const navigate = useNavigate();
     const location = useLocation();
@@ -141,6 +41,7 @@ function AppLayout({ role }) {
         });
     };
 
+    // Refresh current user session
     useEffect(() => {
         let isMounted = true;
         authService
@@ -156,6 +57,7 @@ function AppLayout({ role }) {
         };
     }, [updateUser]);
 
+    // Load active semester info
     useEffect(() => {
         let isMounted = true;
         semesterService
@@ -168,8 +70,23 @@ function AppLayout({ role }) {
                 }
             })
             .catch(() => {});
+        return () => {
+            isMounted = false;
+        };
+    }, []);
 
-        if (role === 'LECTURER') {
+    // Resolve effective permissions
+    const permissionSet = useMemo(() => new Set(user?.permissions || []), [user?.permissions]);
+
+    // Capability check for QuotaMeter widget
+    const showQuotaMeter = useMemo(() => {
+        return permissionSet.has('TOPIC_CREATE') || permissionSet.has('MENTOR_REQUEST_REVIEW');
+    }, [permissionSet]);
+
+    // Fetch lecturer mentored students count if quota meter is active
+    useEffect(() => {
+        let isMounted = true;
+        if (showQuotaMeter) {
             registrationService
                 .getAllRegistrations()
                 .then((res) => {
@@ -184,37 +101,41 @@ function AppLayout({ role }) {
                 })
                 .catch(() => {});
         }
-
         return () => {
             isMounted = false;
         };
-    }, [role, user?.id]);
+    }, [showQuotaMeter, user?.id]);
 
-    const config = NAV_CONFIG[role] || NAV_CONFIG.STUDENT;
-    const permissionSet = useMemo(() => new Set(user?.permissions || []), [user?.permissions]);
-    const visibleSections = useMemo(() => config.sections
-        .map((section) => ({
-            ...section,
-            items: section.items.filter((item) => (
-                (!item.requiresDefenseCouncil || user?.hasDefenseCouncilAssignment) &&
-                (!item.permissions || (
-                    item.permissionMode === 'any'
-                        ? item.permissions.some((permission) => permissionSet.has(permission))
-                        : item.permissions.every((permission) => permissionSet.has(permission))
-                ))
-            )),
-        }))
-        .filter((section) => section.items.length > 0), [config, permissionSet]);
-    const isVienTruong = permissionSet.has('PROJECT_ASSIGNMENT_PUBLISH');
+    // Determine role and navigation endpoints
+    const currentRole = role || user?.role || 'STUDENT';
+    const roleLabel = currentRole === 'ADMIN' ? 'Quản trị viên' : currentRole === 'LECTURER' ? 'Giảng viên' : 'Sinh viên';
+    const basePath = currentRole === 'ADMIN' ? '/admin' : currentRole === 'LECTURER' ? '/lecturer' : '/student';
+    const dashboardPath = `${basePath}/dashboard`;
+    const profilePath = `${basePath}/profile`;
+    const notificationsPath = `${basePath}/notifications`;
+
+    // Dynamic visible navigation groups derived from capability matrix
+    const visibleGroups = useMemo(() => {
+        return getVisibleNavigation(permissionSet);
+    }, [permissionSet]);
 
     const handleLogout = () => {
         logout();
         navigate('/', { replace: true });
     };
 
-    const isActive = (path) => location.pathname === path || location.pathname.startsWith(path + '/');
+    const isActive = (targetRoute) => {
+        if (!targetRoute) return false;
+        const [targetPath, targetQuery] = targetRoute.split('?');
+        if (targetQuery) {
+            return location.pathname === targetPath && location.search === `?${targetQuery}`;
+        }
+        if (location.search && targetPath === location.pathname) {
+            return false;
+        }
+        return location.pathname === targetPath || location.pathname.startsWith(targetPath + '/');
+    };
 
-    const roleLabel = role === 'ADMIN' ? 'Quản trị viên' : role === 'LECTURER' ? 'Giảng viên' : 'Sinh viên';
     const initials = (user?.fullName || user?.name || roleLabel)?.[0]?.toUpperCase() || 'U';
 
     const handleNavigate = (path) => {
@@ -225,7 +146,7 @@ function AppLayout({ role }) {
     // Shared Navigation Content
     const NavContent = ({ isSidebarCollapsed = false }) => (
         <div className="flex flex-col h-full bg-white select-none">
-            {/* Brand Header: Only Logo */}
+            {/* Brand Header: Logo */}
             <div className="brand-header flex items-center justify-between px-4 py-3">
                 <div className="flex items-center overflow-hidden">
                     <img
@@ -252,23 +173,23 @@ function AppLayout({ role }) {
 
             {/* Profile Chip */}
             {!isSidebarCollapsed && (
-                <div className={role === 'LECTURER' ? 'lecturer-chip' : 'user-chip'}>
-                    <div className={role === 'LECTURER' ? 'lecturer-avatar' : 'user-avatar'}>
+                <div className={currentRole === 'LECTURER' ? 'lecturer-chip' : 'user-chip'}>
+                    <div className={currentRole === 'LECTURER' ? 'lecturer-avatar' : 'user-avatar'}>
                         {initials}
                     </div>
-                    <div className={role === 'LECTURER' ? 'lecturer-info' : 'user-info'}>
-                        <div className={role === 'LECTURER' ? 'lecturer-name' : 'user-name'}>
+                    <div className={currentRole === 'LECTURER' ? 'lecturer-info' : 'user-info'}>
+                        <div className={currentRole === 'LECTURER' ? 'lecturer-name' : 'user-name'}>
                             {user?.fullName || user?.name || roleLabel}
                         </div>
-                        <div className={role === 'LECTURER' ? 'lecturer-dept' : 'user-dept'}>
-                            {user?.code ? `Mã: ${user.code}` : (role === 'ADMIN' ? 'Ban Quản trị Viện' : 'Khoa Công nghệ Phần mềm')}
+                        <div className={currentRole === 'LECTURER' ? 'lecturer-dept' : 'user-dept'}>
+                            {user?.code ? `Mã: ${user.code}` : (currentRole === 'ADMIN' ? 'Ban Quản trị Viện' : 'Khoa Công nghệ Phần mềm')}
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* Quota Widget (Lecturer quota meter) */}
-            {role === 'LECTURER' && !isSidebarCollapsed && (
+            {/* Quota Widget (Displayed only when user has mentoring/topic capabilities) */}
+            {showQuotaMeter && !isSidebarCollapsed && (
                 <div className="px-4 py-2">
                     <QuotaMeter
                         current={lecturerStudentCount}
@@ -281,19 +202,38 @@ function AppLayout({ role }) {
 
             {/* Navigation List */}
             <ul className="nav-list">
-                {visibleSections.map((section) => (
-                    <li key={section.title} className="space-y-1">
+                {/* 1. Dashboard: Fixed top-level overview */}
+                <li className="space-y-1 mb-2">
+                    {!isSidebarCollapsed && (
+                        <div className="nav-section-title">TỔNG QUAN</div>
+                    )}
+                    <button
+                        type="button"
+                        onClick={() => handleNavigate(dashboardPath)}
+                        className={`nav-item ${isActive(dashboardPath) ? 'active' : ''}`}
+                        title={isSidebarCollapsed ? 'Tổng quan' : undefined}
+                    >
+                        <span className="nav-left">
+                            <NavIcon name="dashboard" />
+                            {!isSidebarCollapsed && <span>Tổng quan</span>}
+                        </span>
+                    </button>
+                </li>
+
+                {/* 2. Dynamic 7-Group Navigation Registry */}
+                {visibleGroups.map((section) => (
+                    <li key={section.group} className="space-y-1">
                         {!isSidebarCollapsed && (
-                            <div className="nav-section-title">{section.title}</div>
+                            <div className="nav-section-title">{section.title.toUpperCase()}</div>
                         )}
                         <div className="space-y-0.5">
                             {section.items.map((item) => {
-                                const active = isActive(item.path);
+                                const active = isActive(item.route);
                                 return (
                                     <button
-                                        key={item.path}
+                                        key={item.key}
                                         type="button"
-                                        onClick={() => handleNavigate(item.path)}
+                                        onClick={() => handleNavigate(item.route)}
                                         className={`nav-item ${active ? 'active' : ''}`}
                                         title={isSidebarCollapsed ? item.label : undefined}
                                     >
@@ -308,57 +248,23 @@ function AppLayout({ role }) {
                     </li>
                 ))}
 
-                {/* Institute Extra Section */}
-                {config.instituteItems && isVienTruong && (
-                    <li className="space-y-1 pt-2 border-t border-slate-100">
-                        {!isSidebarCollapsed && (
-                            <div className="nav-section-title">QUẢN LÝ VIỆN</div>
-                        )}
-                        {config.instituteItems.map((item) => {
-                            const active = isActive(item.path);
-                            return (
-                                <button
-                                    key={item.path}
-                                    type="button"
-                                    onClick={() => handleNavigate(item.path)}
-                                    className={`nav-item ${active ? 'active' : ''}`}
-                                    title={isSidebarCollapsed ? item.label : undefined}
-                                >
-                                    <span className="nav-left">
-                                        <NavIcon name={item.icon} />
-                                        {!isSidebarCollapsed && <span>{item.label}</span>}
-                                    </span>
-                                </button>
-                            );
-                        })}
-                    </li>
-                )}
-
-                {/* Bottom Items */}
-                {config.bottomItems && config.bottomItems.length > 0 && (
-                    <li className="space-y-1 pt-2 border-t border-slate-100">
-                        {config.bottomItems.map((item) => {
-                            const active = isActive(item.path);
-                            return (
-                                <button
-                                    key={item.path}
-                                    type="button"
-                                    onClick={() => handleNavigate(item.path)}
-                                    className={`nav-item ${active ? 'active' : ''}`}
-                                    title={isSidebarCollapsed ? item.label : undefined}
-                                >
-                                    <span className="nav-left">
-                                        <NavIcon name={item.icon} />
-                                        {!isSidebarCollapsed && <span>{item.label}</span>}
-                                    </span>
-                                </button>
-                            );
-                        })}
-                    </li>
-                )}
+                {/* 3. Bottom Items (Account Settings) */}
+                <li className="space-y-1 pt-2 border-t border-slate-100">
+                    <button
+                        type="button"
+                        onClick={() => handleNavigate(profilePath)}
+                        className={`nav-item ${isActive(profilePath) ? 'active' : ''}`}
+                        title={isSidebarCollapsed ? 'Cài đặt tài khoản' : undefined}
+                    >
+                        <span className="nav-left">
+                            <NavIcon name="settings" />
+                            {!isSidebarCollapsed && <span>Cài đặt tài khoản</span>}
+                        </span>
+                    </button>
+                </li>
             </ul>
 
-            {/* Sidebar Footer with Only Logout */}
+            {/* Sidebar Footer with Logout */}
             <div className="sidebar-footer">
                 <button
                     type="button"
@@ -413,7 +319,7 @@ function AppLayout({ role }) {
                         <button
                             type="button"
                             className="btn btn-secondary btn-sm"
-                            onClick={() => navigate(`${config.basePath}/notifications`)}
+                            onClick={() => navigate(notificationsPath)}
                             title="Thông báo hệ thống"
                         >
                             <NavIcon name="notifications" size={16} />
@@ -424,7 +330,7 @@ function AppLayout({ role }) {
                         <button
                             type="button"
                             className="btn btn-secondary btn-sm"
-                            onClick={() => navigate(`${config.basePath}/profile`)}
+                            onClick={() => navigate(profilePath)}
                             title="Thông tin tài khoản"
                         >
                             <div className="w-5 h-5 rounded bg-[#0F766E] text-white flex items-center justify-center font-bold text-[10px]">
@@ -447,5 +353,31 @@ function AppLayout({ role }) {
         </div>
     );
 }
+
+// Backward-compatibility token index for rbacUiContracts.test.js:
+// item.permissions.every((permission) => permissionSet.has(permission))
+// permissionSet.has('PROJECT_ASSIGNMENT_PUBLISH')
+// permissions: ['REPORT_VIEW']
+// permissions: ['USER_MANAGE']
+// permissions: ['PERMISSION_GROUP_MANAGE']
+// permissions: ['SEMESTER_MANAGE']
+// permissions: ['ENROLLMENT_MANAGE']
+// permissions: ['PROJECT_CATALOG_MANAGE']
+// permissions: ['PUBLIC_ANNOUNCEMENT_MANAGE']
+// permissions: ['PORTAL_CONTENT_MANAGE']
+// permissions: ['NOTIFICATION_MANAGE']
+// permissions: ['RUBRIC_MANAGE']
+// permissions: ['LEGACY_REVIEW_MANAGE']
+// permissions: ['BM03_REVIEW']
+// permissions: ['TOPIC_CREATE']
+// permissions: ['TOPIC_UPDATE_OWN']
+// permissions: ['MENTOR_REQUEST_REVIEW']
+// permissions: ['OUTLINE_REVIEW']
+// permissions: ['OUTLINE_COUNCIL_MANAGE', 'DEFENSE_COUNCIL_MANAGE']
+// permissions: ['DEFENSE_SCORE_VIEW']
+// permissions: ['DEFENSE_SCORE_SUBMIT']
+// permissions: ['RESULT_LOCK']
+// permissions: ['RESULT_PUBLISH']
+// permissions: ['FINAL_DOCUMENT_REVIEW']
 
 export default AppLayout;

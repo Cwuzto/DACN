@@ -32,6 +32,7 @@ export default function NavIcon({ name, className = '', size = 18 }) {
         case 'folder_open':
         case 'description':
         case 'file_copy':
+        case 'topic':
             return (
                 <svg {...props}>
                     <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
@@ -39,12 +40,85 @@ export default function NavIcon({ name, className = '', size = 18 }) {
                 </svg>
             );
 
+        case 'inventory_2':
+        case 'archive':
+            return (
+                <svg {...props}>
+                    <polyline points="21 8 21 21 3 21 3 8" />
+                    <rect x="1" y="3" width="22" height="5" />
+                    <line x1="10" y1="12" x2="14" y2="12" />
+                </svg>
+            );
+
         case 'fact_check':
         case 'playlist_add_check':
+        case 'assignment_turned_in':
             return (
                 <svg {...props}>
                     <path d="M9 11l3 3L22 4" />
                     <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                </svg>
+            );
+
+        case 'verified':
+            return (
+                <svg {...props}>
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                    <polyline points="9 12 11 14 15 10" />
+                </svg>
+            );
+
+        case 'gavel':
+            return (
+                <svg {...props}>
+                    <path d="M14 13l-7.5 7.5a2.121 2.121 0 0 1-3-3L11 10" />
+                    <path d="M16 16l6-6" />
+                    <path d="M8 8l6-6" />
+                </svg>
+            );
+
+        case 'assignment_ind':
+            return (
+                <svg {...props}>
+                    <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+                    <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
+                    <circle cx="12" cy="11" r="2" />
+                    <path d="M8 17a4 4 0 0 1 8 0" />
+                </svg>
+            );
+
+        case 'edit_note':
+            return (
+                <svg {...props}>
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
+            );
+
+        case 'lock':
+            return (
+                <svg {...props}>
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+            );
+
+        case 'approval':
+            return (
+                <svg {...props}>
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                    <path d="M9 15l2 2 4-4" />
+                </svg>
+            );
+
+        case 'feed':
+            return (
+                <svg {...props}>
+                    <path d="M4 4h16v16H4z" />
+                    <line x1="8" y1="8" x2="16" y2="8" />
+                    <line x1="8" y1="12" x2="16" y2="12" />
+                    <line x1="8" y1="16" x2="12" y2="16" />
                 </svg>
             );
 
@@ -112,6 +186,7 @@ export default function NavIcon({ name, className = '', size = 18 }) {
 
         case 'campaign':
         case 'notifications':
+        case 'notifications_active':
             return (
                 <svg {...props}>
                     <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
