@@ -83,10 +83,9 @@ describe('Permission catalog invariants & 2-tier capability foundation', () => {
         expect(groups.QUAN_TRI_VIEN.has('LEGACY_REVIEW_MANAGE')).toBe(false);
     });
 
-    test('defines SYSTEM_STUDENT_BASE group with isSystem: true and exactly 14 student capabilities', () => {
+    test('defines SYSTEM_STUDENT_BASE group with exactly 14 student capabilities', () => {
         const studentGroup = DEFAULT_GROUPS.find((group) => group.code === 'SYSTEM_STUDENT_BASE');
         expect(studentGroup).toBeDefined();
-        expect(studentGroup.isSystem).toBe(true);
 
         const expected14Capabilities = [
             'VIEW_MY_REGISTRATION',
@@ -134,15 +133,14 @@ describe('Permission catalog invariants & 2-tier capability foundation', () => {
         }
     });
 
-    test('defines QUAN_TRI_VIEN group with isSystem: true, operational council rights, and ZERO academic decision rights', () => {
+    test('defines QUAN_TRI_VIEN group with technical scope and ZERO academic decision rights', () => {
         const adminGroup = DEFAULT_GROUPS.find((group) => group.code === 'QUAN_TRI_VIEN');
         expect(adminGroup).toBeDefined();
-        expect(adminGroup.isSystem).toBe(true);
 
         const perms = new Set(adminGroup.permissions);
 
-        // Must have technical and operational governance
-        const requiredOperationalPermissions = [
+        // Technical scope
+        const requiredTechnicalPermissions = [
             'USER_MANAGE',
             'USER_IMPORT',
             'PERMISSION_GROUP_MANAGE',
@@ -155,17 +153,17 @@ describe('Permission catalog invariants & 2-tier capability foundation', () => {
             'PUBLIC_ANNOUNCEMENT_MANAGE',
             'PORTAL_CONTENT_MANAGE',
             'REPORT_VIEW',
-            'DEFENSE_COUNCIL_MANAGE',
-            'OUTLINE_COUNCIL_MANAGE',
             'LECTURER_DIRECTORY_VIEW',
-            'DEFENSE_SCORE_VIEW',
+            'VIEW_ALL_TOPICS',
         ];
-        for (const p of requiredOperationalPermissions) {
+        for (const p of requiredTechnicalPermissions) {
             expect(perms.has(p)).toBe(true);
         }
 
-        // Must NEVER have academic decision or scoring capabilities (Zero-Trust Admin)
-        const strictlyForbiddenAcademicPermissions = [
+        // Must NOT have council management or academic decision/scoring capabilities
+        const strictlyForbiddenPermissions = [
+            'DEFENSE_COUNCIL_MANAGE',
+            'OUTLINE_COUNCIL_MANAGE',
             'RESULT_LOCK',
             'DEFENSE_RESULT_APPROVE',
             'RESULT_PUBLISH',
@@ -181,8 +179,42 @@ describe('Permission catalog invariants & 2-tier capability foundation', () => {
             'BM03_CHECKPOINT_DECIDE',
             'BM04_SUBMIT',
         ];
-        for (const forbidden of strictlyForbiddenAcademicPermissions) {
+        for (const forbidden of strictlyForbiddenPermissions) {
             expect(perms.has(forbidden)).toBe(false);
+        }
+    });
+
+    test('defines VIEN_TRUONG group containing all lecturer capabilities PLUS institute decision approvals', () => {
+        const leaderGroup = DEFAULT_GROUPS.find((group) => group.code === 'VIEN_TRUONG');
+        const lecturerGroup = DEFAULT_GROUPS.find((group) => group.code === 'GVHD');
+        expect(leaderGroup).toBeDefined();
+        expect(lecturerGroup).toBeDefined();
+
+        const leaderPerms = new Set(leaderGroup.permissions);
+
+        // Viện trưởng must have ALL permissions of Giảng viên hướng dẫn
+        for (const lecturerPerm of lecturerGroup.permissions) {
+            expect(leaderPerms.has(lecturerPerm)).toBe(true);
+        }
+
+        // Plus institute decision approvals
+        const requiredInstituteApprovals = [
+            'MENTOR_ASSIGN',
+            'MENTOR_ASSIGNMENT_ADJUST',
+            'TOPIC_REVIEW',
+            'OUTLINE_APPROVE',
+            'OUTLINE_COUNCIL_MANAGE',
+            'BM02_REVIEW',
+            'PROJECT_ASSIGNMENT_PUBLISH',
+            'DECISION_AMENDMENT_SIGN',
+            'DEFENSE_COUNCIL_MANAGE',
+            'RESULT_LOCK',
+            'DEFENSE_RESULT_APPROVE',
+            'RESULT_PUBLICATION_PUBLISH',
+            'PERMISSION_ASSIGN_ACADEMIC',
+        ];
+        for (const approval of requiredInstituteApprovals) {
+            expect(leaderPerms.has(approval)).toBe(true);
         }
     });
 });

@@ -139,11 +139,6 @@ function PermissionGroupPage() {
 
     // Thao tác trên ô Ma trận (Toggle Cell)
     const toggleCell = (roleId, permId) => {
-        const targetRole = (matrixData.roles || []).find((r) => r.id === roleId);
-        if (targetRole?.isSystem) {
-            message.warning(`Nhóm "${targetRole.name}" là nhóm hệ thống bất biến, không thể chỉnh sửa qua ma trận.`);
-            return;
-        }
         setLocalMatrix((prev) => {
             const next = { ...prev };
             const currentSet = new Set(next[roleId] || []);
@@ -160,11 +155,6 @@ function PermissionGroupPage() {
 
     // Thao tác bật/tắt toàn bộ quyền cho 1 Role (Toggle Column)
     const toggleRoleAll = (roleId, allPermIds, checked) => {
-        const targetRole = (matrixData.roles || []).find((r) => r.id === roleId);
-        if (targetRole?.isSystem) {
-            message.warning(`Nhóm "${targetRole.name}" là nhóm hệ thống bất biến, không thể chỉnh sửa qua ma trận.`);
-            return;
-        }
         setLocalMatrix((prev) => {
             const next = { ...prev };
             const currentSet = new Set(next[roleId] || []);
@@ -179,12 +169,11 @@ function PermissionGroupPage() {
         setDirty(true);
     };
 
-    // Thao tác áp dụng 1 quyền cho toàn bộ Role (Toggle Row - Chỉ áp dụng cho Role tùy chỉnh)
+    // Thao tác áp dụng 1 quyền cho toàn bộ Role (Toggle Row)
     const togglePermAll = (permId, checked) => {
         setLocalMatrix((prev) => {
             const next = { ...prev };
             (matrixData.roles || []).forEach((r) => {
-                if (r.isSystem) return; // Bỏ qua nhóm hệ thống bất biến
                 const currentSet = new Set(next[r.id] || []);
                 if (checked) {
                     currentSet.add(permId);
@@ -214,13 +203,7 @@ function PermissionGroupPage() {
     const handleSaveMatrix = async () => {
         try {
             setSavingMatrix(true);
-            const customRoles = (matrixData.roles || []).filter((r) => !r.isSystem);
-            if (customRoles.length === 0) {
-                message.info('Tất cả nhóm quyền hiện tại là nhóm hệ thống bất biến. Không có thay đổi nào cần lưu.');
-                setDirty(false);
-                return;
-            }
-            const payload = customRoles.map((role) => ({
+            const payload = (matrixData.roles || []).map((role) => ({
                 role_id: role.id,
                 permission_ids: Array.from(localMatrix[role.id] || []),
             }));
@@ -467,24 +450,18 @@ function PermissionGroupPage() {
                             onClick={() => handleEdit(record)}
                         />
                     </Tooltip>
-                    {!record.isSystem ? (
-                        <Popconfirm
-                            title="Xác nhận xóa nhóm quyền?"
-                            description={`Nhóm "${record.name}" sẽ bị xóa vĩnh viễn khỏi hệ thống.`}
-                            okText="Xóa"
-                            cancelText="Hủy"
-                            okButtonProps={{ danger: true }}
-                            onConfirm={() => handleDelete(record)}
-                        >
-                            <Tooltip title="Xóa nhóm">
-                                <Button size="small" icon={<DeleteOutlined />} danger />
-                            </Tooltip>
-                        </Popconfirm>
-                    ) : (
-                        <Tooltip title="Nhóm hệ thống — không thể xóa">
-                            <Button size="small" icon={<DeleteOutlined />} disabled />
+                    <Popconfirm
+                        title="Xác nhận xóa nhóm quyền?"
+                        description={`Nhóm "${record.name}" sẽ bị xóa vĩnh viễn khỏi hệ thống.`}
+                        okText="Xóa"
+                        cancelText="Hủy"
+                        okButtonProps={{ danger: true }}
+                        onConfirm={() => handleDelete(record)}
+                    >
+                        <Tooltip title="Xóa nhóm">
+                            <Button size="small" icon={<DeleteOutlined />} danger />
                         </Tooltip>
-                    )}
+                    </Popconfirm>
                 </Space>
             ),
         },
@@ -708,38 +685,30 @@ function PermissionGroupPage() {
                                                                     {rolePerms.size} / {allMatrixPermissionIds.length} quyền
                                                                 </span>
 
-                                                                {/* Checkbox Tất cả cho nhóm này hoặc nhãn nhóm hệ thống */}
-                                                                {role.isSystem ? (
-                                                                    <Tooltip title="Nhóm hệ thống bất biến — Không thể chỉnh sửa qua ma trận">
-                                                                        <Tag color="gold" icon={<LockOutlined />} style={{ margin: 0, fontSize: 11, cursor: 'default' }}>
-                                                                            Hệ thống
-                                                                        </Tag>
-                                                                    </Tooltip>
-                                                                ) : (
-                                                                    <label
-                                                                        style={{
-                                                                            display: 'inline-flex',
-                                                                            alignItems: 'center',
-                                                                            gap: 4,
-                                                                            fontSize: 11,
-                                                                            color: '#475569',
-                                                                            cursor: 'pointer',
-                                                                            marginTop: 2,
-                                                                            background: '#FFFFFF',
-                                                                            padding: '2px 8px',
-                                                                            borderRadius: 6,
-                                                                            border: '1px solid #CBD5E1',
-                                                                        }}
-                                                                    >
-                                                                        <input
-                                                                            type="checkbox"
-                                                                            checked={allChecked}
-                                                                            onChange={(e) => toggleRoleAll(role.id, allMatrixPermissionIds, e.target.checked)}
-                                                                            style={{ cursor: 'pointer' }}
-                                                                        />
-                                                                        <span>Tất cả</span>
-                                                                    </label>
-                                                                )}
+                                                                {/* Checkbox Tất cả cho nhóm này */}
+                                                                <label
+                                                                    style={{
+                                                                        display: 'inline-flex',
+                                                                        alignItems: 'center',
+                                                                        gap: 4,
+                                                                        fontSize: 11,
+                                                                        color: '#475569',
+                                                                        cursor: 'pointer',
+                                                                        marginTop: 2,
+                                                                        background: '#FFFFFF',
+                                                                        padding: '2px 8px',
+                                                                        borderRadius: 6,
+                                                                        border: '1px solid #CBD5E1',
+                                                                    }}
+                                                                >
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={allChecked}
+                                                                        onChange={(e) => toggleRoleAll(role.id, allMatrixPermissionIds, e.target.checked)}
+                                                                        style={{ cursor: 'pointer' }}
+                                                                    />
+                                                                    <span>Tất cả</span>
+                                                                </label>
                                                             </div>
                                                         </th>
                                                     );
@@ -838,13 +807,8 @@ function PermissionGroupPage() {
                                                                         >
                                                                             <button
                                                                                 type="button"
-                                                                                disabled={role.isSystem}
                                                                                 onClick={() => toggleCell(role.id, perm.id)}
-                                                                                title={
-                                                                                    role.isSystem
-                                                                                        ? `${role.name}: Nhóm hệ thống (Bất biến) — ${checked ? 'Đang có quyền' : 'Không có quyền'}`
-                                                                                        : `${role.name}: ${perm.label} (${checked ? 'Đang bật' : 'Đang tắt'})`
-                                                                                }
+                                                                                title={`${role.name}: ${perm.label} (${checked ? 'Đang bật' : 'Đang tắt'})`}
                                                                                 style={{
                                                                                     width: 32,
                                                                                     height: 32,
@@ -852,28 +816,21 @@ function PermissionGroupPage() {
                                                                                     alignItems: 'center',
                                                                                     justifyContent: 'center',
                                                                                     borderRadius: 8,
-                                                                                    border: checked
-                                                                                        ? (role.isSystem ? '1px solid #CBD5E1' : '1px solid #0F766E')
-                                                                                        : '1px solid #E2E8F0',
-                                                                                    background: checked
-                                                                                        ? (role.isSystem ? '#E2E8F0' : '#0F766E')
-                                                                                        : '#FFFFFF',
-                                                                                    color: checked
-                                                                                        ? (role.isSystem ? '#475569' : '#FFFFFF')
-                                                                                        : '#94A3B8',
-                                                                                    cursor: role.isSystem ? 'not-allowed' : 'pointer',
-                                                                                    opacity: role.isSystem ? 0.75 : 1,
+                                                                                    border: checked ? '1px solid #0F766E' : '1px solid #E2E8F0',
+                                                                                    background: checked ? '#0F766E' : '#FFFFFF',
+                                                                                    color: checked ? '#FFFFFF' : '#94A3B8',
+                                                                                    cursor: 'pointer',
                                                                                     transition: 'all 0.15s ease',
-                                                                                    boxShadow: checked && !role.isSystem ? '0 1px 2px rgba(15, 118, 110, 0.25)' : 'none',
+                                                                                    boxShadow: checked ? '0 1px 2px rgba(15, 118, 110, 0.25)' : 'none',
                                                                                 }}
                                                                                 onMouseEnter={(e) => {
-                                                                                    if (!checked && !role.isSystem) {
+                                                                                    if (!checked) {
                                                                                         e.currentTarget.style.borderColor = '#0F766E';
                                                                                         e.currentTarget.style.color = '#0F766E';
                                                                                     }
                                                                                 }}
                                                                                 onMouseLeave={(e) => {
-                                                                                    if (!checked && !role.isSystem) {
+                                                                                    if (!checked) {
                                                                                         e.currentTarget.style.borderColor = '#E2E8F0';
                                                                                         e.currentTarget.style.color = '#94A3B8';
                                                                                     }

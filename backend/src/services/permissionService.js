@@ -31,13 +31,6 @@ const createGroup = async (data, actor) => {
 
 const updateGroup = async (id, data, actor) => {
   const idInt = parseInt(id, 10);
-  const existing = await prisma.permissionGroup.findUnique({ where: { id: idInt } });
-  if (existing?.isSystem) {
-    const error = new Error('Không thể chỉnh sửa nhóm quyền hệ thống.');
-    error.statusCode = 403;
-    error.code = 'CANNOT_MODIFY_SYSTEM_GROUP';
-    throw error;
-  }
   const { name, description, permissionCodes } = data;
   const result = await prisma.$transaction(async (tx) => {
     const updateData = {};
@@ -55,13 +48,6 @@ const updateGroup = async (id, data, actor) => {
 
 const deleteGroup = async (id, actor) => {
   const idInt = parseInt(id, 10);
-  const existing = await prisma.permissionGroup.findUnique({ where: { id: idInt } });
-  if (existing?.isSystem) {
-    const error = new Error('Không thể xóa nhóm quyền hệ thống.');
-    error.statusCode = 403;
-    error.code = 'CANNOT_MODIFY_SYSTEM_GROUP';
-    throw error;
-  }
   const deleted = await prisma.permissionGroup.delete({ where: { id: idInt } });
   await auditLog(actor?.id, 'DELETE_PERMISSION_GROUP', 'PermissionGroup', idInt, { code: deleted.code }, getRequestIp(actor));
   return deleted;
@@ -163,7 +149,7 @@ const seedPermissionCatalog = async (db = prisma) => {
         data: {
           name: group.name,
           description: group.description,
-          isSystem: group.isSystem ?? true,
+          isSystem: false,
           permissions: { create: permissionIds.map((permission) => ({ permissionId: permission.id })) },
         },
       });
@@ -173,7 +159,7 @@ const seedPermissionCatalog = async (db = prisma) => {
           code: group.code,
           name: group.name,
           description: group.description,
-          isSystem: true,
+          isSystem: false,
           permissions: { create: permissionIds.map((permission) => ({ permissionId: permission.id })) },
         },
       });
@@ -309,14 +295,6 @@ const bulkUpdatePermissionMatrix = async (payload, actor) => {
       const existingIds = new Set(existingGroups.map(({ id }) => id));
       const missingIds = groupIds.filter((id) => !existingIds.has(id));
       throw createMatrixError(400, `Nhóm quyền không tồn tại: ${missingIds.join(', ')}.`);
-    }
-
-    const systemGroups = existingGroups.filter((g) => g.isSystem);
-    if (systemGroups.length > 0) {
-      const names = systemGroups.map((g) => g.name || g.code || g.id).join(', ');
-      const error = createMatrixError(403, `Không thể chỉnh sửa nhóm quyền hệ thống: ${names}.`);
-      error.code = 'CANNOT_MODIFY_SYSTEM_GROUP';
-      throw error;
     }
 
     if (existingPermissions.length !== permissionIds.length) {

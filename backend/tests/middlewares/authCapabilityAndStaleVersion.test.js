@@ -10,6 +10,9 @@ jest.mock('../../src/config/database', () => {
             update: jest.fn(),
             delete: jest.fn(),
         },
+        permission: {
+            findMany: jest.fn(),
+        },
         userPermissionGroup: {
             deleteMany: jest.fn(),
             createMany: jest.fn(),
@@ -235,46 +238,35 @@ describe('Task 2: Server-Authoritative Permissions, Stale Version Guard & Anti-E
         });
     });
 
-    describe('4. System group protection guard', () => {
-        test('admin cannot modify SYSTEM_STUDENT_BASE or any group with isSystem: true -> 403', async () => {
+    describe('4. Permission group modification', () => {
+        test('admin can update permission groups and map permissions successfully', async () => {
             prisma.permissionGroup.findUnique.mockResolvedValue({
                 id: 100,
-                code: 'SYSTEM_STUDENT_BASE',
-                name: 'Sinh viên cơ sở',
-                isSystem: true,
+                code: 'GROUP_1',
+                name: 'Nhóm 1',
             });
+            prisma.permissionGroup.update.mockResolvedValue({
+                id: 100,
+                code: 'GROUP_1',
+                name: 'Tên mới',
+            });
+            prisma.permission.findMany.mockResolvedValue([{ id: 10 }]);
 
             const req = createMockReq({
                 user: { id: 1, role: 'ADMIN', permissions: ['PERMISSION_GROUP_MANAGE'] },
                 params: { id: '100' },
-                body: { name: 'Đổi tên nhóm hệ thống', permissionCodes: ['VIEW_MY_REGISTRATION'] },
+                body: { name: 'Tên mới', permissionCodes: ['VIEW_MY_REGISTRATION'] },
             });
             const res = createMockRes();
             const next = createNext();
 
             await updateExistingGroup(req, res, next);
 
-            expect(res.status).toHaveBeenCalledWith(403);
             expect(res.json).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    error: 'CANNOT_MODIFY_SYSTEM_GROUP',
+                    success: true,
                 })
             );
-        });
-
-        test('permissionService.updateGroup rejects modifying system groups', async () => {
-            prisma.permissionGroup.findUnique.mockResolvedValue({
-                id: 100,
-                code: 'SYSTEM_STUDENT_BASE',
-                isSystem: true,
-            });
-
-            await expect(
-                updateGroup(100, { name: 'Hack Group' }, { id: 1 })
-            ).rejects.toMatchObject({
-                statusCode: 403,
-                code: 'CANNOT_MODIFY_SYSTEM_GROUP',
-            });
         });
     });
 
