@@ -7,11 +7,11 @@ datasource db {
 }
 
 model Permission {
-  id       Int                         @id @default(autoincrement())
-  code     String                      @unique
-  label    String
-  module   String
-  groups   PermissionGroupPermission[]
+  id     Int                         @id @default(autoincrement())
+  code   String                      @unique
+  label  String
+  module String
+  groups PermissionGroupPermission[]
 
   @@index([module])
   @@map("permissions")
@@ -32,10 +32,10 @@ model PermissionGroup {
 }
 
 model PermissionGroupPermission {
-  permissionGroupId Int @map("permission_group_id")
-  permissionId      Int @map("permission_id")
+  permissionGroupId Int             @map("permission_group_id")
+  permissionId      Int             @map("permission_id")
   permissionGroup   PermissionGroup @relation(fields: [permissionGroupId], references: [id], onDelete: Cascade)
-  permission        Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  permission        Permission      @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
   @@id([permissionGroupId, permissionId])
   @@index([permissionId])
@@ -43,9 +43,9 @@ model PermissionGroupPermission {
 }
 
 model UserPermissionGroup {
-  userId            Int @map("user_id")
-  permissionGroupId Int @map("permission_group_id")
-  user              User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId            Int             @map("user_id")
+  permissionGroupId Int             @map("permission_group_id")
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   permissionGroup   PermissionGroup @relation(fields: [permissionGroupId], references: [id], onDelete: Cascade)
 
   @@id([userId, permissionGroupId])
@@ -54,155 +54,181 @@ model UserPermissionGroup {
 }
 
 model User {
-  id                   Int                 @id @default(autoincrement())
-  email                String              @unique
-  passwordHash         String              @map("password_hash")
-  fullName             String              @map("full_name")
-  code                 String              @unique
-  role                 UserRole            @default(STUDENT)
-  department           String?
-  phone                String?
-  avatarUrl            String?             @map("avatar_url")
-  academicTitle        AcademicTitle?      @map("academic_title")
-  isActive             Boolean             @default(true) @map("is_active")
-  permissionVersion    Int                 @default(1) @map("permission_version")
-  createdAt            DateTime            @default(now()) @map("created_at")
-  updatedAt            DateTime            @updatedAt @map("updated_at")
-  councilMembers       CouncilMember[]
-  defenseResults       DefenseResult[]     @relation("DefenseEvaluator")
-  lockedDefenseResults DefenseResult[]     @relation("DefenseScoreLocker")
-  evaluatedMemberScores DefenseMemberScore[] @relation("DefenseMemberScoreEvaluator")
-  lockedMemberScores   DefenseMemberScore[] @relation("DefenseMemberScoreLocker")
-  notifications        Notification[]
-  submissions          Submission[]
-  mentoredTopics       Topic[]             @relation("MentoredBy")
-  proposedTopics       Topic[]             @relation("ProposedBy")
-  registrations        TopicRegistration[]
-  projectEnrollments   StudentProjectEnrollment[]
-  auditLogs            AuditLog[]
-  permissionGroups     UserPermissionGroup[]
-  announcements        PublicAnnouncement[]
-  meetingLogsCreated   MeetingLog[]
-  reviewedArchives     ProjectArchive[]
-  reviewedAdjustments  TopicTitleAdjustment[] @relation("AdjustTitleReviewer")
-  studentBM04          BM04Evaluation[] @relation("StudentBM04")
-  lecturerBM04         BM04Evaluation[] @relation("LecturerBM04")
-  createdRubrics       RubricVersion[]  @relation("RubricCreator")
-  registrationStateChanges RegistrationStateHistory[] @relation("RegistrationStateActor")
-  createdWorkflowPolicies PeriodWorkflowPolicyVersion[] @relation("WorkflowPolicyCreator")
-  openedManualReviewCases ManualReviewCase[] @relation("ManualReviewOpenedBy")
-  resolvedManualReviewCases ManualReviewCase[] @relation("ManualReviewResolvedBy")
-  reviewedBM01Evaluations BM01Evaluation[] @relation("BM01ReviewedBy")
-  submittedBM01Evaluations BM01Evaluation[] @relation("BM01SubmittedBy")
-  submittedBM02Submissions BM02Submission[] @relation("BM02SubmittedBy")
-  reviewedBM02Submissions BM02Submission[] @relation("BM02ReviewedBy")
-  issuedAssignmentDecisions AssignmentDecision[] @relation("AssignmentDecisionIssuer")
-  signedDecisionAmendments DecisionAmendment[] @relation("DecisionAmendmentSigner")
-  checkpointMentorSignatures CheckpointEvaluation[] @relation("CheckpointMentorSignedBy")
-  checkpointStudentSignatures CheckpointEvaluation[] @relation("CheckpointStudentSignedBy")
-  checkpointAppealsSubmitted CheckpointSignatureAppeal[] @relation("CheckpointAppealStudent")
-  checkpointAppealsReviewed CheckpointSignatureAppeal[] @relation("CheckpointAppealReviewedBy")
-  transferredMentorshipsPrevious MentorTransfer[] @relation("PreviousMentor")
-  transferredMentorshipsNew MentorTransfer[] @relation("NewMentor")
-  transferredMentorshipsApproved MentorTransfer[] @relation("ApprovedMentorTransfer")
-  approvedDefenseResults DefenseResultApproval[] @relation("DefenseResultApprovedBy")
-  publishedResultPublications ResultPublication[] @relation("ResultPublicationPublishedBy")
-  portalContentRevisionsCreated PortalContentRevision[] @relation("PortalContentRevisionCreatedBy")
-  portalContentRevisionsPublished PortalContentRevision[] @relation("PortalContentRevisionPublishedBy")
+  id                              Int                           @id @default(autoincrement())
+  email                           String                        @unique
+  passwordHash                    String                        @map("password_hash")
+  fullName                        String                        @map("full_name")
+  code                            String                        @unique
+  role                            UserRole                      @default(STUDENT)
+  department                      String?
+  phone                           String?
+  avatarUrl                       String?                       @map("avatar_url")
+  academicTitle                   AcademicTitle?                @map("academic_title")
+  isActive                        Boolean                       @default(true) @map("is_active")
+  permissionVersion               Int                           @default(1) @map("permission_version")
+  createdAt                       DateTime                      @default(now()) @map("created_at")
+  updatedAt                       DateTime                      @updatedAt @map("updated_at")
+  councilMembers                  CouncilMember[]
+  defenseResults                  DefenseResult[]               @relation("DefenseEvaluator")
+  lockedDefenseResults            DefenseResult[]               @relation("DefenseScoreLocker")
+  evaluatedMemberScores           DefenseMemberScore[]          @relation("DefenseMemberScoreEvaluator")
+  lockedMemberScores              DefenseMemberScore[]          @relation("DefenseMemberScoreLocker")
+  notifications                   Notification[]
+  submissions                     Submission[]
+  mentoredTopics                  Topic[]                       @relation("MentoredBy")
+  proposedTopics                  Topic[]                       @relation("ProposedBy")
+  registrations                   TopicRegistration[]
+  projectEnrollments              StudentProjectEnrollment[]
+  auditLogs                       AuditLog[]
+  permissionGroups                UserPermissionGroup[]
+  announcements                   PublicAnnouncement[]
+  meetingLogsCreated              MeetingLog[]
+  reviewedArchives                ProjectArchive[]
+  reviewedAdjustments             TopicTitleAdjustment[]        @relation("AdjustTitleReviewer")
+  studentBM04                     BM04Evaluation[]              @relation("StudentBM04")
+  lecturerBM04                    BM04Evaluation[]              @relation("LecturerBM04")
+  createdRubrics                  RubricVersion[]               @relation("RubricCreator")
+  registrationStateChanges        RegistrationStateHistory[]    @relation("RegistrationStateActor")
+  createdWorkflowPolicies         PeriodWorkflowPolicyVersion[] @relation("WorkflowPolicyCreator")
+  openedManualReviewCases         ManualReviewCase[]            @relation("ManualReviewOpenedBy")
+  resolvedManualReviewCases       ManualReviewCase[]            @relation("ManualReviewResolvedBy")
+  reviewedBM01Evaluations         BM01Evaluation[]              @relation("BM01ReviewedBy")
+  submittedBM01Evaluations        BM01Evaluation[]              @relation("BM01SubmittedBy")
+  submittedBM02Submissions        BM02Submission[]              @relation("BM02SubmittedBy")
+  reviewedBM02Submissions         BM02Submission[]              @relation("BM02ReviewedBy")
+  issuedAssignmentDecisions       AssignmentDecision[]          @relation("AssignmentDecisionIssuer")
+  signedDecisionAmendments        DecisionAmendment[]           @relation("DecisionAmendmentSigner")
+  checkpointMentorSignatures      CheckpointEvaluation[]        @relation("CheckpointMentorSignedBy")
+  checkpointStudentSignatures     CheckpointEvaluation[]        @relation("CheckpointStudentSignedBy")
+  checkpointAppealsSubmitted      CheckpointSignatureAppeal[]   @relation("CheckpointAppealStudent")
+  checkpointAppealsReviewed       CheckpointSignatureAppeal[]   @relation("CheckpointAppealReviewedBy")
+  transferredMentorshipsPrevious  MentorTransfer[]              @relation("PreviousMentor")
+  transferredMentorshipsNew       MentorTransfer[]              @relation("NewMentor")
+  transferredMentorshipsApproved  MentorTransfer[]              @relation("ApprovedMentorTransfer")
+  approvedDefenseResults          DefenseResultApproval[]       @relation("DefenseResultApprovedBy")
+  publishedResultPublications     ResultPublication[]           @relation("ResultPublicationPublishedBy")
+  portalContentRevisionsCreated   PortalContentRevision[]       @relation("PortalContentRevisionCreatedBy")
+  portalContentRevisionsPublished PortalContentRevision[]       @relation("PortalContentRevisionPublishedBy")
+  delegatorDelegations            AcademicDelegation[]          @relation("DelegatorDelegations")
+  delegateeDelegations            AcademicDelegation[]          @relation("DelegateeDelegations")
 
   @@map("users")
 }
 
 model Semester {
-  id                   Int            @id @default(autoincrement())
-  name                 String
-  startDate            DateTime       @map("start_date")
-  endDate              DateTime       @map("end_date")
-  registrationDeadline DateTime?      @map("registration_deadline")
-  midtermReportDate    DateTime?      @map("midterm_report_date")
-  defenseDate          DateTime?      @map("defense_date")
-  registrationOpen     Boolean        @default(true) @map("registration_open")
-  status               SemesterStatus @default(UPCOMING)
-  createdAt            DateTime       @default(now()) @map("created_at")
-  updatedAt            DateTime       @updatedAt @map("updated_at")
-  councils             Council[]
-  topics               Topic[]
-  projectEnrollments   StudentProjectEnrollment[]
-  bm04Evaluations      BM04Evaluation[]
+  id                     Int                           @id @default(autoincrement())
+  name                   String
+  startDate              DateTime                      @map("start_date")
+  endDate                DateTime                      @map("end_date")
+  registrationDeadline   DateTime?                     @map("registration_deadline")
+  midtermReportDate      DateTime?                     @map("midterm_report_date")
+  defenseDate            DateTime?                     @map("defense_date")
+  registrationOpen       Boolean                       @default(true) @map("registration_open")
+  status                 SemesterStatus                @default(UPCOMING)
+  createdAt              DateTime                      @default(now()) @map("created_at")
+  updatedAt              DateTime                      @updatedAt @map("updated_at")
+  councils               Council[]
+  topics                 Topic[]
+  projectEnrollments     StudentProjectEnrollment[]
+  bm04Evaluations        BM04Evaluation[]
   workflowPolicyVersions PeriodWorkflowPolicyVersion[]
-  resultPublications ResultPublication[]
+  resultPublications     ResultPublication[]
+  academicDelegations    AcademicDelegation[]
 
   @@map("semesters")
 }
 
+model AcademicDelegation {
+  id             Int      @id @default(autoincrement())
+  delegatorId    Int      @map("delegator_id")
+  delegateeId    Int      @map("delegatee_id")
+  capabilityCode String   @map("capability_code")
+  department     String
+  semesterId     Int?     @map("semester_id")
+  effectiveFrom  DateTime @default(now()) @map("effective_from")
+  effectiveTo    DateTime @map("effective_to")
+  reason         String
+  idempotencyKey String?  @unique @map("idempotency_key")
+  status         String   @default("ACTIVE")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  delegator User      @relation("DelegatorDelegations", fields: [delegatorId], references: [id])
+  delegatee User      @relation("DelegateeDelegations", fields: [delegateeId], references: [id])
+  semester  Semester? @relation(fields: [semesterId], references: [id])
+
+  @@index([delegateeId, status, effectiveFrom, effectiveTo])
+  @@map("academic_delegations")
+}
+
 model Topic {
-  id            Int                 @id @default(autoincrement())
-  semesterId    Int                 @map("semester_id")
-  projectCatalogId Int?             @map("project_catalog_id")
-  title         String
-  description   String?
-  proposedById  Int                 @map("proposed_by_id")
-  mentorId      Int                 @map("mentor_id")
-  maxStudents   Int                 @default(1) @map("max_students")
-  status        TopicStatus         @default(PENDING)
-  rejectReason  String?             @map("reject_reason")
-  createdAt     DateTime            @default(now()) @map("created_at")
-  updatedAt     DateTime            @updatedAt @map("updated_at")
-  mentor        User                @relation("MentoredBy", fields: [mentorId], references: [id])
-  proposedBy    User                @relation("ProposedBy", fields: [proposedById], references: [id])
-  semester      Semester            @relation(fields: [semesterId], references: [id])
-  projectCatalog ProjectCatalog?    @relation(fields: [projectCatalogId], references: [id])
-  registrations TopicRegistration[]
+  id               Int                 @id @default(autoincrement())
+  semesterId       Int                 @map("semester_id")
+  projectCatalogId Int?                @map("project_catalog_id")
+  title            String
+  description      String?
+  proposedById     Int                 @map("proposed_by_id")
+  mentorId         Int                 @map("mentor_id")
+  maxStudents      Int                 @default(1) @map("max_students")
+  status           TopicStatus         @default(PENDING)
+  rejectReason     String?             @map("reject_reason")
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @updatedAt @map("updated_at")
+  mentor           User                @relation("MentoredBy", fields: [mentorId], references: [id])
+  proposedBy       User                @relation("ProposedBy", fields: [proposedById], references: [id])
+  semester         Semester            @relation(fields: [semesterId], references: [id])
+  projectCatalog   ProjectCatalog?     @relation(fields: [projectCatalogId], references: [id])
+  registrations    TopicRegistration[]
 
   @@map("topics")
 }
 
 model TopicRegistration {
-  id            Int                @id @default(autoincrement())
-  topicId       Int                @map("topic_id")
-  studentId     Int                @map("student_id")
-  semesterId          Int                  @map("semester_id")
-  status              RegistrationStatus   @default(PENDING)
-  rejectReason        String?              @map("reject_reason")
-  councilId           Int?                 @map("council_id")
-  outlineCouncilId    Int?                 @map("outline_council_id")
-  defenseCouncilId    Int?                 @map("defense_council_id")
-  outlineReviewStatus OutlineReviewStatus? @default(PENDING) @map("outline_review_status")
-  outlineFeedback     String?              @map("outline_feedback")
-  decisionNumber      String?              @map("decision_number")
-  decisionDate        DateTime?            @map("decision_date")
-  adjustedTitle       String?              @map("adjusted_title")
-  createdAt           DateTime             @default(now()) @map("created_at")
-  updatedAt           DateTime             @updatedAt @map("updated_at")
-  topic               Topic                @relation(fields: [topicId], references: [id])
-  student             User                 @relation(fields: [studentId], references: [id])
-  council             Council?             @relation("CouncilLegacy", fields: [councilId], references: [id])
-  outlineCouncil      Council?             @relation("OutlineCouncil", fields: [outlineCouncilId], references: [id])
-  defenseCouncil      Council?             @relation("DefenseCouncil", fields: [defenseCouncilId], references: [id])
-  submissions   Submission[]
-  tasks         Task[]
-  meetingLogs   MeetingLog[]
-  defenseResult DefenseResult?
-  memberScores  DefenseMemberScore[]
-  archive       ProjectArchive?
-  titleAdjustments TopicTitleAdjustment[]
-  bm04Evaluation   BM04Evaluation?
-  stateVersion     Int                @default(0) @map("state_version")
-  periodPolicyVersionId Int?          @map("period_policy_version_id")
-  periodPolicyVersion PeriodWorkflowPolicyVersion? @relation(fields: [periodPolicyVersionId], references: [id], onDelete: Restrict)
-  stateHistory     RegistrationStateHistory[]
-  idempotencyRecords IdempotencyRecord[]
-  manualReviewCases ManualReviewCase[]
-  bm01Evaluations BM01Evaluation[]
-  bm02Submissions BM02Submission[]
-  currentBM02Submission BM02Submission? @relation("CurrentBM02Submission", fields: [currentBM02SubmissionId], references: [id], onDelete: Restrict)
-  currentBM02SubmissionId Int? @unique @map("current_bm02_submission_id")
-  assignmentDecisions AssignmentDecision[]
-  checkpointEvaluations CheckpointEvaluation[]
+  id                         Int                          @id @default(autoincrement())
+  topicId                    Int                          @map("topic_id")
+  studentId                  Int                          @map("student_id")
+  semesterId                 Int                          @map("semester_id")
+  status                     RegistrationStatus           @default(PENDING)
+  rejectReason               String?                      @map("reject_reason")
+  councilId                  Int?                         @map("council_id")
+  outlineCouncilId           Int?                         @map("outline_council_id")
+  defenseCouncilId           Int?                         @map("defense_council_id")
+  outlineReviewStatus        OutlineReviewStatus?         @default(PENDING) @map("outline_review_status")
+  outlineFeedback            String?                      @map("outline_feedback")
+  decisionNumber             String?                      @map("decision_number")
+  decisionDate               DateTime?                    @map("decision_date")
+  adjustedTitle              String?                      @map("adjusted_title")
+  createdAt                  DateTime                     @default(now()) @map("created_at")
+  updatedAt                  DateTime                     @updatedAt @map("updated_at")
+  topic                      Topic                        @relation(fields: [topicId], references: [id])
+  student                    User                         @relation(fields: [studentId], references: [id])
+  council                    Council?                     @relation("CouncilLegacy", fields: [councilId], references: [id])
+  outlineCouncil             Council?                     @relation("OutlineCouncil", fields: [outlineCouncilId], references: [id])
+  defenseCouncil             Council?                     @relation("DefenseCouncil", fields: [defenseCouncilId], references: [id])
+  submissions                Submission[]
+  tasks                      Task[]
+  meetingLogs                MeetingLog[]
+  defenseResult              DefenseResult?
+  memberScores               DefenseMemberScore[]
+  archive                    ProjectArchive?
+  titleAdjustments           TopicTitleAdjustment[]
+  bm04Evaluation             BM04Evaluation?
+  stateVersion               Int                          @default(0) @map("state_version")
+  periodPolicyVersionId      Int?                         @map("period_policy_version_id")
+  periodPolicyVersion        PeriodWorkflowPolicyVersion? @relation(fields: [periodPolicyVersionId], references: [id], onDelete: Restrict)
+  stateHistory               RegistrationStateHistory[]
+  idempotencyRecords         IdempotencyRecord[]
+  manualReviewCases          ManualReviewCase[]
+  bm01Evaluations            BM01Evaluation[]
+  bm02Submissions            BM02Submission[]
+  currentBM02Submission      BM02Submission?              @relation("CurrentBM02Submission", fields: [currentBM02SubmissionId], references: [id], onDelete: Restrict)
+  currentBM02SubmissionId    Int?                         @unique @map("current_bm02_submission_id")
+  assignmentDecisions        AssignmentDecision[]
+  checkpointEvaluations      CheckpointEvaluation[]
   checkpointSignatureAppeals CheckpointSignatureAppeal[]
-  mentorTransfers MentorTransfer[]
-  defenseResultApprovals DefenseResultApproval[]
-  resultPublicationItems ResultPublicationItem[]
+  mentorTransfers            MentorTransfer[]
+  defenseResultApprovals     DefenseResultApproval[]
+  resultPublicationItems     ResultPublicationItem[]
 
   @@unique([studentId, semesterId])
   @@index([semesterId, periodPolicyVersionId])
@@ -210,27 +236,27 @@ model TopicRegistration {
 }
 
 model BM01Evaluation {
-  id              Int                @id @default(autoincrement())
-  registrationId  Int                @map("registration_id")
-  attemptNo       Int                @map("attempt_no")
+  id              Int                         @id @default(autoincrement())
+  registrationId  Int                         @map("registration_id")
+  attemptNo       Int                         @map("attempt_no")
   outcome         BM01Outcome?
   issues          Json?
-  deadlineAt      DateTime?          @map("deadline_at")
-  notifiedAt      DateTime?          @map("notified_at")
-  submittedAt     DateTime?          @map("submitted_at")
-  submittedById   Int?               @map("submitted_by_id")
-  submissionId    Int?               @unique @map("submission_id")
-  supersedesId    Int?               @unique @map("supersedes_id")
-  reviewedAt      DateTime?          @map("reviewed_at")
-  reviewedById    Int?               @map("reviewed_by_id")
-  policyVersionId Int                @map("policy_version_id")
-  createdAt       DateTime           @default(now()) @map("created_at")
-  registration    TopicRegistration  @relation(fields: [registrationId], references: [id], onDelete: Restrict)
-  submittedBy     User?              @relation("BM01SubmittedBy", fields: [submittedById], references: [id], onDelete: SetNull)
-  submission      Submission?        @relation(fields: [submissionId], references: [id], onDelete: Restrict)
-  supersedes      BM01Evaluation?     @relation("BM01Supersession", fields: [supersedesId], references: [id], onDelete: Restrict)
-  supersededBy    BM01Evaluation?     @relation("BM01Supersession")
-  reviewedBy      User?              @relation("BM01ReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  deadlineAt      DateTime?                   @map("deadline_at")
+  notifiedAt      DateTime?                   @map("notified_at")
+  submittedAt     DateTime?                   @map("submitted_at")
+  submittedById   Int?                        @map("submitted_by_id")
+  submissionId    Int?                        @unique @map("submission_id")
+  supersedesId    Int?                        @unique @map("supersedes_id")
+  reviewedAt      DateTime?                   @map("reviewed_at")
+  reviewedById    Int?                        @map("reviewed_by_id")
+  policyVersionId Int                         @map("policy_version_id")
+  createdAt       DateTime                    @default(now()) @map("created_at")
+  registration    TopicRegistration           @relation(fields: [registrationId], references: [id], onDelete: Restrict)
+  submittedBy     User?                       @relation("BM01SubmittedBy", fields: [submittedById], references: [id], onDelete: SetNull)
+  submission      Submission?                 @relation(fields: [submissionId], references: [id], onDelete: Restrict)
+  supersedes      BM01Evaluation?             @relation("BM01Supersession", fields: [supersedesId], references: [id], onDelete: Restrict)
+  supersededBy    BM01Evaluation?             @relation("BM01Supersession")
+  reviewedBy      User?                       @relation("BM01ReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
   policyVersion   PeriodWorkflowPolicyVersion @relation("BM01PolicyVersion", fields: [policyVersionId], references: [id], onDelete: Restrict)
 
   @@unique([registrationId, attemptNo])
@@ -242,31 +268,31 @@ model BM01Evaluation {
 }
 
 model BM02Submission {
-  id              Int                  @id @default(autoincrement())
-  registrationId  Int                  @map("registration_id")
-  versionNo       Int                  @map("version_no")
-  attemptNo       Int                  @map("attempt_no")
-  supersedesId    Int?                 @unique @map("supersedes_id")
-  outcome         BM02Outcome           @default(PENDING_REVIEW)
-  issues          Json?
-  content         String?               @db.Text
-  fileUrl         String?               @map("file_url")
-  fileName        String?               @map("file_name")
-  submittedById   Int                  @map("submitted_by_id")
-  submittedAt     DateTime             @default(now()) @map("submitted_at")
-  reviewedById    Int?                 @map("reviewed_by_id")
-  reviewedAt      DateTime?             @map("reviewed_at")
-  notifiedAt      DateTime?            @map("notified_at")
-  revisionDeadlineAt DateTime?         @map("revision_deadline_at")
-  policyVersionId Int                  @map("policy_version_id")
-  registration    TopicRegistration    @relation(fields: [registrationId], references: [id], onDelete: Restrict)
-  supersedes      BM02Submission?      @relation("BM02Supersession", fields: [supersedesId], references: [id], onDelete: Restrict)
-  supersededBy    BM02Submission?      @relation("BM02Supersession")
-  currentForRegistration TopicRegistration? @relation("CurrentBM02Submission")
-  submittedBy     User                 @relation("BM02SubmittedBy", fields: [submittedById], references: [id], onDelete: Restrict)
-  reviewedBy      User?                @relation("BM02ReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
-  policyVersion   PeriodWorkflowPolicyVersion @relation("BM02PolicyVersion", fields: [policyVersionId], references: [id], onDelete: Restrict)
-  assignmentDecision AssignmentDecision?
+  id                     Int                         @id @default(autoincrement())
+  registrationId         Int                         @map("registration_id")
+  versionNo              Int                         @map("version_no")
+  attemptNo              Int                         @map("attempt_no")
+  supersedesId           Int?                        @unique @map("supersedes_id")
+  outcome                BM02Outcome                 @default(PENDING_REVIEW)
+  issues                 Json?
+  content                String?                     @db.Text
+  fileUrl                String?                     @map("file_url")
+  fileName               String?                     @map("file_name")
+  submittedById          Int                         @map("submitted_by_id")
+  submittedAt            DateTime                    @default(now()) @map("submitted_at")
+  reviewedById           Int?                        @map("reviewed_by_id")
+  reviewedAt             DateTime?                   @map("reviewed_at")
+  notifiedAt             DateTime?                   @map("notified_at")
+  revisionDeadlineAt     DateTime?                   @map("revision_deadline_at")
+  policyVersionId        Int                         @map("policy_version_id")
+  registration           TopicRegistration           @relation(fields: [registrationId], references: [id], onDelete: Restrict)
+  supersedes             BM02Submission?             @relation("BM02Supersession", fields: [supersedesId], references: [id], onDelete: Restrict)
+  supersededBy           BM02Submission?             @relation("BM02Supersession")
+  currentForRegistration TopicRegistration?          @relation("CurrentBM02Submission")
+  submittedBy            User                        @relation("BM02SubmittedBy", fields: [submittedById], references: [id], onDelete: Restrict)
+  reviewedBy             User?                       @relation("BM02ReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  policyVersion          PeriodWorkflowPolicyVersion @relation("BM02PolicyVersion", fields: [policyVersionId], references: [id], onDelete: Restrict)
+  assignmentDecision     AssignmentDecision?
 
   @@unique([registrationId, versionNo])
   @@index([registrationId, outcome])
@@ -277,38 +303,38 @@ model BM02Submission {
 }
 
 model AssignmentDecision {
-  id              Int                 @id @default(autoincrement())
-  registrationId  Int                 @unique @map("registration_id")
-  bm02SubmissionId Int                @unique @map("bm02_submission_id")
-  decisionNumber  String              @map("decision_number")
-  issuedAt        DateTime            @map("issued_at")
-  effectiveAt     DateTime            @map("effective_at")
-  issuedById      Int                 @map("issued_by_id")
-  policyVersionId Int                 @map("policy_version_id")
-  idempotencyKey  String              @unique @map("idempotency_key")
-  createdAt       DateTime            @default(now()) @map("created_at")
-  registration    TopicRegistration   @relation(fields: [registrationId], references: [id], onDelete: Restrict)
-  bm02Submission  BM02Submission      @relation(fields: [bm02SubmissionId], references: [id], onDelete: Restrict)
-  issuedBy        User                @relation("AssignmentDecisionIssuer", fields: [issuedById], references: [id], onDelete: Restrict)
-  policyVersion   PeriodWorkflowPolicyVersion @relation("DecisionPolicyVersion", fields: [policyVersionId], references: [id], onDelete: Restrict)
-  amendments      DecisionAmendment[]
+  id               Int                         @id @default(autoincrement())
+  registrationId   Int                         @unique @map("registration_id")
+  bm02SubmissionId Int                         @unique @map("bm02_submission_id")
+  decisionNumber   String                      @map("decision_number")
+  issuedAt         DateTime                    @map("issued_at")
+  effectiveAt      DateTime                    @map("effective_at")
+  issuedById       Int                         @map("issued_by_id")
+  policyVersionId  Int                         @map("policy_version_id")
+  idempotencyKey   String                      @unique @map("idempotency_key")
+  createdAt        DateTime                    @default(now()) @map("created_at")
+  registration     TopicRegistration           @relation(fields: [registrationId], references: [id], onDelete: Restrict)
+  bm02Submission   BM02Submission              @relation(fields: [bm02SubmissionId], references: [id], onDelete: Restrict)
+  issuedBy         User                        @relation("AssignmentDecisionIssuer", fields: [issuedById], references: [id], onDelete: Restrict)
+  policyVersion    PeriodWorkflowPolicyVersion @relation("DecisionPolicyVersion", fields: [policyVersionId], references: [id], onDelete: Restrict)
+  amendments       DecisionAmendment[]
 
   @@index([decisionNumber, issuedAt])
   @@map("assignment_decisions")
 }
 
 model DecisionAmendment {
-  id                 Int                @id @default(autoincrement())
-  assignmentDecisionId Int              @map("assignment_decision_id")
-  amendmentNumber    String             @unique @map("amendment_number")
-  reason             String             @db.Text
-  changes            Json
-  signedById         Int                @map("signed_by_id")
-  idempotencyKey     String             @unique @map("idempotency_key")
-  effectiveAt        DateTime           @map("effective_at")
-  createdAt          DateTime           @default(now()) @map("created_at")
-  assignmentDecision AssignmentDecision @relation(fields: [assignmentDecisionId], references: [id], onDelete: Restrict)
-  signedBy           User               @relation("DecisionAmendmentSigner", fields: [signedById], references: [id], onDelete: Restrict)
+  id                   Int                @id @default(autoincrement())
+  assignmentDecisionId Int                @map("assignment_decision_id")
+  amendmentNumber      String             @unique @map("amendment_number")
+  reason               String             @db.Text
+  changes              Json
+  signedById           Int                @map("signed_by_id")
+  idempotencyKey       String             @unique @map("idempotency_key")
+  effectiveAt          DateTime           @map("effective_at")
+  createdAt            DateTime           @default(now()) @map("created_at")
+  assignmentDecision   AssignmentDecision @relation(fields: [assignmentDecisionId], references: [id], onDelete: Restrict)
+  signedBy             User               @relation("DecisionAmendmentSigner", fields: [signedById], references: [id], onDelete: Restrict)
 
   @@index([assignmentDecisionId, effectiveAt])
   @@index([signedById])
@@ -316,22 +342,22 @@ model DecisionAmendment {
 }
 
 model PeriodWorkflowPolicyVersion {
-  id            Int      @id @default(autoincrement())
-  semesterId    Int      @map("semester_id")
-  version       Int
-  policy        Json
-  checksum      String
-  isActive      Boolean  @default(true) @map("is_active")
-  createdById   Int?     @map("created_by_id")
-  createdAt     DateTime @default(now()) @map("created_at")
-  semester      Semester @relation(fields: [semesterId], references: [id], onDelete: Restrict)
-  createdBy     User?    @relation("WorkflowPolicyCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  registrations TopicRegistration[]
-  bm01Evaluations BM01Evaluation[] @relation("BM01PolicyVersion")
-  bm02Submissions BM02Submission[] @relation("BM02PolicyVersion")
-  assignmentDecisions AssignmentDecision[] @relation("DecisionPolicyVersion")
+  id                    Int                    @id @default(autoincrement())
+  semesterId            Int                    @map("semester_id")
+  version               Int
+  policy                Json
+  checksum              String
+  isActive              Boolean                @default(true) @map("is_active")
+  createdById           Int?                   @map("created_by_id")
+  createdAt             DateTime               @default(now()) @map("created_at")
+  semester              Semester               @relation(fields: [semesterId], references: [id], onDelete: Restrict)
+  createdBy             User?                  @relation("WorkflowPolicyCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  registrations         TopicRegistration[]
+  bm01Evaluations       BM01Evaluation[]       @relation("BM01PolicyVersion")
+  bm02Submissions       BM02Submission[]       @relation("BM02PolicyVersion")
+  assignmentDecisions   AssignmentDecision[]   @relation("DecisionPolicyVersion")
   checkpointEvaluations CheckpointEvaluation[] @relation("CheckpointPolicyVersion")
-  bm04Evaluations BM04Evaluation[] @relation("BM04PolicyVersion")
+  bm04Evaluations       BM04Evaluation[]       @relation("BM04PolicyVersion")
 
   @@unique([semesterId, version])
   @@index([semesterId, isActive])
@@ -383,58 +409,58 @@ model ManualReviewCase {
   resolvedById   Int?               @map("resolved_by_id")
   resolution     String?            @db.Text
   createdAt      DateTime           @default(now()) @map("created_at")
-  resolvedAt     DateTime?           @map("resolved_at")
+  resolvedAt     DateTime?          @map("resolved_at")
   registration   TopicRegistration  @relation(fields: [registrationId], references: [id], onDelete: Restrict)
   openedBy       User?              @relation("ManualReviewOpenedBy", fields: [openedById], references: [id], onDelete: SetNull)
   resolvedBy     User?              @relation("ManualReviewResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
 
-  @@index([status, createdAt])
   @@unique([registrationId, status])
+  @@index([status, createdAt])
   @@map("manual_review_cases")
 }
 
 model MeetingLog {
-  id                 Int               @id @default(autoincrement())
-  registrationId     Int               @map("registration_id")
-  meetingDate        DateTime          @default(now()) @map("meeting_date")
-  meetingType        String            @default("LAB") @map("meeting_type")
-  studentWorkSummary String            @db.Text @map("student_work_summary")
-  nextPlan           String?           @db.Text @map("next_plan")
-  supervisorNotes    String?           @db.Text @map("supervisor_notes")
-  createdBy          Int               @map("created_by")
-  createdAt          DateTime          @default(now()) @map("created_at")
-  updatedAt          DateTime          @updatedAt @map("updated_at")
+  id                 Int      @id @default(autoincrement())
+  registrationId     Int      @map("registration_id")
+  meetingDate        DateTime @default(now()) @map("meeting_date")
+  meetingType        String   @default("LAB") @map("meeting_type")
+  studentWorkSummary String   @map("student_work_summary") @db.Text
+  nextPlan           String?  @map("next_plan") @db.Text
+  supervisorNotes    String?  @map("supervisor_notes") @db.Text
+  createdBy          Int      @map("created_by")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
 
-  registration       TopicRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
-  creator            User              @relation(fields: [createdBy], references: [id])
+  registration TopicRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  creator      User              @relation(fields: [createdBy], references: [id])
 
   @@index([registrationId, meetingDate])
   @@map("meeting_logs")
 }
 
 model ProjectArchive {
-  id             Int               @id @default(autoincrement())
-  registrationId Int               @unique @map("registration_id")
-  reportFileUrl  String?           @map("report_file_url")
-  reportFileName String?           @map("report_file_name")
-  slideFileUrl   String?           @map("slide_file_url")
-  slideFileName  String?           @map("slide_file_name")
-  sourceCodeUrl  String?           @map("source_code_url")
-  demoVideoUrl   String?           @map("demo_video_url")
-  bm03FileUrl    String?           @map("bm03_file_url")
-  bm04FileUrl    String?           @map("bm04_file_url")
-  summary        String?           @db.Text
-  phase          ArchivePhase      @default(POST_DEFENSE) @map("phase")
-  status         ArchiveStatus     @default(SUBMITTED)
-  reviewedBy     Int?              @map("reviewed_by")
-  reviewerNotes  String?           @db.Text @map("reviewer_notes")
-  submittedAt    DateTime          @default(now()) @map("submitted_at")
-  reviewedAt     DateTime?         @map("reviewed_at")
-  createdAt      DateTime          @default(now()) @map("created_at")
-  updatedAt      DateTime          @updatedAt @map("updated_at")
+  id             Int           @id @default(autoincrement())
+  registrationId Int           @unique @map("registration_id")
+  reportFileUrl  String?       @map("report_file_url")
+  reportFileName String?       @map("report_file_name")
+  slideFileUrl   String?       @map("slide_file_url")
+  slideFileName  String?       @map("slide_file_name")
+  sourceCodeUrl  String?       @map("source_code_url")
+  demoVideoUrl   String?       @map("demo_video_url")
+  bm03FileUrl    String?       @map("bm03_file_url")
+  bm04FileUrl    String?       @map("bm04_file_url")
+  summary        String?       @db.Text
+  phase          ArchivePhase  @default(POST_DEFENSE) @map("phase")
+  status         ArchiveStatus @default(SUBMITTED)
+  reviewedBy     Int?          @map("reviewed_by")
+  reviewerNotes  String?       @map("reviewer_notes") @db.Text
+  submittedAt    DateTime      @default(now()) @map("submitted_at")
+  reviewedAt     DateTime?     @map("reviewed_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
 
-  registration   TopicRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
-  reviewer       User?             @relation(fields: [reviewedBy], references: [id])
+  registration TopicRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  reviewer     User?             @relation(fields: [reviewedBy], references: [id])
 
   @@index([registrationId, phase])
   @@map("project_archives")
@@ -479,14 +505,14 @@ model Submission {
 }
 
 model Council {
-  id            Int                 @id @default(autoincrement())
-  semesterId    Int                 @map("semester_id")
-  name          String
-  councilType   CouncilType         @default(DEFENSE_COUNCIL) @map("council_type")
-  location      String?
-  defenseDate   DateTime?           @map("defense_date")
-  createdAt     DateTime            @default(now()) @map("created_at")
-  updatedAt     DateTime            @updatedAt @map("updated_at")
+  id                   Int                 @id @default(autoincrement())
+  semesterId           Int                 @map("semester_id")
+  name                 String
+  councilType          CouncilType         @default(DEFENSE_COUNCIL) @map("council_type")
+  location             String?
+  defenseDate          DateTime?           @map("defense_date")
+  createdAt            DateTime            @default(now()) @map("created_at")
+  updatedAt            DateTime            @updatedAt @map("updated_at")
   members              CouncilMember[]
   semester             Semester            @relation(fields: [semesterId], references: [id])
   registrations        TopicRegistration[] @relation("CouncilLegacy")
@@ -533,22 +559,22 @@ model DefenseResult {
 }
 
 model DefenseMemberScore {
-  id                 Int                            @id @default(autoincrement())
-  registrationId     Int                            @map("registration_id")
-  evaluatorId        Int                            @map("evaluator_id")
-  finalScore         Float?                         @map("final_score")
+  id                 Int                           @id @default(autoincrement())
+  registrationId     Int                           @map("registration_id")
+  evaluatorId        Int                           @map("evaluator_id")
+  finalScore         Float?                        @map("final_score")
   comments           String?
-  scoreRubricVersion String                         @default("v1") @map("score_rubric_version")
-  scoreLocked        Boolean                        @default(false) @map("score_locked")
-  lockedAt           DateTime?                      @map("locked_at")
-  lockedBy           Int?                           @map("locked_by")
-  pdfUrl             String?                        @map("pdf_url")
-  pdfGeneratedAt     DateTime?                      @map("pdf_generated_at")
-  createdAt          DateTime                       @default(now()) @map("created_at")
-  updatedAt          DateTime                       @updatedAt @map("updated_at")
-  registration       TopicRegistration              @relation(fields: [registrationId], references: [id], onDelete: Cascade)
-  evaluator          User                           @relation("DefenseMemberScoreEvaluator", fields: [evaluatorId], references: [id])
-  lockedByUser       User?                          @relation("DefenseMemberScoreLocker", fields: [lockedBy], references: [id])
+  scoreRubricVersion String                        @default("v1") @map("score_rubric_version")
+  scoreLocked        Boolean                       @default(false) @map("score_locked")
+  lockedAt           DateTime?                     @map("locked_at")
+  lockedBy           Int?                          @map("locked_by")
+  pdfUrl             String?                       @map("pdf_url")
+  pdfGeneratedAt     DateTime?                     @map("pdf_generated_at")
+  createdAt          DateTime                      @default(now()) @map("created_at")
+  updatedAt          DateTime                      @updatedAt @map("updated_at")
+  registration       TopicRegistration             @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  evaluator          User                          @relation("DefenseMemberScoreEvaluator", fields: [evaluatorId], references: [id])
+  lockedByUser       User?                         @relation("DefenseMemberScoreLocker", fields: [lockedBy], references: [id])
   criterionScores    DefenseMemberCriterionScore[]
 
   @@unique([registrationId, evaluatorId])
@@ -556,16 +582,16 @@ model DefenseMemberScore {
 }
 
 model DefenseMemberCriterionScore {
-  id                 Int               @id @default(autoincrement())
-  defenseMemberScoreId Int             @map("defense_member_score_id")
-  criterionCode      String            @map("criterion_code")
-  criterionLabel     String            @map("criterion_label")
-  maxScore           Float             @map("max_score")
-  score              Float
-  comment            String?
-  createdAt          DateTime          @default(now()) @map("created_at")
-  updatedAt          DateTime          @updatedAt @map("updated_at")
-  defenseMemberScore DefenseMemberScore @relation(fields: [defenseMemberScoreId], references: [id], onDelete: Cascade)
+  id                   Int                @id @default(autoincrement())
+  defenseMemberScoreId Int                @map("defense_member_score_id")
+  criterionCode        String             @map("criterion_code")
+  criterionLabel       String             @map("criterion_label")
+  maxScore             Float              @map("max_score")
+  score                Float
+  comment              String?
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+  defenseMemberScore   DefenseMemberScore @relation(fields: [defenseMemberScoreId], references: [id], onDelete: Cascade)
 
   @@unique([defenseMemberScoreId, criterionCode])
   @@map("defense_member_criterion_scores")
@@ -588,29 +614,29 @@ model DefenseCriterionScore {
 }
 
 model DefenseResultApproval {
-  id                    Int                    @id @default(autoincrement())
-  registrationId        Int                    @map("registration_id")
-  defenseResultId       Int                    @map("defense_result_id")
+  id                    Int                     @id @default(autoincrement())
+  registrationId        Int                     @map("registration_id")
+  defenseResultId       Int                     @map("defense_result_id")
   outcome               DefenseApprovalOutcome
-  finalScoreSnapshot    Float                  @map("final_score_snapshot")
-  scoreFingerprint      String                 @map("score_fingerprint")
-  rubricVersionSnapshot String                 @map("rubric_version_snapshot")
-  defenseCouncilId      Int?                   @map("defense_council_id")
-  policyVersionId       Int?                   @map("policy_version_id")
-  approvedById          Int                    @map("approved_by_id")
-  approvedAt            DateTime               @default(now()) @map("approved_at")
-  reason                String?                @db.Text
-  notes                 String?                @db.Text
-  supersedesApprovalId  Int?                   @unique @map("supersedes_approval_id")
-  isEffective           Boolean                @default(true) @map("is_effective")
-  invalidatedAt         DateTime?              @map("invalidated_at")
-  invalidatedReason     String?                @db.Text @map("invalidated_reason")
-  createdAt             DateTime               @default(now()) @map("created_at")
-  registration          TopicRegistration      @relation(fields: [registrationId], references: [id], onDelete: Restrict)
-  defenseResult         DefenseResult          @relation(fields: [defenseResultId], references: [id], onDelete: Restrict)
-  approvedBy            User                   @relation("DefenseResultApprovedBy", fields: [approvedById], references: [id], onDelete: Restrict)
-  supersedes            DefenseResultApproval? @relation("DefenseApprovalSupersession", fields: [supersedesApprovalId], references: [id], onDelete: Restrict)
-  supersededBy          DefenseResultApproval? @relation("DefenseApprovalSupersession")
+  finalScoreSnapshot    Float                   @map("final_score_snapshot")
+  scoreFingerprint      String                  @map("score_fingerprint")
+  rubricVersionSnapshot String                  @map("rubric_version_snapshot")
+  defenseCouncilId      Int?                    @map("defense_council_id")
+  policyVersionId       Int?                    @map("policy_version_id")
+  approvedById          Int                     @map("approved_by_id")
+  approvedAt            DateTime                @default(now()) @map("approved_at")
+  reason                String?                 @db.Text
+  notes                 String?                 @db.Text
+  supersedesApprovalId  Int?                    @unique @map("supersedes_approval_id")
+  isEffective           Boolean                 @default(true) @map("is_effective")
+  invalidatedAt         DateTime?               @map("invalidated_at")
+  invalidatedReason     String?                 @map("invalidated_reason") @db.Text
+  createdAt             DateTime                @default(now()) @map("created_at")
+  registration          TopicRegistration       @relation(fields: [registrationId], references: [id], onDelete: Restrict)
+  defenseResult         DefenseResult           @relation(fields: [defenseResultId], references: [id], onDelete: Restrict)
+  approvedBy            User                    @relation("DefenseResultApprovedBy", fields: [approvedById], references: [id], onDelete: Restrict)
+  supersedes            DefenseResultApproval?  @relation("DefenseApprovalSupersession", fields: [supersedesApprovalId], references: [id], onDelete: Restrict)
+  supersededBy          DefenseResultApproval?  @relation("DefenseApprovalSupersession")
   publicationItems      ResultPublicationItem[]
 
   @@index([registrationId, isEffective])
@@ -620,20 +646,20 @@ model DefenseResultApproval {
 }
 
 model ResultPublication {
-  id                    Int                    @id @default(autoincrement())
-  semesterId            Int                    @map("semester_id")
-  type                  ResultPublicationType
-  previousPublicationId Int?                   @map("previous_publication_id")
-  reason                String?                @db.Text
-  publishedById         Int                    @map("published_by_id")
-  publishedAt           DateTime               @default(now()) @map("published_at")
-  idempotencyKey        String                 @map("idempotency_key")
-  createdAt             DateTime               @default(now()) @map("created_at")
-  semester              Semester               @relation(fields: [semesterId], references: [id], onDelete: Restrict)
-  previousPublication   ResultPublication?     @relation("ResultPublicationSupersession", fields: [previousPublicationId], references: [id], onDelete: Restrict)
-  subsequentPublications ResultPublication[]   @relation("ResultPublicationSupersession")
-  publishedBy           User                   @relation("ResultPublicationPublishedBy", fields: [publishedById], references: [id], onDelete: Restrict)
-  items                 ResultPublicationItem[]
+  id                     Int                     @id @default(autoincrement())
+  semesterId             Int                     @map("semester_id")
+  type                   ResultPublicationType
+  previousPublicationId  Int?                    @map("previous_publication_id")
+  reason                 String?                 @db.Text
+  publishedById          Int                     @map("published_by_id")
+  publishedAt            DateTime                @default(now()) @map("published_at")
+  idempotencyKey         String                  @map("idempotency_key")
+  createdAt              DateTime                @default(now()) @map("created_at")
+  semester               Semester                @relation(fields: [semesterId], references: [id], onDelete: Restrict)
+  previousPublication    ResultPublication?      @relation("ResultPublicationSupersession", fields: [previousPublicationId], references: [id], onDelete: Restrict)
+  subsequentPublications ResultPublication[]     @relation("ResultPublicationSupersession")
+  publishedBy            User                    @relation("ResultPublicationPublishedBy", fields: [publishedById], references: [id], onDelete: Restrict)
+  items                  ResultPublicationItem[]
 
   @@unique([semesterId, publishedById, idempotencyKey])
   @@index([semesterId, publishedAt])
@@ -641,22 +667,22 @@ model ResultPublication {
 }
 
 model ResultPublicationItem {
-  id                      Int                    @id @default(autoincrement())
-  publicationId           Int                    @map("publication_id")
-  registrationId          Int                    @map("registration_id")
-  sourceApprovalId        Int                    @map("source_approval_id")
-  replacesPublicationItemId Int?                 @map("replaces_publication_item_id")
-  outcomeSnapshot         DefenseApprovalOutcome @map("outcome_snapshot")
-  finalScoreSnapshot      Float                  @map("final_score_snapshot")
-  studentCodeSnapshot     String                 @map("student_code_snapshot")
-  studentNameSnapshot     String                 @map("student_name_snapshot")
-  topicTitleSnapshot      String                 @map("topic_title_snapshot")
-  createdAt               DateTime               @default(now()) @map("created_at")
-  publication             ResultPublication      @relation(fields: [publicationId], references: [id], onDelete: Restrict)
-  registration            TopicRegistration      @relation(fields: [registrationId], references: [id], onDelete: Restrict)
-  sourceApproval          DefenseResultApproval  @relation(fields: [sourceApprovalId], references: [id], onDelete: Restrict)
-  replacesPublicationItem ResultPublicationItem? @relation("ResultPublicationItemCorrection", fields: [replacesPublicationItemId], references: [id], onDelete: Restrict)
-  correctedBy             ResultPublicationItem[] @relation("ResultPublicationItemCorrection")
+  id                        Int                     @id @default(autoincrement())
+  publicationId             Int                     @map("publication_id")
+  registrationId            Int                     @map("registration_id")
+  sourceApprovalId          Int                     @map("source_approval_id")
+  replacesPublicationItemId Int?                    @map("replaces_publication_item_id")
+  outcomeSnapshot           DefenseApprovalOutcome  @map("outcome_snapshot")
+  finalScoreSnapshot        Float                   @map("final_score_snapshot")
+  studentCodeSnapshot       String                  @map("student_code_snapshot")
+  studentNameSnapshot       String                  @map("student_name_snapshot")
+  topicTitleSnapshot        String                  @map("topic_title_snapshot")
+  createdAt                 DateTime                @default(now()) @map("created_at")
+  publication               ResultPublication       @relation(fields: [publicationId], references: [id], onDelete: Restrict)
+  registration              TopicRegistration       @relation(fields: [registrationId], references: [id], onDelete: Restrict)
+  sourceApproval            DefenseResultApproval   @relation(fields: [sourceApprovalId], references: [id], onDelete: Restrict)
+  replacesPublicationItem   ResultPublicationItem?  @relation("ResultPublicationItemCorrection", fields: [replacesPublicationItemId], references: [id], onDelete: Restrict)
+  correctedBy               ResultPublicationItem[] @relation("ResultPublicationItemCorrection")
 
   @@unique([publicationId, registrationId])
   @@index([registrationId])
@@ -746,14 +772,14 @@ model AuditLog {
 }
 
 model ProjectCatalog {
-  id               Int                        @id @default(autoincrement())
-  code             String                     @unique
-  name             String
-  isActive         Boolean                    @default(true) @map("is_active")
-  createdAt        DateTime                   @default(now()) @map("created_at")
-  updatedAt        DateTime                   @updatedAt @map("updated_at")
-  topics           Topic[]
-  enrollments      StudentProjectEnrollment[]
+  id          Int                        @id @default(autoincrement())
+  code        String                     @unique
+  name        String
+  isActive    Boolean                    @default(true) @map("is_active")
+  createdAt   DateTime                   @default(now()) @map("created_at")
+  updatedAt   DateTime                   @updatedAt @map("updated_at")
+  topics      Topic[]
+  enrollments StudentProjectEnrollment[]
 
   @@map("project_catalogs")
 }
@@ -778,66 +804,66 @@ model StudentProjectEnrollment {
 }
 
 model PublicAnnouncement {
-  id          Int      @id @default(autoincrement())
-  title       String
-  content     String?  @db.Text
-  category    String?  @default("ANNOUNCEMENT")
-  fileUrl     String?  @map("file_url")
-  fileName    String?  @map("file_name")
-  isPinned    Boolean  @default(false) @map("is_pinned")
-  isPublished Boolean  @default(true) @map("is_published")
-  announcementType AnnouncementType @default(RICH_TEXT) @map("announcement_type")
-  currentPublishedRevisionId Int? @unique @map("current_published_revision_id")
-  authorId    Int?     @map("author_id")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  author      User?    @relation(fields: [authorId], references: [id])
+  id                         Int              @id @default(autoincrement())
+  title                      String
+  content                    String?          @db.Text
+  category                   String?          @default("ANNOUNCEMENT")
+  fileUrl                    String?          @map("file_url")
+  fileName                   String?          @map("file_name")
+  isPinned                   Boolean          @default(false) @map("is_pinned")
+  isPublished                Boolean          @default(true) @map("is_published")
+  announcementType           AnnouncementType @default(RICH_TEXT) @map("announcement_type")
+  currentPublishedRevisionId Int?             @unique @map("current_published_revision_id")
+  authorId                   Int?             @map("author_id")
+  createdAt                  DateTime         @default(now()) @map("created_at")
+  updatedAt                  DateTime         @updatedAt @map("updated_at")
+  author                     User?            @relation(fields: [authorId], references: [id])
 
   @@map("public_announcements")
 }
 
 model PortalConfiguration {
-  id                         Int       @id @default(1)
-  currentPublishedRevisionId Int?      @unique @map("current_published_revision_id")
-  createdAt                  DateTime  @default(now()) @map("created_at")
-  updatedAt                  DateTime  @updatedAt @map("updated_at")
+  id                         Int      @id @default(1)
+  currentPublishedRevisionId Int?     @unique @map("current_published_revision_id")
+  createdAt                  DateTime @default(now()) @map("created_at")
+  updatedAt                  DateTime @updatedAt @map("updated_at")
 
   @@map("portal_configurations")
 }
 
 model PortalLink {
-  id                         Int       @id @default(autoincrement())
-  currentPublishedRevisionId Int?      @unique @map("current_published_revision_id")
-  createdAt                  DateTime  @default(now()) @map("created_at")
-  updatedAt                  DateTime  @updatedAt @map("updated_at")
+  id                         Int      @id @default(autoincrement())
+  currentPublishedRevisionId Int?     @unique @map("current_published_revision_id")
+  createdAt                  DateTime @default(now()) @map("created_at")
+  updatedAt                  DateTime @updatedAt @map("updated_at")
 
   @@map("portal_links")
 }
 
 model PortalTemplate {
-  id                         Int       @id @default(autoincrement())
-  currentPublishedRevisionId Int?      @unique @map("current_published_revision_id")
-  createdAt                  DateTime  @default(now()) @map("created_at")
-  updatedAt                  DateTime  @updatedAt @map("updated_at")
+  id                         Int      @id @default(autoincrement())
+  currentPublishedRevisionId Int?     @unique @map("current_published_revision_id")
+  createdAt                  DateTime @default(now()) @map("created_at")
+  updatedAt                  DateTime @updatedAt @map("updated_at")
 
   @@map("portal_templates")
 }
 
 model PortalContentRevision {
-  id           Int                       @id @default(autoincrement())
-  resourceType PortalContentResourceType @map("resource_type")
-  resourceId   Int                       @map("resource_id")
-  version      Int
-  status       PortalRevisionStatus      @default(DRAFT)
-  payload      Json
-  createdById  Int?                      @map("created_by_id")
-  publishedById Int?                     @map("published_by_id")
-  publishedAt  DateTime?                 @map("published_at")
-  archivedAt   DateTime?                 @map("archived_at")
-  createdAt    DateTime                  @default(now()) @map("created_at")
-  updatedAt    DateTime                  @updatedAt @map("updated_at")
-  createdBy    User?                     @relation("PortalContentRevisionCreatedBy", fields: [createdById], references: [id])
-  publishedBy  User?                     @relation("PortalContentRevisionPublishedBy", fields: [publishedById], references: [id])
+  id            Int                       @id @default(autoincrement())
+  resourceType  PortalContentResourceType @map("resource_type")
+  resourceId    Int                       @map("resource_id")
+  version       Int
+  status        PortalRevisionStatus      @default(DRAFT)
+  payload       Json
+  createdById   Int?                      @map("created_by_id")
+  publishedById Int?                      @map("published_by_id")
+  publishedAt   DateTime?                 @map("published_at")
+  archivedAt    DateTime?                 @map("archived_at")
+  createdAt     DateTime                  @default(now()) @map("created_at")
+  updatedAt     DateTime                  @updatedAt @map("updated_at")
+  createdBy     User?                     @relation("PortalContentRevisionCreatedBy", fields: [createdById], references: [id])
+  publishedBy   User?                     @relation("PortalContentRevisionPublishedBy", fields: [publishedById], references: [id])
 
   @@unique([resourceType, resourceId, version])
   @@index([resourceType, resourceId, status])
@@ -981,28 +1007,28 @@ model TopicTitleAdjustment {
 }
 
 model BM04Evaluation {
-  id                   Int               @id @default(autoincrement())
-  registrationId       Int               @unique @map("registration_id")
-  registration         TopicRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
-  semesterId           Int               @map("semester_id")
-  semester             Semester          @relation(fields: [semesterId], references: [id])
-  studentId            Int               @map("student_id")
-  student              User              @relation("StudentBM04", fields: [studentId], references: [id])
-  lecturerId           Int               @map("lecturer_id")
-  lecturer             User              @relation("LecturerBM04", fields: [lecturerId], references: [id])
-  thesisFormatScore    String            @db.Text @map("thesis_format_score")
-  researchContentScore String            @db.Text @map("research_content_score")
-  applicabilityScore   String            @db.Text @map("applicability_score")
-  attitudeScore        String            @db.Text @map("attitude_score")
+  id                   Int                          @id @default(autoincrement())
+  registrationId       Int                          @unique @map("registration_id")
+  registration         TopicRegistration            @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  semesterId           Int                          @map("semester_id")
+  semester             Semester                     @relation(fields: [semesterId], references: [id])
+  studentId            Int                          @map("student_id")
+  student              User                         @relation("StudentBM04", fields: [studentId], references: [id])
+  lecturerId           Int                          @map("lecturer_id")
+  lecturer             User                         @relation("LecturerBM04", fields: [lecturerId], references: [id])
+  thesisFormatScore    String                       @map("thesis_format_score") @db.Text
+  researchContentScore String                       @map("research_content_score") @db.Text
+  applicabilityScore   String                       @map("applicability_score") @db.Text
+  attitudeScore        String                       @map("attitude_score") @db.Text
   conclusion           BM04Conclusion
-  generalNotes         String?           @db.Text @map("general_notes")
-  lecturerSignature    String            @map("lecturer_signature")
-  signedAt             DateTime          @default(now()) @map("signed_at")
-  isLocked             Boolean           @default(true) @map("is_locked")
-  policyVersionId      Int?              @map("policy_version_id")
+  generalNotes         String?                      @map("general_notes") @db.Text
+  lecturerSignature    String                       @map("lecturer_signature")
+  signedAt             DateTime                     @default(now()) @map("signed_at")
+  isLocked             Boolean                      @default(true) @map("is_locked")
+  policyVersionId      Int?                         @map("policy_version_id")
   policyVersion        PeriodWorkflowPolicyVersion? @relation("BM04PolicyVersion", fields: [policyVersionId], references: [id], onDelete: Restrict)
-  createdAt            DateTime          @default(now()) @map("created_at")
-  updatedAt            DateTime          @updatedAt @map("updated_at")
+  createdAt            DateTime                     @default(now()) @map("created_at")
+  updatedAt            DateTime                     @updatedAt @map("updated_at")
 
   @@index([semesterId, studentId])
   @@index([policyVersionId])
@@ -1010,35 +1036,35 @@ model BM04Evaluation {
 }
 
 model CheckpointEvaluation {
-  id                     Int                         @id @default(autoincrement())
-  registrationId         Int                         @map("registration_id")
-  checkpointNo           Int                         @map("checkpoint_no")
-  attemptNo              Int                         @default(1) @map("attempt_no")
+  id                     Int                  @id @default(autoincrement())
+  registrationId         Int                  @map("registration_id")
+  checkpointNo           Int                  @map("checkpoint_no")
+  attemptNo              Int                  @default(1) @map("attempt_no")
   conclusion             CheckpointConclusion
-  comments               String?                     @db.Text
-  evidenceUrl            String?                     @map("evidence_url")
-  evidenceName           String?                     @map("evidence_name")
-  mentorSignedById       Int                         @map("mentor_signed_by_id")
-  mentorSignedAt         DateTime                    @default(now()) @map("mentor_signed_at")
-  mentorSignature        String                      @map("mentor_signature")
-  studentSignedById      Int?                        @map("student_signed_by_id")
-  studentSignedAt        DateTime?                   @map("student_signed_at")
-  studentSignature       String?                     @map("student_signature")
-  studentSignDeadlineAt  DateTime?                   @map("student_sign_deadline_at")
-  isAppealed             Boolean                     @default(false) @map("is_appealed")
-  notifiedAt             DateTime?                   @map("notified_at")
-  supersedesEvaluationId Int?                        @unique @map("supersedes_evaluation_id")
-  policyVersionId        Int                         @map("policy_version_id")
-  createdAt              DateTime                    @default(now()) @map("created_at")
-  updatedAt              DateTime                    @updatedAt @map("updated_at")
+  comments               String?              @db.Text
+  evidenceUrl            String?              @map("evidence_url")
+  evidenceName           String?              @map("evidence_name")
+  mentorSignedById       Int                  @map("mentor_signed_by_id")
+  mentorSignedAt         DateTime             @default(now()) @map("mentor_signed_at")
+  mentorSignature        String               @map("mentor_signature")
+  studentSignedById      Int?                 @map("student_signed_by_id")
+  studentSignedAt        DateTime?            @map("student_signed_at")
+  studentSignature       String?              @map("student_signature")
+  studentSignDeadlineAt  DateTime?            @map("student_sign_deadline_at")
+  isAppealed             Boolean              @default(false) @map("is_appealed")
+  notifiedAt             DateTime?            @map("notified_at")
+  supersedesEvaluationId Int?                 @unique @map("supersedes_evaluation_id")
+  policyVersionId        Int                  @map("policy_version_id")
+  createdAt              DateTime             @default(now()) @map("created_at")
+  updatedAt              DateTime             @updatedAt @map("updated_at")
 
-  registration           TopicRegistration           @relation(fields: [registrationId], references: [id], onDelete: Restrict)
-  mentorSignedBy         User                        @relation("CheckpointMentorSignedBy", fields: [mentorSignedById], references: [id], onDelete: Restrict)
-  studentSignedBy        User?                       @relation("CheckpointStudentSignedBy", fields: [studentSignedById], references: [id], onDelete: SetNull)
-  supersedes             CheckpointEvaluation?       @relation("CheckpointSupersession", fields: [supersedesEvaluationId], references: [id], onDelete: Restrict)
-  supersededBy           CheckpointEvaluation?       @relation("CheckpointSupersession")
-  policyVersion          PeriodWorkflowPolicyVersion @relation("CheckpointPolicyVersion", fields: [policyVersionId], references: [id], onDelete: Restrict)
-  appeal                 CheckpointSignatureAppeal?
+  registration    TopicRegistration           @relation(fields: [registrationId], references: [id], onDelete: Restrict)
+  mentorSignedBy  User                        @relation("CheckpointMentorSignedBy", fields: [mentorSignedById], references: [id], onDelete: Restrict)
+  studentSignedBy User?                       @relation("CheckpointStudentSignedBy", fields: [studentSignedById], references: [id], onDelete: SetNull)
+  supersedes      CheckpointEvaluation?       @relation("CheckpointSupersession", fields: [supersedesEvaluationId], references: [id], onDelete: Restrict)
+  supersededBy    CheckpointEvaluation?       @relation("CheckpointSupersession")
+  policyVersion   PeriodWorkflowPolicyVersion @relation("CheckpointPolicyVersion", fields: [policyVersionId], references: [id], onDelete: Restrict)
+  appeal          CheckpointSignatureAppeal?
 
   @@unique([registrationId, checkpointNo, attemptNo])
   @@index([registrationId, checkpointNo])
@@ -1049,27 +1075,27 @@ model CheckpointEvaluation {
 }
 
 model CheckpointSignatureAppeal {
-  id                     Int                  @id @default(autoincrement())
-  checkpointEvaluationId Int                  @unique @map("checkpoint_evaluation_id")
-  registrationId         Int                  @map("registration_id")
-  studentId              Int                  @map("student_id")
-  appealDeadlineAt       DateTime             @map("appeal_deadline_at")
-  submittedAt            DateTime?            @map("submitted_at")
-  reason                 String?              @db.Text
-  evidenceUrl            String?              @map("evidence_url")
-  evidenceName           String?              @map("evidence_name")
+  id                     Int                    @id @default(autoincrement())
+  checkpointEvaluationId Int                    @unique @map("checkpoint_evaluation_id")
+  registrationId         Int                    @map("registration_id")
+  studentId              Int                    @map("student_id")
+  appealDeadlineAt       DateTime               @map("appeal_deadline_at")
+  submittedAt            DateTime?              @map("submitted_at")
+  reason                 String?                @db.Text
+  evidenceUrl            String?                @map("evidence_url")
+  evidenceName           String?                @map("evidence_name")
   status                 CheckpointAppealStatus @default(PENDING)
-  reviewedById           Int?                 @map("reviewed_by_id")
-  reviewedAt             DateTime?            @map("reviewed_at")
-  reviewNotes            String?              @db.Text @map("review_notes")
-  resolutionDecision     String?              @db.Text @map("resolution_decision")
-  createdAt              DateTime             @default(now()) @map("created_at")
-  updatedAt              DateTime             @updatedAt @map("updated_at")
+  reviewedById           Int?                   @map("reviewed_by_id")
+  reviewedAt             DateTime?              @map("reviewed_at")
+  reviewNotes            String?                @map("review_notes") @db.Text
+  resolutionDecision     String?                @map("resolution_decision") @db.Text
+  createdAt              DateTime               @default(now()) @map("created_at")
+  updatedAt              DateTime               @updatedAt @map("updated_at")
 
-  checkpointEvaluation   CheckpointEvaluation @relation(fields: [checkpointEvaluationId], references: [id], onDelete: Restrict)
-  registration           TopicRegistration    @relation(fields: [registrationId], references: [id], onDelete: Restrict)
-  student                User                 @relation("CheckpointAppealStudent", fields: [studentId], references: [id], onDelete: Restrict)
-  reviewedBy             User?                @relation("CheckpointAppealReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  checkpointEvaluation CheckpointEvaluation @relation(fields: [checkpointEvaluationId], references: [id], onDelete: Restrict)
+  registration         TopicRegistration    @relation(fields: [registrationId], references: [id], onDelete: Restrict)
+  student              User                 @relation("CheckpointAppealStudent", fields: [studentId], references: [id], onDelete: Restrict)
+  reviewedBy           User?                @relation("CheckpointAppealReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
 
   @@index([registrationId, status])
   @@index([studentId])
@@ -1078,20 +1104,20 @@ model CheckpointSignatureAppeal {
 }
 
 model MentorTransfer {
-  id               Int               @id @default(autoincrement())
-  registrationId   Int               @map("registration_id")
-  previousMentorId Int               @map("previous_mentor_id")
-  newMentorId      Int               @map("new_mentor_id")
-  reason           String            @db.Text
-  effectiveAt      DateTime          @default(now()) @map("effective_at")
-  approvedById     Int               @map("approved_by_id")
-  idempotencyKey   String            @unique @map("idempotency_key")
-  createdAt        DateTime          @default(now()) @map("created_at")
+  id               Int      @id @default(autoincrement())
+  registrationId   Int      @map("registration_id")
+  previousMentorId Int      @map("previous_mentor_id")
+  newMentorId      Int      @map("new_mentor_id")
+  reason           String   @db.Text
+  effectiveAt      DateTime @default(now()) @map("effective_at")
+  approvedById     Int      @map("approved_by_id")
+  idempotencyKey   String   @unique @map("idempotency_key")
+  createdAt        DateTime @default(now()) @map("created_at")
 
-  registration     TopicRegistration @relation(fields: [registrationId], references: [id], onDelete: Restrict)
-  previousMentor   User              @relation("PreviousMentor", fields: [previousMentorId], references: [id], onDelete: Restrict)
-  newMentor        User              @relation("NewMentor", fields: [newMentorId], references: [id], onDelete: Restrict)
-  approvedBy       User              @relation("ApprovedMentorTransfer", fields: [approvedById], references: [id], onDelete: Restrict)
+  registration   TopicRegistration @relation(fields: [registrationId], references: [id], onDelete: Restrict)
+  previousMentor User              @relation("PreviousMentor", fields: [previousMentorId], references: [id], onDelete: Restrict)
+  newMentor      User              @relation("NewMentor", fields: [newMentorId], references: [id], onDelete: Restrict)
+  approvedBy     User              @relation("ApprovedMentorTransfer", fields: [approvedById], references: [id], onDelete: Restrict)
 
   @@index([registrationId, effectiveAt])
   @@index([previousMentorId])

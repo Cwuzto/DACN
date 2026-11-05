@@ -82,11 +82,28 @@ const authenticate = async (req, res, next) => {
             });
         }
 
+        const now = new Date();
+            let activeDelegations = [];
+        if (prisma.academicDelegation?.findMany) {
+            activeDelegations = await prisma.academicDelegation.findMany({
+                where: {
+                    delegateeId: user.id,
+                    status: 'ACTIVE',
+                    effectiveFrom: { lte: now },
+                    effectiveTo: { gte: now },
+                },
+                select: { capabilityCode: true },
+            });
+        }
+
         const permissionSet = new Set();
         (user.permissionGroups || []).forEach(({ permissionGroup }) => {
             (permissionGroup?.permissions || []).forEach(({ permission }) => {
                 if (permission?.code) permissionSet.add(permission.code);
             });
+        });
+        (activeDelegations || []).forEach(({ capabilityCode }) => {
+            if (capabilityCode) permissionSet.add(capabilityCode);
         });
         req.user = {
             ...user,
@@ -245,11 +262,28 @@ const optionalAuthenticate = async (req, res, next) => {
             },
         });
         if (user && user.isActive) {
-            const permissionSet = new Set();
+            const now = new Date();
+            let activeDelegations = [];
+        if (prisma.academicDelegation?.findMany) {
+            activeDelegations = await prisma.academicDelegation.findMany({
+                where: {
+                    delegateeId: user.id,
+                    status: 'ACTIVE',
+                    effectiveFrom: { lte: now },
+                    effectiveTo: { gte: now },
+                },
+                select: { capabilityCode: true },
+            });
+        }
+
+        const permissionSet = new Set();
             user.permissionGroups.forEach(({ permissionGroup }) => {
                 permissionGroup.permissions.forEach(({ permission }) => permissionSet.add(permission.code));
             });
-            req.user = {
+            (activeDelegations || []).forEach(({ capabilityCode }) => {
+            if (capabilityCode) permissionSet.add(capabilityCode);
+        });
+        req.user = {
                 ...user,
                 permissionGroups: user.permissionGroups.map(({ permissionGroup }) => permissionGroup.code),
                 permissions: [...permissionSet],

@@ -75,9 +75,25 @@ const login = async (req, res, next) => {
         );
 
         // 6. Trả kết quả (không trả passwordHash)
+        let activeDelegations = [];
+        if (prisma.academicDelegation?.findMany) {
+            const now = new Date();
+            activeDelegations = await prisma.academicDelegation.findMany({
+                where: {
+                    delegateeId: user.id,
+                    status: 'ACTIVE',
+                    effectiveFrom: { lte: now },
+                    effectiveTo: { gte: now },
+                },
+                select: { capabilityCode: true },
+            });
+        }
         const permissions = (user.permissionGroups || []).flatMap((group) =>
             (group.permissionGroup?.permissions || []).map((item) => item.permission?.code).filter(Boolean)
         );
+        (activeDelegations || []).forEach(({ capabilityCode }) => {
+            if (capabilityCode) permissions.push(capabilityCode);
+        });
         const groupCodes = (user.permissionGroups || [])
             .map((group) => group.permissionGroup?.code)
             .filter(Boolean);
