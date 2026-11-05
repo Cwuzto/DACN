@@ -293,8 +293,10 @@ const optionalAuthenticate = async (req, res, next) => {
         }
 
         const permissionSet = new Set();
-            user.permissionGroups.forEach(({ permissionGroup }) => {
-                permissionGroup.permissions.forEach(({ permission }) => permissionSet.add(permission.code));
+            (user.permissionGroups || []).forEach(({ permissionGroup }) => {
+                (permissionGroup?.permissions || []).forEach(({ permission }) => {
+                    if (permission?.code) permissionSet.add(permission.code);
+                });
             });
             (activeDelegations || []).forEach(({ capabilityCode }) => {
             if (capabilityCode) permissionSet.add(capabilityCode);
