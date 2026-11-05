@@ -3,7 +3,7 @@ require('dotenv').config();
 const bcrypt = require('bcryptjs');
 const prisma = require('../src/config/database');
 const { seedPermissionCatalog } = require('../src/services/permissionService');
-const { buildAccounts, buildMentorAssignments, DEMO_CALENDAR } = require('../scripts/seed/demoFixtures');
+const { buildAccounts } = require('../scripts/seed/demoFixtures');
 const { resetApplicationData, describeDatabaseTarget } = require('../scripts/seed/resetApplicationData');
 const { seedAcademicFixtures, seedDefenseEvidenceAndPublications } = require('../scripts/seed/workflowFixtures');
 const { validateDemoSeed } = require('../scripts/seed/validateDemoSeed');
@@ -47,16 +47,33 @@ async function main() {
     await seedPermissionCatalog(tx);
     const accountsByEmail = await createAccounts(tx);
     await assignPermissionGroups(tx, accountsByEmail);
-    const seededAcademic = await seedAcademicFixtures({ prisma: tx, accountsByEmail, calendar: DEMO_CALENDAR });
+    const seededAcademic = await seedAcademicFixtures({ prisma: tx, accountsByEmail });
     const seededPublications = await seedDefenseEvidenceAndPublications({ prisma: tx, context: seededAcademic, fixtures: seededAcademic.registrations });
     const seededSummary = await validateDemoSeed(tx);
     return { academic: seededAcademic, publications: seededPublications, summary: seededSummary };
   }, { timeout: 120000, maxWait: 30000 });
   console.log('[seed] Controlled demo seed complete.');
-  console.table({ ...summary, semester: academic.semester.name, mentorAssignments: buildMentorAssignments().length, publications: Object.keys(publications).length });
-  console.log('[seed] Login: admin@university.edu.vn / admin123');
-  console.log('[seed] Login: lecturer01@university.edu.vn / lecturer123 (Viện trưởng + GVHD sv001–sv010)');
-  console.log('[seed] Login: sv001@university.edu.vn / student123');
+  console.table({
+    ...summary,
+    pastSemester: academic.semesters.pastSemester.name,
+    period2Supplementary: academic.semesters.period2Supplementary.name,
+    period1Main: academic.semesters.period1Main.name,
+    publications: Object.keys(publications).length,
+  });
+  console.log('[seed] Test Account Credentials:');
+  console.log('[seed] - Admin: admin@university.edu.vn / admin123');
+  console.log('[seed] - Viện trưởng: lecturer01@university.edu.vn / lecturer123');
+  console.log('[seed] - GV ủy quyền BM02: lecturer02@university.edu.vn / lecturer123');
+  console.log('[seed] - Kỳ cũ tốt nghiệp: sv001@university.edu.vn / student123');
+  console.log('[seed] - Đợt 2 chưa ĐK: sv031@university.edu.vn / student123');
+  console.log('[seed] - Đợt 2 chờ duyệt: sv041@university.edu.vn / student123');
+  console.log('[seed] - Đợt 2 sửa BM01: sv051@university.edu.vn / student123');
+  console.log('[seed] - Đợt 2 duyệt BM02: sv056@university.edu.vn / student123');
+  console.log('[seed] - Đợt 1 QĐ giao: sv061@university.edu.vn / student123');
+  console.log('[seed] - Đợt 1 Checkpoint: sv071@university.edu.vn / student123');
+  console.log('[seed] - Đợt 1 Khiếu nại chữ ký: sv085@university.edu.vn / student123');
+  console.log('[seed] - Đợt 1 Đánh giá BM04: sv086@university.edu.vn / student123');
+  console.log('[seed] - Đợt 1 Hội đồng bảo vệ: sv096@university.edu.vn / student123');
 }
 
 main()
