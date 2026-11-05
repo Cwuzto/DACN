@@ -286,6 +286,83 @@ const getRecentActivities = async (req, res, next) => {
     }
 };
 
+const fetchLecturerDashboardData = async (mentorId, semesterId) => {
+    return Promise.all([
+        prisma.topic.count({
+            where: {
+                mentorId,
+                semesterId,
+                status: { not: 'REJECTED' },
+            },
+        }),
+        prisma.topicRegistration.count({
+            where: {
+                semesterId,
+                topic: { mentorId },
+                status: { in: ACTIVE_REGISTRATION_STATUSES },
+            },
+        }),
+        prisma.topicRegistration.count({
+            where: {
+                semesterId,
+                topic: { mentorId },
+                status: { in: ['DEFENDED', 'COMPLETED'] },
+            },
+        }),
+        prisma.submission.findMany({
+            where: {
+                feedback: null,
+                task: {
+                    status: 'SUBMITTED',
+                },
+                registration: {
+                    semesterId,
+                    topic: { mentorId },
+                },
+            },
+            include: {
+                task: { select: { title: true } },
+                student: { select: { fullName: true, code: true } },
+                registration: {
+                    select: {
+                        id: true,
+                        topic: { select: { title: true } },
+                    },
+                },
+            },
+            orderBy: { submittedAt: 'desc' },
+            take: 5,
+        }),
+        prisma.task.findMany({
+            where: {
+                dueDate: { gt: new Date() },
+                registration: {
+                    semesterId,
+                    topic: { mentorId },
+                    status: { in: ACTIVE_REGISTRATION_STATUSES },
+                },
+            },
+            include: {
+                registration: {
+                    select: {
+                        student: { select: { fullName: true, code: true } },
+                    },
+                },
+            },
+            orderBy: { dueDate: 'asc' },
+            take: 5,
+        }),
+        prisma.topicRegistration.count({
+            where: {
+                semesterId,
+                status: 'PENDING',
+                createdAt: { lte: getPendingCutoffDate() },
+                topic: { mentorId },
+            },
+        }),
+    ]);
+};
+
 /**
  * GET /api/dashboard/lecturer
  * Dashboard cho giảng viên
@@ -293,7 +370,7 @@ const getRecentActivities = async (req, res, next) => {
 const getLecturerDashboard = async (req, res, next) => {
     try {
         const mentorId = req.user.id;
-        const activeSemester = await getDefaultSemester({
+        let activeSemester = await getDefaultSemester({
             id: true,
             name: true,
             startDate: true,
@@ -318,80 +395,76 @@ const getLecturerDashboard = async (req, res, next) => {
             });
         }
 
-        const [activeTopics, activeRegistrations, completedRegistrations, pendingFeedbackSubmissions, upcomingTasks, stalePendingRegistrations] = await Promise.all([
-            prisma.topic.count({
+        let [
+            activeTopics,
+            activeRegistrations,
+            completedRegistrations,
+            pendingFeedbackSubmissions,
+            upcomingTasks,
+            stalePendingRegistrations,
+        ] = await fetchLecturerDashboardData(mentorId, activeSemester.id);
+
+        if (activeRegistrations === 0 && activeTopics === 0) {
+            const fallbackRegistration = await prisma.topicRegistration.findFirst({
                 where: {
-                    mentorId,
-                    semesterId: activeSemester.id,
+                    topic: { mentorId },
+                    semester: { status: { in: ['REGISTRATION', 'ONGOING', 'DEFENSE'] } },
                     status: { not: 'REJECTED' },
                 },
-            }),
-            prisma.topicRegistration.count({
-                where: {
-                    semesterId: activeSemester.id,
-                    topic: { mentorId },
-                    status: { in: ACTIVE_REGISTRATION_STATUSES },
-                },
-            }),
-            prisma.topicRegistration.count({
-                where: {
-                    semesterId: activeSemester.id,
-                    topic: { mentorId },
-                    status: { in: ['DEFENDED', 'COMPLETED'] },
-                },
-            }),
-            prisma.submission.findMany({
-                where: {
-                    feedback: null,
-                    task: {
-                        status: 'SUBMITTED',
-                    },
-                    registration: {
-                        semesterId: activeSemester.id,
-                        topic: { mentorId },
-                    },
-                },
                 include: {
-                    task: { select: { title: true } },
-                    student: { select: { fullName: true, code: true } },
-                    registration: {
+                    semester: {
                         select: {
                             id: true,
-                            topic: { select: { title: true } },
+                            name: true,
+                            startDate: true,
+                            registrationDeadline: true,
+                            endDate: true,
                         },
                     },
                 },
-                orderBy: { submittedAt: 'desc' },
-                take: 5,
-            }),
-            prisma.task.findMany({
-                where: {
-                    dueDate: { gt: new Date() },
-                    registration: {
-                        semesterId: activeSemester.id,
-                        topic: { mentorId },
-                        status: { in: ACTIVE_REGISTRATION_STATUSES },
+                orderBy: { createdAt: 'desc' },
+            });
+
+            let fallbackSemester = fallbackRegistration?.semester;
+
+            if (!fallbackSemester) {
+                const fallbackTopic = await prisma.topic.findFirst({
+                    where: {
+                        mentorId,
+                        semester: { status: { in: ['REGISTRATION', 'ONGOING', 'DEFENSE'] } },
+                        status: { not: 'REJECTED' },
                     },
-                },
-                include: {
-                    registration: {
-                        select: {
-                            student: { select: { fullName: true, code: true } },
+                    include: {
+                        semester: {
+                            select: {
+                                id: true,
+                                name: true,
+                                startDate: true,
+                                registrationDeadline: true,
+                                endDate: true,
+                            },
                         },
                     },
-                },
-                orderBy: { dueDate: 'asc' },
-                take: 5,
-            }),
-            prisma.topicRegistration.count({
-                where: {
-                    semesterId: activeSemester.id,
-                    status: 'PENDING',
-                    createdAt: { lte: getPendingCutoffDate() },
-                    topic: { mentorId },
-                },
-            }),
-        ]);
+                    orderBy: { createdAt: 'desc' },
+                });
+
+                if (fallbackTopic?.semester) {
+                    fallbackSemester = fallbackTopic.semester;
+                }
+            }
+
+            if (fallbackSemester && fallbackSemester.id !== activeSemester.id) {
+                activeSemester = fallbackSemester;
+                [
+                    activeTopics,
+                    activeRegistrations,
+                    completedRegistrations,
+                    pendingFeedbackSubmissions,
+                    upcomingTasks,
+                    stalePendingRegistrations,
+                ] = await fetchLecturerDashboardData(mentorId, activeSemester.id);
+            }
+        }
 
         const recentSubmissions = pendingFeedbackSubmissions.map((submission) => ({
             id: submission.id,
@@ -439,7 +512,7 @@ const getLecturerDashboard = async (req, res, next) => {
 const getStudentDashboard = async (req, res, next) => {
     try {
         const studentId = req.user.id;
-        const activeSemester = await getDefaultSemester({
+        let activeSemester = await getDefaultSemester({
             id: true,
             name: true,
             startDate: true,
@@ -460,7 +533,7 @@ const getStudentDashboard = async (req, res, next) => {
             });
         }
 
-        const registration = await prisma.topicRegistration.findFirst({
+        let registration = await prisma.topicRegistration.findFirst({
             where: {
                 studentId,
                 semesterId: activeSemester.id,
@@ -485,6 +558,31 @@ const getStudentDashboard = async (req, res, next) => {
             },
             orderBy: { createdAt: 'desc' },
         });
+
+        if (!registration) {
+            const activeRegistration = await prisma.topicRegistration.findFirst({
+                where: {
+                    studentId,
+                    semester: { status: { in: ['REGISTRATION', 'ONGOING', 'DEFENSE'] } },
+                    status: { not: 'REJECTED' },
+                },
+                include: {
+                    student: { select: { id: true, fullName: true, code: true } },
+                    topic: { include: { mentor: { select: { fullName: true } } } },
+                    tasks: {
+                        include: { submissions: { where: { submittedBy: studentId } } },
+                        orderBy: { dueDate: 'asc' },
+                    },
+                    defenseResult: true,
+                    semester: true,
+                },
+                orderBy: { createdAt: 'desc' },
+            });
+            if (activeRegistration) {
+                registration = activeRegistration;
+                activeSemester = activeRegistration.semester;
+            }
+        }
 
         if (!registration) {
             return res.json({
