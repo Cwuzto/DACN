@@ -239,12 +239,15 @@ describe('Council Chairman Outline Review BM01 (Task 10)', () => {
             },
         });
 
-        // 2. Includes submissions, student.class, mentor.email, and detailed outlineCouncil
+        // 2. Includes submissions, student details, mentor.email, and detailed outlineCouncil
         expect(findManyArgs.include.submissions).toEqual({
             orderBy: { submittedAt: 'desc' },
             take: 5,
         });
-        expect(findManyArgs.include.student.select.class).toBe(true);
+        expect(findManyArgs.include.student.select.id).toBe(true);
+        expect(findManyArgs.include.student.select.fullName).toBe(true);
+        expect(findManyArgs.include.student.select.code).toBe(true);
+        expect(findManyArgs.include.student.select.email).toBe(true);
         expect(findManyArgs.include.topic.select.mentor.select.email).toBe(true);
         expect(findManyArgs.include.outlineCouncil.include.members).toBeDefined();
     });

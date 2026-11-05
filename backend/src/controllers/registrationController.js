@@ -513,7 +513,7 @@ const getAllRegistrations = async (req, res, next) => {
         const registrations = await prisma.topicRegistration.findMany({
             where,
             include: {
-                student: { select: { id: true, fullName: true, code: true, email: true, class: true } },
+                student: { select: { id: true, fullName: true, code: true, email: true, department: true } },
                 topic: { select: { id: true, title: true, mentorId: true, mentor: { select: { id: true, fullName: true, email: true } } } },
                 council: { select: { id: true, name: true, councilType: true, defenseDate: true, location: true } },
                 outlineCouncil: {
