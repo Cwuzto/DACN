@@ -1557,8 +1557,8 @@ const submitBM04Evaluation = async (req, res, next) => {
         const userId = req.user.id;
         const role = req.user.role;
 
-        const regIdInt = parseInt(registrationId, 10);
-        if (!Number.isInteger(regIdInt) || regIdInt <= 0) {
+        const parsedRegistrationId = parseInt(registrationId, 10);
+        if (!Number.isInteger(parsedRegistrationId) || parsedRegistrationId <= 0) {
             return res.status(400).json({ success: false, message: 'registrationId không hợp lệ.' });
         }
 
@@ -1572,7 +1572,7 @@ const submitBM04Evaluation = async (req, res, next) => {
         const idempotencyKey = getIdempotencyKey(req) || req.body?.idempotencyKey;
 
         const result = await submitBM04({
-            registrationId: regIdInt,
+            registrationId: parsedRegistrationId,
             actorId: userId,
             thesisFormatScore,
             researchContentScore,
@@ -1587,7 +1587,7 @@ const submitBM04Evaluation = async (req, res, next) => {
         const isAgreed = conclusion === 'AGREED_FOR_DEFENSE';
 
         const registration = await prisma.topicRegistration.findUnique({
-            where: { id: regIdInt },
+            where: { id: parsedRegistrationId },
             include: { topic: true },
         });
 
@@ -1611,7 +1611,7 @@ const submitBM04Evaluation = async (req, res, next) => {
                 'SUBMIT_BM04_EVALUATION',
                 'BM04Evaluation',
                 result.id || result.evaluationId,
-                { registrationId: regIdInt, conclusion, isLocked: true },
+                { registrationId: parsedRegistrationId, conclusion, isLocked: true },
                 getRequestIp(req),
             );
         }
@@ -1821,7 +1821,7 @@ const getCheckpointAppeals = async (req, res, next) => {
                         id: true,
                         checkpointNo: true,
                         attemptNo: true,
-                        status: true,
+                        conclusion: true,
                         studentSignDeadlineAt: true,
                         isAppealed: true,
                     },
@@ -1838,9 +1838,26 @@ const getCheckpointAppeals = async (req, res, next) => {
 
 const getCheckpointEvaluations = async (req, res, next) => {
     try {
-        const regIdInt = parseInt(req.params.registrationId, 10);
+        const targetRegistrationId = parsePositiveInt(req.params.registrationId);
+        if (!targetRegistrationId) {
+            return res.status(400).json({ success: false, message: 'registrationId không hợp lệ.' });
+        }
+
+        const registration = await prisma.topicRegistration.findUnique({
+            where: { id: targetRegistrationId },
+            select: { id: true, studentId: true, topic: { select: { mentorId: true } } },
+        });
+
+        if (!registration) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy hồ sơ đăng ký.' });
+        }
+
+        if (req.user?.role === 'STUDENT' && registration.studentId !== req.user.id) {
+            return res.status(403).json({ success: false, message: 'Bạn không có quyền xem tiến độ của sinh viên khác.' });
+        }
+
         const evaluations = await prisma.checkpointEvaluation.findMany({
-            where: { registrationId: regIdInt },
+            where: { registrationId: targetRegistrationId },
             include: {
                 mentorSignedBy: { select: { id: true, fullName: true, code: true } },
                 studentSignedBy: { select: { id: true, fullName: true, code: true } },
