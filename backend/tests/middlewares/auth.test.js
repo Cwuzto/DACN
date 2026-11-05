@@ -68,6 +68,31 @@ describe('auth middleware authenticate', () => {
         );
         expect(next).toHaveBeenCalledTimes(1);
     });
+
+    test('does NOT auto-grant SYSTEM_ADMIN_CORE_PERMISSIONS based on role ADMIN (Capability-First No Backdoor)', async () => {
+        jwt.verify.mockReturnValue({ userId: 11, role: 'ADMIN' });
+        prisma.user.findUnique.mockResolvedValue({
+            id: 11,
+            email: 'admin@example.com',
+            fullName: 'Admin User',
+            code: 'AD001',
+            role: 'ADMIN',
+            department: 'PDT',
+            isActive: true,
+            permissionGroups: [],
+        });
+
+        const req = createMockReq({
+            headers: { authorization: 'Bearer valid-token' },
+        });
+        const res = createMockRes();
+        const next = createNext();
+
+        await authenticate(req, res, next);
+
+        expect(next).toHaveBeenCalledTimes(1);
+        expect(req.user.permissions).toEqual([]);
+    });
 });
 
 describe('auth middleware capability guards', () => {

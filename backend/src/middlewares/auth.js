@@ -111,9 +111,7 @@ const authenticate = async (req, res, next) => {
         if (user.role === 'STUDENT' && permissionSet.size === 0) {
             studentBasePermissions.forEach((code) => permissionSet.add(code));
         } else if (user.permissionGroups === undefined && permissionSet.size === 0) {
-            const defaultGroupCode = user.role === 'LECTURER' ? 'GVHD'
-                : user.role === 'ADMIN' ? 'QUAN_TRI_VIEN'
-                : null;
+            const defaultGroupCode = user.role === 'LECTURER' ? 'GVHD' : null;
             if (defaultGroupCode) {
                 const group = DEFAULT_GROUPS.find((g) => g.code === defaultGroupCode);
                 if (group) {
@@ -304,9 +302,7 @@ const optionalAuthenticate = async (req, res, next) => {
         if (user.role === 'STUDENT' && permissionSet.size === 0) {
             studentBasePermissions.forEach((code) => permissionSet.add(code));
         } else if (user.permissionGroups === undefined && permissionSet.size === 0) {
-            const defaultGroupCode = user.role === 'LECTURER' ? 'GVHD'
-                : user.role === 'ADMIN' ? 'QUAN_TRI_VIEN'
-                : null;
+            const defaultGroupCode = user.role === 'LECTURER' ? 'GVHD' : null;
             if (defaultGroupCode) {
                 const group = DEFAULT_GROUPS.find((g) => g.code === defaultGroupCode);
                 if (group) {

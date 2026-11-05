@@ -291,7 +291,7 @@ const bulkUpdatePermissionMatrix = async (payload, actor) => {
     const [existingGroups, existingPermissions, managePermission] = await Promise.all([
       tx.permissionGroup.findMany({
         where: { id: { in: groupIds } },
-        select: { id: true },
+        select: { id: true, code: true, name: true, isSystem: true },
       }),
       permissionIds.length > 0
         ? tx.permission.findMany({
@@ -310,6 +310,15 @@ const bulkUpdatePermissionMatrix = async (payload, actor) => {
       const missingIds = groupIds.filter((id) => !existingIds.has(id));
       throw createMatrixError(400, `Nhóm quyền không tồn tại: ${missingIds.join(', ')}.`);
     }
+
+    const systemGroups = existingGroups.filter((g) => g.isSystem);
+    if (systemGroups.length > 0) {
+      const names = systemGroups.map((g) => g.name || g.code || g.id).join(', ');
+      const error = createMatrixError(403, `Không thể chỉnh sửa nhóm quyền hệ thống: ${names}.`);
+      error.code = 'CANNOT_MODIFY_SYSTEM_GROUP';
+      throw error;
+    }
+
     if (existingPermissions.length !== permissionIds.length) {
       const existingIds = new Set(existingPermissions.map(({ id }) => id));
       const missingIds = permissionIds.filter((id) => !existingIds.has(id));

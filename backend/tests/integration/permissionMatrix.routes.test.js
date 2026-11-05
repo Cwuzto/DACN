@@ -218,6 +218,21 @@ describe('Integration - Permission Matrix Routes', () => {
         expect(mockPrisma.permissionGroupPermission.deleteMany).not.toHaveBeenCalled();
     });
 
+    test('POST /api/permissions/matrix/bulk trả 403 khi cố chỉnh sửa nhóm quyền hệ thống', async () => {
+        mockPrisma.permissionGroup.findMany.mockResolvedValue([
+            { id: 1, code: 'QUAN_TRI_VIEN', name: 'Quản trị viên', isSystem: true },
+        ]);
+
+        const res = await request(app)
+            .post('/api/permissions/matrix/bulk')
+            .set('Authorization', 'Bearer admin-token')
+            .send([{ role_id: 1, permission_ids: [10] }]);
+
+        expect(res.status).toBe(403);
+        expect(res.body.message).toMatch(/Không thể chỉnh sửa nhóm quyền hệ thống/);
+        expect(mockPrisma.permissionGroupPermission.deleteMany).not.toHaveBeenCalled();
+    });
+
     test('POST /api/permissions/matrix/bulk trả 409 và rollback khi xóa quyền quản trị cuối cùng', async () => {
         mockPrisma.permissionGroupPermission.count.mockResolvedValue(0);
 

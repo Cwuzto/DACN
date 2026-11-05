@@ -133,4 +133,56 @@ describe('Permission catalog invariants & 2-tier capability foundation', () => {
             expect(grantable.includes(techPerm)).toBe(false);
         }
     });
+
+    test('defines QUAN_TRI_VIEN group with isSystem: true, operational council rights, and ZERO academic decision rights', () => {
+        const adminGroup = DEFAULT_GROUPS.find((group) => group.code === 'QUAN_TRI_VIEN');
+        expect(adminGroup).toBeDefined();
+        expect(adminGroup.isSystem).toBe(true);
+
+        const perms = new Set(adminGroup.permissions);
+
+        // Must have technical and operational governance
+        const requiredOperationalPermissions = [
+            'USER_MANAGE',
+            'USER_IMPORT',
+            'PERMISSION_GROUP_MANAGE',
+            'SEMESTER_MANAGE',
+            'PROJECT_CATALOG_MANAGE',
+            'ENROLLMENT_MANAGE',
+            'RUBRIC_MANAGE',
+            'NOTIFICATION_MANAGE',
+            'PROJECT_OVERSIGHT_MANAGE',
+            'PUBLIC_ANNOUNCEMENT_MANAGE',
+            'PORTAL_CONTENT_MANAGE',
+            'REPORT_VIEW',
+            'DEFENSE_COUNCIL_MANAGE',
+            'OUTLINE_COUNCIL_MANAGE',
+            'LECTURER_DIRECTORY_VIEW',
+            'DEFENSE_SCORE_VIEW',
+        ];
+        for (const p of requiredOperationalPermissions) {
+            expect(perms.has(p)).toBe(true);
+        }
+
+        // Must NEVER have academic decision or scoring capabilities (Zero-Trust Admin)
+        const strictlyForbiddenAcademicPermissions = [
+            'RESULT_LOCK',
+            'DEFENSE_RESULT_APPROVE',
+            'RESULT_PUBLISH',
+            'RESULT_PUBLICATION_PUBLISH',
+            'PROJECT_ASSIGNMENT_PUBLISH',
+            'DECISION_AMENDMENT_SIGN',
+            'DEFENSE_SCORE_SUBMIT',
+            'PERMISSION_ASSIGN_ACADEMIC',
+            'MENTOR_ASSIGN',
+            'TOPIC_REVIEW',
+            'OUTLINE_APPROVE',
+            'BM02_REVIEW',
+            'BM03_CHECKPOINT_DECIDE',
+            'BM04_SUBMIT',
+        ];
+        for (const forbidden of strictlyForbiddenAcademicPermissions) {
+            expect(perms.has(forbidden)).toBe(false);
+        }
+    });
 });
