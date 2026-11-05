@@ -75,7 +75,7 @@ const mapPermissions = async (tx, codes) => {
 
 const setUserGroups = async (userId, groupIds, actor) => {
   const userIdInt = parseInt(userId, 10);
-  const groupIdsInt = Array.isArray(groupIds) ? groupIds.map((value) => parseInt(value, 10)) : [];
+  const groupIdsInt = Array.isArray(groupIds) ? [...new Set(groupIds.map((value) => parseInt(value, 10)).filter((v) => !isNaN(v)))] : [];
 
   if (actor?.id && userIdInt === actor.id) {
     const error = new Error('Không thể tự gán nhóm quyền cho chính mình.');

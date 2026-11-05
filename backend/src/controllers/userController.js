@@ -429,7 +429,7 @@ const updateUserPermissionGroups = async (req, res, next) => {
             return res.status(400).json({ success: false, message: 'groupIds phải là mảng.' });
         }
 
-        const groupIdsInt = groupIds.map((v) => parseInt(v, 10)).filter((v) => !isNaN(v));
+        const groupIdsInt = [...new Set(groupIds.map((v) => parseInt(v, 10)).filter((v) => !isNaN(v)))];
         const selectedGroups = await prisma.permissionGroup.findMany({
             where: { id: { in: groupIdsInt } },
             select: { id: true, code: true, isSystem: true },

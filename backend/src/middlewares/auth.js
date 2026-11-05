@@ -65,7 +65,7 @@ const authenticate = async (req, res, next) => {
             });
         }
 
-        const isGetMe = Boolean((req.originalUrl && req.originalUrl.includes('/api/auth/me')) || req.path === '/me');
+        const isGetMe = req.method === 'GET' && Boolean((req.originalUrl && req.originalUrl.includes('/api/auth/me')) || req.path === '/me');
         const tokenVersion = decoded.permissionVersion;
         const userVersion = user.permissionVersion;
 
