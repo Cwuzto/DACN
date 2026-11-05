@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const { authenticate, authorizePermission, authorizeRoleOrPermission } = require('../middlewares/auth');
+const { authenticate, authorizePermission } = require('../middlewares/auth');
 const { PERMISSIONS } = require('../constants/permissions');
 const {
     getAllTopics,
@@ -22,8 +22,8 @@ router.get('/', getAllTopics);
 // GET /api/topics/:id - Chi tiết đề tài
 router.get('/:id', getTopicById);
 
-// POST /api/topics - Tạo đề tài (Admin/Lecturer đăng tải, Student đề xuất)
-router.post('/', authorizeRoleOrPermission(['STUDENT'], [PERMISSIONS.TOPIC_CREATE]), createTopic);
+// POST /api/topics - Tạo đề tài (Admin/Lecturer đăng tải qua TOPIC_CREATE, Student đề xuất qua REGISTER_TOPIC)
+router.post('/', authorizePermission(PERMISSIONS.TOPIC_CREATE, PERMISSIONS.REGISTER_TOPIC), createTopic);
 
 // PUT /api/topics/:id - Cập nhật đề tài
 router.put('/:id', authorizePermission(PERMISSIONS.TOPIC_UPDATE_OWN), updateTopic);

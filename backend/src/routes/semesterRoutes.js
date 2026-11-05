@@ -20,16 +20,22 @@ router.patch(
     semesterController.toggleSemesterRegistration
 );
 router.post(
-    '/:id/issue-decision',
+    ['/:id/issue-decision', '/:id/decisions'],
     authenticate,
     authorizePermission(PERMISSIONS.PROJECT_ASSIGNMENT_PUBLISH),
     semesterController.issuePeriodDecision
 );
 router.post(
-    '/decisions/:decisionId/amendments',
+    ['/decisions/:decisionId/amendments', '/:id/decisions/amendments'],
     authenticate,
-    authorizePermission(PERMISSIONS.PROJECT_ASSIGNMENT_PUBLISH),
+    authorizePermission(PERMISSIONS.PROJECT_ASSIGNMENT_PUBLISH, PERMISSIONS.DECISION_AMENDMENT_SIGN),
     [
+        (req, res, next) => {
+            if (!req.params.decisionId && req.params.id) {
+                req.params.decisionId = req.params.id;
+            }
+            next();
+        },
         param('decisionId').isInt({ min: 1 }).withMessage('decisionId phải là số nguyên dương.'),
         body('amendmentNumber').isString().trim().notEmpty().withMessage('amendmentNumber là bắt buộc.'),
         body('reason').isString().trim().notEmpty().withMessage('reason là bắt buộc.'),

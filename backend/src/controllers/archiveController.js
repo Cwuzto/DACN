@@ -71,7 +71,7 @@ const isResultPublished = async (registration) => {
 // 1. Lay thong tin ho so luu chieu cua 1 de tai
 const getArchiveByRegistration = async (req, res, next) => {
     try {
-        const registrationId = parsePositiveInt(req.params.registrationId);
+        const registrationId = parsePositiveInt(req.params.registrationId) || parsePositiveInt(req.body.registrationId);
         if (!registrationId) {
             return res.status(400).json({ success: false, message: 'registrationId không hợp lệ.' });
         }
@@ -167,7 +167,7 @@ const getArchiveByRegistration = async (req, res, next) => {
 // 2. Sinh vien nop hoac cap nhat ho so luu chieu
 const submitArchive = async (req, res, next) => {
     try {
-        const registrationId = parsePositiveInt(req.params.registrationId);
+        const registrationId = parsePositiveInt(req.params.registrationId) || parsePositiveInt(req.body.registrationId);
         if (!registrationId) {
             return res.status(400).json({ success: false, message: 'registrationId không hợp lệ.' });
         }
@@ -284,7 +284,7 @@ const submitArchive = async (req, res, next) => {
 // 3. GVHD hoac Admin nghiem thu ho so luu chieu
 const reviewArchive = async (req, res, next) => {
     try {
-        const registrationId = parsePositiveInt(req.params.registrationId);
+        const registrationId = parsePositiveInt(req.params.registrationId) || parsePositiveInt(req.body.registrationId);
         if (!registrationId) {
             return res.status(400).json({ success: false, message: 'registrationId không hợp lệ.' });
         }
@@ -495,7 +495,7 @@ const getAllArchives = async (req, res, next) => {
 // 5. Trich xuat Giay Xac Nhan Hoan Thanh Do An (Clearance Certificate)
 const getClearanceCertificate = async (req, res, next) => {
     try {
-        const registrationId = parsePositiveInt(req.params.registrationId);
+        const registrationId = parsePositiveInt(req.params.registrationId) || parsePositiveInt(req.body.registrationId);
         if (!registrationId) {
             return res.status(400).json({ success: false, message: 'registrationId không hợp lệ.' });
         }

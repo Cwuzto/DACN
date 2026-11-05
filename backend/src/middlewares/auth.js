@@ -1,6 +1,9 @@
 const jwt = require('jsonwebtoken');
 const prisma = require('../config/database');
-const { PERMISSION_CATALOG } = require('../constants/permissions');
+const { PERMISSION_CATALOG, DEFAULT_GROUPS } = require('../constants/permissions');
+
+const studentBaseGroup = DEFAULT_GROUPS.find((group) => group.code === 'SYSTEM_STUDENT_BASE');
+const studentBasePermissions = studentBaseGroup ? studentBaseGroup.permissions : [];
 
 const knownPermissionCodes = new Set(PERMISSION_CATALOG.map(({ code }) => code));
 
@@ -105,6 +108,19 @@ const authenticate = async (req, res, next) => {
         (activeDelegations || []).forEach(({ capabilityCode }) => {
             if (capabilityCode) permissionSet.add(capabilityCode);
         });
+        if (user.role === 'STUDENT' && permissionSet.size === 0) {
+            studentBasePermissions.forEach((code) => permissionSet.add(code));
+        } else if (user.permissionGroups === undefined && permissionSet.size === 0) {
+            const defaultGroupCode = user.role === 'LECTURER' ? 'GVHD'
+                : user.role === 'ADMIN' ? 'QUAN_TRI_VIEN'
+                : null;
+            if (defaultGroupCode) {
+                const group = DEFAULT_GROUPS.find((g) => g.code === defaultGroupCode);
+                if (group) {
+                    group.permissions.forEach((code) => permissionSet.add(code));
+                }
+            }
+        }
         req.user = {
             ...user,
             permissionVersion: user.permissionVersion,
@@ -283,6 +299,19 @@ const optionalAuthenticate = async (req, res, next) => {
             (activeDelegations || []).forEach(({ capabilityCode }) => {
             if (capabilityCode) permissionSet.add(capabilityCode);
         });
+        if (user.role === 'STUDENT' && permissionSet.size === 0) {
+            studentBasePermissions.forEach((code) => permissionSet.add(code));
+        } else if (user.permissionGroups === undefined && permissionSet.size === 0) {
+            const defaultGroupCode = user.role === 'LECTURER' ? 'GVHD'
+                : user.role === 'ADMIN' ? 'QUAN_TRI_VIEN'
+                : null;
+            if (defaultGroupCode) {
+                const group = DEFAULT_GROUPS.find((g) => g.code === defaultGroupCode);
+                if (group) {
+                    group.permissions.forEach((code) => permissionSet.add(code));
+                }
+            }
+        }
         req.user = {
                 ...user,
                 permissionGroups: user.permissionGroups.map(({ permissionGroup }) => permissionGroup.code),

@@ -13,10 +13,10 @@ router.get('/active', rubricController.getActiveRubric);
 router.get('/check-editable', authorizePermission(PERMISSIONS.RUBRIC_MANAGE), rubricController.checkEditStatus);
 
 // Lấy danh sách tất cả các phiên bản (Admin, Giảng viên)
-router.get('/', authorizePermission(PERMISSIONS.RUBRIC_MANAGE), rubricController.getRubrics);
+router.get('/', authorizePermission(PERMISSIONS.VIEW_RUBRIC_CONFIG, PERMISSIONS.RUBRIC_MANAGE), rubricController.getRubrics);
 
 // Lấy chi tiết một phiên bản (Admin, Giảng viên)
-router.get('/:id', authorizePermission(PERMISSIONS.RUBRIC_MANAGE), rubricController.getRubricById);
+router.get('/:id', authorizePermission(PERMISSIONS.VIEW_RUBRIC_CONFIG, PERMISSIONS.RUBRIC_MANAGE), rubricController.getRubricById);
 
 // Tạo mới phiên bản (Admin)
 router.post('/', authorizePermission(PERMISSIONS.RUBRIC_MANAGE), rubricController.createRubric);

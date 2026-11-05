@@ -14,7 +14,7 @@ router.post('/import-excel', authorizePermission(PERMISSIONS.USER_IMPORT), userC
 router.get('/export-excel', authorizePermission(PERMISSIONS.USER_IMPORT), userController.exportUsersExcel);
 
 // CRUD
-router.get('/', authorizePermission(PERMISSIONS.USER_MANAGE, PERMISSIONS.LECTURER_DIRECTORY_VIEW), userController.getAllUsers);
+router.get('/', authorizePermission(PERMISSIONS.VIEW_USERS, PERMISSIONS.USER_MANAGE, PERMISSIONS.LECTURER_DIRECTORY_VIEW), userController.getAllUsers);
 router.post('/', authorizePermission(PERMISSIONS.USER_MANAGE), userController.createUser);
 router.put('/:id', authorizePermission(PERMISSIONS.USER_MANAGE), userController.updateUser);
 router.delete('/:id', authorizePermission(PERMISSIONS.USER_MANAGE), userController.deleteUser);

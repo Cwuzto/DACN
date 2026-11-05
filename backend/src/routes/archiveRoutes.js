@@ -2,7 +2,7 @@ const express = require('express');
 const { body, param, query } = require('express-validator');
 const router = express.Router();
 const archiveController = require('../controllers/archiveController');
-const { authenticate, authorize, authorizePermission, authorizeRoleOrPermission } = require('../middlewares/auth');
+const { authenticate, authorizePermission } = require('../middlewares/auth');
 const { PERMISSIONS } = require('../constants/permissions');
 const { validateRequest } = require('../middlewares/validate');
 
@@ -36,7 +36,11 @@ router.get(
 // 3. Lay ho so luu chieu cua 1 registration
 router.get(
     '/registrations/:registrationId',
-    authorizeRoleOrPermission(['STUDENT'], [PERMISSIONS.FINAL_DOCUMENT_REVIEW]),
+    authorizePermission(
+        PERMISSIONS.VIEW_MY_ARCHIVE,
+        PERMISSIONS.FINAL_DOCUMENT_REVIEW,
+        PERMISSIONS.VIEW_PROJECT_OVERSIGHT,
+    ),
     [
         param('registrationId').isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
         validateRequest,
@@ -44,10 +48,8 @@ router.get(
     archiveController.getArchiveByRegistration,
 );
 
-// 3.5. Sinh vien nop ho so luu chieu so bo truoc bao ve (Pre-defense)
-router.post(
-    '/pre-defense',
-    authorize('STUDENT'),
+const preDefenseGuards = [
+    authorizePermission(PERMISSIONS.SUBMIT_PRE_DEFENSE_ARCHIVE),
     [
         body('registrationId').optional().isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
         body('reportFileUrl').optional({ nullable: true }).isString(),
@@ -60,13 +62,19 @@ router.post(
         body('summary').optional({ nullable: true }).isString(),
         validateRequest,
     ],
+];
+
+// 3.5. Sinh vien nop ho so luu chieu so bo truoc bao ve (Pre-defense)
+router.post(
+    '/pre-defense',
+    preDefenseGuards,
     archiveController.submitPreDefenseArchive,
 );
 
 router.post(
     '/registrations/:registrationId/pre-defense',
-    authorize('STUDENT'),
     [
+        authorizePermission(PERMISSIONS.SUBMIT_PRE_DEFENSE_ARCHIVE),
         param('registrationId').isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
         body('reportFileUrl').optional({ nullable: true }).isString(),
         body('reportFileName').optional({ nullable: true }).isString(),
@@ -81,12 +89,15 @@ router.post(
     archiveController.submitPreDefenseArchive,
 );
 
-// 4. Sinh vien nop hoac cap nhat ho so luu chieu
-router.post(
-    '/registrations/:registrationId',
-    authorize('STUDENT'),
+const finalArchiveGuards = [
+    authorizePermission(PERMISSIONS.SUBMIT_FINAL_ARCHIVE),
     [
-        param('registrationId').isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
+        (req, res, next) => {
+            if (!req.body.registrationId && req.params.registrationId) {
+                req.body.registrationId = parseInt(req.params.registrationId, 10);
+            }
+            next();
+        },
         body('reportFileUrl').optional({ nullable: true }).isString(),
         body('reportFileName').optional({ nullable: true }).isString(),
         body('slideFileUrl').optional({ nullable: true }).isString(),
@@ -98,6 +109,18 @@ router.post(
         body('summary').optional({ nullable: true }).isString(),
         validateRequest,
     ],
+];
+
+// 4. Sinh vien nop hoac cap nhat ho so luu chieu
+router.post(
+    '/registrations/:registrationId',
+    finalArchiveGuards,
+    archiveController.submitArchive,
+);
+
+router.post(
+    '/final',
+    finalArchiveGuards,
     archiveController.submitArchive,
 );
 
@@ -117,7 +140,11 @@ router.post(
 // 6. Trich xuat Giay Xac Nhan Hoan Thanh Do An (Clearance Certificate)
 router.get(
     '/registrations/:registrationId/clearance-certificate',
-    authorizeRoleOrPermission(['STUDENT'], [PERMISSIONS.FINAL_DOCUMENT_REVIEW]),
+    authorizePermission(
+        PERMISSIONS.VIEW_CLEARANCE_CERTIFICATES,
+        PERMISSIONS.VIEW_MY_ARCHIVE,
+        PERMISSIONS.FINAL_DOCUMENT_REVIEW,
+    ),
     [
         param('registrationId').isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
         validateRequest,

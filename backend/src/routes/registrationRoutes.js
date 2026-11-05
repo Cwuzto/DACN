@@ -1,7 +1,7 @@
 const express = require('express');
 const { body, param, query } = require('express-validator');
 const registrationController = require('../controllers/registrationController');
-const { authenticate, authorize, authorizePermission, authorizeRoleOrPermission } = require('../middlewares/auth');
+const { authenticate, authorizePermission } = require('../middlewares/auth');
 const { PERMISSIONS } = require('../constants/permissions');
 const { validateRequest } = require('../middlewares/validate');
 
@@ -10,9 +10,9 @@ const router = express.Router();
 router.use(authenticate);
 
 router.get(
-    '/my',
+    ['/my', '/my-registration'],
     [
-        authorize('STUDENT'),
+        authorizePermission(PERMISSIONS.VIEW_MY_REGISTRATION),
         query('semesterId').optional().isInt({ min: 1 }).withMessage('semesterId phải là số nguyên dương.'),
         validateRequest,
     ],
@@ -22,7 +22,7 @@ router.get(
 router.get(
     '/my-project-enrollments',
     [
-        authorize('STUDENT'),
+        authorizePermission(PERMISSIONS.VIEW_MY_REGISTRATION, PERMISSIONS.VIEW_PROJECT_ENROLLMENTS),
         query('semesterId').optional().isInt({ min: 1 }).withMessage('semesterId phải là số nguyên dương.'),
         validateRequest,
     ],
@@ -33,6 +33,10 @@ router.get(
     '/',
     [
         authorizePermission(
+            PERMISSIONS.VIEW_MENTORED_STUDENTS,
+            PERMISSIONS.VIEW_MENTOR_STUDENTS,
+            PERMISSIONS.VIEW_PROJECT_OVERSIGHT,
+            PERMISSIONS.VIEW_COUNCIL_ASSIGNMENTS,
             PERMISSIONS.BM03_REVIEW,
             PERMISSIONS.OUTLINE_REVIEW,
             PERMISSIONS.REPORT_VIEW,
@@ -84,9 +88,9 @@ router.get(
 );
 
 router.post(
-    '/',
+    ['/', '/register'],
     [
-        authorize('STUDENT'),
+        authorizePermission(PERMISSIONS.REGISTER_TOPIC),
         body('topicId').isInt({ min: 1 }).withMessage('topicId phải là số nguyên dương.'),
         body('semesterId').isInt({ min: 1 }).withMessage('semesterId phải là số nguyên dương.'),
         validateRequest,
@@ -94,20 +98,28 @@ router.post(
     registrationController.registerTopic,
 );
 
+const handleRegistrationGuards = [
+    authorizePermission(PERMISSIONS.MENTOR_REQUEST_REVIEW),
+    param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
+    (req, res, next) => {
+        if (!req.body.action && req.body.status) {
+            req.body.action = req.body.status === 'APPROVED' ? 'APPROVE' : req.body.status === 'REJECTED' ? 'REJECT' : req.body.status;
+        }
+        next();
+    },
+    body('action').isIn(['APPROVE', 'REJECT']).withMessage('action phải là APPROVE hoặc REJECT.'),
+    body('rejectReason')
+        .optional({ nullable: true })
+        .isString()
+        .trim()
+        .isLength({ min: 1 })
+        .withMessage('rejectReason phải là chuỗi không rỗng nếu được gửi.'),
+    validateRequest,
+];
+
 router.patch(
-    '/:id/approve',
-    [
-        authorizePermission(PERMISSIONS.MENTOR_REQUEST_REVIEW),
-        param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
-        body('action').isIn(['APPROVE', 'REJECT']).withMessage('action phải là APPROVE hoặc REJECT.'),
-        body('rejectReason')
-            .optional({ nullable: true })
-            .isString()
-            .trim()
-            .isLength({ min: 1 })
-            .withMessage('rejectReason phải là chuỗi không rỗng nếu được gửi.'),
-        validateRequest,
-    ],
+    ['/:id/approve', '/:id/status'],
+    handleRegistrationGuards,
     registrationController.handleRegistration,
 );
 
@@ -125,7 +137,7 @@ router.patch(
 router.post(
     '/:id/withdraw',
     [
-        authorizeRoleOrPermission(['STUDENT'], [PERMISSIONS.MENTOR_ASSIGNMENT_ADJUST]),
+        authorizePermission(PERMISSIONS.REGISTRATION_CANCEL, PERMISSIONS.MENTOR_ASSIGNMENT_ADJUST),
         param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
         body('reason').isString().trim().notEmpty().withMessage('reason bắt buộc và không được rỗng.'),
         validateRequest,
@@ -176,7 +188,7 @@ router.put(
 router.post(
     '/bm02-submit',
     [
-        authorize('STUDENT'),
+        authorizePermission(PERMISSIONS.SUBMIT_BM02),
         body('registrationId').isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
         validateRequest,
     ],
@@ -184,7 +196,7 @@ router.post(
 );
 
 router.post(
-    '/bm02/:id/review',
+    ['/bm02/:id/review', '/:id/bm02-reviews'],
     [
         authorizePermission(PERMISSIONS.BM02_REVIEW),
         param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
@@ -195,16 +207,30 @@ router.post(
     registrationController.reviewCurrentBM02,
 );
 
+const titleAdjustmentGuards = [
+    authorizePermission(PERMISSIONS.RENAME_TOPIC),
+    (req, res, next) => {
+        if (!req.body.registrationId && req.params.id) {
+            req.body.registrationId = parseInt(req.params.id, 10);
+        }
+        next();
+    },
+    body('registrationId').isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
+    body('newTitle').isString().trim().notEmpty().withMessage('newTitle không được để trống.'),
+    body('reason').isString().trim().notEmpty().withMessage('reason không được để trống.'),
+    validateRequest,
+];
+
 // Điều chỉnh tên đề tài (trong hạn 7 ngày sau Quyết định)
 router.post(
     '/adjust-title',
-    [
-        authorize('STUDENT'),
-        body('registrationId').isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
-        body('newTitle').isString().trim().notEmpty().withMessage('newTitle không được để trống.'),
-        body('reason').isString().trim().notEmpty().withMessage('reason không được để trống.'),
-        validateRequest,
-    ],
+    titleAdjustmentGuards,
+    registrationController.requestTitleAdjustment,
+);
+
+router.patch(
+    '/:id/title-adjustment',
+    titleAdjustmentGuards,
     registrationController.requestTitleAdjustment,
 );
 
@@ -221,7 +247,7 @@ router.put(
 
 router.get(
     '/adjust-title/my',
-    authorize('STUDENT'),
+    authorizePermission(PERMISSIONS.VIEW_MY_REGISTRATION, PERMISSIONS.RENAME_TOPIC),
     registrationController.getMyTitleAdjustments,
 );
 
@@ -243,19 +269,35 @@ router.post(
     registrationController.transferTopicMentor,
 );
 
+const cancelRegistrationGuards = [
+    authorizePermission(PERMISSIONS.REGISTRATION_CANCEL),
+    param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
+    validateRequest,
+];
+
 router.delete(
     '/:id',
-    [
-        authorize('STUDENT'),
-        param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
-        validateRequest,
-    ],
+    cancelRegistrationGuards,
+    registrationController.cancelRegistration,
+);
+
+router.post(
+    '/:id/cancel',
+    cancelRegistrationGuards,
     registrationController.cancelRegistration,
 );
 
 router.get(
     '/:id/allowed-actions',
     [
+        authorizePermission(
+            PERMISSIONS.VIEW_MY_REGISTRATION,
+            PERMISSIONS.VIEW_MENTOR_STUDENTS,
+            PERMISSIONS.VIEW_MENTORED_STUDENTS,
+            PERMISSIONS.VIEW_PROJECT_OVERSIGHT,
+            PERMISSIONS.BM03_REVIEW,
+            PERMISSIONS.OUTLINE_REVIEW,
+        ),
         param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
         validateRequest,
     ],

@@ -1,7 +1,7 @@
 // src/routes/meetingLogRoutes.js
 const express = require('express');
 const router = express.Router();
-const { authenticate, authorizePermission, authorizeRoleOrPermission } = require('../middlewares/auth');
+const { authenticate, authorizePermission } = require('../middlewares/auth');
 const { PERMISSIONS } = require('../constants/permissions');
 const {
     getMeetingLogs,
@@ -14,8 +14,8 @@ const {
 router.use(authenticate);
 
 // Routes scoped under registration
-router.get('/registrations/:registrationId/meeting-logs', authorizeRoleOrPermission(['STUDENT'], [PERMISSIONS.BM03_REVIEW]), getMeetingLogs);
-router.get('/registrations/:registrationId/meeting-stats', authorizeRoleOrPermission(['STUDENT'], [PERMISSIONS.BM03_REVIEW]), getMeetingStats);
+router.get('/registrations/:registrationId/meeting-logs', authorizePermission(PERMISSIONS.VIEW_MY_SUBMISSIONS, PERMISSIONS.BM03_REVIEW), getMeetingLogs);
+router.get('/registrations/:registrationId/meeting-stats', authorizePermission(PERMISSIONS.VIEW_MY_SUBMISSIONS, PERMISSIONS.BM03_REVIEW), getMeetingStats);
 router.post('/registrations/:registrationId/meeting-logs', authorizePermission(PERMISSIONS.BM03_SUBMIT), createMeetingLog);
 
 // Routes for individual meeting log
