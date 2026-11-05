@@ -128,6 +128,15 @@ const createDelegation = async (req, res, next) => {
             });
         }
 
+        // Kiểm tra delegator có cấu hình department
+        if (!req.user.department) {
+            return res.status(403).json({
+                success: false,
+                error: 'DEPARTMENT_REQUIRED',
+                message: 'Tài khoản ủy quyền chưa được cấu hình đơn vị khoa/viện.',
+            });
+        }
+
         // Kiểm tra delegatee tồn tại và cùng đơn vị
         const delegatee = await prisma.user.findUnique({
             where: { id: targetDelegateeId },
@@ -150,7 +159,7 @@ const createDelegation = async (req, res, next) => {
             });
         }
 
-        const delegationDepartment = req.user.department || delegatee.department;
+        const delegationDepartment = req.user.department;
 
         const delegation = await prisma.$transaction(async (tx) => {
             const created = await tx.academicDelegation.create({
@@ -203,6 +212,25 @@ const createDelegation = async (req, res, next) => {
             message: 'Ủy quyền chuyên môn thành công.',
         });
     } catch (error) {
+        if (error.code === 'P2002' && (String(error.meta?.target).includes('idempotency') || String(error.message).includes('idempotency'))) {
+            const idempotencyKey = req.headers['idempotency-key'];
+            if (idempotencyKey) {
+                const existing = await prisma.academicDelegation.findUnique({
+                    where: { idempotencyKey: idempotencyKey.trim() },
+                    include: {
+                        delegator: { select: { id: true, fullName: true, code: true } },
+                        delegatee: { select: { id: true, fullName: true, code: true, department: true } },
+                    },
+                });
+                if (existing) {
+                    return res.status(200).json({
+                        success: true,
+                        data: existing,
+                        message: 'Yêu cầu ủy quyền đã được xử lý trước đó.',
+                    });
+                }
+            }
+        }
         next(error);
     }
 };
