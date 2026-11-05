@@ -1,11 +1,83 @@
+const DAY_MS = 24 * 60 * 60 * 1000;
+const addDays = (base, days) => new Date(base.getTime() + days * DAY_MS);
+
+function getSemesterDefinitions(baseDate = new Date()) {
+  const base = baseDate instanceof Date ? new Date(baseDate.getTime()) : new Date(baseDate);
+
+  const pastSemester = {
+    name: 'Đồ án tốt nghiệp — HK2 2025–2026',
+    startDate: new Date('2026-01-05T00:00:00.000Z'),
+    registrationDeadline: new Date('2026-01-20T00:00:00.000Z'),
+    midtermReportDate: new Date('2026-03-25T00:00:00.000Z'),
+    defenseDate: new Date('2026-05-15T00:00:00.000Z'),
+    endDate: new Date('2026-05-30T00:00:00.000Z'),
+    registrationOpen: false,
+    status: 'COMPLETED',
+  };
+
+  const period2Supplementary = {
+    name: 'Đồ án tốt nghiệp — HK1 2026–2027 (Đợt 2 - Bổ sung)',
+    startDate: addDays(base, -10),
+    registrationDeadline: addDays(base, 14),
+    midtermReportDate: addDays(base, 45),
+    defenseDate: addDays(base, 75),
+    endDate: addDays(base, 90),
+    registrationOpen: true,
+    status: 'REGISTRATION',
+  };
+
+  const period1Main = {
+    name: 'Đồ án tốt nghiệp — HK1 2026–2027 (Đợt 1 - Chính khóa)',
+    startDate: addDays(base, -90),
+    registrationDeadline: addDays(base, -60),
+    midtermReportDate: addDays(base, -20),
+    defenseDate: new Date(base.getTime()),
+    endDate: addDays(base, 15),
+    registrationOpen: false,
+    status: 'DEFENSE',
+  };
+
+  return {
+    pastSemester,
+    period2Supplementary,
+    period1Main,
+  };
+}
+
+const DEMO_SEMESTERS = Object.freeze(getSemesterDefinitions());
+
 const DEMO_CALENDAR = Object.freeze({
-  name: 'Đồ án tốt nghiệp — HK1 2026–2027',
-  startDate: '2026-08-01',
-  registrationDeadline: '2026-08-25',
-  midtermReportDate: '2026-10-15',
-  implementationEndDate: '2026-11-30',
-  defenseDate: '2026-12-15',
-  endDate: '2026-12-20',
+  ...DEMO_SEMESTERS.period1Main,
+});
+
+function createCohort(start, end) {
+  const count = end - start + 1;
+  const studentNumbers = Array.from({ length: count }, (_, i) => start + i);
+  return Object.freeze({
+    start,
+    end,
+    count,
+    length: count,
+    studentNumbers,
+    includes(num) {
+      return num >= start && num <= end;
+    },
+    [Symbol.iterator]() {
+      return studentNumbers[Symbol.iterator]();
+    },
+  });
+}
+
+const STUDENT_COHORTS = Object.freeze({
+  PAST: createCohort(1, 30),
+  PERIOD2_UNREGISTERED: createCohort(31, 40),
+  PERIOD2_PENDING: createCohort(41, 50),
+  PERIOD2_BM01_NEEDS_REVISION: createCohort(51, 55),
+  PERIOD2_BM02_SUBMITTED: createCohort(56, 60),
+  PERIOD1_DECISION: createCohort(61, 70),
+  PERIOD1_CHECKPOINT: createCohort(71, 85),
+  PERIOD1_BM04: createCohort(86, 95),
+  PERIOD1_DEFENSE: createCohort(96, 120),
 });
 
 const pad = (value) => String(value).padStart(2, '0');
@@ -52,16 +124,51 @@ function buildMentorAssignments() {
   });
 }
 
-function allocateCouncilForRegistration({ mentorId, councils }) {
-  const council = councils.find((candidate) => !candidate.memberIds.includes(mentorId));
-  if (!council) throw new Error(`No eligible defense council exists for mentor ${mentorId}.`);
-  return council;
+function allocateCouncilForRegistration({ mentorId, councils, councilLoadMap }) {
+  const eligibleCouncils = councils.filter((candidate) => !candidate.memberIds.includes(mentorId));
+  if (eligibleCouncils.length === 0) {
+    throw new Error(`No eligible defense council exists for mentor ${mentorId}.`);
+  }
+
+  if (!councilLoadMap) {
+    return eligibleCouncils[0];
+  }
+
+  const getLoad = (councilId) => {
+    if (typeof councilLoadMap.get === 'function') {
+      return councilLoadMap.get(councilId) || 0;
+    }
+    return councilLoadMap[councilId] || 0;
+  };
+
+  let bestCouncil = eligibleCouncils[0];
+  let minLoad = getLoad(bestCouncil.id);
+
+  for (let i = 1; i < eligibleCouncils.length; i += 1) {
+    const candidate = eligibleCouncils[i];
+    const load = getLoad(candidate.id);
+    if (load < minLoad) {
+      minLoad = load;
+      bestCouncil = candidate;
+    }
+  }
+
+  if (typeof councilLoadMap.set === 'function') {
+    councilLoadMap.set(bestCouncil.id, minLoad + 1);
+  } else if (typeof councilLoadMap === 'object' && !Object.isFrozen(councilLoadMap)) {
+    councilLoadMap[bestCouncil.id] = minLoad + 1;
+  }
+
+  return bestCouncil;
 }
 
 module.exports = {
   DEMO_CALENDAR,
+  DEMO_SEMESTERS,
+  STUDENT_COHORTS,
   advisorEmailForStudentNumber,
   buildAccounts,
   buildMentorAssignments,
   allocateCouncilForRegistration,
+  getSemesterDefinitions,
 };
