@@ -1,13 +1,14 @@
 const APPLICATION_TABLES = Object.freeze([
   'permissions', 'permission_groups', 'permission_group_permissions', 'user_permission_groups', 'users',
-  'semesters', 'topics', 'topic_registrations', 'bm01_evaluations', 'bm02_submissions',
+  'semesters', 'academic_delegations', 'topics', 'topic_registrations', 'bm01_evaluations', 'bm02_submissions',
   'assignment_decisions', 'decision_amendments', 'period_workflow_policy_versions',
   'registration_state_history', 'idempotency_records', 'manual_review_cases', 'meeting_logs',
   'project_archives', 'tasks', 'submissions', 'councils', 'council_members', 'defense_results',
   'defense_member_scores', 'defense_member_criterion_scores', 'defense_criterion_scores',
   'defense_result_approvals', 'result_publications', 'result_publication_items', 'rubric_versions',
   'rubric_categories', 'rubric_criteria', 'notifications', 'audit_logs', 'project_catalogs',
-  'student_project_enrollments', 'public_announcements', 'topic_title_adjustments',
+  'student_project_enrollments', 'public_announcements', 'portal_configurations', 'portal_links',
+  'portal_templates', 'portal_content_revisions', 'topic_title_adjustments',
   'bm04_evaluations', 'checkpoint_evaluations', 'checkpoint_signature_appeals', 'mentor_transfers',
 ]);
 
