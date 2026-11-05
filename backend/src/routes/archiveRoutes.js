@@ -51,6 +51,12 @@ router.get(
 const preDefenseGuards = [
     authorizePermission(PERMISSIONS.SUBMIT_PRE_DEFENSE_ARCHIVE),
     [
+        (req, res, next) => {
+            if (req.params.registrationId && !req.body.registrationId) {
+                req.body.registrationId = parseInt(req.params.registrationId, 10);
+            }
+            next();
+        },
         body('registrationId').optional().isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
         body('reportFileUrl').optional({ nullable: true }).isString(),
         body('reportFileName').optional({ nullable: true }).isString(),

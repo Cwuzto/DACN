@@ -101,6 +101,7 @@ router.post(
     evaluationController.saveScoreSheet,
 );
 
+// Read-only PDF stream generation (uses POST for filter payload, does not mutate DB state)
 router.post(
     '/:registrationId/score-sheet/export-pdf',
     authorizePermission(PERMISSIONS.DEFENSE_SCORE_VIEW, PERMISSIONS.VIEW_DEFENSE_GRADING),
