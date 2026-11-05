@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import api from '../services/api.js';
 
 /**
  * Auth Store (Zustand)
@@ -12,10 +13,14 @@ import { create } from 'zustand';
  */
 const getStoredUser = () => {
     try {
-        const localUser = localStorage.getItem('user');
-        if (localUser) return JSON.parse(localUser);
-        const sessionUser = sessionStorage.getItem('user');
-        if (sessionUser) return JSON.parse(sessionUser);
+        if (typeof localStorage !== 'undefined') {
+            const localUser = localStorage.getItem('user');
+            if (localUser) return JSON.parse(localUser);
+        }
+        if (typeof sessionStorage !== 'undefined') {
+            const sessionUser = sessionStorage.getItem('user');
+            if (sessionUser) return JSON.parse(sessionUser);
+        }
     } catch {
         return null;
     }
@@ -23,7 +28,13 @@ const getStoredUser = () => {
 };
 
 const getStoredToken = () => {
-    return localStorage.getItem('token') || sessionStorage.getItem('token') || null;
+    try {
+        return (typeof localStorage !== 'undefined' && localStorage.getItem('token')) ||
+               (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('token')) ||
+               null;
+    } catch {
+        return null;
+    }
 };
 
 const useAuthStore = create((set) => ({
@@ -34,37 +45,80 @@ const useAuthStore = create((set) => ({
     // Hành động: Đăng nhập thành công -> lưu token & user theo lựa chọn remember
     setAuth: (token, user, remember = false) => {
         if (remember) {
-            localStorage.setItem('token', token);
-            localStorage.setItem('user', JSON.stringify(user));
-            sessionStorage.removeItem('token');
-            sessionStorage.removeItem('user');
+            if (typeof localStorage !== 'undefined') {
+                localStorage.setItem('token', token);
+                localStorage.setItem('user', JSON.stringify(user));
+            }
+            if (typeof sessionStorage !== 'undefined') {
+                sessionStorage.removeItem('token');
+                sessionStorage.removeItem('user');
+            }
         } else {
-            sessionStorage.setItem('token', token);
-            sessionStorage.setItem('user', JSON.stringify(user));
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
+            if (typeof sessionStorage !== 'undefined') {
+                sessionStorage.setItem('token', token);
+                sessionStorage.setItem('user', JSON.stringify(user));
+            }
+            if (typeof localStorage !== 'undefined') {
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+            }
         }
         set({ token, user, isAuthenticated: true });
     },
 
     // Hành động: Đăng xuất -> xoá token & user khỏi cả 2 storage
     logout: () => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        sessionStorage.removeItem('token');
-        sessionStorage.removeItem('user');
+        if (typeof localStorage !== 'undefined') {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+        }
+        if (typeof sessionStorage !== 'undefined') {
+            sessionStorage.removeItem('token');
+            sessionStorage.removeItem('user');
+        }
         set({ token: null, user: null, isAuthenticated: false });
     },
 
     // Cập nhật thông tin user (sau khi edit profile)
     updateUser: (updatedUser) => {
-        if (localStorage.getItem('user')) {
+        if (typeof localStorage !== 'undefined' && localStorage.getItem('user')) {
             localStorage.setItem('user', JSON.stringify(updatedUser));
         }
-        if (sessionStorage.getItem('user')) {
+        if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('user')) {
             sessionStorage.setItem('user', JSON.stringify(updatedUser));
         }
         set({ user: updatedUser });
+    },
+
+    // Làm mới session từ backend /auth/me
+    refreshSession: async () => {
+        try {
+            const res = await api.get('/auth/me');
+            const user = res?.data || (res?.id ? res : null);
+            const token = res?.token;
+            if (user) {
+                const hasLocal = typeof localStorage !== 'undefined' && (localStorage.getItem('token') || localStorage.getItem('user'));
+                const hasSession = typeof sessionStorage !== 'undefined' && (sessionStorage.getItem('token') || sessionStorage.getItem('user'));
+
+                if (hasSession && !hasLocal) {
+                    if (token && typeof sessionStorage !== 'undefined') sessionStorage.setItem('token', token);
+                    if (typeof sessionStorage !== 'undefined') sessionStorage.setItem('user', JSON.stringify(user));
+                } else {
+                    if (token && typeof localStorage !== 'undefined') localStorage.setItem('token', token);
+                    if (typeof localStorage !== 'undefined') localStorage.setItem('user', JSON.stringify(user));
+                }
+
+                set((state) => ({
+                    user,
+                    token: token || state.token,
+                    isAuthenticated: true,
+                }));
+                return user;
+            }
+            return null;
+        } catch {
+            return null;
+        }
     },
 }));
 

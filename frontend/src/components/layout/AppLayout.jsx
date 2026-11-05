@@ -18,7 +18,7 @@ import QuotaMeter from '../common/QuotaMeter';
 function AppLayout({ role }) {
     const navigate = useNavigate();
     const location = useLocation();
-    const { user, logout, updateUser } = useAuthStore();
+    const { user, logout, updateUser, refreshSession } = useAuthStore();
     const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
     const [collapsed, setCollapsed] = useState(() => {
         try {
@@ -41,21 +41,69 @@ function AppLayout({ role }) {
         });
     };
 
-    // Refresh current user session
+    // Refresh current user session and sync across tabs & visibility changes
     useEffect(() => {
         let isMounted = true;
-        authService
-            .getMe()
-            .then((res) => {
-                if (isMounted && res?.success && res?.data) {
-                    updateUser(res.data);
-                }
-            })
-            .catch(() => {});
+
+        const handleSync = () => {
+            if (typeof refreshSession === 'function') {
+                refreshSession().catch(() => {});
+            } else {
+                authService
+                    .getMe()
+                    .then((res) => {
+                        if (isMounted && res?.success && res?.data) {
+                            updateUser(res.data);
+                        }
+                    })
+                    .catch(() => {});
+            }
+        };
+
+        // Initial sync on mount
+        handleSync();
+
+        const handleVisibilityChange = () => {
+            if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+                handleSync();
+            }
+        };
+
+        if (typeof window !== 'undefined') {
+            window.addEventListener('focus', handleSync);
+        }
+        if (typeof document !== 'undefined') {
+            document.addEventListener('visibilitychange', handleVisibilityChange);
+        }
+
+        let channel = null;
+        if (typeof BroadcastChannel !== 'undefined') {
+            try {
+                channel = new BroadcastChannel('dacn_auth_sync');
+                channel.onmessage = (event) => {
+                    const type = event?.data?.type;
+                    if (type === 'PERMISSION_VERSION_UPDATED' || type === 'PERMISSIONS_UPDATED') {
+                        handleSync();
+                    }
+                };
+            } catch {}
+        }
+
         return () => {
             isMounted = false;
+            if (typeof window !== 'undefined') {
+                window.removeEventListener('focus', handleSync);
+            }
+            if (typeof document !== 'undefined') {
+                document.removeEventListener('visibilitychange', handleVisibilityChange);
+            }
+            if (channel) {
+                try {
+                    channel.close();
+                } catch {}
+            }
         };
-    }, [updateUser]);
+    }, [refreshSession, updateUser]);
 
     // Load active semester info
     useEffect(() => {
