@@ -8,7 +8,7 @@ const { validateRequest } = require('../middlewares/validate');
 const router = express.Router();
 
 router.use(authenticate);
-router.use(authorizePermission(PERMISSIONS.LEGACY_REVIEW_MANAGE));
+router.use(authorizePermission(PERMISSIONS.PROJECT_OVERSIGHT_MANAGE));
 
 router.get(
     '/',

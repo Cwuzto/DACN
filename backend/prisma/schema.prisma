@@ -65,6 +65,7 @@ model User {
   avatarUrl            String?             @map("avatar_url")
   academicTitle        AcademicTitle?      @map("academic_title")
   isActive             Boolean             @default(true) @map("is_active")
+  permissionVersion    Int                 @default(1) @map("permission_version")
   createdAt            DateTime            @default(now()) @map("created_at")
   updatedAt            DateTime            @updatedAt @map("updated_at")
   councilMembers       CouncilMember[]

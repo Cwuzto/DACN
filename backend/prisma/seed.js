@@ -23,11 +23,16 @@ async function createAccounts(db) {
 }
 
 async function assignPermissionGroups(db, accountsByEmail) {
-  const groups = await db.permissionGroup.findMany({ where: { code: { in: ['GVHD', 'VIEN_TRUONG', 'QUAN_TRI_VIEN'] } } });
+  const groups = await db.permissionGroup.findMany({ where: { code: { in: ['GVHD', 'VIEN_TRUONG', 'QUAN_TRI_VIEN', 'SYSTEM_STUDENT_BASE'] } } });
   const groupByCode = new Map(groups.map((group) => [group.code, group.id]));
   const assignments = [];
   for (const user of accountsByEmail.values()) {
-    if (user.role === 'LECTURER') assignments.push({ userId: user.id, permissionGroupId: groupByCode.get('GVHD') });
+    if (user.role === 'STUDENT') {
+      const studentGroupId = groupByCode.get('SYSTEM_STUDENT_BASE');
+      if (studentGroupId) assignments.push({ userId: user.id, permissionGroupId: studentGroupId });
+    } else if (user.role === 'LECTURER') {
+      assignments.push({ userId: user.id, permissionGroupId: groupByCode.get('GVHD') });
+    }
   }
   assignments.push({ userId: accountsByEmail.get('lecturer01@university.edu.vn').id, permissionGroupId: groupByCode.get('VIEN_TRUONG') });
   assignments.push({ userId: accountsByEmail.get('admin@university.edu.vn').id, permissionGroupId: groupByCode.get('QUAN_TRI_VIEN') });

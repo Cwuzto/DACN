@@ -66,7 +66,7 @@ describe('Integration - Manual Review Cases Routes', () => {
             throw new Error('invalid token');
         });
         prisma.user.findUnique.mockImplementation(async ({ where }) => {
-            if (where.id === 1) return buildUser(1, 'ADMIN', ['LEGACY_REVIEW_MANAGE']);
+            if (where.id === 1) return buildUser(1, 'ADMIN', ['PROJECT_OVERSIGHT_MANAGE']);
             if (where.id === 10) return buildUser(10, 'STUDENT');
             if (where.id === 20) return buildUser(20, 'LECTURER');
             return null;

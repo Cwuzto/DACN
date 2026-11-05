@@ -2,9 +2,11 @@ const {
     PERMISSIONS,
     PERMISSION_CATALOG,
     DEFAULT_GROUPS,
+    grantablePermissionCodes,
+    GRANTABLE_PERMISSION_CODES,
 } = require('../../src/constants/permissions');
 
-describe('Permission catalog invariants', () => {
+describe('Permission catalog invariants & 2-tier capability foundation', () => {
     test('permission codes are unique and constants match the catalog', () => {
         const catalogCodes = PERMISSION_CATALOG.map(({ code }) => code);
 
@@ -23,24 +25,112 @@ describe('Permission catalog invariants', () => {
         }
     });
 
-    test('P1 capabilities exist with the approved default mappings', () => {
-        const codes = new Set(PERMISSION_CATALOG.map(({ code }) => code));
+    test('defines all 27 required VIEW_* permissions in catalog', () => {
+        const catalogCodes = new Set(PERMISSION_CATALOG.map(({ code }) => code));
+
+        const required27ViewPermissions = [
+            'VIEW_MY_REGISTRATION',
+            'VIEW_MY_SUBMISSIONS',
+            'VIEW_MY_ARCHIVE',
+            'VIEW_MY_GRADES',
+            'VIEW_MY_TOPICS',
+            'VIEW_MENTOR_STUDENTS',
+            'VIEW_CHECKPOINTS',
+            'VIEW_BM04_EVALUATIONS',
+            'VIEW_TOPIC_REVIEWS',
+            'VIEW_OUTLINE_REVIEWS',
+            'VIEW_BM02_REVIEWS',
+            'VIEW_TOPIC_ASSIGNMENT_DECISIONS',
+            'VIEW_ACADEMIC_DELEGATIONS',
+            'VIEW_DEFENSE_ASSIGNMENTS',
+            'VIEW_DEFENSE_GRADING',
+            'VIEW_RESULT_LOCKS',
+            'VIEW_DEFENSE_RESULTS_APPROVAL',
+            'VIEW_RESULT_PUBLICATIONS',
+            'VIEW_CLEARANCE_CERTIFICATES',
+            'VIEW_SEMESTERS',
+            'VIEW_PROJECT_PERIODS',
+            'VIEW_PROJECT_CATALOGS',
+            'VIEW_PROJECT_ENROLLMENTS',
+            'VIEW_PROJECT_OVERSIGHT',
+            'VIEW_USERS',
+            'VIEW_PERMISSION_GROUPS',
+            'VIEW_PORTAL_CONTENT',
+        ];
+
+        expect(required27ViewPermissions).toHaveLength(27);
+
+        for (const viewCode of required27ViewPermissions) {
+            expect(catalogCodes.has(viewCode)).toBe(true);
+            expect(PERMISSIONS[viewCode]).toBe(viewCode);
+        }
+    });
+
+    test('replaces LEGACY_REVIEW_MANAGE with PROJECT_OVERSIGHT_MANAGE and adds PERMISSION_ASSIGN_ACADEMIC', () => {
+        const catalogCodes = new Set(PERMISSION_CATALOG.map(({ code }) => code));
         const groups = Object.fromEntries(DEFAULT_GROUPS.map((group) => [group.code, new Set(group.permissions)]));
 
-        for (const code of [
-            PERMISSIONS.RUBRIC_MANAGE,
-            PERMISSIONS.NOTIFICATION_MANAGE,
-            PERMISSIONS.LEGACY_REVIEW_MANAGE,
-            PERMISSIONS.FINAL_DOCUMENT_REVIEW,
-        ]) {
-            expect(codes.has(code)).toBe(true);
-        }
+        expect(catalogCodes.has('LEGACY_REVIEW_MANAGE')).toBe(false);
+        expect(PERMISSIONS.LEGACY_REVIEW_MANAGE).toBeUndefined();
 
-        expect(groups.QUAN_TRI_VIEN.has(PERMISSIONS.RUBRIC_MANAGE)).toBe(true);
-        expect(groups.QUAN_TRI_VIEN.has(PERMISSIONS.NOTIFICATION_MANAGE)).toBe(true);
-        expect(groups.QUAN_TRI_VIEN.has(PERMISSIONS.LEGACY_REVIEW_MANAGE)).toBe(true);
-        expect(groups.GVHD.has(PERMISSIONS.FINAL_DOCUMENT_REVIEW)).toBe(true);
-        expect(groups.VIEN_TRUONG.has(PERMISSIONS.RUBRIC_MANAGE)).toBe(true);
-        expect(groups.VIEN_TRUONG.has(PERMISSIONS.FINAL_DOCUMENT_REVIEW)).toBe(true);
+        expect(catalogCodes.has('PROJECT_OVERSIGHT_MANAGE')).toBe(true);
+        expect(PERMISSIONS.PROJECT_OVERSIGHT_MANAGE).toBe('PROJECT_OVERSIGHT_MANAGE');
+
+        expect(catalogCodes.has('PERMISSION_ASSIGN_ACADEMIC')).toBe(true);
+        expect(PERMISSIONS.PERMISSION_ASSIGN_ACADEMIC).toBe('PERMISSION_ASSIGN_ACADEMIC');
+
+        expect(groups.QUAN_TRI_VIEN.has('PROJECT_OVERSIGHT_MANAGE')).toBe(true);
+        expect(groups.QUAN_TRI_VIEN.has('LEGACY_REVIEW_MANAGE')).toBe(false);
+    });
+
+    test('defines SYSTEM_STUDENT_BASE group with isSystem: true and exactly 14 student capabilities', () => {
+        const studentGroup = DEFAULT_GROUPS.find((group) => group.code === 'SYSTEM_STUDENT_BASE');
+        expect(studentGroup).toBeDefined();
+        expect(studentGroup.isSystem).toBe(true);
+
+        const expected14Capabilities = [
+            'VIEW_MY_REGISTRATION',
+            'VIEW_MY_SUBMISSIONS',
+            'VIEW_MY_ARCHIVE',
+            'VIEW_MY_GRADES',
+            'REGISTER_TOPIC',
+            'RENAME_TOPIC',
+            'REGISTRATION_CANCEL',
+            'SUBMIT_BM01',
+            'SUBMIT_BM02',
+            'SUBMIT_TASK',
+            'CHECKPOINT_SIGN',
+            'SIGNATURE_APPEAL_SUBMIT',
+            'SUBMIT_PRE_DEFENSE_ARCHIVE',
+            'SUBMIT_FINAL_ARCHIVE',
+        ];
+
+        expect(expected14Capabilities).toHaveLength(14);
+        expect(studentGroup.permissions).toHaveLength(14);
+        expect([...studentGroup.permissions].sort()).toEqual([...expected14Capabilities].sort());
+    });
+
+    test('defines grantablePermissionCodes containing only academic delegation capabilities', () => {
+        const grantable = grantablePermissionCodes || GRANTABLE_PERMISSION_CODES;
+        expect(Array.isArray(grantable)).toBe(true);
+        expect(grantable).toEqual(expect.arrayContaining([
+            'OUTLINE_REVIEW',
+            'BM02_REVIEW',
+            'DEFENSE_SCORE_SUBMIT',
+            'DEFENSE_RESULT_APPROVE',
+        ]));
+
+        // Technical management permissions must not be grantable via academic delegation
+        const prohibitedTechnicalPermissions = [
+            'USER_MANAGE',
+            'USER_IMPORT',
+            'PERMISSION_GROUP_MANAGE',
+            'SEMESTER_MANAGE',
+            'PROJECT_OVERSIGHT_MANAGE',
+        ];
+
+        for (const techPerm of prohibitedTechnicalPermissions) {
+            expect(grantable.includes(techPerm)).toBe(false);
+        }
     });
 });

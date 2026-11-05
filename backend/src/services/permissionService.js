@@ -122,6 +122,7 @@ const seedPermissionCatalog = async (db = prisma) => {
         data: {
           name: group.name,
           description: group.description,
+          isSystem: group.isSystem ?? true,
           permissions: { create: permissionIds.map((permission) => ({ permissionId: permission.id })) },
         },
       });

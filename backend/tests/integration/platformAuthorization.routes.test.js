@@ -153,7 +153,7 @@ describe('Integration - platform capability authorization', () => {
         ['get', '/api/dashboard/stats', PERMISSIONS.REPORT_VIEW, null],
         ['get', '/api/notifications/history', PERMISSIONS.NOTIFICATION_MANAGE, null],
         ['get', '/api/rubrics/check-editable', PERMISSIONS.RUBRIC_MANAGE, null],
-        ['get', '/api/manual-review-cases', PERMISSIONS.LEGACY_REVIEW_MANAGE, null],
+        ['get', '/api/manual-review-cases', PERMISSIONS.PROJECT_OVERSIGHT_MANAGE, null],
     ];
 
     test.each(cases)('%s %s denies ADMIN without %s and allows the capability', async (method, path, permission, body) => {
