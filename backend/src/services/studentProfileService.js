@@ -25,11 +25,11 @@ const mapGender = (rawGender) => {
 };
 
 /**
- * Parses strict DD/MM/YYYY string or Date object.
- * Returns { date: Date | null, isFuture: boolean, isInvalid: boolean }.
+ * Parses strict DD/MM/YYYY string, numeric Excel serial date, or Date object.
+ * Returns { date: Date | null, isFuture: boolean, isInvalid: boolean, isMissing: boolean }.
  */
 const parseDateOfBirth = (rawDate) => {
-    if (!rawDate) {
+    if (rawDate === undefined || rawDate === null || rawDate === '') {
         return { date: null, isFuture: false, isInvalid: false, isMissing: true };
     }
 
@@ -50,27 +50,38 @@ const parseDateOfBirth = (rawDate) => {
         }
     } else if (typeof rawDate === 'string') {
         const trimmed = rawDate.trim();
+        if (trimmed === '') {
+            return { date: null, isFuture: false, isInvalid: false, isMissing: true };
+        }
+
         const match = trimmed.match(DD_MM_YYYY_REGEX);
         if (!match) {
-            return { date: null, isFuture: false, isInvalid: true, isMissing: false };
+            // Excel serial date as numeric string (e.g. "38214")
+            const num = Number(trimmed);
+            if (!isNaN(num) && num > 1000 && num < 100000 && !trimmed.includes('/')) {
+                const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+                parsedDate = new Date(excelEpoch.getTime() + num * 86400000);
+            } else {
+                return { date: null, isFuture: false, isInvalid: true, isMissing: false };
+            }
+        } else {
+            const day = parseInt(match[1], 10);
+            const month = parseInt(match[2], 10);
+            const year = parseInt(match[3], 10);
+
+            if (month < 1 || month > 12 || year < 1900) {
+                return { date: null, isFuture: false, isInvalid: true, isMissing: false };
+            }
+
+            const isLeap = (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
+            const daysInMonth = [31, isLeap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+            if (day < 1 || day > daysInMonth[month - 1]) {
+                return { date: null, isFuture: false, isInvalid: true, isMissing: false };
+            }
+
+            parsedDate = new Date(Date.UTC(year, month - 1, day));
         }
-
-        const day = parseInt(match[1], 10);
-        const month = parseInt(match[2], 10);
-        const year = parseInt(match[3], 10);
-
-        if (month < 1 || month > 12 || year < 1900) {
-            return { date: null, isFuture: false, isInvalid: true, isMissing: false };
-        }
-
-        const isLeap = (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
-        const daysInMonth = [31, isLeap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-
-        if (day < 1 || day > daysInMonth[month - 1]) {
-            return { date: null, isFuture: false, isInvalid: true, isMissing: false };
-        }
-
-        parsedDate = new Date(Date.UTC(year, month - 1, day));
     } else {
         return { date: null, isFuture: false, isInvalid: true, isMissing: false };
     }
@@ -91,32 +102,40 @@ const parseDateOfBirth = (rawDate) => {
  * Normalizes student payload fields and resolves aliases.
  */
 const normalizeStudentPayload = (input = {}) => {
-    const rawCode = input.code || input.mssv || input.MSSV || '';
+    const rawCode = input.code || input.mssv || input.MSSV
+        || input['MSSV (*)'] || input['MSSV'] || input['Mã SV (*)'] || input['Mã SV'] || input['Mã số'] || '';
     const code = String(rawCode).trim().toUpperCase();
 
-    const rawFullName = input.fullName || input.hoTen || input.name || '';
+    const rawFullName = input.fullName || input.hoTen || input.name
+        || input['Họ và tên (*)'] || input['Họ và tên'] || input['Họ tên'] || '';
     const fullName = String(rawFullName).trim();
 
-    const rawEmail = input.email || '';
+    const rawEmail = input.email || input['Email (*)'] || input['Email'] || '';
     const email = String(rawEmail).trim().toLowerCase();
 
-    const rawPhone = input.phone || input.soDienThoai || input.sdt || '';
+    const rawPhone = input.phone || input.soDienThoai || input.sdt
+        || input['Số điện thoại (*)'] || input['Số điện thoại'] || input['SĐT'] || '';
     const phone = String(rawPhone).trim();
 
-    const rawGender = input.gender || input.gioiTinh || '';
+    const rawGender = input.gender || input.gioiTinh
+        || input['Giới tính (*)'] || input['Giới tính'] || '';
     const gender = mapGender(rawGender);
 
     const rawDob = input.dateOfBirth !== undefined ? input.dateOfBirth
         : input.ngaySinh !== undefined ? input.ngaySinh
         : input.dob !== undefined ? input.dob
-        : input.DOB;
+        : input.DOB !== undefined ? input.DOB
+        : input['Ngày sinh (*)'] !== undefined ? input['Ngày sinh (*)']
+        : input['Ngày sinh'];
     const dobResult = parseDateOfBirth(rawDob);
     const dateOfBirth = dobResult.date;
 
-    const rawClassName = input.className || input.lop || input.class || '';
+    const rawClassName = input.className || input.lop || input.class
+        || input['Lớp (*)'] || input['Lớp'] || '';
     const className = String(rawClassName).trim();
 
-    const rawMajor = input.major || input.nganh || input.chuyenNganh || '';
+    const rawMajor = input.major || input.nganh || input.chuyenNganh
+        || input['Ngành (*)'] || input['Ngành'] || '';
     const major = String(rawMajor).trim();
 
     return {
@@ -218,6 +237,7 @@ const validateStudentPayload = (input = {}, options = {}) => {
             isValid: false,
             errors,
             data: null,
+            normalized,
         };
     }
 
@@ -231,6 +251,7 @@ const validateStudentPayload = (input = {}, options = {}) => {
             isValid: true,
             errors: [],
             data: result,
+            normalized,
         };
     }
 

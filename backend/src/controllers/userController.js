@@ -775,6 +775,226 @@ const importUsersExcel = async (req, res, next) => {
         }
 
         const validRole = ['STUDENT', 'LECTURER', 'ADMIN'].includes(role) ? role : 'STUDENT';
+
+        if (validRole === 'STUDENT') {
+            const errorRows = [];
+            const parsedStudentRows = [];
+
+            // 1. Validate each student row using studentProfileService
+            items.forEach((item, index) => {
+                const rowIdx = index + 1;
+                const result = validateStudentPayload(item, { throwOnError: false });
+
+                if (!result.isValid) {
+                    result.errors.forEach((err) => {
+                        errorRows.push({
+                            row: rowIdx,
+                            code: result.normalized.code || '',
+                            mssv: result.normalized.code || '',
+                            message: err,
+                        });
+                    });
+                } else {
+                    parsedStudentRows.push({
+                        rowIdx,
+                        data: result.data,
+                        normalized: result.normalized,
+                    });
+                }
+            });
+
+            // 2. In-file duplicate checks for MSSV and Email
+            const seenCodes = new Map();
+            const seenEmails = new Map();
+
+            items.forEach((item, index) => {
+                const rowIdx = index + 1;
+                const normalized = normalizeStudentPayload(item);
+                const code = normalized.code;
+                const email = normalized.email;
+
+                if (code) {
+                    if (seenCodes.has(code)) {
+                        errorRows.push({
+                            row: rowIdx,
+                            code,
+                            mssv: code,
+                            message: 'Mã số sinh viên bị trùng lặp trong file import',
+                        });
+                    } else {
+                        seenCodes.set(code, rowIdx);
+                    }
+                }
+
+                if (email) {
+                    if (seenEmails.has(email)) {
+                        errorRows.push({
+                            row: rowIdx,
+                            code: code || '',
+                            mssv: code || '',
+                            message: 'Email bị trùng lặp trong file import',
+                        });
+                    } else {
+                        seenEmails.set(email, rowIdx);
+                    }
+                }
+            });
+
+            // 3. Database collision checks
+            const allCodes = Array.from(seenCodes.keys());
+            const allEmails = Array.from(seenEmails.keys());
+
+            const existingUsers = (allCodes.length > 0 || allEmails.length > 0)
+                ? await prisma.user.findMany({
+                      where: {
+                          OR: [
+                              ...(allCodes.length > 0 ? [{ code: { in: allCodes } }] : []),
+                              ...(allEmails.length > 0 ? [{ email: { in: allEmails } }] : []),
+                          ],
+                      },
+                      select: { id: true, code: true, email: true },
+                  })
+                : [];
+
+            const existingByCodeMap = new Map();
+            const existingByEmailMap = new Map();
+            existingUsers.forEach((u) => {
+                if (u.code) existingByCodeMap.set(u.code, u);
+                if (u.email) existingByEmailMap.set(u.email.toLowerCase(), u);
+            });
+
+            items.forEach((item, index) => {
+                const rowIdx = index + 1;
+                const normalized = normalizeStudentPayload(item);
+                const code = normalized.code;
+                const email = normalized.email;
+
+                const userByCode = code ? existingByCodeMap.get(code) : null;
+                const userByEmail = email ? existingByEmailMap.get(email) : null;
+
+                if (onDuplicate === 'UPDATE') {
+                    if (userByCode && userByEmail && userByCode.id !== userByEmail.id) {
+                        errorRows.push({
+                            row: rowIdx,
+                            code: code || '',
+                            mssv: code || '',
+                            message: 'Mã số sinh viên và email thuộc hai tài khoản khác nhau trong hệ thống',
+                        });
+                    }
+                } else {
+                    if (userByCode) {
+                        errorRows.push({
+                            row: rowIdx,
+                            code: code || '',
+                            mssv: code || '',
+                            message: 'Mã số sinh viên đã tồn tại trong hệ thống',
+                        });
+                    }
+                    if (userByEmail) {
+                        errorRows.push({
+                            row: rowIdx,
+                            code: code || '',
+                            mssv: code || '',
+                            message: 'Email đã tồn tại trong hệ thống',
+                        });
+                    }
+                }
+            });
+
+            // ALL-OR-NOTHING: ZERO database writes if ANY row is invalid
+            if (errorRows.length > 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Dữ liệu import không hợp lệ. Vui lòng kiểm tra lại các dòng lỗi.',
+                    errors: errorRows,
+                });
+            }
+
+            // 100% valid: Commit all Users and StudentProfiles atomically
+            let createdCount = 0;
+            let updatedCount = 0;
+
+            await prisma.$transaction(async (tx) => {
+                for (const row of parsedStudentRows) {
+                    const { user, studentProfile } = row.data;
+                    const existing = existingByCodeMap.get(user.code) || existingByEmailMap.get(user.email);
+
+                    if (existing && onDuplicate === 'UPDATE') {
+                        await tx.user.update({
+                            where: { id: existing.id },
+                            data: {
+                                fullName: user.fullName,
+                                email: user.email,
+                                code: user.code,
+                                role: 'STUDENT',
+                                department: null,
+                                academicTitle: null,
+                                phone: user.phone,
+                            },
+                        });
+
+                        await tx.studentProfile.upsert({
+                            where: { studentId: existing.id },
+                            create: {
+                                studentId: existing.id,
+                                gender: studentProfile.gender,
+                                dateOfBirth: studentProfile.dateOfBirth,
+                                className: studentProfile.className,
+                                major: studentProfile.major,
+                            },
+                            update: {
+                                gender: studentProfile.gender,
+                                dateOfBirth: studentProfile.dateOfBirth,
+                                className: studentProfile.className,
+                                major: studentProfile.major,
+                            },
+                        });
+
+                        updatedCount++;
+                    } else {
+                        const passwordHash = await bcrypt.hash(user.code, 10);
+                        const newUser = await tx.user.create({
+                            data: {
+                                code: user.code,
+                                fullName: user.fullName,
+                                email: user.email,
+                                phone: user.phone,
+                                role: 'STUDENT',
+                                department: null,
+                                academicTitle: null,
+                                passwordHash,
+                                isActive: true,
+                            },
+                        });
+
+                        await tx.studentProfile.create({
+                            data: {
+                                studentId: newUser.id,
+                                gender: studentProfile.gender,
+                                dateOfBirth: studentProfile.dateOfBirth,
+                                className: studentProfile.className,
+                                major: studentProfile.major,
+                            },
+                        });
+
+                        createdCount++;
+                    }
+                }
+            });
+
+            return res.json({
+                success: true,
+                message: `Import hoàn tất: Tạo mới ${createdCount}, Cập nhật ${updatedCount}, Bỏ qua 0, Lỗi 0`,
+                data: {
+                    total: items.length,
+                    createdCount,
+                    updatedCount,
+                    skippedCount: 0,
+                    errors: [],
+                },
+            });
+        }
+
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
         const errorRows = [];
@@ -936,8 +1156,56 @@ const exportUsersExcel = async (req, res, next) => {
 
         const users = await prisma.user.findMany({
             where,
+            include: {
+                studentProfile: true,
+            },
             orderBy: [{ role: 'asc' }, { code: 'asc' }],
         });
+
+        if (role === 'STUDENT') {
+            const rows = users.map((u) => {
+                let genderStr = '';
+                if (u.studentProfile?.gender === 'MALE') genderStr = 'Nam';
+                else if (u.studentProfile?.gender === 'FEMALE') genderStr = 'Nữ';
+                else if (u.studentProfile?.gender === 'OTHER') genderStr = 'Khác';
+
+                let dobStr = '';
+                if (u.studentProfile?.dateOfBirth) {
+                    const dob = new Date(u.studentProfile.dateOfBirth);
+                    const day = String(dob.getUTCDate()).padStart(2, '0');
+                    const month = String(dob.getUTCMonth() + 1).padStart(2, '0');
+                    const year = dob.getUTCFullYear();
+                    dobStr = `${day}/${month}/${year}`;
+                }
+
+                return {
+                    'MSSV (*)': u.code,
+                    'Họ và tên (*)': u.fullName,
+                    'Giới tính (*)': genderStr,
+                    'Ngày sinh (*)': dobStr,
+                    'Số điện thoại (*)': u.phone || '',
+                    'Lớp (*)': u.studentProfile?.className || '',
+                    'Email (*)': u.email,
+                    'Ngành (*)': u.studentProfile?.major || '',
+                };
+            });
+
+            const colWidths = [
+                { wch: 16 },
+                { wch: 26 },
+                { wch: 14 },
+                { wch: 16 },
+                { wch: 16 },
+                { wch: 16 },
+                { wch: 34 },
+                { wch: 26 },
+            ];
+
+            const buffer = createExcelBuffer('Danh_Sach_Sinh_Vien', rows, colWidths);
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.setHeader('Content-Disposition', `attachment; filename="Danh_sach_sinh_vien_${Date.now()}.xlsx"`);
+            return res.send(buffer);
+        }
 
         const rows = users.map((u) => {
             let titleStr = '';
@@ -954,7 +1222,7 @@ const exportUsersExcel = async (req, res, next) => {
                 'Họ và tên': u.fullName,
                 'Email': u.email,
                 'Vai trò': roleStr,
-                'Bộ môn / Khoa': u.department || '',
+                'Bộ môn / Khoa': u.role === 'STUDENT' ? (u.studentProfile?.major || '') : (u.department || ''),
                 'Số điện thoại': u.phone || '',
                 'Học vị': titleStr,
                 'Trạng thái': u.isActive ? 'Hoạt động' : 'Bị khóa',
