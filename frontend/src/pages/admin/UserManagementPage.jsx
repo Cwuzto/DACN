@@ -14,7 +14,9 @@ import {
     Drawer,
     Progress,
     Descriptions,
+    DatePicker,
 } from 'antd';
+import dayjs from 'dayjs';
 import {
     PlusOutlined,
     SearchOutlined,
@@ -186,6 +188,21 @@ function UserManagementPage() {
 
     const handleEdit = (record) => {
         setEditingUser(record);
+        let parsedDob = null;
+        if (record.studentProfile?.dateOfBirth) {
+            const parsed = dayjs(record.studentProfile.dateOfBirth);
+            if (parsed.isValid()) parsedDob = parsed;
+        }
+
+        let genderVal = undefined;
+        if (record.studentProfile?.gender) {
+            const g = record.studentProfile.gender;
+            if (g === 'MALE' || g === 'Nam') genderVal = 'Nam';
+            else if (g === 'FEMALE' || g === 'Nữ') genderVal = 'Nữ';
+            else if (g === 'OTHER' || g === 'Khác') genderVal = 'Khác';
+            else genderVal = g;
+        }
+
         form.setFieldsValue({
             fullName: record.fullName,
             email: record.email,
@@ -195,14 +212,25 @@ function UserManagementPage() {
             phone: record.phone,
             academicTitle: record.academicTitle,
             maxStudents: record.maxStudents,
+            gender: genderVal,
+            dateOfBirth: parsedDob,
+            className: record.studentProfile?.className || '',
+            major: record.studentProfile?.major || '',
         });
         setIsModalOpen(true);
     };
 
     const handleModalOk = async () => {
         try {
-            const values = await form.validateFields();
+            const rawValues = await form.validateFields();
             setSubmitting(true);
+            const values = { ...rawValues };
+            if (values.role === 'STUDENT' && values.dateOfBirth) {
+                values.dateOfBirth = dayjs.isDayjs(values.dateOfBirth)
+                    ? values.dateOfBirth.format('DD/MM/YYYY')
+                    : values.dateOfBirth;
+            }
+
             if (editingUser) {
                 const response = await userService.updateUser(editingUser.id, values);
                 if (response.success) {
@@ -211,7 +239,17 @@ function UserManagementPage() {
                     fetchUsers(pagination.current, pagination.pageSize);
                     fetchRoleCounts();
                     if (drawerUser?.id === editingUser.id) {
-                        setDrawerUser((prev) => ({ ...prev, ...values }));
+                        setDrawerUser((prev) => ({
+                            ...prev,
+                            ...values,
+                            studentProfile: {
+                                ...(prev.studentProfile || {}),
+                                gender: values.gender,
+                                dateOfBirth: values.dateOfBirth,
+                                className: values.className,
+                                major: values.major,
+                            },
+                        }));
                     }
                 }
             } else {
@@ -749,10 +787,23 @@ function UserManagementPage() {
                                 </p>
                                 <p className="flex items-center gap-2">
                                     <BankOutlined className="text-slate-500" />
-                                    <span>{drawerUser.department || 'Chưa phân Khoa/Bộ môn'}</span>
+                                    <span>{drawerUser.department || (drawerUser.role === 'STUDENT' ? (drawerUser.studentProfile?.major || 'Sinh viên') : 'Chưa phân Khoa/Bộ môn')}</span>
                                 </p>
                             </div>
                         </div>
+
+                        {/* Student Details if Student */}
+                        {drawerUser.role === 'STUDENT' && (
+                            <div className="p-4 rounded-xl bg-emerald-50/60 border border-emerald-100 space-y-2">
+                                <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider">Thông tin Sinh viên</span>
+                                <div className="grid grid-cols-2 gap-2 text-xs text-slate-700 pt-1">
+                                    <div><span className="text-slate-500 font-medium">Lớp:</span> <strong>{drawerUser.studentProfile?.className || '—'}</strong></div>
+                                    <div><span className="text-slate-500 font-medium">Ngành:</span> <strong>{drawerUser.studentProfile?.major || '—'}</strong></div>
+                                    <div><span className="text-slate-500 font-medium">Giới tính:</span> <strong>{drawerUser.studentProfile?.gender === 'MALE' ? 'Nam' : drawerUser.studentProfile?.gender === 'FEMALE' ? 'Nữ' : drawerUser.studentProfile?.gender === 'OTHER' ? 'Khác' : (drawerUser.studentProfile?.gender || '—')}</strong></div>
+                                    <div><span className="text-slate-500 font-medium">Ngày sinh:</span> <strong>{drawerUser.studentProfile?.dateOfBirth ? (dayjs(drawerUser.studentProfile.dateOfBirth).isValid() ? dayjs(drawerUser.studentProfile.dateOfBirth).format('DD/MM/YYYY') : String(drawerUser.studentProfile.dateOfBirth)) : '—'}</strong></div>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Lecturer Quota Meter if Lecturer */}
                         {drawerUser.role === 'LECTURER' && (
@@ -866,33 +917,33 @@ function UserManagementPage() {
                 <Form form={form} layout="vertical" className="pt-2">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <Form.Item
-                            label="Họ và tên"
+                            label={selectedRole === 'STUDENT' ? 'Họ và tên sinh viên (*)' : 'Họ và tên'}
                             name="fullName"
                             rules={[{ required: true, message: 'Vui lòng nhập họ tên!' }]}
                         >
                             <Input placeholder="Nhập họ và tên đầy đủ" />
                         </Form.Item>
                         <Form.Item
-                            label="Mã số người dùng"
+                            label={selectedRole === 'STUDENT' ? 'Mã số sinh viên (MSSV) (*)' : 'Mã số người dùng'}
                             name="code"
                             rules={[{ required: true, message: 'Nhập mã số!' }]}
                         >
-                            <Input placeholder="VD: GV00123 / SV20201234" disabled={Boolean(editingUser)} />
+                            <Input placeholder={selectedRole === 'STUDENT' ? 'VD: SV20260001' : 'VD: GV00123 / US001'} disabled={Boolean(editingUser)} />
                         </Form.Item>
                     </div>
 
-                    <Form.Item
-                        label="Email trường"
-                        name="email"
-                        rules={[
-                            { required: true, message: 'Nhập email!' },
-                            { type: 'email', message: 'Email không hợp lệ!' },
-                        ]}
-                    >
-                        <Input placeholder="example@tdmu.edu.vn" />
-                    </Form.Item>
-
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <Form.Item
+                            label={selectedRole === 'STUDENT' ? 'Email sinh viên (*)' : 'Email trường'}
+                            name="email"
+                            rules={[
+                                { required: true, message: 'Nhập email!' },
+                                { type: 'email', message: 'Email không hợp lệ!' },
+                            ]}
+                        >
+                            <Input placeholder="example@tdmu.edu.vn" />
+                        </Form.Item>
+
                         <Form.Item label="Vai trò chính" name="role" rules={[{ required: true, message: 'Chọn vai trò!' }]}>
                             <Select placeholder="Chọn vai trò">
                                 <Select.Option value="STUDENT">Sinh viên</Select.Option>
@@ -900,53 +951,114 @@ function UserManagementPage() {
                                 <Select.Option value="ADMIN">Quản trị viên</Select.Option>
                             </Select>
                         </Form.Item>
-                        <Form.Item label="Khoa / Bộ môn" name="department">
-                            <Select placeholder="Chọn Khoa / Bộ môn" allowClear>
-                                <Select.Option value="Viện Công nghệ Số">Viện Công nghệ Số</Select.Option>
-                                <Select.Option value="Bộ môn Công nghệ Phần mềm">Bộ môn Công nghệ Phần mềm</Select.Option>
-                                <Select.Option value="Bộ môn Hệ thống Thông tin">Bộ môn Hệ thống Thông tin</Select.Option>
-                                <Select.Option value="Bộ môn Mạng Máy tính">Bộ môn Mạng Máy tính</Select.Option>
-                                <Select.Option value="Bộ môn Khoa học Máy tính">Bộ môn Khoa học Máy tính</Select.Option>
-                            </Select>
-                        </Form.Item>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <Form.Item label="Số điện thoại" name="phone">
-                            <Input placeholder="Nhập số điện thoại liên hệ" />
-                        </Form.Item>
-                        {selectedRole === 'LECTURER' && (
-                            <Form.Item
-                                label="Học vị"
-                                name="academicTitle"
-                                rules={[{ required: true, message: 'Chọn học vị!' }]}
-                            >
-                                <Select
-                                    placeholder="Chọn học vị"
-                                    allowClear
-                                    onChange={(value) => {
-                                        let maxStudents = 10;
-                                        if (value === 'TIEN_SI') maxStudents = 15;
-                                        if (value === 'PHO_GIAO_SU') maxStudents = 20;
-                                        form.setFieldValue('maxStudents', maxStudents);
-                                    }}
+                    {selectedRole === 'STUDENT' ? (
+                        <>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <Form.Item
+                                    label="Giới tính (*)"
+                                    name="gender"
+                                    rules={[{ required: true, message: 'Chọn giới tính!' }]}
                                 >
-                                    <Select.Option value="THAC_SI">Thạc sĩ</Select.Option>
-                                    <Select.Option value="TIEN_SI">Tiến sĩ</Select.Option>
-                                    <Select.Option value="PHO_GIAO_SU">Phó Giáo sư</Select.Option>
-                                </Select>
-                            </Form.Item>
-                        )}
-                    </div>
+                                    <Select placeholder="Chọn giới tính">
+                                        <Select.Option value="Nam">Nam</Select.Option>
+                                        <Select.Option value="Nữ">Nữ</Select.Option>
+                                        <Select.Option value="Khác">Khác</Select.Option>
+                                    </Select>
+                                </Form.Item>
 
-                    {selectedRole === 'LECTURER' && (
-                        <Form.Item
-                            label="Quota SV tối đa (Hạn mức hướng dẫn)"
-                            name="maxStudents"
-                            tooltip="Mặc định: ThS 10 SV, TS 15 SV, PGS 20 SV."
-                        >
-                            <Input type="number" placeholder="VD: 10" />
-                        </Form.Item>
+                                <Form.Item
+                                    label="Ngày sinh (*)"
+                                    name="dateOfBirth"
+                                    rules={[{ required: true, message: 'Chọn ngày sinh!' }]}
+                                >
+                                    <DatePicker
+                                        format="DD/MM/YYYY"
+                                        placeholder="Chọn ngày sinh"
+                                        className="w-full"
+                                        disabledDate={(current) => current && current > dayjs().endOf('day')}
+                                    />
+                                </Form.Item>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <Form.Item
+                                    label="Số điện thoại (*)"
+                                    name="phone"
+                                    rules={[{ required: true, message: 'Nhập số điện thoại!' }]}
+                                >
+                                    <Input placeholder="Nhập số điện thoại sinh viên" />
+                                </Form.Item>
+
+                                <Form.Item
+                                    label="Lớp (*)"
+                                    name="className"
+                                    rules={[{ required: true, message: 'Nhập lớp học!' }]}
+                                >
+                                    <Input placeholder="VD: D20CNTT01" />
+                                </Form.Item>
+                            </div>
+
+                            <Form.Item
+                                label="Ngành học (*)"
+                                name="major"
+                                rules={[{ required: true, message: 'Nhập ngành học!' }]}
+                            >
+                                <Input placeholder="VD: Kỹ thuật Phần mềm" />
+                            </Form.Item>
+                        </>
+                    ) : (
+                        <>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <Form.Item label="Khoa / Bộ môn" name="department">
+                                    <Select placeholder="Chọn Khoa / Bộ môn" allowClear>
+                                        <Select.Option value="Viện Công nghệ Số">Viện Công nghệ Số</Select.Option>
+                                        <Select.Option value="Bộ môn Công nghệ Phần mềm">Bộ môn Công nghệ Phần mềm</Select.Option>
+                                        <Select.Option value="Bộ môn Hệ thống Thông tin">Bộ môn Hệ thống Thông tin</Select.Option>
+                                        <Select.Option value="Bộ môn Mạng Máy tính">Bộ môn Mạng Máy tính</Select.Option>
+                                        <Select.Option value="Bộ môn Khoa học Máy tính">Bộ môn Khoa học Máy tính</Select.Option>
+                                    </Select>
+                                </Form.Item>
+
+                                <Form.Item label="Số điện thoại" name="phone">
+                                    <Input placeholder="Nhập số điện thoại liên hệ" />
+                                </Form.Item>
+                            </div>
+
+                            {selectedRole === 'LECTURER' && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <Form.Item
+                                        label="Học vị"
+                                        name="academicTitle"
+                                        rules={[{ required: true, message: 'Chọn học vị!' }]}
+                                    >
+                                        <Select
+                                            placeholder="Chọn học vị"
+                                            allowClear
+                                            onChange={(value) => {
+                                                let maxStudents = 10;
+                                                if (value === 'TIEN_SI') maxStudents = 15;
+                                                if (value === 'PHO_GIAO_SU') maxStudents = 20;
+                                                form.setFieldValue('maxStudents', maxStudents);
+                                            }}
+                                        >
+                                            <Select.Option value="THAC_SI">Thạc sĩ</Select.Option>
+                                            <Select.Option value="TIEN_SI">Tiến sĩ</Select.Option>
+                                            <Select.Option value="PHO_GIAO_SU">Phó Giáo sư</Select.Option>
+                                        </Select>
+                                    </Form.Item>
+
+                                    <Form.Item
+                                        label="Quota SV tối đa (Hạn mức hướng dẫn)"
+                                        name="maxStudents"
+                                        tooltip="Mặc định: ThS 10 SV, TS 15 SV, PGS 20 SV."
+                                    >
+                                        <Input type="number" placeholder="VD: 10" />
+                                    </Form.Item>
+                                </div>
+                            )}
+                        </>
                     )}
 
                     {!editingUser && (

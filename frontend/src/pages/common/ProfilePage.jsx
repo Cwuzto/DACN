@@ -27,6 +27,7 @@ import PageHeader from '../../components/common/PageHeader';
 
 function ProfilePage() {
     const { user, updateUser } = useAuthStore();
+    const isStudent = user?.role === 'STUDENT';
 
     const [editing, setEditing] = useState(false);
     const [savingProfile, setSavingProfile] = useState(false);
@@ -50,6 +51,8 @@ function ProfilePage() {
                 department: user.department || '',
                 role: user.role || '',
                 avatarUrl: user.avatarUrl || '',
+                className: user.studentProfile?.className || user.className || '',
+                major: user.studentProfile?.major || user.major || '',
             });
         }
     }, [user]);
@@ -59,12 +62,18 @@ function ProfilePage() {
 
     const hasProfileChanges = useMemo(() => {
         if (!user) return false;
+        if (isStudent) {
+            return (
+                (tempProfile.avatarUrl || '') !== (user.avatarUrl || '') ||
+                (tempProfile.phone || '') !== (user.phone || '')
+            );
+        }
         return (
             (tempProfile.avatarUrl || '') !== (user.avatarUrl || '') ||
             (tempProfile.phone || '') !== (user.phone || '') ||
             (tempProfile.department || '') !== (user.department || '')
         );
-    }, [tempProfile, user]);
+    }, [tempProfile, user, isStudent]);
 
     const handleChange = (field, value) => {
         setTempProfile((prev) => ({ ...prev, [field]: value }));
@@ -93,11 +102,15 @@ function ProfilePage() {
     const handleSave = async () => {
         try {
             setSavingProfile(true);
-            const res = await authService.updateProfile({
+            const updatePayload = {
                 avatarUrl: tempProfile.avatarUrl,
                 phone: tempProfile.phone,
-                department: tempProfile.department,
-            });
+            };
+            if (!isStudent) {
+                updatePayload.department = tempProfile.department;
+            }
+
+            const res = await authService.updateProfile(updatePayload);
 
             if (res?.success && res?.data) {
                 updateUser({ ...user, ...res.data });
@@ -123,6 +136,8 @@ function ProfilePage() {
             department: user.department || '',
             role: user.role || '',
             avatarUrl: user.avatarUrl || '',
+            className: user.studentProfile?.className || user.className || '',
+            major: user.studentProfile?.major || user.major || '',
         });
         setEditing(false);
     };
@@ -227,8 +242,14 @@ function ProfilePage() {
                             </div>
                             <div className="flex items-center gap-3 text-slate-700">
                                 <IdcardOutlined className="text-slate-500" />
-                                <span className="text-sm font-medium">{tempProfile.employeeId}</span>
+                                <span className="text-sm font-medium">{isStudent ? `MSSV: ${tempProfile.employeeId}` : tempProfile.employeeId}</span>
                             </div>
+                            {isStudent && (
+                                <div className="flex items-center gap-3 text-slate-700">
+                                    <BankOutlined className="text-slate-500" />
+                                    <span className="text-sm font-medium">{tempProfile.className ? `Lớp: ${tempProfile.className}` : (tempProfile.major || 'Sinh viên')}</span>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -261,20 +282,37 @@ function ProfilePage() {
                                     )}
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Mã nhân viên / MSSV</label>
+                                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">{isStudent ? 'Mã số sinh viên (MSSV)' : 'Mã nhân viên / Mã số'}</label>
                                     <div className="text-sm font-medium text-slate-900 bg-slate-50 p-2.5 rounded border border-slate-200">{tempProfile.employeeId}</div>
                                 </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Đơn vị / Khoa</label>
-                                    {editing ? (
-                                        <Input size="large" value={tempProfile.department} onChange={(e) => handleChange('department', e.target.value)} placeholder="VD: Khoa CNTT" disabled={isProfileBusy} />
-                                    ) : (
-                                        <div className="text-sm font-medium text-slate-900 bg-slate-50 p-2.5 rounded border border-transparent flex items-center gap-2">
-                                            <BankOutlined className="text-slate-500" />
-                                            {tempProfile.department || '---'}
+                                {isStudent ? (
+                                    <>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Lớp</label>
+                                            <div className="text-sm font-medium text-slate-900 bg-slate-50 p-2.5 rounded border border-slate-200">
+                                                {tempProfile.className || 'Chưa cập nhật'}
+                                            </div>
                                         </div>
-                                    )}
-                                </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Ngành</label>
+                                            <div className="text-sm font-medium text-slate-900 bg-slate-50 p-2.5 rounded border border-slate-200">
+                                                {tempProfile.major || 'Chưa cập nhật'}
+                                            </div>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Đơn vị / Khoa</label>
+                                        {editing ? (
+                                            <Input size="large" value={tempProfile.department} onChange={(e) => handleChange('department', e.target.value)} placeholder="VD: Khoa CNTT" disabled={isProfileBusy} />
+                                        ) : (
+                                            <div className="text-sm font-medium text-slate-900 bg-slate-50 p-2.5 rounded border border-transparent flex items-center gap-2">
+                                                <BankOutlined className="text-slate-500" />
+                                                {tempProfile.department || '---'}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
