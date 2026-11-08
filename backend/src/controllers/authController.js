@@ -22,6 +22,7 @@ const login = async (req, res, next) => {
         const user = await prisma.user.findUnique({
             where: { email },
             include: {
+                studentProfile: true,
                 permissionGroups: {
                     include: {
                         permissionGroup: { include: { permissions: { include: { permission: true } } } },
@@ -204,13 +205,24 @@ const changePassword = async (req, res, next) => {
  */
 const updateProfile = async (req, res, next) => {
     try {
-        const { avatarUrl, phone, department } = req.body;
+        const { avatarUrl, avatar, phone, department } = req.body;
 
         // Chỉ cho phép cập nhật các trường an toàn
         const updateData = {};
-        if (avatarUrl !== undefined) updateData.avatarUrl = avatarUrl;
-        if (phone !== undefined) updateData.phone = phone;
-        if (department !== undefined) updateData.department = department;
+        const resolvedAvatar = avatarUrl !== undefined ? avatarUrl : avatar;
+        if (resolvedAvatar !== undefined) {
+            updateData.avatarUrl = resolvedAvatar;
+        }
+        if (phone !== undefined) {
+            updateData.phone = phone;
+        }
+
+        // Sinh viên tuyệt đối không thể tự đổi department hay thông tin học vụ
+        if (req.user?.role !== 'STUDENT' && department !== undefined) {
+            updateData.department = department;
+        }
+
+        const isStudent = req.user?.role === 'STUDENT';
 
         const updatedUser = await prisma.user.update({
             where: { id: req.user.id },
@@ -224,7 +236,20 @@ const updateProfile = async (req, res, next) => {
                 department: true,
                 avatarUrl: true,
                 phone: true,
-            }
+                ...(isStudent ? {
+                    studentProfile: {
+                        select: {
+                            studentId: true,
+                            gender: true,
+                            dateOfBirth: true,
+                            className: true,
+                            major: true,
+                            createdAt: true,
+                            updatedAt: true,
+                        },
+                    },
+                } : {}),
+            },
         });
 
         res.json({

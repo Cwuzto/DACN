@@ -93,6 +93,45 @@ describe('auth middleware authenticate', () => {
         expect(next).toHaveBeenCalledTimes(1);
         expect(req.user.permissions).toEqual([]);
     });
+
+    test('attaches studentProfile to req.user for student', async () => {
+        jwt.verify.mockReturnValue({ userId: 101, role: 'STUDENT' });
+        prisma.user.findUnique.mockResolvedValue({
+            id: 101,
+            email: 'student@example.com',
+            fullName: 'Nguyen Van An',
+            code: 'SV20260010',
+            role: 'STUDENT',
+            department: null,
+            isActive: true,
+            permissionGroups: [],
+            studentProfile: {
+                gender: 'MALE',
+                dateOfBirth: new Date('2002-03-12T00:00:00.000Z'),
+                className: 'D20PM01',
+                major: 'Ky thuat phan mem',
+            },
+        });
+
+        const req = createMockReq({
+            headers: { authorization: 'Bearer valid-student-token' },
+        });
+        const res = createMockRes();
+        const next = createNext();
+
+        await authenticate(req, res, next);
+
+        expect(prisma.user.findUnique).toHaveBeenCalledWith(expect.objectContaining({
+            select: expect.objectContaining({
+                studentProfile: expect.anything(),
+            }),
+        }));
+        expect(req.user.studentProfile).toEqual(expect.objectContaining({
+            className: 'D20PM01',
+            major: 'Ky thuat phan mem',
+        }));
+        expect(next).toHaveBeenCalledTimes(1);
+    });
 });
 
 describe('auth middleware capability guards', () => {

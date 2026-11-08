@@ -45,8 +45,21 @@ const authenticate = async (req, res, next) => {
                 code: true,
                 role: true,
                 department: true,
+                phone: true,
+                avatarUrl: true,
                 isActive: true,
                 permissionVersion: true,
+                studentProfile: {
+                    select: {
+                        studentId: true,
+                        gender: true,
+                        dateOfBirth: true,
+                        className: true,
+                        major: true,
+                        createdAt: true,
+                        updatedAt: true,
+                    },
+                },
                 permissionGroups: {
                     include: {
                         permissionGroup: {

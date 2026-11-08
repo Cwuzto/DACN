@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const prisma = require('../config/database');
 const { COMPLETED_GRADUATION_STATUSES } = require('../utils/studentAccountRestriction');
 const { getMentorMaxSlots } = require('../constants/mentorCapacity');
+const { validateStudentPayload, normalizeStudentPayload } = require('../services/studentProfileService');
 
 const generateUserCode = async (role) => {
     let prefix = 'US';
@@ -121,6 +122,17 @@ const getAllUsers = async (req, res, next) => {
                     permissionGroups: {
                         include: { permissionGroup: { select: { code: true, name: true } } },
                     },
+                    studentProfile: {
+                        select: {
+                            studentId: true,
+                            gender: true,
+                            dateOfBirth: true,
+                            className: true,
+                            major: true,
+                            createdAt: true,
+                            updatedAt: true,
+                        },
+                    },
                 },
                 skip,
                 take: parseInt(limit),
@@ -169,6 +181,62 @@ const getAllUsers = async (req, res, next) => {
 };
 
 /**
+ * GET /api/users/:id
+ * Lấy chi tiết một người dùng kèm studentProfile
+ */
+const getUserById = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const user = await prisma.user.findUnique({
+            where: { id: parseInt(id) },
+            select: {
+                id: true,
+                email: true,
+                fullName: true,
+                code: true,
+                role: true,
+                department: true,
+                academicTitle: true,
+                phone: true,
+                avatarUrl: true,
+                isActive: true,
+                createdAt: true,
+                permissionGroups: {
+                    include: { permissionGroup: { select: { code: true, name: true } } },
+                },
+                studentProfile: {
+                    select: {
+                        studentId: true,
+                        gender: true,
+                        dateOfBirth: true,
+                        className: true,
+                        major: true,
+                        createdAt: true,
+                        updatedAt: true,
+                    },
+                },
+            },
+        });
+
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy người dùng.' });
+        }
+
+        const userDto = {
+            ...user,
+            permissionGroups: (user.permissionGroups || []).map(({ permissionGroup }) => permissionGroup),
+        };
+
+        res.json({
+            success: true,
+            data: userDto,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
  * POST /api/users
  * Admin tạo người dùng mới
  */
@@ -176,6 +244,99 @@ const createUser = async (req, res, next) => {
     try {
         const { email, fullName, role, department, phone, academicTitle } = req.body;
 
+        if (role === 'STUDENT') {
+            let validated;
+            try {
+                validated = validateStudentPayload(req.body);
+            } catch (validationErr) {
+                return res.status(400).json({
+                    success: false,
+                    message: validationErr.message,
+                    errors: validationErr.errors || [validationErr.message],
+                });
+            }
+
+            // Kiểm tra email trùng
+            const existingEmail = await prisma.user.findUnique({ where: { email: validated.user.email } });
+            if (existingEmail) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Email này đã tồn tại trong hệ thống.',
+                });
+            }
+
+            // Kiểm tra MSSV trùng
+            const existingCode = await prisma.user.findUnique({ where: { code: validated.user.code } });
+            if (existingCode) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Mã số sinh viên này đã tồn tại trong hệ thống.',
+                });
+            }
+
+            const code = validated.user.code;
+            const hashedPassword = await bcrypt.hash(code, 10);
+
+            // Gói tạo User + StudentProfile trong một transaction duy nhất (fail-closed rollback)
+            const created = await prisma.$transaction(async (tx) => {
+                const user = await tx.user.create({
+                    data: {
+                        email: validated.user.email,
+                        fullName: validated.user.fullName,
+                        code: validated.user.code,
+                        role: 'STUDENT',
+                        department: null,
+                        academicTitle: null,
+                        phone: validated.user.phone,
+                        passwordHash: hashedPassword,
+                    },
+                    select: {
+                        id: true,
+                        email: true,
+                        fullName: true,
+                        code: true,
+                        role: true,
+                        department: true,
+                        academicTitle: true,
+                        phone: true,
+                        isActive: true,
+                        createdAt: true,
+                    },
+                });
+
+                const studentProfile = await tx.studentProfile.create({
+                    data: {
+                        studentId: user.id,
+                        gender: validated.studentProfile.gender,
+                        dateOfBirth: validated.studentProfile.dateOfBirth,
+                        className: validated.studentProfile.className,
+                        major: validated.studentProfile.major,
+                    },
+                    select: {
+                        studentId: true,
+                        gender: true,
+                        dateOfBirth: true,
+                        className: true,
+                        major: true,
+                        createdAt: true,
+                        updatedAt: true,
+                    },
+                });
+
+                return {
+                    ...user,
+                    studentProfile,
+                };
+            });
+
+            return res.status(201).json({
+                success: true,
+                message: `Tạo người dùng thành công. Mật khẩu mặc định là mã số: ${code}`,
+                data: created,
+            });
+        }
+
+        // Non-student creation
         if (!email || !fullName || !role) {
             return res.status(400).json({
                 success: false,
@@ -192,7 +353,18 @@ const createUser = async (req, res, next) => {
             });
         }
 
-        const code = await generateUserCode(role);
+        let code = req.body.code ? req.body.code.trim() : null;
+        if (code) {
+            const existingCode = await prisma.user.findUnique({ where: { code } });
+            if (existingCode) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Mã số này đã tồn tại trong hệ thống.',
+                });
+            }
+        } else {
+            code = await generateUserCode(role);
+        }
 
         // Mật khẩu mặc định = mã số
         const hashedPassword = await bcrypt.hash(code, 10);
@@ -241,7 +413,10 @@ const updateUser = async (req, res, next) => {
         const { id } = req.params;
         const { fullName, email, code, role, department, phone, academicTitle } = req.body;
 
-        const existing = await prisma.user.findUnique({ where: { id: parseInt(id) } });
+        const existing = await prisma.user.findUnique({
+            where: { id: parseInt(id) },
+            include: { studentProfile: true },
+        });
         if (!existing) {
             return res.status(404).json({ success: false, message: 'Không tìm thấy người dùng.' });
         }
@@ -260,6 +435,96 @@ const updateUser = async (req, res, next) => {
             if (dup) {
                 return res.status(400).json({ success: false, message: 'Mã số này đã tồn tại.' });
             }
+        }
+
+        const effectiveRole = role || existing.role;
+
+        if (effectiveRole === 'STUDENT') {
+            const mergedPayload = {
+                code: code !== undefined ? code : existing.code,
+                fullName: fullName !== undefined ? fullName : existing.fullName,
+                email: email !== undefined ? email : existing.email,
+                phone: phone !== undefined ? phone : (existing.phone || ''),
+                gender: req.body.gender !== undefined ? req.body.gender : existing.studentProfile?.gender,
+                dateOfBirth: req.body.dateOfBirth !== undefined ? req.body.dateOfBirth : existing.studentProfile?.dateOfBirth,
+                className: (req.body.className || req.body.lop) !== undefined
+                    ? (req.body.className || req.body.lop)
+                    : existing.studentProfile?.className,
+                major: (req.body.major || req.body.nganh) !== undefined
+                    ? (req.body.major || req.body.nganh)
+                    : existing.studentProfile?.major,
+            };
+
+            let validated;
+            try {
+                validated = validateStudentPayload(mergedPayload);
+            } catch (validationErr) {
+                return res.status(400).json({
+                    success: false,
+                    message: validationErr.message,
+                    errors: validationErr.errors || [validationErr.message],
+                });
+            }
+
+            const updated = await prisma.$transaction(async (tx) => {
+                const user = await tx.user.update({
+                    where: { id: existing.id },
+                    data: {
+                        fullName: validated.user.fullName,
+                        email: validated.user.email,
+                        code: validated.user.code,
+                        role: 'STUDENT',
+                        department: null,
+                        academicTitle: null,
+                        phone: validated.user.phone,
+                    },
+                    select: {
+                        id: true,
+                        email: true,
+                        fullName: true,
+                        code: true,
+                        role: true,
+                        department: true,
+                        academicTitle: true,
+                        phone: true,
+                        isActive: true,
+                        createdAt: true,
+                    },
+                });
+
+                const studentProfile = await tx.studentProfile.upsert({
+                    where: { studentId: existing.id },
+                    create: {
+                        studentId: existing.id,
+                        gender: validated.studentProfile.gender,
+                        dateOfBirth: validated.studentProfile.dateOfBirth,
+                        className: validated.studentProfile.className,
+                        major: validated.studentProfile.major,
+                    },
+                    update: {
+                        gender: validated.studentProfile.gender,
+                        dateOfBirth: validated.studentProfile.dateOfBirth,
+                        className: validated.studentProfile.className,
+                        major: validated.studentProfile.major,
+                    },
+                    select: {
+                        studentId: true,
+                        gender: true,
+                        dateOfBirth: true,
+                        className: true,
+                        major: true,
+                        createdAt: true,
+                        updatedAt: true,
+                    },
+                });
+
+                return {
+                    ...user,
+                    studentProfile,
+                };
+            });
+
+            return res.json({ success: true, message: 'Cập nhật người dùng thành công.', data: updated });
         }
 
         const updateData = {};
@@ -784,6 +1049,7 @@ const getPublicLecturers = async (req, res, next) => {
 
 module.exports = {
     getAllUsers,
+    getUserById,
     getPublicLecturers,
     createUser,
     updateUser,

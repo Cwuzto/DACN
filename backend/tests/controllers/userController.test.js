@@ -2,10 +2,32 @@ const mockPrisma = {
     user: {
         findMany: jest.fn(),
         findUnique: jest.fn(),
+        create: jest.fn(),
+        update: jest.fn(),
+        count: jest.fn(),
     },
+    studentProfile: {
+        create: jest.fn(),
+        upsert: jest.fn(),
+        findUnique: jest.fn(),
+    },
+    topicRegistration: {
+        findMany: jest.fn(),
+    },
+    $transaction: jest.fn(async (cb) => {
+        if (typeof cb === 'function') {
+            return await cb(mockPrisma);
+        }
+        return cb;
+    }),
 };
 
 jest.mock('../../src/config/database', () => mockPrisma);
+
+jest.mock('bcryptjs', () => ({
+    hash: jest.fn(async (val) => `hashed_${val}`),
+    compare: jest.fn(async () => true),
+}));
 
 jest.mock('../../src/constants/mentorCapacity', () => ({
     getMentorMaxSlots: jest.fn((title) => (title === 'THAC_SI' ? 8 : 10)),
@@ -65,3 +87,248 @@ describe('userController.getPublicLecturers', () => {
         expect(callArg.where.OR).toBeDefined();
     });
 });
+
+describe('userController.createUser for STUDENT', () => {
+    let req, res, next;
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        req = {
+            body: {
+                role: 'STUDENT',
+                code: 'SV20260010',
+                fullName: 'Nguyen Van An',
+                email: 'an.nv@school.edu.vn',
+                phone: '0901234567',
+                gender: 'Nam',
+                dateOfBirth: '12/03/2002',
+                className: 'D20PM01',
+                major: 'Ky thuat phan mem',
+            },
+        };
+        res = {
+            status: jest.fn().mockReturnThis(),
+            json: jest.fn().mockReturnThis(),
+        };
+        next = jest.fn();
+    });
+
+    test('validates 8 fields and returns 400 when missing student profile fields', async () => {
+        delete req.body.className;
+
+        await userController.createUser(req, res, next);
+
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({ success: false, message: expect.stringMatching(/Lớp/i) })
+        );
+        expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    test('returns 400 when code already exists', async () => {
+        mockPrisma.user.findUnique.mockImplementation(async ({ where }) => {
+            if (where.code === 'SV20260010') return { id: 99, code: 'SV20260010' };
+            return null;
+        });
+
+        await userController.createUser(req, res, next);
+
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({ success: false, message: expect.stringMatching(/Mã số sinh viên/i) })
+        );
+        expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    test('creates User and StudentProfile in a single atomic transaction with provided MSSV', async () => {
+        mockPrisma.user.findUnique.mockResolvedValue(null);
+
+        const createdUserRecord = {
+            id: 101,
+            code: 'SV20260010',
+            fullName: 'Nguyen Van An',
+            email: 'an.nv@school.edu.vn',
+            role: 'STUDENT',
+            phone: '0901234567',
+            department: null,
+            isActive: true,
+            createdAt: new Date(),
+        };
+
+        const createdProfileRecord = {
+            studentId: 101,
+            gender: 'MALE',
+            dateOfBirth: new Date('2002-03-12T00:00:00.000Z'),
+            className: 'D20PM01',
+            major: 'Ky thuat phan mem',
+        };
+
+        mockPrisma.user.create.mockResolvedValue(createdUserRecord);
+        mockPrisma.studentProfile.create.mockResolvedValue(createdProfileRecord);
+
+        await userController.createUser(req, res, next);
+
+        expect(mockPrisma.$transaction).toHaveBeenCalled();
+        expect(mockPrisma.user.create).toHaveBeenCalledWith(expect.objectContaining({
+            data: expect.objectContaining({
+                code: 'SV20260010',
+                email: 'an.nv@school.edu.vn',
+                role: 'STUDENT',
+            }),
+        }));
+        expect(mockPrisma.studentProfile.create).toHaveBeenCalledWith(expect.objectContaining({
+            data: expect.objectContaining({
+                studentId: 101,
+                gender: 'MALE',
+                className: 'D20PM01',
+                major: 'Ky thuat phan mem',
+            }),
+        }));
+        expect(res.status).toHaveBeenCalledWith(201);
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            success: true,
+            data: expect.objectContaining({
+                code: 'SV20260010',
+                studentProfile: expect.objectContaining({
+                    className: 'D20PM01',
+                }),
+            }),
+        }));
+    });
+
+    test('rolls back and propagates error if studentProfile creation fails', async () => {
+        mockPrisma.user.findUnique.mockResolvedValue(null);
+        mockPrisma.user.create.mockResolvedValue({ id: 101 });
+        mockPrisma.studentProfile.create.mockRejectedValue(new Error('DB Profile Constraint Failure'));
+
+        await userController.createUser(req, res, next);
+
+        expect(next).toHaveBeenCalledWith(expect.any(Error));
+    });
+});
+
+describe('userController.updateUser for STUDENT', () => {
+    let req, res, next;
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        req = {
+            params: { id: '101' },
+            body: {
+                fullName: 'Nguyen Van An Updated',
+                phone: '0988888888',
+                gender: 'Nam',
+                dateOfBirth: '12/03/2002',
+                className: 'D20PM02',
+                major: 'Khoa hoc may tinh',
+            },
+        };
+        res = {
+            status: jest.fn().mockReturnThis(),
+            json: jest.fn().mockReturnThis(),
+        };
+        next = jest.fn();
+    });
+
+    test('validates and upserts StudentProfile in transaction when updating student', async () => {
+        mockPrisma.user.findUnique.mockResolvedValue({
+            id: 101,
+            code: 'SV20260010',
+            email: 'an.nv@school.edu.vn',
+            fullName: 'Nguyen Van An',
+            role: 'STUDENT',
+            phone: '0901234567',
+            studentProfile: {
+                gender: 'MALE',
+                dateOfBirth: new Date('2002-03-12T00:00:00.000Z'),
+                className: 'D20PM01',
+                major: 'Ky thuat phan mem',
+            },
+        });
+
+        mockPrisma.user.update.mockResolvedValue({
+            id: 101,
+            code: 'SV20260010',
+            email: 'an.nv@school.edu.vn',
+            fullName: 'Nguyen Van An Updated',
+            role: 'STUDENT',
+            phone: '0988888888',
+        });
+
+        mockPrisma.studentProfile.upsert.mockResolvedValue({
+            studentId: 101,
+            gender: 'MALE',
+            dateOfBirth: new Date('2002-03-12T00:00:00.000Z'),
+            className: 'D20PM02',
+            major: 'Khoa hoc may tinh',
+        });
+
+        await userController.updateUser(req, res, next);
+
+        expect(mockPrisma.$transaction).toHaveBeenCalled();
+        expect(mockPrisma.studentProfile.upsert).toHaveBeenCalledWith(expect.objectContaining({
+            where: { studentId: 101 },
+            create: expect.objectContaining({ className: 'D20PM02', major: 'Khoa hoc may tinh' }),
+            update: expect.objectContaining({ className: 'D20PM02', major: 'Khoa hoc may tinh' }),
+        }));
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            success: true,
+            data: expect.objectContaining({
+                fullName: 'Nguyen Van An Updated',
+                studentProfile: expect.objectContaining({ className: 'D20PM02' }),
+            }),
+        }));
+    });
+});
+
+describe('userController.getUserById and getAllUsers studentProfile inclusion', () => {
+    let req, res, next;
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        req = { params: { id: '101' }, query: {} };
+        res = {
+            status: jest.fn().mockReturnThis(),
+            json: jest.fn().mockReturnThis(),
+        };
+        next = jest.fn();
+    });
+
+    test('getUserById returns user with studentProfile', async () => {
+        mockPrisma.user.findUnique.mockResolvedValue({
+            id: 101,
+            code: 'SV20260010',
+            fullName: 'Nguyen Van An',
+            role: 'STUDENT',
+            studentProfile: {
+                gender: 'MALE',
+                dateOfBirth: new Date('2002-03-12T00:00:00.000Z'),
+                className: 'D20PM01',
+                major: 'Ky thuat phan mem',
+            },
+            permissionGroups: [],
+        });
+
+        await userController.getUserById(req, res, next);
+
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            success: true,
+            data: expect.objectContaining({
+                id: 101,
+                studentProfile: expect.objectContaining({ className: 'D20PM01' }),
+            }),
+        }));
+    });
+
+    test('getAllUsers includes studentProfile in select query', async () => {
+        mockPrisma.user.findMany.mockResolvedValue([]);
+        mockPrisma.user.count.mockResolvedValue(0);
+
+        await userController.getAllUsers(req, res, next);
+
+        expect(mockPrisma.user.findMany).toHaveBeenCalled();
+        const callArg = mockPrisma.user.findMany.mock.calls[0][0];
+        expect(callArg.select.studentProfile).toBeDefined();
+    });
+});
+

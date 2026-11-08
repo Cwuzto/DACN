@@ -17,7 +17,7 @@ jest.mock('jsonwebtoken', () => ({
 const prisma = require('../../src/config/database');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { login } = require('../../src/controllers/authController');
+const { login, getMe, updateProfile } = require('../../src/controllers/authController');
 const { createMockReq, createMockRes, createNext } = require('../helpers/http');
 
 describe('authController.login', () => {
@@ -104,3 +104,104 @@ describe('authController.login', () => {
         expect(next).not.toHaveBeenCalled();
     });
 });
+
+describe('authController.getMe', () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+        process.env.JWT_SECRET = 'unit-test-secret';
+        process.env.JWT_EXPIRES_IN = '7d';
+    });
+
+    test('returns user and preserves studentProfile for student', async () => {
+        const studentUser = {
+            id: 101,
+            role: 'STUDENT',
+            code: 'SV20260010',
+            fullName: 'Nguyen Van An',
+            email: 'an.nv@school.edu.vn',
+            studentProfile: {
+                gender: 'MALE',
+                dateOfBirth: new Date('2002-03-12T00:00:00.000Z'),
+                className: 'D20PM01',
+                major: 'Ky thuat phan mem',
+            },
+        };
+
+        const req = createMockReq({ user: studentUser });
+        const res = createMockRes();
+        const next = createNext();
+
+        await getMe(req, res, next);
+
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({
+                success: true,
+                data: expect.objectContaining({
+                    role: 'STUDENT',
+                    studentProfile: expect.objectContaining({
+                        className: 'D20PM01',
+                    }),
+                }),
+            })
+        );
+    });
+});
+
+describe('authController.updateProfile', () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+    });
+
+    test('allows student to update only avatar and phone, ignoring academic fields', async () => {
+        const req = createMockReq({
+            user: { id: 101, role: 'STUDENT' },
+            body: {
+                avatarUrl: 'https://cdn.example.com/new-avatar.png',
+                phone: '0912999888',
+                fullName: 'Hacked Name',
+                code: 'SV99999999',
+                gender: 'FEMALE',
+                dateOfBirth: '01/01/2000',
+                className: 'HackedClass',
+                major: 'HackedMajor',
+                department: 'HackedDept',
+            },
+        });
+        const res = createMockRes();
+        const next = createNext();
+
+        prisma.user.update.mockResolvedValue({
+            id: 101,
+            role: 'STUDENT',
+            code: 'SV20260010',
+            fullName: 'Original Name',
+            phone: '0912999888',
+            avatarUrl: 'https://cdn.example.com/new-avatar.png',
+            studentProfile: {
+                className: 'D20PM01',
+                major: 'Ky thuat phan mem',
+            },
+        });
+
+        await updateProfile(req, res, next);
+
+        expect(prisma.user.update).toHaveBeenCalledWith(
+            expect.objectContaining({
+                where: { id: 101 },
+                data: {
+                    avatarUrl: 'https://cdn.example.com/new-avatar.png',
+                    phone: '0912999888',
+                },
+            })
+        );
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({
+                success: true,
+                data: expect.objectContaining({
+                    phone: '0912999888',
+                }),
+            })
+        );
+    });
+});
+
