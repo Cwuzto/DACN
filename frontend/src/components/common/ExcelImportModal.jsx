@@ -32,6 +32,16 @@ export default function ExcelImportModal({
     onDownloadTemplate,
     onExecuteImport,
 }) {
+    const [userRole, setUserRole] = useState(type === 'LECTURER' ? 'LECTURER' : 'STUDENT');
+
+    React.useEffect(() => {
+        if (type !== 'PROJECT_ENROLLMENT') {
+            setUserRole(type === 'LECTURER' ? 'LECTURER' : 'STUDENT');
+        }
+    }, [type, open]);
+
+    const effectiveType = type === 'PROJECT_ENROLLMENT' ? 'PROJECT_ENROLLMENT' : userRole;
+
     const [fileList, setFileList] = useState([]);
     const [parsedRows, setParsedRows] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -56,6 +66,12 @@ export default function ExcelImportModal({
         setEditingRow(null);
     };
 
+    const handleRoleChange = (newRole) => {
+        if (newRole === userRole) return;
+        setUserRole(newRole);
+        resetState();
+    };
+
     const handleClose = () => {
         resetState();
         onCancel();
@@ -63,14 +79,14 @@ export default function ExcelImportModal({
 
     // Tiêu đề modal
     const modalTitle = useMemo(() => {
-        if (type === 'STUDENT') return 'Import Danh sách Sinh viên từ Excel';
-        if (type === 'LECTURER') return 'Import Danh sách Giảng viên từ Excel';
+        if (effectiveType === 'STUDENT') return 'Import Danh sách Sinh viên từ Excel';
+        if (effectiveType === 'LECTURER') return 'Import Danh sách Giảng viên từ Excel';
         return 'Gán Sinh viên Môn Đồ Án từ Excel';
-    }, [type]);
+    }, [effectiveType]);
 
     // Validate 1 row độc lập
     const validateRow = (row, seenCodes = new Set(), seenEmails = new Set()) => {
-        if (type === 'STUDENT') {
+        if (effectiveType === 'STUDENT') {
             return validateStudentRow(row, seenCodes, seenEmails);
         }
 
@@ -85,7 +101,7 @@ export default function ExcelImportModal({
             errors.push('Mã số bị trùng trong file');
         }
 
-        if (type === 'LECTURER') {
+        if (effectiveType === 'LECTURER') {
             if (!fullName) {
                 errors.push('Thiếu họ và tên');
             }
@@ -126,7 +142,7 @@ export default function ExcelImportModal({
             const processed = rawData.map((row, idx) => {
                 const rowNumber = idx + 1;
 
-                if (type === 'STUDENT') {
+                if (effectiveType === 'STUDENT') {
                     const code = String(
                         row['MSSV (*)'] ||
                         row['MSSV'] ||
@@ -265,7 +281,7 @@ export default function ExcelImportModal({
                     seenCodes.add(code);
                 }
 
-                if (type === 'LECTURER') {
+                if (effectiveType === 'LECTURER') {
                     if (!fullName) {
                         errors.push('Thiếu họ và tên');
                     }
@@ -330,7 +346,7 @@ export default function ExcelImportModal({
     // Tự động tạo file mẫu Excel phía client
     const handleDownloadClientTemplate = () => {
         if (onDownloadTemplate) {
-            onDownloadTemplate();
+            onDownloadTemplate(effectiveType);
             return;
         }
 
@@ -339,7 +355,7 @@ export default function ExcelImportModal({
         let sheetName = 'Du_Lieu_Mau';
         let colWidths = [];
 
-        if (type === 'STUDENT') {
+        if (effectiveType === 'STUDENT') {
             sheetName = 'Mau_Sinh_Vien';
             sampleData = STUDENT_SAMPLE_ROWS;
             colWidths = [
@@ -352,7 +368,7 @@ export default function ExcelImportModal({
                 { wch: 34 }, // Email (*)
                 { wch: 26 }, // Ngành (*)
             ];
-        } else if (type === 'LECTURER') {
+        } else if (effectiveType === 'LECTURER') {
             sheetName = 'Mau_Giang_Vien';
             sampleData = [
                 {
@@ -397,16 +413,16 @@ export default function ExcelImportModal({
             colWidths = [{ wch: 16 }, { wch: 24 }];
         }
 
-        const ws = XLSX.utils.json_to_sheet(sampleData, { header: type === 'STUDENT' ? CANONICAL_STUDENT_COLUMNS : undefined });
+        const ws = XLSX.utils.json_to_sheet(sampleData, { header: effectiveType === 'STUDENT' ? CANONICAL_STUDENT_COLUMNS : undefined });
         if (colWidths.length > 0) {
             ws['!cols'] = colWidths;
         }
         XLSX.utils.book_append_sheet(wb, ws, sheetName);
 
         // Xuất file
-        const filename = type === 'STUDENT'
+        const filename = effectiveType === 'STUDENT'
             ? 'Mau_Import_Sinh_Vien.xlsx'
-            : type === 'LECTURER'
+            : effectiveType === 'LECTURER'
             ? 'Mau_Import_Giang_Vien.xlsx'
             : 'Mau_Gan_Lop_Do_An.xlsx';
 
@@ -424,7 +440,7 @@ export default function ExcelImportModal({
 
         const wb = XLSX.utils.book_new();
 
-        if (type === 'STUDENT') {
+        if (effectiveType === 'STUDENT') {
             const exportData = errorRows.map((r) => ({
                 'Dòng trong file': r.rowNumber,
                 'MSSV (*)': r.code,
@@ -557,7 +573,7 @@ export default function ExcelImportModal({
             return;
         }
 
-        if (type === 'PROJECT_ENROLLMENT') {
+        if (effectiveType === 'PROJECT_ENROLLMENT') {
             if (!selectedSemesterId || !selectedCatalogId) {
                 message.error('Vui lòng chọn Học kỳ và Tên đồ án.');
                 return;
@@ -568,7 +584,7 @@ export default function ExcelImportModal({
             setLoading(true);
             let payload;
 
-            if (type === 'PROJECT_ENROLLMENT') {
+            if (effectiveType === 'PROJECT_ENROLLMENT') {
                 payload = {
                     semesterId: selectedSemesterId,
                     projectCatalogId: selectedCatalogId,
@@ -578,7 +594,7 @@ export default function ExcelImportModal({
                         note: r.note,
                     })),
                 };
-            } else if (type === 'STUDENT') {
+            } else if (effectiveType === 'STUDENT') {
                 payload = {
                     role: 'STUDENT',
                     onDuplicate,
@@ -595,7 +611,7 @@ export default function ExcelImportModal({
                 };
             } else {
                 payload = {
-                    role: type,
+                    role: effectiveType,
                     onDuplicate,
                     items: validRows.map((r) => ({
                         code: r.code,
@@ -653,7 +669,7 @@ export default function ExcelImportModal({
                     ),
             },
             {
-                title: type === 'STUDENT' ? 'MSSV' : 'Mã số',
+                title: effectiveType === 'STUDENT' ? 'MSSV' : 'Mã số',
                 dataIndex: 'code',
                 key: 'code',
                 width: 120,
@@ -665,7 +681,7 @@ export default function ExcelImportModal({
             },
         ];
 
-        if (type === 'STUDENT') {
+        if (effectiveType === 'STUDENT') {
             base.push(
                 {
                     title: 'Họ và tên',
@@ -717,7 +733,7 @@ export default function ExcelImportModal({
                     render: (m) => <span className="text-slate-700 text-xs">{m || '—'}</span>,
                 }
             );
-        } else if (type === 'LECTURER') {
+        } else if (effectiveType === 'LECTURER') {
             base.push(
                 {
                     title: 'Họ và tên',
@@ -752,7 +768,7 @@ export default function ExcelImportModal({
                     ),
                 }
             );
-        } else if (type === 'PROJECT_ENROLLMENT') {
+        } else if (effectiveType === 'PROJECT_ENROLLMENT') {
             base.push({
                 title: 'Ghi chú',
                 dataIndex: 'note',
@@ -795,7 +811,7 @@ export default function ExcelImportModal({
         });
 
         return base;
-    }, [type]);
+    }, [effectiveType]);
 
     return (
         <Modal
@@ -823,6 +839,37 @@ export default function ExcelImportModal({
             destroyOnHidden
         >
             <div className="py-2 space-y-4">
+                {/* Switcher đối tượng import (Sinh viên / Giảng viên) khi ở màn Quản lý người dùng */}
+                {type !== 'PROJECT_ENROLLMENT' && (
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5">
+                            <span className="text-xs font-semibold text-slate-700">Đối tượng nhập dữ liệu:</span>
+                            <Radio.Group
+                                value={effectiveType}
+                                onChange={(e) => handleRoleChange(e.target.value)}
+                                buttonStyle="solid"
+                                size="middle"
+                            >
+                                <Radio.Button value="STUDENT" className="font-medium">
+                                    <span className="inline-flex items-center gap-1.5">
+                                        <span>🎓</span> Sinh viên
+                                    </span>
+                                </Radio.Button>
+                                <Radio.Button value="LECTURER" className="font-medium">
+                                    <span className="inline-flex items-center gap-1.5">
+                                        <span>👨‍🏫</span> Giảng viên
+                                    </span>
+                                </Radio.Button>
+                            </Radio.Group>
+                        </div>
+                        <div className="text-xs text-slate-500 font-medium">
+                            {effectiveType === 'STUDENT'
+                                ? 'Đang chọn: Danh sách Sinh viên (8 cột chuẩn hóa)'
+                                : 'Đang chọn: Danh sách Giảng viên & Chỉ tiêu hướng dẫn'}
+                        </div>
+                    </div>
+                )}
+
                 {/* Dành cho PROJECT_ENROLLMENT: Chọn Học kỳ và Đồ án */}
                 {type === 'PROJECT_ENROLLMENT' && (
                     <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -972,7 +1019,7 @@ export default function ExcelImportModal({
                                 columns={columns}
                                 size="small"
                                 pagination={{ pageSize: 8, showSizeChanger: false }}
-                                scroll={{ x: type === 'STUDENT' ? 1200 : 800, y: 320 }}
+                                scroll={{ x: effectiveType === 'STUDENT' ? 1200 : 800, y: 320 }}
                             />
                         </div>
                     </div>
@@ -1017,13 +1064,13 @@ export default function ExcelImportModal({
                 >
                     <Form.Item
                         name="code"
-                        label={type === 'STUDENT' ? 'MSSV (*)' : 'Mã số (*)'}
+                        label={effectiveType === 'STUDENT' ? 'MSSV (*)' : 'Mã số (*)'}
                         rules={[{ required: true, message: 'Vui lòng nhập mã số' }]}
                     >
-                        <Input placeholder={type === 'STUDENT' ? 'MSSV' : 'Mã số'} />
+                        <Input placeholder={effectiveType === 'STUDENT' ? 'MSSV' : 'Mã số'} />
                     </Form.Item>
 
-                    {type === 'STUDENT' && (
+                    {effectiveType === 'STUDENT' && (
                         <>
                             <Form.Item
                                 name="fullName"
@@ -1099,7 +1146,7 @@ export default function ExcelImportModal({
                         </>
                     )}
 
-                    {type === 'LECTURER' && (
+                    {effectiveType === 'LECTURER' && (
                         <>
                             <Form.Item
                                 name="fullName"
@@ -1142,7 +1189,7 @@ export default function ExcelImportModal({
                         </>
                     )}
 
-                    {type === 'PROJECT_ENROLLMENT' && (
+                    {effectiveType === 'PROJECT_ENROLLMENT' && (
                         <Form.Item name="note" label="Ghi chú">
                             <Input.TextArea rows={2} placeholder="Ghi chú" />
                         </Form.Item>

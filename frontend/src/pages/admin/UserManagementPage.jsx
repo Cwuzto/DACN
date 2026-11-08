@@ -1177,7 +1177,7 @@ function UserManagementPage() {
                     fetchRoleCounts();
                 }}
                 type={activeRole === 'LECTURER' ? 'LECTURER' : 'STUDENT'}
-                onDownloadTemplate={() => userService.downloadTemplate(activeRole === 'LECTURER' ? 'LECTURER' : 'STUDENT')}
+                onDownloadTemplate={(targetRole) => userService.downloadTemplate(targetRole || (activeRole === 'LECTURER' ? 'LECTURER' : 'STUDENT'))}
                 onExecuteImport={(payload) => userService.importUsersExcel(payload)}
             />
         </div>
