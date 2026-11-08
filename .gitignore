@@ -51,6 +51,9 @@ PROJECT_OVERVIEW.md
 # archify
 .archify/
 
+# Temporary isolated worktrees
+/.worktrees/
+
 # Stray root package files
 /package.json
 /package-lock.json
