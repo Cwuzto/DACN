@@ -60,7 +60,7 @@ async function processRegistrationOverdue(reg, { db, now, actorId }) {
                     actorId,
                     reason: `Quá hạn ký BM03 Checkpoint ${evaluation.checkpointNo} sau khi đã được gia hạn khiếu nại (INV-10, INV-26)`,
                     idempotencyKey: `cp-overdue-worker:terminate-second:${reg.id}:${evaluation.id}:${reg.stateVersion}`,
-                }, { tx });
+                }, { db, tx });
 
                 return { processed: true, action: 'TERMINATED_SECOND_OVERDUE' };
             }
@@ -93,7 +93,7 @@ async function processRegistrationOverdue(reg, { db, now, actorId }) {
                 actorId,
                 reason: `Quá hạn ký biên bản Checkpoint ${evaluation.checkpointNo}. Mở hạn nộp khiếu nại chữ ký ${appealWindowDays} ngày.`,
                 idempotencyKey: `cp-overdue-worker:open-appeal:${reg.id}:${evaluation.id}:${reg.stateVersion}`,
-            }, { tx });
+            }, { db, tx });
 
             return { processed: true, action: 'OPENED_APPEAL' };
         }
@@ -118,7 +118,7 @@ async function processRegistrationOverdue(reg, { db, now, actorId }) {
                 actorId,
                 reason: `Quá hạn nộp đơn khiếu nại chữ ký Checkpoint (INV-10, INV-26)`,
                 idempotencyKey: `cp-overdue-worker:terminate-unsubmitted-appeal:${reg.id}:${appeal.id}:${reg.stateVersion}`,
-            }, { tx });
+            }, { db, tx });
 
             return { processed: true, action: 'TERMINATED_UNSUBMITTED_APPEAL' };
         }

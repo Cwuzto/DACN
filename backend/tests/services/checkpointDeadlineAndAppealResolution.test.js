@@ -1,3 +1,11 @@
+jest.mock('../../src/config/database', () => ({
+    idempotencyRecord: {
+        findUnique: jest.fn(() => {
+            throw new Error('Conflict recovery must use the injected database');
+        }),
+    },
+}));
+
 const {
     reviewSignatureAppeal,
     signCheckpoint,
@@ -113,56 +121,73 @@ describe('Dynamic Policy Deadlines & Concurrent Overdue Worker', () => {
         expect(result.isAppealed).toBe(true);
     });
 
-    it('should not overwrite state if student signs checkpoint at the exact moment worker runs (CAS stateVersion guard)', async () => {
-        const now = new Date('2026-11-06T10:00:00.000Z');
+    it.each([
+        { scenario: 'second signature overdue', status: 'BM03_SIGNATURE_PENDING', isAppealed: true },
+        { scenario: 'first signature overdue', status: 'BM03_SIGNATURE_PENDING', isAppealed: false },
+        { scenario: 'unsubmitted appeal overdue', status: 'CHECKPOINT_SIGNATURE_APPEAL_OPEN', isAppealed: false },
+    ].flatMap((scenario) => ['read', 'write'].map((conflictAt) => ({ ...scenario, conflictAt }))))(
+        'should skip a concurrent state change without overwriting it ($scenario, CAS $conflictAt guard)',
+        async ({ status, isAppealed, conflictAt }) => {
+            const now = new Date('2026-11-06T10:00:00.000Z');
 
-        // Worker quét thấy hồ sơ có trạng thái BM03_SIGNATURE_PENDING với stateVersion = 10
-        const overdueRegistration = {
-            id: 200,
-            status: 'BM03_SIGNATURE_PENDING',
-            stateVersion: 10,
-            studentId: 55,
-            periodPolicyVersion: {
-                policy: { checkpointSignWindowDays: 3, appealWindowDays: 3 },
-            },
-            checkpointEvaluations: [
-                {
-                    id: 701,
-                    checkpointNo: 1,
-                    studentSignedAt: null,
-                    studentSignDeadlineAt: new Date('2026-11-05T00:00:00.000Z'), // Quá hạn
-                    isAppealed: true, // Đã từng appeal, nếu quá hạn sẽ bị terminate
+            // The scan sees an overdue registration at stateVersion 10.
+            const overdueRegistration = {
+                id: 200,
+                status,
+                stateVersion: 10,
+                studentId: 55,
+                periodPolicyVersion: {
+                    policy: { checkpointSignWindowDays: 3, appealWindowDays: 3 },
                 },
-            ],
-            checkpointSignatureAppeals: [],
-        };
+                checkpointEvaluations: [
+                    {
+                        id: 701,
+                        checkpointNo: 1,
+                        studentSignedAt: null,
+                        studentSignDeadlineAt: new Date('2026-11-05T00:00:00.000Z'), // Quá hạn
+                        isAppealed,
+                    },
+                ],
+                checkpointSignatureAppeals: [{
+                    id: 801,
+                    status: 'PENDING',
+                    appealDeadlineAt: new Date('2026-11-05T00:00:00.000Z'),
+                }],
+            };
 
-        mockDb.topicRegistration.findMany.mockResolvedValue([overdueRegistration]);
+            mockDb.topicRegistration.findMany.mockResolvedValue([overdueRegistration]);
 
-        // Giả lập race condition: Khi worker cố gắng transition với expectedStateVersion: 10,
-        // trước đó sinh viên đã ký thành công và tăng stateVersion lên 11!
-        // Do đó findUnique trong transitionRegistration trả về stateVersion: 11 (hoặc updateMany count = 0)
-        mockTx.topicRegistration.findUnique.mockResolvedValue({
-            id: 200,
-            status: 'IN_PROGRESS_BM03', // Sinh viên đã ký xong chuyển sang IN_PROGRESS_BM03
-            stateVersion: 11, // Đã tăng version
-        });
+            // A student signature or another state change wins after the scan:
+            // either the fresh read sees version 11, or the atomic write loses the race.
+            mockTx.topicRegistration.findUnique.mockResolvedValue({
+                id: 200,
+                status: conflictAt === 'read' ? 'IN_PROGRESS_BM03' : status,
+                stateVersion: conflictAt === 'read' ? 11 : 10,
+            });
+            if (conflictAt === 'write') {
+                mockTx.topicRegistration.updateMany.mockResolvedValue({ count: 0 });
+            }
 
-        const workerResult = await runCheckpointDeadlineOverdueJob({
-            db: mockDb,
-            now,
-            actorId: 0,
-        });
+            const workerResult = await runCheckpointDeadlineOverdueJob({
+                db: mockDb,
+                now,
+                actorId: 0,
+            });
 
-        // Worker phải phát hiện CAS mismatch và bỏ qua (skip), không đè lên trạng thái của SV
-        expect(workerResult.scanned).toBe(1);
-        expect(workerResult.skippedCount).toBe(1);
-        expect(workerResult.processedCount).toBe(0);
-        expect(workerResult.skipped[0]).toMatchObject({
-            registrationId: 200,
-            reason: 'CAS_MISMATCH',
-        });
-    });
+            // A stale worker must skip without recording a successful transition.
+            expect(workerResult.scanned).toBe(1);
+            expect(workerResult.skippedCount).toBe(1);
+            expect(workerResult.processedCount).toBe(0);
+            expect(workerResult.errorCount).toBe(0);
+            expect(workerResult.errors).toEqual([]);
+            expect(workerResult.skipped[0]).toMatchObject({
+                registrationId: 200,
+                reason: 'CAS_MISMATCH',
+            });
+            expect(mockTx.registrationStateHistory.create).not.toHaveBeenCalled();
+            expect(mockTx.idempotencyRecord.create).not.toHaveBeenCalled();
+        },
+    );
 
     it('should terminate registration when appeal window expires with no appeal per INV-10/INV-26', async () => {
         const now = new Date('2026-11-10T12:00:00.000Z');
