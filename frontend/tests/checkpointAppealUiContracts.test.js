@@ -17,7 +17,7 @@ test('SubmissionPage provides pre-defense checklist and archival submission when
     const pageSource = read('src/pages/student/SubmissionPage.jsx');
     assert.match(pageSource, /submitPreDefenseArchive/);
     assert.match(pageSource, /BM03_PASSED/);
-    assert.match(pageSource, /Bắt buộc nộp bản thảo báo cáo, slide hoặc mã nguồn trước khi GVHD có thể đánh giá và ký duyệt BM04/);
+    assert.match(pageSource, /Bắt buộc nộp bản thảo báo cáo, slide hoặc mã nguồn trước khi GVHD có thể đánh giá và ký duyệt Phiếu nhận xét/);
     assert.match(pageSource, /reportFileUrl/);
     assert.match(pageSource, /slideFileUrl/);
     assert.match(pageSource, /sourceCodeUrl/);

@@ -108,23 +108,23 @@ export default function StudentDashboardPage() {
         if (status === 'PENDING') return <span className="tag yellow">Chờ duyệt đề tài</span>;
         if (status === 'REJECTED') return <span className="tag red">Bị từ chối</span>;
         if (status === 'APPROVED') return <span className="tag teal">Đã nhận đề tài</span>;
-        if (status === 'BM01_SUBMITTED') return <span className="tag blue">Chờ duyệt BM01</span>;
-        if (status === 'BM01_PASSED') return <span className="tag green">BM01 Đạt (Chờ BM02)</span>;
-        if (status === 'BM01_NEEDS_REVISION') return <span className="tag red">BM01 Cần chỉnh sửa</span>;
-        if (status === 'DECISION_ISSUED') return <span className="tag purple">Đã ban hành QĐ (BM02)</span>;
-        if (status === 'IN_PROGRESS_BM03') return <span className="tag teal">Đang thực hiện BM03</span>;
-        if (status === 'BM03_SIGNATURE_PENDING') return <span className="tag yellow">Chờ SV ký BM03 (3 ngày)</span>;
-        if (status === 'CHECKPOINT_SIGNATURE_APPEAL_OPEN') return <span className="tag red">Quá hạn ký BM03 (Mở khiếu nại)</span>;
-        if (status === 'CHECKPOINT_SIGNATURE_APPEAL_SUBMITTED') return <span className="tag blue">Đã nộp khiếu nại BM03</span>;
+        if (status === 'BM01_SUBMITTED') return <span className="tag blue">Chờ duyệt đề cương chi tiết</span>;
+        if (status === 'BM01_PASSED') return <span className="tag green">Đề cương đạt (Chờ Quyết định giao đề tài)</span>;
+        if (status === 'BM01_NEEDS_REVISION') return <span className="tag red">Đề cương cần chỉnh sửa</span>;
+        if (status === 'DECISION_ISSUED') return <span className="tag purple">Đã ban hành Quyết định giao đề tài</span>;
+        if (status === 'IN_PROGRESS_BM03') return <span className="tag teal">Đang thực hiện đánh giá tiến độ</span>;
+        if (status === 'BM03_SIGNATURE_PENDING') return <span className="tag yellow">Chờ ký biên bản tiến độ (3 ngày)</span>;
+        if (status === 'CHECKPOINT_SIGNATURE_APPEAL_OPEN') return <span className="tag red">Quá hạn ký biên bản (Mở khiếu nại)</span>;
+        if (status === 'CHECKPOINT_SIGNATURE_APPEAL_SUBMITTED') return <span className="tag blue">Đã nộp khiếu nại biên bản tiến độ</span>;
         if (status === 'CHECKPOINT_SIGNATURE_APPEAL_REVIEW') return <span className="tag purple">Đang thẩm định khiếu nại</span>;
         if (status === 'SIGNATURE_APPEAL_RESOLVED') return <span className="tag green">Khiếu nại được giải quyết</span>;
-        if (status === 'BM03_PASSED') return <span className="tag green">BM03 Đạt (Hoàn thành tiến độ)</span>;
-        if (status === 'BM04_REVIEW') return <span className="tag teal">Đang thẩm định BM04</span>;
+        if (status === 'BM03_PASSED') return <span className="tag green">Đạt đánh giá tiến độ (Hoàn thành tiến độ)</span>;
+        if (status === 'BM04_REVIEW') return <span className="tag teal">Đang thẩm định Phiếu nhận xét</span>;
         if (status === 'DEFENSE_READY') return <span className="tag green">Đủ điều kiện bảo vệ</span>;
         if (status === 'DEFENDED') return <span className="tag yellow">Đã bảo vệ</span>;
         if (status === 'COMPLETED') return <span className="tag green">Hoàn tất đồ án</span>;
         if (status === 'TERMINATED_FAILED_PROGRESS') return <span className="tag red">Dừng đề tài (Tiến độ không đạt)</span>;
-        if (status === 'TERMINATED_BM04') return <span className="tag red">Dừng đề tài (BM04 Không đồng ý)</span>;
+        if (status === 'TERMINATED_BM04') return <span className="tag red">Dừng đề tài (Phiếu nhận xét chưa đạt)</span>;
         return <span className="tag green">Đang thực hiện · Học kỳ hiện tại</span>;
     };
 
@@ -199,7 +199,7 @@ export default function StudentDashboardPage() {
                                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                                         <polyline points="14 2 14 8 20 8" />
                                     </svg>
-                                    <span>Quyết định BM02</span>
+                                    <span>Quyết định giao đề tài</span>
                                 </button>
                             ) : null}
                             {['BM03_SIGNATURE_PENDING', 'CHECKPOINT_SIGNATURE_APPEAL_OPEN'].includes(currentRegistration?.status) && (
@@ -212,7 +212,7 @@ export default function StudentDashboardPage() {
                                         fontWeight: 700,
                                     }}
                                 >
-                                    {currentRegistration?.status === 'CHECKPOINT_SIGNATURE_APPEAL_OPEN' ? '⚠️ Khiếu nại BM03' : '✍️ Ký Biên Bản BM03 Ngay'}
+                                    {currentRegistration?.status === 'CHECKPOINT_SIGNATURE_APPEAL_OPEN' ? '⚠️ Khiếu nại biên bản tiến độ' : '✍️ Ký Biên Bản Tiến Độ Ngay'}
                                 </button>
                             )}
                             {allowedActions.includes('REQUEST_TITLE_CHANGE') && (
@@ -375,25 +375,25 @@ export default function StudentDashboardPage() {
 
                         <div className={`step-node ${progressPercent >= 33 ? 'completed' : progressPercent >= 16 ? 'active' : ''}`} onClick={() => navigate('/student/submissions')}>
                             <div className="step-circle">{progressPercent >= 33 ? '✓' : '2'}</div>
-                            <div className="step-label">2. Đề cương BM01</div>
+                            <div className="step-label">2. Đề cương nghiên cứu chi tiết</div>
                             <div className="step-sub">Xét duyệt đạt</div>
                         </div>
 
                         <div className={`step-node ${progressPercent >= 50 ? 'completed' : progressPercent >= 33 ? 'active' : ''}`} onClick={() => setBm02ModalOpen(true)}>
                             <div className="step-circle">{progressPercent >= 50 ? '✓' : '3'}</div>
-                            <div className="step-label">3. Quyết định BM02</div>
+                            <div className="step-label">3. Đơn đăng ký đề tài chính thức</div>
                             <div className="step-sub">{currentRegistration?.decisionNumber || 'Ban hành QĐ'}</div>
                         </div>
 
                         <div className={`step-node ${progressPercent >= 66 ? 'completed' : progressPercent >= 50 ? 'active' : ''}`} onClick={() => navigate('/student/submissions')}>
                             <div className="step-circle">{progressPercent >= 66 ? '✓' : '4'}</div>
-                            <div className="step-label">4. Tiến độ BM03</div>
+                            <div className="step-label">4. Nhật ký & Đánh giá tiến độ</div>
                             <div className="step-sub">2 Checkpoint</div>
                         </div>
 
                         <div className={`step-node ${progressPercent >= 83 ? 'completed' : progressPercent >= 66 ? 'active' : ''}`} onClick={() => navigate('/student/submissions')}>
                             <div className="step-circle">{progressPercent >= 83 ? '✓' : '5'}</div>
-                            <div className="step-label">5. Phản biện BM04</div>
+                            <div className="step-label">5. Phiếu nhận xét của người hướng dẫn</div>
                             <div className="step-sub">Đánh giá GVHD</div>
                         </div>
 
@@ -486,7 +486,7 @@ export default function StudentDashboardPage() {
                                 <div className="task-left">
                                     <div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                            <span className="task-title">Báo cáo tiến độ BM03 đợt 2 (Checkpoint 2)</span>
+                                            <span className="task-title">Đánh giá tiến độ đợt 2</span>
                                             <span className="task-badge-urgent">Hạn 22/10</span>
                                         </div>
                                         <div className="task-meta">Yêu cầu: Minh chứng mã nguồn Git + Báo cáo kết quả kiểm thử API + Kế hoạch tuần 11-14</div>
@@ -519,7 +519,7 @@ export default function StudentDashboardPage() {
                                             <span className="task-title">Hoàn thiện dự thảo Báo cáo toàn văn & Kiểm tra đạo văn</span>
                                             <span className="tag gray">Hạn 15/11</span>
                                         </div>
-                                        <div className="task-meta">Quy định: Tỉ lệ trùng lặp Turnitin &lt; 20% trước khi GVHD ký duyệt BM04</div>
+                                        <div className="task-meta">Quy định: Tỉ lệ trùng lặp Turnitin &lt; 20% trước khi GVHD ký duyệt Phiếu nhận xét</div>
                                     </div>
                                 </div>
                                 <span className="tag gray">Chưa mở nộp</span>
@@ -586,7 +586,7 @@ export default function StudentDashboardPage() {
                         </div>
                         <div className="card-body" style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
                             <div style={{ padding: '10px 12px', background: '#F0FDFA', border: '1px solid #CCFBF1', borderRadius: 'var(--radius-sm)' }}>
-                                <div style={{ fontWeight: 700, fontSize: 12.5, color: '#0F766E' }}>Hạn nộp báo cáo tiến độ đợt 2 (BM03.2)</div>
+                                <div style={{ fontWeight: 700, fontSize: 12.5, color: '#0F766E' }}>Hạn nộp báo cáo tiến độ đợt 2</div>
                                 <div style={{ fontSize: 11.5, color: '#115E59', marginTop: 2 }}>
                                     Hệ thống sẽ khóa cổng nộp tự động lúc 23:59 ngày 22/10/2026. Sinh viên kiểm tra đầy đủ liên kết repository.
                                 </div>
@@ -623,12 +623,12 @@ export default function StudentDashboardPage() {
                         <div className="card-body" style={{ padding: '16px 18px' }}>
                             <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 10, padding: 0, margin: 0 }}>
                                 <li style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12.5 }}>
-                                    <span>BM01: Mẫu đề cương chi tiết (.docx)</span>
-                                    <button className="btn btn-secondary btn-sm" onClick={() => message.success('Đang tải BM01_DeCuong.docx...')}>Tải về</button>
+                                    <span>Đề cương nghiên cứu chi tiết (.docx)</span>
+                                    <button className="btn btn-secondary btn-sm" onClick={() => message.success('Đang tải DeCuong_NghienCuu.docx...')}>Tải về</button>
                                 </li>
                                 <li style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12.5 }}>
-                                    <span>BM03: Mẫu báo cáo tiến độ định kỳ (.docx)</span>
-                                    <button className="btn btn-secondary btn-sm" onClick={() => message.success('Đang tải BM03_BaoCaoTienDo.docx...')}>Tải về</button>
+                                    <span>Nhật ký &amp; Đánh giá tiến độ (.docx)</span>
+                                    <button className="btn btn-secondary btn-sm" onClick={() => message.success('Đang tải NhatKy_DanhGiaTienDo.docx...')}>Tải về</button>
                                 </li>
                                 <li style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12.5 }}>
                                     <span>Mẫu Slide báo cáo bảo vệ Hội đồng (.pptx)</span>
@@ -642,7 +642,7 @@ export default function StudentDashboardPage() {
 
             {/* BM02 Modal View */}
             <Modal
-                title="Quyết định Giao Đề tài Tốt nghiệp (BM02)"
+                title="Quyết định Giao Đề tài Tốt nghiệp"
                 open={bm02ModalOpen}
                 onCancel={() => setBm02ModalOpen(false)}
                 footer={[
@@ -673,7 +673,7 @@ export default function StudentDashboardPage() {
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                         <p>Tên đề tài: <strong>{currentRegistration?.topic?.title}</strong></p>
-                        <p>Sinh viên thực hiện: <strong>{user?.fullName} ({user?.code})</strong></p>
+                        <p>Sinh viên thực hiện: <strong>{user?.fullName} — MSSV: {user?.code}</strong></p>
                         <p>Cán bộ hướng dẫn: <strong>{currentRegistration?.topic?.mentorName || 'PGS.TS Lê Quang Dũng'}</strong></p>
                         <p>Quy chuẩn đào tạo: Khóa 2023 · Học kỳ 1 (2026 - 2027)</p>
                     </div>

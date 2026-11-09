@@ -260,7 +260,7 @@ export default function GradeViewPage() {
                     </span>
                     <h2 style={{ fontSize: 22, fontWeight: 800, color: 'white', marginTop: 4 }}>
                         {hasScore
-                            ? `Kết Quả Chính Thức: ${gradeInfo.text} (Thang Điểm 10 & Điểm Chữ)`
+                            ? `Kết Quả Chính Thức: ${gradeInfo.text} — Thang điểm 10`
                             : `Chờ Viện Công Bố Kết Quả Chính Thức`}
                     </h2>
                     <p style={{ fontSize: 13, opacity: 0.9, marginTop: 6, lineHeight: 1.5 }}>
@@ -384,19 +384,19 @@ export default function GradeViewPage() {
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#F8FAFC', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: 12.5 }}>
-                                <span>Mã nguồn GitHub Repository</span>
+                                <span>Mã nguồn trực tuyến</span>
                                 <span className={`tag ${archiveData?.sourceCodeUrl ? 'green' : 'gray'}`}>
                                     {archiveData?.sourceCodeUrl ? 'Đã liên kết' : 'Chưa liên kết'}
                                 </span>
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#F8FAFC', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: 12.5 }}>
-                                <span>Video Demo sản phẩm (YouTube/Drive)</span>
+                                <span>Đường dẫn video giới thiệu sản phẩm</span>
                                 <span className={`tag ${archiveData?.demoVideoUrl ? 'green' : 'gray'}`}>
                                     {archiveData?.demoVideoUrl ? 'Đã nộp link' : 'Chưa nộp video'}
                                 </span>
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#F8FAFC', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: 12.5 }}>
-                                <span>Toàn văn đồ án đóng cuốn (PDF có chữ ký)</span>
+                                <span>Toàn văn đồ án đóng cuốn có chữ ký</span>
                                 <span className={`tag ${archiveData?.reportFileUrl ? 'teal' : 'gray'}`}>
                                     {archiveData?.reportFileName || (archiveData?.reportFileUrl ? 'Bản hoàn chỉnh v1.2' : 'Chưa nộp bản PDF')}
                                 </span>
@@ -438,7 +438,7 @@ export default function GradeViewPage() {
                             <line x1="16" y1="13" x2="8" y2="13" />
                             <line x1="16" y1="17" x2="8" y2="17" />
                         </svg>
-                        <span>Thông Tin Quyết Định & Snapshot Công Bố Kết Quả Đồ Án</span>
+                        <span>Thông Tin Quyết Định Công Bố Kết Quả Đồ Án</span>
                     </div>
                     <span className={`tag ${isOfficialResult ? 'green' : 'teal'}`}>
                         {isOfficialResult ? 'Đã công bố chính thức' : 'Chưa công bố chính thức'}
@@ -448,10 +448,10 @@ export default function GradeViewPage() {
                     {isOfficialResult && publishedResult ? (
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
                             <div style={{ padding: '12px 14px', background: '#F8FAFC', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
-                                <div style={{ fontSize: 11.5, color: 'var(--muted)', fontWeight: 600 }}>KẾT LUẬN HỘI ĐỒNG (SNAPSHOT)</div>
+                                <div style={{ fontSize: 11.5, color: 'var(--muted)', fontWeight: 600 }}>KẾT LUẬN HỘI ĐỒNG</div>
                                 <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
                                     <span className={`tag ${publishedResult.outcomeSnapshot === 'PASSED' ? 'green' : 'red'}`} style={{ fontSize: 12, fontWeight: 700 }}>
-                                        {publishedResult.outcomeSnapshot === 'PASSED' ? 'ĐẠT (PASSED)' : 'KHÔNG ĐẠT (FAILED)'}
+                                        {publishedResult.outcomeSnapshot === 'PASSED' ? 'ĐẠT' : 'KHÔNG ĐẠT'}
                                     </span>
                                 </div>
                             </div>
@@ -480,7 +480,7 @@ export default function GradeViewPage() {
                                 Hồ sơ bảo vệ đang trong quy trình đánh giá hoặc chờ Viện trưởng ký phê duyệt đợt công bố kết quả.
                             </p>
                             <p style={{ margin: '6px 0 0 0', fontSize: 12 }}>
-                                Dữ liệu điểm số chỉ được hiển thị chính thức sau khi ban hành quyết định công bố (ResultPublication Snapshot).
+                                Dữ liệu điểm số chỉ được hiển thị chính thức sau khi ban hành quyết định công bố kết quả.
                             </p>
                         </div>
                     )}

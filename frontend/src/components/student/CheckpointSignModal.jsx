@@ -41,7 +41,7 @@ export default function CheckpointSignModal({
             });
 
             if (res.success) {
-                message.success('Đã ký xác nhận biên bản Checkpoint thành công!');
+                message.success('Đã ký xác nhận biên bản đánh giá tiến độ thành công!');
                 form.resetFields();
                 onSuccess?.();
                 onClose?.();
@@ -65,7 +65,7 @@ export default function CheckpointSignModal({
             });
 
             if (res.success) {
-                message.success('Đã nộp đơn khiếu nại chữ ký Checkpoint thành công!');
+                message.success('Đã nộp đơn khiếu nại chữ ký biên bản thành công!');
                 appealForm.resetFields();
                 onSuccess?.();
                 onClose?.();
@@ -86,7 +86,7 @@ export default function CheckpointSignModal({
             title={
                 <div className="flex items-center gap-2 text-base font-semibold text-slate-800">
                     <SafetyCertificateOutlined className="text-[#0F766E] text-lg" />
-                    <span>Xác Nhận Biên Bản BM03 Checkpoint {checkpointEvaluation?.checkpointNo}</span>
+                    <span>Biên bản Đánh giá Tiến độ Đợt {checkpointEvaluation?.checkpointNo}</span>
                 </div>
             }
             open={open}
@@ -117,15 +117,15 @@ export default function CheckpointSignModal({
                 {/* Thông tin biên bản do GVHD phát hành */}
                 <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-2 text-xs">
                     <div className="flex items-center justify-between">
-                        <span className="text-slate-500 font-medium">Đợt Checkpoint:</span>
+                        <span className="text-slate-500 font-medium">Đợt đánh giá:</span>
                         <b className="text-slate-800">Đợt {checkpointEvaluation?.checkpointNo} (Tuần {checkpointEvaluation?.checkpointNo === 1 ? '6' : '11'})</b>
                     </div>
                     <div className="flex items-center justify-between">
                         <span className="text-slate-500 font-medium">Kết luận của GVHD:</span>
                         {isPassed ? (
-                            <Tag color="success" className="font-semibold m-0">✓ ĐẠT (Cho phép tiếp tục)</Tag>
+                            <Tag color="success" className="font-semibold m-0">✓ Đạt — Cho phép tiếp tục thực hiện</Tag>
                         ) : (
-                            <Tag color="error" className="font-semibold m-0">✕ KHÔNG ĐẠT (Dừng đồ án)</Tag>
+                            <Tag color="error" className="font-semibold m-0">✕ Chưa đạt — Tạm dừng đề tài</Tag>
                         )}
                     </div>
                     <div>

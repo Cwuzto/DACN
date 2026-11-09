@@ -10,6 +10,25 @@ import { semesterService } from '../../services/semesterService';
 
 const ACTIVE_STATUSES = ['REGISTRATION', 'ONGOING', 'DEFENSE'];
 
+const formatRegistrationStatus = (status) => {
+    switch (status) {
+        case 'PENDING': return 'Chờ duyệt';
+        case 'APPROVED': return 'Đã được duyệt';
+        case 'REJECTED': return 'Bị từ chối';
+        case 'BM01_SUBMITTED': return 'Chờ duyệt đề cương';
+        case 'BM01_PASSED': return 'Đề cương đạt';
+        case 'BM01_NEEDS_REVISION': return 'Đề cương cần chỉnh sửa';
+        case 'DECISION_ISSUED': return 'Đã ban hành quyết định';
+        case 'IN_PROGRESS_BM03': return 'Đang thực hiện tiến độ';
+        case 'BM03_PASSED': return 'Hoàn thành tiến độ';
+        case 'BM04_REVIEW': return 'Đang thẩm định phiếu nhận xét';
+        case 'DEFENSE_READY': return 'Đủ điều kiện bảo vệ';
+        case 'DEFENDED': return 'Đã bảo vệ';
+        case 'COMPLETED': return 'Hoàn tất';
+        default: return status || 'Đang thực hiện';
+    }
+};
+
 export default function TopicListPage() {
     const navigate = useNavigate();
     const [topics, setTopics] = useState([]);
@@ -310,7 +329,7 @@ export default function TopicListPage() {
                         </div>
                         <div style={{ fontSize: 12, color: '#115E59', marginTop: 2 }}>
                             {hasExistingRegistration ? (
-                                <span>Bạn đã đăng ký đề tài: <strong>{myRegistration?.topic?.title}</strong> ({myRegistration?.status})</span>
+                                <span>Bạn đã đăng ký đề tài: <strong>{myRegistration?.topic?.title}</strong> · Trạng thái: <strong>{formatRegistrationStatus(myRegistration?.status)}</strong></span>
                             ) : (
                                 <span>Thời gian đăng ký trực tuyến theo quy chế Viện. Mỗi sinh viên chỉ đăng ký 1 đề tài duy nhất.</span>
                             )}

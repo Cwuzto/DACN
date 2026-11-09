@@ -30,6 +30,15 @@ import BMSubmissionViewer from '../../components/forms/BMSubmissionViewer';
 import CheckpointSignModal from '../../components/student/CheckpointSignModal';
 import useAuthStore from '../../stores/authStore';
 
+const formatTaskTitle = (title) => {
+    if (!title) return '';
+    return title
+        .replace(/BM01\b/g, 'Đề cương nghiên cứu chi tiết')
+        .replace(/BM02\b/g, 'Đơn đăng ký đề tài chính thức')
+        .replace(/BM03\b/g, 'Nhật ký & Đánh giá tiến độ')
+        .replace(/BM04\b/g, 'Phiếu nhận xét của người hướng dẫn');
+};
+
 export default function SubmissionPage() {
     const [registration, setRegistration] = useState(null);
     const [tasks, setTasks] = useState([]);
@@ -71,7 +80,7 @@ export default function SubmissionPage() {
                 setBm04ViewerOpen(true);
             }
         } catch (error) {
-            message.error(error?.message || 'Không thể tải phiếu BM04.');
+            message.error(error?.message || 'Không thể tải Phiếu nhận xét.');
         }
     };
 
@@ -217,7 +226,7 @@ export default function SubmissionPage() {
             };
             const res = await archiveService.submitPreDefenseArchive(registration.id, payload);
             if (res.success) {
-                message.success('Nộp tài liệu sơ bộ trước bảo vệ thành công! GVHD đã có thể đánh giá và ký duyệt BM04.');
+                message.success('Nộp tài liệu sơ bộ trước bảo vệ thành công! GVHD đã có thể đánh giá và ký duyệt Phiếu nhận xét.');
                 fetchData();
             } else {
                 message.error(res.message || 'Không thể nộp tài liệu lưu chiểu sơ bộ.');
@@ -237,14 +246,14 @@ export default function SubmissionPage() {
     const bm02Current = registration?.currentBM02Submission;
     const revisionNotice = registration?.status === 'BM01_NEEDS_REVISION'
         ? {
-            title: 'BM01 cần chỉnh sửa',
+            title: 'Đề cương nghiên cứu chi tiết cần chỉnh sửa',
             version: 'Lần nộp lại 1/1',
             deadline: bm01Revision?.deadlineAt,
             issues: bm01Revision?.issues?.feedback ? [bm01Revision.issues.feedback] : [],
         }
         : registration?.status === 'BM02_NEEDS_REVISION'
             ? {
-                title: 'BM02 cần chỉnh sửa',
+                title: 'Đơn đăng ký đề tài chính thức cần chỉnh sửa',
                 version: `Phiên bản ${bm02Current?.versionNo || 1} · Lần nộp lại 1/1`,
                 deadline: bm02Current?.revisionDeadlineAt,
                 issues: Array.isArray(bm02Current?.issues) ? bm02Current.issues : [],
@@ -338,7 +347,7 @@ export default function SubmissionPage() {
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
                             <div>
                                 <div style={{ fontSize: 15, fontWeight: 700, color: isAppeal ? '#991B1B' : '#1E40AF' }}>
-                                    {isAppeal ? '⚠️ CẢNH BÁO: QUÁ HẠN KÝ BM03 CHECKPOINT - ĐANG MỞ CỬA SỔ KHIẾU NẠI' : '📝 YÊU CẦU KÝ XÁC NHẬN BIÊN BẢN BM03 CHECKPOINT'}
+                                    {isAppeal ? '⚠️ CẢNH BÁO: QUÁ HẠN KÝ BIÊN BẢN TIẾN ĐỘ - ĐANG MỞ CỬA SỔ KHIẾU NẠI' : '📝 YÊU CẦU KÝ XÁC NHẬN BIÊN BẢN ĐÁNH GIÁ TIẾN ĐỘ'}
                                 </div>
                                 <div style={{ fontSize: 13, marginTop: 4, color: isAppeal ? '#7F1D1D' : '#1E3A8A' }}>
                                     {isAppeal ? (
@@ -348,7 +357,7 @@ export default function SubmissionPage() {
                                         </span>
                                     ) : (
                                         <span>
-                                            GVHD đã ký phát hành biên bản <strong>BM03 Checkpoint {pendingCp.checkpointNo}</strong>.
+                                            GVHD đã ký phát hành biên bản <strong>Đánh giá tiến độ đợt {pendingCp.checkpointNo}</strong>.
                                             Hạn chót ký điện tử: <strong>{deadlineText}</strong>. Quá hạn 3 ngày hệ thống sẽ tự động khóa và chuyển sang quy trình khiếu nại.
                                         </span>
                                     )}
@@ -362,7 +371,7 @@ export default function SubmissionPage() {
                                     setCheckpointSignModalOpen(true);
                                 }}
                             >
-                                {isAppeal ? 'Nộp Đơn Khiếu Nại Ký BM03' : 'Xem & Ký Biên Bản BM03 Ngay'}
+                                {isAppeal ? 'Nộp Đơn Khiếu Nại Ký Biên Bản' : 'Xem & Ký Biên Bản Tiến Độ Ngay'}
                             </button>
                         </div>
                     </div>
@@ -385,15 +394,15 @@ export default function SubmissionPage() {
                         <div>
                             <div style={{ fontSize: 16, fontWeight: 700, color: '#166534', display: 'flex', alignItems: 'center', gap: 8 }}>
                                 <FolderOpenOutlined />
-                                <span>HỒ SƠ LƯU CHIỂU SƠ BỘ TRƯỚC BẢO VỆ (PRE-DEFENSE CHECKLIST)</span>
+                                <span>HỒ SƠ LƯU CHIỂU SƠ BỘ TRƯỚC BẢO VỆ</span>
                                 {preDefenseArchive?.status === 'SUBMITTED' ? (
                                     <Tag color="green">ĐÃ NỘP HỒ SƠ SƠ BỘ</Tag>
                                 ) : (
-                                    <Tag color="gold">CẦN NỘP TRƯỚC KHI KÝ BM04</Tag>
+                                    <Tag color="gold">CẦN NỘP TRƯỚC KHI KÝ PHIẾU NHẬN XÉT</Tag>
                                 )}
                             </div>
                             <div style={{ fontSize: 13, marginTop: 6, color: '#15803D' }}>
-                                <strong>Quy định bắt buộc:</strong> Bắt buộc nộp bản thảo báo cáo, slide hoặc mã nguồn trước khi GVHD có thể đánh giá và ký duyệt BM04 cho phép bảo vệ.
+                                <strong>Quy định bắt buộc:</strong> Bắt buộc nộp bản thảo báo cáo, slide hoặc mã nguồn trước khi GVHD có thể đánh giá và ký duyệt Phiếu nhận xét cho phép bảo vệ.
                             </div>
                         </div>
                         {preDefenseArchive?.submittedAt && (
@@ -508,11 +517,11 @@ export default function SubmissionPage() {
                             <div className="sub-left">
                                 <div className="sub-step-num">{idx + 1}</div>
                                 <div className="sub-info">
-                                    <h4>{task.title}</h4>
+                                    <h4>{formatTaskTitle(task.title)}</h4>
                                     <p>{task.description || 'Thực hiện và nộp biểu mẫu theo đúng biểu mẫu chuẩn của Viện.'}</p>
                                     <div className="sub-meta-pill">
                                         {isCompleted ? (
-                                            <span className="tag green">ĐÃ DUYỆT (PASS)</span>
+                                            <span className="tag green">ĐÃ DUYỆT ĐẠT</span>
                                         ) : task.status === 'REVISION' ? (
                                             <span className="tag red">YÊU CẦU CHỈNH SỬA</span>
                                         ) : task.status === 'SUBMITTED' ? (
@@ -574,7 +583,7 @@ export default function SubmissionPage() {
                     <div className="sub-left">
                         <div className="sub-step-num" style={{ background: '#CCFBF1', color: '#0F766E' }}>★</div>
                         <div className="sub-info">
-                            <h4>BM04 - Phiếu Nhận Xét &amp; Thẩm Định Khóa Luận Của GVHD</h4>
+                            <h4>Phiếu Nhận Xét &amp; Thẩm Định Khóa Luận Của Người Hướng Dẫn</h4>
                             <p>
                                 Giảng viên hướng dẫn tổng hợp các mốc Checkpoint, đánh giá thái độ chuyên cần và ký quyết định ĐỒNG Ý / KHÔNG ĐỒNG Ý cho sinh viên ra Hội đồng bảo vệ.
                             </p>
@@ -588,7 +597,7 @@ export default function SubmissionPage() {
                         </div>
                     </div>
                     {['DEFENSE_READY', 'TERMINATED_BM04', 'DEFENDED', 'COMPLETED'].includes(registration.status) && (
-                        <Button onClick={handleViewBM04}>Xem phiếu BM04 đã ký</Button>
+                        <Button onClick={handleViewBM04}>Xem Phiếu nhận xét đã ký</Button>
                     )}
                 </div>
             </div>
@@ -649,7 +658,7 @@ export default function SubmissionPage() {
             />
 
             <Modal
-                title="Phiếu Nhận Xét BM04 Đã Ký"
+                title="Phiếu Nhận Xét Của Người Hướng Dẫn Đã Ký"
                 open={bm04ViewerOpen}
                 onCancel={() => setBm04ViewerOpen(false)}
                 footer={<Button onClick={() => setBm04ViewerOpen(false)}>Đóng</Button>}
