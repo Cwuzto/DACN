@@ -3,6 +3,7 @@ const { getMentorMaxSlots } = require('../constants/mentorCapacity');
 const { auditLog } = require('../services/auditLogService');
 const { safeNotifyMany } = require('../services/notificationService');
 const { hasCompletedGraduationProject, STUDENT_RESTRICTION_MESSAGE } = require('../utils/studentAccountRestriction');
+const { getDefaultSemester } = require('../utils/semesterResolver');
 
 const TOPIC_STATUS_VALUES = ['DRAFT', 'PENDING', 'APPROVED', 'REJECTED'];
 const ACTIVE_REGISTRATION_STATUSES = ['PENDING', 'APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'AWAITING_SCORES', 'AWAITING_FINAL_APPROVAL', 'DEFENSE_PASSED', 'DEFENSE_FAILED', 'DEFENDED', 'COMPLETED'];
@@ -171,9 +172,8 @@ const getTopicById = async (req, res, next) => {
 
 const createTopic = async (req, res, next) => {
     try {
-        const { title, description, semesterId, mentorId, status, projectCatalogId } = req.body;
+        const { title, description, semesterId, mentorId, status, projectCatalogId, englishTitle, targetMajor, requirements } = req.body;
         const { role, id: userId } = req.user;
-        const semesterIdInt = parseInt(semesterId, 10);
 
         if (role === 'STUDENT') {
             const restricted = await hasCompletedGraduationProject(userId);
@@ -182,11 +182,20 @@ const createTopic = async (req, res, next) => {
             }
         }
 
-        if (!title || !semesterId) {
-            return res.status(400).json({ success: false, message: 'Vui lòng nhập tên đề tài và chọn đợt đồ án.' });
+        if (!title || !title.trim()) {
+            return res.status(400).json({ success: false, message: 'Vui lòng nhập tên đề tài.' });
         }
-        if (!Number.isInteger(semesterIdInt)) {
-            return res.status(400).json({ success: false, message: 'Đợt đồ án không hợp lệ.' });
+
+        let semesterIdInt = semesterId ? parseInt(semesterId, 10) : null;
+        if (!semesterIdInt) {
+            const defaultSemester = await getDefaultSemester({ id: true });
+            if (defaultSemester?.id) {
+                semesterIdInt = defaultSemester.id;
+            }
+        }
+
+        if (!semesterIdInt || !Number.isInteger(semesterIdInt)) {
+            return res.status(400).json({ success: false, message: 'Vui lòng chọn đợt đồ án hoặc liên hệ quản trị viên để mở học kỳ.' });
         }
 
         const semester = await prisma.semester.findUnique({ where: { id: semesterIdInt }, select: { id: true } });
@@ -196,7 +205,7 @@ const createTopic = async (req, res, next) => {
 
         const finalProjectCatalogId = await resolveProjectCatalogId(projectCatalogId);
         if (!finalProjectCatalogId) {
-            return res.status(400).json({ success: false, message: 'TĂªn Ä‘á»“ Ă¡n khĂ´ng há»£p lá»‡ hoáº·c chÆ°a Ä‘Æ°á»£c ká­ch hoáº¡t.' });
+            return res.status(400).json({ success: false, message: 'Tên đồ án không hợp lệ hoặc chưa được kích hoạt.' });
         }
 
         let topicStatus;
@@ -236,10 +245,21 @@ const createTopic = async (req, res, next) => {
             }
         }
 
+        let finalDescription = description?.trim() || null;
+        const extraDetails = [];
+        if (englishTitle?.trim()) extraDetails.push(`Tên tiếng Anh: ${englishTitle.trim()}`);
+        if (targetMajor?.trim()) extraDetails.push(`Chuyên ngành: ${targetMajor.trim()}`);
+        if (requirements?.trim()) extraDetails.push(`Yêu cầu: ${requirements.trim()}`);
+        if (extraDetails.length > 0) {
+            finalDescription = finalDescription
+                ? `${finalDescription}\n\n[Thông tin chuyên môn]\n${extraDetails.join('\n')}`
+                : extraDetails.join('\n');
+        }
+
         const topic = await prisma.topic.create({
             data: {
-                title,
-                description: description || null,
+                title: title.trim(),
+                description: finalDescription,
                 semesterId: semesterIdInt,
                 projectCatalogId: finalProjectCatalogId,
                 proposedById: userId,

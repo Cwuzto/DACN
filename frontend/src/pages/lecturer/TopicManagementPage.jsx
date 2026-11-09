@@ -28,6 +28,10 @@ export default function TopicManagementPage() {
     const [cloneModalOpen, setCloneModalOpen] = useState(false);
     const [submitting, setSubmitting] = useState(false);
 
+    // Semesters State
+    const [semesters, setSemesters] = useState([]);
+    const [selectedSemesterId, setSelectedSemesterId] = useState(null);
+
     // New Topic Form State
     const [title, setTitle] = useState('');
     const [englishTitle, setEnglishTitle] = useState('');
@@ -35,6 +39,27 @@ export default function TopicManagementPage() {
     const [tags, setTags] = useState('');
     const [description, setDescription] = useState('');
     const [requirements, setRequirements] = useState('');
+
+    // Fetch active semesters
+    useEffect(() => {
+        let isMounted = true;
+        semesterService
+            .getAll()
+            .then((res) => {
+                if (isMounted && res?.success && Array.isArray(res.data)) {
+                    setSemesters(res.data);
+                    const active = res.data.find((s) => s.isActive || s.status === 'ACTIVE');
+                    const chosen = active || res.data[0];
+                    if (chosen) {
+                        setSelectedSemesterId(chosen.id);
+                    }
+                }
+            })
+            .catch(() => {});
+        return () => {
+            isMounted = false;
+        };
+    }, []);
 
     const fetchTopics = useCallback(async () => {
         if (!user?.id) {
@@ -111,6 +136,7 @@ export default function TopicManagementPage() {
                 targetMajor,
                 description: description.trim() || undefined,
                 requirements: requirements.trim() || undefined,
+                semesterId: selectedSemesterId,
                 maxStudents: 1, // Rule 1: 1 SV / 1 đề tài
             });
 
@@ -330,10 +356,28 @@ export default function TopicManagementPage() {
                 <div className="modal-overlay open" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <div className="modal-box" style={{ maxWidth: 600 }}>
                         <div className="modal-head">
-                            <div className="modal-title">+ Đề Xuất Đề Tài Nghiên Cứu Mới</div>
+                            <div className="modal-title">Đề Xuất Đề Tài Nghiên Cứu Mới</div>
                             <button type="button" className="modal-close" onClick={() => setNewTopicModalOpen(false)}>×</button>
                         </div>
                         <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                            <div>
+                                <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>
+                                    Đợt đồ án / Học kỳ (*):
+                                </label>
+                                <select
+                                    className="input-field"
+                                    style={{ width: '100%' }}
+                                    value={selectedSemesterId || ''}
+                                    onChange={(e) => setSelectedSemesterId(parseInt(e.target.value, 10))}
+                                >
+                                    {semesters.length === 0 && <option value="">Đang tải đợt đồ án...</option>}
+                                    {semesters.map((s) => (
+                                        <option key={s.id} value={s.id}>
+                                            {s.name} ({s.academicYear || ''}) {s.isActive || s.status === 'ACTIVE' ? '· [Đang diễn ra]' : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
                             <div>
                                 <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>
                                     Tên đề tài tiếng Việt (*):
