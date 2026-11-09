@@ -98,13 +98,15 @@ describe('outlineReviewService & outlineSweepService', () => {
                 id: 101,
                 studentId: 10,
                 status: 'APPROVED',
+                semesterId: 1,
                 periodPolicyVersionId: 1,
-                semester: {
-                    outlineSubmissionOpenAt: new Date('2026-11-01T00:00:00Z'),
-                    outlineSubmissionDeadline: new Date('2026-11-20T00:00:00Z'),
-                    outlineAllowedExtensions: ['.pdf', '.docx'],
-                    outlineMaxFileSizeBytes: 20 * 1024 * 1024,
-                },
+            });
+            mockTx.semester.findUnique.mockResolvedValue({
+                id: 1,
+                outlineSubmissionOpenAt: new Date('2026-11-01T00:00:00Z'),
+                outlineSubmissionDeadline: new Date('2026-11-20T00:00:00Z'),
+                outlineAllowedExtensions: ['.pdf', '.docx'],
+                outlineMaxFileSizeBytes: 20 * 1024 * 1024,
             });
             mockTx.task.findFirst.mockResolvedValue(null);
             mockTx.task.create.mockResolvedValue({ id: 201, taskType: 'BM01_INITIAL_SUBMISSION' });
@@ -116,6 +118,7 @@ describe('outlineReviewService & outlineSweepService', () => {
             const result = await submitInitialOutline(101, fileData, 10, { db: mockDb, now });
 
             expect(result.id).toBe(301);
+            expect(mockTx.semester.findUnique).toHaveBeenCalledWith({ where: { id: 1 } });
             expect(mockTx.bM01Evaluation.create).toHaveBeenCalledWith(
                 expect.objectContaining({
                     data: expect.objectContaining({
@@ -138,17 +141,19 @@ describe('outlineReviewService & outlineSweepService', () => {
                 id: 101,
                 studentId: 10,
                 status: 'APPROVED',
-                semester: {
-                    outlineSubmissionOpenAt: new Date('2026-11-01T00:00:00Z'),
-                    outlineSubmissionDeadline: new Date('2026-11-20T00:00:00Z'),
-                    outlineAllowedExtensions: ['.pdf'],
-                    outlineMaxFileSizeBytes: 20 * 1024 * 1024,
-                },
+                semesterId: 1,
+            });
+            mockTx.semester.findUnique.mockResolvedValue({
+                id: 1,
+                outlineSubmissionOpenAt: new Date('2026-11-01T00:00:00Z'),
+                outlineSubmissionDeadline: new Date('2026-11-20T00:00:00Z'),
+                outlineAllowedExtensions: ['.pdf'],
+                outlineMaxFileSizeBytes: 20 * 1024 * 1024,
             });
             mockTx.task.findFirst.mockResolvedValue({ id: 201 });
             mockTx.submission.create.mockResolvedValue({ id: 302 });
-            mockTx.bM01Evaluation.findFirst.mockResolvedValue({ id: 401, submissionId: 301 }); // already has submission
-            mockTx.bM01Evaluation.updateMany.mockResolvedValue({ count: 0 }); // conditional update matched nothing
+            mockTx.bM01Evaluation.findFirst.mockResolvedValue({ id: 401, submissionId: 301 });
+            mockTx.bM01Evaluation.updateMany.mockResolvedValue({ count: 0 });
 
             await expect(
                 submitInitialOutline(101, fileData, 10, { db: mockDb })
@@ -160,7 +165,7 @@ describe('outlineReviewService & outlineSweepService', () => {
                 id: 101,
                 studentId: 10,
                 status: 'REGISTERED',
-                semester: {},
+                semesterId: 1,
             });
 
             await expect(
@@ -174,11 +179,13 @@ describe('outlineReviewService & outlineSweepService', () => {
                 id: 101,
                 studentId: 10,
                 status: 'APPROVED',
-                semester: {
-                    outlineSubmissionOpenAt: new Date('2026-11-01T00:00:00Z'),
-                    outlineSubmissionDeadline: new Date('2026-11-20T00:00:00Z'),
-                    outlineAllowedExtensions: ['.pdf'],
-                },
+                semesterId: 1,
+            });
+            mockTx.semester.findUnique.mockResolvedValue({
+                id: 1,
+                outlineSubmissionOpenAt: new Date('2026-11-01T00:00:00Z'),
+                outlineSubmissionDeadline: new Date('2026-11-20T00:00:00Z'),
+                outlineAllowedExtensions: ['.pdf'],
             });
 
             await expect(
@@ -191,9 +198,11 @@ describe('outlineReviewService & outlineSweepService', () => {
                 id: 101,
                 studentId: 10,
                 status: 'APPROVED',
-                semester: {
-                    outlineAllowedExtensions: ['.docx'],
-                },
+                semesterId: 1,
+            });
+            mockTx.semester.findUnique.mockResolvedValue({
+                id: 1,
+                outlineAllowedExtensions: ['.docx'],
             });
 
             await expect(
@@ -209,10 +218,17 @@ describe('outlineReviewService & outlineSweepService', () => {
             await expect(
                 publishCouncilSchedule(1, { defenseDate: '2026-12-01' }, 99, { db: mockDb })
             ).rejects.toThrow(ForbiddenError);
+            expect(mockTx.councilMember.findFirst).toHaveBeenCalledWith({
+                where: {
+                    councilId: 1,
+                    lecturerId: 99,
+                    roleInCouncil: 'CHAIRMAN',
+                },
+            });
         });
 
         it('throws BadRequestError if defenseDate is before outlineSubmissionDeadline', async () => {
-            mockTx.councilMember.findFirst.mockResolvedValue({ role: 'CHAIRMAN' });
+            mockTx.councilMember.findFirst.mockResolvedValue({ roleInCouncil: 'CHAIRMAN' });
             mockTx.council.findUnique.mockResolvedValue({
                 id: 1,
                 semester: { outlineSubmissionDeadline: new Date('2026-11-20T00:00:00Z') },
@@ -229,7 +245,7 @@ describe('outlineReviewService & outlineSweepService', () => {
         });
 
         it('throws BadRequestError if IN_PERSON mode has no location', async () => {
-            mockTx.councilMember.findFirst.mockResolvedValue({ role: 'CHAIRMAN' });
+            mockTx.councilMember.findFirst.mockResolvedValue({ roleInCouncil: 'CHAIRMAN' });
             mockTx.council.findUnique.mockResolvedValue({
                 id: 1,
                 location: null,
@@ -247,7 +263,7 @@ describe('outlineReviewService & outlineSweepService', () => {
         });
 
         it('throws BadRequestError if MICROSOFT_TEAMS mode has invalid URL', async () => {
-            mockTx.councilMember.findFirst.mockResolvedValue({ role: 'CHAIRMAN' });
+            mockTx.councilMember.findFirst.mockResolvedValue({ roleInCouncil: 'CHAIRMAN' });
             mockTx.council.findUnique.mockResolvedValue({
                 id: 1,
                 semester: { outlineSubmissionDeadline: new Date('2026-11-20T00:00:00Z') },
@@ -264,7 +280,7 @@ describe('outlineReviewService & outlineSweepService', () => {
         });
 
         it('successfully publishes council schedule', async () => {
-            mockTx.councilMember.findFirst.mockResolvedValue({ role: 'CHAIRMAN' });
+            mockTx.councilMember.findFirst.mockResolvedValue({ roleInCouncil: 'CHAIRMAN' });
             mockTx.council.findUnique.mockResolvedValue({
                 id: 1,
                 semester: { outlineSubmissionDeadline: new Date('2026-11-20T00:00:00Z') },
@@ -289,9 +305,9 @@ describe('outlineReviewService & outlineSweepService', () => {
         });
     });
 
-    describe('3. saveDraftResults (Validation Matrix)', () => {
+    describe('3. saveDraftResults (Validation Matrix & Batch Association)', () => {
         beforeEach(() => {
-            mockTx.councilMember.findFirst.mockResolvedValue({ role: 'SECRETARY' });
+            mockTx.councilMember.findFirst.mockResolvedValue({ roleInCouncil: 'SECRETARY' });
             mockTx.councilResultBatch.findFirst.mockResolvedValue({ id: 1, status: 'DRAFT', versionNumber: 1 });
             mockTx.topicRegistration.findUnique.mockResolvedValue({ id: 101, periodPolicyVersionId: 1, outlineCouncilId: 1 });
         });
@@ -320,7 +336,42 @@ describe('outlineReviewService & outlineSweepService', () => {
             ).rejects.toThrow(BadRequestError);
         });
 
-        it('successfully saves valid draft evaluation', async () => {
+        it('re-uses and updates existing unassigned evaluation (batchId: null) into the current batch', async () => {
+            mockTx.bM01Evaluation.findFirst.mockResolvedValue({
+                id: 401,
+                registrationId: 101,
+                batchId: null,
+                attemptNo: 1,
+            });
+            mockTx.bM01Evaluation.update.mockResolvedValue({
+                id: 401,
+                batchId: 1,
+                initialOutcome: 'PASS',
+                attendanceStatus: 'PRESENT',
+            });
+
+            const result = await saveDraftResults(
+                1,
+                101,
+                { initialOutcome: 'PASS', attendanceStatus: 'PRESENT', comment: 'Tot' },
+                6,
+                { db: mockDb }
+            );
+
+            expect(result.initialOutcome).toBe('PASS');
+            expect(mockTx.bM01Evaluation.update).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    where: { id: 401 },
+                    data: expect.objectContaining({
+                        batchId: 1,
+                        councilId: 1,
+                        initialOutcome: 'PASS',
+                    }),
+                })
+            );
+        });
+
+        it('creates new evaluation if none exists', async () => {
             mockTx.bM01Evaluation.findFirst.mockResolvedValue(null);
             mockTx.bM01Evaluation.create.mockResolvedValue({ id: 501, initialOutcome: 'PASS', attendanceStatus: 'PRESENT' });
 
@@ -339,10 +390,10 @@ describe('outlineReviewService & outlineSweepService', () => {
 
     describe('4. completeSecretaryReview and returnResultsToSecretary', () => {
         it('blocks secretary complete if any student lacks evaluation', async () => {
-            mockTx.councilMember.findFirst.mockResolvedValue({ role: 'SECRETARY' });
+            mockTx.councilMember.findFirst.mockResolvedValue({ roleInCouncil: 'SECRETARY' });
             mockTx.councilResultBatch.findFirst.mockResolvedValue({ id: 1, status: 'DRAFT' });
             mockTx.topicRegistration.count.mockResolvedValue(5);
-            mockTx.bM01Evaluation.count.mockResolvedValue(4); // missing 1
+            mockTx.bM01Evaluation.count.mockResolvedValue(4);
 
             await expect(
                 completeSecretaryReview(1, 6, { db: mockDb })
@@ -350,7 +401,7 @@ describe('outlineReviewService & outlineSweepService', () => {
         });
 
         it('completes secretary review: changes batch status to PENDING_CHAIR', async () => {
-            mockTx.councilMember.findFirst.mockResolvedValue({ role: 'SECRETARY' });
+            mockTx.councilMember.findFirst.mockResolvedValue({ roleInCouncil: 'SECRETARY' });
             mockTx.councilResultBatch.findFirst.mockResolvedValue({ id: 1, status: 'DRAFT' });
             mockTx.topicRegistration.count.mockResolvedValue(5);
             mockTx.bM01Evaluation.count.mockResolvedValue(5);
@@ -361,7 +412,7 @@ describe('outlineReviewService & outlineSweepService', () => {
         });
 
         it('chair returns results to secretary with mandatory return reason', async () => {
-            mockTx.councilMember.findFirst.mockResolvedValue({ role: 'CHAIRMAN' });
+            mockTx.councilMember.findFirst.mockResolvedValue({ roleInCouncil: 'CHAIRMAN' });
             mockTx.councilResultBatch.findFirst.mockResolvedValue({ id: 1, status: 'PENDING_CHAIR' });
             mockTx.councilResultBatch.update.mockResolvedValue({ id: 1, status: 'DRAFT', returnReason: 'Chua dat' });
 
@@ -375,7 +426,7 @@ describe('outlineReviewService & outlineSweepService', () => {
         });
 
         it('rejects return if reason is empty', async () => {
-            mockTx.councilMember.findFirst.mockResolvedValue({ role: 'CHAIRMAN' });
+            mockTx.councilMember.findFirst.mockResolvedValue({ roleInCouncil: 'CHAIRMAN' });
             mockTx.councilResultBatch.findFirst.mockResolvedValue({ id: 1, status: 'PENDING_CHAIR' });
 
             await expect(
@@ -384,20 +435,21 @@ describe('outlineReviewService & outlineSweepService', () => {
         });
     });
 
-    describe('5. publishCouncilResults (Chair publish & BM02 Task creation)', () => {
+    describe('5. publishCouncilResults (Chair publish & BM02 Task deduplication)', () => {
         beforeEach(() => {
-            mockTx.councilMember.findFirst.mockResolvedValue({ role: 'CHAIRMAN' });
+            mockTx.councilMember.findFirst.mockResolvedValue({ roleInCouncil: 'CHAIRMAN' });
             mockTx.councilResultBatch.findFirst.mockResolvedValue({ id: 1, status: 'PENDING_CHAIR' });
             mockTx.idempotencyRecord.findUnique.mockResolvedValue(null);
             mockTx.councilResultBatch.update.mockResolvedValue({ id: 1, status: 'PUBLISHED' });
         });
 
-        it('transitions PASS to BM01_PASSED and creates BM02 task', async () => {
+        it('transitions PASS to BM01_PASSED and creates BM02 task if not existing', async () => {
             mockTx.bM01Evaluation.findMany.mockResolvedValue([
                 { id: 10, registrationId: 101, initialOutcome: 'PASS' },
             ]);
             mockTx.bM01Evaluation.update.mockResolvedValue({ id: 10, outcome: 'PASSED' });
             mockTx.topicRegistration.update.mockResolvedValue({ id: 101, status: 'BM01_PASSED' });
+            mockTx.task.findFirst.mockResolvedValue(null); // No existing BM02 task
             mockTx.task.create.mockResolvedValue({ id: 701, taskType: 'BM02' });
 
             const result = await publishCouncilResults(1, 5, 'idem-pub-1', { db: mockDb });
@@ -414,6 +466,19 @@ describe('outlineReviewService & outlineSweepService', () => {
                     data: expect.objectContaining({ registrationId: 101, taskType: 'BM02', status: 'OPEN' }),
                 })
             );
+        });
+
+        it('does not create duplicate BM02 task if already existing', async () => {
+            mockTx.bM01Evaluation.findMany.mockResolvedValue([
+                { id: 10, registrationId: 101, initialOutcome: 'PASS' },
+            ]);
+            mockTx.bM01Evaluation.update.mockResolvedValue({ id: 10, outcome: 'PASSED' });
+            mockTx.topicRegistration.update.mockResolvedValue({ id: 101, status: 'BM01_PASSED' });
+            mockTx.task.findFirst.mockResolvedValue({ id: 701, taskType: 'BM02' }); // already exists
+
+            await publishCouncilResults(1, 5, 'idem-pub-existing', { db: mockDb });
+
+            expect(mockTx.task.create).not.toHaveBeenCalled();
         });
 
         it('transitions REVISION_REQUIRED / FAIL / ABSENT to BM01_NEEDS_REVISION', async () => {
@@ -448,7 +513,7 @@ describe('outlineReviewService & outlineSweepService', () => {
 
     describe('6. setRevisionDeadline', () => {
         it('sets revisionSubmissionDeadline and activates BM01_RESUBMISSION task for BM01_NEEDS_REVISION students', async () => {
-            mockTx.councilMember.findFirst.mockResolvedValue({ role: 'CHAIRMAN' });
+            mockTx.councilMember.findFirst.mockResolvedValue({ roleInCouncil: 'CHAIRMAN' });
             const futureDeadline = new Date(Date.now() + 86400000 * 3);
             mockTx.council.update.mockResolvedValue({ id: 1, revisionSubmissionDeadline: futureDeadline });
             mockTx.topicRegistration.findMany.mockResolvedValue([
@@ -473,7 +538,7 @@ describe('outlineReviewService & outlineSweepService', () => {
         });
 
         it('rejects deadline in the past', async () => {
-            mockTx.councilMember.findFirst.mockResolvedValue({ role: 'CHAIRMAN' });
+            mockTx.councilMember.findFirst.mockResolvedValue({ roleInCouncil: 'CHAIRMAN' });
             const pastDeadline = new Date(Date.now() - 10000);
 
             await expect(
@@ -482,14 +547,14 @@ describe('outlineReviewService & outlineSweepService', () => {
         });
     });
 
-    describe('7. submitResubmissionOutline', () => {
+    describe('7. submitResubmissionOutline (Targeted Atomic Conditional Update)', () => {
         const fileData = {
             fileName: 'de_cuong_v2.pdf',
             fileUrl: 'https://storage/de_cuong_v2.pdf',
             fileSize: 1024 * 500,
         };
 
-        it('successfully submits resubmission (v2) with conditional update and transitions to BM01_RESUBMITTED', async () => {
+        it('successfully submits resubmission (v2) targeting latest evaluation and transitions to BM01_RESUBMITTED', async () => {
             const now = new Date('2026-11-12T10:00:00Z');
             mockTx.topicRegistration.findUnique.mockResolvedValue({
                 id: 102,
@@ -498,6 +563,11 @@ describe('outlineReviewService & outlineSweepService', () => {
                 outlineCouncil: {
                     revisionSubmissionDeadline: new Date('2026-11-15T00:00:00Z'),
                 },
+            });
+            mockTx.bM01Evaluation.findFirst.mockResolvedValue({
+                id: 502,
+                registrationId: 102,
+                revisionSubmissionId: null,
             });
             mockTx.task.findFirst.mockResolvedValue({ id: 801, taskType: 'BM01_RESUBMISSION' });
             mockTx.submission.create.mockResolvedValue({ id: 901, registrationId: 102 });
@@ -509,7 +579,7 @@ describe('outlineReviewService & outlineSweepService', () => {
             expect(result.id).toBe(901);
             expect(mockTx.bM01Evaluation.updateMany).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    where: { registrationId: 102, revisionSubmissionId: null },
+                    where: { id: 502, revisionSubmissionId: null },
                     data: { revisionSubmissionId: 901 },
                 })
             );
@@ -521,7 +591,7 @@ describe('outlineReviewService & outlineSweepService', () => {
             );
         });
 
-        it('throws ConflictError(RESUBMISSION_ALREADY_USED) on second resubmission call', async () => {
+        it('throws ConflictError(RESUBMISSION_ALREADY_USED) if latest evaluation already has revisionSubmissionId', async () => {
             mockTx.topicRegistration.findUnique.mockResolvedValue({
                 id: 102,
                 studentId: 11,
@@ -530,9 +600,11 @@ describe('outlineReviewService & outlineSweepService', () => {
                     revisionSubmissionDeadline: new Date('2026-11-15T00:00:00Z'),
                 },
             });
-            mockTx.task.findFirst.mockResolvedValue({ id: 801 });
-            mockTx.submission.create.mockResolvedValue({ id: 902 });
-            mockTx.bM01Evaluation.updateMany.mockResolvedValue({ count: 0 }); // already has revisionSubmissionId
+            mockTx.bM01Evaluation.findFirst.mockResolvedValue({
+                id: 502,
+                registrationId: 102,
+                revisionSubmissionId: 901,
+            });
 
             await expect(
                 submitResubmissionOutline(102, fileData, 11, { db: mockDb })
@@ -556,9 +628,9 @@ describe('outlineReviewService & outlineSweepService', () => {
         });
     });
 
-    describe('8. reviewResubmission (Chair review)', () => {
+    describe('8. reviewResubmission (Chair review & BM02 Task deduplication)', () => {
         beforeEach(() => {
-            mockTx.councilMember.findFirst.mockResolvedValue({ role: 'CHAIRMAN' });
+            mockTx.councilMember.findFirst.mockResolvedValue({ roleInCouncil: 'CHAIRMAN' });
             mockTx.topicRegistration.findUnique.mockResolvedValue({
                 id: 102,
                 outlineCouncilId: 1,
@@ -567,9 +639,10 @@ describe('outlineReviewService & outlineSweepService', () => {
             mockTx.bM01Evaluation.findFirst.mockResolvedValue({ id: 502, registrationId: 102 });
         });
 
-        it('APPROVE transitions registration to BM01_PASSED and creates BM02 task', async () => {
+        it('APPROVE transitions registration to BM01_PASSED and creates BM02 task if not existing', async () => {
             mockTx.bM01Evaluation.update.mockResolvedValue({ id: 502, outcome: 'PASSED' });
             mockTx.topicRegistration.update.mockResolvedValue({ id: 102, status: 'BM01_PASSED' });
+            mockTx.task.findFirst.mockResolvedValue(null);
             mockTx.task.create.mockResolvedValue({ id: 999 });
 
             const result = await reviewResubmission(1, 102, 'APPROVE', 'Sua tot', 5, { db: mockDb });
@@ -614,7 +687,7 @@ describe('outlineReviewService & outlineSweepService', () => {
         });
     });
 
-    describe('9. reopenCouncilResults (Guard BM02 & Snapshot Batch)', () => {
+    describe('9. reopenCouncilResults (Guard BM02 & Unique Constraint Safe Snapshot)', () => {
         beforeEach(() => {
             mockTx.councilResultBatch.findFirst.mockResolvedValue({
                 id: 1,
@@ -644,7 +717,7 @@ describe('outlineReviewService & outlineSweepService', () => {
             }
         });
 
-        it('successfully supersedes previous batch and clones evaluations to new REOPENED batch', async () => {
+        it('successfully supersedes previous batch and clones evaluations with submissionId: null to respect @unique constraint', async () => {
             mockTx.topicRegistration.findMany.mockResolvedValue([
                 { id: 101, status: 'BM01_PASSED', bm02Submissions: [] },
                 { id: 102, status: 'BM01_NEEDS_REVISION', bm02Submissions: [] },
@@ -665,6 +738,8 @@ describe('outlineReviewService & outlineSweepService', () => {
                     initialOutcome: 'PASS',
                     attendanceStatus: 'PRESENT',
                     comment: 'Tot',
+                    submissionId: 301,
+                    revisionSubmissionId: null,
                 },
             ]);
             mockTx.bM01Evaluation.create.mockResolvedValue({ id: 20 });
@@ -685,6 +760,8 @@ describe('outlineReviewService & outlineSweepService', () => {
                         batchId: 2,
                         attemptNo: 2,
                         supersedesId: 10,
+                        submissionId: null,
+                        revisionSubmissionId: null,
                     }),
                 })
             );

@@ -22,7 +22,6 @@ async function submitInitialOutline(registrationId, fileData, userId, options = 
     return db.$transaction(async (tx) => {
         const registration = await tx.topicRegistration.findUnique({
             where: { id: regId },
-            include: { semester: true },
         });
 
         if (!registration) {
@@ -35,7 +34,10 @@ async function submitInitialOutline(registrationId, fileData, userId, options = 
             throw new BadRequestError('INVALID_REGISTRATION_STATUS');
         }
 
-        const semester = registration.semester;
+        const semester = registration.semesterId
+            ? await tx.semester.findUnique({ where: { id: registration.semesterId } })
+            : null;
+
         if (semester) {
             if (semester.outlineSubmissionOpenAt && now < new Date(semester.outlineSubmissionOpenAt)) {
                 throw new BadRequestError('SUBMISSION_WINDOW_NOT_OPEN');
@@ -151,8 +153,8 @@ async function publishCouncilSchedule(councilId, scheduleData, chairId, options 
         const chairMember = await tx.councilMember.findFirst({
             where: {
                 councilId: cId,
-                userId: chId,
-                role: { in: ['CHAIRMAN', 'CHAIR'] },
+                lecturerId: chId,
+                roleInCouncil: 'CHAIRMAN',
             },
         });
         if (!chairMember) {
@@ -210,7 +212,7 @@ async function publishCouncilSchedule(councilId, scheduleData, chairId, options 
 
 /**
  * 3. Secretary saves draft evaluation results for a student in a batch
- * Applies strict validation matrix.
+ * Applies strict validation matrix. Reuses unassigned (batchId: null) evaluation if present.
  */
 async function saveDraftResults(councilId, registrationId, resultData, actorId, options = {}) {
     const db = options.db || prisma;
@@ -249,8 +251,8 @@ async function saveDraftResults(councilId, registrationId, resultData, actorId, 
         const member = await tx.councilMember.findFirst({
             where: {
                 councilId: cId,
-                userId: aId,
-                role: { in: ['SECRETARY', 'CHAIRMAN', 'CHAIR'] },
+                lecturerId: aId,
+                roleInCouncil: { in: ['SECRETARY', 'CHAIRMAN'] },
             },
         });
         if (!member) {
@@ -281,17 +283,21 @@ async function saveDraftResults(councilId, registrationId, resultData, actorId, 
             throw new ConflictError('BATCH_NOT_EDITABLE');
         }
 
+        // Check if an evaluation already exists in the current batch or was created with batchId: null
         let evaluation = await tx.bM01Evaluation.findFirst({
             where: {
-                batchId: currentBatch.id,
                 registrationId: regId,
+                OR: [{ batchId: currentBatch.id }, { batchId: null }],
             },
+            orderBy: { attemptNo: 'desc' },
         });
 
         if (evaluation) {
             evaluation = await tx.bM01Evaluation.update({
                 where: { id: evaluation.id },
                 data: {
+                    batchId: currentBatch.id,
+                    councilId: cId,
                     initialOutcome,
                     attendanceStatus,
                     comment: comment ? comment.trim() : null,
@@ -340,8 +346,8 @@ async function completeSecretaryReview(councilId, actorId, options = {}) {
         const member = await tx.councilMember.findFirst({
             where: {
                 councilId: cId,
-                userId: aId,
-                role: { in: ['SECRETARY', 'CHAIRMAN', 'CHAIR'] },
+                lecturerId: aId,
+                roleInCouncil: { in: ['SECRETARY', 'CHAIRMAN'] },
             },
         });
         if (!member) {
@@ -400,8 +406,8 @@ async function returnResultsToSecretary(councilId, returnReason, chairId, option
         const member = await tx.councilMember.findFirst({
             where: {
                 councilId: cId,
-                userId: chId,
-                role: { in: ['CHAIRMAN', 'CHAIR'] },
+                lecturerId: chId,
+                roleInCouncil: 'CHAIRMAN',
             },
         });
         if (!member) {
@@ -447,8 +453,8 @@ async function publishCouncilResults(councilId, chairId, idempotencyKey, options
         const member = await tx.councilMember.findFirst({
             where: {
                 councilId: cId,
-                userId: chId,
-                role: { in: ['CHAIRMAN', 'CHAIR'] },
+                lecturerId: chId,
+                roleInCouncil: 'CHAIRMAN',
             },
         });
         if (!member) {
@@ -504,15 +510,24 @@ async function publishCouncilResults(councilId, chairId, idempotencyKey, options
                         stateVersion: { increment: 1 },
                     },
                 });
-                // Create BM02 task
-                await tx.task.create({
-                    data: {
+
+                // Create BM02 task if not already existing
+                const existingBm02Task = await tx.task.findFirst({
+                    where: {
                         registrationId: evaluation.registrationId,
-                        title: 'Nộp đơn đăng ký đề tài chính thức (BM02)',
                         taskType: 'BM02',
-                        status: 'OPEN',
                     },
                 });
+                if (!existingBm02Task) {
+                    await tx.task.create({
+                        data: {
+                            registrationId: evaluation.registrationId,
+                            title: 'Nộp đơn đăng ký đề tài chính thức (BM02)',
+                            taskType: 'BM02',
+                            status: 'OPEN',
+                        },
+                    });
+                }
             } else {
                 await tx.bM01Evaluation.update({
                     where: { id: evaluation.id },
@@ -564,8 +579,8 @@ async function setRevisionDeadline(councilId, deadline, chairId, options = {}) {
         const member = await tx.councilMember.findFirst({
             where: {
                 councilId: cId,
-                userId: chId,
-                role: { in: ['CHAIRMAN', 'CHAIR'] },
+                lecturerId: chId,
+                roleInCouncil: 'CHAIRMAN',
             },
         });
         if (!member) {
@@ -618,7 +633,7 @@ async function setRevisionDeadline(councilId, deadline, chairId, options = {}) {
 
 /**
  * 8. Submit resubmission outline (v2)
- * Atomic conditional update ensures only 1 resubmission is permitted.
+ * Atomic conditional update targeting the latest evaluation ensures only 1 resubmission is permitted.
  */
 async function submitResubmissionOutline(registrationId, fileData, userId, options = {}) {
     const db = options.db || prisma;
@@ -645,6 +660,14 @@ async function submitResubmissionOutline(registrationId, fileData, userId, optio
         const deadline = registration.outlineCouncil?.revisionSubmissionDeadline;
         if (!deadline || now > new Date(deadline)) {
             throw new BadRequestError('RESUBMISSION_DEADLINE_PASSED');
+        }
+
+        const latestEval = await tx.bM01Evaluation.findFirst({
+            where: { registrationId: regId },
+            orderBy: { attemptNo: 'desc' },
+        });
+        if (!latestEval || latestEval.revisionSubmissionId) {
+            throw new ConflictError('RESUBMISSION_ALREADY_USED');
         }
 
         let task = await tx.task.findFirst({
@@ -680,10 +703,10 @@ async function submitResubmissionOutline(registrationId, fileData, userId, optio
             },
         });
 
-        // Atomic conditional update on BM01Evaluation
+        // Atomic conditional update on specific latest BM01Evaluation
         const updated = await tx.bM01Evaluation.updateMany({
             where: {
-                registrationId: regId,
+                id: latestEval.id,
                 revisionSubmissionId: null,
             },
             data: {
@@ -724,8 +747,8 @@ async function reviewResubmission(councilId, registrationId, decision, revisionF
         const member = await tx.councilMember.findFirst({
             where: {
                 councilId: cId,
-                userId: chId,
-                role: { in: ['CHAIRMAN', 'CHAIR'] },
+                lecturerId: chId,
+                roleInCouncil: 'CHAIRMAN',
             },
         });
         if (!member) {
@@ -767,14 +790,23 @@ async function reviewResubmission(councilId, registrationId, decision, revisionF
                 },
             });
 
-            await tx.task.create({
-                data: {
+            // Create BM02 task if not already existing
+            const existingBm02Task = await tx.task.findFirst({
+                where: {
                     registrationId: regId,
-                    title: 'Nộp đơn đăng ký đề tài chính thức (BM02)',
                     taskType: 'BM02',
-                    status: 'OPEN',
                 },
             });
+            if (!existingBm02Task) {
+                await tx.task.create({
+                    data: {
+                        registrationId: regId,
+                        title: 'Nộp đơn đăng ký đề tài chính thức (BM02)',
+                        taskType: 'BM02',
+                        status: 'OPEN',
+                    },
+                });
+            }
 
             return updatedReg;
         }
@@ -811,6 +843,7 @@ async function reviewResubmission(councilId, registrationId, decision, revisionF
  * 10. Reopen council results
  * Guards against reopen when any student has downstream BM02 submissions/progress.
  * Creates an append-only snapshot with new batch version.
+ * Clones evaluations with submissionId: null and revisionSubmissionId: null to respect 1-1 unique constraint.
  */
 async function reopenCouncilResults(councilId, reason, adminId, options = {}) {
     const db = options.db || prisma;
@@ -883,7 +916,7 @@ async function reopenCouncilResults(councilId, reason, adminId, options = {}) {
             },
         });
 
-        // Clone evaluations to new batch
+        // Clone evaluations to new batch with submissionId: null and revisionSubmissionId: null
         const oldEvaluations = await tx.bM01Evaluation.findMany({
             where: { batchId: currentBatch.id },
         });
@@ -901,8 +934,8 @@ async function reopenCouncilResults(councilId, reason, adminId, options = {}) {
                     attendanceStatus: prev.attendanceStatus,
                     comment: prev.comment,
                     revisionRequirements: prev.revisionRequirements,
-                    submissionId: prev.submissionId,
-                    revisionSubmissionId: prev.revisionSubmissionId,
+                    submissionId: null,
+                    revisionSubmissionId: null,
                     outcome: prev.outcome,
                     revisionApprovalStatus: prev.revisionApprovalStatus,
                 },
