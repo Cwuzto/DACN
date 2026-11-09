@@ -36,3 +36,44 @@ AI Agent phải tự động cập nhật mục **`Session Update`** trong file 
    - Tất cả các file (`.md`, `.js`, `.jsx`, `.json`, `.prisma`, `.yml`) phải lưu ở định dạng **UTF-8 (no BOM)**.
 5. **Chủ động cảnh báo ngữ cảnh**:
    - Khi phiên làm việc kéo dài hoặc ngữ cảnh chat sắp đầy, Agent chủ động nhắc người dùng gõ `end phiên` và mở cửa sổ chat mới.
+
+---
+
+## 3. Cơ Chế Phân Công Subagent Giữ Sạch Ngữ Cảnh (Experimental Rule)
+
+> [!NOTE]
+> **Quy chuẩn thử nghiệm (Có thể thu hồi)**:
+> Mục này được thiết lập riêng để giữ sạch cửa sổ ngữ cảnh (Context Window) của phiên chính, tránh tình trạng AI bị suy giảm trí nhớ do tràn ngữ cảnh.
+> Nếu sau này người dùng thấy không phù hợp, có thể xóa toàn bộ Mục 3 này mà không gây ảnh hưởng đến Mục 1 và Mục 2.
+
+### 3.1. Phân định vai trò (Separation of Roles)
+* **Agent chính (Main Orchestrator)**:
+  - Là đầu mối duy nhất trao đổi trực tiếp với người dùng.
+  - Chịu trách nhiệm lập kế hoạch, kiểm soát tiến độ, đưa ra quyết định kiến trúc, ghi chép `CLAUDE.md` và tạo Git commit.
+  - Tuyệt đối hạn chế nạp log terminal dài, nội dung thô của nhiều file lớn, hoặc kết quả chạy test hàng trăm dòng vào ngữ cảnh chính.
+* **Subagent (Specialized Worker)**:
+  - Làm việc trong không gian cách ly (Isolated Context), chỉ nhận prompt chứa đúng dữ liệu cần thiết cho tác vụ được giao.
+  - Tự động thực thi, tự chạy kiểm tra/test lại phần việc của mình.
+  - **Quy chuẩn báo cáo về Agent chính**: Chỉ trả lời ngắn gọn theo 3 ý:
+    1. Đã thực hiện những việc gì?
+    2. Danh sách tệp đã tạo / chỉnh sửa.
+    3. Kết quả xác thực / kiểm thử (Pass/Fail).
+
+### 3.2. Tiêu chí bắt buộc ủy thác cho Subagent
+Agent chính phải tự động kích hoạt Subagent cho các tác vụ sau:
+1. **Khảo sát / Quét tìm kiếm diện rộng (`research subagent`)**:
+   - Tìm kiếm chuỗi/logic quét qua nhiều thư mục trong dự án.
+   - Đọc các tệp tài liệu đặc tả, schema lớn hoặc log hệ thống dài.
+2. **Thực thi tác vụ hoặc sửa lỗi độc lập (`self subagent`)**:
+   - Viết tính năng mới, tạo màn hình/component, hoặc refactor code theo kế hoạch đã vạch sẵn.
+   - Sửa các module backend/frontend độc lập không bị phụ thuộc chéo.
+3. **Chạy kiểm thử & chẩn đoán lỗi nặng**:
+   - Chạy toàn bộ test suite (backend/frontend) hoặc phân tích stack trace lỗi phức tạp.
+4. **Kiểm tra chéo chất lượng (Task Reviewer)**:
+   - Rà soát code trước khi đóng phiên: kiểm tra vi phạm `TopicRegistration`, dữ liệu giả (mock data), hoặc chuẩn UTF-8.
+
+### 3.3. Các trường hợp Agent chính làm trực tiếp
+Agent chính không cần gọi Subagent trong các trường hợp:
+* Trao đổi, tư vấn ý tưởng, giải thích nghiệp vụ với người dùng.
+* Sửa nhanh 1–2 tệp có phạm vi rất rõ ràng, cụ thể (quick fix lỗi nhỏ, chỉnh nhãn text giao diện, cập nhật import).
+* Đọc và cập nhật nhật ký phiên trong `CLAUDE.md`, `AGENTS.md` và tạo commit Git.
