@@ -4,6 +4,7 @@ const {
     ACTIVE_REGISTRATION_STATUSES,
     getMentorMaxSlots,
 } = require('../constants/mentorCapacity');
+const { calculateMentorPeakWorkload, formatWorkloadExceededMessage } = require('../utils/workloadSweep');
 const { PENDING_REMINDER_DAYS } = require('../constants/registrationLimits');
 const { auditLog } = require('../services/auditLogService');
 const { safeNotify } = require('../services/notificationService');
@@ -108,7 +109,9 @@ const registerTopic = async (req, res, next) => {
             where: { id: semesterIdInt },
             select: {
                 id: true,
+                name: true,
                 startDate: true,
+                endDate: true,
                 registrationDeadline: true,
                 registrationOpen: true,
             },
@@ -234,7 +237,38 @@ const registerTopic = async (req, res, next) => {
                     throw createHttpError(400, 'Đề tài này đã có sinh viên đăng ký.');
                 }
 
-                const maxSlots = getMentorMaxSlots(topic.mentor?.academicTitle) || DEFAULT_MAX_STUDENTS_PER_MENTOR || 10;
+                // Pessimistic row-level lock on LecturerProjectAssignment
+                if (typeof tx.$queryRaw === 'function') {
+                    await tx.$queryRaw`
+                        SELECT id FROM lecturer_project_assignments 
+                        WHERE lecturer_id = ${topic.mentorId} AND semester_id = ${semesterIdInt} 
+                        FOR UPDATE
+                    `;
+                }
+
+                let mentorAssignment = null;
+                if (tx.lecturerProjectAssignment) {
+                    mentorAssignment = await tx.lecturerProjectAssignment.findFirst({
+                        where: {
+                            lecturerId: topic.mentorId,
+                            semesterId: semesterIdInt,
+                            status: 'ACTIVE',
+                        },
+                    });
+
+                    if (!mentorAssignment) {
+                        throw createHttpError(
+                            400,
+                            'Giảng viên hướng dẫn chưa được phân công nhiệm vụ trong đợt đồ án này.',
+                            'MENTOR_NOT_ASSIGNED',
+                        );
+                    }
+                }
+
+                const roundQuota = mentorAssignment?.plannedQuota !== undefined
+                    ? mentorAssignment.plannedQuota
+                    : (getMentorMaxSlots(topic.mentor?.academicTitle) || DEFAULT_MAX_STUDENTS_PER_MENTOR || 10);
+
                 const mentorStudentCount = await tx.topicRegistration.count({
                     where: {
                         topic: { mentorId: topic.mentorId, semesterId: semesterIdInt },
@@ -242,12 +276,64 @@ const registerTopic = async (req, res, next) => {
                     },
                 });
 
-                if (mentorStudentCount >= maxSlots) {
+                if (mentorStudentCount >= roundQuota) {
                     throw createHttpError(
                         400,
-                        `Giảng viên đã đạt giới hạn hướng dẫn (${maxSlots} sinh viên).`,
+                        `Giảng viên đã đạt giới hạn chỉ tiêu hướng dẫn trong đợt này (${roundQuota} sinh viên).`,
                         'MENTOR_CAPACITY_EXCEEDED',
                     );
+                }
+
+                // Workload sweep across overlapping rounds
+                const existingRegistrations = await tx.topicRegistration.findMany({
+                    where: {
+                        topic: { mentorId: topic.mentorId },
+                        status: { in: MENTOR_ACTIVE_REGISTRATION_STATUSES },
+                    },
+                    include: {
+                        semester: {
+                            select: { id: true, name: true, startDate: true, endDate: true },
+                        },
+                        topic: {
+                            select: {
+                                id: true,
+                                mentorId: true,
+                                semester: {
+                                    select: { id: true, name: true, startDate: true, endDate: true },
+                                },
+                            },
+                        },
+                    },
+                });
+
+                const candidateInterval = {
+                    semester: {
+                        id: semester.id,
+                        name: semester.name,
+                        startDate: semester.startDate,
+                        endDate: semester.endDate,
+                    },
+                    startDate: semester.startDate,
+                    endDate: semester.endDate,
+                    name: semester.name,
+                };
+
+                const workloadResult = calculateMentorPeakWorkload({
+                    existingRegistrations,
+                    candidateInterval,
+                });
+
+                if (workloadResult.isExceeded || workloadResult.peakLoad > 10) {
+                    const baselineWorkload = calculateMentorPeakWorkload({ existingRegistrations });
+                    const currentPeak = baselineWorkload.peakLoad;
+                    const message = formatWorkloadExceededMessage({
+                        currentPeak: currentPeak > 0 ? currentPeak : 10,
+                        newPeak: workloadResult.peakLoad,
+                        peakStart: workloadResult.peakInterval?.start,
+                        peakEnd: workloadResult.peakInterval?.end,
+                        conflictingRounds: workloadResult.peakInterval?.semesterNames || [],
+                    });
+                    throw createHttpError(400, message, 'MENTOR_WORKLOAD_EXCEEDED');
                 }
 
                 const created = await tx.topicRegistration.create({
@@ -256,6 +342,8 @@ const registerTopic = async (req, res, next) => {
                         studentId,
                         semesterId: semesterIdInt,
                         status: 'PENDING',
+                        assignmentStatus: 'ACTIVE',
+                        effectiveAt: new Date(),
                         periodPolicyVersionId: activePolicy.id,
                     },
                     include: {

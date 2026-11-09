@@ -245,6 +245,38 @@ const createTopic = async (req, res, next) => {
             }
         }
 
+        if (prisma.lecturerProjectAssignment) {
+            if (role === 'LECTURER') {
+                const lecturerAssignment = await prisma.lecturerProjectAssignment.findFirst({
+                    where: {
+                        lecturerId: userId,
+                        semesterId: semesterIdInt,
+                        status: 'ACTIVE',
+                    },
+                });
+                if (!lecturerAssignment) {
+                    return res.status(403).json({
+                        success: false,
+                        message: 'Bạn chưa được phân công nhiệm vụ hướng dẫn trong đợt đồ án này.',
+                    });
+                }
+            } else {
+                const mentorAssignment = await prisma.lecturerProjectAssignment.findFirst({
+                    where: {
+                        lecturerId: finalMentorId,
+                        semesterId: semesterIdInt,
+                        status: 'ACTIVE',
+                    },
+                });
+                if (!mentorAssignment) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Giảng viên hướng dẫn chưa được phân công nhiệm vụ trong đợt đồ án này.',
+                    });
+                }
+            }
+        }
+
         let finalDescription = description?.trim() || null;
         const extraDetails = [];
         if (englishTitle?.trim()) extraDetails.push(`Tên tiếng Anh: ${englishTitle.trim()}`);
@@ -540,13 +572,29 @@ const getMentorCapacity = async (req, res, next) => {
     }
 };
 
-const getAvailableMentors = async (_req, res, next) => {
+const getAvailableMentors = async (req, res, next) => {
     try {
+        const { semesterId, projectCatalogId } = req?.query || {};
+        const where = {
+            role: 'LECTURER',
+            isActive: true,
+        };
+
+        if (semesterId) {
+            const semesterIdInt = parseInt(semesterId, 10);
+            if (Number.isInteger(semesterIdInt)) {
+                where.lecturerProjectAssignments = {
+                    some: {
+                        semesterId: semesterIdInt,
+                        status: 'ACTIVE',
+                        ...(projectCatalogId ? { projectCatalogId: parseInt(projectCatalogId, 10) } : {}),
+                    },
+                };
+            }
+        }
+
         const mentors = await prisma.user.findMany({
-            where: {
-                role: 'LECTURER',
-                isActive: true,
-            },
+            where,
             select: {
                 id: true,
                 fullName: true,
