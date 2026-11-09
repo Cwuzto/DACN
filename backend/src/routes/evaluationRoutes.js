@@ -212,7 +212,7 @@ router.get(
 
 router.post(
     ['/semesters/:semesterId/result-publications', '/semesters/:semesterId/results/publish'],
-    authorizePermission(PERMISSIONS.RESULT_PUBLISH, PERMISSIONS.RESULT_PUBLICATION_PUBLISH),
+    authorizePermission(PERMISSIONS.RESULT_PUBLICATION_PUBLISH),
     [
         param('semesterId').isInt({ min: 1 }).withMessage('semesterId phải là số nguyên dương.'),
         body('type').optional().isIn(['INITIAL', 'SUPPLEMENTARY', 'CORRECTION']).withMessage('type không hợp lệ.'),
@@ -298,7 +298,7 @@ router.get(
 );
 
 const checkpointIssueGuards = [
-    authorizePermission(PERMISSIONS.CHECKPOINT_ISSUE, PERMISSIONS.BM03_CHECKPOINT_DECIDE),
+    authorizePermission(PERMISSIONS.CHECKPOINT_ISSUE),
     (req, res, next) => {
         if (!req.body.registrationId && req.params.registrationId) {
             req.body.registrationId = parseInt(req.params.registrationId, 10);
@@ -368,7 +368,7 @@ router.post(
 );
 
 const checkpointAppealReviewGuards = [
-    authorizePermission(PERMISSIONS.SIGNATURE_APPEAL_REVIEW, PERMISSIONS.BM03_CHECKPOINT_DECIDE),
+    authorizePermission(PERMISSIONS.SIGNATURE_APPEAL_REVIEW),
     (req, res, next) => {
         if (!req.body.appealId && req.params.id) {
             req.body.appealId = parseInt(req.params.id, 10);
@@ -388,7 +388,7 @@ router.post(
 
 router.get(
     '/checkpoint-appeals',
-    authorizePermission(PERMISSIONS.SIGNATURE_APPEAL_REVIEW, PERMISSIONS.BM03_CHECKPOINT_DECIDE, PERMISSIONS.PROJECT_OVERSIGHT_MANAGE),
+    authorizePermission(PERMISSIONS.SIGNATURE_APPEAL_REVIEW, PERMISSIONS.PROJECT_OVERSIGHT_MANAGE),
     evaluationController.getCheckpointAppeals,
 );
 

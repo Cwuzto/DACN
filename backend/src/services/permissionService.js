@@ -1,6 +1,6 @@
 const prisma = require('../config/database');
 const { auditLog } = require('./auditLogService');
-const { PERMISSION_CATALOG, DEFAULT_GROUPS } = require('../constants/permissions');
+const { PERMISSION_CATALOG, DEFAULT_GROUPS, ACADEMIC_PROTECTED_PERMISSIONS, TECHNICAL_PERMISSIONS } = require('../constants/permissions');
 const { clearAuthCache } = require('../middlewares/auth');
 const getRequestIp = (req) => req?.ip || req?.headers?.['x-forwarded-for'] || null;
 
@@ -20,6 +20,15 @@ const getGroupById = async (id) =>
 
 const createGroup = async (data, actor) => {
   const { code, name, description, permissionCodes = [] } = data;
+
+  const violating = (permissionCodes || []).filter((c) => ACADEMIC_PROTECTED_PERMISSIONS.includes(c));
+  if (violating.length > 0) {
+    const error = new Error(`Quản trị viên kỹ thuật không được phép tạo nhóm chứa quyền học thuật/nghiệp vụ được bảo vệ: ${violating.join(', ')}.`);
+    error.statusCode = 403;
+    error.code = 'FORBIDDEN_ACADEMIC_PERMISSION_MODIFICATION';
+    throw error;
+  }
+
   const result = await prisma.$transaction(async (tx) => {
     const group = await tx.permissionGroup.create({
       data: { code, name, description, permissions: { create: await mapPermissions(tx, permissionCodes) } },
@@ -34,6 +43,32 @@ const updateGroup = async (id, data, actor) => {
   const idInt = parseInt(id, 10);
   const { name, description, permissionCodes } = data;
   const result = await prisma.$transaction(async (tx) => {
+    const existingGroup = await tx.permissionGroup.findUnique({
+      where: { id: idInt },
+      include: { permissions: { include: { permission: true } } },
+    });
+    if (!existingGroup) {
+      const error = new Error('Không tìm thấy nhóm quyền.');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    if (permissionCodes !== undefined) {
+      const currentCodes = (existingGroup.permissions || [])
+        .map((p) => p.permission?.code || p.code)
+        .filter(Boolean);
+      const nextCodes = Array.isArray(permissionCodes) ? permissionCodes : [];
+      const addedCodes = nextCodes.filter((c) => !currentCodes.includes(c));
+      const removedCodes = currentCodes.filter((c) => !nextCodes.includes(c));
+      const deltaProtected = [...addedCodes, ...removedCodes].filter((c) => ACADEMIC_PROTECTED_PERMISSIONS.includes(c));
+      if (deltaProtected.length > 0) {
+        const error = new Error(`Không được phép thêm hoặc bớt quyền học thuật/nghiệp vụ trong nhóm quyền: ${deltaProtected.join(', ')}.`);
+        error.statusCode = 403;
+        error.code = 'FORBIDDEN_ACADEMIC_PERMISSION_MODIFICATION';
+        throw error;
+      }
+    }
+
     const updateData = {};
     if (name !== undefined) updateData.name = name;
     if (description !== undefined) updateData.description = description;
@@ -50,7 +85,24 @@ const updateGroup = async (id, data, actor) => {
 
 const deleteGroup = async (id, actor) => {
   const idInt = parseInt(id, 10);
-  const deleted = await prisma.permissionGroup.delete({ where: { id: idInt } });
+  const deleted = await prisma.$transaction(async (tx) => {
+    const existing = await tx.permissionGroup.findUnique({
+      where: { id: idInt },
+      include: { permissions: { include: { permission: true } } },
+    });
+    if (!existing) {
+      const error = new Error('Không tìm thấy nhóm quyền.');
+      error.statusCode = 404;
+      throw error;
+    }
+    if (existing.isSystem || existing.permissions.some((p) => ACADEMIC_PROTECTED_PERMISSIONS.includes(p.permission.code))) {
+      const error = new Error('Không được phép xóa nhóm quyền chứa các quyền học thuật/nghiệp vụ được bảo vệ.');
+      error.statusCode = 403;
+      error.code = 'FORBIDDEN_ACADEMIC_GROUP_DELETION';
+      throw error;
+    }
+    return tx.permissionGroup.delete({ where: { id: idInt } });
+  });
   await auditLog(actor?.id, 'DELETE_PERMISSION_GROUP', 'PermissionGroup', idInt, { code: deleted.code }, getRequestIp(actor));
   return deleted;
 };
@@ -72,22 +124,57 @@ const setUserGroups = async (userId, groupIds, actor) => {
     throw error;
   }
 
-  const selectedGroups = await prisma.permissionGroup.findMany({
-    where: { id: { in: groupIdsInt } },
-    select: { id: true, code: true, isSystem: true },
-  });
-
-  const hasAcademicDelegation = (actor?.permissions || []).includes('PERMISSION_ASSIGN_ACADEMIC');
-  const hasAcademicGroup = selectedGroups.some((g) => ['VIEN_TRUONG', 'GVHD'].includes(g.code));
-
-  if (hasAcademicGroup && !hasAcademicDelegation) {
-    const error = new Error('Quản trị viên kỹ thuật không được phép gán nhóm quyền học thuật (VIEN_TRUONG, GVHD).');
-    error.statusCode = 403;
-    error.code = 'FORBIDDEN_ACADEMIC_GROUP_ASSIGNMENT';
-    throw error;
-  }
-
   const result = await prisma.$transaction(async (tx) => {
+    const targetUser = await tx.user.findUnique({
+      where: { id: userIdInt },
+      include: {
+        permissionGroups: {
+          include: {
+            permissionGroup: {
+              include: { permissions: { include: { permission: true } } },
+            },
+          },
+        },
+      },
+    });
+
+    if (!targetUser) {
+      const error = new Error('Không tìm thấy người dùng.');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const currentPermCodes = new Set();
+    (targetUser.permissionGroups || []).forEach((pg) => {
+      (pg.permissionGroup?.permissions || []).forEach((p) => {
+        if (p.permission?.code) currentPermCodes.add(p.permission.code);
+      });
+    });
+
+    const selectedGroups = await tx.permissionGroup.findMany({
+      where: { id: { in: groupIdsInt } },
+      include: { permissions: { include: { permission: true } } },
+    });
+
+    const nextPermCodes = new Set();
+    selectedGroups.forEach((g) => {
+      (g.permissions || []).forEach((p) => {
+        if (p.permission?.code) nextPermCodes.add(p.permission.code);
+      });
+    });
+
+    const addedCodes = [...nextPermCodes].filter((c) => !currentPermCodes.has(c));
+    const removedCodes = [...currentPermCodes].filter((c) => !nextPermCodes.has(c));
+    const deltaProtected = [...addedCodes, ...removedCodes].filter((c) => ACADEMIC_PROTECTED_PERMISSIONS.includes(c));
+
+    const hasAcademicDelegation = (actor?.permissions || []).includes('PERMISSION_ASSIGN_ACADEMIC');
+    if (deltaProtected.length > 0 && !hasAcademicDelegation) {
+      const error = new Error('Quản trị viên kỹ thuật không được phép gán nhóm quyền học thuật (VIEN_TRUONG, GVHD).');
+      error.statusCode = 403;
+      error.code = 'FORBIDDEN_ACADEMIC_GROUP_ASSIGNMENT';
+      throw error;
+    }
+
     await tx.userPermissionGroup.deleteMany({ where: { userId: userIdInt } });
     if (groupIdsInt.length) {
       await tx.userPermissionGroup.createMany({
@@ -307,6 +394,46 @@ const bulkUpdatePermissionMatrix = async (payload, actor) => {
     }
     if (!managePermission) {
       throw createMatrixError(409, 'Catalog thiếu quyền tối quan trọng PERMISSION_GROUP_MANAGE.');
+    }
+
+    const currentGroupPerms = await tx.permissionGroupPermission.findMany({
+      where: { permissionGroupId: { in: groupIds } },
+      include: { permission: { select: { id: true, code: true } } },
+    });
+
+    const currentGroupCodesMap = new Map();
+    groupIds.forEach((gid) => currentGroupCodesMap.set(gid, new Set()));
+    (currentGroupPerms || []).forEach((gp) => {
+      const code = gp.permission?.code || gp.code;
+      if (code && currentGroupCodesMap.has(gp.permissionGroupId)) {
+        currentGroupCodesMap.get(gp.permissionGroupId).add(code);
+      }
+    });
+
+    const allPermsInDb = await tx.permission.findMany({ select: { id: true, code: true } });
+    const permIdToCode = new Map((allPermsInDb || []).map((p) => [p.id, p.code]).filter(([, code]) => Boolean(code)));
+
+    const violatingChanges = [];
+    for (const { groupId, permissionIds: nextPermissionIds } of updates) {
+      const currentCodes = currentGroupCodesMap.get(groupId) || new Set();
+      const nextCodes = new Set((nextPermissionIds || []).map((id) => permIdToCode.get(id)).filter(Boolean));
+
+      if (currentCodes.size > 0 || nextCodes.size > 0) {
+        const added = [...nextCodes].filter((code) => !currentCodes.has(code));
+        const removed = [...currentCodes].filter((code) => !nextCodes.has(code));
+        const delta = [...added, ...removed];
+        const deltaProtected = delta.filter((code) => ACADEMIC_PROTECTED_PERMISSIONS.includes(code));
+        if (deltaProtected.length > 0) {
+          violatingChanges.push(...deltaProtected);
+        }
+      }
+    }
+
+    if (violatingChanges.length > 0) {
+      throw createMatrixError(
+        403,
+        `Ma trận chứa thay đổi trái phép đối với quyền học thuật/nghiệp vụ được bảo vệ: ${[...new Set(violatingChanges)].join(', ')}.`,
+      );
     }
 
     for (const { groupId, permissionIds: nextPermissionIds } of updates) {

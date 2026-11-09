@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const prisma = require('../config/database');
 const { transitionRegistration, WorkflowTransitionError } = require('./registrationTransitionService');
+const { validateAcademicScope } = require('./academicScopeService');
 
 const hashScoreEvidence = (registration) => crypto.createHash('sha256').update(JSON.stringify({
     councilId: registration.defenseCouncilId || registration.councilId || null,
@@ -68,6 +69,12 @@ async function approveDefenseResult({ registrationId, actorId, outcome, reason, 
     }
     const db = options.db || prisma;
     return db.$transaction(async (tx) => {
+        await validateAcademicScope(tx, {
+            actorId,
+            registrationId,
+            capabilityCode: 'DEFENSE_RESULT_APPROVE',
+            now: options.now || new Date(),
+        });
         const registration = await loadLockedEvidence(tx, registrationId);
         const validStatuses = correction ? ['DEFENSE_PASSED', 'DEFENSE_FAILED'] : ['AWAITING_FINAL_APPROVAL'];
         if (!validStatuses.includes(registration.status)) {

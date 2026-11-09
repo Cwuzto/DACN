@@ -108,7 +108,7 @@ const fetchUserAndCapabilities = async (userId) => {
                 effectiveFrom: { lte: now },
                 effectiveTo: { gte: now },
             },
-            select: { capabilityCode: true },
+            select: { id: true, capabilityCode: true, department: true, effectiveFrom: true, effectiveTo: true, delegatorId: true },
         });
     }
 
@@ -137,6 +137,7 @@ const fetchUserAndCapabilities = async (userId) => {
             .map(({ permissionGroup }) => permissionGroup?.code)
             .filter(Boolean),
         permissions: [...permissionSet],
+        activeDelegations: activeDelegations || [],
         hasDefenseCouncilAssignment: Boolean(user.councilMembers?.length),
     };
 
@@ -212,6 +213,7 @@ const authenticate = async (req, res, next) => {
                     ...cachedEntry.user,
                     permissions: [...(cachedEntry.user.permissions || [])],
                     permissionGroups: [...(cachedEntry.user.permissionGroups || [])],
+                    activeDelegations: [...(cachedEntry.user.activeDelegations || [])],
                 };
                 return next();
             }

@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const prisma = require('../config/database');
 const { transitionRegistration, WorkflowTransitionError } = require('./registrationTransitionService');
+const { validateAcademicScope } = require('./academicScopeService');
 
 const REVIEW_SCOPE = 'bm01-review-command';
 const INITIAL_SUBMIT_SCOPE = 'bm01-initial-submit-command';
@@ -193,6 +194,13 @@ async function reviewBM01(input, options = {}) {
         return await db.$transaction(async (tx) => {
             const retry = await findReceipt(tx, REVIEW_SCOPE, key, hash);
             if (retry) return retry;
+
+            await validateAcademicScope(tx, {
+                actorId: input.reviewerId,
+                registrationId: input.registrationId,
+                capabilityCode: 'OUTLINE_REVIEW',
+                now,
+            });
 
             const { registration, rules } = await loadRegistrationAndPolicy(tx, input.registrationId);
             if (registration.status !== 'BM01_SUBMITTED') {

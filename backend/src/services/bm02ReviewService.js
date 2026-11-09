@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const prisma = require('../config/database');
 const { transitionRegistration, WorkflowTransitionError } = require('./registrationTransitionService');
+const { validateAcademicScope } = require('./academicScopeService');
 
 const REVIEW_SCOPE = 'bm02-review-command';
 const ACTIONS = new Set(['APPROVE', 'RETURN_FOR_REVISION', 'EXCEPTION_REVIEW']);
@@ -57,6 +58,13 @@ async function reviewBM02(input, options = {}) {
                 }
                 return { ...receipt.response, idempotent: true };
             }
+
+            await validateAcademicScope(tx, {
+                actorId: input.reviewerId,
+                registrationId: input.registrationId,
+                capabilityCode: 'BM02_REVIEW',
+                now,
+            });
 
             const registration = await tx.topicRegistration.findUnique({
                 where: { id: input.registrationId },
