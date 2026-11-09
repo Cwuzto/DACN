@@ -39,6 +39,18 @@ export const buildSemesterName = ({ term, academicYear }) => {
     return `${PROJECT_NAME} - HK${term} ${academicYear}`;
 };
 
+export const buildSemesterCode = ({ projectCode = 'DATN', term = 1, academicYear = '', round = null } = {}) => {
+    let yearPart = academicYear;
+    const match = String(academicYear || '').match(/(20\d{2})\s*[-/–]\s*(20\d{2})/);
+    if (match) {
+        const startYear = match[1];
+        const endYearShort = match[2].slice(-2);
+        yearPart = `${startYear}-${endYearShort}`;
+    }
+    const base = `${projectCode}-HK${term}-${yearPart}`;
+    return round ? `${base}-D${round}` : base;
+};
+
 export const formatSemesterLabel = (semester) => {
     const { term, academicYear } = extractSemesterMeta(semester);
     return `Học kỳ ${term} - ${academicYear}`;

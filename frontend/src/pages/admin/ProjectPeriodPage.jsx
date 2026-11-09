@@ -47,7 +47,7 @@ import { topicService } from '../../services/topicService';
 import delegationService from '../../services/delegationService';
 import userService from '../../services/userService';
 import useAuthStore from '../../stores/authStore';
-import { PROJECT_NAME, buildSemesterName, extractSemesterMeta, formatSemesterLabel } from '../../utils/semesterDisplay';
+import { PROJECT_NAME, buildSemesterName, buildSemesterCode, extractSemesterMeta, formatSemesterLabel } from '../../utils/semesterDisplay';
 import BM02ReviewDrawer from '../../components/admin/BM02ReviewDrawer';
 
 const GRANTABLE_CAPABILITIES = [
@@ -584,7 +584,11 @@ function ProjectPeriodPage() {
                 key: semester.id.toString(),
                 id: semester.id,
                 name: formatSemesterLabel(semester),
-                code: `HK-${semester.id}`,
+                code: semester.code || buildSemesterCode({
+                    projectCode: 'DATN',
+                    term: extractSemesterMeta(semester).term,
+                    academicYear: extractSemesterMeta(semester).academicYear,
+                }),
                 status: semester.status,
                 registrationOpen:
                     typeof semester.registrationOpen === 'boolean' ? semester.registrationOpen : true,
@@ -688,12 +692,14 @@ function ProjectPeriodPage() {
     const handleAdd = () => {
         setModalMode('add');
         form.resetFields();
+        const currentYear = dayjs().year();
         form.setFieldsValue({
             status: 'UPCOMING',
             registrationOpen: true,
             projectName: PROJECT_NAME,
             term: 1,
-            academicStartYear: dayjs().year(),
+            academicStartYear: currentYear,
+            code: buildSemesterCode({ projectCode: 'DATN', term: 1, academicYear: `${currentYear}-${currentYear + 1}` }),
         });
         setIsModalVisible(true);
     };
@@ -704,6 +710,7 @@ function ProjectPeriodPage() {
         const startYear = Number.parseInt((meta.academicYear || '').split('-')[0], 10) || dayjs().year();
         form.setFieldsValue({
             id: period.id,
+            code: period.code,
             projectName: PROJECT_NAME,
             term: meta.term,
             academicStartYear: startYear,
@@ -726,10 +733,12 @@ function ProjectPeriodPage() {
         setModalMode('add');
         const meta = extractSemesterMeta(period.rawData);
         const cloneStartYear = Number.parseInt((meta.academicYear || '').split('-')[0], 10) + 1;
+        const targetYear = Number.isInteger(cloneStartYear) ? cloneStartYear : dayjs().year() + 1;
         form.setFieldsValue({
+            code: buildSemesterCode({ projectCode: 'DATN', term: meta.term, academicYear: `${targetYear}-${targetYear + 1}` }),
             projectName: PROJECT_NAME,
             term: meta.term,
-            academicStartYear: Number.isInteger(cloneStartYear) ? cloneStartYear : dayjs().year() + 1,
+            academicStartYear: targetYear,
             status: 'UPCOMING',
             registrationOpen: period.rawData.registrationOpen,
             startDate: dayjs(period.rawData.startDate).add(1, 'year'),
@@ -774,6 +783,11 @@ function ProjectPeriodPage() {
             const values = await form.validateFields();
             const payload = {
                 name: buildSemesterName({
+                    term: values.term,
+                    academicYear: `${values.academicStartYear}-${values.academicStartYear + 1}`,
+                }),
+                code: values.code ? values.code.trim().toUpperCase() : buildSemesterCode({
+                    projectCode: 'DATN',
                     term: values.term,
                     academicYear: `${values.academicStartYear}-${values.academicStartYear + 1}`,
                 }),
@@ -1339,17 +1353,48 @@ function ProjectPeriodPage() {
                 width={700}
                 destroyOnClose
             >
-                <Form form={form} layout="vertical" name="project_period_form" style={{ marginTop: 16 }}>
+                <Form
+                    form={form}
+                    layout="vertical"
+                    name="project_period_form"
+                    style={{ marginTop: 16 }}
+                    onValuesChange={(changedValues, allValues) => {
+                        if (modalMode === 'add' && (changedValues.term || changedValues.academicStartYear)) {
+                            const term = allValues.term || 1;
+                            const year = allValues.academicStartYear || dayjs().year();
+                            form.setFieldValue(
+                                'code',
+                                buildSemesterCode({
+                                    projectCode: 'DATN',
+                                    term,
+                                    academicYear: `${year}-${year + 1}`,
+                                })
+                            );
+                        }
+                    }}
+                >
                     <Form.Item name="id" hidden>
                         <Input />
                     </Form.Item>
                     <Row gutter={16}>
                         <Col span={12}>
+                            <Form.Item
+                                name="code"
+                                label="Mã đợt đồ án"
+                                rules={[{ required: true, message: 'Nhập mã đợt đồ án (VD: DATN-HK2-2026-27)' }]}
+                                tooltip="Quy chuẩn mã đợt đồ án: Tên-HK-Năm (VD: DATN-HK2-2026-27)"
+                            >
+                                <Input placeholder="VD: DATN-HK2-2026-27" style={{ textTransform: 'uppercase' }} />
+                            </Form.Item>
+                        </Col>
+                        <Col span={12}>
                             <Form.Item name="projectName" label="Tên đồ án" initialValue={PROJECT_NAME}>
                                 <Input disabled />
                             </Form.Item>
                         </Col>
-                        <Col span={6}>
+                    </Row>
+                    <Row gutter={16}>
+                        <Col span={12}>
                             <Form.Item name="term" label="Học kỳ" rules={[{ required: true, message: 'Chọn học kỳ' }]}>
                                 <Select
                                     options={[
@@ -1359,7 +1404,7 @@ function ProjectPeriodPage() {
                                 />
                             </Form.Item>
                         </Col>
-                        <Col span={6}>
+                        <Col span={12}>
                             <Form.Item name="academicStartYear" label="Năm học bắt đầu" rules={[{ required: true, message: 'Nhập năm bắt đầu' }]}>
                                 <InputNumber min={2000} max={2100} style={{ width: '100%' }} />
                             </Form.Item>

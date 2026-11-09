@@ -40,6 +40,7 @@ describe('deterministic demo fixtures', () => {
 
     // pastSemester
     expect(semesters.pastSemester).toEqual({
+      code: 'DATN-HK2-2025-26',
       name: 'Đồ án tốt nghiệp — HK2 2025–2026',
       startDate: new Date('2026-01-05T00:00:00.000Z'),
       registrationDeadline: new Date('2026-01-20T00:00:00.000Z'),
@@ -52,6 +53,7 @@ describe('deterministic demo fixtures', () => {
 
     // period2Supplementary
     const p2 = semesters.period2Supplementary;
+    expect(p2.code).toBe('DATN-HK1-2026-27-D2');
     expect(p2.name).toBe('Đồ án tốt nghiệp — HK1 2026–2027 (Đợt 2 - Bổ sung)');
     expect(p2.startDate).toEqual(new Date(baseDate.getTime() - 10 * 24 * 60 * 60 * 1000));
     expect(p2.registrationDeadline).toEqual(new Date(baseDate.getTime() + 14 * 24 * 60 * 60 * 1000));
@@ -64,6 +66,7 @@ describe('deterministic demo fixtures', () => {
 
     // period1Main
     const p1 = semesters.period1Main;
+    expect(p1.code).toBe('DATN-HK1-2026-27-D1');
     expect(p1.name).toBe('Đồ án tốt nghiệp — HK1 2026–2027 (Đợt 1 - Chính khóa)');
     expect(p1.startDate).toEqual(new Date(baseDate.getTime() - 90 * 24 * 60 * 60 * 1000));
     expect(p1.registrationDeadline).toEqual(new Date(baseDate.getTime() - 60 * 24 * 60 * 60 * 1000));

@@ -5,6 +5,7 @@ function getSemesterDefinitions(baseDate = new Date()) {
   const base = baseDate instanceof Date ? new Date(baseDate.getTime()) : new Date(baseDate);
 
   const pastSemester = {
+    code: 'DATN-HK2-2025-26',
     name: 'Đồ án tốt nghiệp — HK2 2025–2026',
     startDate: new Date('2026-01-05T00:00:00.000Z'),
     registrationDeadline: new Date('2026-01-20T00:00:00.000Z'),
@@ -16,6 +17,7 @@ function getSemesterDefinitions(baseDate = new Date()) {
   };
 
   const period2Supplementary = {
+    code: 'DATN-HK1-2026-27-D2',
     name: 'Đồ án tốt nghiệp — HK1 2026–2027 (Đợt 2 - Bổ sung)',
     startDate: addDays(base, -10),
     registrationDeadline: addDays(base, 14),
@@ -27,6 +29,7 @@ function getSemesterDefinitions(baseDate = new Date()) {
   };
 
   const period1Main = {
+    code: 'DATN-HK1-2026-27-D1',
     name: 'Đồ án tốt nghiệp — HK1 2026–2027 (Đợt 1 - Chính khóa)',
     startDate: addDays(base, -90),
     registrationDeadline: addDays(base, -60),

@@ -139,6 +139,7 @@ enum StudentGender {
 
 model Semester {
   id                     Int                           @id @default(autoincrement())
+  code                   String                        @unique
   name                   String
   startDate              DateTime                      @map("start_date")
   endDate                DateTime                      @map("end_date")

@@ -7,6 +7,31 @@ const { WorkflowTransitionError } = require('../services/registrationTransitionS
 
 const REGISTRATION_TOGGLE_WARNING_WINDOW_DAYS = 14;
 
+const deriveSemesterCode = ({ code, name, startDate }) => {
+    if (code && typeof code === 'string' && code.trim()) {
+        return code.trim().toUpperCase();
+    }
+    const termMatch = String(name || '').match(/(?:HK|Học\s*kỳ)\s*([123])/i);
+    const term = termMatch ? termMatch[1] : (startDate ? (new Date(startDate).getMonth() + 1 >= 8 ? '1' : '2') : '1');
+
+    const yearMatch = String(name || '').match(/(20\d{2})\s*[-/–]\s*(20\d{2})/);
+    let yearPart;
+    if (yearMatch) {
+        yearPart = `${yearMatch[1]}-${yearMatch[2].slice(-2)}`;
+    } else if (startDate) {
+        const y = new Date(startDate).getFullYear();
+        yearPart = `${y}-${String(y + 1).slice(-2)}`;
+    } else {
+        const y = new Date().getFullYear();
+        yearPart = `${y}-${String(y + 1).slice(-2)}`;
+    }
+
+    const roundMatch = String(name || '').match(/Đợt\s*([0-9]+)/i);
+    const roundPart = roundMatch ? `-D${roundMatch[1]}` : '';
+
+    return `DATN-HK${term}-${yearPart}${roundPart}`;
+};
+
 const isWithinRegistrationWindow = (semester, now = new Date()) => {
     if (!semester?.startDate || !semester?.registrationDeadline) return false;
 
@@ -121,6 +146,7 @@ const createSemester = async (req, res, next) => {
     try {
         const {
             name,
+            code,
             startDate,
             endDate,
             registrationDeadline,
@@ -143,9 +169,12 @@ const createSemester = async (req, res, next) => {
             defenseDate,
         });
 
+        const finalCode = deriveSemesterCode({ code, name, startDate });
+
         const newSemester = await prisma.semester.create({
             data: {
                 name,
+                code: finalCode,
                 startDate: new Date(startDate),
                 endDate: new Date(endDate),
                 registrationDeadline: new Date(registrationDeadline),
@@ -175,6 +204,7 @@ const updateSemester = async (req, res, next) => {
 
         const {
             name,
+            code,
             startDate,
             endDate,
             registrationDeadline,
@@ -217,6 +247,7 @@ const updateSemester = async (req, res, next) => {
             where: { id: semesterId },
             data: {
                 name: name !== undefined ? name : semester.name,
+                code: code !== undefined && String(code).trim() ? String(code).trim().toUpperCase() : semester.code,
                 startDate: nextStartDate,
                 endDate: nextEndDate,
                 registrationDeadline: nextRegistrationDeadline,

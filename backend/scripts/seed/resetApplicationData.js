@@ -7,7 +7,7 @@ const APPLICATION_TABLES = Object.freeze([
   'defense_member_scores', 'defense_member_criterion_scores', 'defense_criterion_scores',
   'defense_result_approvals', 'result_publications', 'result_publication_items', 'rubric_versions',
   'rubric_categories', 'rubric_criteria', 'notifications', 'audit_logs', 'project_catalogs',
-  'student_project_enrollments', 'public_announcements', 'portal_configurations', 'portal_links',
+  'student_project_enrollments', 'student_profiles', 'lecturer_project_assignments', 'public_announcements', 'portal_configurations', 'portal_links',
   'portal_templates', 'portal_content_revisions', 'topic_title_adjustments',
   'bm04_evaluations', 'checkpoint_evaluations', 'checkpoint_signature_appeals', 'mentor_transfers',
 ]);
