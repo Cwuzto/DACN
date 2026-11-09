@@ -41,6 +41,7 @@ const { getMentorMaxSlots } = require('../../src/constants/mentorCapacity');
 const {
     registerTopic,
     handleRegistration,
+    getAllRegistrations,
 } = require('../../src/controllers/registrationController');
 const { createMockReq, createMockRes, createNext } = require('../helpers/http');
 
@@ -48,6 +49,9 @@ describe('registrationController', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         prisma.$transaction.mockImplementation(async (callback) => callback(prisma));
+        if (prisma.task?.groupBy) {
+            prisma.task.groupBy.mockResolvedValue([]);
+        }
         if (prisma.periodWorkflowPolicyVersion?.findMany) {
             prisma.periodWorkflowPolicyVersion.findMany.mockResolvedValue([{ id: 1, version: 1, isActive: true }]);
         }
@@ -332,5 +336,75 @@ describe('registrationController', () => {
             expect.objectContaining({ success: true })
         );
         expect(next).not.toHaveBeenCalled();
+    });
+
+    describe('getAllRegistrations', () => {
+        it('filters by mentorId when called by a regular lecturer', async () => {
+            prisma.topicRegistration.findMany.mockResolvedValueOnce([
+                { id: 1, topicId: 10, status: 'BM02_SUBMITTED' }
+            ]);
+
+            const req = createMockReq({
+                query: { semesterId: '2' },
+                user: { id: 135, role: 'LECTURER', permissions: ['VIEW_MENTORED_STUDENTS'], permissionGroups: ['GVHD'] },
+            });
+            const res = createMockRes();
+            const next = createNext();
+
+            await getAllRegistrations(req, res, next);
+
+            expect(prisma.topicRegistration.findMany).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    where: expect.objectContaining({
+                        topic: { mentorId: 135 },
+                        semesterId: 2,
+                    }),
+                })
+            );
+            expect(res.json).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    success: true,
+                    data: expect.any(Array),
+                })
+            );
+        });
+
+        it('does NOT filter by mentorId when called with asInstituteDirector=true by Viện Trưởng', async () => {
+            prisma.topicRegistration.findMany.mockResolvedValueOnce([
+                { id: 1, topicId: 10, status: 'BM02_SUBMITTED' },
+                { id: 2, topicId: 11, status: 'BM02_SUBMITTED' },
+            ]);
+
+            const req = createMockReq({
+                query: { asInstituteDirector: 'true' },
+                user: {
+                    id: 135,
+                    role: 'LECTURER',
+                    permissions: ['VIEW_BM02_REVIEWS', 'BM02_REVIEW'],
+                    permissionGroups: ['VIEN_TRUONG', 'GVHD'],
+                },
+            });
+            const res = createMockRes();
+            const next = createNext();
+
+            await getAllRegistrations(req, res, next);
+
+            expect(prisma.topicRegistration.findMany).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    where: expect.not.objectContaining({
+                        topic: { mentorId: 135 },
+                    }),
+                })
+            );
+            expect(res.json).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    success: true,
+                    data: expect.arrayContaining([
+                        expect.objectContaining({ id: 1 }),
+                        expect.objectContaining({ id: 2 }),
+                    ]),
+                })
+            );
+        });
     });
 });

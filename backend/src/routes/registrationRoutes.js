@@ -42,6 +42,11 @@ router.get(
             PERMISSIONS.REPORT_VIEW,
             PERMISSIONS.OUTLINE_COUNCIL_MANAGE,
             PERMISSIONS.DEFENSE_COUNCIL_MANAGE,
+            PERMISSIONS.VIEW_BM02_REVIEWS,
+            PERMISSIONS.BM02_REVIEW,
+            PERMISSIONS.VIEW_PROJECT_PERIODS,
+            PERMISSIONS.SEMESTER_MANAGE,
+            PERMISSIONS.VIEW_ASSIGNMENT_DECISIONS,
         ),
         query('semesterId').optional().isInt({ min: 1 }).withMessage('semesterId phải là số nguyên dương.'),
         query('status')

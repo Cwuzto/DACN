@@ -54,6 +54,12 @@ test('ProjectPeriodPage embeds BM02 review queue with student, topic, mentor, at
 
     // Zero bypass in queue: EXCEPTION_REVIEW must not be a review action
     assert.doesNotMatch(pageSource, /action:\s*['"]EXCEPTION_REVIEW['"]/);
+
+    // Regression check: Status column must specify dataIndex: 'status' to prevent object render crashes
+    assert.match(pageSource, /dataIndex:\s*['"]status['"]/);
+
+    // Must fetch institute-wide registrations so Viện Trưởng and Admin both see the BM02 queue
+    assert.match(pageSource, /getAllRegistrations\(\s*\{\s*asInstituteDirector:\s*['"]true['"]\s*\}\s*\)/);
 });
 
 test('ProjectPeriodPage provides decision amendment creation modal calling semesterService', () => {

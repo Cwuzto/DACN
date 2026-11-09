@@ -543,13 +543,38 @@ const getMyProjectEnrollments = async (req, res, next) => {
  */
 const getAllRegistrations = async (req, res, next) => {
     try {
-        const { role, id: userId } = req.user;
-        const { semesterId, status, unassignedCouncilOnly, councilType, stalePendingOnly, asCouncilChairman } = req.query;
+        const { role, id: userId, permissions = [], permissionGroups = [] } = req.user;
+        const {
+            semesterId,
+            status,
+            unassignedCouncilOnly,
+            councilType,
+            stalePendingOnly,
+            asCouncilChairman,
+            asInstituteDirector,
+            scope,
+        } = req.query;
 
         const where = {};
 
+        const hasInstituteAuthority =
+            role === 'ADMIN' ||
+            permissionGroups.includes('VIEN_TRUONG') ||
+            permissions.includes('BM02_REVIEW') ||
+            permissions.includes('VIEW_BM02_REVIEWS') ||
+            permissions.includes('PROJECT_PERIOD_MANAGE') ||
+            permissions.includes('VIEW_PROJECT_PERIODS') ||
+            permissions.includes('PROJECT_ASSIGNMENT_PUBLISH') ||
+            permissions.includes('VIEW_ASSIGNMENT_DECISIONS') ||
+            permissions.includes('PERMISSION_ASSIGN_ACADEMIC');
+
+        const shouldViewInstituteScope =
+            (asInstituteDirector === 'true' || scope === 'all' || scope === 'institute') && hasInstituteAuthority;
+
         if (role === 'LECTURER') {
-            if (asCouncilChairman === 'true') {
+            if (shouldViewInstituteScope) {
+                // Viện trưởng hoặc cấp quản trị xem toàn viện trong đợt đồ án (BM02 queue, ban hành QĐ)
+            } else if (asCouncilChairman === 'true') {
                 where.outlineCouncil = {
                     members: {
                         some: {
@@ -565,7 +590,7 @@ const getAllRegistrations = async (req, res, next) => {
 
         if (semesterId) {
             where.semesterId = parseInt(semesterId, 10);
-        } else if (role === 'LECTURER') {
+        } else if (role === 'LECTURER' && !shouldViewInstituteScope) {
             const defaultSemester = await getDefaultSemester({ id: true });
             if (!defaultSemester) {
                 return res.json({ success: true, data: [] });
@@ -601,7 +626,21 @@ const getAllRegistrations = async (req, res, next) => {
         const registrations = await prisma.topicRegistration.findMany({
             where,
             include: {
-                student: { select: { id: true, fullName: true, code: true, email: true, department: true } },
+                student: {
+                    select: {
+                        id: true,
+                        fullName: true,
+                        code: true,
+                        email: true,
+                        department: true,
+                        studentProfile: {
+                            select: {
+                                className: true,
+                                major: true,
+                            },
+                        },
+                    },
+                },
                 topic: { select: { id: true, title: true, mentorId: true, mentor: { select: { id: true, fullName: true, email: true } } } },
                 council: { select: { id: true, name: true, councilType: true, defenseDate: true, location: true } },
                 outlineCouncil: {

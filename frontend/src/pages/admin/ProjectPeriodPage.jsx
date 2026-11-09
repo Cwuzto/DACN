@@ -562,7 +562,7 @@ function ProjectPeriodPage() {
             const [semesterRes, topicRes, registrationRes] = await Promise.all([
                 semesterService.getAll(),
                 topicService.getAll(),
-                registrationService.getAllRegistrations(),
+                registrationService.getAllRegistrations({ asInstituteDirector: 'true' }),
             ]);
 
             if (!semesterRes.success) return;
@@ -1037,8 +1037,10 @@ function ProjectPeriodPage() {
                                                 <div>
                                                     <div className="font-bold text-slate-900">{record.student?.fullName || 'N/A'}</div>
                                                     <div className="text-[11px] text-slate-600 font-mono font-medium">MSSV: {record.student?.code || 'N/A'}</div>
-                                                    {record.student?.class && (
-                                                        <div className="text-[11px] text-slate-500">Lớp: {record.student.class}</div>
+                                                    {(record.student?.studentProfile?.className || record.student?.class) && (
+                                                        <div className="text-[11px] text-slate-500">
+                                                            Lớp: {record.student?.studentProfile?.className || record.student?.class}
+                                                        </div>
                                                     )}
                                                 </div>
                                             ),
@@ -1085,10 +1087,12 @@ function ProjectPeriodPage() {
                                         },
                                         {
                                             title: 'Trạng thái',
+                                            dataIndex: 'status',
                                             key: 'status',
                                             width: 160,
                                             align: 'center',
-                                            render: (status) => {
+                                            render: (status, record) => {
+                                                const statusValue = typeof status === 'string' ? status : record?.status;
                                                 const statusMap = {
                                                     BM02_SUBMITTED: { label: 'Chờ duyệt lần 1', color: 'blue' },
                                                     BM02_RESUBMITTED: { label: 'Chờ duyệt nộp lại', color: 'purple' },
@@ -1096,7 +1100,7 @@ function ProjectPeriodPage() {
                                                     APPROVED: { label: 'Đã duyệt BM02', color: 'green' },
                                                     DECISION_ISSUED: { label: 'Đã ban hành QĐ', color: 'cyan' },
                                                 };
-                                                const item = statusMap[status] || { label: status, color: 'default' };
+                                                const item = statusMap[statusValue] || { label: String(statusValue || 'N/A'), color: 'default' };
                                                 return <Tag color={item.color}>{item.label}</Tag>;
                                             },
                                         },
@@ -1597,14 +1601,18 @@ function ProjectPeriodPage() {
                             },
                             {
                                 title: 'Trạng thái',
+                                dataIndex: 'status',
                                 key: 'status',
                                 width: 130,
                                 align: 'center',
-                                render: (status) => (
-                                    <Tag color={status === 'DECISION_ISSUED' ? 'purple' : 'blue'}>
-                                        {status === 'DECISION_ISSUED' ? 'Đã ban hành QĐ' : status}
-                                    </Tag>
-                                ),
+                                render: (status, record) => {
+                                    const statusValue = typeof status === 'string' ? status : record?.status;
+                                    return (
+                                        <Tag color={statusValue === 'DECISION_ISSUED' ? 'purple' : 'blue'}>
+                                            {statusValue === 'DECISION_ISSUED' ? 'Đã ban hành QĐ' : String(statusValue || '')}
+                                        </Tag>
+                                    );
+                                },
                             },
                             {
                                 title: 'Hành động',
