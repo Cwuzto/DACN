@@ -43,7 +43,6 @@ const listLecturerAssignments = async (req, res, next) => {
                     select: {
                         id: true,
                         name: true,
-                        code: true,
                         startDate: true,
                         endDate: true,
                         status: true,
@@ -229,7 +228,7 @@ const createLecturerAssignment = async (req, res, next) => {
                     },
                 },
                 semester: {
-                    select: { id: true, name: true, code: true, startDate: true, endDate: true },
+                    select: { id: true, name: true, startDate: true, endDate: true },
                 },
                 projectCatalog: {
                     select: { id: true, name: true, code: true },
@@ -321,7 +320,7 @@ const updateLecturerAssignment = async (req, res, next) => {
                     },
                 },
                 semester: {
-                    select: { id: true, name: true, code: true, startDate: true, endDate: true },
+                    select: { id: true, name: true, startDate: true, endDate: true },
                 },
                 projectCatalog: {
                     select: { id: true, name: true, code: true },
@@ -530,7 +529,6 @@ const getRoundCoordinationOverview = async (req, res, next) => {
             targetSemester = await getDefaultSemester({
                 id: true,
                 name: true,
-                code: true,
                 startDate: true,
                 endDate: true,
                 status: true,

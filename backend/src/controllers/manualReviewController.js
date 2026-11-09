@@ -40,7 +40,7 @@ const listManualReviewCases = async (req, res, next) => {
                                     mentor: { select: { id: true, fullName: true, code: true } },
                                 },
                             },
-                            semester: { select: { id: true, code: true, name: true } },
+                            semester: { select: { id: true, name: true } },
                         },
                     },
                     openedBy: { select: { id: true, fullName: true } },
