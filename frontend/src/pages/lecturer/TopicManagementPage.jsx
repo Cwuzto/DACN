@@ -353,8 +353,10 @@ export default function TopicManagementPage() {
                                                 </span>
                                             </td>
                                             <td>
-                                                {isApproved ? (
-                                                    <span className="tag green">Đã duyệt tiếp nhận</span>
+                                                {hasStudent ? (
+                                                    <span className="tag green">Đã tiếp nhận sinh viên</span>
+                                                ) : isApproved ? (
+                                                    <span className="tag teal">Sẵn sàng tuyển SV</span>
                                                 ) : isPending ? (
                                                     <span className="tag yellow">
                                                         {topic.proposedBy?.role === 'STUDENT' ? 'Sinh viên đề xuất' : 'Chờ duyệt'}

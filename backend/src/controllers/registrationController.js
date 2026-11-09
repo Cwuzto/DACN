@@ -199,7 +199,13 @@ const registerTopic = async (req, res, next) => {
                     where: { id: topicIdInt },
                     include: {
                         mentor: { select: { id: true, academicTitle: true } },
-                        _count: { select: { registrations: true } },
+                        _count: {
+                            select: {
+                                registrations: {
+                                    where: { status: { not: 'REJECTED' } },
+                                },
+                            },
+                        },
                         projectCatalog: { select: { id: true, name: true } },
                     },
                 });

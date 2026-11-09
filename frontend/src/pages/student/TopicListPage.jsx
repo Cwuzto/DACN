@@ -230,6 +230,7 @@ export default function TopicListPage() {
     };
 
     const hasExistingRegistration = Boolean(myRegistration && myRegistration.status !== 'REJECTED');
+    const isRegistrationRejected = myRegistration?.status === 'REJECTED';
     const myPendingProposal = useMemo(() => {
         return topics.find((t) => t.proposedById === user?.id && t.status === 'PENDING');
     }, [topics, user?.id]);
@@ -337,8 +338,8 @@ export default function TopicListPage() {
             {/* Registration Window Notice Banner */}
             <div
                 style={{
-                    background: myPendingProposal ? '#FFFBEB' : '#F0FDFA',
-                    border: `1px solid ${myPendingProposal ? '#FDE68A' : '#CCFBF1'}`,
+                    background: isRegistrationRejected ? '#FEF2F2' : myPendingProposal ? '#FFFBEB' : '#F0FDFA',
+                    border: `1px solid ${isRegistrationRejected ? '#FECACA' : myPendingProposal ? '#FDE68A' : '#CCFBF1'}`,
                     borderRadius: 'var(--radius)',
                     padding: '16px 20px',
                     display: 'flex',
@@ -355,25 +356,34 @@ export default function TopicListPage() {
                             width: 40,
                             height: 40,
                             borderRadius: '50%',
-                            background: myPendingProposal ? '#FEF3C7' : '#CCFBF1',
-                            color: myPendingProposal ? '#D97706' : '#0F766E',
+                            background: isRegistrationRejected ? '#FEE2E2' : myPendingProposal ? '#FEF3C7' : '#CCFBF1',
+                            color: isRegistrationRejected ? '#DC2626' : myPendingProposal ? '#D97706' : '#0F766E',
                             display: 'grid',
                             placeItems: 'center',
                             flexShrink: 0,
                             fontWeight: 700,
                         }}
                     >
-                        {myPendingProposal ? '📝' : '⏱'}
+                        {isRegistrationRejected ? '⚠️' : myPendingProposal ? '📝' : '⏱'}
                     </div>
                     <div>
-                        <div style={{ fontWeight: 700, fontSize: 14, color: myPendingProposal ? '#B45309' : '#0F766E' }}>
-                            {myPendingProposal
+                        <div style={{ fontWeight: 700, fontSize: 14, color: isRegistrationRejected ? '#DC2626' : myPendingProposal ? '#B45309' : '#0F766E' }}>
+                            {hasExistingRegistration
+                                ? (currentSemester?.name ? `Đợt Đăng Ký Đề Tài - ${currentSemester.name}` : 'Đợt Đăng Ký Đề Tài Đang Mở')
+                                : isRegistrationRejected
+                                ? 'Đơn Đăng Ký Đề Tài Bị Giảng Viên Từ Chối'
+                                : myPendingProposal
                                 ? 'Bạn Đang Có Đề Tài Tự Đề Xuất Chờ GVHD Duyệt'
                                 : (currentSemester?.name ? `Đợt Đăng Ký Đề Tài - ${currentSemester.name}` : 'Đợt Đăng Ký Đề Tài Đang Mở')}
                         </div>
-                        <div style={{ fontSize: 12, color: myPendingProposal ? '#92400E' : '#115E59', marginTop: 2 }}>
+                        <div style={{ fontSize: 12, color: isRegistrationRejected ? '#991B1B' : myPendingProposal ? '#92400E' : '#115E59', marginTop: 2 }}>
                             {hasExistingRegistration ? (
                                 <span>Bạn đã đăng ký đề tài: <strong>{myRegistration?.topic?.title}</strong> · Trạng thái: <strong>{formatRegistrationStatus(myRegistration?.status)}</strong></span>
+                            ) : isRegistrationRejected ? (
+                                <span>
+                                    Đơn đăng ký đề tài <strong>"{myRegistration?.topic?.title}"</strong> đã bị giảng viên từ chối
+                                    {myRegistration?.rejectReason ? <> (Lý do: <em>{myRegistration.rejectReason}</em>)</> : ''}. Bạn có thể chọn và đăng ký đề tài khác dưới đây.
+                                </span>
                             ) : myPendingProposal ? (
                                 <span>Đề tài: <strong>{myPendingProposal.title}</strong> · GVHD mong muốn: <strong>{myPendingProposal.mentor?.fullName || 'Chưa phân công'}</strong></span>
                             ) : (
@@ -459,7 +469,8 @@ export default function TopicListPage() {
                     </div>
                 ) : (
                     filteredTopics.map((topic) => {
-                        const isMine = myRegistration?.topicId === topic.id;
+                        const isMine = myRegistration?.topicId === topic.id && myRegistration?.status !== 'REJECTED';
+                        const isMyRejectedTopic = myRegistration?.topicId === topic.id && myRegistration?.status === 'REJECTED';
                         const isMyProposal = topic.proposedById === user?.id;
                         const isPendingProposal = isMyProposal && topic.status === 'PENDING';
                         const isSaved = savedIds.includes(topic.id);
@@ -475,6 +486,10 @@ export default function TopicListPage() {
                                         </span>
                                         {isMine ? (
                                             <span className="tag green">Đề tài của bạn</span>
+                                        ) : isMyRejectedTopic ? (
+                                            <span className="tag red" style={{ background: '#FEE2E2', color: '#DC2626', border: '1px solid #FCA5A5' }}>
+                                                Đã bị từ chối
+                                            </span>
                                         ) : isPendingProposal ? (
                                             <span className="tag orange" style={{ background: '#FEF3C7', color: '#B45309', border: '1px solid #FCD34D' }}>
                                                 Đề xuất chờ GVHD duyệt

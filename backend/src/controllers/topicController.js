@@ -116,7 +116,13 @@ const getAllTopics = async (req, res, next) => {
                 mentor: { select: { id: true, fullName: true, code: true, email: true, academicTitle: true } },
                 semester: { select: { id: true, name: true } },
                 projectCatalog: { select: { id: true, code: true, name: true } },
-                _count: { select: { registrations: true } },
+                _count: {
+                    select: {
+                        registrations: {
+                            where: { status: { not: 'REJECTED' } },
+                        },
+                    },
+                },
                 registrations: {
                     where: {
                         status: { not: 'REJECTED' },
@@ -442,7 +448,15 @@ const deleteTopic = async (req, res, next) => {
 
         const existing = await prisma.topic.findUnique({
             where: { id: parseInt(id, 10) },
-            include: { _count: { select: { registrations: true } } },
+            include: {
+                _count: {
+                    select: {
+                        registrations: {
+                            where: { status: { not: 'REJECTED' } },
+                        },
+                    },
+                },
+            },
         });
 
         if (!existing) {
