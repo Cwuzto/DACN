@@ -16,6 +16,9 @@ import {
     Card,
     Alert,
     Spin,
+    Switch,
+    Radio,
+    Segmented,
 } from 'antd';
 import {
     PlusOutlined,
@@ -25,8 +28,6 @@ import {
     LockOutlined,
     SafetyCertificateOutlined,
     SaveOutlined,
-    CheckCircleFilled,
-    CheckCircleOutlined,
     CheckOutlined,
     SearchOutlined,
     AppstoreOutlined,
@@ -35,51 +36,53 @@ import {
     UndoOutlined,
     UnorderedListOutlined,
     BookOutlined,
+    DownOutlined,
+    RightOutlined,
+    FilterOutlined,
+    InfoCircleOutlined,
+    CheckCircleFilled,
 } from '@ant-design/icons';
 import permissionService from '../../services/permissionService';
-
-const MODULE_COLORS = {
-    PORTAL: 'cyan',
-    ANNOUNCEMENT: 'blue',
-    LECTURER: 'geekblue',
-    MENTOR: 'purple',
-    TOPIC: 'magenta',
-    OUTLINE: 'volcano',
-    REGISTRATION: 'orange',
-    PROGRESS: 'gold',
-    DEFENSE: 'red',
-    REVISION: 'lime',
-    REPORT: 'green',
-    ADMIN: 'default',
-};
-
-const MODULE_TITLES = {
-    PORTAL: 'Cổng thông tin & Biểu mẫu Portal',
-    ANNOUNCEMENT: 'Bản tin & Quyết định học vụ',
-    LECTURER: 'Danh bạ Giảng viên',
-    MENTOR: 'Phân công hướng dẫn (GVHD)',
-    TOPIC: 'Đề tài & Xét duyệt chuyên môn',
-    OUTLINE: 'Đề cương BM01 & Hội đồng thẩm định',
-    REGISTRATION: 'Đơn BM02 & Quyết định giao đề tài',
-    PROGRESS: 'Tiến độ BM03, Checkpoint & BM04',
-    DEFENSE: 'Hội đồng Chấm bảo vệ & Điểm số',
-    REVISION: 'Lưu chiểu số & Sau bảo vệ',
-    REPORT: 'Báo cáo & Thống kê học vụ',
-    ADMIN: 'Quản trị hệ thống & Đào tạo',
-};
+import useAuthStore from '../../stores/authStore';
+import {
+    ACADEMIC_PROTECTED_PERMISSIONS,
+    TECHNICAL_PERMISSIONS,
+    CANONICAL_ALIAS_MAP,
+    REVERSE_ALIAS_MAP,
+    MODULE_COLORS,
+    MODULE_TITLES,
+    isAcademicProtected,
+    isTechnical,
+    isViewPermission,
+    isActionPermission,
+    isAliasPermission,
+    getCanonicalCode,
+    getAliasCode,
+} from '../../config/permissionsConfig';
 
 function PermissionGroupPage() {
+    const currentUser = useAuthStore((state) => state.user);
+    const canAssignAcademic = Boolean(currentUser?.permissions?.includes('PERMISSION_ASSIGN_ACADEMIC'));
+
     // Tab state
     const [activeTab, setActiveTab] = useState('MATRIX');
 
-    // Matrix states (phong cách AI-customer-analysis-system)
+    // Matrix states
     const [matrixData, setMatrixData] = useState({ roles: [], modules: [], role_permissions: {} });
     const [localMatrix, setLocalMatrix] = useState({});
     const [matrixLoading, setMatrixLoading] = useState(false);
     const [savingMatrix, setSavingMatrix] = useState(false);
     const [dirty, setDirty] = useState(false);
+
+    // Filters for Matrix
     const [matrixSearchText, setMatrixSearchText] = useState('');
     const [matrixModuleFilter, setMatrixModuleFilter] = useState('ALL');
+    const [permTypeFilter, setPermTypeFilter] = useState('ALL'); // ALL | ACTION | VIEW
+    const [protectionFilter, setProtectionFilter] = useState('ALL'); // ALL | PROTECTED | TECHNICAL
+    const [groupAliases, setGroupAliases] = useState(true); // Gộp mã alias (khuyến nghị)
+
+    // Accordion state: set of open module names
+    const [openModules, setOpenModules] = useState(new Set());
 
     // CRUD Groups states
     const [groups, setGroups] = useState([]);
@@ -116,6 +119,10 @@ function PermissionGroupPage() {
                 });
                 setLocalMatrix(local);
                 setDirty(false);
+
+                // Mặc định mở tất cả các module
+                const allMods = new Set((data.modules || []).map((m) => m.module_name));
+                setOpenModules(allMods);
             }
         } catch (error) {
             if (!isMountedRef.current) return;
@@ -125,7 +132,7 @@ function PermissionGroupPage() {
         }
     }, []);
 
-    // 2. Tải dữ liệu nhóm quyền & danh mục quyền
+    // 2. Tải dữ liệu nhóm quyền & danh mục quyền (Lazy load khi đổi tab)
     const fetchGroupsData = useCallback(async () => {
         setLoading(true);
         try {
@@ -152,15 +159,42 @@ function PermissionGroupPage() {
         }
     }, [activeTab, fetchMatrix, fetchGroupsData]);
 
-    // Thao tác trên ô Ma trận (Toggle Cell)
-    const toggleCell = (roleId, permId) => {
+    // Map mã quyền sang đối tượng permission và ID
+    const permCodeToIdMap = useMemo(() => {
+        const map = new Map();
+        (matrixData.modules || []).forEach((m) => {
+            (m.permissions || []).forEach((p) => {
+                map.set(p.code, p.id);
+            });
+        });
+        return map;
+    }, [matrixData.modules]);
+
+    // Thao tác bật/tắt ô Ma trận (Toggle Cell) có đồng bộ alias tự động
+    const toggleCell = (roleId, perm) => {
+        // Kiểm tra quyền hạn an toàn
+        if (!canAssignAcademic && isAcademicProtected(perm.code)) {
+            message.warning(`Bạn không có quyền PERMISSION_ASSIGN_ACADEMIC để thay đổi quyền học thuật "${perm.code}".`);
+            return;
+        }
+
+        const permId = perm.id;
+        const aliasCode = getAliasCode(perm.code);
+        const aliasId = aliasCode ? permCodeToIdMap.get(aliasCode) : null;
+
         setLocalMatrix((prev) => {
             const next = { ...prev };
             const currentSet = new Set(next[roleId] || []);
-            if (currentSet.has(permId)) {
+            const isCurrentlyChecked = currentSet.has(permId);
+
+            if (isCurrentlyChecked) {
                 currentSet.delete(permId);
+                // Đồng bộ gỡ alias tương ứng nếu có
+                if (aliasId) currentSet.delete(aliasId);
             } else {
                 currentSet.add(permId);
+                // Đồng bộ thêm alias tương ứng nếu có
+                if (aliasId) currentSet.add(aliasId);
             }
             next[roleId] = currentSet;
             return next;
@@ -168,16 +202,65 @@ function PermissionGroupPage() {
         setDirty(true);
     };
 
-    // Thao tác bật/tắt toàn bộ quyền cho 1 Role (Toggle Column)
-    const toggleRoleAll = (roleId, allPermIds, checked) => {
+    // Thao tác bật/tắt toàn bộ quyền cho 1 Role trong 1 Module cụ thể
+    const toggleRoleInModule = (roleId, modulePerms, checked) => {
+        const actionablePerms = modulePerms.filter((p) => {
+            if (!canAssignAcademic && isAcademicProtected(p.code)) return false;
+            return true;
+        });
+
+        if (actionablePerms.length === 0) {
+            message.warning('Tất cả các quyền trong phân hệ này đều được bảo vệ học thuật và bạn không thể chỉnh sửa.');
+            return;
+        }
+
         setLocalMatrix((prev) => {
             const next = { ...prev };
             const currentSet = new Set(next[roleId] || []);
-            if (checked) {
-                allPermIds.forEach((id) => currentSet.add(id));
-            } else {
-                allPermIds.forEach((id) => currentSet.delete(id));
-            }
+
+            actionablePerms.forEach((p) => {
+                const aliasCode = getAliasCode(p.code);
+                const aliasId = aliasCode ? permCodeToIdMap.get(aliasCode) : null;
+
+                if (checked) {
+                    currentSet.add(p.id);
+                    if (aliasId) currentSet.add(aliasId);
+                } else {
+                    currentSet.delete(p.id);
+                    if (aliasId) currentSet.delete(aliasId);
+                }
+            });
+
+            next[roleId] = currentSet;
+            return next;
+        });
+        setDirty(true);
+    };
+
+    // Thao tác bật/tắt toàn bộ quyền cho 1 Role trên toàn ma trận (Toggle Column)
+    const toggleRoleAll = (roleId, allPerms, checked) => {
+        const actionablePerms = allPerms.filter((p) => {
+            if (!canAssignAcademic && isAcademicProtected(p.code)) return false;
+            return true;
+        });
+
+        setLocalMatrix((prev) => {
+            const next = { ...prev };
+            const currentSet = new Set(next[roleId] || []);
+
+            actionablePerms.forEach((p) => {
+                const aliasCode = getAliasCode(p.code);
+                const aliasId = aliasCode ? permCodeToIdMap.get(aliasCode) : null;
+
+                if (checked) {
+                    currentSet.add(p.id);
+                    if (aliasId) currentSet.add(aliasId);
+                } else {
+                    currentSet.delete(p.id);
+                    if (aliasId) currentSet.delete(aliasId);
+                }
+            });
+
             next[roleId] = currentSet;
             return next;
         });
@@ -185,21 +268,54 @@ function PermissionGroupPage() {
     };
 
     // Thao tác áp dụng 1 quyền cho toàn bộ Role (Toggle Row)
-    const togglePermAll = (permId, checked) => {
+    const togglePermAll = (perm, checked) => {
+        if (!canAssignAcademic && isAcademicProtected(perm.code)) {
+            message.warning(`Bạn không có quyền PERMISSION_ASSIGN_ACADEMIC để thay đổi quyền học thuật "${perm.code}".`);
+            return;
+        }
+
+        const permId = perm.id;
+        const aliasCode = getAliasCode(perm.code);
+        const aliasId = aliasCode ? permCodeToIdMap.get(aliasCode) : null;
+
         setLocalMatrix((prev) => {
             const next = { ...prev };
             (matrixData.roles || []).forEach((r) => {
                 const currentSet = new Set(next[r.id] || []);
                 if (checked) {
                     currentSet.add(permId);
+                    if (aliasId) currentSet.add(aliasId);
                 } else {
                     currentSet.delete(permId);
+                    if (aliasId) currentSet.delete(aliasId);
                 }
                 next[r.id] = currentSet;
             });
             return next;
         });
         setDirty(true);
+    };
+
+    // Accordion Toggle Handlers
+    const toggleModule = (moduleName) => {
+        setOpenModules((prev) => {
+            const next = new Set(prev);
+            if (next.has(moduleName)) {
+                next.delete(moduleName);
+            } else {
+                next.add(moduleName);
+            }
+            return next;
+        });
+    };
+
+    const expandAllModules = () => {
+        const all = new Set((matrixData.modules || []).map((m) => m.module_name));
+        setOpenModules(all);
+    };
+
+    const collapseAllModules = () => {
+        setOpenModules(new Set());
     };
 
     // Đặt lại ma trận về trạng thái ban đầu
@@ -237,52 +353,93 @@ function PermissionGroupPage() {
         }
     };
 
-    // Lọc quyền theo search và module
+    // Danh sách tất cả quyền dạng phẳng
+    const allFlatPermissions = useMemo(() => {
+        const perms = [];
+        (matrixData.modules || []).forEach((m) => {
+            (m.permissions || []).forEach((p) => perms.push(p));
+        });
+        return perms;
+    }, [matrixData.modules]);
+
+    // Lọc quyền theo search, module, type (ACTION/VIEW), protection, và gộp alias
     const filteredModules = useMemo(() => {
         const query = matrixSearchText.trim().toLowerCase();
+
         return (matrixData.modules || [])
             .filter((mod) => matrixModuleFilter === 'ALL' || mod.module_name === matrixModuleFilter)
             .map((mod) => {
                 const perms = (mod.permissions || []).filter((p) => {
-                    if (!query) return true;
-                    return (
-                        p.label?.toLowerCase().includes(query) ||
-                        p.code?.toLowerCase().includes(query) ||
-                        p.module?.toLowerCase().includes(query)
-                    );
+                    // Nếu đang gộp alias: ẩn các quyền là alias
+                    if (groupAliases && isAliasPermission(p.code)) {
+                        return false;
+                    }
+
+                    // Lọc theo loại quyền: ACTION vs VIEW
+                    if (permTypeFilter === 'ACTION' && !isActionPermission(p.code)) return false;
+                    if (permTypeFilter === 'VIEW' && !isViewPermission(p.code)) return false;
+
+                    // Lọc theo mức bảo vệ: PROTECTED vs TECHNICAL
+                    if (protectionFilter === 'PROTECTED' && !isAcademicProtected(p.code)) return false;
+                    if (protectionFilter === 'TECHNICAL' && !isTechnical(p.code)) return false;
+
+                    // Lọc theo từ khóa tìm kiếm
+                    if (query) {
+                        const matchLabel = p.label?.toLowerCase().includes(query);
+                        const matchCode = p.code?.toLowerCase().includes(query);
+                        const matchModule = p.module?.toLowerCase().includes(query);
+                        const aliasCode = getAliasCode(p.code);
+                        const matchAlias = aliasCode ? aliasCode.toLowerCase().includes(query) : false;
+                        if (!matchLabel && !matchCode && !matchModule && !matchAlias) return false;
+                    }
+
+                    return true;
                 });
                 return { ...mod, permissions: perms };
             })
             .filter((mod) => mod.permissions.length > 0);
-    }, [matrixData.modules, matrixSearchText, matrixModuleFilter]);
+    }, [matrixData.modules, matrixSearchText, matrixModuleFilter, permTypeFilter, protectionFilter, groupAliases]);
 
-    // Thống kê tổng quan ma trận
+    // Thống kê động tự động sinh từ Registry
     const matrixStats = useMemo(() => {
         const totalRoles = matrixData.roles?.length || 0;
-        let totalPerms = 0;
-        (matrixData.modules || []).forEach((m) => {
-            totalPerms += m.permissions?.length || 0;
+        const totalPerms = allFlatPermissions.length;
+
+        let actionPerms = 0;
+        let viewPerms = 0;
+        let protectedPerms = 0;
+        let technicalPerms = 0;
+        let aliasPerms = 0;
+
+        allFlatPermissions.forEach((p) => {
+            if (isViewPermission(p.code)) viewPerms += 1;
+            else actionPerms += 1;
+
+            if (isAcademicProtected(p.code)) protectedPerms += 1;
+            if (isTechnical(p.code)) technicalPerms += 1;
+            if (isAliasPermission(p.code)) aliasPerms += 1;
         });
+
+        const canonicalPerms = totalPerms - aliasPerms;
+
         let activeAssignments = 0;
         Object.values(localMatrix).forEach((set) => {
             activeAssignments += set?.size || 0;
         });
+
         return {
             totalRoles,
             totalPerms,
+            canonicalPerms,
+            aliasPerms,
+            actionPerms,
+            viewPerms,
+            protectedPerms,
+            technicalPerms,
             totalModules: matrixData.modules?.length || 0,
             activeAssignments,
         };
-    }, [matrixData, localMatrix]);
-
-    // Tất cả ID permission hiện có để tính toggle all column
-    const allMatrixPermissionIds = useMemo(() => {
-        const ids = [];
-        (matrixData.modules || []).forEach((m) => {
-            (m.permissions || []).forEach((p) => ids.push(p.id));
-        });
-        return ids;
-    }, [matrixData.modules]);
+    }, [matrixData, localMatrix, allFlatPermissions]);
 
     // Handlers cho CRUD Groups (Tab 2)
     const handleAdd = () => {
@@ -428,12 +585,14 @@ function PermissionGroupPage() {
                         {visible.map((p) => {
                             const code = p.permission?.code || p.code;
                             const mod = p.permission?.module || p.module;
+                            const isProt = isAcademicProtected(code);
                             return (
                                 <Tag
                                     key={code}
-                                    color={MODULE_COLORS[mod] || 'default'}
+                                    color={isProt ? 'volcano' : MODULE_COLORS[mod] || 'default'}
                                     className="text-[10px] font-mono m-0"
                                 >
+                                    {isProt && <LockOutlined className="mr-1 text-[9px]" />}
                                     {code}
                                 </Tag>
                             );
@@ -489,6 +648,16 @@ function PermissionGroupPage() {
                 <div>
                     <p className="eyebrow">ROLE-BASED ACCESS CONTROL • RBAC MATRIX</p>
                     <h1 className="h1">Phân Quyền &amp; Ma Trận Vai Trò Hệ Thống</h1>
+                    <div className="flex items-center gap-2 mt-1">
+                        <Tag color={canAssignAcademic ? 'green' : 'gold'} className="m-0 text-xs">
+                            {canAssignAcademic ? '🛡️ Có thẩm quyền học thuật' : '⚙️ Quản trị viên kỹ thuật'}
+                        </Tag>
+                        <span className="text-xs text-slate-500">
+                            {canAssignAcademic
+                                ? 'Bạn có thể chỉnh sửa toàn bộ quyền học thuật và kỹ thuật.'
+                                : 'Các quyền học thuật được bảo vệ (P0 Guard) được khóa tự động để tránh lỗi leo thang quyền.'}
+                        </span>
+                    </div>
                 </div>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                     <Button
@@ -505,6 +674,12 @@ function PermissionGroupPage() {
                     </Button>
                     {activeTab === 'MATRIX' && (
                         <>
+                            <Button onClick={expandAllModules}>
+                                Mở tất cả
+                            </Button>
+                            <Button onClick={collapseAllModules}>
+                                Thu gọn tất cả
+                            </Button>
                             {dirty && (
                                 <Button
                                     icon={<UndoOutlined />}
@@ -540,29 +715,54 @@ function PermissionGroupPage() {
                 </div>
             </div>
 
-            {/* 4 KPI Cards (Thống kê ma trận & quyền) */}
+            {/* 4 KPI Cards (Thống kê ma trận & quyền tự động sinh từ registry) */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
                 <div className="card" style={{ padding: '14px 18px' }}>
-                    <span className="meta">Tổng số nhóm vai trò (Roles)</span>
+                    <span className="meta">Tổng số vai trò (Roles)</span>
                     <p className="h2 num" style={{ marginTop: 2, color: '#0F766E' }}>{matrixStats.totalRoles}</p>
-                    <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--muted)' }}>Cột quyền hạn trong ma trận</div>
+                    <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--muted)' }}>
+                        {matrixStats.totalModules} phân hệ nghiệp vụ
+                    </div>
                 </div>
                 <div className="card" style={{ padding: '14px 18px' }}>
-                    <span className="meta">Tổng quyền nguyên tử (Permissions)</span>
-                    <p className="h2 num" style={{ marginTop: 2 }}>{matrixStats.totalPerms}</p>
-                    <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--muted)' }}>Quyền hạn kiểm soát API backend</div>
+                    <span className="meta">Tổng quyền chuẩn hóa</span>
+                    <div className="flex items-baseline gap-2 mt-0.5">
+                        <p className="h2 num" style={{ color: '#0F172A' }}>{matrixStats.canonicalPerms}</p>
+                        <span className="text-xs text-slate-500 font-mono">
+                            (+{matrixStats.aliasPerms} alias)
+                        </span>
+                    </div>
+                    <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--muted)' }}>
+                        Tổng catalog: <b>{matrixStats.totalPerms}</b> mã kiểm soát
+                    </div>
                 </div>
                 <div className="card" style={{ padding: '14px 18px' }}>
-                    <span className="meta">Phân hệ chức năng (Modules)</span>
-                    <p className="h2 num" style={{ marginTop: 2, color: 'var(--institutional)' }}>
-                        {matrixStats.totalModules}
-                    </p>
-                    <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--muted)' }}>Nhóm nghiệp vụ độc lập</div>
+                    <span className="meta">Phân loại năng lực (Tier)</span>
+                    <div className="flex items-center gap-2 mt-1">
+                        <Tag color="blue" className="text-xs font-semibold m-0">
+                            ⚡ {matrixStats.actionPerms} Thao tác
+                        </Tag>
+                        <Tag color="cyan" className="text-xs font-semibold m-0">
+                            👁️ {matrixStats.viewPerms} Xem trang
+                        </Tag>
+                    </div>
+                    <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--muted)' }}>
+                        Phân tách rạch ròi theo 2-Tier Architecture
+                    </div>
                 </div>
                 <div className="card" style={{ padding: '14px 18px' }}>
-                    <span className="meta">Quyền đã kích hoạt cấp phát</span>
-                    <p className="h2 num" style={{ marginTop: 2, color: '#2563EB' }}>{matrixStats.activeAssignments}</p>
-                    <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--muted)' }}>Ô tích chọn đang hoạt động</div>
+                    <span className="meta">Cơ chế Bảo vệ Chống Vượt quyền (P0)</span>
+                    <div className="flex items-center gap-2 mt-1">
+                        <Tag color="volcano" className="text-xs font-semibold m-0">
+                            🛡️ {matrixStats.protectedPerms} Học thuật
+                        </Tag>
+                        <Tag color="default" className="text-xs font-semibold m-0">
+                            ⚙️ {matrixStats.technicalPerms} Kỹ thuật
+                        </Tag>
+                    </div>
+                    <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--muted)' }}>
+                        {matrixStats.activeAssignments} ô tích phân quyền đang kích hoạt
+                    </div>
                 </div>
             </div>
 
@@ -575,7 +775,7 @@ function PermissionGroupPage() {
                     message={
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
                             <span>
-                                <b>Bạn có thay đổi chưa lưu trên ma trận phân quyền!</b> Vui lòng bấm <b>"Lưu Ma Trận"</b> để áp dụng xuống hệ thống.
+                                <b>Bạn có thay đổi chưa lưu trên ma trận phân quyền!</b> Vui lòng bấm <b>"Lưu Ma Trận"</b> để cập nhật vào hệ thống.
                             </span>
                             <Space size="small">
                                 <Button size="small" onClick={handleResetMatrix}>Hủy thay đổi</Button>
@@ -611,266 +811,355 @@ function PermissionGroupPage() {
                         ),
                         children: (
                             <div className="bg-white rounded-xl border border-slate-200/90 shadow-sm p-4 lg:p-6 space-y-4">
-                                {/* Toolbar Lọc & Tìm kiếm */}
-                                <div className="flex flex-wrap items-center justify-between gap-3">
-                                    <div className="flex flex-wrap items-center gap-3">
-                                        <Input
-                                            placeholder="Tìm kiếm quyền theo tên, mã code..."
-                                            prefix={<SearchOutlined className="text-slate-400" />}
-                                            style={{ width: 320 }}
-                                            value={matrixSearchText}
-                                            onChange={(e) => setMatrixSearchText(e.target.value)}
-                                            allowClear
-                                        />
-                                        <Select
-                                            value={matrixModuleFilter}
-                                            onChange={setMatrixModuleFilter}
-                                            style={{ width: 240 }}
-                                            options={[
-                                                { label: 'Tất cả phân hệ chức năng', value: 'ALL' },
-                                                ...(matrixData.modules || []).map((m) => ({
-                                                    label: `[${m.module_name}] ${MODULE_TITLES[m.module_name] || m.module_name}`,
-                                                    value: m.module_name,
-                                                })),
-                                            ]}
-                                        />
+                                {/* Toolbar Lọc Đa Chiều & Tìm kiếm */}
+                                <div className="flex flex-col gap-3 pb-2 border-b border-slate-200">
+                                    <div className="flex flex-wrap items-center justify-between gap-3">
+                                        <div className="flex flex-wrap items-center gap-3">
+                                            <Input
+                                                placeholder="Tìm kiếm theo mã quyền, tên chức năng..."
+                                                prefix={<SearchOutlined className="text-slate-400" />}
+                                                style={{ width: 300 }}
+                                                value={matrixSearchText}
+                                                onChange={(e) => setMatrixSearchText(e.target.value)}
+                                                allowClear
+                                            />
+                                            <Select
+                                                value={matrixModuleFilter}
+                                                onChange={setMatrixModuleFilter}
+                                                style={{ width: 230 }}
+                                                options={[
+                                                    { label: 'Tất cả phân hệ chức năng', value: 'ALL' },
+                                                    ...(matrixData.modules || []).map((m) => ({
+                                                        label: `[${m.module_name}] ${MODULE_TITLES[m.module_name] || m.module_name}`,
+                                                        value: m.module_name,
+                                                    })),
+                                                ]}
+                                            />
+                                        </div>
+
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs text-slate-500 font-medium">Gộp mã alias (khuyến nghị):</span>
+                                            <Switch
+                                                checked={groupAliases}
+                                                onChange={setGroupAliases}
+                                                checkedChildren="Gộp"
+                                                unCheckedChildren="Tách"
+                                            />
+                                        </div>
                                     </div>
-                                    <div className="text-xs text-slate-500">
-                                        Hiển thị <b>{filteredModules.reduce((sum, m) => sum + m.permissions.length, 0)}</b> / {matrixStats.totalPerms} quyền
+
+                                    {/* Hàng bộ lọc phân loại quyền & bảo vệ */}
+                                    <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                                        <div className="flex flex-wrap items-center gap-3">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs text-slate-500 font-medium">Loại quyền:</span>
+                                                <Segmented
+                                                    size="small"
+                                                    value={permTypeFilter}
+                                                    onChange={setPermTypeFilter}
+                                                    options={[
+                                                        { label: 'Tất cả', value: 'ALL' },
+                                                        { label: `⚡ Thao tác (${matrixStats.actionPerms})`, value: 'ACTION' },
+                                                        { label: `👁️ Xem trang (${groupAliases ? matrixStats.viewPerms - matrixStats.aliasPerms : matrixStats.viewPerms})`, value: 'VIEW' },
+                                                    ]}
+                                                />
+                                            </div>
+
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs text-slate-500 font-medium">Cơ chế bảo vệ:</span>
+                                                <Segmented
+                                                    size="small"
+                                                    value={protectionFilter}
+                                                    onChange={setProtectionFilter}
+                                                    options={[
+                                                        { label: 'Tất cả', value: 'ALL' },
+                                                        { label: `🛡️ Học thuật (${matrixStats.protectedPerms})`, value: 'PROTECTED' },
+                                                        { label: `⚙️ Kỹ thuật (${matrixStats.technicalPerms})`, value: 'TECHNICAL' },
+                                                    ]}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="text-xs text-slate-500">
+                                            Hiển thị <b>{filteredModules.reduce((sum, m) => sum + m.permissions.length, 0)}</b> quyền trong <b>{filteredModules.length}</b> phân hệ
+                                        </div>
                                     </div>
                                 </div>
 
-                                {/* Ma Trận Phân Quyền Table */}
+                                {/* Accordion Modules List */}
                                 <Spin spinning={matrixLoading}>
-                                    <div style={{ overflowX: 'auto', border: '1px solid #E2E8F0', borderRadius: 10 }}>
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                                        <thead>
-                                            <tr style={{ background: '#F8FAFC', borderBottom: '2px solid #E2E8F0' }}>
-                                                {/* Cột trái cố định: Quyền hạn */}
-                                                <th
-                                                    style={{
-                                                        position: 'sticky',
-                                                        left: 0,
-                                                        zIndex: 20,
-                                                        background: '#F8FAFC',
-                                                        padding: '14px 18px',
-                                                        textAlign: 'left',
-                                                        width: 380,
-                                                        minWidth: 340,
-                                                        borderRight: '1px solid #E2E8F0',
-                                                    }}
+                                    <div className="flex flex-col gap-3">
+                                        {filteredModules.map((mod) => {
+                                            const isOpen = openModules.has(mod.module_name);
+                                            const modPerms = mod.permissions || [];
+
+                                            return (
+                                                <div
+                                                    key={mod.module_name}
+                                                    className="border border-slate-200 rounded-lg overflow-hidden transition-all shadow-xs"
                                                 >
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                                        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', color: '#334155', textTransform: 'uppercase' }}>
-                                                            CHỨC NĂNG &amp; QUYỀN HẠN NGUYÊN TỬ
-                                                        </span>
-                                                        <span style={{ fontSize: 12, color: '#475569', fontWeight: 500 }}>
-                                                            Phân nhóm theo phân hệ nghiệp vụ
-                                                        </span>
-                                                    </div>
-                                                </th>
-
-                                                {/* Các cột Nhóm Quyền / Vai Trò */}
-                                                {(matrixData.roles || []).map((role) => {
-                                                    const rolePerms = localMatrix[role.id] || new Set();
-                                                    const allChecked = allMatrixPermissionIds.length > 0 && allMatrixPermissionIds.every((id) => rolePerms.has(id));
-
-                                                    return (
-                                                        <th
-                                                            key={role.id}
-                                                            style={{
-                                                                padding: '14px 12px',
-                                                                textAlign: 'center',
-                                                                minWidth: 140,
-                                                                borderRight: '1px solid #E2E8F0',
-                                                            }}
-                                                        >
-                                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                                                                <div style={{ fontWeight: 700, color: '#0F172A', fontSize: 13.5 }}>
-                                                                    {role.name}
-                                                                </div>
-                                                                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                                                    <code style={{ fontSize: 10, background: '#E2E8F0', padding: '1px 6px', borderRadius: 4, color: '#334155' }}>
-                                                                        {role.code}
-                                                                    </code>
-                                                                    {role.isSystem && (
-                                                                        <Tooltip title="Nhóm hệ thống">
-                                                                            <LockOutlined style={{ fontSize: 11, color: '#D97706' }} />
-                                                                        </Tooltip>
-                                                                    )}
-                                                                </div>
-                                                                <span style={{ fontSize: 11, color: '#0F766E', fontWeight: 600 }}>
-                                                                    {rolePerms.size} / {allMatrixPermissionIds.length} quyền
-                                                                </span>
-
-                                                                {/* Checkbox Tất cả cho nhóm này */}
-                                                                <label
-                                                                    style={{
-                                                                        display: 'inline-flex',
-                                                                        alignItems: 'center',
-                                                                        gap: 4,
-                                                                        fontSize: 11,
-                                                                        color: '#475569',
-                                                                        cursor: 'pointer',
-                                                                        marginTop: 2,
-                                                                        background: '#FFFFFF',
-                                                                        padding: '2px 8px',
-                                                                        borderRadius: 6,
-                                                                        border: '1px solid #CBD5E1',
-                                                                    }}
-                                                                >
-                                                                    <input
-                                                                        type="checkbox"
-                                                                        checked={allChecked}
-                                                                        onChange={(e) => toggleRoleAll(role.id, allMatrixPermissionIds, e.target.checked)}
-                                                                        style={{ cursor: 'pointer' }}
-                                                                    />
-                                                                    <span>Tất cả</span>
-                                                                </label>
-                                                            </div>
-                                                        </th>
-                                                    );
-                                                })}
-                                            </tr>
-                                        </thead>
-
-                                        <tbody>
-                                            {filteredModules.map((mod) => (
-                                                <React.Fragment key={mod.module_name}>
-                                                    {/* Header phân cách từng Module */}
-                                                    <tr style={{ background: '#F1F5F9', borderTop: '1px solid #E2E8F0', borderBottom: '1px solid #E2E8F0' }}>
-                                                        <td
-                                                            colSpan={(matrixData.roles?.length || 0) + 1}
-                                                            style={{
-                                                                position: 'sticky',
-                                                                left: 0,
-                                                                zIndex: 10,
-                                                                background: '#F1F5F9',
-                                                                padding: '10px 18px',
-                                                                fontWeight: 700,
-                                                                color: '#334155',
-                                                                fontSize: 12,
-                                                                textTransform: 'uppercase',
-                                                                letterSpacing: '0.04em',
-                                                            }}
-                                                        >
-                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                                <Tag color={MODULE_COLORS[mod.module_name] || 'default'} style={{ margin: 0 }}>
-                                                                    {mod.module_name}
-                                                                </Tag>
-                                                                <span>{MODULE_TITLES[mod.module_name] || mod.module_name}</span>
-                                                                <span style={{ fontSize: 11, background: '#FFFFFF', padding: '2px 8px', borderRadius: 999, border: '1px solid #CBD5E1', color: '#334155', fontWeight: 600 }}>
-                                                                    {mod.permissions.length} quyền
-                                                                </span>
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-
-                                                    {/* Danh sách từng quyền trong Module */}
-                                                    {mod.permissions.map((perm) => {
-                                                        const allRolesHave = (matrixData.roles || []).length > 0 &&
-                                                            (matrixData.roles || []).every((r) => localMatrix[r.id]?.has(perm.id));
-
-                                                        return (
-                                                            <tr
-                                                                key={perm.id}
-                                                                style={{ borderBottom: '1px solid #F1F5F9', transition: 'background-color 0.15s' }}
-                                                                className="hover:bg-teal-50/40"
+                                                    {/* Header của Module Accordion */}
+                                                    <div
+                                                        className="flex items-center justify-between px-4 py-3 bg-slate-50/90 hover:bg-slate-100/90 cursor-pointer select-none border-b border-slate-200/80 transition-colors"
+                                                        onClick={() => toggleModule(mod.module_name)}
+                                                    >
+                                                        <div className="flex items-center gap-3">
+                                                            <span className="text-slate-400 text-xs">
+                                                                {isOpen ? <DownOutlined /> : <RightOutlined />}
+                                                            </span>
+                                                            <Tag
+                                                                color={MODULE_COLORS[mod.module_name] || 'default'}
+                                                                className="m-0 font-mono font-semibold text-xs px-2 py-0.5"
                                                             >
-                                                                {/* Tên quyền & Mã code bên trái */}
-                                                                <td
-                                                                    style={{
-                                                                        position: 'sticky',
-                                                                        left: 0,
-                                                                        zIndex: 10,
-                                                                        background: '#FFFFFF',
-                                                                        padding: '10px 18px',
-                                                                        borderRight: '1px solid #E2E8F0',
-                                                                    }}
-                                                                >
-                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                                                        {/* Checkbox áp dụng cho tất cả nhóm */}
-                                                                        <Tooltip title="Áp dụng quyền này cho tất cả nhóm vai trò">
-                                                                            <input
-                                                                                type="checkbox"
-                                                                                checked={allRolesHave}
-                                                                                onChange={(e) => togglePermAll(perm.id, e.target.checked)}
-                                                                                style={{ cursor: 'pointer', width: 16, height: 16 }}
-                                                                            />
-                                                                        </Tooltip>
+                                                                {mod.module_name}
+                                                            </Tag>
+                                                            <span className="font-bold text-slate-800 text-sm">
+                                                                {MODULE_TITLES[mod.module_name] || mod.module_name}
+                                                            </span>
+                                                            <span className="text-xs font-semibold text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded-full">
+                                                                {modPerms.length} quyền
+                                                            </span>
+                                                        </div>
 
-                                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                                                                            <span style={{ fontWeight: 600, color: '#1E293B' }}>
-                                                                                {perm.label}
-                                                                            </span>
-                                                                            <code style={{ fontSize: 11, color: '#334155', fontWeight: 600, background: '#F8FAFC', padding: '1px 5px', borderRadius: 4, border: '1px solid #CBD5E1', width: 'fit-content' }}>
-                                                                                {perm.code}
-                                                                            </code>
-                                                                        </div>
-                                                                    </div>
-                                                                </td>
-
-                                                                {/* Các ô Toggle tương tác của từng nhóm */}
+                                                        {/* Thống kê quyền theo từng Role trong Module này */}
+                                                        <div
+                                                            className="flex items-center gap-3"
+                                                            onClick={(e) => e.stopPropagation()}
+                                                        >
+                                                            <div className="hidden md:flex items-center gap-2">
                                                                 {(matrixData.roles || []).map((role) => {
-                                                                    const checked = localMatrix[role.id]?.has(perm.id) ?? false;
+                                                                    const rolePerms = localMatrix[role.id] || new Set();
+                                                                    const countGranted = modPerms.filter((p) => rolePerms.has(p.id)).length;
+                                                                    const isFull = modPerms.length > 0 && countGranted === modPerms.length;
 
                                                                     return (
-                                                                        <td
+                                                                        <Tooltip
                                                                             key={role.id}
-                                                                            style={{
-                                                                                padding: '8px 10px',
-                                                                                textAlign: 'center',
-                                                                                borderRight: '1px solid #F1F5F9',
-                                                                            }}
+                                                                            title={`${role.name}: Có ${countGranted}/${modPerms.length} quyền trong phân hệ này. Bấm để bật/tắt toàn bộ.`}
                                                                         >
                                                                             <button
                                                                                 type="button"
-                                                                                onClick={() => toggleCell(role.id, perm.id)}
-                                                                                title={`${role.name}: ${perm.label} (${checked ? 'Đang bật' : 'Đang tắt'})`}
-                                                                                style={{
-                                                                                    width: 32,
-                                                                                    height: 32,
-                                                                                    display: 'inline-flex',
-                                                                                    alignItems: 'center',
-                                                                                    justifyContent: 'center',
-                                                                                    borderRadius: 8,
-                                                                                    border: checked ? '1px solid #0F766E' : '1px solid #E2E8F0',
-                                                                                    background: checked ? '#0F766E' : '#FFFFFF',
-                                                                                    color: checked ? '#FFFFFF' : '#94A3B8',
-                                                                                    cursor: 'pointer',
-                                                                                    transition: 'all 0.15s ease',
-                                                                                    boxShadow: checked ? '0 1px 2px rgba(15, 118, 110, 0.25)' : 'none',
-                                                                                }}
-                                                                                onMouseEnter={(e) => {
-                                                                                    if (!checked) {
-                                                                                        e.currentTarget.style.borderColor = '#0F766E';
-                                                                                        e.currentTarget.style.color = '#0F766E';
-                                                                                    }
-                                                                                }}
-                                                                                onMouseLeave={(e) => {
-                                                                                    if (!checked) {
-                                                                                        e.currentTarget.style.borderColor = '#E2E8F0';
-                                                                                        e.currentTarget.style.color = '#94A3B8';
-                                                                                    }
-                                                                                }}
+                                                                                onClick={() => toggleRoleInModule(role.id, modPerms, !isFull)}
+                                                                                className={`text-[11px] font-mono px-2 py-0.5 rounded border transition-all ${
+                                                                                    isFull
+                                                                                        ? 'bg-teal-50 border-teal-500 text-teal-800 font-bold'
+                                                                                        : countGranted > 0
+                                                                                        ? 'bg-blue-50 border-blue-300 text-blue-700'
+                                                                                        : 'bg-white border-slate-200 text-slate-400'
+                                                                                }`}
                                                                             >
-                                                                                {checked ? (
-                                                                                    <CheckOutlined style={{ fontSize: 14 }} />
-                                                                                ) : (
-                                                                                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#CBD5E1' }} />
-                                                                                )}
+                                                                                {role.code}: {countGranted}/{modPerms.length}
                                                                             </button>
-                                                                        </td>
+                                                                        </Tooltip>
                                                                     );
                                                                 })}
-                                                            </tr>
-                                                        );
-                                                    })}
-                                                </React.Fragment>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Nội dung bảng phân quyền của Module khi Mở rộng */}
+                                                    {isOpen && (
+                                                        <div style={{ overflowX: 'auto' }}>
+                                                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                                                                <thead>
+                                                                    <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                                                                        {/* Cột trái: Tên quyền & Mã */}
+                                                                        <th
+                                                                            style={{
+                                                                                position: 'sticky',
+                                                                                left: 0,
+                                                                                zIndex: 20,
+                                                                                background: '#F8FAFC',
+                                                                                padding: '10px 16px',
+                                                                                textAlign: 'left',
+                                                                                width: 380,
+                                                                                minWidth: 320,
+                                                                                borderRight: '1px solid #E2E8F0',
+                                                                            }}
+                                                                        >
+                                                                            <span style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>
+                                                                                CHỨC NĂNG &amp; NĂNG LỰC
+                                                                            </span>
+                                                                        </th>
+
+                                                                        {/* Các cột Role */}
+                                                                        {(matrixData.roles || []).map((role) => (
+                                                                            <th
+                                                                                key={role.id}
+                                                                                style={{
+                                                                                    padding: '10px 12px',
+                                                                                    textAlign: 'center',
+                                                                                    minWidth: 130,
+                                                                                    borderRight: '1px solid #E2E8F0',
+                                                                                    fontSize: 12,
+                                                                                    color: '#0F172A',
+                                                                                    fontWeight: 700,
+                                                                                }}
+                                                                            >
+                                                                                <div className="flex flex-col items-center">
+                                                                                    <span>{role.name}</span>
+                                                                                    <code className="text-[10px] text-slate-500 font-mono">
+                                                                                        {role.code}
+                                                                                    </code>
+                                                                                </div>
+                                                                            </th>
+                                                                        ))}
+                                                                    </tr>
+                                                                </thead>
+
+                                                                <tbody>
+                                                                    {modPerms.map((perm) => {
+                                                                        const isProt = isAcademicProtected(perm.code);
+                                                                        const isAct = isActionPermission(perm.code);
+                                                                        const aliasCode = getAliasCode(perm.code);
+                                                                        const isAliasRow = isAliasPermission(perm.code);
+
+                                                                        const allRolesHave = (matrixData.roles || []).length > 0 &&
+                                                                            (matrixData.roles || []).every((r) => localMatrix[r.id]?.has(perm.id));
+
+                                                                        return (
+                                                                            <tr
+                                                                                key={perm.id}
+                                                                                style={{ borderBottom: '1px solid #F1F5F9', transition: 'background-color 0.15s' }}
+                                                                                className="hover:bg-teal-50/40"
+                                                                            >
+                                                                                {/* Cột trái: Tên quyền & Mã code */}
+                                                                                <td
+                                                                                    style={{
+                                                                                        position: 'sticky',
+                                                                                        left: 0,
+                                                                                        zIndex: 10,
+                                                                                        background: '#FFFFFF',
+                                                                                        padding: '9px 16px',
+                                                                                        borderRight: '1px solid #E2E8F0',
+                                                                                    }}
+                                                                                >
+                                                                                    <div className="flex items-start gap-2.5">
+                                                                                        {/* Checkbox áp dụng cho tất cả nhóm */}
+                                                                                        <Tooltip title="Áp dụng quyền này cho tất cả nhóm vai trò">
+                                                                                            <input
+                                                                                                type="checkbox"
+                                                                                                checked={allRolesHave}
+                                                                                                onChange={(e) => togglePermAll(perm, e.target.checked)}
+                                                                                                disabled={!canAssignAcademic && isProt}
+                                                                                                style={{
+                                                                                                    cursor: (!canAssignAcademic && isProt) ? 'not-allowed' : 'pointer',
+                                                                                                    width: 15,
+                                                                                                    height: 15,
+                                                                                                    marginTop: 3,
+                                                                                                }}
+                                                                                            />
+                                                                                        </Tooltip>
+
+                                                                                        <div className="flex flex-col gap-1">
+                                                                                            <div className="flex items-center gap-2 flex-wrap">
+                                                                                                <span style={{ fontWeight: 600, color: '#1E293B', fontSize: 13 }}>
+                                                                                                    {perm.label}
+                                                                                                </span>
+                                                                                                {isProt && (
+                                                                                                    <Tooltip title="Quyền học thuật được bảo vệ (P0 Anti-Escalation). Quản trị viên kỹ thuật không thể sửa đổi nếu thiếu thẩm quyền.">
+                                                                                                        <Tag color="volcano" className="text-[10px] m-0 font-medium px-1.5 py-0 flex items-center gap-1">
+                                                                                                            <LockOutlined className="text-[9px]" />
+                                                                                                            Học thuật bảo vệ
+                                                                                                        </Tag>
+                                                                                                    </Tooltip>
+                                                                                                )}
+                                                                                                {isAct ? (
+                                                                                                    <Tag color="blue" className="text-[10px] m-0 px-1 py-0">
+                                                                                                        ⚡ Action
+                                                                                                    </Tag>
+                                                                                                ) : (
+                                                                                                    <Tag color="cyan" className="text-[10px] m-0 px-1 py-0">
+                                                                                                        👁️ View
+                                                                                                    </Tag>
+                                                                                                )}
+                                                                                            </div>
+
+                                                                                            <div className="flex items-center gap-2">
+                                                                                                <code style={{ fontSize: 11, color: '#334155', fontWeight: 600, background: '#F8FAFC', padding: '1px 5px', borderRadius: 4, border: '1px solid #CBD5E1' }}>
+                                                                                                    {perm.code}
+                                                                                                </code>
+                                                                                                {aliasCode && (
+                                                                                                    <Tooltip title="Mã alias tương thích ngược — hệ thống tự động đồng bộ khi bạn cấp quyền này">
+                                                                                                        <span className="text-[10.5px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 font-mono">
+                                                                                                            + alias: {aliasCode}
+                                                                                                        </span>
+                                                                                                    </Tooltip>
+                                                                                                )}
+                                                                                                {isAliasRow && (
+                                                                                                    <span className="text-[10px] text-slate-400 italic">
+                                                                                                        (Mã alias tương thích)
+                                                                                                    </span>
+                                                                                                )}
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </td>
+
+                                                                                {/* Các ô Toggle tương tác của từng Role */}
+                                                                                {(matrixData.roles || []).map((role) => {
+                                                                                    const checked = localMatrix[role.id]?.has(perm.id) ?? false;
+                                                                                    const isCellDisabled = !canAssignAcademic && isProt;
+
+                                                                                    return (
+                                                                                        <td
+                                                                                            key={role.id}
+                                                                                            style={{
+                                                                                                padding: '7px 10px',
+                                                                                                textAlign: 'center',
+                                                                                                borderRight: '1px solid #F1F5F9',
+                                                                                            }}
+                                                                                        >
+                                                                                            <Tooltip
+                                                                                                title={
+                                                                                                    isCellDisabled
+                                                                                                        ? `Bị khóa: ${perm.code} là quyền học thuật được bảo vệ. Cần có quyền PERMISSION_ASSIGN_ACADEMIC.`
+                                                                                                        : `${role.name}: ${perm.label} (${checked ? 'Đang cấp' : 'Chưa cấp'})`
+                                                                                                }
+                                                                                            >
+                                                                                                <button
+                                                                                                    type="button"
+                                                                                                    disabled={isCellDisabled}
+                                                                                                    onClick={() => toggleCell(role.id, perm)}
+                                                                                                    style={{
+                                                                                                        width: 32,
+                                                                                                        height: 32,
+                                                                                                        display: 'inline-flex',
+                                                                                                        alignItems: 'center',
+                                                                                                        justifyContent: 'center',
+                                                                                                        borderRadius: 8,
+                                                                                                        border: checked ? '1px solid #0F766E' : '1px solid #E2E8F0',
+                                                                                                        background: checked ? '#0F766E' : isCellDisabled ? '#F1F5F9' : '#FFFFFF',
+                                                                                                        color: checked ? '#FFFFFF' : '#94A3B8',
+                                                                                                        cursor: isCellDisabled ? 'not-allowed' : 'pointer',
+                                                                                                        opacity: isCellDisabled ? 0.75 : 1,
+                                                                                                        transition: 'all 0.15s ease',
+                                                                                                        boxShadow: checked ? '0 1px 2px rgba(15, 118, 110, 0.25)' : 'none',
+                                                                                                    }}
+                                                                                                >
+                                                                                                    {checked ? (
+                                                                                                        <CheckOutlined style={{ fontSize: 14 }} />
+                                                                                                    ) : isCellDisabled ? (
+                                                                                                        <LockOutlined style={{ fontSize: 11, color: '#94A3B8' }} />
+                                                                                                    ) : (
+                                                                                                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#CBD5E1' }} />
+                                                                                                    )}
+                                                                                                </button>
+                                                                                            </Tooltip>
+                                                                                        </td>
+                                                                                    );
+                                                                                })}
+                                                                            </tr>
+                                                                        );
+                                                                    })}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
                                 </Spin>
                             </div>
                         ),
@@ -943,14 +1232,45 @@ function PermissionGroupPage() {
                                             }
                                         >
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                                {perms.map((p) => (
-                                                    <div key={p.code} style={{ borderBottom: '1px solid #F1F5F9', paddingBottom: 6 }}>
-                                                        <div style={{ fontWeight: 600, fontSize: 12.5, color: '#1E293B' }}>{p.label}</div>
-                                                        <code style={{ fontSize: 10.5, color: '#334155', fontWeight: 600, background: '#F8FAFC', padding: '1px 4px', borderRadius: 3, border: '1px solid #CBD5E1' }}>
-                                                            {p.code}
-                                                        </code>
-                                                    </div>
-                                                ))}
+                                                {perms.map((p) => {
+                                                    const isProt = isAcademicProtected(p.code);
+                                                    const isAct = isActionPermission(p.code);
+                                                    const alias = getAliasCode(p.code);
+
+                                                    return (
+                                                        <div key={p.code} style={{ borderBottom: '1px solid #F1F5F9', paddingBottom: 6 }}>
+                                                            <div className="flex items-center justify-between gap-2">
+                                                                <span style={{ fontWeight: 600, fontSize: 12.5, color: '#1E293B' }}>{p.label}</span>
+                                                                <div className="flex items-center gap-1">
+                                                                    {isProt && (
+                                                                        <Tag color="volcano" className="text-[9px] m-0 px-1 py-0">
+                                                                            🛡️ Bảo vệ
+                                                                        </Tag>
+                                                                    )}
+                                                                    {isAct ? (
+                                                                        <Tag color="blue" className="text-[9px] m-0 px-1 py-0">
+                                                                            ⚡ Action
+                                                                        </Tag>
+                                                                    ) : (
+                                                                        <Tag color="cyan" className="text-[9px] m-0 px-1 py-0">
+                                                                            👁️ View
+                                                                        </Tag>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center gap-2 mt-1">
+                                                                <code style={{ fontSize: 10.5, color: '#334155', fontWeight: 600, background: '#F8FAFC', padding: '1px 4px', borderRadius: 3, border: '1px solid #CBD5E1' }}>
+                                                                    {p.code}
+                                                                </code>
+                                                                {alias && (
+                                                                    <span className="text-[10px] text-slate-400 font-mono">
+                                                                        (alias: {alias})
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
                                             </div>
                                         </Card>
                                     ))}
@@ -1020,17 +1340,32 @@ function PermissionGroupPage() {
                         >
                             {Object.entries(permissionsByModule).map(([module, perms]) => (
                                 <Select.OptGroup key={module} label={`[Phân hệ: ${module}]`}>
-                                    {perms.map((p) => (
-                                        <Select.Option key={p.code} value={p.code} label={`${p.code} ${p.label}`}>
-                                            <div className="flex items-center gap-2">
-                                                <Tag color={MODULE_COLORS[module] || 'default'} className="text-[10px] m-0">
-                                                    {module}
-                                                </Tag>
-                                                <span className="font-mono text-xs font-semibold">{p.code}</span>
-                                                <span className="text-xs text-slate-500">— {p.label}</span>
-                                            </div>
-                                        </Select.Option>
-                                    ))}
+                                    {perms.map((p) => {
+                                        const isProt = isAcademicProtected(p.code);
+                                        const disabled = !canAssignAcademic && isProt;
+
+                                        return (
+                                            <Select.Option
+                                                key={p.code}
+                                                value={p.code}
+                                                disabled={disabled}
+                                                label={`${p.code} ${p.label}`}
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <Tag color={MODULE_COLORS[module] || 'default'} className="text-[10px] m-0">
+                                                        {module}
+                                                    </Tag>
+                                                    <span className="font-mono text-xs font-semibold">{p.code}</span>
+                                                    <span className="text-xs text-slate-500">— {p.label}</span>
+                                                    {isProt && (
+                                                        <Tag color="volcano" className="text-[9px] m-0 ml-auto">
+                                                            🛡️ Bảo vệ
+                                                        </Tag>
+                                                    )}
+                                                </div>
+                                            </Select.Option>
+                                        );
+                                    })}
                                 </Select.OptGroup>
                             ))}
                         </Select>

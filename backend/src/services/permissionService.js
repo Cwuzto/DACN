@@ -1,6 +1,13 @@
 const prisma = require('../config/database');
 const { auditLog } = require('./auditLogService');
-const { PERMISSION_CATALOG, DEFAULT_GROUPS, ACADEMIC_PROTECTED_PERMISSIONS, TECHNICAL_PERMISSIONS } = require('../constants/permissions');
+const {
+  PERMISSION_CATALOG,
+  DEFAULT_GROUPS,
+  ACADEMIC_PROTECTED_PERMISSIONS,
+  TECHNICAL_PERMISSIONS,
+  GRANTABLE_PERMISSION_CODES,
+  CANONICAL_ALIAS_MAP,
+} = require('../constants/permissions');
 const { clearAuthCache } = require('../middlewares/auth');
 const getRequestIp = (req) => req?.ip || req?.headers?.['x-forwarded-for'] || null;
 
@@ -301,6 +308,10 @@ const getPermissionMatrix = async () => {
     roles: groups,
     modules,
     role_permissions: rolePermissions,
+    protected_permissions: ACADEMIC_PROTECTED_PERMISSIONS,
+    technical_permissions: TECHNICAL_PERMISSIONS,
+    grantable_permissions: GRANTABLE_PERMISSION_CODES,
+    aliases: CANONICAL_ALIAS_MAP,
   };
 };
 
