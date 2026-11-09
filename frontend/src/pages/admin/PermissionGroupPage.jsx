@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
     Table,
     Button,
@@ -90,11 +90,20 @@ function PermissionGroupPage() {
     const [submitting, setSubmitting] = useState(false);
     const [form] = Form.useForm();
 
+    const isMountedRef = useRef(true);
+    useEffect(() => {
+        isMountedRef.current = true;
+        return () => {
+            isMountedRef.current = false;
+        };
+    }, []);
+
     // 1. Tải dữ liệu ma trận phân quyền
     const fetchMatrix = useCallback(async () => {
         setMatrixLoading(true);
         try {
             const res = await permissionService.getPermissionMatrix();
+            if (!isMountedRef.current) return;
             if (res.success && res.data) {
                 const data = res.data;
                 setMatrixData(data);
@@ -109,9 +118,10 @@ function PermissionGroupPage() {
                 setDirty(false);
             }
         } catch (error) {
+            if (!isMountedRef.current) return;
             message.error(error.message || 'Lỗi khi tải ma trận phân quyền');
         } finally {
-            setMatrixLoading(false);
+            if (isMountedRef.current) setMatrixLoading(false);
         }
     }, []);
 
@@ -123,19 +133,24 @@ function PermissionGroupPage() {
                 permissionService.listGroups(),
                 permissionService.listPermissions(),
             ]);
+            if (!isMountedRef.current) return;
             if (groupsRes.success) setGroups(groupsRes.data || []);
             if (permsRes.success) setAllPermissions(permsRes.data || []);
         } catch (error) {
+            if (!isMountedRef.current) return;
             message.error(error.message || 'Lỗi khi tải danh sách nhóm quyền');
         } finally {
-            setLoading(false);
+            if (isMountedRef.current) setLoading(false);
         }
     }, []);
 
     useEffect(() => {
-        fetchMatrix();
-        fetchGroupsData();
-    }, [fetchMatrix, fetchGroupsData]);
+        if (activeTab === 'MATRIX') {
+            fetchMatrix();
+        } else if (activeTab === 'GROUPS' || activeTab === 'AUDIT' || activeTab === 'CATALOG') {
+            fetchGroupsData();
+        }
+    }, [activeTab, fetchMatrix, fetchGroupsData]);
 
     // Thao tác trên ô Ma trận (Toggle Cell)
     const toggleCell = (roleId, permId) => {
@@ -479,8 +494,11 @@ function PermissionGroupPage() {
                     <Button
                         icon={<ReloadOutlined />}
                         onClick={() => {
-                            fetchMatrix();
-                            fetchGroupsData();
+                            if (activeTab === 'MATRIX') {
+                                fetchMatrix();
+                            } else {
+                                fetchGroupsData();
+                            }
                         }}
                     >
                         Làm mới
