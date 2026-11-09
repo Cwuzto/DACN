@@ -23,6 +23,7 @@ const rubricRoutes = require('./rubricRoutes');
 const manualReviewRoutes = require('./manualReviewRoutes');
 const delegationRoutes = require('./delegationRoutes');
 const lecturerAssignmentRoutes = require('./lecturerAssignmentRoutes');
+const outlineRoutes = require('./outlineRoutes');
 
 // Đăng ký routes
 router.use('/auth', authRoutes);
@@ -35,6 +36,7 @@ router.use('/registrations', registrationRoutes);
 router.use('/tasks', taskRoutes);
 router.use('/users', userRoutes);
 router.use('/councils', councilRoutes);
+router.use('/outline', outlineRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/evaluations', evaluationRoutes);
 router.use('/notifications', notificationRoutes);

@@ -3,8 +3,11 @@ const { body, param } = require('express-validator');
 const prisma = require('../config/database');
 const {
     authenticate,
+    authorizeRole,
     authorizePermission,
     authorizeResolvedPermissions,
+    authorizeRoleOrPermission,
+    requireCouncilRole,
 } = require('../middlewares/auth');
 const { PERMISSIONS } = require('../constants/permissions');
 const { validateRequest } = require('../middlewares/validate');
@@ -136,6 +139,133 @@ router.post(
     ],
     authorizePermission(PERMISSIONS.DEFENSE_COUNCIL_MANAGE),
     councilController.autoAssignRegistrationsToCouncils
+);
+
+router.post(
+    '/auto-assign-outline',
+    [
+        body('semesterId')
+            .isInt({ min: 1 })
+            .withMessage('semesterId phải là số nguyên dương.'),
+        validateRequest,
+    ],
+    authorizeRoleOrPermission(
+        ['ADMIN'],
+        [PERMISSIONS.OUTLINE_COUNCIL_MANAGE, PERMISSIONS.DEFENSE_COUNCIL_MANAGE]
+    ),
+    councilController.autoAssignOutlineCouncils
+);
+
+router.post(
+    '/:id/results/reopen',
+    [
+        param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
+        body('reason')
+            .isString()
+            .trim()
+            .notEmpty()
+            .withMessage('reason bắt buộc phải là chuỗi không rỗng.'),
+        validateRequest,
+    ],
+    authorizeRole('ADMIN'),
+    councilController.reopenCouncilResults
+);
+
+router.put(
+    '/:id/schedule',
+    [
+        param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
+        body('defenseDate')
+            .isISO8601()
+            .withMessage('defenseDate không đúng định dạng ISO8601.'),
+        body('meetingMode')
+            .optional()
+            .isIn(['OFFLINE', 'ONLINE', 'HYBRID', 'IN_PERSON', 'MICROSOFT_TEAMS'])
+            .withMessage('meetingMode không hợp lệ.'),
+        validateRequest,
+    ],
+    requireCouncilRole('CHAIRMAN'),
+    councilController.publishCouncilSchedule
+);
+
+router.put(
+    '/:id/results/:registrationId',
+    [
+        param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
+        param('registrationId').isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
+        body('initialOutcome')
+            .isIn(['PASS', 'REVISION_REQUIRED', 'FAIL', 'ABSENT'])
+            .withMessage('initialOutcome không hợp lệ.'),
+        body('attendanceStatus')
+            .isIn(['PRESENT', 'ABSENT', 'EXCUSED'])
+            .withMessage('attendanceStatus không hợp lệ.'),
+        validateRequest,
+    ],
+    requireCouncilRole('SECRETARY', 'CHAIRMAN'),
+    councilController.saveDraftResults
+);
+
+router.post(
+    '/:id/results/secretary-complete',
+    [param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'), validateRequest],
+    requireCouncilRole('SECRETARY', 'CHAIRMAN'),
+    councilController.completeSecretaryReview
+);
+
+router.post(
+    '/:id/results/return',
+    [
+        param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
+        body('returnReason')
+            .isString()
+            .trim()
+            .notEmpty()
+            .withMessage('returnReason bắt buộc phải là chuỗi không rỗng.'),
+        validateRequest,
+    ],
+    requireCouncilRole('CHAIRMAN'),
+    councilController.returnResultsToSecretary
+);
+
+router.post(
+    '/:id/results/publish',
+    [param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'), validateRequest],
+    requireCouncilRole('CHAIRMAN'),
+    councilController.publishCouncilResults
+);
+
+router.put(
+    '/:id/revision-deadline',
+    [
+        param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
+        body('revisionDeadline')
+            .isISO8601()
+            .withMessage('revisionDeadline không đúng định dạng ISO8601.'),
+        validateRequest,
+    ],
+    requireCouncilRole('CHAIRMAN'),
+    councilController.setRevisionDeadline
+);
+
+router.post(
+    '/:id/resubmissions/:registrationId/review',
+    [
+        param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
+        param('registrationId').isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
+        body('decision')
+            .isIn(['APPROVE', 'REJECT'])
+            .withMessage('decision phải là APPROVE hoặc REJECT.'),
+        validateRequest,
+    ],
+    requireCouncilRole('CHAIRMAN'),
+    councilController.reviewResubmission
+);
+
+router.post(
+    '/:id/finalize-resubmissions',
+    [param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'), validateRequest],
+    requireCouncilRole('CHAIRMAN', 'ADMIN'),
+    councilController.finalizeResubmissions
 );
 
 router.post(

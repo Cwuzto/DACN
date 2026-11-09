@@ -463,15 +463,78 @@ const authorizeRoleOrPermission = (roles = [], permissionCodes = []) => {
     return middleware;
 };
 
+/**
+ * Middleware requireCouncilRole - kiểm tra giảng viên có vai trò cụ thể trong hội đồng (params.id hoặc params.councilId)
+ * Sử dụng: requireCouncilRole('CHAIRMAN') hoặc requireCouncilRole('CHAIRMAN', 'SECRETARY')
+ * Có thể cho phép ADMIN: requireCouncilRole('CHAIRMAN', 'ADMIN')
+ */
+const requireCouncilRole = (...allowedRoles) => {
+    const middleware = async (req, res, next) => {
+        try {
+            if (!req.user) {
+                return res.status(401).json({ success: false, message: 'Chưa xác thực.' });
+            }
+
+            const allowAdmin = allowedRoles.includes('ADMIN');
+            if (allowAdmin && req.user.role === 'ADMIN') {
+                return next();
+            }
+
+            const councilId = parseInt(req.params.id || req.params.councilId, 10);
+            if (!Number.isInteger(councilId) || councilId <= 0) {
+                return res.status(400).json({ success: false, message: 'ID hội đồng không hợp lệ.' });
+            }
+
+            let member = null;
+            if (prisma.councilMember?.findFirst) {
+                member = await prisma.councilMember.findFirst({
+                    where: {
+                        councilId,
+                        lecturerId: req.user.id,
+                    },
+                });
+            }
+
+            if (!member) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Bạn không phải là thành viên của hội đồng này.',
+                });
+            }
+
+            const rolesOnly = allowedRoles.filter((r) => r !== 'ADMIN');
+            if (rolesOnly.length > 0 && !rolesOnly.includes(member.roleInCouncil)) {
+                return res.status(403).json({
+                    success: false,
+                    message: `Chức năng này yêu cầu vai trò ${rolesOnly.join(' hoặc ')} trong hội đồng.`,
+                });
+            }
+
+            req.councilMember = member;
+            next();
+        } catch (error) {
+            next(error);
+        }
+    };
+    middleware.authorizationPolicy = {
+        mode: 'COUNCIL_ROLE',
+        roles: [...allowedRoles],
+    };
+    return middleware;
+};
+
 module.exports = {
     authenticate,
+    authenticateToken: authenticate,
     optionalAuthenticate,
     authorize,
+    authorizeRole: authorize,
     authorizePermission,
     authorizeAllPermissions,
     assertPermission,
     authorizeResolvedPermissions,
     authorizeRoleOrPermission,
+    requireCouncilRole,
     clearAuthCache,
     getAuthCacheStats,
 };

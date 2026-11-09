@@ -2,6 +2,26 @@ const prisma = require('../config/database');
 const { MAX_STUDENTS_PER_COUNCIL } = require('../constants/councilLimits');
 const { auditLog } = require('../services/auditLogService');
 const { runAutoCouncilSetupForSemester } = require('../services/councilAutoSetupService');
+const outlineReviewService = require('../services/outlineReviewService');
+const { runAutoOutlineCouncilSetupForSemester } = require('../services/outlineAutoSetupService');
+
+const handleOutlineError = (error, res, next) => {
+    if (error.statusCode === 409 && error.details?.blockingRegistrations) {
+        return res.status(409).json({
+            success: false,
+            message: error.message,
+            blockingRegistrations: error.details.blockingRegistrations,
+        });
+    }
+    if (error.statusCode) {
+        return res.status(error.statusCode).json({
+            success: false,
+            message: error.message,
+            ...(error.details && typeof error.details === 'object' ? error.details : {}),
+        });
+    }
+    next(error);
+};
 
 const getRequestIp = (req) => req.ip || req.headers['x-forwarded-for'] || null;
 
@@ -665,6 +685,174 @@ const deleteCouncil = async (req, res, next) => {
     }
 };
 
+const autoAssignOutlineCouncils = async (req, res, next) => {
+    try {
+        const semesterId = parseInt(req.body.semesterId, 10);
+        const result = await runAutoOutlineCouncilSetupForSemester(semesterId, {
+            actorId: req.user.id,
+            ipAddress: getRequestIp(req),
+        });
+
+        res.status(200).json({
+            success: true,
+            message: 'Tự động phân công hội đồng đề cương thành công.',
+            data: result,
+        });
+    } catch (error) {
+        handleOutlineError(error, res, next);
+    }
+};
+
+const reopenCouncilResults = async (req, res, next) => {
+    try {
+        const councilId = parseInt(req.params.id, 10);
+        const { reason } = req.body;
+        const result = await outlineReviewService.reopenCouncilResults(councilId, reason, req.user.id);
+
+        res.status(200).json({
+            success: true,
+            message: 'Đã mở khóa kết quả hội đồng.',
+            data: result,
+        });
+    } catch (error) {
+        handleOutlineError(error, res, next);
+    }
+};
+
+const publishCouncilSchedule = async (req, res, next) => {
+    try {
+        const councilId = parseInt(req.params.id, 10);
+        const scheduleData = req.body;
+        const result = await outlineReviewService.publishCouncilSchedule(councilId, scheduleData, req.user.id);
+
+        res.status(200).json({
+            success: true,
+            message: 'Công bố lịch bảo vệ đề cương thành công.',
+            data: result,
+        });
+    } catch (error) {
+        handleOutlineError(error, res, next);
+    }
+};
+
+const saveDraftResults = async (req, res, next) => {
+    try {
+        const councilId = parseInt(req.params.id, 10);
+        const registrationId = parseInt(req.params.registrationId, 10);
+        const resultData = req.body;
+        const result = await outlineReviewService.saveDraftResults(councilId, registrationId, resultData, req.user.id);
+
+        res.status(200).json({
+            success: true,
+            message: 'Lưu nháp đánh giá thành công.',
+            data: result,
+        });
+    } catch (error) {
+        handleOutlineError(error, res, next);
+    }
+};
+
+const completeSecretaryReview = async (req, res, next) => {
+    try {
+        const councilId = parseInt(req.params.id, 10);
+        const result = await outlineReviewService.completeSecretaryReview(councilId, req.user.id);
+
+        res.status(200).json({
+            success: true,
+            message: 'Thư ký đã hoàn tất đánh giá hội đồng.',
+            data: result,
+        });
+    } catch (error) {
+        handleOutlineError(error, res, next);
+    }
+};
+
+const returnResultsToSecretary = async (req, res, next) => {
+    try {
+        const councilId = parseInt(req.params.id, 10);
+        const { returnReason } = req.body;
+        const result = await outlineReviewService.returnResultsToSecretary(councilId, returnReason, req.user.id);
+
+        res.status(200).json({
+            success: true,
+            message: 'Đã trả lại kết quả cho thư ký.',
+            data: result,
+        });
+    } catch (error) {
+        handleOutlineError(error, res, next);
+    }
+};
+
+const publishCouncilResults = async (req, res, next) => {
+    try {
+        const councilId = parseInt(req.params.id, 10);
+        const idempotencyKey = req.headers['idempotency-key'] || req.header('Idempotency-Key');
+        const result = await outlineReviewService.publishCouncilResults(councilId, req.user.id, idempotencyKey);
+
+        res.status(200).json({
+            success: true,
+            message: 'Công bố kết quả hội đồng thành công.',
+            data: result,
+        });
+    } catch (error) {
+        handleOutlineError(error, res, next);
+    }
+};
+
+const setRevisionDeadline = async (req, res, next) => {
+    try {
+        const councilId = parseInt(req.params.id, 10);
+        const { revisionDeadline } = req.body;
+        const result = await outlineReviewService.setRevisionDeadline(councilId, revisionDeadline, req.user.id);
+
+        res.status(200).json({
+            success: true,
+            message: 'Đã cập nhật hạn nộp lại đề cương.',
+            data: result,
+        });
+    } catch (error) {
+        handleOutlineError(error, res, next);
+    }
+};
+
+const reviewResubmission = async (req, res, next) => {
+    try {
+        const councilId = parseInt(req.params.id, 10);
+        const registrationId = parseInt(req.params.registrationId, 10);
+        const { decision, revisionFeedback } = req.body;
+        const result = await outlineReviewService.reviewResubmission(
+            councilId,
+            registrationId,
+            decision,
+            revisionFeedback,
+            req.user.id
+        );
+
+        res.status(200).json({
+            success: true,
+            message: 'Đã xét duyệt đề cương nộp lại.',
+            data: result,
+        });
+    } catch (error) {
+        handleOutlineError(error, res, next);
+    }
+};
+
+const finalizeResubmissions = async (req, res, next) => {
+    try {
+        const councilId = parseInt(req.params.id, 10);
+        const result = await outlineReviewService.finalizeOverdueResubmissions(councilId, req.user.id);
+
+        res.status(200).json({
+            success: true,
+            message: 'Đã chốt danh sách quá hạn.',
+            data: result,
+        });
+    } catch (error) {
+        handleOutlineError(error, res, next);
+    }
+};
+
 module.exports = {
     getAllCouncils,
     getCouncilById,
@@ -675,5 +863,15 @@ module.exports = {
     autoAssignRegistrationsToCouncils,
     removeRegistrationFromCouncil,
     deleteCouncil,
+    autoAssignOutlineCouncils,
+    reopenCouncilResults,
+    publishCouncilSchedule,
+    saveDraftResults,
+    completeSecretaryReview,
+    returnResultsToSecretary,
+    publishCouncilResults,
+    setRevisionDeadline,
+    reviewResubmission,
+    finalizeResubmissions,
 };
 

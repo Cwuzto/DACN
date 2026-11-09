@@ -4,6 +4,7 @@ const express = require('express');
 const cors = require('cors');
 const routes = require('./routes');
 const delegationRoutes = require('./routes/delegationRoutes');
+const outlineRoutes = require('./routes/outlineRoutes');
 const errorHandler = require('./middlewares/errorHandler');
 const { startScheduledJobs } = require('./jobs');
 
@@ -43,6 +44,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Tất cả API bắt đầu bằng /api
 app.use('/api/delegations', delegationRoutes);
+app.use('/api/outline', outlineRoutes);
 app.use('/api', routes);
 
 // Root route
