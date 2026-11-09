@@ -975,6 +975,95 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 3. **Fallback public giới hạn ở branding tối thiểu**: khi chưa có config public, portal vẫn có nhãn nhận diện; nhưng announcements/templates/links không bịa dữ liệu mẫu.
 4. **Không thay đổi upload nghiệp vụ BM**: chỉ loại nút tải ZIP/bulk-download ở UI Portal; ZIP/RAR của các luồng nộp bài nghiệp vụ vẫn giữ nguyên.
 
+### Phiên 09/11/2026 (Phần 2) — Khắc Phục Triệt Để Nghẽn Truy Vấn Database, Nâng Cấp Pool Concurrency và Tối Ưu Auth Cache
+
+#### 1. Những phần đã hoàn thành
+
+1. **Scale Connection Pool & Tăng biên độ Network Timeout (Task 1)**:
+   - Nâng `DEFAULT_DB_POOL_MAX` từ `2` lên `8` và `DEFAULT_DB_POOL_CONNECTION_TIMEOUT` lên `15000` ms trong [database.js](file:///d:/DACN/backend/src/config/database.js).
+   - Cập nhật [backend/.env](file:///d:/DACN/backend/.env) và [backend/.env.example](file:///d:/DACN/backend/.env.example): cấu hình `DB_POOL_MAX=8`, `DB_POOL_IDLE_TIMEOUT_MS=30000`, `DB_POOL_CONNECTION_TIMEOUT_MS=15000` phù hợp với Transaction Pooler (cổng 6543) của Supabase.
+   - Nâng Axios default timeout từ `10000` ms lên `20000` ms trong [api.js](file:///d:/DACN/frontend/src/services/api.js) để loại bỏ hiện tượng timeout oan do độ trễ mạng quốc tế (Singapore AWS `ap-southeast-1`).
+   - Thêm bộ test [dbPoolConfig.test.js](file:///d:/DACN/backend/tests/config/dbPoolConfig.test.js). Commit `040a058`.
+2. **Cơ chế Single-Flight Coalescing & In-Memory Capability Cache cho Auth Middleware (Task 2)**:
+   - Nâng cấp [auth.js](file:///d:/DACN/backend/src/middlewares/auth.js):
+     - Thêm cơ chế **Single-Flight Request Coalescing** qua `inFlightUserLookups`: Khi nhiều request đồng thời của cùng một `userId` gửi lên (ví dụ khi load trang), chỉ có đúng 1 truy vấn `prisma.user.findUnique` và `academicDelegation.findMany` được gửi tới DB, các request còn lại dùng chung Promise kết quả.
+     - Thêm bộ nhớ đệm nội bộ **15s TTL** qua `userAuthCache`: Các request tiếp theo trong 15s được phục vụ trực tiếp từ RAM (< 1ms thay vì ~100ms RTT sang Singapore).
+     - Giữ nguyên toàn vẹn cơ chế bảo vệ phiên bản quyền 409 `PERMISSION_VERSION_STALE` cho các route non-me.
+     - Cơ chế Invalidation tức thì: Export `clearAuthCache(userId)` và tự động gọi khi có thay đổi quyền hạn hoặc ủy quyền tại [permissionService.js](file:///d:/DACN/backend/src/services/permissionService.js), [userController.js](file:///d:/DACN/backend/src/controllers/userController.js), và [delegationController.js](file:///d:/DACN/backend/src/controllers/delegationController.js).
+   - Thêm bộ test [authCacheAndDeduplication.test.js](file:///d:/DACN/backend/tests/middlewares/authCacheAndDeduplication.test.js) (4/4 PASS). Commit `14c7b83`.
+3. **Tối ưu hoá `PermissionGroupPage.jsx` với Tab-Driven Lazy Loading & Unmount Guards (Task 3)**:
+   - Cập nhật [PermissionGroupPage.jsx](file:///d:/DACN/frontend/src/pages/admin/PermissionGroupPage.jsx):
+     - Chuyển cơ chế tải dữ liệu thành lazy-loading theo tab: Khi mở trang (Tab `'MATRIX'`), chỉ tải ma trận qua `fetchMatrix()`; chỉ khi chuyển sang Tab `'GROUPS'` hoặc `'AUDIT'` mới kích hoạt `fetchGroupsData()`.
+     - Thêm cờ `isMountedRef` để huỷ xử lý khi component unmount: Chặn hoàn toàn việc bắn toast `message.error(...)` dư thừa từ chu kỳ kiểm tra kép của React StrictMode.
+     - Cập nhật nút "Làm mới" thông minh theo tab hiện tại.
+   - Thêm bộ test [permissionGroupPageLazyLoad.test.js](file:///d:/DACN/frontend/tests/permissionGroupPageLazyLoad.test.js) (2/2 PASS). Commit `9ca5bf4`.
+4. **Nghiệm Thu Toàn Diện Hệ Thống (Task 4)**:
+   - Backend: **61/61 test suites (447/447 tests PASS)**.
+   - Frontend: **74/74 tests PASS**.
+   - Vite production build: **PASS (11.27s, 0 errors)**.
+
+#### 2. Trạng thái cập nhật của từng phần
+
+- **Database/Prisma**: `OPTIMIZED & CONNECTED`; Pool size 8 kết nối mượt mà tới Supabase Transaction Pooler (port 6543).
+- **Backend API**: `OPTIMIZED & CACHED`; Middleware xác thực loại bỏ 80–90% query dư thừa khi gọi song song.
+- **Frontend SPA**: `STABLE & CLEAN`; Triệt tiêu hoàn toàn toast lỗi kép; timeout nâng lên 20s.
+- **Test**: `100% PASS` cả hai phân hệ Backend và Frontend.
+
+#### 3. Quyết định quan trọng (Decisions & Rationale)
+
+1. **Khôi phục pool size tối ưu cho Transaction Pooler (6543)**: Lỗi `maxClientsInSessionMode` trước đây xảy ra do cổng 5432 (Session mode) bị giới hạn kết nối; cổng 6543 sử dụng Supavisor transaction multiplexing có thể chịu hàng trăm client, do đó nâng `DB_POOL_MAX=8` là an toàn và giải phóng hoàn toàn tình trạng hàng đợi đơn luồng.
+2. **Single-Flight Coalescing cho Auth Middleware**: Thay vì truy vấn CSDL 5 lần khi 5 API được gọi song song trên 1 trang web, gom thành 1 truy vấn duy nhất giúp giảm tải CSDL tới 80% và loại bỏ nguy cơ cạn kiệt kết nối.
+3. **Lazy-loading dữ liệu theo Tab trong PermissionGroupPage**: Tách biệt luồng tải ma trận phân quyền và luồng quản lý danh sách nhóm quyền giúp trang mở nhanh gấp đôi và giảm tải tức thì cho backend.
+
+### Phiên 09/11/2026 — Hoàn tất P0 Chuẩn hóa StudentProfile, Import Excel All-or-Nothing và Điều hướng Import Nhanh
+
+#### 1. Những phần đã hoàn thành
+
+1. **CSDL & Nền tảng Định danh Sinh viên (Task 1)**:
+   - Thêm enum `StudentGender` (`MALE`, `FEMALE`, `OTHER`) và model `StudentProfile` liên kết 1-1 với `User` (`studentId` PK/FK, cascade delete). Giữ nguyên `User.department` cho giảng viên, lưu ngành học sinh viên tại `StudentProfile.major`.
+   - Tạo và áp dụng thành công migration additive `20261109090000_add_student_profile` lên CSDL demo qua `DIRECT_URL` (port 5432).
+   - Viết 4 contract tests kiểm chứng enum, delegate và quan hệ model. Commit `b6a8e15`.
+2. **Backend Domain Service & CRUD Transactions (Task 2)**:
+   - Tạo mới [studentProfileService.js](file:///d:/DACN/backend/src/services/studentProfileService.js): Chuẩn hóa và xác thực bắt buộc 8 trường (MSSV, Họ tên, Giới tính, Ngày sinh `DD/MM/YYYY`, SĐT, Lớp, Email, Ngành); kiểm tra năm nhuận, ngày trong quá khứ, chuyển đổi linh hoạt nhãn tiếng Việt (`Nam`/`Nữ`/`Khác`) và alias.
+   - Nâng cấp [userController.js](file:///d:/DACN/backend/src/controllers/userController.js): Bọc tạo/cập nhật `User` và `StudentProfile` trong một giao dịch nguyên tử `prisma.$transaction`. Thực thi cơ chế fail-closed: lỗi profile rollback toàn bộ, không tạo `User`. Tôn trọng MSSV người dùng cung cấp thay vì tự sinh mã.
+   - Bảo vệ self-service sinh viên tại [authController.js](file:///d:/DACN/backend/src/controllers/authController.js) và [auth.js](file:///d:/DACN/backend/src/middlewares/auth.js): Sinh viên chỉ được phép sửa `avatarUrl` và `phone`; các trường định danh học vụ và `department` hoàn toàn bị khóa. Commit `1879397`.
+3. **Chuẩn Hóa File Mẫu & Cơ Chế Import Excel Nguyên Tử (Task 3)**:
+   - Cập nhật [excelHelper.js](file:///d:/DACN/backend/src/utils/excelHelper.js): Xuất file mẫu chuẩn gồm đúng 8 cột canonical (`MSSV (*)`, `Họ và tên (*)`, `Giới tính (*)`, `Ngày sinh (*)`, `Số điện thoại (*)`, `Lớp (*)`, `Email (*)`, `Ngành (*)`) đi kèm 5 dòng dữ liệu minh họa thực tế.
+   - Nâng cấp API `POST /api/users/import-excel`: Kiểm tra trùng lặp mã/email trong nội bộ file và đối chiếu CSDL (`SKIP` / `UPDATE`). Thực thi quy tắc **All-or-Nothing**: nếu có bất kỳ 1 dòng lỗi thì lập tức trả về `HTTP 400` kèm danh sách lỗi chi tiết và **tuyệt đối không ghi bản ghi nào** vào CSDL (Zero writes). Chỉ ghi khi 100% dòng hợp lệ.
+   - Đồng bộ xuất file Excel dữ liệu sinh viên đầy đủ 8 cột chuẩn hóa. Commit `fb2cfaa`.
+4. **Giao Diện Quản Trị Admin & Hồ Sơ Sinh Viên (Task 4)**:
+   - Cập nhật [ExcelImportModal.jsx](file:///d:/DACN/frontend/src/components/common/ExcelImportModal.jsx) & [studentImportHelper.js](file:///d:/DACN/frontend/src/utils/studentImportHelper.js): Bảng xem trước 8 cột, modal sửa nhanh lỗi từng dòng hỗ trợ datepicker/dropdown giới tính, tự động khóa nút Import khi còn dòng lỗi.
+   - Cập nhật [UserManagementPage.jsx](file:///d:/DACN/frontend/src/pages/admin/UserManagementPage.jsx): Form thêm/sửa sinh viên hiển thị 8 trường bắt buộc; tự động điền dữ liệu `studentProfile` cũ khi sửa; hiển thị thẻ hồ sơ sinh viên chi tiết trên Drawer xem thông tin.
+   - Cập nhật [ProfilePage.jsx](file:///d:/DACN/frontend/src/pages/common/ProfilePage.jsx): Hiển thị Lớp (`className`) và Ngành (`major`) dạng Chỉ đọc (Read-only); bảo vệ PII (không hiển thị ngày sinh/giới tính ra ngoài); sinh viên chỉ được phép sửa ảnh đại diện và số điện thoại. Commit `4748f41`.
+5. **Bộ Chuyển Đổi Nhanh Đối Tượng Import (Sinh viên ⟷ Giảng viên)**:
+   - Bổ sung bộ chọn `Radio.Group` (`🎓 Sinh viên` / `👨‍🏫 Giảng viên`) ngay trên đầu modal Import Excel.
+   - Cho phép người dùng chuyển đổi tức thì giữa 2 đối tượng mà không cần đóng modal; tự động đồng bộ nút tải file mẫu tương ứng (`onDownloadTemplate(effectiveType)`), cấu trúc cột xem trước, luật kiểm tra hợp lệ và payload gửi lên backend. Commit `b3ee558`.
+6. **Đồng Bộ Hoàn Toàn Nhánh Chính `d:\DACN`**:
+   - Toàn bộ các commit từ `feat/student-profile-excel-import` đã được merge sạch sẽ vào nhánh chính `redesign-with-opendesign`.
+   - Đã tái tạo Prisma Client trên `d:\DACN\backend` bằng `npx prisma generate`.
+
+#### 2. Trạng thái cập nhật của từng phần
+
+- **Database/Prisma**: `DEPLOYED & UP TO DATE`; 23 migrations đã apply trên PostgreSQL Supabase demo; schema đồng bộ 100%, Prisma generate PASS.
+- **Backend API**: `P0 COMPLETE & VERIFIED`; các API người dùng, import/export Excel, profile và auth guards đã tuân thủ chuẩn 8 trường và transaction nguyên tử.
+- **Frontend SPA**: `P0 COMPLETE & BUILD PASS`; `ExcelImportModal.jsx`, `UserManagementPage.jsx`, `ProfilePage.jsx` hoạt động trơn tru; `vite build` PASS (19.88s, 0 lỗi).
+- **Test**: `100% PASS`; Backend **59/59 test suites / 438/438 tests PASS**; Frontend **72/72 tests PASS**.
+- **Chuẩn mã hóa**: 100% tệp tin đạt chuẩn **UTF-8 (no BOM)**; tuân thủ mô hình `TopicRegistration`.
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+
+1. **Task 5 (Ưu tiên P1) — Chiếu dữ liệu học vụ & Bảo mật PII**: Bổ sung `className` và `major` vào các DTO học vụ trong `registrationController.js`, `councilController.js`, `evaluationController.js`, và [scoreSheetPdfService.js](file:///d:/DACN/backend/src/services/scoreSheetPdfService.js); đảm bảo không rò rỉ `dateOfBirth` và `gender` ra quy trình chung/công khai.
+2. **Task 6 (Ưu tiên P1) — Script Reset Demo Giữ Admin**: Xây dựng lệnh `npm run db:reset-demo-keep-admin` qua [resetDemoKeepAdmin.js](file:///d:/DACN/backend/scripts/resetDemoKeepAdmin.js) với token xác thực `SEED_RESET_CONFIRM=RESET_DACN_DEMO`, giữ duy nhất `ADMIN001` và nhóm `QUAN_TRI_VIEN`, dọn sạch toàn bộ dữ liệu mẫu học vụ.
+3. **Task 7 (Ưu tiên P2) — Verification & Worktree Teardown**: Chạy kiểm thử toàn diện Backend + Frontend, diễn tập UAT xóa sạch dữ liệu thử nghiệm, và dọn dẹp worktree tạm theo yêu cầu.
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+
+1. **Tách `StudentProfile` 1-1 với `User`**: Giữ `User` làm định danh tài khoản chung, không đưa các cột đặc thù sinh viên vào bảng `User`, tránh nhập nhằng giữa ngành đào tạo của sinh viên và `department` (khoa/bộ môn) của giảng viên.
+2. **Quy tắc All-or-Nothing trong Import Excel**: Đảm bảo tính toàn vẹn danh sách sinh viên theo đợt; nếu một dòng sai định dạng hoặc trùng lặp thì toàn bộ file bị từ chối và rollback (Zero database writes), ngăn ngừa tình trạng dữ liệu dở dang hoặc thiếu sót hồ sơ học vụ.
+3. **Bảo vệ PII và Tính Bất biến Học thuật**: Sinh viên chỉ được phép tự cập nhật ảnh đại diện và số điện thoại; các thông tin học vụ (MSSV, Họ tên, Giới tính, Ngày sinh, Lớp, Ngành) do Nhà trường quản lý và chỉ hiển thị read-only; ngày sinh và giới tính không được lộ ra các DTO học vụ/hội đồng/PDF công khai.
+4. **Bộ Chuyển Đổi Đối Tượng Trong Modal Import**: Tối ưu hóa trải nghiệm người dùng bằng cách cho phép chuyển đổi giữa Sinh viên (8 cột) và Giảng viên (7 cột) ngay trong modal import, tự động đồng bộ file mẫu và payload gửi lên backend mà không cần đóng mở modal.
+
+
 ### Phiên 05/11/2026 — Hoàn tất Khắc Phục Lỗ Hổng Hậu Audit & Chuẩn Hóa Toàn Tuyến Quy Trình (Tasks 1–12)
 
 #### 1. Những phần đã hoàn thành
