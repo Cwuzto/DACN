@@ -173,8 +173,9 @@ function App() {
                                 <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_COUNCIL_ASSIGNMENTS', 'OUTLINE_COUNCIL_MANAGE', 'DEFENSE_COUNCIL_MANAGE']} />}>
                                     <Route path="councils" element={<CouncilAssignmentPage />} />
                                 </Route>
-                                <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_PROJECT_ENROLLMENTS', 'ENROLLMENT_MANAGE', 'PROJECT_CATALOG_MANAGE']} />}>
+                                <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_PROJECT_ENROLLMENTS', 'ENROLLMENT_MANAGE', 'PROJECT_CATALOG_MANAGE', 'PERMISSION_ASSIGN_ACADEMIC', 'MENTOR_ASSIGN']} />}>
                                     <Route path="project-enrollments" element={<ProjectEnrollmentPage />} />
+                                    <Route path="project-rounds/:roundId/coordination" element={<ProjectEnrollmentPage />} />
                                 </Route>
                                 <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_ANNOUNCEMENTS', 'PUBLIC_ANNOUNCEMENT_MANAGE']} />}>
                                     <Route path="announcements" element={<AnnouncementManagementPage />} />
