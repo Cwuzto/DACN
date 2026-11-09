@@ -38,7 +38,12 @@ const getAllTopics = async (req, res, next) => {
         const conditions = [];
 
         if (role === 'STUDENT') {
-            conditions.push({ status: 'APPROVED' });
+            conditions.push({
+                OR: [
+                    { status: 'APPROVED' },
+                    { proposedById: userId },
+                ],
+            });
         }
 
         if (role === 'LECTURER') {
@@ -156,7 +161,7 @@ const getTopicById = async (req, res, next) => {
             return res.status(404).json({ success: false, message: 'Không tìm thấy đề tài.' });
         }
 
-        if (req.user.role === 'STUDENT' && topic.status !== 'APPROVED') {
+        if (req.user.role === 'STUDENT' && topic.status !== 'APPROVED' && topic.proposedById !== req.user.id) {
             return res.status(403).json({ success: false, message: 'Bạn không có quyền xem đề tài này.' });
         }
 
@@ -215,6 +220,26 @@ const createTopic = async (req, res, next) => {
             topicStatus = status === 'DRAFT' ? 'DRAFT' : 'APPROVED';
             finalMentorId = userId;
         } else if (role === 'STUDENT') {
+            const existingReg = await prisma.topicRegistration.findUnique({
+                where: { studentId_semesterId: { studentId: userId, semesterId: semesterIdInt } },
+            });
+            if (existingReg && existingReg.status !== 'REJECTED') {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Bạn đã đăng ký một đề tài trong học kỳ này, không thể đề xuất thêm đề tài mới.',
+                });
+            }
+
+            const existingProposal = await prisma.topic.findFirst({
+                where: { proposedById: userId, semesterId: semesterIdInt, status: 'PENDING' },
+            });
+            if (existingProposal) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Bạn đã có một đề tài tự đề xuất đang chờ giảng viên duyệt. Vui lòng hủy đề xuất cũ nếu muốn gửi đề tài khác.',
+                });
+            }
+
             if (!mentorId) {
                 return res.status(400).json({ success: false, message: 'Vui lòng chọn giảng viên hướng dẫn.' });
             }
@@ -430,6 +455,10 @@ const deleteTopic = async (req, res, next) => {
 
         if (role !== 'ADMIN' && existing.proposedById !== userId) {
             return res.status(403).json({ success: false, message: 'Bạn chỉ có thể xóa đề tài do mình tạo.' });
+        }
+
+        if (role === 'STUDENT' && existing.status !== 'PENDING') {
+            return res.status(400).json({ success: false, message: 'Sinh viên chỉ có thể hủy đề tài khi đang ở trạng thái chờ duyệt.' });
         }
 
         await prisma.topic.delete({ where: { id: parseInt(id, 10) } });

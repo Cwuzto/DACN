@@ -7,9 +7,13 @@ jest.mock('../../src/config/database', () => ({
     },
     topic: {
         create: jest.fn(),
+        findUnique: jest.fn(),
+        findFirst: jest.fn(),
+        delete: jest.fn(),
     },
     topicRegistration: {
         findFirst: jest.fn(),
+        findUnique: jest.fn(),
     },
     projectCatalog: {
         findUnique: jest.fn(),
@@ -135,5 +139,141 @@ describe('topicController.createTopic', () => {
         expect(res.status).toHaveBeenCalledWith(403);
         expect(prisma.topic.create).not.toHaveBeenCalled();
         expect(next).not.toHaveBeenCalled();
+    });
+
+    test('rejects student create when student already has active registration in semester', async () => {
+        prisma.topicRegistration.findUnique.mockResolvedValueOnce({ id: 10, status: 'PENDING' });
+
+        const req = createMockReq({
+            user: { id: 20, role: 'STUDENT' },
+            body: {
+                title: 'De xuat moi',
+                semesterId: 9,
+                mentorId: 999,
+                projectCatalogId: 1,
+            },
+        });
+        const res = createMockRes();
+        const next = createNext();
+
+        await topicController.createTopic(req, res, next);
+
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({
+                success: false,
+                message: expect.stringContaining('Bạn đã đăng ký một đề tài trong học kỳ này'),
+            })
+        );
+        expect(prisma.topic.create).not.toHaveBeenCalled();
+    });
+
+    test('rejects student create when student already has pending proposal in semester', async () => {
+        prisma.topicRegistration.findUnique.mockResolvedValueOnce(null);
+        prisma.topic.findFirst.mockResolvedValueOnce({ id: 101, status: 'PENDING' });
+
+        const req = createMockReq({
+            user: { id: 20, role: 'STUDENT' },
+            body: {
+                title: 'De xuat thu hai',
+                semesterId: 9,
+                mentorId: 999,
+                projectCatalogId: 1,
+            },
+        });
+        const res = createMockRes();
+        const next = createNext();
+
+        await topicController.createTopic(req, res, next);
+
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({
+                success: false,
+                message: expect.stringContaining('Bạn đã có một đề tài tự đề xuất đang chờ giảng viên duyệt'),
+            })
+        );
+        expect(prisma.topic.create).not.toHaveBeenCalled();
+    });
+});
+
+describe('topicController.deleteTopic', () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+    });
+
+    test('allows student to delete own PENDING proposal', async () => {
+        prisma.topic.findUnique.mockResolvedValueOnce({
+            id: 55,
+            proposedById: 20,
+            status: 'PENDING',
+            _count: { registrations: 0 },
+        });
+        prisma.topic.delete.mockResolvedValueOnce({ id: 55 });
+
+        const req = createMockReq({
+            user: { id: 20, role: 'STUDENT' },
+            params: { id: '55' },
+        });
+        const res = createMockRes();
+        const next = createNext();
+
+        await topicController.deleteTopic(req, res, next);
+
+        expect(prisma.topic.delete).toHaveBeenCalledWith({ where: { id: 55 } });
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({
+                success: true,
+                message: 'Xóa đề tài thành công.',
+            })
+        );
+    });
+
+    test('rejects student deleting someone else proposal', async () => {
+        prisma.topic.findUnique.mockResolvedValueOnce({
+            id: 55,
+            proposedById: 99,
+            status: 'PENDING',
+            _count: { registrations: 0 },
+        });
+
+        const req = createMockReq({
+            user: { id: 20, role: 'STUDENT' },
+            params: { id: '55' },
+        });
+        const res = createMockRes();
+        const next = createNext();
+
+        await topicController.deleteTopic(req, res, next);
+
+        expect(res.status).toHaveBeenCalledWith(403);
+        expect(prisma.topic.delete).not.toHaveBeenCalled();
+    });
+
+    test('rejects student deleting non-PENDING topic', async () => {
+        prisma.topic.findUnique.mockResolvedValueOnce({
+            id: 55,
+            proposedById: 20,
+            status: 'APPROVED',
+            _count: { registrations: 0 },
+        });
+
+        const req = createMockReq({
+            user: { id: 20, role: 'STUDENT' },
+            params: { id: '55' },
+        });
+        const res = createMockRes();
+        const next = createNext();
+
+        await topicController.deleteTopic(req, res, next);
+
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({
+                success: false,
+                message: expect.stringContaining('Sinh viên chỉ có thể hủy đề tài khi đang ở trạng thái chờ duyệt'),
+            })
+        );
+        expect(prisma.topic.delete).not.toHaveBeenCalled();
     });
 });

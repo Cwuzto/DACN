@@ -28,8 +28,12 @@ router.post('/', authorizePermission(PERMISSIONS.TOPIC_CREATE, PERMISSIONS.REGIS
 // PUT /api/topics/:id - Cập nhật đề tài
 router.put('/:id', authorizePermission(PERMISSIONS.TOPIC_UPDATE_OWN), updateTopic);
 
-// DELETE /api/topics/:id - Xóa đề tài
-router.delete('/:id', authorizePermission(PERMISSIONS.TOPIC_UPDATE_OWN), deleteTopic);
+// DELETE /api/topics/:id - Xóa đề tài (Admin/GVHD xóa đề tài phụ trách, SV hủy đề xuất PENDING của mình)
+router.delete(
+    '/:id',
+    authorizePermission(PERMISSIONS.TOPIC_UPDATE_OWN, PERMISSIONS.REGISTER_TOPIC),
+    deleteTopic
+);
 
 // PATCH /api/topics/:id/status - Duyệt/Từ chối đề tài SV đề xuất (GVHD duyệt đề tài sinh viên gửi cho mình hoặc Ban quản trị/Viện thẩm định)
 router.patch(

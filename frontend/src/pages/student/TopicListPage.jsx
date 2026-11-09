@@ -7,6 +7,7 @@ import {
 import { topicService } from '../../services/topicService';
 import registrationService from '../../services/registrationService';
 import { semesterService } from '../../services/semesterService';
+import useAuthStore from '../../stores/authStore';
 
 const ACTIVE_STATUSES = ['REGISTRATION', 'ONGOING', 'DEFENSE'];
 
@@ -31,6 +32,7 @@ const formatRegistrationStatus = (status) => {
 
 export default function TopicListPage() {
     const navigate = useNavigate();
+    const user = useAuthStore((s) => s.user);
     const [topics, setTopics] = useState([]);
     const [loading, setLoading] = useState(false);
     const [searchText, setSearchText] = useState('');
@@ -228,8 +230,32 @@ export default function TopicListPage() {
     };
 
     const hasExistingRegistration = Boolean(myRegistration && myRegistration.status !== 'REJECTED');
+    const myPendingProposal = useMemo(() => {
+        return topics.find((t) => t.proposedById === user?.id && t.status === 'PENDING');
+    }, [topics, user?.id]);
     const registrationWindow = getRegistrationWindowState();
     const isRegistrationBlocked = !registrationWindow.canRegister;
+
+    const handleCancelProposal = (proposalId) => {
+        Modal.confirm({
+            title: 'Hủy đề xuất đề tài?',
+            content: 'Bạn có chắc chắn muốn hủy đề xuất đề tài này không? Sau khi hủy bạn có thể đăng ký đề tài khác hoặc tạo đề xuất mới.',
+            okText: 'Xác nhận hủy',
+            okType: 'danger',
+            cancelText: 'Quay lại',
+            onOk: async () => {
+                try {
+                    const res = await topicService.delete(proposalId);
+                    if (res.success) {
+                        message.success('Đã hủy đề xuất đề tài thành công.');
+                        fetchTopicsAndRegistration();
+                    }
+                } catch (err) {
+                    message.error(err?.message || 'Không thể hủy đề xuất đề tài.');
+                }
+            },
+        });
+    };
 
     const confirmRegister = (topic) => {
         if (!currentSemesterId) {
@@ -267,6 +293,14 @@ export default function TopicListPage() {
 
     const handleProposeSubmit = async (e) => {
         e?.preventDefault();
+        if (hasExistingRegistration) {
+            message.warning('Bạn đã có đề tài chính thức trong học kỳ này, không thể đề xuất thêm.');
+            return;
+        }
+        if (myPendingProposal) {
+            message.warning('Bạn đã có một đề tài tự đề xuất đang chờ giảng viên duyệt.');
+            return;
+        }
         if (!proposeForm.title.trim()) {
             message.warning('Vui lòng nhập tên đề tài.');
             return;
@@ -303,8 +337,8 @@ export default function TopicListPage() {
             {/* Registration Window Notice Banner */}
             <div
                 style={{
-                    background: '#F0FDFA',
-                    border: '1px solid #CCFBF1',
+                    background: myPendingProposal ? '#FFFBEB' : '#F0FDFA',
+                    border: `1px solid ${myPendingProposal ? '#FDE68A' : '#CCFBF1'}`,
                     borderRadius: 'var(--radius)',
                     padding: '16px 20px',
                     display: 'flex',
@@ -321,36 +355,50 @@ export default function TopicListPage() {
                             width: 40,
                             height: 40,
                             borderRadius: '50%',
-                            background: '#CCFBF1',
-                            color: '#0F766E',
+                            background: myPendingProposal ? '#FEF3C7' : '#CCFBF1',
+                            color: myPendingProposal ? '#D97706' : '#0F766E',
                             display: 'grid',
                             placeItems: 'center',
                             flexShrink: 0,
                             fontWeight: 700,
                         }}
                     >
-                        ⏱
+                        {myPendingProposal ? '📝' : '⏱'}
                     </div>
                     <div>
-                        <div style={{ fontWeight: 700, fontSize: 14, color: '#0F766E' }}>
-                            Đợt Đăng Ký Đề Tài Học Kỳ 1 (2026-2027) Đang Mở
+                        <div style={{ fontWeight: 700, fontSize: 14, color: myPendingProposal ? '#B45309' : '#0F766E' }}>
+                            {myPendingProposal
+                                ? 'Bạn Đang Có Đề Tài Tự Đề Xuất Chờ GVHD Duyệt'
+                                : (currentSemester?.name ? `Đợt Đăng Ký Đề Tài - ${currentSemester.name}` : 'Đợt Đăng Ký Đề Tài Đang Mở')}
                         </div>
-                        <div style={{ fontSize: 12, color: '#115E59', marginTop: 2 }}>
+                        <div style={{ fontSize: 12, color: myPendingProposal ? '#92400E' : '#115E59', marginTop: 2 }}>
                             {hasExistingRegistration ? (
                                 <span>Bạn đã đăng ký đề tài: <strong>{myRegistration?.topic?.title}</strong> · Trạng thái: <strong>{formatRegistrationStatus(myRegistration?.status)}</strong></span>
+                            ) : myPendingProposal ? (
+                                <span>Đề tài: <strong>{myPendingProposal.title}</strong> · GVHD mong muốn: <strong>{myPendingProposal.mentor?.fullName || 'Chưa phân công'}</strong></span>
                             ) : (
                                 <span>Thời gian đăng ký trực tuyến theo quy chế Viện. Mỗi sinh viên chỉ đăng ký 1 đề tài duy nhất.</span>
                             )}
                         </div>
                     </div>
                 </div>
-                <button className="btn btn-primary btn-sm" onClick={() => setProposeModalOpen(true)}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <line x1="12" y1="5" x2="12" y2="19" />
-                        <line x1="5" y1="12" x2="19" y2="12" />
-                    </svg>
-                    <span>Đề xuất đề tài tự do</span>
-                </button>
+                {myPendingProposal ? (
+                    <button
+                        className="btn btn-secondary btn-sm"
+                        style={{ borderColor: '#F87171', color: '#DC2626', fontWeight: 600 }}
+                        onClick={() => handleCancelProposal(myPendingProposal.id)}
+                    >
+                        Hủy đề xuất đề tài
+                    </button>
+                ) : !hasExistingRegistration ? (
+                    <button className="btn btn-primary btn-sm" onClick={() => setProposeModalOpen(true)}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <line x1="12" y1="5" x2="12" y2="19" />
+                            <line x1="5" y1="12" x2="19" y2="12" />
+                        </svg>
+                        <span>Đề xuất đề tài tự do</span>
+                    </button>
+                ) : null}
             </div>
 
             {/* Catalog Toolbar & Filters */}
@@ -412,6 +460,8 @@ export default function TopicListPage() {
                 ) : (
                     filteredTopics.map((topic) => {
                         const isMine = myRegistration?.topicId === topic.id;
+                        const isMyProposal = topic.proposedById === user?.id;
+                        const isPendingProposal = isMyProposal && topic.status === 'PENDING';
                         const isSaved = savedIds.includes(topic.id);
                         const regCount = topic._count?.registrations || 0;
                         const isFull = regCount >= 1; // 1 SV / 1 đề tài
@@ -425,6 +475,10 @@ export default function TopicListPage() {
                                         </span>
                                         {isMine ? (
                                             <span className="tag green">Đề tài của bạn</span>
+                                        ) : isPendingProposal ? (
+                                            <span className="tag orange" style={{ background: '#FEF3C7', color: '#B45309', border: '1px solid #FCD34D' }}>
+                                                Đề xuất chờ GVHD duyệt
+                                            </span>
                                         ) : isFull ? (
                                             <span className="tag gray">Đã đủ sinh viên</span>
                                         ) : (
@@ -451,7 +505,7 @@ export default function TopicListPage() {
                                         <div>
                                             <div className="mentor-name">{topic.mentor?.fullName || 'Chưa phân công'}</div>
                                             <div style={{ fontSize: 11, color: 'var(--muted)' }}>
-                                                {isFull ? '1/1 SV (Đủ)' : '0/1 SV (Còn 1)'}
+                                                {isPendingProposal ? 'Đang chờ duyệt' : isFull ? '1/1 SV (Đủ)' : '0/1 SV (Còn 1)'}
                                             </div>
                                         </div>
                                     </div>
@@ -459,7 +513,15 @@ export default function TopicListPage() {
                                         <button className="btn btn-secondary btn-sm" onClick={() => handleViewDetail(topic.id)}>
                                             Chi tiết
                                         </button>
-                                        {!isMine && !isFull && !hasExistingRegistration && (
+                                        {isPendingProposal ? (
+                                            <button
+                                                className="btn btn-secondary btn-sm"
+                                                style={{ borderColor: '#F87171', color: '#DC2626' }}
+                                                onClick={() => handleCancelProposal(topic.id)}
+                                            >
+                                                Hủy đề xuất
+                                            </button>
+                                        ) : !isMine && !isFull && !hasExistingRegistration && (
                                             <button className="btn btn-primary btn-sm" onClick={() => confirmRegister(topic)}>
                                                 Đăng ký
                                             </button>
@@ -490,7 +552,20 @@ export default function TopicListPage() {
                     <button key="close" className="btn btn-secondary" onClick={() => setDetailModalOpen(false)}>
                         Đóng
                     </button>,
-                    !hasExistingRegistration && detailTopic && (detailTopic._count?.registrations || 0) < 1 && (
+                    detailTopic?.proposedById === user?.id && detailTopic?.status === 'PENDING' && (
+                        <button
+                            key="cancelProposal"
+                            className="btn btn-secondary"
+                            style={{ borderColor: '#F87171', color: '#DC2626' }}
+                            onClick={() => {
+                                setDetailModalOpen(false);
+                                handleCancelProposal(detailTopic.id);
+                            }}
+                        >
+                            Hủy đề xuất đề tài
+                        </button>
+                    ),
+                    !hasExistingRegistration && detailTopic && detailTopic.status === 'APPROVED' && detailTopic.proposedById !== user?.id && (detailTopic._count?.registrations || 0) < 1 && (
                         <button
                             key="register"
                             className="btn btn-primary"
@@ -510,6 +585,11 @@ export default function TopicListPage() {
                         <div>
                             <span className="topic-code-pill">MÃ: {detailTopic.code || 'DA-KTPM'}</span>
                             <span className="tag teal" style={{ marginLeft: 8 }}>{detailTopic.projectCatalog?.name || 'Đồ án tốt nghiệp'}</span>
+                            {detailTopic.proposedById === user?.id && (
+                                <span className="tag orange" style={{ marginLeft: 8, background: '#FEF3C7', color: '#B45309', border: '1px solid #FCD34D' }}>
+                                    {detailTopic.status === 'PENDING' ? 'Đề xuất chờ GVHD duyệt' : detailTopic.status === 'APPROVED' ? 'Đề xuất đã được duyệt' : 'Đề xuất bị từ chối'}
+                                </span>
+                            )}
                         </div>
                         <div>
                             <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--muted)', textTransform: 'uppercase' }}>Giảng viên hướng dẫn:</div>
@@ -554,6 +634,11 @@ export default function TopicListPage() {
                     <p style={{ color: 'var(--muted)' }}>
                         Cán bộ hướng dẫn: <strong>{topicToRegister?.mentor?.fullName}</strong>
                     </p>
+                    {myPendingProposal && (
+                        <p style={{ color: '#B45309', background: '#FFFBEB', padding: '8px 12px', borderRadius: 6, border: '1px solid #FCD34D', marginTop: 10 }}>
+                            ⚠️ Lưu ý: Bạn đang có đề tài tự đề xuất <strong>"{myPendingProposal.title}"</strong>. Khi xác nhận đăng ký đề tài này, đề xuất cũ sẽ tự động được thu hồi.
+                        </p>
+                    )}
                     <p style={{ color: '#D97706', background: '#FFFBEB', padding: '8px 12px', borderRadius: 6, border: '1px solid #FDE68A', marginTop: 10 }}>
                         Lưu ý: Sau khi đăng ký thành công, thông tin sẽ được gửi trực tiếp đến Giảng viên hướng dẫn để xem xét và duyệt chính thức.
                     </p>

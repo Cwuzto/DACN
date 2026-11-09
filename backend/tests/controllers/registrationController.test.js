@@ -11,6 +11,7 @@ jest.mock('../../src/config/database', () => ({
     },
     topic: {
         findUnique: jest.fn(),
+        deleteMany: jest.fn(),
     },
     studentProjectEnrollment: {
         findFirst: jest.fn(),
@@ -108,6 +109,13 @@ describe('registrationController', () => {
                 }),
             })
         );
+        expect(prisma.topic.deleteMany).toHaveBeenCalledWith({
+            where: {
+                proposedById: 5,
+                semesterId: 9,
+                status: 'PENDING',
+            },
+        });
         expect(prisma.notification.create).toHaveBeenCalledTimes(1);
         expect(res.status).toHaveBeenCalledWith(201);
         expect(next).not.toHaveBeenCalled();

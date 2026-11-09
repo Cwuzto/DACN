@@ -354,6 +354,17 @@ const registerTopic = async (req, res, next) => {
                     },
                 });
 
+                // Tự động thu hồi/dọn dẹp các đề tài do sinh viên này tự đề xuất đang chờ duyệt trong cùng đợt (nếu có)
+                if (tx.topic?.deleteMany) {
+                    await tx.topic.deleteMany({
+                        where: {
+                            proposedById: studentId,
+                            semesterId: semesterIdInt,
+                            status: 'PENDING',
+                        },
+                    });
+                }
+
                 return {
                     registration: created,
                     mentorId: topic.mentorId,
