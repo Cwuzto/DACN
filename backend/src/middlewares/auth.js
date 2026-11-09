@@ -123,15 +123,10 @@ const fetchUserAndCapabilities = async (userId) => {
     });
     if (user.role === 'STUDENT' && permissionSet.size === 0) {
         studentBasePermissions.forEach((code) => permissionSet.add(code));
-    } else if (user.permissionGroups === undefined && permissionSet.size === 0) {
-        const defaultGroupCode = user.role === 'ADMIN' ? 'QUAN_TRI_VIEN'
-            : user.role === 'LECTURER' ? 'GVHD'
-            : null;
-        if (defaultGroupCode) {
-            const group = DEFAULT_GROUPS.find((g) => g.code === defaultGroupCode);
-            if (group) {
-                group.permissions.forEach((code) => permissionSet.add(code));
-            }
+    } else if (user.role === 'LECTURER' && permissionSet.size === 0) {
+        const gvhdGroup = DEFAULT_GROUPS.find((group) => group.code === 'GVHD');
+        if (gvhdGroup) {
+            gvhdGroup.permissions.forEach((code) => permissionSet.add(code));
         }
     }
 
@@ -425,15 +420,10 @@ const optionalAuthenticate = async (req, res, next) => {
         });
         if (user.role === 'STUDENT' && permissionSet.size === 0) {
             studentBasePermissions.forEach((code) => permissionSet.add(code));
-        } else if (user.permissionGroups === undefined && permissionSet.size === 0) {
-            const defaultGroupCode = user.role === 'ADMIN' ? 'QUAN_TRI_VIEN'
-                : user.role === 'LECTURER' ? 'GVHD'
-                : null;
-            if (defaultGroupCode) {
-                const group = DEFAULT_GROUPS.find((g) => g.code === defaultGroupCode);
-                if (group) {
-                    group.permissions.forEach((code) => permissionSet.add(code));
-                }
+        } else if (user.role === 'LECTURER' && permissionSet.size === 0) {
+            const gvhdGroup = DEFAULT_GROUPS.find((group) => group.code === 'GVHD');
+            if (gvhdGroup) {
+                gvhdGroup.permissions.forEach((code) => permissionSet.add(code));
             }
         }
         req.user = {

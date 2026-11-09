@@ -370,29 +370,46 @@ const createUser = async (req, res, next) => {
         // Mật khẩu mặc định = mã số
         const hashedPassword = await bcrypt.hash(code, 10);
 
-        const user = await prisma.user.create({
-            data: {
-                email,
-                fullName,
-                code,
-                role,
-                department: department || null,
-                academicTitle: role === 'LECTURER' ? academicTitle : null,
-                phone: phone || null,
-                passwordHash: hashedPassword,
-            },
-            select: {
-                id: true,
-                email: true,
-                fullName: true,
-                code: true,
-                role: true,
-                department: true,
-                academicTitle: true,
-                phone: true,
-                isActive: true,
-                createdAt: true,
-            },
+        const user = await prisma.$transaction(async (tx) => {
+            const created = await tx.user.create({
+                data: {
+                    email,
+                    fullName,
+                    code,
+                    role,
+                    department: department || null,
+                    academicTitle: role === 'LECTURER' ? academicTitle : null,
+                    phone: phone || null,
+                    passwordHash: hashedPassword,
+                },
+                select: {
+                    id: true,
+                    email: true,
+                    fullName: true,
+                    code: true,
+                    role: true,
+                    department: true,
+                    academicTitle: true,
+                    phone: true,
+                    isActive: true,
+                    createdAt: true,
+                },
+            });
+
+            const defaultGroupCode = role === 'LECTURER' ? 'GVHD' : role === 'ADMIN' ? 'QUAN_TRI_VIEN' : null;
+            if (defaultGroupCode) {
+                const group = await tx.permissionGroup.findUnique({ where: { code: defaultGroupCode } });
+                if (group) {
+                    await tx.userPermissionGroup.create({
+                        data: {
+                            userId: created.id,
+                            permissionGroupId: group.id,
+                        },
+                    });
+                }
+            }
+
+            return created;
         });
 
         res.status(201).json({
@@ -1096,7 +1113,7 @@ const importUsersExcel = async (req, res, next) => {
                     }
                 } else {
                     const passwordHash = await bcrypt.hash(row.code, 10);
-                    await tx.user.create({
+                    const newUser = await tx.user.create({
                         data: {
                             email: row.email,
                             fullName: row.fullName,
@@ -1109,6 +1126,20 @@ const importUsersExcel = async (req, res, next) => {
                             isActive: true,
                         },
                     });
+
+                    const defaultGroupCode = validRole === 'LECTURER' ? 'GVHD' : validRole === 'ADMIN' ? 'QUAN_TRI_VIEN' : null;
+                    if (defaultGroupCode) {
+                        const group = await tx.permissionGroup.findUnique({ where: { code: defaultGroupCode } });
+                        if (group) {
+                            await tx.userPermissionGroup.create({
+                                data: {
+                                    userId: newUser.id,
+                                    permissionGroupId: group.id,
+                                },
+                            });
+                        }
+                    }
+
                     createdCount++;
                 }
             }
