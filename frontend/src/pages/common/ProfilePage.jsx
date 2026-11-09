@@ -243,7 +243,7 @@ function ProfilePage() {
                             </div>
                             <div className="flex items-center gap-3 text-slate-700">
                                 <IdcardOutlined className="text-slate-500" />
-                                <span className="text-sm font-medium">{isStudent ? `MSSV: ${tempProfile.employeeId}` : tempProfile.employeeId}</span>
+                                <span className="text-sm font-medium">{isStudent ? `Mã sinh viên: ${tempProfile.employeeId}` : tempProfile.employeeId}</span>
                             </div>
                             {isStudent && (
                                 <div className="flex items-center gap-3 text-slate-700">
@@ -283,7 +283,7 @@ function ProfilePage() {
                                     )}
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">{isStudent ? 'Mã số sinh viên (MSSV)' : 'Mã nhân viên / Mã số'}</label>
+                                    <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">{isStudent ? 'Mã số sinh viên' : 'Mã nhân viên / Giảng viên'}</label>
                                     <div className="text-sm font-medium text-slate-900 bg-slate-50 p-2.5 rounded border border-slate-200">{tempProfile.employeeId}</div>
                                 </div>
                                 {isStudent ? (

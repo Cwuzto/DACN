@@ -224,8 +224,8 @@ function AppLayout({ role }) {
                     className="sidebar-toggle"
                     type="button"
                     onClick={toggleCollapse}
-                    aria-label={isSidebarCollapsed ? 'Mở rộng sidebar' : 'Thu gọn sidebar'}
-                    title={isSidebarCollapsed ? 'Mở rộng sidebar' : 'Thu gọn sidebar'}
+                    aria-label={isSidebarCollapsed ? 'Mở rộng thanh bên' : 'Thu gọn thanh bên'}
+                    title={isSidebarCollapsed ? 'Mở rộng thanh bên' : 'Thu gọn thanh bên'}
                 >
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="m15 18-6-6 6-6" />

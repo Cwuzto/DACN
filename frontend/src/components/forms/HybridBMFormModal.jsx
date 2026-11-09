@@ -30,7 +30,7 @@ const FORM_CONFIGS = {
             { name: 'specialRequirements', label: 'Yêu cầu kỹ thuật đặc thù', type: 'textarea', required: false, rows: 2, placeholder: 'Yêu cầu về kiểm thử, bảo mật, tài liệu kỹ thuật...' },
         ],
         fileRequired: true,
-        fileHint: 'Đính kèm bản scan Phiếu giao nhiệm vụ có chữ ký (PDF/DOCX)',
+        fileHint: 'Đính kèm bản scan Phiếu giao nhiệm vụ có chữ ký (.pdf, .docx)',
     },
     BM03_CHECKPOINT_1: {
         code: 'BM03',
@@ -77,8 +77,8 @@ const FORM_CONFIGS = {
         subtitle: 'Nộp toàn văn báo cáo đồ án và link mã nguồn phục vụ GVHD thẩm định trước bảo vệ',
         fields: [
             { name: 'summaryResult', label: 'Tóm tắt kết quả chính của đồ án', type: 'textarea', required: true, rows: 3, placeholder: 'Tóm tắt các sản phẩm chính và mức độ hoàn thành so với mục tiêu ban đầu' },
-            { name: 'repoLink', label: 'Liên kết mã nguồn (GitHub / GitLab / Bitbucket)', type: 'input', required: false, placeholder: 'https://github.com/...' },
-            { name: 'demoLink', label: 'Liên kết Demo / Video giới thiệu (Google Drive, YouTube)', type: 'input', required: false, placeholder: 'https://youtube.com/watch?... hoặc link Google Drive' },
+            { name: 'repoLink', label: 'Liên kết kho mã nguồn trực tuyến', type: 'input', required: false, placeholder: 'https://github.com/...' },
+            { name: 'demoLink', label: 'Liên kết Demo / Video giới thiệu', type: 'input', required: false, placeholder: 'https://youtube.com/watch?... hoặc liên kết lưu trữ trực tuyến' },
         ],
         fileRequired: true,
         fileHint: 'Đính kèm tệp PDF toàn văn Báo cáo thuyết minh đồ án (tối đa 30MB)',

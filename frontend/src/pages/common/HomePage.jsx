@@ -19,8 +19,8 @@ const ROADMAP_STAGES = [
         tag: 'Đang diễn ra',
         tagType: 'badge-primary',
         desc: 'SV liên hệ GVHD, gửi nguyện vọng đề tài theo danh bạ. GVHD duyệt chấp thuận trên hệ thống.',
-        deliverables: 'Đơn đăng ký đề tài trực tuyến (Hạn ngạch max 10 SV/GVHD)',
-        rules: 'Mỗi đề tài tối đa 1 sinh viên (TopicRegistration). GVHD chịu trách nhiệm hướng dẫn xuyên suốt.',
+        deliverables: 'Đơn đăng ký đề tài trực tuyến (tối đa 10 sinh viên / GVHD)',
+        rules: 'Mỗi đề tài tối đa 1 sinh viên. GVHD chịu trách nhiệm hướng dẫn xuyên suốt.',
     },
     {
         step: '02',
@@ -49,7 +49,7 @@ const ROADMAP_STAGES = [
         tag: 'Cửa ải bắt buộc',
         tagType: 'badge-warning',
         desc: 'GVHD đánh giá toàn diện, lập phiếu nhận xét BM04 xác nhận ĐỒNG Ý cho sinh viên ra bảo vệ.',
-        deliverables: 'Phiếu nhận xét đánh giá BM04 hoàn tất (COMPLETED)',
+        deliverables: 'Phiếu nhận xét đánh giá BM04 hoàn tất',
         rules: 'Chốt chặn bắt buộc: Chỉ sinh viên có BM04 ĐỒNG Ý mới được phân công vào Hội đồng bảo vệ chính thức.',
     },
     {
@@ -131,8 +131,8 @@ const ANNOUNCEMENTS_DATA = {
                 content: 'Gia hạn thời gian nộp Biểu mẫu BM01 cho toàn thể 128 sinh viên đủ điều kiện làm đồ án tốt nghiệp đợt 1 năm học 2026 - 2027 thêm 10 ngày làm việc.\nThời hạn cuối cùng (Deadline cứng): Đúng 17h00 ngày 24 tháng 10 năm 2026. Sau thời điểm này, cổng nộp bài trực tuyến trên hệ thống DACN sẽ tự động đóng và không tiếp nhận bất kỳ trường hợp nộp muộn nào trừ khi có văn bản xác nhận lý do bất khả kháng của Ban Giám hiệu.',
             },
             {
-                title: 'Mục 2. Quy chuẩn phương thức nộp biểu mẫu Hybrid (DACN Portal + File Scan)',
-                content: 'Sinh viên thực hiện nộp đề cương theo quy trình chuẩn 2 bước bắt buộc:\n• Bước 1 (Trực tuyến): Đăng nhập Cổng DACN, điền tóm tắt mục tiêu nghiên cứu, phương pháp thực nghiệm, kiến trúc dự kiến và liên kết kho mã nguồn (GitHub/GitLab).\n• Bước 2 (Văn bản scan): Xuất file BM01 từ hệ thống, xin ý kiến nhận xét và chữ ký chấp thuận của Giảng viên hướng dẫn (GVHD), sau đó tải bản scan PDF có đầy đủ chữ ký lên hệ thống để phục vụ công tác lưu trữ học vụ.',
+                title: 'Mục 2. Quy chuẩn phương thức nộp biểu mẫu kết hợp trên Cổng DACN và bản scan',
+                content: 'Sinh viên thực hiện nộp đề cương theo quy trình chuẩn 2 bước bắt buộc:\n• Bước 1 (Trực tuyến): Đăng nhập Cổng DACN, điền tóm tắt mục tiêu nghiên cứu, phương pháp thực nghiệm, kiến trúc dự kiến và liên kết kho mã nguồn trực tuyến.\n• Bước 2 (Văn bản scan): Xuất file BM01 từ hệ thống, xin ý kiến nhận xét và chữ ký chấp thuận của Giảng viên hướng dẫn (GVHD), sau đó tải bản scan PDF có đầy đủ chữ ký lên hệ thống để phục vụ công tác lưu trữ học vụ.',
             },
             {
                 title: 'Mục 3. Bảng điều chỉnh tiến độ các mốc học vụ tiếp theo',
@@ -173,7 +173,7 @@ const ANNOUNCEMENTS_DATA = {
             {
                 id: 'att-2',
                 name: 'Phu-luc-01_Lich-trinh-dieu-chinh-Dot1.xlsx',
-                title: 'Phụ lục phân công lịch thẩm định chi tiết 4 Bộ môn (KTPM, CNTT, MMT, HTTT)',
+                title: 'Phụ lục phân công lịch thẩm định chi tiết 4 Bộ môn',
                 type: 'xlsx',
                 size: '182 KB',
                 version: 'v1.2 Cập nhật',
@@ -216,7 +216,7 @@ const ANNOUNCEMENTS_DATA = {
         articles: [
             {
                 title: 'Điều 1. Công nhận danh sách sinh viên đủ điều kiện',
-                content: 'Công nhận 128 sinh viên thuộc các chuyên ngành Kỹ thuật Phần mềm (48 SV), Khoa học Dữ liệu & AI (36 SV), Mạng máy tính & An toàn thông tin (26 SV), Hệ thống thông tin (18 SV) đủ điều kiện làm Đồ án / Khóa luận tốt nghiệp (có danh sách chi tiết kèm theo).',
+                content: 'Công nhận 128 sinh viên thuộc các chuyên ngành Kỹ thuật Phần mềm (48 sinh viên), Khoa học Dữ liệu & AI (36 sinh viên), Mạng máy tính & An toàn thông tin (26 sinh viên), Hệ thống thông tin (18 sinh viên) đủ điều kiện làm Đồ án / Khóa luận tốt nghiệp (có danh sách chi tiết kèm theo).',
             },
             {
                 title: 'Điều 2. Quy định về phân công Giảng viên hướng dẫn',
@@ -240,7 +240,7 @@ const ANNOUNCEMENTS_DATA = {
             {
                 id: 'att-286-1',
                 name: '286_QD-DHCN-DT_Cong-nhan-DS-SV.pdf',
-                title: 'Quyết định công nhận danh sách 128 SV đủ điều kiện làm đồ án (Bản có dấu mộc đỏ)',
+                title: 'Quyết định công nhận danh sách 128 sinh viên đủ điều kiện làm đồ án (Bản có dấu mộc đỏ)',
                 type: 'pdf',
                 size: '310 KB',
                 version: 'Quyết định gốc',
@@ -275,19 +275,19 @@ const ANNOUNCEMENTS_DATA = {
         signerRole: 'CHỦ TỊCH HỘI ĐỒNG',
         signerDelegate: 'HỘI ĐỒNG KHOA HỌC & ĐÀO TẠO VIỆN',
         scope: 'Cán bộ GVHD, Giảng viên phản biện, Toàn thể sinh viên',
-        title: 'HƯỚNG DẪN QUY TRÌNH KIỂM TRA ĐẠO VĂN (TURNITIN) VÀ LIÊM CHÍNH HỌC THUẬT',
-        cardTitle: 'Quy định kiểm tra đạo văn (Turnitin) và Liêm chính học thuật 2026',
+        title: 'HƯỚNG DẪN QUY TRÌNH KIỂM TRA ĐẠO VĂN VÀ LIÊM CHÍNH HỌC THUẬT',
+        cardTitle: 'Quy định kiểm tra đạo văn và Liêm chính học thuật 2026',
         subtitle: 'Quy chuẩn chỉ số tương đồng và các biện pháp bảo đảm tính nguyên bản của công trình tốt nghiệp',
-        summary: 'Hướng dẫn cụ thể về chỉ số tương đồng cho phép (Similarity Index ≤ 20%), quy trình quét trùng lặp mã nguồn và thuyết minh báo cáo trên hệ thống bản quyền Turnitin của Nhà trường trước khi bước vào vòng bảo vệ Hội đồng.',
+        summary: 'Hướng dẫn cụ thể về chỉ số tương đồng cho phép (mức tương đồng ≤ 20%), quy trình kiểm tra tính nguyên bản mã nguồn và thuyết minh báo cáo trên hệ thống kiểm tra đạo văn của Nhà trường trước khi bước vào vòng bảo vệ Hội đồng.',
         preamble: 'Nhằm nâng cao chất lượng nghiên cứu khoa học, xây dựng văn hóa liêm chính học thuật và bảo vệ quyền sở hữu trí tuệ của người học, Viện Công nghệ Số ban hành hướng dẫn kiểm tra đạo văn đối với toàn bộ các sản phẩm tốt nghiệp năm học 2026 - 2027,',
         articles: [
             {
-                title: 'Khoản 1. Chỉ số tương đồng cho phép (Similarity Threshold)',
-                content: '• Chỉ số tương đồng tổng thể (Overall Similarity Index) của toàn văn báo cáo không được vượt quá 20%.\n• Mức độ tương đồng với một nguồn đơn lẻ (Single Source Match) không được vượt quá 5%.\n• Hệ thống được cấu hình tự động loại trừ (Exclude): Trang bìa, Lời cảm ơn, Danh mục tài liệu tham khảo và các đoạn trích dẫn trực tiếp trong ngoặc kép theo chuẩn IEEE/APA.',
+                title: 'Khoản 1. Chỉ số tương đồng cho phép',
+                content: '• Chỉ số tương đồng tổng thể của toàn văn báo cáo không được vượt quá 20%.\n• Mức độ tương đồng với một nguồn đơn lẻ không được vượt quá 5%.\n• Hệ thống được cấu hình tự động loại trừ: Trang bìa, Lời cảm ơn, Danh mục tài liệu tham khảo và các đoạn trích dẫn trực tiếp trong ngoặc kép theo chuẩn IEEE/APA.',
             },
             {
-                title: 'Khoản 2. Quy trình nộp báo cáo quét Turnitin',
-                content: 'Trước ngày bảo vệ tối thiểu 07 ngày, sinh viên phải nộp file PDF toàn văn qua lớp học Turnitin do Cổng DACN cung cấp. Hệ thống sẽ trả về Phiếu Kết Quả Phân Tích Tính Nguyên Bản có mã QR xác thực để kẹp vào hồ sơ bảo vệ BM04.',
+                title: 'Khoản 2. Quy trình nộp báo cáo kiểm tra đạo văn',
+                content: 'Trước ngày bảo vệ tối thiểu 07 ngày, sinh viên nộp tệp PDF toàn văn qua lớp học kiểm tra đạo văn do Cổng DACN cung cấp. Hệ thống sẽ trả về Phiếu kết quả phân tích tính nguyên bản có mã QR xác thực để kẹp vào hồ sơ bảo vệ.',
             },
             {
                 title: 'Khoản 3. Xử lý vi phạm liêm chính học thuật',
@@ -1229,7 +1229,7 @@ export default function HomePage() {
                                         onChange={(e) => setDeptFilter(e.target.value)}
                                     >
                                         <option value="ALL">Tất cả Bộ môn</option>
-                                        <option value="Phần mềm">Kỹ thuật Phần mềm (KTPM)</option>
+                                        <option value="Phần mềm">Kỹ thuật Phần mềm</option>
                                         <option value="Máy tính">Khoa học Dữ liệu & AI</option>
                                         <option value="Mạng">Mạng máy tính & An ninh mạng</option>
                                         <option value="Hệ thống">Hệ thống thông tin quản lý</option>
@@ -1241,7 +1241,7 @@ export default function HomePage() {
                                         onChange={(e) => setQuotaFilter(e.target.value)}
                                     >
                                         <option value="ALL">Tất cả trạng thái suất</option>
-                                        <option value="AVAILABLE">Còn nhận sinh viên (dưới 10 SV)</option>
+                                        <option value="AVAILABLE">Còn nhận sinh viên (dưới 10 sinh viên)</option>
                                         <option value="FULL">Đã đủ 10/10 sinh viên</option>
                                     </select>
                                 </div>
@@ -1650,7 +1650,7 @@ export default function HomePage() {
 
                         <div>
                             <h4 style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', color: 'var(--brand)', marginBottom: 6 }}>
-                                Sản phẩm bàn giao (Deliverables):
+                                Sản phẩm bàn giao:
                             </h4>
                             <div style={{ padding: '10px 14px', background: 'var(--bg)', borderRadius: 'var(--radius-sm, 6px)', border: '1px solid var(--border)', fontSize: 13, color: '#334155' }}>
                                 {selectedStage.deliverables}

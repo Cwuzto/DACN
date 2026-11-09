@@ -22,7 +22,7 @@ const FIELD_LABELS = {
     nextStepPlan: 'Kế hoạch giai đoạn tới',
     summaryResult: 'Tóm tắt kết quả',
     demoLink: 'Liên kết Demo / Video',
-    repoLink: 'Liên kết mã nguồn (Repo)',
+    repoLink: 'Liên kết kho mã nguồn',
     studentSelfAssessment: 'Tự đánh giá',
     summary: 'Nội dung báo cáo',
 };

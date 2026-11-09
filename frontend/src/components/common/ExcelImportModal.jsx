@@ -124,7 +124,7 @@ export default function ExcelImportModal({
             const workbook = XLSX.read(data, { type: 'array' });
             const firstSheetName = workbook.SheetNames[0];
             if (!firstSheetName) {
-                message.error('File Excel không có trang tính (sheet) nào.');
+                message.error('Tệp Excel không có trang tính nào.');
                 return;
             }
 
@@ -268,8 +268,19 @@ export default function ExcelImportModal({
 
                 const phone = String(row['Số điện thoại'] || row['SĐT'] || row.phone || '').trim();
                 const department = String(row['Bộ môn / Khoa'] || row['Bộ môn'] || row['Khoa'] || row.department || '').trim();
-                const academicTitle = String(row['Học vị (*)'] || row['Học vị'] || row['Học hàm'] || row.academicTitle || '').trim();
-                const quota = row['SV Tối Đa (Quota)'] || row.maxStudents || null;
+                const rawTitle = String(row['Học vị (*)'] || row['Học vị'] || row['Học hàm'] || row.academicTitle || '').trim();
+                let academicTitle = rawTitle;
+                const upperTitle = rawTitle.toUpperCase();
+                if (upperTitle.includes('PHO_GIAO_SU') || upperTitle.includes('PHÓ GIÁO SƯ') || upperTitle === 'PGS' || upperTitle === 'PGS.') {
+                    academicTitle = 'PHO_GIAO_SU';
+                } else if (upperTitle.includes('GIAO_SU') || upperTitle.includes('GIÁO SƯ') || upperTitle === 'GS' || upperTitle === 'GS.') {
+                    academicTitle = 'GIAO_SU';
+                } else if (upperTitle.includes('TIEN_SI') || upperTitle.includes('TIẾN SĨ') || upperTitle === 'TS' || upperTitle === 'TS.') {
+                    academicTitle = 'TIEN_SI';
+                } else if (upperTitle.includes('THAC_SI') || upperTitle.includes('THẠC SĨ') || upperTitle === 'THS' || upperTitle === 'THS.') {
+                    academicTitle = 'THAC_SI';
+                }
+                const quota = row['Chỉ tiêu hướng dẫn tối đa'] || row['Chỉ tiêu hướng dẫn'] || row['SV Tối Đa (Quota)'] || row.maxStudents || null;
                 const note = String(row['Ghi chú'] || row.note || '').trim();
 
                 // Validation Rules cho LECTURER / PROJECT_ENROLLMENT
@@ -1179,10 +1190,10 @@ export default function ExcelImportModal({
                             <Form.Item name="academicTitle" label="Học vị">
                                 <Select
                                     options={[
-                                        { label: 'Thạc sĩ (THAC_SI)', value: 'THAC_SI' },
-                                        { label: 'Tiến sĩ (TIEN_SI)', value: 'TIEN_SI' },
-                                        { label: 'Phó Giáo sư (PHO_GIAO_SU)', value: 'PHO_GIAO_SU' },
-                                        { label: 'Giáo sư (GIAO_SU)', value: 'GIAO_SU' },
+                                        { label: 'Thạc sĩ', value: 'THAC_SI' },
+                                        { label: 'Tiến sĩ', value: 'TIEN_SI' },
+                                        { label: 'Phó Giáo sư', value: 'PHO_GIAO_SU' },
+                                        { label: 'Giáo sư', value: 'GIAO_SU' },
                                     ]}
                                 />
                             </Form.Item>

@@ -105,8 +105,8 @@ export default function ClearanceCertificateModal({
                     <h2 className="text-xl md:text-2xl font-black uppercase tracking-wide text-blue-950">
                         GIẤY XÁC NHẬN HOÀN THÀNH ĐỒ ÁN
                     </h2>
-                    <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">
-                        (CLEARANCE CERTIFICATE & ARCHIVE CONFIRMATION)
+                    <div className="text-xs font-semibold text-slate-500 tracking-wider">
+                        Xác nhận hoàn thành nghĩa vụ học vụ & Lưu chiểu số
                     </div>
                     <div className="text-xs font-medium text-slate-400 mt-1">
                         Số: <b>{certificateNumber}</b> / XN-ĐATH
@@ -132,7 +132,7 @@ export default function ClearanceCertificateModal({
                             Tên đề tài: <b className="text-slate-950">{topic.title}</b>
                         </div>
                         <div>
-                            Giảng viên hướng dẫn: <b>{mentor.fullName}</b> {mentor.academicTitle ? `(${mentor.academicTitle})` : ''}
+                            Giảng viên hướng dẫn: <b>{mentor.fullName}</b> {mentor.academicTitle ? `— ${mentor.academicTitle}` : ''}
                         </div>
                     </div>
 
@@ -156,7 +156,7 @@ export default function ClearanceCertificateModal({
                             <div>
                                 <span className="text-slate-500">Xếp loại học vụ:</span>
                                 <div className="font-bold text-blue-800">
-                                    Thang điểm chữ {evaluation.letterGrade} ({evaluation.rankingText})
+                                    Thang điểm chữ {evaluation.letterGrade}{evaluation.rankingText ? ` — ${evaluation.rankingText}` : ''}
                                 </div>
                             </div>
                         </div>
