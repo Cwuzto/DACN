@@ -362,3 +362,4 @@ Expected: Vite build succeeds with exit code 0.
 ```bash
 git commit --allow-empty -m "chore: verify full regression and build passes for lecturer coordination hub"
 ```
+
