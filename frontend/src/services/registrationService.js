@@ -47,7 +47,11 @@ const registrationService = {
 
     handleRegistration: async (id, action, rejectReason = '') => {
         try {
-            return await api.patch(`/registrations/${id}/approve`, { action, rejectReason });
+            const payload = { action };
+            if (action === 'REJECT' && rejectReason) {
+                payload.rejectReason = rejectReason.trim();
+            }
+            return await api.patch(`/registrations/${id}/approve`, payload);
         } catch (error) {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi xử lý đăng ký');
         }

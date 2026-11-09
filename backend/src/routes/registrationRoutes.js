@@ -114,11 +114,14 @@ const handleRegistrationGuards = [
     },
     body('action').isIn(['APPROVE', 'REJECT']).withMessage('action phải là APPROVE hoặc REJECT.'),
     body('rejectReason')
-        .optional({ nullable: true })
-        .isString()
-        .trim()
-        .isLength({ min: 1 })
-        .withMessage('rejectReason phải là chuỗi không rỗng nếu được gửi.'),
+        .custom((val, { req }) => {
+            if (req.body?.action === 'REJECT') {
+                if (!val || typeof val !== 'string' || !val.trim()) {
+                    throw new Error('Vui lòng nhập lý do từ chối.');
+                }
+            }
+            return true;
+        }),
     validateRequest,
 ];
 
