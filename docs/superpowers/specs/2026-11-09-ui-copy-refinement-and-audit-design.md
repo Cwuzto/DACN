@@ -2,7 +2,7 @@
 
 - **Ngày ban hành**: 09/11/2026
 - **Tác giả**: Antigravity Pair Programming Agent & Engineering Team
-- **Trạng thái**: Draft / Đang chờ duyệt
+- **Trạng thái**: Đã qua phản biện Builder Check — Sẵn sàng phê duyệt
 - **Phạm vi tác động**: Toàn bộ thư mục `frontend/src/` (40+ views, components, modals, drawers, status mappings)
 
 ---
@@ -11,7 +11,7 @@
 
 Hệ thống Quản lý Đồ án Tốt nghiệp (DACN) hiện đang phục vụ 3 nhóm người dùng chính: **Sinh viên**, **Giảng viên hướng dẫn / Thành viên hội đồng**, và **Ban Chủ nhiệm Viện / Quản trị viên**. 
 
-Qua quá trình phát triển qua nhiều giai đoạn kỹ thuật, giao diện người dùng hiện tồn tại nhiều cụm từ:
+Giao diện người dùng hiện tồn tại nhiều cụm từ:
 1. **Chứa tiếng Anh hoặc mã kỹ thuật trong ngoặc đơn**: Ví dụ `Phê duyệt (APPROVE)`, `Yêu cầu chỉnh sửa (RETURN_FOR_REVISION)`, `Lần đầu (Initial)`, `Đính chính (Correction)`, `Cơ chế lưu vết (Audit Trail)`, `Chỉ tiêu (Quota)`, `(TERMINATED_FAILED_PROGRESS)`.
 2. **Sử dụng mã số biểu mẫu kỹ thuật**: Các nhãn như `BM01`, `BM02`, `BM03`, `BM04` gây khó hiểu đối với sinh viên mới hoặc người dùng không nhớ rõ số hiệu văn bản hành chính.
 3. **Từ ngữ khô khan, cộc lốc hoặc ít dùng**: Ví dụ `Cho BV` (thay vì *Đủ điều kiện bảo vệ*), `Bác đơn` (thay vì *Từ chối gia hạn* hoặc *Không chấp thuận*), `Hàng đợi Triage` (thay vì *Việc cần xử lý khẩn*), `Quota` (thay vì *Chỉ tiêu hướng dẫn*).
@@ -19,8 +19,8 @@ Qua quá trình phát triển qua nhiều giai đoạn kỹ thuật, giao diện
 **Mục tiêu của thiết kế này**:
 - Chuyển đổi 100% các từ ngữ trên UI sang tiếng Việt tự nhiên, chuẩn mực học thuật, thân thiện và giàu tính hướng dẫn.
 - Loại bỏ hoàn toàn các từ tiếng Anh và mã enum kỹ thuật trong ngoặc đơn.
-- Chuyển đổi các mã biểu mẫu BM01-BM04 sang tên gọi nghiệp vụ thuần túy và rõ nghĩa.
-- Đồng thời quét, phát hiện và lập danh mục toàn bộ các điểm bất thường, lỗi giao diện (bug) hoặc thành phần chưa sử dụng trong codebase frontend để xử lý dứt điểm.
+- Chuyển đổi các mã biểu mẫu BM01-BM04 sang tên gọi nghiệp vụ thuần túy và rõ nghĩa theo từng chặng vòng đời.
+- Quét, phát hiện và lập tài liệu báo cáo kiểm toán tổng hợp (Audit Report) danh mục toàn bộ các điểm bất thường, lỗi giao diện (bug), cảnh báo lint hoặc thành phần chưa sử dụng trong codebase frontend.
 
 ---
 
@@ -29,21 +29,23 @@ Qua quá trình phát triển qua nhiều giai đoạn kỹ thuật, giao diện
 ### 2.1. Mục Tiêu (Goals)
 - **Tự nhiên hóa ngôn ngữ**: Chuẩn hóa toàn bộ văn bản hiển thị trên các trang, modal, drawer, thanh điều hướng, thông báo toast, tooltip và bảng dữ liệu.
 - **Triệt tiêu tiếng Anh trong ngoặc**: Loại bỏ 100% các cụm từ tiếng Anh đi kèm trong ngoặc đơn trên UI.
-- **Thuần túy hóa biểu mẫu**:
-  - `BM01` $\rightarrow$ **Đề cương nghiên cứu** (hoặc *Đề cương chi tiết*)
-  - `BM02` $\rightarrow$ **Quyết định giao đề tài** (hoặc *Đơn đăng ký đề tài chính thức*)
-  - `BM03` $\rightarrow$ **Nhật ký & Đánh giá tiến độ**
-  - `BM04` $\rightarrow$ **Phiếu nhận xét của người hướng dẫn**
-- **Báo cáo kiểm toán chất lượng UI**: Ghi nhận chi tiết mọi bug, cảnh báo ESLint, biến không dùng, và thành phần mồ côi (dead code) phát hiện được trong quá trình quét.
-- **Bảo toàn kiểm thử**: Giữ vững tỷ lệ đạt 100% của cả hai bộ test: Backend (499/499 tests PASS) và Frontend (93/93 tests PASS).
+- **Thuần túy hóa biểu mẫu phân định rõ ngữ cảnh nghiệp vụ**:
+  - `BM01`: **Đề cương nghiên cứu chi tiết**
+  - `BM02` (phía Sinh viên nộp & Viện thẩm định): **Đơn đăng ký đề tài chính thức**
+  - Quyết định hành chính (phía Viện ban hành): **Quyết định giao đề tài** (phân biệt rõ với Đơn đăng ký)
+  - `BM03`: **Nhật ký & Đánh giá tiến độ** (Checkpoints)
+  - `BM04`: **Phiếu nhận xét của người hướng dẫn**
+- **Báo cáo kiểm toán chất lượng UI (Report-Only)**: Lập tài liệu báo cáo toàn diện tại `docs/superpowers/audits/2026-11-09-ui-quality-and-code-audit.md` phân loại chi tiết các bất thường, lỗi console/lint và mã nguồn mồ côi (dead code) để người dùng xem xét, không tự ý refactor phá vỡ kiến trúc.
+- **Bảo toàn kiểm thử**: Cập nhật đồng bộ các chuỗi regex kiểm tra UI trong `frontend/tests/` khi nhãn văn bản thay đổi, giữ vững tỷ lệ đạt 100% của cả hai bộ test: Backend (499/499 tests PASS) và Frontend (93/93 tests PASS).
 
 ### 2.2. Phi Mục Tiêu (Non-Goals)
 - Không thay đổi các giá trị hằng số, enum, khóa API, route backend hoặc cấu trúc schema Prisma (ví dụ: `Radio value="APPROVE"` giữ nguyên `value="APPROVE"`, chỉ đổi text hiển thị).
+- Không tự ý xóa bỏ mã nguồn hoặc refactor hàng loạt 67 cảnh báo ESLint trong phạm vi phiên này (chỉ lập báo cáo kiểm toán đầy đủ).
 - Không xây dựng thư viện i18n đa ngôn ngữ cồng kềnh; tối ưu hóa chuỗi trực tiếp trên JSX để đạt tốc độ render tối đa.
 
 ### 2.3. Chống Mục Tiêu (Anti-Goals)
-- Tuyệt đối không làm gãy các test contract trong `frontend/tests/` (ví dụ: các kiểm tra regex kiểm tra sự hiện diện của hằng số trong code như `/APPROVE/` hay `/INITIAL/` phải được duy trì thông qua các thuộc tính code/props).
-- Không làm mờ nghĩa nghiệp vụ: Đảm bảo người dùng vẫn phân biệt được chính xác từng giai đoạn của đề tài (ví dụ: giai đoạn nộp đề cương khác với giai đoạn ban hành quyết định).
+- Tuyệt đối không làm gãy các test contract: Các test kiểm tra chuỗi UI cũ sẽ được cập nhật đồng bộ sang chuỗi UI mới tương ứng, bảo đảm 93/93 test PASS.
+- Không gây nhập nhằng danh mục: Tuyệt đối không dùng cụm từ "Quyết định giao đề tài" cho cả Đơn BM02 của sinh viên lẫn Quyết định chính thức của Viện trưởng, tránh gây trùng lặp tiêu đề trên thanh điều hướng.
 
 ---
 
@@ -51,9 +53,10 @@ Qua quá trình phát triển qua nhiều giai đoạn kỹ thuật, giao diện
 
 | Thuật ngữ cũ / Khô khan / Kèm tiếng Anh | Thuật ngữ Chuẩn hóa Mới | Ngữ cảnh sử dụng |
 | :--- | :--- | :--- |
-| `BM01`, `Đề cương BM01` | **Đề cương nghiên cứu** / **Đề cương chi tiết** | Cổng SV, GV duyệt đề cương |
-| `BM02`, `QĐ BM02`, `Đơn BM02` | **Quyết định giao đề tài** / **Đơn đăng ký đề tài** | Cổng SV, Cổng Viện trưởng |
-| `BM03`, `Checkpoint BM03` | **Nhật ký & Đánh giá tiến độ** / **Đợt đánh giá tiến độ** | Gặp lab, theo dõi tiến độ |
+| `BM01`, `Đề cương BM01` | **Đề cương nghiên cứu chi tiết** | Cổng SV, GV duyệt đề cương |
+| `BM02`, `Đơn BM02` | **Đơn đăng ký đề tài chính thức** | Cổng SV, Hàng đợi thẩm định Viện |
+| `Ban hành QĐ BM02`, `Quyết định` | **Quyết định giao đề tài** | Viện trưởng ký ban hành |
+| `BM03`, `Checkpoint BM03` | **Nhật ký & Đánh giá tiến độ** | Gặp lab, theo dõi tiến độ |
 | `BM04`, `Phiếu BM04` | **Phiếu nhận xét của người hướng dẫn** | Đánh giá trước bảo vệ |
 | `Phê duyệt (APPROVE)` | **Phê duyệt** | Nút bấm, action |
 | `Yêu cầu chỉnh sửa (RETURN_FOR_REVISION)` | **Yêu cầu chỉnh sửa** | Nút bấm, action |
@@ -62,9 +65,9 @@ Qua quá trình phát triển qua nhiều giai đoạn kỹ thuật, giao diện
 | `Công bố Lần đầu (Initial)` | **Công bố Chính thức đợt 1** | Modal công bố điểm bảo vệ |
 | `Công bố Bổ sung (Supplementary)` | **Công bố Bổ sung** | Modal công bố điểm bảo vệ |
 | `Công bố Đính chính (Correction)` | **Công bố Đính chính** | Modal công bố điểm bảo vệ |
-| `(Audit Trail)` | **Lịch sử kiểm toán** / **Truy vết thay đổi** | Cảnh báo bảo mật hệ thống |
+| `(Audit Trail)` | **Lịch sử kiểm toán** | Cảnh báo bảo mật hệ thống |
 | `(Snapshot Immutability)` | **Bảo toàn dữ liệu vĩnh viễn** | Banner niêm phong công bố |
-| `(Quota)` / `Chỉ tiêu Quota` | **Chỉ tiêu hướng dẫn** / **Số lượng tối đa** | Phân công giảng viên |
+| `(Quota)` / `Chỉ tiêu Quota` | **Chỉ tiêu hướng dẫn** | Phân công giảng viên |
 | `Cho BV` / `✓ Đạt (Cho BV)` | **✓ Đủ điều kiện bảo vệ** | Bảng theo dõi tiến độ |
 | `TBC` / `Điểm bảo vệ (TBC)` | **Điểm bảo vệ trung bình** | Sổ điểm, kết quả tốt nghiệp |
 | `(TERMINATED_FAILED_PROGRESS)` | **Dừng thực hiện đề tài do không đạt tiến độ** | Cảnh báo tiến độ học vụ |
@@ -79,14 +82,12 @@ Qua quá trình phát triển qua nhiều giai đoạn kỹ thuật, giao diện
 
 ## 4. Các Phương Án Đã Xem Xét & Quyết Định (Approaches)
 
-- **Phương án 1 (Đã chọn)**: Rà soát & thay thế trực diện theo 4 phân hệ người dùng. Đảm bảo an toàn logic, kiểm soát tiến độ theo từng nhóm tính năng và phát hiện bug tức thì.
+- **Phương án 1 (Đã chọn)**: Rà soát & thay thế trực diện theo 4 phân hệ người dùng kết hợp cập nhật test contract đồng bộ. Đảm bảo an toàn logic, kiểm soát tiến độ theo từng nhóm tính năng và phát hiện bug tức thì.
 - **Phương án 2 (Loại bỏ)**: Xây dựng hệ thống từ điển nhãn tập trung i18n. Bị loại vì tăng độ phức tạp kiến trúc và tiềm ẩn nguy cơ regression cao đối với một SPA React không có nhu cầu đa ngữ.
 
 ---
 
 ## 5. Kế Hoạch Phân Kỳ Triển Khai (Phased Rollout Plan)
-
-Quá trình triển khai sẽ được chia thành 4 chặng độc lập theo phương pháp Subagent-Driven Development:
 
 ### Chặng 1: Cổng Sinh Viên (Student Portal)
 - **Tệp tin**:
@@ -95,6 +96,7 @@ Quá trình triển khai sẽ được chia thành 4 chặng độc lập theo p
   - `frontend/src/pages/student/SubmissionPage.jsx`
   - `frontend/src/pages/student/GradeViewPage.jsx`
   - `frontend/src/components/student/CheckpointSignModal.jsx`
+  - `frontend/tests/checkpointAppealUiContracts.test.js` (đồng bộ regex string nếu có)
 - **Nội dung**:
   - Đổi các nhãn `BM01`, `BM02`, `BM03`, `BM04` sang tên nghiệp vụ dễ hiểu.
   - Xóa bỏ `(PASSED)`, `(FAILED)`, `(PRE-DEFENSE CHECKLIST)`.
@@ -132,6 +134,7 @@ Quá trình triển khai sẽ được chia thành 4 chặng độc lập theo p
   - `frontend/src/components/admin/ManualReviewModal.jsx`
   - `frontend/src/components/coordination/LecturerAssignmentTab.jsx`
   - `frontend/src/components/coordination/CoordinationOverviewTab.jsx`
+  - `frontend/tests/bm02ReviewUiContracts.test.js` (đồng bộ regex string nếu có)
 - **Nội dung**:
   - Loại bỏ các mã `(APPROVE)`, `(RETURN_FOR_REVISION)`, `(Initial)`, `(Correction)`, `(Quota)`.
   - Thay các thông báo chứa tên biến kỹ thuật (`supersedesApprovalId`, `TERMINATED_FAILED_PROGRESS`) bằng diễn giải thân thiện.
@@ -151,6 +154,13 @@ Quá trình triển khai sẽ được chia thành 4 chặng độc lập theo p
   - Chuẩn hóa nhãn menu điều hướng, từ điển trạng thái `statusMap.js`.
   - Thay thế các định danh học vị trong modal import Excel (`(THAC_SI)` $\rightarrow$ `Thạc sĩ`,...).
   - Dọn sạch các chuỗi kiểm tra đạo văn khô khan trên HomePage.
+
+### Chặng 5: Tổng Hợp Kiểm Toán & Nghiệm Thu (Audit & Verification)
+- Lập tài liệu báo cáo kiểm toán `docs/superpowers/audits/2026-11-09-ui-quality-and-code-audit.md`.
+- Chạy kiểm thử tự động toàn diện:
+  - Backend: `npm test` (66/66 suites, 499/499 tests PASS).
+  - Frontend: `npm test` (93/93 tests PASS).
+  - Production build: `npm run build` PASS (0 errors).
 
 ---
 
