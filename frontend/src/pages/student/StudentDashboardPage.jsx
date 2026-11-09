@@ -174,7 +174,7 @@ export default function StudentDashboardPage() {
                                 {currentRegistration.adjustedTitle || currentRegistration.topic.title}
                             </h2>
                             <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
-                                Chuyên ngành: <strong>{currentRegistration.topic.projectCatalogName || 'Kỹ thuật Phần mềm'}</strong> · Học kỳ: <strong>{currentRegistration.topic.semesterName || 'Học kỳ 1 (2026 - 2027)'}</strong>
+                                Chuyên ngành: <strong>{currentRegistration.topic.projectCatalogName || 'Công nghệ Thông tin'}</strong> · Học kỳ: <strong>{currentRegistration.topic.semesterName || currentRegistration.semester?.name || 'Đồ án tốt nghiệp — HK1 2026–2027 (Đợt 1 - Chính khóa)'}</strong>
                             </p>
                         </div>
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -675,7 +675,7 @@ export default function StudentDashboardPage() {
                         <p>Tên đề tài: <strong>{currentRegistration?.topic?.title}</strong></p>
                         <p>Sinh viên thực hiện: <strong>{user?.fullName} — MSSV: {user?.code}</strong></p>
                         <p>Cán bộ hướng dẫn: <strong>{currentRegistration?.topic?.mentorName || 'PGS.TS Lê Quang Dũng'}</strong></p>
-                        <p>Quy chuẩn đào tạo: Khóa 2023 · Học kỳ 1 (2026 - 2027)</p>
+                        <p>Quy chuẩn đào tạo: Khóa {user?.studentProfile?.academicYear || '2022 - 2026'} · {currentRegistration?.semester?.name || currentRegistration?.topic?.semesterName || 'Đồ án tốt nghiệp — HK1 2026–2027 (Đợt 1 - Chính khóa)'}</p>
                     </div>
                 </div>
             </Modal>

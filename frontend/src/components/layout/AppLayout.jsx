@@ -3,7 +3,7 @@ import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import useAuthStore from '../../stores/authStore';
 import authService from '../../services/authService';
 import { semesterService } from '../../services/semesterService';
-import { getClosestSemester } from '../../utils/semesterDisplay';
+import { getClosestSemester, resolveCurrentSemester } from '../../utils/semesterDisplay';
 import registrationService from '../../services/registrationService';
 import { getVisibleNavigation, NAVIGATION_REGISTRY } from '../../config/navigationRegistry';
 import { isInstituteDirector, getUserDisplayRole } from '../../utils/authRedirect';
@@ -115,16 +115,34 @@ function AppLayout({ role }) {
     // Load active semester info
     useEffect(() => {
         let isMounted = true;
-        semesterService
-            .getAll()
-            .then((res) => {
-                if (isMounted && res?.success && Array.isArray(res.data)) {
-                    const active = res.data.find((s) => s.isActive || s.status === 'ACTIVE');
-                    const chosen = active || getClosestSemester(res.data) || res.data[0];
-                    setCurrentSemester(chosen);
+
+        const loadSemester = async () => {
+            try {
+                let res = await semesterService.getAll();
+                if (!res?.success || !Array.isArray(res.data) || res.data.length === 0) {
+                    res = await semesterService.getPublic();
                 }
-            })
-            .catch(() => {});
+                if (isMounted && res?.success && Array.isArray(res.data)) {
+                    const chosen = resolveCurrentSemester(res.data);
+                    if (chosen) {
+                        setCurrentSemester(chosen);
+                    }
+                }
+            } catch {
+                try {
+                    const pub = await semesterService.getPublic();
+                    if (isMounted && pub?.success && Array.isArray(pub.data)) {
+                        const chosen = resolveCurrentSemester(pub.data);
+                        if (chosen) {
+                            setCurrentSemester(chosen);
+                        }
+                    }
+                } catch {}
+            }
+        };
+
+        loadSemester();
+
         return () => {
             isMounted = false;
         };
@@ -373,7 +391,7 @@ function AppLayout({ role }) {
                         {/* Institutional Period Badge */}
                         <div className="period-badge">
                             <span className="period-dot"></span>
-                            <span>{currentSemester?.name || 'Học kỳ 1 (2026 - 2027)'} · Đang diễn ra</span>
+                            <span>{currentSemester?.name || 'Đồ án tốt nghiệp — HK1 2026–2027 (Đợt 1 - Chính khóa)'} · Đang diễn ra</span>
                         </div>
 
                         <span className="hidden sm:inline" style={{ color: 'var(--border)' }}>|</span>

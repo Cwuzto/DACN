@@ -89,3 +89,50 @@ export const getClosestSemester = (list = []) => {
     const closestId = computeSemesterClosestToNow(list);
     return list.find((s) => s.id === closestId) || list[0] || null;
 };
+
+export const resolveCurrentSemester = (list = []) => {
+    if (!Array.isArray(list) || list.length === 0) return null;
+
+    try {
+        const storedId = typeof localStorage !== 'undefined' ? localStorage.getItem('selected_semester_id') : null;
+        if (storedId) {
+            const found = list.find((s) => String(s.id) === String(storedId));
+            if (found) return found;
+        }
+    } catch {}
+
+    const now = new Date();
+
+    // 1. Semester currently active by time window (startDate <= now <= endDate) and not completed
+    const currentlyRunning = list.filter((s) => {
+        if (!s.startDate || !s.endDate) return false;
+        const start = new Date(s.startDate);
+        const end = new Date(s.endDate);
+        return now >= start && now <= end && s.status !== 'COMPLETED';
+    });
+
+    if (currentlyRunning.length > 0) {
+        // Prefer "Chính khóa" or "Đợt 1" if available
+        const mainPeriod = currentlyRunning.find((s) =>
+            s.name?.includes('Chính khóa') || s.name?.includes('Đợt 1') || s.code?.includes('D1')
+        );
+        if (mainPeriod) return mainPeriod;
+        return currentlyRunning[0];
+    }
+
+    // 2. Semesters with active statuses (REGISTRATION, ONGOING, DEFENSE, IN_PROGRESS)
+    const activeStatusSemesters = list.filter((s) =>
+        ['REGISTRATION', 'IN_PROGRESS', 'DEFENSE', 'ONGOING'].includes(s.status)
+    );
+    if (activeStatusSemesters.length > 0) {
+        const mainActive = activeStatusSemesters.find((s) =>
+            s.name?.includes('Chính khóa') || s.name?.includes('Đợt 1') || s.code?.includes('D1')
+        );
+        if (mainActive) return mainActive;
+        return activeStatusSemesters[0];
+    }
+
+    // 3. Fallback to closest semester or first item
+    return getClosestSemester(list) || list[0] || null;
+};
+
