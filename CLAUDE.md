@@ -70,6 +70,56 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 
 ## 6. Cập Nhật Phiên Làm Việc (Session Update)
 
+### Phiên 10/11/2026
+
+#### 1. Những phần đã hoàn thành
+1. **Giải quyết triệt để xung đột Đăng ký đề tài & Tự đề xuất (Conflict Prevention)**:
+   - Backend (`topicController.js`, `registrationController.js`): Tự động dọn dẹp/xóa các đề xuất đề tài `PENDING` của sinh viên khi sinh viên đăng ký thành công một đề tài có sẵn của Giảng viên.
+   - Thêm guard chặn sinh viên tạo đề xuất mới khi đang có đơn đăng ký đề tài hoặc đang có đề tài được chấp thuận.
+   - Bổ sung nút và API cho phép sinh viên chủ động tự hủy đề xuất đề tài `PENDING` trên giao diện `TopicListPage.jsx`.
+2. **Khắc phục lỗi đếm đơn đăng ký & Khôi phục trạng thái đề tài sau khi từ chối**:
+   - Backend: Cập nhật mệnh đề lọc `_count: { registrations: { where: { status: { not: 'REJECTED' } } } }` trong `topicController.js` và `registrationController.js`. Khi GVHD từ chối sinh viên (`REJECTED`), số lượng sinh viên đăng ký quay về `0/1`, đề tài tự động mở lại cho sinh viên khác đăng ký mà không bị khóa nhầm `1/1 Đã có sinh viên`.
+   - Frontend: Cập nhật hiển thị nhãn trạng thái trực quan tại `TopicManagementPage.jsx` ("Sẵn sàng tuyển SV" khi 0/1) và `TopicListPage.jsx` (thẻ tag "Đã bị từ chối" rõ ràng cho sinh viên).
+3. **Loại bỏ hoàn toàn Dữ liệu giả (Mock Data) trên Màn hình Phê duyệt của GVHD (`TopicApprovalPage.jsx`)**:
+   - Loại bỏ toàn bộ GPA giả (3.45), tín chỉ tích lũy ảo (132/140), lớp sai (`KTPM2021`), lời nhắn ảo và modal CV ảo.
+   - Nối trực tiếp dữ liệu hồ sơ sinh viên thực tế từ CSDL: `studentProfile.className` (`D22CNTT04`), `studentProfile.major` (`Công nghệ Thông tin`), số điện thoại, email và thời gian nộp đơn.
+4. **Sửa lỗi Phê duyệt Đăng ký ("Dữ liệu đầu vào không hợp lệ" & Prisma Schema Error)**:
+   - Sửa lỗi Prisma query `Unknown field code for select statement on model Topic` tại `registrationController.js:640` (loại bỏ `code: true` do model `Topic` không có cột `code`, tính toán hiển thị mã `DT-${topic.id}`).
+   - Sửa validator `rejectReason` trong `registrationRoutes.js`: chỉ bắt buộc khi `action === 'REJECT'`, không báo lỗi khi `action === 'APPROVE'`.
+   - Sửa `registrationService.handleRegistration` phía frontend: không gửi `rejectReason: ''` rỗng khi chấp thuận.
+5. **Nạp dữ liệu học kỳ thật lên Thanh điều hướng Topbar (`AppLayout.jsx`)**:
+   - Triệt tiêu chuỗi tĩnh mock `'Học kỳ 1 (2026 - 2027)'` ở huy hiệu đợt học kỳ (`.period-badge`).
+   - Xây dựng thuật toán phân giải `resolveCurrentSemester` trong `semesterDisplay.js`: tự động nhận diện đợt đang diễn ra trong khung thời gian (`startDate <= now <= endDate`), ưu tiên đợt chính khóa `Đồ án tốt nghiệp — HK1 2026–2027 (Đợt 1 - Chính khóa) · Đang diễn ra` (ID 3).
+   - Cơ chế nạp dữ liệu phòng thủ 2 lớp (thử authenticated endpoint `getAll()`, fallback sang public endpoint `getPublic()`).
+   - Đồng bộ loại bỏ các chuỗi mock học kỳ còn sót trong `StudentDashboardPage.jsx`.
+6. **Brainstorming Thiết kế Chuẩn hóa Luồng Tiền Đề tài (Đăng ký sơ bộ -> Xét duyệt đề cương -> Đơn đăng ký chính thức)**:
+   - Thảo luận và thống nhất nguyên tắc kiến trúc: Lấy **Hồ sơ đồ án** làm trung tâm dữ liệu bất biến, độc lập với Hội đồng xét duyệt.
+   - Tách rời trạng thái đa tầng (Hồ sơ, Hội đồng, Nhiệm vụ, Tài liệu) thay vì phụ thuộc vào một enum phẳng duy nhất.
+   - Phân định rõ trách nhiệm 4 tác nhân: Admin (lập HĐ & phân SV), Chủ tịch HĐ (công bố lịch, chốt kết quả, duyệt bản sửa), Thư ký (lập biên bản dự thảo), Sinh viên (nộp đề cương theo version, khóa bản nộp khi hết hạn).
+
+#### 2. Trạng thái cập nhật của từng phần
+- **Backend API**: `OPERATIONAL` - 100% route đăng ký, phê duyệt, đề xuất đề tài và phân giải học kỳ hoạt động ổn định, loại bỏ triệt để lỗi validator và query Prisma.
+- **Frontend SPA**: `OPERATIONAL & BUILD PASS` - 3222 modules build production thành công trong 11.6s; Topbar và các màn hình sinh viên/giảng viên hiển thị dữ liệu thật 100%.
+- **Database / Prisma**: `ALIGNED` - Toàn bộ các truy vấn Prisma đã được rà soát và khớp 100% với `schema.prisma`.
+- **MCP Servers**: Hoạt động bình thường.
+- **Test Suite**:
+  + Backend: **66/66 test suites PASS, 504/504 tests PASS** (100%).
+  + Frontend: **93/93 tests PASS** (100%).
+- **Git Branch**: `develop` - Đã commit các bản vá trên branch `develop` (các commit: `d8b9d27`, `186d373`, `ce0bfe8`, `f91be8e`, `6ce62a6`).
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+1. **Chốt quyết định về Hạn nộp Đề cương**: Xác nhận giữa phương án Admin ấn định khung hạn chung toàn khóa vs Chủ tịch từng hội đồng linh hoạt quyết định theo ngày bảo vệ.
+2. **Lập Kế hoạch Chi tiết Triển khai Phân hệ Xét duyệt Đề cương**:
+   - CSDL/Backend: Quản lý trạng thái Hội đồng xét duyệt (`CouncilType.OUTLINE_REVIEW`), tạo nhiệm vụ nộp đề cương BM01 theo đợt, ghi nhận kết quả bảo vệ đề cương (Đạt / Sửa / Không đạt).
+   - Backend API: Luồng nộp lại đề cương sau góp ý, Chủ tịch HĐ xác nhận bản sửa; tự động mở nhiệm vụ nộp Đơn đăng ký đề tài chính thức (BM02) sau khi đề cương đạt.
+   - Frontend UI: Giao diện Hội đồng cho Chủ tịch/Thư ký chấm đề cương và màn hình Nộp đề cương cho Sinh viên theo phiên bản.
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+1. **Dọn dẹp Đề xuất Trùng lặp**: Khi sinh viên đăng ký đề tài của giảng viên thành công, hệ thống tự động xóa đề xuất `PENDING` của sinh viên đó để tránh tình trạng "vừa có đề xuất chờ duyệt, vừa đăng ký đề tài chính thức".
+2. **Loại trừ Đơn Bị Từ Chối Khỏi Chỉ Tiêu Đề Tài**: Khi đếm số lượng sinh viên đang đăng ký đề tài (`_count.registrations`), bắt buộc loại bỏ trạng thái `REJECTED` để giải phóng chỗ cho sinh viên khác tiếp tục đăng ký.
+3. **Loại Bỏ Hoàn Toàn Dữ Liệu Giả (Zero-Mock Policy)**: Tuyệt đối không giữ các trường GPA, tín chỉ, CV mẫu trên giao diện phê duyệt đề tài khi CSDL chưa có các trường này, tránh gây hiểu lầm cho người dùng trong quá trình kiểm thử.
+4. **Hồ Sơ Đồ Án Là Trung Tâm Dữ Liệu**: Trong phân hệ Xét duyệt đề cương, tài liệu đề cương và lịch sử nộp gắn chặt với Hồ sơ đồ án của sinh viên (`TopicRegistration`), không gắn chết vào Hội đồng (`Council`), đảm bảo tính liên tục khi điều chuyển sinh viên giữa các hội đồng.
+
 ### Phiên 09/11/2026
 
 #### 1. Những phần đã hoàn thành
