@@ -170,7 +170,7 @@ export default function BM02ReviewDrawer({
                         </Tag>
                     </Descriptions.Item>
                     {fileUrl && (
-                        <Descriptions.Item label={<Text strong>Tệp đề cương BM02</Text>}>
+                        <Descriptions.Item label={<Text strong>Tệp đơn đăng ký đề tài</Text>}>
                             <a
                                 href={fileUrl}
                                 target="_blank"

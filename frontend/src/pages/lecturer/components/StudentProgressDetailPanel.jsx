@@ -145,7 +145,7 @@ function StudentProgressDetailPanel({
                                     onClick={() => openBM04Modal(selectedRegistration)}
                                     className="!bg-[#0F766E] hover:!bg-[#115E59] font-medium text-xs"
                                 >
-                                    Đánh giá BM04
+                                    Phiếu nhận xét hướng dẫn
                                 </Button>
                             )}
                             <Button

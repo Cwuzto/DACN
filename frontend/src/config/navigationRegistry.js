@@ -44,7 +44,7 @@ export const NAVIGATION_REGISTRY = [
     },
     {
         key: 'my-archive',
-        label: 'Lưu chiểu số',
+        label: 'Hồ sơ lưu chiểu',
         icon: 'inventory_2',
         group: 'Hồ sơ của tôi',
         requiredPermission: 'VIEW_MY_ARCHIVE',
@@ -52,7 +52,7 @@ export const NAVIGATION_REGISTRY = [
     },
     {
         key: 'my-grades',
-        label: 'Điểm đồ án của tôi',
+        label: 'Kết quả & Điểm đồ án',
         icon: 'workspace_premium',
         group: 'Hồ sơ của tôi',
         requiredPermission: 'VIEW_MY_GRADES',
@@ -70,7 +70,7 @@ export const NAVIGATION_REGISTRY = [
     },
     {
         key: 'progress-checkpoints',
-        label: 'Checkpoint tiến độ',
+        label: 'Theo dõi tiến độ',
         icon: 'fact_check',
         group: 'Hướng dẫn & tiến độ',
         requiredPermission: 'VIEW_CHECKPOINTS',
@@ -78,7 +78,7 @@ export const NAVIGATION_REGISTRY = [
     },
     {
         key: 'bm04-evaluations',
-        label: 'Đánh giá BM04',
+        label: 'Phiếu nhận xét hướng dẫn',
         icon: 'assignment_turned_in',
         group: 'Hướng dẫn & tiến độ',
         requiredPermission: 'VIEW_BM04_EVALUATIONS',
@@ -88,7 +88,7 @@ export const NAVIGATION_REGISTRY = [
     // KHỐI 3: THẨM ĐỊNH & QUYẾT ĐỊNH (4 mục)
     {
         key: 'outline-reviews',
-        label: 'Thẩm định BM01',
+        label: 'Thẩm định đề cương',
         icon: 'rate_review',
         group: 'Thẩm định & quyết định',
         requiredPermission: 'VIEW_OUTLINE_REVIEWS',
@@ -96,7 +96,7 @@ export const NAVIGATION_REGISTRY = [
     },
     {
         key: 'bm02-reviews',
-        label: 'Duyệt đơn BM02',
+        label: 'Thẩm định đơn đăng ký',
         icon: 'verified',
         group: 'Thẩm định & quyết định',
         requiredPermission: 'VIEW_BM02_REVIEWS',
@@ -138,7 +138,7 @@ export const NAVIGATION_REGISTRY = [
     },
     {
         key: 'defense-lock',
-        label: 'Trung tâm chấm & Khóa sổ',
+        label: 'Tổng hợp & Khóa điểm',
         icon: 'lock',
         group: 'Hội đồng & bảo vệ',
         requiredPermission: 'VIEW_DEFENSE_LOCK_LEDGER',
@@ -164,7 +164,7 @@ export const NAVIGATION_REGISTRY = [
     },
     {
         key: 'rubric-config',
-        label: 'Tiêu chí chấm (Rubric)',
+        label: 'Tiêu chí chấm điểm',
         icon: 'rule',
         group: 'Kết quả & công bố',
         requiredPermission: 'VIEW_RUBRIC_CONFIG',
@@ -182,7 +182,7 @@ export const NAVIGATION_REGISTRY = [
     },
     {
         key: 'project-enrollments',
-        label: 'Gán môn đồ án (Enrollment)',
+        label: 'Điều phối & Gán sinh viên',
         icon: 'playlist_add_check',
         group: 'Quản trị học vụ',
         requiredPermission: 'VIEW_PROJECT_ENROLLMENTS',
@@ -190,7 +190,7 @@ export const NAVIGATION_REGISTRY = [
     },
     {
         key: 'all-topics',
-        label: 'Quản lý đề tài chung',
+        label: 'Danh mục đề tài đồ án',
         icon: 'list_alt',
         group: 'Quản trị học vụ',
         requiredPermission: 'VIEW_ALL_TOPICS',
@@ -198,7 +198,7 @@ export const NAVIGATION_REGISTRY = [
     },
     {
         key: 'project-oversight',
-        label: 'Giám sát tiến độ & rà soát',
+        label: 'Theo dõi & Giám sát tiến độ',
         icon: 'policy',
         group: 'Quản trị học vụ',
         requiredPermission: 'VIEW_PROJECT_OVERSIGHT',
@@ -216,7 +216,7 @@ export const NAVIGATION_REGISTRY = [
     },
     {
         key: 'permissions',
-        label: 'Phân quyền kỹ thuật & Nhóm',
+        label: 'Phân quyền & Nhóm quyền',
         icon: 'shield_lock',
         group: 'Quản trị hệ thống',
         requiredPermission: 'VIEW_PERMISSIONS',
@@ -224,7 +224,7 @@ export const NAVIGATION_REGISTRY = [
     },
     {
         key: 'announcements',
-        label: 'Bản tin Portal',
+        label: 'Bản tin & Thông báo',
         icon: 'feed',
         group: 'Quản trị hệ thống',
         requiredPermission: 'VIEW_ANNOUNCEMENTS',
@@ -232,7 +232,7 @@ export const NAVIGATION_REGISTRY = [
     },
     {
         key: 'portal-content',
-        label: 'Biểu mẫu & CMS Portal',
+        label: 'Quản lý nội dung & Biểu mẫu',
         icon: 'file_copy',
         group: 'Quản trị hệ thống',
         requiredPermission: 'VIEW_PORTAL_CONTENT',
@@ -240,7 +240,7 @@ export const NAVIGATION_REGISTRY = [
     },
     {
         key: 'notifications',
-        label: 'Gửi thông báo người dùng',
+        label: 'Gửi thông báo hệ thống',
         icon: 'notifications_active',
         group: 'Quản trị hệ thống',
         requiredPermission: 'VIEW_NOTIFICATIONS',
