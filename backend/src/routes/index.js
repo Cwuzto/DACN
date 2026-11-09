@@ -22,6 +22,7 @@ const archiveRoutes = require('./archiveRoutes');
 const rubricRoutes = require('./rubricRoutes');
 const manualReviewRoutes = require('./manualReviewRoutes');
 const delegationRoutes = require('./delegationRoutes');
+const lecturerAssignmentRoutes = require('./lecturerAssignmentRoutes');
 
 // Đăng ký routes
 router.use('/auth', authRoutes);
@@ -44,6 +45,7 @@ router.use('/archives', archiveRoutes);
 router.use('/rubrics', rubricRoutes);
 router.use('/manual-review-cases', manualReviewRoutes);
 router.use('/delegations', delegationRoutes);
+router.use('/lecturer-assignments', lecturerAssignmentRoutes);
 router.use('/', meetingLogRoutes);
 
 // Health check
