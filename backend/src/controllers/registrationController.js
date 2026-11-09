@@ -492,7 +492,7 @@ const getAllRegistrations = async (req, res, next) => {
                 where.status = status;
             }
         } else if (role === 'LECTURER' && asCouncilChairman === 'true') {
-            where.status = { in: ['BM01_SUBMITTED', 'BM01_RESUBMITTED', 'BM01_NEEDS_REVISION', 'BM01_PASSED'] };
+            where.status = { in: ['BM01_SUBMITTED', 'BM01_NEEDS_REVISION', 'BM01_PASSED'] };
         }
 
         if (unassignedCouncilOnly === 'true') {

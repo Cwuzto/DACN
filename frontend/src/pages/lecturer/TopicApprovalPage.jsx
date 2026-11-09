@@ -54,9 +54,7 @@ export default function TopicApprovalPage() {
     }, []);
 
     const pendingOutlineCount = useMemo(() => {
-        return councilOutlineRegistrations.filter((r) =>
-            ['BM01_SUBMITTED', 'BM01_RESUBMITTED'].includes(r.status)
-        ).length;
+        return councilOutlineRegistrations.filter((r) => r.status === 'BM01_SUBMITTED').length;
     }, [councilOutlineRegistrations]);
 
     const handleApprove = async (record) => {
@@ -256,7 +254,7 @@ export default function TopicApprovalPage() {
                             const student = record.student;
                             const topic = record.topic;
                             const latestSub = record.submissions?.[0];
-                            const isPendingReview = ['BM01_SUBMITTED', 'BM01_RESUBMITTED'].includes(record.status);
+                            const isPendingReview = record.status === 'BM01_SUBMITTED';
                             const isPassed = record.status === 'BM01_PASSED';
                             const isNeedsRevision = record.status === 'BM01_NEEDS_REVISION';
 
@@ -289,10 +287,11 @@ export default function TopicApprovalPage() {
 
                                             <div>
                                                 {record.status === 'BM01_SUBMITTED' && (
-                                                    <span className="tag blue">Chờ thẩm định lần đầu</span>
-                                                )}
-                                                {record.status === 'BM01_RESUBMITTED' && (
-                                                    <span className="tag purple">Đã nộp lại đề cương</span>
+                                                    (record.submissions?.length > 1) ? (
+                                                        <span className="tag purple">Đã nộp lại đề cương</span>
+                                                    ) : (
+                                                        <span className="tag blue">Chờ thẩm định lần đầu</span>
+                                                    )
                                                 )}
                                                 {isPassed && (
                                                     <span className="tag green">✓ Đã duyệt ĐẠT (BM01_PASSED)</span>
@@ -300,7 +299,7 @@ export default function TopicApprovalPage() {
                                                 {isNeedsRevision && (
                                                     <span className="tag yellow">⚠ Yêu cầu chỉnh sửa</span>
                                                 )}
-                                                {!['BM01_SUBMITTED', 'BM01_RESUBMITTED', 'BM01_PASSED', 'BM01_NEEDS_REVISION'].includes(record.status) && (
+                                                {!['BM01_SUBMITTED', 'BM01_PASSED', 'BM01_NEEDS_REVISION'].includes(record.status) && (
                                                     <span className="tag gray">{record.status}</span>
                                                 )}
                                             </div>
