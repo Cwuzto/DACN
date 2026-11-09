@@ -112,6 +112,8 @@ model User {
   portalContentRevisionsPublished PortalContentRevision[]       @relation("PortalContentRevisionPublishedBy")
   delegatorDelegations            AcademicDelegation[]          @relation("DelegatorDelegations")
   delegateeDelegations            AcademicDelegation[]          @relation("DelegateeDelegations")
+  lecturerProjectAssignments      LecturerProjectAssignment[]   @relation("LecturerAssignments")
+  createdLecturerAssignments      LecturerProjectAssignment[]   @relation("AssignedByLecturerAssignments")
 
   @@map("users")
 }
@@ -154,6 +156,7 @@ model Semester {
   workflowPolicyVersions PeriodWorkflowPolicyVersion[]
   resultPublications     ResultPublication[]
   academicDelegations    AcademicDelegation[]
+  lecturerAssignments    LecturerProjectAssignment[]
 
   @@map("semesters")
 }
@@ -218,6 +221,9 @@ model TopicRegistration {
   decisionNumber             String?                      @map("decision_number")
   decisionDate               DateTime?                    @map("decision_date")
   adjustedTitle              String?                      @map("adjusted_title")
+  assignmentStatus           MentorAssignmentStatus       @default(ACTIVE) @map("assignment_status")
+  effectiveAt                DateTime                     @default(now()) @map("effective_at")
+  cancelledAt                DateTime?                    @map("cancelled_at")
   createdAt                  DateTime                     @default(now()) @map("created_at")
   updatedAt                  DateTime                     @updatedAt @map("updated_at")
   topic                      Topic                        @relation(fields: [topicId], references: [id])
@@ -792,14 +798,15 @@ model AuditLog {
 }
 
 model ProjectCatalog {
-  id          Int                        @id @default(autoincrement())
-  code        String                     @unique
-  name        String
-  isActive    Boolean                    @default(true) @map("is_active")
-  createdAt   DateTime                   @default(now()) @map("created_at")
-  updatedAt   DateTime                   @updatedAt @map("updated_at")
-  topics      Topic[]
-  enrollments StudentProjectEnrollment[]
+  id                  Int                         @id @default(autoincrement())
+  code                String                      @unique
+  name                String
+  isActive            Boolean                     @default(true) @map("is_active")
+  createdAt           DateTime                    @default(now()) @map("created_at")
+  updatedAt           DateTime                    @updatedAt @map("updated_at")
+  topics              Topic[]
+  enrollments         StudentProjectEnrollment[]
+  lecturerAssignments LecturerProjectAssignment[]
 
   @@map("project_catalogs")
 }
@@ -821,6 +828,29 @@ model StudentProjectEnrollment {
   @@unique([studentId, semesterId, projectCatalogId])
   @@index([studentId, semesterId, status])
   @@map("student_project_enrollments")
+}
+
+model LecturerProjectAssignment {
+  id               Int                      @id @default(autoincrement())
+  lecturerId       Int                      @map("lecturer_id")
+  semesterId       Int                      @map("semester_id")
+  projectCatalogId Int                      @map("project_catalog_id")
+  plannedQuota     Int                      @default(10) @map("planned_quota")
+  status           LecturerAssignmentStatus @default(ACTIVE)
+  assignedAt       DateTime                 @default(now()) @map("assigned_at")
+  assignedById     Int                      @map("assigned_by_id")
+  createdAt        DateTime                 @default(now()) @map("created_at")
+  updatedAt        DateTime                 @updatedAt @map("updated_at")
+
+  lecturer         User                     @relation("LecturerAssignments", fields: [lecturerId], references: [id])
+  semester         Semester                 @relation(fields: [semesterId], references: [id])
+  projectCatalog   ProjectCatalog           @relation(fields: [projectCatalogId], references: [id])
+  assignedBy       User                     @relation("AssignedByLecturerAssignments", fields: [assignedById], references: [id])
+
+  @@unique([lecturerId, semesterId, projectCatalogId])
+  @@index([semesterId, projectCatalogId, status])
+  @@index([lecturerId, status])
+  @@map("lecturer_project_assignments")
 }
 
 model PublicAnnouncement {
@@ -1246,3 +1276,16 @@ enum RubricStatus {
   ACTIVE
   ARCHIVED
 }
+
+enum LecturerAssignmentStatus {
+  DRAFT
+  ACTIVE
+  CLOSED
+}
+
+enum MentorAssignmentStatus {
+  ACTIVE
+  TRANSFERRED
+  CANCELLED
+}
+
