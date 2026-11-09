@@ -37,8 +37,8 @@ router.delete(
     notificationController.deleteMyNotification
 );
 
-router.get('/history', authorizePermission(PERMISSIONS.NOTIFICATION_MANAGE), notificationController.getNotificationHistory);
-router.get('/templates', authorizePermission(PERMISSIONS.NOTIFICATION_MANAGE), notificationController.getNotificationTemplates);
+router.get('/history', authorizePermission(PERMISSIONS.VIEW_NOTIFICATIONS, PERMISSIONS.NOTIFICATION_MANAGE), notificationController.getNotificationHistory);
+router.get('/templates', authorizePermission(PERMISSIONS.VIEW_NOTIFICATIONS, PERMISSIONS.NOTIFICATION_MANAGE), notificationController.getNotificationTemplates);
 router.put(
     '/templates/:key',
     [

@@ -109,8 +109,13 @@ const getAllCouncils = async (req, res, next) => {
         }
 
         const allowedCouncilTypes = [];
-        if ((req.user.permissions || []).includes('OUTLINE_COUNCIL_MANAGE')) allowedCouncilTypes.push('OUTLINE_REVIEW');
-        if ((req.user.permissions || []).includes('DEFENSE_COUNCIL_MANAGE')) allowedCouncilTypes.push('DEFENSE_COUNCIL');
+        const userPerms = req.user.permissions || [];
+        const hasBroadAccess = userPerms.includes('VIEW_COUNCIL_ASSIGNMENTS') ||
+                               userPerms.includes('NOTIFICATION_MANAGE') ||
+                               userPerms.includes('PROJECT_OVERSIGHT_MANAGE');
+
+        if (hasBroadAccess || userPerms.includes('OUTLINE_COUNCIL_MANAGE')) allowedCouncilTypes.push('OUTLINE_REVIEW');
+        if (hasBroadAccess || userPerms.includes('DEFENSE_COUNCIL_MANAGE')) allowedCouncilTypes.push('DEFENSE_COUNCIL');
         if (where.councilType && !allowedCouncilTypes.includes(where.councilType)) {
             return res.status(403).json({ success: false, message: 'Bạn không có quyền xem loại hội đồng này.' });
         }

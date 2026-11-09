@@ -74,17 +74,22 @@ function NotificationCenterPage() {
             const response = await councilService.getCouncils();
             if (response.success) setCouncils(response.data || []);
         } catch (error) {
-            message.error(error?.message || 'Không thể tải danh sách hội đồng');
+            message.warning(error?.message || 'Không thể tải danh sách hội đồng');
         }
     };
 
     useEffect(() => {
         fetchHistory();
         fetchTemplates();
-        fetchCouncils();
     }, []);
 
     const selectedAudience = Form.useWatch('audience', form);
+
+    useEffect(() => {
+        if (selectedAudience === 'SPECIFIC_COUNCIL' && councils.length === 0) {
+            fetchCouncils();
+        }
+    }, [selectedAudience, councils.length]);
 
     const handleSendNotification = async () => {
         try {

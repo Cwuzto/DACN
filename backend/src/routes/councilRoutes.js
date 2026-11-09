@@ -55,7 +55,16 @@ const authorizeCouncilCreate = authorizeResolvedPermissions(
     async (req) => permissionForCouncilType(req.body?.councilType || 'DEFENSE_COUNCIL'),
 );
 
-router.get('/', authorizePermission(PERMISSIONS.VIEW_COUNCIL_ASSIGNMENTS, ...COUNCIL_PERMISSIONS), councilController.getAllCouncils);
+router.get(
+    '/',
+    authorizePermission(
+        PERMISSIONS.VIEW_COUNCIL_ASSIGNMENTS,
+        PERMISSIONS.NOTIFICATION_MANAGE,
+        PERMISSIONS.PROJECT_OVERSIGHT_MANAGE,
+        ...COUNCIL_PERMISSIONS,
+    ),
+    councilController.getAllCouncils
+);
 router.post(
     '/',
     [
