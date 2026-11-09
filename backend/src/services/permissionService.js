@@ -1,6 +1,7 @@
 const prisma = require('../config/database');
 const { auditLog } = require('./auditLogService');
 const { PERMISSION_CATALOG, DEFAULT_GROUPS } = require('../constants/permissions');
+const { clearAuthCache } = require('../middlewares/auth');
 const getRequestIp = (req) => req?.ip || req?.headers?.['x-forwarded-for'] || null;
 
 const listPermissions = async () => prisma.permission.findMany({ orderBy: [{ module: 'asc' }, { code: 'asc' }] });
@@ -42,6 +43,7 @@ const updateGroup = async (id, data, actor) => {
     }
     return tx.permissionGroup.update({ where: { id: idInt }, data: updateData });
   });
+  clearAuthCache();
   await auditLog(actor?.id, 'UPDATE_PERMISSION_GROUP', 'PermissionGroup', idInt, { name, description }, getRequestIp(actor));
   return result;
 };
@@ -97,6 +99,7 @@ const setUserGroups = async (userId, groupIds, actor) => {
       data: { permissionVersion: { increment: 1 } },
     });
   });
+  clearAuthCache(userIdInt);
   await auditLog(actor?.id, 'SET_USER_PERMISSION_GROUPS', 'User', userIdInt, { groupIds: groupIdsInt }, getRequestIp(actor));
   return result;
 };
@@ -348,6 +351,7 @@ const bulkUpdatePermissionMatrix = async (payload, actor) => {
     isolationLevel: 'Serializable',
   });
 
+  clearAuthCache();
   return { success: true, message: 'Cập nhật ma trận phân quyền thành công.' };
 };
 

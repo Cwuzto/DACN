@@ -1,5 +1,6 @@
 const bcrypt = require('bcryptjs');
 const prisma = require('../config/database');
+const { clearAuthCache } = require('../middlewares/auth');
 const { COMPLETED_GRADUATION_STATUSES } = require('../utils/studentAccountRestriction');
 const { getMentorMaxSlots } = require('../constants/mentorCapacity');
 const { validateStudentPayload, normalizeStudentPayload } = require('../services/studentProfileService');
@@ -713,6 +714,7 @@ const updateUserPermissionGroups = async (req, res, next) => {
 
         const { setUserGroups } = require('../services/permissionService');
         await setUserGroups(targetUserId, groupIdsInt, req.user);
+        clearAuthCache(targetUserId);
 
         res.json({ success: true, message: 'Cập nhật nhóm quyền thành công.' });
     } catch (error) {

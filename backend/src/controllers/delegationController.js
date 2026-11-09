@@ -1,6 +1,7 @@
 const prisma = require('../config/database');
 const { auditLog } = require('../services/auditLogService');
 const { grantablePermissionCodes } = require('../constants/permissions');
+const { clearAuthCache } = require('../middlewares/auth');
 
 /**
  * GET /api/delegations
@@ -190,6 +191,8 @@ const createDelegation = async (req, res, next) => {
             return created;
         });
 
+        clearAuthCache(delegatee.id);
+
         await auditLog(
             req.user.id,
             'CREATE_ACADEMIC_DELEGATION',
@@ -289,6 +292,8 @@ const revokeDelegation = async (req, res, next) => {
 
             return rev;
         });
+
+        clearAuthCache(delegation.delegateeId);
 
         await auditLog(
             req.user.id,

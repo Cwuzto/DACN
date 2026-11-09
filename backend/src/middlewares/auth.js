@@ -18,6 +18,155 @@ const validatePermissionCodes = (permissionCodes) => {
 };
 
 /**
+ * In-memory capability cache and single-flight lookup map
+ */
+const userAuthCache = new Map();
+const inFlightUserLookups = new Map();
+let cacheHits = 0;
+let cacheMisses = 0;
+
+const getAuthCacheTtl = () => {
+    const val = Number(process.env.AUTH_CACHE_TTL_MS);
+    return Number.isFinite(val) && val > 0 ? val : 15000;
+};
+
+const clearAuthCache = (userId) => {
+    if (userId !== undefined && userId !== null) {
+        const id = Number(userId);
+        userAuthCache.delete(id);
+        inFlightUserLookups.delete(id);
+        userAuthCache.delete(userId);
+        inFlightUserLookups.delete(userId);
+    } else {
+        userAuthCache.clear();
+        inFlightUserLookups.clear();
+    }
+};
+
+const getAuthCacheStats = () => ({
+    size: userAuthCache.size,
+    hits: cacheHits,
+    misses: cacheMisses,
+});
+
+if (process.env.NODE_ENV === 'test' && typeof afterEach === 'function') {
+    afterEach(() => {
+        clearAuthCache();
+    });
+}
+
+const fetchUserAndCapabilities = async (userId) => {
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+            id: true,
+            email: true,
+            fullName: true,
+            code: true,
+            role: true,
+            department: true,
+            phone: true,
+            avatarUrl: true,
+            isActive: true,
+            permissionVersion: true,
+            studentProfile: {
+                select: {
+                    studentId: true,
+                    gender: true,
+                    dateOfBirth: true,
+                    className: true,
+                    major: true,
+                    createdAt: true,
+                    updatedAt: true,
+                },
+            },
+            permissionGroups: {
+                include: {
+                    permissionGroup: {
+                        include: { permissions: { include: { permission: true } } },
+                    },
+                },
+            },
+            councilMembers: {
+                where: { council: { councilType: 'DEFENSE_COUNCIL' } },
+                select: { id: true },
+            },
+        },
+    });
+
+    if (!user || !user.isActive) {
+        return null;
+    }
+
+    const now = new Date();
+    let activeDelegations = [];
+    if (prisma.academicDelegation?.findMany) {
+        activeDelegations = await prisma.academicDelegation.findMany({
+            where: {
+                delegateeId: user.id,
+                status: 'ACTIVE',
+                effectiveFrom: { lte: now },
+                effectiveTo: { gte: now },
+            },
+            select: { capabilityCode: true },
+        });
+    }
+
+    const permissionSet = new Set();
+    (user.permissionGroups || []).forEach(({ permissionGroup }) => {
+        (permissionGroup?.permissions || []).forEach(({ permission }) => {
+            if (permission?.code) permissionSet.add(permission.code);
+        });
+    });
+    (activeDelegations || []).forEach(({ capabilityCode }) => {
+        if (capabilityCode) permissionSet.add(capabilityCode);
+    });
+    if (user.role === 'STUDENT' && permissionSet.size === 0) {
+        studentBasePermissions.forEach((code) => permissionSet.add(code));
+    } else if (user.permissionGroups === undefined && permissionSet.size === 0) {
+        const defaultGroupCode = user.role === 'ADMIN' ? 'QUAN_TRI_VIEN'
+            : user.role === 'LECTURER' ? 'GVHD'
+            : null;
+        if (defaultGroupCode) {
+            const group = DEFAULT_GROUPS.find((g) => g.code === defaultGroupCode);
+            if (group) {
+                group.permissions.forEach((code) => permissionSet.add(code));
+            }
+        }
+    }
+
+    const resolvedUser = {
+        ...user,
+        permissionVersion: user.permissionVersion,
+        permissionGroups: (user.permissionGroups || [])
+            .map(({ permissionGroup }) => permissionGroup?.code)
+            .filter(Boolean),
+        permissions: [...permissionSet],
+        hasDefenseCouncilAssignment: Boolean(user.councilMembers?.length),
+    };
+
+    userAuthCache.set(userId, {
+        user: resolvedUser,
+        data: resolvedUser,
+        cachedAt: Date.now(),
+        permissionVersion: resolvedUser.permissionVersion,
+    });
+
+    return resolvedUser;
+};
+
+const getUserLookedUp = async (userId) => {
+    let inFlight = inFlightUserLookups.get(userId);
+    if (!inFlight) {
+        inFlight = fetchUserAndCapabilities(userId).finally(() => {
+            inFlightUserLookups.delete(userId);
+        });
+        inFlightUserLookups.set(userId, inFlight);
+    }
+    return inFlight;
+};
+
+/**
  * Middleware xác thực JWT Token
  * Kiểm tra token trong header Authorization: Bearer <token>
  */
@@ -34,56 +183,56 @@ const authenticate = async (req, res, next) => {
 
         const token = authHeader.split(' ')[1];
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const userId = decoded.userId;
 
-        // Tìm user trong DB để đảm bảo tài khoản vẫn tồn tại và active
-        const user = await prisma.user.findUnique({
-            where: { id: decoded.userId },
-            select: {
-                id: true,
-                email: true,
-                fullName: true,
-                code: true,
-                role: true,
-                department: true,
-                phone: true,
-                avatarUrl: true,
-                isActive: true,
-                permissionVersion: true,
-                studentProfile: {
-                    select: {
-                        studentId: true,
-                        gender: true,
-                        dateOfBirth: true,
-                        className: true,
-                        major: true,
-                        createdAt: true,
-                        updatedAt: true,
-                    },
-                },
-                permissionGroups: {
-                    include: {
-                        permissionGroup: {
-                            include: { permissions: { include: { permission: true } } },
-                        },
-                    },
-                },
-                councilMembers: {
-                    where: { council: { councilType: 'DEFENSE_COUNCIL' } },
-                    select: { id: true },
-                },
-            },
-        });
+        const isGetMe = req.method === 'GET' && Boolean((req.originalUrl && req.originalUrl.includes('/api/auth/me')) || req.path === '/me');
+        const tokenVersion = decoded.permissionVersion;
+        const nowMs = Date.now();
+        const ttl = getAuthCacheTtl();
 
-        if (!user || !user.isActive) {
+        const cachedEntry = userAuthCache.get(userId);
+        if (cachedEntry && (nowMs - cachedEntry.cachedAt < ttl)) {
+            if (
+                typeof tokenVersion === 'number' &&
+                typeof cachedEntry.permissionVersion === 'number' &&
+                tokenVersion > cachedEntry.permissionVersion
+            ) {
+                // Token has newer version than cached DB user -> evict from cache and fall through to fresh DB query
+                userAuthCache.delete(userId);
+            } else {
+                cacheHits++;
+                if (
+                    !isGetMe &&
+                    typeof tokenVersion === 'number' &&
+                    typeof cachedEntry.permissionVersion === 'number' &&
+                    tokenVersion < cachedEntry.permissionVersion
+                ) {
+                    return res.status(409).json({
+                        success: false,
+                        error: 'PERMISSION_VERSION_STALE',
+                        message: 'Phiên bản quyền đã được cập nhật.',
+                    });
+                }
+                req.user = {
+                    ...cachedEntry.user,
+                    permissions: [...(cachedEntry.user.permissions || [])],
+                    permissionGroups: [...(cachedEntry.user.permissionGroups || [])],
+                };
+                return next();
+            }
+        }
+
+        cacheMisses++;
+        const resolvedUser = await getUserLookedUp(userId);
+
+        if (!resolvedUser) {
             return res.status(401).json({
                 success: false,
                 message: 'Tài khoản không tồn tại hoặc đã bị vô hiệu hoá.',
             });
         }
 
-        const isGetMe = req.method === 'GET' && Boolean((req.originalUrl && req.originalUrl.includes('/api/auth/me')) || req.path === '/me');
-        const tokenVersion = decoded.permissionVersion;
-        const userVersion = user.permissionVersion;
+        const userVersion = resolvedUser.permissionVersion;
 
         if (
             !isGetMe &&
@@ -98,50 +247,10 @@ const authenticate = async (req, res, next) => {
             });
         }
 
-        const now = new Date();
-            let activeDelegations = [];
-        if (prisma.academicDelegation?.findMany) {
-            activeDelegations = await prisma.academicDelegation.findMany({
-                where: {
-                    delegateeId: user.id,
-                    status: 'ACTIVE',
-                    effectiveFrom: { lte: now },
-                    effectiveTo: { gte: now },
-                },
-                select: { capabilityCode: true },
-            });
-        }
-
-        const permissionSet = new Set();
-        (user.permissionGroups || []).forEach(({ permissionGroup }) => {
-            (permissionGroup?.permissions || []).forEach(({ permission }) => {
-                if (permission?.code) permissionSet.add(permission.code);
-            });
-        });
-        (activeDelegations || []).forEach(({ capabilityCode }) => {
-            if (capabilityCode) permissionSet.add(capabilityCode);
-        });
-        if (user.role === 'STUDENT' && permissionSet.size === 0) {
-            studentBasePermissions.forEach((code) => permissionSet.add(code));
-        } else if (user.permissionGroups === undefined && permissionSet.size === 0) {
-            const defaultGroupCode = user.role === 'ADMIN' ? 'QUAN_TRI_VIEN'
-                : user.role === 'LECTURER' ? 'GVHD'
-                : null;
-            if (defaultGroupCode) {
-                const group = DEFAULT_GROUPS.find((g) => g.code === defaultGroupCode);
-                if (group) {
-                    group.permissions.forEach((code) => permissionSet.add(code));
-                }
-            }
-        }
         req.user = {
-            ...user,
-            permissionVersion: user.permissionVersion,
-            permissionGroups: (user.permissionGroups || [])
-                .map(({ permissionGroup }) => permissionGroup?.code)
-                .filter(Boolean),
-            permissions: [...permissionSet],
-            hasDefenseCouncilAssignment: Boolean(user.councilMembers?.length),
+            ...resolvedUser,
+            permissions: [...(resolvedUser.permissions || [])],
+            permissionGroups: [...(resolvedUser.permissionGroups || [])],
         };
         next();
     } catch (error) {
@@ -371,5 +480,7 @@ module.exports = {
     assertPermission,
     authorizeResolvedPermissions,
     authorizeRoleOrPermission,
+    clearAuthCache,
+    getAuthCacheStats,
 };
 
