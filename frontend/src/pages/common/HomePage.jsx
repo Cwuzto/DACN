@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getRoleHomePath } from '../../utils/authRedirect';
+import { getRoleHomePath, getUserDisplayRole } from '../../utils/authRedirect';
 import useAuthStore from '../../stores/authStore';
 import { authService } from '../../services/authService';
 import userService from '../../services/userService';
@@ -762,7 +762,7 @@ export default function HomePage() {
                                 }}>
                                     {user.fullName?.[0]?.toUpperCase() || 'U'}
                                 </div>
-                                <span>Vào Bàn làm việc ({user.role === 'ADMIN' ? 'Admin' : user.role === 'LECTURER' ? 'Giảng viên' : 'Sinh viên'})</span>
+                                <span>Vào Bàn làm việc ({getUserDisplayRole(user)})</span>
                             </button>
                         ) : (
                             <button className="btn btn-brand topnav-login" onClick={() => setIsLoginModalOpen(true)} type="button" data-od-id="btn-login-trigger" aria-label="Đăng nhập Cổng Học vụ">

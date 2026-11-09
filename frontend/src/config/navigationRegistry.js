@@ -100,7 +100,7 @@ export const NAVIGATION_REGISTRY = [
         icon: 'verified',
         group: 'Thẩm định & quyết định',
         requiredPermission: 'VIEW_BM02_REVIEWS',
-        route: '/lecturer/institute',
+        route: '/lecturer/institute?tab=bm02',
     },
     {
         key: 'assignment-decisions',

@@ -7,6 +7,8 @@ import registrationService from '../../services/registrationService';
 import evaluationService from '../../services/evaluationService';
 import meetingLogService from '../../services/meetingLogService';
 import PageLoader from '../../components/common/PageLoader';
+import useAuthStore from '../../stores/authStore';
+import { isInstituteDirector } from '../../utils/authRedirect';
 
 /**
  * LecturerDashboardPage — 100% OpenDesign Golden Standard
@@ -18,6 +20,8 @@ import PageLoader from '../../components/common/PageLoader';
  */
 export default function LecturerDashboardPage() {
     const navigate = useNavigate();
+    const user = useAuthStore((state) => state.user);
+    const isVienTruong = isInstituteDirector(user);
 
     const [loading, setLoading] = useState(true);
     const [supervisedStudents, setSupervisedStudents] = useState([]);
@@ -179,14 +183,53 @@ export default function LecturerDashboardPage() {
             {/* 1. Header Toolbar */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }} className="flex-wrap gap-4">
                 <div>
-                    <h1 style={{ fontSize: 22, fontWeight: 700 }} className="font-display text-slate-900">
-                        Bàn Làm Việc Giảng Viên
-                    </h1>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <h1 style={{ fontSize: 22, fontWeight: 700 }} className="font-display text-slate-900">
+                            {isVienTruong ? 'Bàn Làm Việc Viện Trưởng' : 'Bàn Làm Việc Giảng Viên'}
+                        </h1>
+                        {isVienTruong && (
+                            <span className="px-2.5 py-0.5 text-xs font-bold rounded-full bg-amber-100 text-amber-800 border border-amber-300">
+                                Lãnh đạo Viện
+                            </span>
+                        )}
+                    </div>
                     <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 2 }}>
-                        Tổng hợp nhiệm vụ hướng dẫn, tình trạng phê duyệt và lịch chấm hội đồng.
+                        {isVienTruong
+                            ? 'Điều hành quản trị học vụ, phê duyệt đợt đồ án, điều phối hội đồng và công tác hướng dẫn sinh viên.'
+                            : 'Tổng hợp nhiệm vụ hướng dẫn, tình trạng phê duyệt và lịch chấm hội đồng.'}
                     </p>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }} className="flex-wrap">
+                    {isVienTruong && (
+                        <>
+                            <button
+                                type="button"
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => navigate('/lecturer/institute?tab=decisions')}
+                                title="Quản lý đợt đồ án & Ban hành Quyết định giao đề tài"
+                            >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                    <path d="m9 15 2 2 4-4" />
+                                </svg>
+                                Ban hành QĐ Đề tài
+                            </button>
+                            <button
+                                type="button"
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => navigate('/admin/councils')}
+                                title="Phân công giảng viên vào Hội đồng bảo vệ"
+                            >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                                    <circle cx="9" cy="7" r="4" />
+                                    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                                </svg>
+                                Phân công Hội đồng
+                            </button>
+                        </>
+                    )}
                     <button
                         type="button"
                         className="btn btn-secondary btn-sm"
@@ -275,6 +318,163 @@ export default function LecturerDashboardPage() {
                     </div>
                 </div>
             </div>
+
+            {/* Institutional Operations Hub (Dành riêng cho Viện trưởng) */}
+            {isVienTruong && (
+                <div className="card mb-6" style={{ borderLeft: '4px solid #0F766E' }}>
+                    <div className="card-head" style={{ background: '#F0FDFA' }}>
+                        <div>
+                            <div className="card-title" style={{ color: '#0F766E', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                                    <path d="M2 17l10 5 10-5" />
+                                    <path d="M2 12l10 5 10-5" />
+                                </svg>
+                                <span>Chức Năng Điều Hành & Quản Trị Viện</span>
+                            </div>
+                            <div className="card-subtitle" style={{ color: '#115E59' }}>
+                                Thẩm quyền chuyên môn: Phê duyệt đợt đồ án, ban hành quyết định giao đề tài, điều phối hội đồng và phê duyệt kết quả tốt nghiệp
+                            </div>
+                        </div>
+                        <span className="tag teal">Thẩm quyền Viện trưởng</span>
+                    </div>
+
+                    <div style={{ padding: '16px 20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
+                        {/* Card 1: Quyết định giao đề tài */}
+                        <div style={{ padding: '14px 16px', background: 'white', border: '1px solid #CCFBF1', borderRadius: 'var(--radius-sm)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                            <div>
+                                <div style={{ fontWeight: 700, color: '#0F766E', fontSize: '14px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <span>📜 Quyết định giao đề tài</span>
+                                </div>
+                                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+                                    Ban hành QĐ chính thức kèm danh sách BM02, kích hoạt thời hạn 7 ngày điều chỉnh tên đề tài.
+                                </div>
+                            </div>
+                            <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
+                                <button
+                                    type="button"
+                                    className="btn btn-primary btn-sm"
+                                    onClick={() => navigate('/lecturer/institute?tab=decisions')}
+                                >
+                                    Quản lý quyết định →
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Card 2: Thẩm định BM02 */}
+                        <div style={{ padding: '14px 16px', background: 'white', border: '1px solid #CCFBF1', borderRadius: 'var(--radius-sm)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                            <div>
+                                <div style={{ fontWeight: 700, color: '#0F766E', fontSize: '14px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <span>✅ Xét duyệt đề cương BM02</span>
+                                </div>
+                                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+                                    Thẩm định đề cương chi tiết BM02 của sinh viên đã nộp để làm căn cứ ra quyết định giao đề tài.
+                                </div>
+                            </div>
+                            <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={() => navigate('/lecturer/institute?tab=bm02')}
+                                >
+                                    Mở hàng đợi BM02 →
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Card 3: Phân công hội đồng */}
+                        <div style={{ padding: '14px 16px', background: 'white', border: '1px solid #CCFBF1', borderRadius: 'var(--radius-sm)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                            <div>
+                                <div style={{ fontWeight: 700, color: '#0F766E', fontSize: '14px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <span>👥 Phân công Hội đồng Chấm</span>
+                                </div>
+                                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+                                    Thành lập hội đồng, phân công 3 giảng viên (Chủ tịch, Thư ký, Phản biện) và gán sinh viên bảo vệ.
+                                </div>
+                            </div>
+                            <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={() => navigate('/admin/councils')}
+                                >
+                                    Điều phối hội đồng →
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Card 4: Khóa sổ & Phê duyệt điểm */}
+                        <div style={{ padding: '14px 16px', background: 'white', border: '1px solid #CCFBF1', borderRadius: 'var(--radius-sm)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                            <div>
+                                <div style={{ fontWeight: 700, color: '#0F766E', fontSize: '14px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <span>🔒 Khóa sổ & Phê duyệt điểm</span>
+                                </div>
+                                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+                                    Giám sát chấm bảo vệ, khóa sổ điểm hội đồng và phê duyệt kết quả để công bố chính thức.
+                                </div>
+                            </div>
+                            <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={() => navigate('/admin/grading')}
+                                >
+                                    Trung tâm chấm →
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Card 5: Ủy quyền chuyên môn */}
+                        <div style={{ padding: '14px 16px', background: 'white', border: '1px solid #CCFBF1', borderRadius: 'var(--radius-sm)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                            <div>
+                                <div style={{ fontWeight: 700, color: '#0F766E', fontSize: '14px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <span>📋 Ủy quyền Chuyên môn</span>
+                                </div>
+                                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+                                    Ủy quyền xét duyệt BM02, BM03 hoặc quản lý đề tài cho các cán bộ phụ trách bộ môn.
+                                </div>
+                            </div>
+                            <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={() => navigate('/lecturer/institute?tab=delegations')}
+                                >
+                                    Quản lý ủy quyền →
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Card 6: Quản lý đề tài & Tiêu chí */}
+                        <div style={{ padding: '14px 16px', background: 'white', border: '1px solid #CCFBF1', borderRadius: 'var(--radius-sm)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                            <div>
+                                <div style={{ fontWeight: 700, color: '#0F766E', fontSize: '14px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <span>📚 Đề tài toàn Viện & Rubric</span>
+                                </div>
+                                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+                                    Rà soát toàn bộ đề tài đăng ký của các giảng viên và cấu hình tiêu chí chấm rubric chuẩn.
+                                </div>
+                            </div>
+                            <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={() => navigate('/admin/topics')}
+                                >
+                                    Đề tài chung
+                                </button>
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={() => navigate('/admin/rubric-management')}
+                                >
+                                    Rubric
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* 3. Triage Queue: Việc cần xử lý gấp */}
             <div className="card" style={{ borderLeft: '4px solid var(--warning)' }}>

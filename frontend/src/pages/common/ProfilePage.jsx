@@ -23,6 +23,7 @@ import {
 import useAuthStore from '../../stores/authStore';
 import { authService } from '../../services/authService';
 import uploadService from '../../services/uploadService';
+import { getUserDisplayRole, isInstituteDirector } from '../../utils/authRedirect';
 import PageHeader from '../../components/common/PageHeader';
 
 function ProfilePage() {
@@ -172,8 +173,8 @@ function ProfilePage() {
 
     if (!user) return <div className="p-6 text-slate-500">Đang tải thông tin...</div>;
 
-    const roleName = user.role === 'ADMIN' ? 'Quản trị viên' : user.role === 'LECTURER' ? 'Giảng viên' : 'Sinh viên';
-    const roleColor = user.role === 'ADMIN' ? 'red' : user.role === 'LECTURER' ? 'blue' : 'green';
+    const roleName = getUserDisplayRole(user);
+    const roleColor = isInstituteDirector(user) ? 'purple' : user.role === 'ADMIN' ? 'red' : user.role === 'LECTURER' ? 'blue' : 'green';
 
     return (
         <div className="py-2">

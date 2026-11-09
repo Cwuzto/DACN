@@ -6,6 +6,7 @@ import { semesterService } from '../../services/semesterService';
 import { getClosestSemester } from '../../utils/semesterDisplay';
 import registrationService from '../../services/registrationService';
 import { getVisibleNavigation } from '../../config/navigationRegistry';
+import { isInstituteDirector, getUserDisplayRole } from '../../utils/authRedirect';
 import NavIcon from './NavIcon';
 import OpenDrawer from '../common/OpenDrawer';
 import QuotaMeter from '../common/QuotaMeter';
@@ -162,7 +163,8 @@ function AppLayout({ role }) {
 
     // Determine role and navigation endpoints
     const currentRole = role || user?.role || 'STUDENT';
-    const roleLabel = currentRole === 'ADMIN' ? 'Quản trị viên' : currentRole === 'LECTURER' ? 'Giảng viên' : 'Sinh viên';
+    const isVienTruong = isInstituteDirector(user);
+    const roleLabel = getUserDisplayRole(user);
     const basePath = currentRole === 'ADMIN' ? '/admin' : currentRole === 'LECTURER' ? '/lecturer' : '/student';
     const dashboardPath = `${basePath}/dashboard`;
     const profilePath = `${basePath}/profile`;
@@ -242,7 +244,13 @@ function AppLayout({ role }) {
                             {user?.fullName || user?.name || roleLabel}
                         </div>
                         <div className={currentRole === 'LECTURER' ? 'lecturer-dept' : 'user-dept'}>
-                            {user?.code ? `Mã: ${user.code}` : (currentRole === 'ADMIN' ? 'Ban Quản trị Viện' : 'Khoa Công nghệ Phần mềm')}
+                            {isVienTruong ? (
+                                <span className="font-semibold text-[#0F766E]">
+                                    {user?.code ? `Mã: ${user.code} · ` : ''}Viện trưởng
+                                </span>
+                            ) : (
+                                user?.code ? `Mã: ${user.code}` : (currentRole === 'ADMIN' ? 'Ban Quản trị Viện' : 'Khoa Công nghệ Phần mềm')
+                            )}
                         </div>
                     </div>
                 </div>

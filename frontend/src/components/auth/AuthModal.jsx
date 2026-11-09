@@ -19,7 +19,6 @@ export default function AuthModal({ open, onClose }) {
     const [remember, setRemember] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
-    const [userAuthData, setUserAuthData] = useState(null); // Role gateway nếu là GV kiêm nhiệm
 
     // Khôi phục email đã ghi nhớ
     useEffect(() => {
@@ -30,7 +29,6 @@ export default function AuthModal({ open, onClose }) {
                 setRemember(true);
             }
             setErrorMessage('');
-            setUserAuthData(null);
         }
     }, [open]);
 
@@ -76,19 +74,8 @@ export default function AuthModal({ open, onClose }) {
             }
 
             setAuth(token, user, remember);
-
-            const canManageInstitute = user.role === 'LECTURER' && hasPermissionOrGroup(
-                user,
-                ['PROJECT_ASSIGNMENT_PUBLISH'],
-                ['VIEN_TRUONG'],
-            );
-
-            if (canManageInstitute) {
-                setUserAuthData({ token, user, canManageInstitute });
-            } else {
-                onClose?.();
-                navigate(getRoleHomePath(user));
-            }
+            onClose?.();
+            navigate(getRoleHomePath(user));
         } catch (error) {
             setErrorMessage(
                 error?.response?.data?.message ||
@@ -97,19 +84,6 @@ export default function AuthModal({ open, onClose }) {
             );
         } finally {
             setLoading(false);
-        }
-    };
-
-    const enterWorkspace = (targetRole) => {
-        onClose?.();
-        if (targetRole === 'INSTITUTE') {
-            navigate('/lecturer/institute');
-        } else if (targetRole === 'LECTURER') {
-            navigate('/lecturer/dashboard');
-        } else if (targetRole === 'COUNCIL') {
-            navigate('/lecturer/grading');
-        } else {
-            navigate('/student/dashboard');
         }
     };
 
@@ -163,9 +137,7 @@ export default function AuthModal({ open, onClose }) {
 
                 {/* Modal Body */}
                 <div className="p-6">
-                    {/* Step 1: Form đăng nhập chuẩn */}
-                    {!userAuthData ? (
-                        <form onSubmit={handleLoginSubmit} className="space-y-4">
+                    <form onSubmit={handleLoginSubmit} className="space-y-4">
                             {/* Error Alert */}
                             {errorMessage && (
                                 <div className="p-3 text-xs bg-red-50 border border-red-200 text-red-700 rounded-lg flex items-start gap-2.5 animate-in fade-in">
@@ -289,82 +261,6 @@ export default function AuthModal({ open, onClose }) {
                                 )}
                             </button>
                         </form>
-                    ) : (
-                        /* Step 2: Role Gateway - Chọn không gian cho Giảng viên kiêm nhiệm */
-                        <div className="space-y-3.5 animate-in fade-in">
-                            <div className="flex items-center gap-2">
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-teal-50 text-[#0F766E] border border-teal-200">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-[#0F766E]"></span>
-                                    Xác thực thành công
-                                </span>
-                            </div>
-
-                            <div>
-                                <h3 className="text-sm font-bold text-slate-900">
-                                    Chọn Không Gian Tác Nghiệp
-                                </h3>
-                                <p className="text-xs text-slate-500 mt-0.5">
-                                    Tài khoản <strong className="text-slate-700">{userAuthData.user?.fullName}</strong> có phân công kiêm nhiệm nhiều vai trò học thuật.
-                                </p>
-                            </div>
-
-                            <div className="space-y-2 pt-1">
-                                <button
-                                    type="button"
-                                    onClick={() => enterWorkspace('LECTURER')}
-                                    className="w-full p-3 rounded-lg border border-slate-200 hover:border-[#0F766E] bg-white hover:bg-teal-50/40 text-left transition-all flex items-center justify-between group"
-                                >
-                                    <div>
-                                        <div className="text-xs font-bold text-slate-900 group-hover:text-[#0F766E] transition-colors">
-                                            Không gian Giảng viên Hướng dẫn
-                                        </div>
-                                        <div className="text-[11px] text-slate-500 mt-0.5">
-                                            Theo dõi sinh viên, duyệt đề tài BM01-BM04, nhật ký gặp Lab
-                                        </div>
-                                    </div>
-                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-teal-100 text-[#0F766E]">
-                                        GVHD
-                                    </span>
-                                </button>
-
-                                <button
-                                    type="button"
-                                    onClick={() => enterWorkspace('COUNCIL')}
-                                    className="w-full p-3 rounded-lg border border-slate-200 hover:border-blue-500 bg-white hover:bg-blue-50/40 text-left transition-all flex items-center justify-between group"
-                                >
-                                    <div>
-                                        <div className="text-xs font-bold text-slate-900 group-hover:text-blue-700 transition-colors">
-                                            Hội đồng Chấm Bảo vệ
-                                        </div>
-                                        <div className="text-[11px] text-slate-500 mt-0.5">
-                                            Chấm điểm rubric, xem thuyết minh và xác nhận biên bản BM05
-                                        </div>
-                                    </div>
-                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-700">
-                                        Hội đồng
-                                    </span>
-                                </button>
-
-                                {userAuthData.canManageInstitute ? <button
-                                    type="button"
-                                    onClick={() => enterWorkspace('INSTITUTE')}
-                                    className="w-full p-3 rounded-lg border border-slate-200 hover:border-amber-500 bg-white hover:bg-amber-50/40 text-left transition-all flex items-center justify-between group"
-                                >
-                                    <div>
-                                        <div className="text-xs font-bold text-slate-900 group-hover:text-amber-800 transition-colors">
-                                            Bàn làm việc Quản lý / Bộ môn
-                                        </div>
-                                        <div className="text-[11px] text-slate-500 mt-0.5">
-                                            Giám sát tiến độ toàn khoa, điều phối hội đồng & phê duyệt
-                                        </div>
-                                    </div>
-                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800">
-                                        Quản lý
-                                    </span>
-                                </button> : null}
-                            </div>
-                        </div>
-                    )}
                 </div>
             </div>
         </div>

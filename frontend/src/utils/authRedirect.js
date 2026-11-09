@@ -18,6 +18,29 @@ export function getRoleHomePath(userOrRole) {
     return ROLE_HOME_PATHS[readRole(userOrRole)] || PORTAL_PATH;
 }
 
+export function isInstituteDirector(user) {
+    if (!user) return false;
+    const groupCodes = readGroupCodes(user);
+    const permissions = user?.permissions || [];
+    return (
+        groupCodes.includes('VIEN_TRUONG') ||
+        permissions.includes('PROJECT_ASSIGNMENT_PUBLISH') ||
+        permissions.includes('PERMISSION_ASSIGN_ACADEMIC')
+    );
+}
+
+export function getUserDisplayRole(userOrRole) {
+    if (!userOrRole) return '';
+    if (typeof userOrRole === 'object' && isInstituteDirector(userOrRole)) {
+        return 'Viện trưởng';
+    }
+    const role = readRole(userOrRole);
+    if (role === 'ADMIN') return 'Quản trị viên';
+    if (role === 'LECTURER') return 'Giảng viên';
+    if (role === 'STUDENT') return 'Sinh viên';
+    return role || '';
+}
+
 export function hasPermissionOrGroup(user, permissions = [], permissionGroups = []) {
     if (permissions.length === 0 && permissionGroups.length === 0) return true;
 
