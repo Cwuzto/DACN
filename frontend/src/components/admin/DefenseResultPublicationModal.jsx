@@ -33,19 +33,19 @@ const { Text, Paragraph } = Typography;
 
 const TYPE_CONFIG = {
     INITIAL: {
-        label: 'Công bố Lần đầu (Initial)',
+        label: 'Công bố Chính thức đợt 1',
         icon: <SendOutlined />,
         desc: 'Ban hành kết quả chính thức cho toàn bộ sinh viên bảo vệ đợt chính.',
         badgeColor: '#0F766E',
     },
     SUPPLEMENTARY: {
-        label: 'Công bố Bổ sung (Supplementary)',
+        label: 'Công bố Bổ sung',
         icon: <PlusCircleOutlined />,
         desc: 'Ban hành cho các sinh viên bảo vệ đợt bổ sung hoặc duyệt trễ.',
         badgeColor: '#0284C7',
     },
     CORRECTION: {
-        label: 'Công bố Đính chính (Correction)',
+        label: 'Công bố Đính chính',
         icon: <EditOutlined />,
         desc: 'Đính chính kết quả đã ban hành do phúc khảo hoặc quyết định điều chỉnh.',
         badgeColor: '#D97706',
@@ -106,11 +106,14 @@ export default function DefenseResultPublicationModal({
 
     // Các ấn phẩm trước có thể dùng làm tiền nhiệm cho CORRECTION
     const previousPublicationOptions = useMemo(() => {
-        return history.map((pub) => ({
-            label: `#${pub.id} · ${pub.type} · ${new Date(pub.publishedAt).toLocaleDateString('vi-VN')} (${pub.items?.length || 0} hồ sơ)`,
-            value: pub.id,
-            items: pub.items || [],
-        }));
+        return history.map((pub) => {
+            const typeLabel = TYPE_CONFIG[pub.type]?.label || pub.type;
+            return {
+                label: `#${pub.id} · ${typeLabel} · ${new Date(pub.publishedAt).toLocaleDateString('vi-VN')} (${pub.items?.length || 0} hồ sơ)`,
+                value: pub.id,
+                items: pub.items || [],
+            };
+        });
     }, [history]);
 
     // Lấy items của đợt công bố tiền nhiệm đã chọn
@@ -511,14 +514,14 @@ export default function DefenseResultPublicationModal({
                         />
                     </div>
 
-                    {/* 5. Cảnh báo tính toàn vẹn (Immutability) */}
+                    {/* 5. Cảnh báo bảo toàn dữ liệu */}
                     <Alert
                         style={{ marginTop: 14 }}
                         type="info"
                         showIcon
                         icon={<ExclamationCircleOutlined />}
-                        message="Cam kết tính toàn vẹn và bất biến (Snapshot Immutability)"
-                        description="Sau khi ban hành, bản ghi kết quả này sẽ được niêm phong vĩnh viễn (sao chép đầy đủ họ tên, điểm, đề tài, kết quả). Sinh viên sẽ tra cứu được kết quả chính thức ngay lập tức. Mọi điều chỉnh sau này bắt buộc phải tạo văn bản Đính chính (CORRECTION)."
+                        message="Cam kết bảo toàn dữ liệu vĩnh viễn"
+                        description="Sau khi ban hành, bản ghi kết quả này sẽ được niêm phong vĩnh viễn (sao chép đầy đủ họ tên, điểm, đề tài, kết quả). Sinh viên sẽ tra cứu được kết quả chính thức ngay lập tức. Mọi điều chỉnh sau này bắt buộc phải tạo văn bản công bố đính chính."
                     />
 
                     {/* 6. Footer Buttons */}

@@ -193,7 +193,7 @@ export default function BM02ReviewDrawer({
 
                 <Alert
                     message="Quy chuẩn Thẩm định Viện"
-                    description="Viện trưởng / Đại diện Viện thẩm định chỉ có 2 hành động hợp lệ: Phê duyệt (APPROVE) nếu đề cương đạt chuẩn, hoặc Yêu cầu chỉnh sửa (RETURN_FOR_REVISION) kèm lý do cụ thể. Sinh viên sẽ nhận được thông báo để chỉnh sửa trong thời hạn quy định."
+                    description="Viện trưởng / Đại diện Viện thẩm định chỉ có 2 hành động hợp lệ: Phê duyệt nếu đề cương đạt chuẩn, hoặc Yêu cầu chỉnh sửa kèm lý do cụ thể. Sinh viên sẽ nhận được thông báo để chỉnh sửa trong thời hạn quy định."
                     type="info"
                     showIcon
                     icon={<InfoCircleOutlined />}
@@ -225,7 +225,7 @@ export default function BM02ReviewDrawer({
                                     <div className="inline-block ml-1">
                                         <div className="font-semibold text-emerald-800">
                                             <CheckCircleOutlined className="mr-1.5 text-emerald-600" />
-                                            Phê duyệt (APPROVE)
+                                            Phê duyệt
                                         </div>
                                         <div className="text-xs text-emerald-600">
                                             Đề cương đạt yêu cầu, sẵn sàng để ban hành Quyết định giao đề tài.
@@ -239,7 +239,7 @@ export default function BM02ReviewDrawer({
                                     <div className="inline-block ml-1">
                                         <div className="font-semibold text-amber-800">
                                             <CloseCircleOutlined className="mr-1.5 text-amber-600" />
-                                            Yêu cầu chỉnh sửa (RETURN_FOR_REVISION)
+                                            Yêu cầu chỉnh sửa
                                         </div>
                                         <div className="text-xs text-amber-600">
                                             Yêu cầu sinh viên bổ sung, chỉnh sửa nội dung theo góp ý thẩm định.

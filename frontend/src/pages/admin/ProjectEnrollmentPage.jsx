@@ -674,7 +674,7 @@ export function ProjectEnrollmentPage() {
             {/* Page Header */}
             <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
-                    <p className="eyebrow text-teal-700 font-bold tracking-wider">PROJECT COORDINATION HUB</p>
+                    <p className="eyebrow text-teal-700 font-bold tracking-wider">TRUNG TÂM ĐIỀU PHỐI ĐỢT ĐỒ ÁN</p>
                     <h1 className="text-2xl font-black text-slate-900 tracking-tight">
                         Điều Phối Đợt Đồ Án & Phân Công
                     </h1>

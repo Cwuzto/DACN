@@ -71,8 +71,8 @@ export default function CheckpointAppealReviewModal({
             if (res.success) {
                 message.success(
                     decision === 'APPROVED'
-                        ? 'Đã chấp thuận gia hạn thời gian ký BM03 Checkpoint cho sinh viên.'
-                        : 'Đã bác đơn khiếu nại chữ ký. Đề tài chuyển sang dừng thực hiện.'
+                        ? 'Đã chấp thuận gia hạn thời gian ký xác nhận tiến độ cho sinh viên.'
+                        : 'Đã từ chối khiếu nại chữ ký. Đề tài chuyển sang dừng thực hiện.'
                 );
                 if (onSuccess) onSuccess(res.data);
                 if (onClose) onClose();
@@ -104,7 +104,7 @@ export default function CheckpointAppealReviewModal({
             case 'APPROVED':
                 return <Tag color="green" icon={<CheckCircleOutlined />}>ĐÃ CHẤP THUẬN GIA HẠN</Tag>;
             case 'REJECTED':
-                return <Tag color="red" icon={<CloseCircleOutlined />}>ĐÃ BÁC ĐƠN</Tag>;
+                return <Tag color="red" icon={<CloseCircleOutlined />}>ĐÃ TỪ CHỐI</Tag>;
             case 'SUBMITTED':
                 return <Tag color="gold" icon={<ExclamationCircleOutlined />}>CHỜ THẨM ĐỊNH</Tag>;
             case 'PENDING':
@@ -119,7 +119,7 @@ export default function CheckpointAppealReviewModal({
             title={
                 <div className="flex items-center gap-2 text-base font-semibold text-slate-800">
                     <ExclamationCircleOutlined className="text-amber-500" />
-                    <span>Thẩm Định Khiếu Nại Chữ Ký BM03 Checkpoint</span>
+                    <span>Thẩm Định Khiếu Nại Chữ Ký Đánh Giá Tiến Độ</span>
                 </div>
             }
             open={open}
@@ -145,7 +145,7 @@ export default function CheckpointAppealReviewModal({
                             disabled={isMentorConflict || isProcessed}
                             icon={<CloseCircleOutlined />}
                         >
-                            Bác đơn (REJECTED)
+                            Từ chối đề xuất
                         </Button>
                         <Button
                             type="primary"
@@ -154,7 +154,7 @@ export default function CheckpointAppealReviewModal({
                             disabled={isMentorConflict || isProcessed}
                             icon={<CheckCircleOutlined />}
                         >
-                            Chấp thuận gia hạn (APPROVED)
+                            Chấp thuận gia hạn
                         </Button>
                     </Space>
                 </div>
@@ -245,8 +245,8 @@ export default function CheckpointAppealReviewModal({
                         disabled={isMentorConflict || isProcessed || submitting}
                     />
                     <div className="text-xs text-slate-500 mt-1">
-                        • <b>Chấp thuận gia hạn:</b> Hồ sơ mở lại cửa sổ ký BM03 Checkpoint theo số ngày gia hạn cấu hình trong chính sách đợt.<br />
-                        • <b>Bác đơn:</b> Đề tài dừng thực hiện (TERMINATED_FAILED_PROGRESS) do vi phạm quy chế tiến độ học thuật.
+                        • <b>Chấp thuận gia hạn:</b> Hồ sơ mở lại cửa sổ ký xác nhận tiến độ theo số ngày gia hạn cấu hình trong chính sách đợt.<br />
+                        • <b>Từ chối đề xuất:</b> Đề tài dừng thực hiện do vi phạm quy chế tiến độ học thuật.
                     </div>
                 </div>
             </div>

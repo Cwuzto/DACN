@@ -284,7 +284,7 @@ export function LecturerAssignmentTab({
 
     // Download Excel Template for Lecturer Assignment
     const handleDownloadTemplate = () => {
-        const headers = ['Mã Giảng Viên', 'Họ Và Tên (Tham khảo)', 'Mã Tên Đồ Án', 'Chỉ Tiêu (1-10)'];
+        const headers = ['Mã Giảng Viên', 'Họ Và Tên (Tham khảo)', 'Mã Tên Đồ Án', 'Chỉ Tiêu Hướng Dẫn (1-10)'];
         const sampleRows = [
             ['GV001', 'Nguyễn Văn A', catalogs[0]?.code || 'DATN', 10],
             ['GV002', 'Trần Thị B', catalogs[0]?.code || 'DATN', 8],
@@ -436,9 +436,9 @@ export function LecturerAssignmentTab({
             ),
         },
         {
-            title: 'Chỉ tiêu',
+            title: 'Chỉ tiêu hướng dẫn',
             key: 'plannedQuota',
-            width: 90,
+            width: 110,
             align: 'center',
             render: (_, row) => (
                 <span className="font-black text-slate-900 text-sm">
@@ -740,7 +740,7 @@ export function LecturerAssignmentTab({
                     <div className="grid grid-cols-2 gap-3">
                         <Form.Item
                             name="plannedQuota"
-                            label="Chỉ tiêu kế hoạch"
+                            label="Chỉ tiêu hướng dẫn"
                             rules={[{ required: true, message: 'Nhập chỉ tiêu từ 1 đến 10' }]}
                             tooltip="Giới hạn tối đa 10 sinh viên cho một giảng viên tại bất kỳ thời điểm nào"
                         >
@@ -767,7 +767,7 @@ export function LecturerAssignmentTab({
 
             {/* Modal 2: Sửa chỉ tiêu */}
             <Modal
-                title="Chỉnh sửa Chỉ tiêu Phân công"
+                title="Chỉnh sửa Chỉ tiêu Hướng dẫn"
                 open={editModalOpen}
                 onCancel={() => setEditModalOpen(false)}
                 footer={null}
@@ -787,7 +787,7 @@ export function LecturerAssignmentTab({
                 >
                     <Form.Item
                         name="plannedQuota"
-                        label="Chỉ tiêu kế hoạch (1-10)"
+                        label="Chỉ tiêu hướng dẫn (1-10)"
                         rules={[{ required: true, message: 'Chỉ tiêu từ 1 đến 10' }]}
                     >
                         <InputNumber min={1} max={10} className="w-full" />
@@ -874,7 +874,7 @@ export function LecturerAssignmentTab({
                             { title: 'Mã GV', dataIndex: 'lecturerCode', key: 'lecturerCode' },
                             { title: 'Tên GV', dataIndex: 'lecturerName', key: 'lecturerName' },
                             { title: 'Tên Đồ án', dataIndex: 'catalogName', key: 'catalogName' },
-                            { title: 'Chỉ tiêu', dataIndex: 'plannedQuota', key: 'plannedQuota' },
+                            { title: 'Chỉ tiêu hướng dẫn', dataIndex: 'plannedQuota', key: 'plannedQuota' },
                             {
                                 title: 'Trạng thái dòng',
                                 key: 'status',

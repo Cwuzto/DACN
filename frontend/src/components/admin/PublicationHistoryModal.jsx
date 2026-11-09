@@ -29,7 +29,7 @@ import evaluationService from '../../services/evaluationService';
 const { Text, Title } = Typography;
 
 const TYPE_TAG_PROPS = {
-    INITIAL: { color: 'cyan', text: 'CÔNG BỐ LẦN ĐẦU' },
+    INITIAL: { color: 'cyan', text: 'CÔNG BỐ CHÍNH THỨC ĐỢT 1' },
     SUPPLEMENTARY: { color: 'blue', text: 'CÔNG BỐ BỔ SUNG' },
     CORRECTION: { color: 'orange', text: 'CÔNG BỐ ĐÍNH CHÍNH' },
 };
@@ -296,7 +296,7 @@ export default function PublicationHistoryModal({
                                     {selectedPublication.previousPublication && (
                                         <div style={{ marginTop: 8, fontSize: 12, color: '#D97706' }}>
                                             <SwapOutlined style={{ marginRight: 4 }} />
-                                            Đính chính cho đợt công bố: <strong>#{selectedPublication.previousPublication.id} ({selectedPublication.previousPublication.type})</strong> lúc {new Date(selectedPublication.previousPublication.publishedAt).toLocaleDateString('vi-VN')}
+                                            Đính chính cho đợt công bố: <strong>#{selectedPublication.previousPublication.id} - {TYPE_TAG_PROPS[selectedPublication.previousPublication.type]?.text || selectedPublication.previousPublication.type}</strong> lúc {new Date(selectedPublication.previousPublication.publishedAt).toLocaleDateString('vi-VN')}
                                         </div>
                                     )}
 

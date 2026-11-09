@@ -409,7 +409,7 @@ function UserManagementPage() {
             },
         },
         {
-            title: activeRole === 'LECTURER' ? 'Hạn mức (Quota)' : 'Nhóm quyền',
+            title: activeRole === 'LECTURER' ? 'Chỉ tiêu hướng dẫn' : 'Nhóm quyền',
             key: 'quotaOrPerm',
             width: 170,
             render: (_, record) => {
@@ -470,7 +470,7 @@ function UserManagementPage() {
                         label: 'Xem hồ sơ chi tiết',
                     },
                     { key: 'edit', icon: <EditOutlined />, label: 'Chỉnh sửa thông tin' },
-                    { key: 'perm', icon: <SafetyCertificateOutlined />, label: 'Phân quyền nhóm (RBAC)' },
+                    { key: 'perm', icon: <SafetyCertificateOutlined />, label: 'Phân quyền nhóm' },
                     {
                         key: 'toggle',
                         icon: record.isActive ? <LockOutlined /> : <UnlockOutlined />,
@@ -1050,7 +1050,7 @@ function UserManagementPage() {
                                     </Form.Item>
 
                                     <Form.Item
-                                        label="Quota SV tối đa (Hạn mức hướng dẫn)"
+                                        label="Chỉ tiêu hướng dẫn tối đa"
                                         name="maxStudents"
                                         tooltip="Mặc định: ThS 10 SV, TS 15 SV, PGS 20 SV."
                                     >

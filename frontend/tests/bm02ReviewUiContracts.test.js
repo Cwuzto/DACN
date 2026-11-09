@@ -29,6 +29,10 @@ test('BM02ReviewDrawer strictly renders ONLY APPROVE and RETURN_FOR_REVISION wit
     assert.match(drawerSource, /issues|feedback|reason/i);
     assert.match(drawerSource, /required/);
 
+    // Natural Vietnamese copy: ensure English technical brackets are removed from visible labels
+    assert.doesNotMatch(drawerSource, /Phê duyệt\s*\(APPROVE\)/);
+    assert.doesNotMatch(drawerSource, /Yêu cầu chỉnh sửa\s*\(RETURN_FOR_REVISION\)/);
+
     // Must connect to registrationService review method
     assert.match(drawerSource, /reviewBM02|reviewBM02Submission/);
 });

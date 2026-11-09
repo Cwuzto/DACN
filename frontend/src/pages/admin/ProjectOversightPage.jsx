@@ -549,59 +549,59 @@ function ProjectOversightPage() {
 
         // BM01: Đề cương
         let bm01Color = 'bg-slate-100 text-slate-600 border-slate-300';
-        let bm01Tooltip = 'BM01: Chưa thẩm định đề cương';
+        let bm01Tooltip = 'Đề cương: Chưa thẩm định';
         if (reg.outlineReviewStatus === 'PASSED') {
             bm01Color = 'bg-emerald-100 text-emerald-800 border-emerald-300';
-            bm01Tooltip = 'BM01: Đề cương ĐẠT thẩm định';
+            bm01Tooltip = 'Đề cương: ĐẠT thẩm định';
         } else if (reg.outlineReviewStatus === 'NEEDS_REVISION') {
             bm01Color = 'bg-amber-100 text-amber-800 border-amber-300';
-            bm01Tooltip = 'BM01: Cần chỉnh sửa đề cương';
+            bm01Tooltip = 'Đề cương: Cần chỉnh sửa';
         } else if (reg.outlineReviewStatus === 'FAILED') {
             bm01Color = 'bg-rose-100 text-rose-800 border-rose-300';
-            bm01Tooltip = 'BM01: Đề cương KHÔNG ĐẠT';
+            bm01Tooltip = 'Đề cương: KHÔNG ĐẠT';
         } else if (reg.outlineReviewStatus === 'PENDING' || reg.outlineCouncilId) {
             bm01Color = 'bg-purple-100 text-purple-800 border-purple-300';
-            bm01Tooltip = 'BM01: Đang trong hội đồng thẩm định';
+            bm01Tooltip = 'Đề cương: Đang trong hội đồng thẩm định';
         }
 
-        // BM02: Giữa kỳ
+        // BM02: Giao đề tài
         const hasPassedBm01 = reg.outlineReviewStatus === 'PASSED' || ['IN_PROGRESS', 'READY_FOR_DEFENSE', 'DEFENDED', 'COMPLETED'].includes(reg.status);
         const bm02Color = hasPassedBm01 ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-slate-100 text-slate-600 border-slate-300';
-        const bm02Tooltip = hasPassedBm01 ? 'BM02: Đang thực hiện / Đã nộp tiến độ giữa kỳ' : 'BM02: Chưa đến mốc giữa kỳ';
+        const bm02Tooltip = hasPassedBm01 ? 'Quyết định giao đề tài: Đã ban hành' : 'Quyết định giao đề tài: Chưa ban hành';
 
-        // BM03: Báo cáo cuối kỳ
+        // BM03: Tiến độ
         const isReadyForDefense = ['READY_FOR_DEFENSE', 'DEFENDED', 'COMPLETED'].includes(reg.status);
         const bm03Color = isReadyForDefense ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-slate-100 text-slate-600 border-slate-300';
-        const bm03Tooltip = isReadyForDefense ? 'BM03: Đã hoàn tất báo cáo toàn văn' : 'BM03: Chưa hoàn thành báo cáo cuối kỳ';
+        const bm03Tooltip = isReadyForDefense ? 'Đánh giá tiến độ: Đạt điều kiện' : 'Đánh giá tiến độ: Đang theo dõi';
 
-        // BM04: Phiếu chấm bảo vệ
+        // BM04: Nhận xét hướng dẫn
         const isDefended = ['DEFENDED', 'COMPLETED'].includes(reg.status) || Boolean(reg.defenseResult);
         const bm04Color = isDefended ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-slate-100 text-slate-600 border-slate-300';
-        const bm04Tooltip = isDefended ? 'BM04: Đã có phiếu chấm bảo vệ khóa luận' : 'BM04: Chưa chấm bảo vệ';
+        const bm04Tooltip = isDefended ? 'Nhận xét hướng dẫn: Đã hoàn tất' : 'Nhận xét hướng dẫn: Chưa đánh giá';
 
         return (
             <div className="flex items-center gap-1">
                 <Tooltip title={bm01Tooltip}>
                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${bm01Color} cursor-pointer`}>
-                        BM01
+                        Đề cương
                     </span>
                 </Tooltip>
                 <span className="text-[10px] text-slate-500 font-bold">›</span>
                 <Tooltip title={bm02Tooltip}>
                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${bm02Color} cursor-pointer`}>
-                        BM02
+                        Giao đề tài
                     </span>
                 </Tooltip>
                 <span className="text-[10px] text-slate-500 font-bold">›</span>
                 <Tooltip title={bm03Tooltip}>
                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${bm03Color} cursor-pointer`}>
-                        BM03
+                        Tiến độ
                     </span>
                 </Tooltip>
                 <span className="text-[10px] text-slate-500 font-bold">›</span>
                 <Tooltip title={bm04Tooltip}>
                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${bm04Color} cursor-pointer`}>
-                        BM04
+                        Bảo vệ
                     </span>
                 </Tooltip>
             </div>
@@ -681,7 +681,7 @@ function ProjectOversightPage() {
                 ),
         },
         {
-            title: 'Tiến trình Biểu mẫu (BM)',
+            title: 'Tiến trình mốc học vụ',
             key: 'milestones',
             width: 230,
             render: (_, record) => renderBmMilestones(record),
@@ -966,7 +966,7 @@ function ProjectOversightPage() {
                             {!isApproved && canReviewArchive && (
                                 <Popconfirm
                                     title="Xác nhận nghiệm thu"
-                                    description="Hồ sơ sẽ được duyệt và chuyển đề tài sang hoàn tất (COMPLETED). Bạn chắc chắn chứ?"
+                                    description="Hồ sơ sẽ được duyệt và chuyển đề tài sang hoàn tất tốt nghiệp. Bạn chắc chắn chứ?"
                                     onConfirm={() => handleQuickApproveArchive(record.registrationId)}
                                     okText="Nghiệm thu"
                                     cancelText="Hủy"
@@ -1188,8 +1188,8 @@ function ProjectOversightPage() {
             key: 'status',
             width: 150,
             render: (status) => {
-                if (status === 'APPROVED') return <Tag color="green">ĐÃ GIA HẠN (APPROVED)</Tag>;
-                if (status === 'REJECTED') return <Tag color="red">ĐÃ BÁC ĐƠN (REJECTED)</Tag>;
+                if (status === 'APPROVED') return <Tag color="green">ĐÃ GIA HẠN</Tag>;
+                if (status === 'REJECTED') return <Tag color="red">ĐÃ TỪ CHỐI</Tag>;
                 if (status === 'SUBMITTED') return <Tag color="gold">CHỜ THẨM ĐỊNH</Tag>;
                 return <Tag color="blue">{status}</Tag>;
             },
@@ -1280,8 +1280,8 @@ function ProjectOversightPage() {
                     { label: 'Đào tạo & Đề tài' },
                     { label: 'Giám sát tiến độ & BM' },
                 ]}
-                title="Giám sát Đề tài & Biểu mẫu"
-                subtitle="Theo dõi vòng đời đề tài, tiến độ nộp biểu mẫu BM01-BM04 của sinh viên và điều phối xử lý ngoại lệ đào tạo."
+                title="Giám sát Đề tài & Tiến độ Học vụ"
+                subtitle="Theo dõi vòng đời đề tài, tiến độ các mốc học vụ của sinh viên và điều phối xử lý ngoại lệ đào tạo."
                 tags={[{ label: 'Giám sát toàn diện', color: 'blue' }]}
                 actions={
                     <Button icon={<ReloadOutlined />} onClick={fetchData}>
@@ -1304,7 +1304,7 @@ function ProjectOversightPage() {
                             Giám Sát Rủi Ro Tiến Độ &amp; Hồ Sơ Lưu Chiểu Sau Bảo Vệ
                         </h3>
                         <p className="text-xs text-slate-300 max-w-xl">
-                            Tự động quét và cảnh báo sinh viên gián đoạn gặp GVHD (&gt;21 ngày không có nhật ký BM03) hoặc chậm nộp lưu chiểu (&gt;14 ngày sau bảo vệ).
+                            Tự động quét và cảnh báo sinh viên gián đoạn gặp GVHD (&gt;21 ngày không có nhật ký tiến độ) hoặc chậm nộp lưu chiểu (&gt;14 ngày sau bảo vệ).
                         </p>
                     </div>
 
@@ -1325,7 +1325,7 @@ function ProjectOversightPage() {
                             </div>
                             <div className="text-xs">
                                 <div className="font-semibold text-amber-200">Gián đoạn GVHD</div>
-                                <div className="text-[11px] text-slate-300 font-medium">&gt; 21 ngày không có BM03</div>
+                                <div className="text-[11px] text-slate-300 font-medium">&gt; 21 ngày không cập nhật tiến độ</div>
                             </div>
                         </div>
 
@@ -1414,7 +1414,7 @@ function ProjectOversightPage() {
                                                 showIcon
                                                 type="warning"
                                                 message={`Có ${warningStats.pendingRegistrations} hồ sơ đăng ký đang chờ xét duyệt`}
-                                                description="Vui lòng xử lý phê duyệt sớm để sinh viên và GVHD có thể triển khai nộp đề cương BM01 kịp tiến độ."
+                                                description="Vui lòng xử lý phê duyệt sớm để sinh viên và GVHD có thể triển khai nộp đề cương chi tiết kịp tiến độ."
                                                 className="rounded-xl border border-amber-200"
                                             />
                                         )}
@@ -1552,9 +1552,9 @@ function ProjectOversightPage() {
                                                 onChange={setArchiveStatusFilter}
                                                 options={[
                                                     { value: 'ALL', label: 'Tất cả trạng thái nghiệm thu' },
-                                                    { value: 'SUBMITTED', label: 'Chờ nghiệm thu (SUBMITTED)' },
-                                                    { value: 'APPROVED', label: 'Đã nghiệm thu (APPROVED)' },
-                                                    { value: 'REVISION_REQUIRED', label: 'Cần chỉnh sửa (REVISION_REQUIRED)' },
+                                                    { value: 'SUBMITTED', label: 'Chờ nghiệm thu' },
+                                                    { value: 'APPROVED', label: 'Đã nghiệm thu' },
+                                                    { value: 'REVISION_REQUIRED', label: 'Cần chỉnh sửa' },
                                                 ]}
                                             />
                                         </div>
@@ -1621,7 +1621,7 @@ function ProjectOversightPage() {
                                             key: 'CHECKPOINT_SIGNATURE_APPEAL_QUEUE',
                                             label: (
                                                 <span className="font-semibold text-sm">
-                                                    Khiếu Nại Chữ Ký Checkpoint ({checkpointSignatureAppeals.length})
+                                                    Khiếu Nại Chữ Ký Tiến Độ ({checkpointSignatureAppeals.length})
                                                 </span>
                                             ),
                                             children: (
@@ -1634,9 +1634,9 @@ function ProjectOversightPage() {
                                                                 style={{ width: 220 }}
                                                                 options={[
                                                                     { label: 'Tất cả trạng thái', value: 'ALL' },
-                                                                    { label: 'Chờ thẩm định (SUBMITTED)', value: 'SUBMITTED' },
-                                                                    { label: 'Đã chấp thuận (APPROVED)', value: 'APPROVED' },
-                                                                    { label: 'Đã bác đơn (REJECTED)', value: 'REJECTED' },
+                                                                    { label: 'Chờ thẩm định', value: 'SUBMITTED' },
+                                                                    { label: 'Đã chấp thuận', value: 'APPROVED' },
+                                                                    { label: 'Đã từ chối', value: 'REJECTED' },
                                                                 ]}
                                                             />
                                                             <Button
@@ -1647,7 +1647,7 @@ function ProjectOversightPage() {
                                                             </Button>
                                                         </div>
                                                         <div className="text-xs text-slate-500">
-                                                            Danh sách đơn giải trình quá hạn ký BM03 Checkpoint cần Ban chủ nhiệm / Viện trưởng thẩm định gia hạn.
+                                                            Danh sách đơn giải trình quá hạn ký xác nhận tiến độ cần Ban chủ nhiệm / Viện trưởng thẩm định gia hạn.
                                                         </div>
                                                     </div>
 
@@ -1669,7 +1669,7 @@ function ProjectOversightPage() {
                                             key: 'LEGACY_CASES',
                                             label: (
                                                 <span className="font-semibold text-sm">
-                                                    Hồ Sơ Chuyển Giao Legacy ({manualReviewTotal})
+                                                    Hồ Sơ Cần Thẩm Định Chuyển Đổi ({manualReviewTotal})
                                                 </span>
                                             ),
                                             children: (
@@ -1684,8 +1684,8 @@ function ProjectOversightPage() {
                                                                 }}
                                                                 style={{ width: 220 }}
                                                                 options={[
-                                                                    { label: 'Chờ thẩm định (OPEN)', value: 'OPEN' },
-                                                                    { label: 'Đã giải quyết (RESOLVED)', value: 'RESOLVED' },
+                                                                    { label: 'Chờ thẩm định', value: 'OPEN' },
+                                                                    { label: 'Đã giải quyết', value: 'RESOLVED' },
                                                                     { label: 'Tất cả trạng thái', value: 'ALL' },
                                                                 ]}
                                                             />
@@ -1697,7 +1697,7 @@ function ProjectOversightPage() {
                                                             </Button>
                                                         </div>
                                                         <div className="text-xs text-slate-500">
-                                                            Danh sách <b>{manualReviewTotal}</b> hồ sơ cần xác nhận minh chứng và gán phiên bản quy trình chuẩn (Workflow Policy Version).
+                                                            Danh sách <b>{manualReviewTotal}</b> hồ sơ cần xác nhận minh chứng và cấp phiên bản chính sách học vụ chuẩn.
                                                         </div>
                                                     </div>
 
@@ -1879,7 +1879,7 @@ function ProjectOversightPage() {
                 title={
                     <div className="flex items-center gap-2 text-base font-bold text-rose-600">
                         <WarningOutlined />
-                        Chi Tiết Cảnh Báo Sớm Toàn Khóa (Health Radar)
+                        Chi Tiết Cảnh Báo Sớm Toàn Khóa
                     </div>
                 }
                 open={isHealthModalOpen}
@@ -1983,7 +1983,7 @@ function ProjectOversightPage() {
                                                 render: (m) => <span className="text-slate-600 text-xs">{m || '—'}</span>,
                                             },
                                             {
-                                                title: 'Lần gặp gần nhất (BM03)',
+                                                title: 'Lần gặp gần nhất',
                                                 dataIndex: 'lastMeetingDate',
                                                 key: 'lastMeetingDate',
                                                 render: (d) => (

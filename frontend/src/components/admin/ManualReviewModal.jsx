@@ -47,7 +47,7 @@ const ManualReviewModal = ({ open, caseItem, onClose, onSuccess }) => {
             title={
                 <Space>
                     <SafetyCertificateOutlined style={{ color: '#0F766E' }} />
-                    <span>Thẩm Định & Chuẩn Hóa Hồ Sơ Học Vụ Legacy (ID: #{caseItem.id})</span>
+                    <span>Thẩm Định & Chuẩn Hóa Hồ Sơ Học Vụ (Mã hồ sơ: #{caseItem.id})</span>
                 </Space>
             }
             open={open}
@@ -62,7 +62,7 @@ const ManualReviewModal = ({ open, caseItem, onClose, onSuccess }) => {
                     showIcon
                     icon={<ExclamationCircleOutlined />}
                     message="Hồ sơ được đưa vào hàng đợi kiểm toán tự động"
-                    description="Dữ liệu chuyển đổi từ hệ thống cũ cần Admin xác nhận tính hợp lệ trước khi cấp phiên bản chính sách học vụ chuẩn (Workflow Policy Version)."
+                    description="Dữ liệu chuyển đổi từ hệ thống cũ cần Quản trị viên xác nhận tính hợp lệ trước khi cấp phiên bản chính sách học vụ chuẩn."
                 />
 
                 <Descriptions bordered size="small" column={2}>
@@ -112,12 +112,12 @@ const ManualReviewModal = ({ open, caseItem, onClose, onSuccess }) => {
                             allowClear
                             placeholder="Giữ nguyên trạng thái hiện hành nếu hợp lệ"
                             options={[
-                                { label: 'IN_PROGRESS_BM03 (Đang thực hiện BM03)', value: 'IN_PROGRESS_BM03' },
-                                { label: 'BM03_PASSED (Đã qua BM03)', value: 'BM03_PASSED' },
-                                { label: 'DEFENSE_READY (Đủ ĐK bảo vệ)', value: 'DEFENSE_READY' },
-                                { label: 'DEFENDED (Đã bảo vệ xong)', value: 'DEFENDED' },
-                                { label: 'COMPLETED (Đã hoàn thành tốt nghiệp)', value: 'COMPLETED' },
-                                { label: 'REJECTED (Bác đề tài)', value: 'REJECTED' },
+                                { label: 'Đang theo dõi tiến độ', value: 'IN_PROGRESS_BM03' },
+                                { label: 'Đã đạt đánh giá tiến độ', value: 'BM03_PASSED' },
+                                { label: 'Đủ điều kiện bảo vệ', value: 'DEFENSE_READY' },
+                                { label: 'Đã bảo vệ xong', value: 'DEFENDED' },
+                                { label: 'Đã hoàn thành tốt nghiệp', value: 'COMPLETED' },
+                                { label: 'Dừng thực hiện đề tài', value: 'REJECTED' },
                             ]}
                         />
                     </Form.Item>
@@ -131,7 +131,7 @@ const ManualReviewModal = ({ open, caseItem, onClose, onSuccess }) => {
                             icon={<CheckCircleOutlined />}
                             style={{ background: '#0F766E', borderColor: '#0F766E' }}
                         >
-                            Xác Nhận Giải Quyết & Gán Policy
+                            Xác Nhận Giải Quyết & Áp Dụng Chính Sách
                         </Button>
                     </div>
                 </Form>

@@ -637,10 +637,10 @@ export default function GradingDefensePage() {
                             <th>Mã & Tên Đề tài</th>
                             <th>Sinh viên</th>
                             <th>Hội đồng</th>
-                            <th style={{ textAlign: 'center' }}>GVHD (BM04)</th>
+                            <th style={{ textAlign: 'center' }}>Điểm GVHD</th>
                             <th style={{ textAlign: 'center' }}>UV Phản biện</th>
                             <th style={{ textAlign: 'center' }}>Chi tiết Điểm Giám khảo</th>
-                            <th style={{ textAlign: 'center' }}>Điểm Khóa Luận (TBC)</th>
+                            <th style={{ textAlign: 'center' }}>Điểm Khóa Luận trung bình</th>
                             <th style={{ textAlign: 'center' }}>Xếp loại</th>
                             <th>Trạng thái</th>
                             <th style={{ textAlign: 'right' }}>Thao tác</th>

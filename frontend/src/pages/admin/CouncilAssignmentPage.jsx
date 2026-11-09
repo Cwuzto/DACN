@@ -584,7 +584,7 @@ function CouncilAssignmentPage() {
         <div className="py-2 space-y-6">
             <PageHeader
                 title="Phân công Hội đồng & Điều phối Ca thi"
-                subtitle="Quản lý thành lập hội đồng xét duyệt đề cương (BM01/02) và hội đồng chấm bảo vệ khóa luận (BM04/05)"
+                subtitle="Quản lý thành lập hội đồng xét duyệt đề cương và hội đồng chấm bảo vệ khóa luận"
                 actions={
                     <div className="flex items-center gap-3 flex-wrap">
                         <Select
@@ -633,7 +633,7 @@ function CouncilAssignmentPage() {
                         onClick={() => setCouncilTypeFilter('OUTLINE_REVIEW')}
                     >
                         <span className="material-symbols-outlined text-base">description</span>
-                        <span>1. Hội đồng Thẩm định Đề cương (Pha 2 · BM01/02)</span>
+                        <span>1. Hội đồng Thẩm định Đề cương (Giai đoạn 2)</span>
                         <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-mono">
                             {councils.filter((c) => c.councilType === 'OUTLINE_REVIEW').length} HĐ
                         </span>
@@ -647,7 +647,7 @@ function CouncilAssignmentPage() {
                         onClick={() => setCouncilTypeFilter('DEFENSE_COUNCIL')}
                     >
                         <span className="material-symbols-outlined text-base">gavel</span>
-                        <span>2. Hội đồng Chấm Bảo vệ Khóa luận (Pha 5 · BM04/05)</span>
+                        <span>2. Hội đồng Chấm Bảo vệ Khóa luận (Giai đoạn 5)</span>
                         <span className="text-xs px-2 py-0.5 rounded-full bg-teal-100 text-teal-800 font-mono font-bold">
                             {councils.filter((c) => c.councilType === 'DEFENSE_COUNCIL').length} HĐ
                         </span>
@@ -670,7 +670,7 @@ function CouncilAssignmentPage() {
                         value={viewMode}
                         onChange={setViewMode}
                         options={[
-                            { label: 'Giao diện Ghép cặp (Matcher)', value: 'matcher', icon: <AppstoreOutlined /> },
+                            { label: 'Giao diện Ghép cặp', value: 'matcher', icon: <AppstoreOutlined /> },
                             { label: 'Bảng dữ liệu', value: 'table', icon: <BarsOutlined /> },
                         ]}
                     />
@@ -826,7 +826,7 @@ function CouncilAssignmentPage() {
                                                     GVHD: <strong className="text-slate-800">{reg.topic?.lecturer?.fullName || 'N/A'}</strong>
                                                 </span>
                                                 <span className="font-mono text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
-                                                    BM04: Đạt
+                                                    Đạt điều kiện
                                                 </span>
                                             </div>
                                             <div className="mt-2.5 flex items-center justify-between">
@@ -1093,8 +1093,8 @@ function CouncilAssignmentPage() {
                             <Form.Item name="councilType" label="Loại hội đồng" rules={[{ required: true, message: 'Chọn loại hội đồng' }]}>
                                 <Select
                                     options={[
-                                        ...(canManageDefense ? [{ label: 'Chấm bảo vệ (DEFENSE)', value: 'DEFENSE_COUNCIL' }] : []),
-                                        ...(canManageOutline ? [{ label: 'Thẩm định đề cương (OUTLINE)', value: 'OUTLINE_REVIEW' }] : []),
+                                        ...(canManageDefense ? [{ label: 'Hội đồng chấm bảo vệ', value: 'DEFENSE_COUNCIL' }] : []),
+                                        ...(canManageOutline ? [{ label: 'Hội đồng thẩm định đề cương', value: 'OUTLINE_REVIEW' }] : []),
                                     ]}
                                 />
                             </Form.Item>
@@ -1153,7 +1153,7 @@ function CouncilAssignmentPage() {
             >
                 <div className="mb-4">
                     <p className="text-sm text-slate-700 font-medium">
-                        Chọn sinh viên để phân công vào {assigningCouncil?.councilType === 'OUTLINE_REVIEW' ? 'Hội đồng thẩm định đề cương (BM01/02)' : 'Hội đồng chấm bảo vệ khóa luận'}.
+                        Chọn sinh viên để phân công vào {assigningCouncil?.councilType === 'OUTLINE_REVIEW' ? 'Hội đồng thẩm định đề cương' : 'Hội đồng chấm bảo vệ khóa luận'}.
                     </p>
                     <p className="text-xs text-slate-500 font-medium mt-1">
                         (Chỉ hiển thị sinh viên chưa được phân công vào hội đồng loại này trong học kỳ)

@@ -190,7 +190,7 @@ function DashboardPage() {
                             {String(unassignedCount).padStart(2, '0')}
                         </span>
                         <div className="text-xs font-bold text-slate-800">Chưa gắn Hội đồng bảo vệ</div>
-                        <div className="text-[11px] text-slate-600 font-medium">Sinh viên đạt BM04 chờ gán ca thi</div>
+                        <div className="text-[11px] text-slate-600 font-medium">Sinh viên đủ điều kiện bảo vệ chờ gán ca thi</div>
                     </div>
                     <div className="w-8 h-8 rounded-full bg-rose-50 text-rose-700 flex items-center justify-center font-bold text-xs border border-rose-200 shrink-0">
                         !
@@ -249,7 +249,7 @@ function DashboardPage() {
                             <span className="text-[10px] font-mono font-bold text-[#0F766E]">MỐC 02</span>
                             <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-teal-100 text-[#0F766E]">Đạt</span>
                         </div>
-                        <div className="text-xs font-bold text-slate-800 line-clamp-1">2. Đề cương BM01/02</div>
+                        <div className="text-xs font-bold text-slate-800 line-clamp-1">2. Thẩm định đề cương</div>
                         <div className="text-[11px] font-mono text-slate-500">{stats?.ongoingTopics || 0} Đạt chuẩn</div>
                     </div>
 
@@ -262,7 +262,7 @@ function DashboardPage() {
                             <span className="text-[10px] font-mono font-bold text-[#0F766E]">MỐC 03 • HIỆN TẠI</span>
                             <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800">Đang nộp</span>
                         </div>
-                        <div className="text-xs font-bold text-slate-900 line-clamp-1">3. Báo cáo tuần BM03</div>
+                        <div className="text-xs font-bold text-slate-900 line-clamp-1">3. Nhật ký & Đánh giá tiến độ</div>
                         <div className="text-[11px] font-mono text-[#0F766E] font-bold">Tiến độ giám sát</div>
                     </div>
 
@@ -273,7 +273,7 @@ function DashboardPage() {
                     >
                         <div className="flex items-center justify-between">
                             <span className="text-[10px] font-mono font-bold text-slate-500">MỐC 04</span>
-                            <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-slate-200 text-slate-700">BM04</span>
+                            <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-slate-200 text-slate-700">Đạt nhận xét</span>
                         </div>
                         <div className="text-xs font-bold text-slate-800 line-clamp-1">4. Thẩm định & Ghép HĐ</div>
                         <div className="text-[11px] font-mono text-slate-500">Phân công hội đồng</div>

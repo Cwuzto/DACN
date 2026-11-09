@@ -84,7 +84,7 @@ export default function CorrectDefenseResultModal({
                     </div>
                     <div>
                         <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--fg)' }}>
-                            Điều Chỉnh Kết Quả Phê Duyệt Bảo Vệ (Correction)
+                            Điều Chỉnh Kết Quả Phê Duyệt Bảo Vệ
                         </div>
                         <div style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 400 }}>
                             Hồ sơ: <strong style={{ color: 'var(--fg)' }}>#{id}</strong> · Thẩm quyền: <Tag color="geekblue">DEFENSE_RESULT_APPROVE</Tag>
@@ -106,7 +106,7 @@ export default function CorrectDefenseResultModal({
                     <Descriptions.Item label="Tên Đề tài" span={2}>
                         {registration.topic?.title || '—'}
                     </Descriptions.Item>
-                    <Descriptions.Item label="Điểm bảo vệ (TBC)">
+                    <Descriptions.Item label="Điểm bảo vệ trung bình">
                         <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--institutional)', fontSize: 14 }}>
                             {registration.finalScore !== null && registration.finalScore !== undefined ? Number(registration.finalScore).toFixed(2) : '—'}
                         </span>
@@ -114,11 +114,11 @@ export default function CorrectDefenseResultModal({
                     <Descriptions.Item label="Kết quả hiện tại">
                         {isPassed ? (
                             <Tag color="cyan" icon={<CheckCircleOutlined />}>
-                                ĐẠT BẢO VỆ (DEFENSE_PASSED)
+                                ĐẠT BẢO VỆ
                             </Tag>
                         ) : (
                             <Tag color="error" icon={<CloseCircleOutlined />}>
-                                KHÔNG ĐẠT (DEFENSE_FAILED)
+                                KHÔNG ĐẠT
                             </Tag>
                         )}
                     </Descriptions.Item>
@@ -128,8 +128,8 @@ export default function CorrectDefenseResultModal({
                     type="warning"
                     showIcon
                     icon={<ExclamationCircleOutlined />}
-                    message="Cơ chế bảo toàn dấu vết kiểm toán (Audit Trail)"
-                    description="Thao tác điều chỉnh sẽ vô hiệu hóa quyết định phê duyệt hiện hành và tạo quyết định mới có liên kết truy vết (supersedesApprovalId). Sau khi điều chỉnh, sinh viên sẽ thấy kết quả mới sau khi Viện ban hành đợt Công Bố Đính Chính (CORRECTION)."
+                    message="Cơ chế lưu vết kiểm toán"
+                    description="Thao tác điều chỉnh sẽ thay thế quyết định phê duyệt hiện hành và tạo quyết định mới có liên kết truy vết. Sau khi điều chỉnh, sinh viên sẽ thấy kết quả mới sau khi Viện ban hành đợt Công Bố Đính Chính."
                 />
 
                 <Form
@@ -150,13 +150,13 @@ export default function CorrectDefenseResultModal({
                                 <Radio value="PASSED">
                                     <Tag color="cyan" style={{ fontSize: 13, padding: '4px 10px' }}>
                                         <CheckCircleOutlined style={{ marginRight: 4 }} />
-                                        ĐẠT BẢO VỆ (PASSED)
+                                        ĐẠT BẢO VỆ
                                     </Tag>
                                 </Radio>
                                 <Radio value="FAILED">
                                     <Tag color="error" style={{ fontSize: 13, padding: '4px 10px' }}>
                                         <CloseCircleOutlined style={{ marginRight: 4 }} />
-                                        KHÔNG ĐẠT (FAILED)
+                                        KHÔNG ĐẠT
                                     </Tag>
                                 </Radio>
                             </Space>

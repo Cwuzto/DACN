@@ -51,10 +51,10 @@ import { PROJECT_NAME, buildSemesterName, extractSemesterMeta, formatSemesterLab
 import BM02ReviewDrawer from '../../components/admin/BM02ReviewDrawer';
 
 const GRANTABLE_CAPABILITIES = [
-    { value: 'OUTLINE_REVIEW', label: 'Thẩm định đề cương BM01 (OUTLINE_REVIEW)' },
-    { value: 'BM02_REVIEW', label: 'Duyệt đơn BM02 (BM02_REVIEW)' },
-    { value: 'DEFENSE_SCORE_SUBMIT', label: 'Chấm điểm bảo vệ đồ án (DEFENSE_SCORE_SUBMIT)' },
-    { value: 'DEFENSE_RESULT_APPROVE', label: 'Phê duyệt kết quả bảo vệ (DEFENSE_RESULT_APPROVE)' },
+    { value: 'OUTLINE_REVIEW', label: 'Thẩm định đề cương chi tiết' },
+    { value: 'BM02_REVIEW', label: 'Duyệt đơn đăng ký đề tài' },
+    { value: 'DEFENSE_SCORE_SUBMIT', label: 'Chấm điểm bảo vệ đồ án' },
+    { value: 'DEFENSE_RESULT_APPROVE', label: 'Phê duyệt kết quả bảo vệ' },
 ];
 
 const statusConfig = {
@@ -184,7 +184,7 @@ function PeriodCard({ period, onEdit, onDelete, onClone, onIssueDecision, onView
 
                     <Space size="small" wrap>
                         {!isCompleted && onIssueDecision && (
-                            <Tooltip title="Ban hành Quyết định giao đề tài (kèm danh sách BM02)">
+                            <Tooltip title="Ban hành Quyết định giao đề tài">
                                 <Button
                                     type="primary"
                                     icon={<FileDoneOutlined />}
@@ -975,7 +975,7 @@ function ProjectPeriodPage() {
                         label: (
                             <span className="flex items-center gap-2 font-medium px-1">
                                 <CheckCircleOutlined />
-                                <span>Hàng đợi Thẩm định BM02</span>
+                                <span>Hàng đợi Thẩm định Đề cương</span>
                                 {pendingBm02List.length > 0 && (
                                     <Badge count={pendingBm02List.length} overflowCount={99} />
                                 )}
@@ -986,10 +986,10 @@ function ProjectPeriodPage() {
                                 <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
                                     <div>
                                         <h3 className="text-base font-bold text-slate-900">
-                                            Hàng Đợi Thẩm Định Đơn Đề Cương BM02
+                                            Hàng Đợi Thẩm Định Đề Cương Đề Tài
                                         </h3>
                                         <p className="text-xs text-slate-500 mt-0.5">
-                                            Thẩm định đơn BM02 của sinh viên theo quy chuẩn Viện. Hồ sơ được phê duyệt sẽ đủ điều kiện ban hành Quyết định giao đề tài.
+                                            Thẩm định đề cương đề tài của sinh viên theo quy chuẩn Viện. Hồ sơ được phê duyệt sẽ đủ điều kiện ban hành Quyết định giao đề tài.
                                         </p>
                                     </div>
                                     <Space wrap>
@@ -1008,9 +1008,9 @@ function ProjectPeriodPage() {
                                             style={{ width: 220 }}
                                             options={[
                                                 { value: 'PENDING', label: 'Chờ thẩm định (Lần 1 & 2)' },
-                                                { value: 'ALL', label: 'Tất cả trạng thái BM02' },
-                                                { value: 'REVISION', label: 'Cần chỉnh sửa (BM02)' },
-                                                { value: 'APPROVED', label: 'Đã duyệt BM02 / Cấp QĐ' },
+                                                { value: 'ALL', label: 'Tất cả trạng thái đề cương' },
+                                                { value: 'REVISION', label: 'Cần chỉnh sửa bổ sung' },
+                                                { value: 'APPROVED', label: 'Đã duyệt đề cương / Cấp QĐ' },
                                             ]}
                                         />
                                     </Space>
@@ -1020,7 +1020,7 @@ function ProjectPeriodPage() {
                                     dataSource={bm02QueueList}
                                     rowKey="id"
                                     size="middle"
-                                    pagination={{ pageSize: 10, showTotal: (total) => `Tổng cộng: ${total} hồ sơ BM02` }}
+                                    pagination={{ pageSize: 10, showTotal: (total) => `Tổng cộng: ${total} hồ sơ` }}
                                     columns={[
                                         {
                                             title: 'STT',
@@ -1097,7 +1097,7 @@ function ProjectPeriodPage() {
                                                     BM02_SUBMITTED: { label: 'Chờ duyệt lần 1', color: 'blue' },
                                                     BM02_RESUBMITTED: { label: 'Chờ duyệt nộp lại', color: 'purple' },
                                                     BM02_NEEDS_REVISION: { label: 'Yêu cầu chỉnh sửa', color: 'orange' },
-                                                    APPROVED: { label: 'Đã duyệt BM02', color: 'green' },
+                                                    APPROVED: { label: 'Đã duyệt đề cương', color: 'green' },
                                                     DECISION_ISSUED: { label: 'Đã ban hành QĐ', color: 'cyan' },
                                                 };
                                                 const item = statusMap[statusValue] || { label: String(statusValue || 'N/A'), color: 'default' };
@@ -1105,7 +1105,7 @@ function ProjectPeriodPage() {
                                             },
                                         },
                                         {
-                                            title: 'Tệp BM02',
+                                            title: 'Tệp đề cương',
                                             key: 'file',
                                             width: 110,
                                             align: 'center',
@@ -1113,7 +1113,7 @@ function ProjectPeriodPage() {
                                                 const fileUrl = record.currentBM02Submission?.fileUrl;
                                                 if (!fileUrl) return <span className="text-slate-400 text-xs">—</span>;
                                                 return (
-                                                    <Tooltip title="Xem tệp đề cương BM02">
+                                                    <Tooltip title="Xem tệp đề cương">
                                                         <a
                                                             href={fileUrl}
                                                             target="_blank"
@@ -1140,7 +1140,7 @@ function ProjectPeriodPage() {
                                                     className="!bg-teal-600 hover:!bg-teal-700 font-medium text-xs"
                                                     onClick={() => handleOpenBm02Review(record)}
                                                 >
-                                                    Thẩm định BM02
+                                                    Thẩm định đề cương
                                                 </Button>
                                             ),
                                         },
@@ -1221,14 +1221,14 @@ function ProjectPeriodPage() {
                                                     ),
                                                 },
                                                 {
-                                                    title: 'Quyền ủy quyền (Capability)',
+                                                    title: 'Quyền ủy quyền',
                                                     dataIndex: 'capabilityCode',
                                                     key: 'capabilityCode',
                                                     width: 210,
                                                     render: (code) => {
                                                         const capConfig = {
-                                                            OUTLINE_REVIEW: { label: 'Thẩm định BM01', color: 'cyan' },
-                                                            BM02_REVIEW: { label: 'Duyệt đơn BM02', color: 'blue' },
+                                                            OUTLINE_REVIEW: { label: 'Thẩm định đề cương', color: 'cyan' },
+                                                            BM02_REVIEW: { label: 'Duyệt đơn đăng ký đề tài', color: 'blue' },
                                                             DEFENSE_SCORE_SUBMIT: { label: 'Chấm điểm bảo vệ', color: 'purple' },
                                                             DEFENSE_RESULT_APPROVE: { label: 'Duyệt kết quả bảo vệ', color: 'magenta' },
                                                         };
@@ -1439,7 +1439,7 @@ function ProjectPeriodPage() {
             >
                 <div className="my-3 space-y-3">
                     <div className="bg-purple-50 p-3 rounded-lg border border-purple-200 text-xs text-purple-900 leading-relaxed">
-                        <strong>Quy chuẩn học vụ:</strong> Quyết định giao đề tài được ký bởi Trưởng Viện / Ban Giám Hiệu kèm danh sách sinh viên đã nộp BM02. Sau khi ban hành, hệ thống sẽ kích hoạt <strong>cửa sổ 7 ngày</strong> cho phép sinh viên nộp đơn xin điều chỉnh tên đề tài (GVHD duyệt trực tiếp).
+                        <strong>Quy chuẩn học vụ:</strong> Quyết định giao đề tài được ký bởi Trưởng Viện / Ban Giám Hiệu kèm danh sách sinh viên đã hoàn thành nộp đề cương. Sau khi ban hành, hệ thống sẽ kích hoạt <strong>cửa sổ 7 ngày</strong> cho phép sinh viên nộp đơn xin điều chỉnh tên đề tài (GVHD duyệt trực tiếp).
                     </div>
 
                     <Form form={decisionForm} layout="vertical" onFinish={handleSubmitIssueDecision}>
@@ -1527,7 +1527,7 @@ function ProjectPeriodPage() {
                         </div>
                     ) : (
                         <div className="bg-amber-50/60 p-3.5 rounded-lg border border-amber-200/80 text-xs text-amber-800">
-                            Chưa có đề tài nào được ban hành Quyết định trong học kỳ này. Bạn có thể nhấn nút <strong>"Ban hành QĐ"</strong> để cấp quyết định cho các sinh viên đã hoàn tất BM02.
+                            Chưa có đề tài nào được ban hành Quyết định trong học kỳ này. Bạn có thể nhấn nút <strong>"Ban hành QĐ"</strong> để cấp quyết định cho các sinh viên đã hoàn tất phê duyệt đề cương.
                         </div>
                     )}
 
@@ -1826,7 +1826,7 @@ function ProjectPeriodPage() {
 
                     <Form.Item
                         name="capabilityCode"
-                        label="Quyền chuyên môn (Capability)"
+                        label="Quyền chuyên môn"
                         rules={[{ required: true, message: 'Vui lòng chọn quyền ủy quyền' }]}
                     >
                         <Select
