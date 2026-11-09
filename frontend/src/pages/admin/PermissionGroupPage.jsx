@@ -655,7 +655,7 @@ function PermissionGroupPage() {
                         <span className="text-xs text-slate-500">
                             {canAssignAcademic
                                 ? 'Bạn có thể chỉnh sửa toàn bộ quyền học thuật và kỹ thuật.'
-                                : 'Các quyền học thuật được bảo vệ (P0 Guard) được khóa tự động để tránh lỗi leo thang quyền.'}
+                                : 'Các quyền học thuật được bảo vệ được khóa tự động để tránh lỗi leo thang quyền.'}
                         </span>
                     </div>
                 </div>
@@ -751,7 +751,7 @@ function PermissionGroupPage() {
                     </div>
                 </div>
                 <div className="card" style={{ padding: '14px 18px' }}>
-                    <span className="meta">Cơ chế Bảo vệ Chống Vượt quyền (P0)</span>
+                    <span className="meta">Cơ chế Bảo vệ Chống Vượt quyền</span>
                     <div className="flex items-center gap-2 mt-1">
                         <Tag color="volcano" className="text-xs font-semibold m-0">
                             🛡️ {matrixStats.protectedPerms} Học thuật
