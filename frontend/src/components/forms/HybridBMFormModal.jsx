@@ -18,7 +18,31 @@ const FORM_CONFIGS = {
             { name: 'deliverables', label: 'Sản phẩm dự kiến & Kế hoạch', type: 'textarea', required: true, rows: 3, placeholder: 'Sản phẩm phần mềm, báo cáo, tài liệu hướng dẫn...' },
         ],
         fileRequired: true,
-        fileHint: 'Đính kèm file PDF/Word đề cương chi tiết (tối đa 20MB)',
+        fileHint: 'Đính kèm file PDF/Word đề cương chi tiết (tối đa 20MB). Bản nộp đầu tiên là bản chính thức và không thể thay thế.',
+    },
+    BM01_INITIAL_SUBMISSION: {
+        code: 'BM01',
+        title: 'Đề cương chi tiết Đồ án (v1)',
+        subtitle: 'Khai báo thông tin đề cương chi tiết và đính kèm tệp đề cương chính thức',
+        fields: [
+            { name: 'topicTitle', label: 'Tên đề tài', type: 'input', required: true, placeholder: 'Nhập tên đề tài chính xác' },
+            { name: 'objectives', label: 'Mục tiêu & Phạm vi nghiên cứu', type: 'textarea', required: true, rows: 3, placeholder: 'Nêu rõ mục tiêu đề tài, giới hạn phạm vi nghiên cứu và ứng dụng' },
+            { name: 'technologies', label: 'Công nghệ & Phương pháp thực hiện', type: 'input', required: true, placeholder: 'VD: React, Node.js, PostgreSQL, Docker...' },
+            { name: 'deliverables', label: 'Sản phẩm dự kiến & Kế hoạch', type: 'textarea', required: true, rows: 3, placeholder: 'Sản phẩm phần mềm, báo cáo, tài liệu hướng dẫn...' },
+        ],
+        fileRequired: true,
+        fileHint: 'Đính kèm file PDF/Word đề cương chi tiết (tối đa 20MB). Bản nộp đầu tiên là bản chính thức và không thể thay thế.',
+    },
+    BM01_RESUBMISSION: {
+        code: 'BM01',
+        title: 'Nộp lại Đề cương chi tiết Đồ án (v2)',
+        subtitle: 'Đính kèm bản đề cương đã tiếp thu, chỉnh sửa theo yêu cầu của Hội đồng (chỉ nộp 1 lần)',
+        fields: [
+            { name: 'topicTitle', label: 'Tên đề tài', type: 'input', required: true, placeholder: 'Nhập tên đề tài chính xác' },
+            { name: 'revisionSummary', label: 'Tóm tắt nội dung đã tiếp thu & chỉnh sửa', type: 'textarea', required: true, rows: 3, placeholder: 'Mô tả chi tiết các điểm đã sửa đổi theo góp ý của Hội đồng' },
+        ],
+        fileRequired: true,
+        fileHint: 'Đính kèm file PDF/Word đề cương đã chỉnh sửa v2 (tối đa 20MB, chỉ nộp 1 lần duy nhất)',
     },
     BM02: {
         code: 'BM02',
@@ -119,7 +143,7 @@ export default function HybridBMFormModal({
 
             // Prepopulate initial values
             const initialValues = {};
-            if (taskType === 'BM01') {
+            if (taskType === 'BM01' || taskType === 'BM01_INITIAL_SUBMISSION' || taskType === 'BM01_RESUBMISSION') {
                 initialValues.topicTitle = registration?.topic?.title || '';
             } else if (taskType === 'BM03_CHECKPOINT') {
                 initialValues.progressPercent = 50;
@@ -222,6 +246,26 @@ export default function HybridBMFormModal({
                         {config.subtitle}
                     </Text>
                 </div>
+
+                {/* Notice banner for single-attempt upload */}
+                {(taskType === 'BM01' || taskType === 'BM01_INITIAL_SUBMISSION') && registration?.status !== 'BM01_NEEDS_REVISION' && (
+                    <Alert
+                        type="info"
+                        showIcon
+                        className="mb-4 rounded-lg border-blue-200 bg-blue-50/70"
+                        message="Lưu ý quy định nộp đề cương v1"
+                        description="Bản nộp đầu tiên là bản chính thức và không thể thay thế sau khi nộp. Vui lòng rà soát kỹ tệp đề cương trước khi nhấn nộp."
+                    />
+                )}
+                {(taskType === 'BM01_RESUBMISSION' || (taskType === 'BM01' && registration?.status === 'BM01_NEEDS_REVISION')) && (
+                    <Alert
+                        type="warning"
+                        showIcon
+                        className="mb-4 rounded-lg border-amber-200 bg-amber-50/70"
+                        message="Cảnh báo: Nộp lại đề cương v2 duy nhất"
+                        description="Sinh viên chỉ được nộp lại đúng 01 lần duy nhất. Sau khi nộp, hệ thống sẽ khóa cổng nộp và chuyển cho Chủ tịch Hội đồng phê duyệt."
+                    />
+                )}
 
                 {/* Notice banner if revision */}
                 {task?.status === 'REVISION' && (

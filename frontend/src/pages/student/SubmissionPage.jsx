@@ -25,6 +25,7 @@ import registrationService from '../../services/registrationService';
 import evaluationService from '../../services/evaluationService';
 import archiveService from '../../services/archiveService';
 import meetingLogService from '../../services/meetingLogService';
+import outlineService from '../../services/outlineService';
 import HybridBMFormModal from '../../components/forms/HybridBMFormModal';
 import BMSubmissionViewer from '../../components/forms/BMSubmissionViewer';
 import CheckpointSignModal from '../../components/student/CheckpointSignModal';
@@ -33,6 +34,8 @@ import useAuthStore from '../../stores/authStore';
 const formatTaskTitle = (title) => {
     if (!title) return '';
     return title
+        .replace(/BM01_INITIAL_SUBMISSION\b/g, 'Đề cương nghiên cứu chi tiết (v1)')
+        .replace(/BM01_RESUBMISSION\b/g, 'Nộp lại đề cương nghiên cứu (v2)')
         .replace(/BM01\b/g, 'Đề cương nghiên cứu chi tiết')
         .replace(/BM02\b/g, 'Đơn đăng ký đề tài chính thức')
         .replace(/BM03\b/g, 'Nhật ký & Đánh giá tiến độ')
@@ -41,6 +44,7 @@ const formatTaskTitle = (title) => {
 
 export default function SubmissionPage() {
     const [registration, setRegistration] = useState(null);
+    const [outlineData, setOutlineData] = useState(null);
     const [tasks, setTasks] = useState([]);
     const [meetingLogs, setMeetingLogs] = useState([]);
     const [, setLoading] = useState(true);
@@ -96,16 +100,18 @@ export default function SubmissionPage() {
                 const regData = regRes.data;
                 setRegistration(regData);
 
-                const [taskRes, logRes, cpRes, archiveRes] = await Promise.all([
+                const [taskRes, logRes, cpRes, archiveRes, outlineRes] = await Promise.all([
                     taskService.getTasksByRegistration(regData.id).catch(() => ({ success: false, data: [] })),
                     meetingLogService.getMeetingLogs(regData.id).catch(() => ({ success: false, data: [] })),
                     evaluationService.getCheckpointEvaluations(regData.id).catch(() => ({ success: false, data: [] })),
                     archiveService.getArchiveByRegistration(regData.id).catch(() => ({ success: false })),
+                    outlineService.getMyOutline().catch(() => ({ success: false, data: null })),
                 ]);
 
                 if (taskRes.success) setTasks(taskRes.data || []);
                 if (logRes.success) setMeetingLogs(logRes.data || []);
                 if (cpRes.success) setCheckpoints(cpRes.data || []);
+                if (outlineRes?.success && outlineRes.data) setOutlineData(outlineRes.data);
 
                 if (archiveRes?.success && archiveRes.data) {
                     const arch = archiveRes.data.archive || archiveRes.data;
@@ -146,8 +152,16 @@ export default function SubmissionPage() {
         if (['TERMINATED_FAILED_PROGRESS', 'TERMINATED_BM01', 'TERMINATED_BM02', 'DROPPED', 'WITHDRAWN'].includes(registration.status)) {
             return true;
         }
-        if (taskType === 'BM01') {
-            return !['REGISTERED', 'APPROVED', 'BM01_NEEDS_REVISION'].includes(registration.status);
+        if (taskType === 'BM01' || taskType === 'BM01_INITIAL_SUBMISSION') {
+            if (registration.status === 'APPROVED') return false;
+            if (registration.status === 'BM01_NEEDS_REVISION') {
+                const hasResub = tasks.some((t) => t.taskType === 'BM01_RESUBMISSION');
+                return hasResub;
+            }
+            return true;
+        }
+        if (taskType === 'BM01_RESUBMISSION') {
+            return registration.status !== 'BM01_NEEDS_REVISION';
         }
         if (taskType === 'BM02') {
             return !['BM01_PASSED', 'BM02_NEEDS_REVISION'].includes(registration.status);
@@ -185,10 +199,32 @@ export default function SubmissionPage() {
         try {
             setSubmitting(true);
             let res;
-            if (activeTask.taskType === 'BM01') {
-                res = registration.status === 'BM01_NEEDS_REVISION'
-                    ? await evaluationService.resubmitBM01(registration.id, payload)
-                    : await evaluationService.submitBM01(registration.id, payload);
+            if (activeTask.taskType === 'BM01' || activeTask.taskType === 'BM01_INITIAL_SUBMISSION') {
+                if (registration.status === 'BM01_NEEDS_REVISION') {
+                    res = await outlineService.submitResubmission({
+                        registrationId: registration.id,
+                        fileData: {
+                            fileUrl: payload.fileUrl,
+                            fileName: payload.fileName || 'De_cuong_chinh_sua_v2.pdf',
+                        },
+                    });
+                } else {
+                    res = await outlineService.submitInitialOutline({
+                        registrationId: registration.id,
+                        fileData: {
+                            fileUrl: payload.fileUrl,
+                            fileName: payload.fileName || 'De_cuong_chi_tiet_v1.pdf',
+                        },
+                    });
+                }
+            } else if (activeTask.taskType === 'BM01_RESUBMISSION') {
+                res = await outlineService.submitResubmission({
+                    registrationId: registration.id,
+                    fileData: {
+                        fileUrl: payload.fileUrl,
+                        fileName: payload.fileName || 'De_cuong_chinh_sua_v2.pdf',
+                    },
+                });
             } else if (activeTask.taskType === 'BM02') {
                 res = await registrationService.submitBM02({ registrationId: registration.id, ...payload });
             } else {
@@ -202,7 +238,14 @@ export default function SubmissionPage() {
                 message.error(res.message || 'Không thể nộp biểu mẫu.');
             }
         } catch (error) {
-            message.error(error?.message || 'Có lỗi xảy ra khi nộp bài.');
+            const errStr = error?.error || error?.message || '';
+            if (errStr.includes('INITIAL_SUBMISSION_ALREADY_USED')) {
+                message.error('Bạn đã nộp đề cương v1 trước đó. Hệ thống chỉ cho phép nộp một lần duy nhất.');
+            } else if (errStr.includes('RESUBMISSION_ALREADY_USED')) {
+                message.error('Bạn đã nộp lại đề cương v2 trước đó. Hệ thống không cho phép nộp lại lần thứ hai.');
+            } else {
+                message.error(error?.message || 'Có lỗi xảy ra khi nộp bài.');
+            }
         } finally {
             setSubmitting(false);
         }
@@ -239,26 +282,28 @@ export default function SubmissionPage() {
     };
 
     const studentTasks = useMemo(() => {
-        return tasks.filter((t) => t.taskType !== 'BM04');
-    }, [tasks]);
-
-    const bm01Revision = registration?.bm01Evaluations?.find((item) => item.outcome === 'NEEDS_REVISION');
-    const bm02Current = registration?.currentBM02Submission;
-    const revisionNotice = registration?.status === 'BM01_NEEDS_REVISION'
-        ? {
-            title: 'Đề cương nghiên cứu chi tiết cần chỉnh sửa',
-            version: 'Lần nộp lại 1/1',
-            deadline: bm01Revision?.deadlineAt,
-            issues: bm01Revision?.issues?.feedback ? [bm01Revision.issues.feedback] : [],
+        let list = tasks.filter((t) => t.taskType !== 'BM04');
+        if (outlineData?.tasks && Array.isArray(outlineData.tasks)) {
+            outlineData.tasks.forEach((ot) => {
+                if (!list.some((t) => t.id === ot.id || t.taskType === ot.taskType)) {
+                    list.push(ot);
+                }
+            });
         }
-        : registration?.status === 'BM02_NEEDS_REVISION'
-            ? {
-                title: 'Đơn đăng ký đề tài chính thức cần chỉnh sửa',
-                version: `Phiên bản ${bm02Current?.versionNo || 1} · Lần nộp lại 1/1`,
-                deadline: bm02Current?.revisionDeadlineAt,
-                issues: Array.isArray(bm02Current?.issues) ? bm02Current.issues : [],
-            }
-            : null;
+        return list;
+    }, [tasks, outlineData]);
+
+    const outlineCouncil = outlineData?.outlineCouncil || registration?.outlineCouncil;
+    const latestBm01Eval = (outlineData?.bm01Evaluations || registration?.bm01Evaluations || [])[0];
+    const bm02Current = registration?.currentBM02Submission;
+    const bm02RevisionNotice = registration?.status === 'BM02_NEEDS_REVISION'
+        ? {
+            title: 'Đơn đăng ký đề tài chính thức cần chỉnh sửa',
+            version: `Phiên bản ${bm02Current?.versionNo || 1} · Lần nộp lại 1/1`,
+            deadline: bm02Current?.revisionDeadlineAt,
+            issues: Array.isArray(bm02Current?.issues) ? bm02Current.issues : [],
+        }
+        : null;
 
     if (!registration) {
         return (
@@ -304,16 +349,203 @@ export default function SubmissionPage() {
                 </div>
             </div>
 
-            {revisionNotice && (
-                <div className="card" style={{ marginBottom: 18, padding: '14px 16px', borderColor: '#F59E0B', background: '#FFFBEB' }}>
-                    <div style={{ fontWeight: 700, color: '#92400E' }}>{revisionNotice.title}</div>
-                    <div style={{ marginTop: 4, fontSize: 13, color: '#78350F' }}>
-                        {revisionNotice.version}
-                        {revisionNotice.deadline && ` · Hạn nộp: ${dayjs(revisionNotice.deadline).format('DD/MM/YYYY HH:mm')}`}
+            {/* Terminated alert if BM01 failed */}
+            {registration.status === 'TERMINATED_BM01' && (
+                <Alert
+                    type="error"
+                    showIcon
+                    banner
+                    message={<span style={{ fontWeight: 700, fontSize: 14 }}>Đề tài đã dừng thực hiện trong đợt này</span>}
+                    description="Đề cương đồ án không đạt yêu cầu xét duyệt của Hội đồng hoặc quá hạn nộp lại đề cương v2 theo quy định học vụ của Viện."
+                    style={{ marginBottom: 20, borderRadius: 8 }}
+                />
+            )}
+
+            {/* Outline Council Defense Information Banner */}
+            {outlineCouncil && (
+                <div
+                    className="card"
+                    style={{
+                        marginBottom: 20,
+                        padding: '16px 20px',
+                        borderLeft: '6px solid var(--primary)',
+                        background: '#F0FDFA',
+                        borderColor: '#99F6E4',
+                    }}
+                >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                        <div>
+                            <div style={{ fontSize: 15, fontWeight: 700, color: '#0F766E', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span>🏛️ Phiên Bảo Vệ &amp; Xét Duyệt Đề Cương: {outlineCouncil.name}</span>
+                            </div>
+                            <div style={{ marginTop: 6, fontSize: 13, color: '#115E59', display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+                                {outlineCouncil.defenseDate && (
+                                    <span>
+                                        ⏰ Thời gian bảo vệ: <strong>{dayjs(outlineCouncil.defenseDate).format('DD/MM/YYYY HH:mm')}</strong>
+                                    </span>
+                                )}
+                                <span>
+                                    Hình thức: <strong>{outlineCouncil.meetingMode === 'MICROSOFT_TEAMS' ? 'Microsoft Teams' : 'Trực tiếp'}</strong>
+                                    {outlineCouncil.meetingMode === 'IN_PERSON' && outlineCouncil.location && (
+                                        <span> — Địa điểm: <strong>{outlineCouncil.location}</strong></span>
+                                    )}
+                                </span>
+                                {outlineCouncil.revisionSubmissionDeadline && (
+                                    <span>
+                                        Hạn nộp bản sửa: <strong>{dayjs(outlineCouncil.revisionSubmissionDeadline).format('DD/MM/YYYY HH:mm')}</strong>
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                            {outlineCouncil.meetingMode === 'MICROSOFT_TEAMS' && outlineCouncil.meetingUrl && (
+                                <a
+                                    href={outlineCouncil.meetingUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="btn btn-primary btn-sm"
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600 }}
+                                >
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M19.5 7h-6.5a1.5 1.5 0 0 0-1.5 1.5v7a1.5 1.5 0 0 0 1.5 1.5h6.5a1.5 1.5 0 0 0 1.5-1.5v-7a1.5 1.5 0 0 0-1.5-1.5zM3 9a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9z" />
+                                    </svg>
+                                    <span>Tham gia Teams</span>
+                                </a>
+                            )}
+                        </div>
                     </div>
-                    {revisionNotice.issues.length > 0 && (
+                </div>
+            )}
+
+            {/* BM01 Submitted State Banner */}
+            {registration.status === 'BM01_SUBMITTED' && (
+                <div
+                    className="card"
+                    style={{
+                        marginBottom: 20,
+                        padding: '14px 18px',
+                        borderColor: '#93C5FD',
+                        background: '#EFF6FF',
+                        borderLeft: '6px solid #3B82F6',
+                    }}
+                >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                        <span className="tag blue" style={{ fontWeight: 700 }}>
+                            Đã nộp đề cương v1 (Đang chờ Hội đồng xét duyệt)
+                        </span>
+                        <span style={{ fontSize: 13, color: '#1E40AF' }}>
+                            Bản nộp đầu tiên là bản chính thức và đã được ghi nhận. Cổng nộp đề cương v1 đã được khóa để Hội đồng tiến hành xét duyệt.
+                        </span>
+                    </div>
+                </div>
+            )}
+
+            {/* BM01 Needs Revision Feedback Panel */}
+            {registration.status === 'BM01_NEEDS_REVISION' && (
+                <div
+                    className="card"
+                    style={{
+                        marginBottom: 20,
+                        padding: '16px 20px',
+                        borderColor: '#F59E0B',
+                        background: '#FFFBEB',
+                        borderLeft: '6px solid #D97706',
+                    }}
+                >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+                        <div style={{ maxWidth: 840 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                <span style={{ fontWeight: 700, fontSize: 15, color: '#92400E' }}>
+                                    ⚠️ ĐỀ CƯƠNG CẦN CHỈNH SỬA &amp; NỘP LẠI (V2)
+                                </span>
+                                <span className="tag orange" style={{ fontWeight: 700 }}>
+                                    Kết quả ban đầu: {
+                                        latestBm01Eval?.initialOutcome === 'FAIL' ? 'Không đạt' :
+                                        latestBm01Eval?.initialOutcome === 'ABSENT' ? 'Vắng mặt' :
+                                        'Yêu cầu chỉnh sửa'
+                                    }
+                                </span>
+                            </div>
+
+                            {latestBm01Eval?.comment && (
+                                <div style={{ marginTop: 8, fontSize: 13, color: '#78350F' }}>
+                                    <strong>Ý kiến nhận xét của Hội đồng:</strong> {latestBm01Eval.comment}
+                                </div>
+                            )}
+
+                            {latestBm01Eval?.revisionRequirements && (
+                                <div style={{ marginTop: 6, fontSize: 13, color: '#78350F' }}>
+                                    <strong>Yêu cầu chỉnh sửa cụ thể:</strong>
+                                    <div style={{ background: '#FEF3C7', padding: '8px 12px', borderRadius: 6, marginTop: 4, whiteSpace: 'pre-line' }}>
+                                        {latestBm01Eval.revisionRequirements}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div style={{ marginTop: 8, fontSize: 13, color: '#B45309', fontWeight: 600 }}>
+                                Hạn nộp lại của Hội đồng: {
+                                    outlineCouncil?.revisionSubmissionDeadline
+                                        ? dayjs(outlineCouncil.revisionSubmissionDeadline).format('DD/MM/YYYY HH:mm')
+                                        : (latestBm01Eval?.deadlineAt ? dayjs(latestBm01Eval.deadlineAt).format('DD/MM/YYYY HH:mm') : 'Theo thông báo của Hội đồng')
+                                }
+                                {outlineData?.isOverdue && <span style={{ color: '#DC2626', marginLeft: 8 }}>(Đã quá hạn nộp lại)</span>}
+                            </div>
+
+                            <div style={{ marginTop: 6, fontSize: 12, color: '#92400E' }}>
+                                <em>* Cảnh báo: Sinh viên chỉ được nộp lại duy nhất 01 lần (v2). Bản nộp lại là căn cứ duy nhất để Chủ tịch Hội đồng phê duyệt ĐẠT hoặc DỪNG ĐỀ TÀI.</em>
+                            </div>
+                        </div>
+
+                        <button
+                            type="button"
+                            className="btn btn-primary"
+                            onClick={() => {
+                                const resubTask = tasks.find((t) => t.taskType === 'BM01_RESUBMISSION') ||
+                                    tasks.find((t) => t.taskType === 'BM01' || t.taskType === 'BM01_INITIAL_SUBMISSION') ||
+                                    { id: 'bm01-resubmit', taskType: 'BM01_RESUBMISSION', title: 'Nộp lại đề cương đồ án tốt nghiệp (BM01)' };
+                                handleOpenSubmitModal(resubTask);
+                            }}
+                        >
+                            <UploadOutlined style={{ marginRight: 6 }} />
+                            <span>Nộp lại đề cương v2 (Duy nhất 1 lần)</span>
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* BM01 Resubmitted State Banner */}
+            {registration.status === 'BM01_RESUBMITTED' && (
+                <div
+                    className="card"
+                    style={{
+                        marginBottom: 20,
+                        padding: '14px 18px',
+                        borderColor: '#A5F3FC',
+                        background: '#ECFEFF',
+                        borderLeft: '6px solid #06B6D4',
+                    }}
+                >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                        <span className="tag cyan" style={{ fontWeight: 700 }}>
+                            Đã nộp bản chỉnh sửa (Đang chờ Chủ tịch Hội đồng phê duyệt)
+                        </span>
+                        <span style={{ fontSize: 13, color: '#0E7490' }}>
+                            Đề cương hiệu chỉnh (v2) đã được ghi nhận thành công. Nút nộp đã được khóa và hệ thống đang chờ Chủ tịch Hội đồng ra kết luận cuối cùng.
+                        </span>
+                    </div>
+                </div>
+            )}
+
+            {bm02RevisionNotice && (
+                <div className="card" style={{ marginBottom: 18, padding: '14px 16px', borderColor: '#F59E0B', background: '#FFFBEB' }}>
+                    <div style={{ fontWeight: 700, color: '#92400E' }}>{bm02RevisionNotice.title}</div>
+                    <div style={{ marginTop: 4, fontSize: 13, color: '#78350F' }}>
+                        {bm02RevisionNotice.version}
+                        {bm02RevisionNotice.deadline && ` · Hạn nộp: ${dayjs(bm02RevisionNotice.deadline).format('DD/MM/YYYY HH:mm')}`}
+                    </div>
+                    {bm02RevisionNotice.issues.length > 0 && (
                         <ul style={{ margin: '8px 0 0', paddingLeft: 20, color: '#78350F' }}>
-                            {revisionNotice.issues.map((issue, index) => <li key={`${issue}-${index}`}>{issue}</li>)}
+                            {bm02RevisionNotice.issues.map((issue, index) => <li key={`${issue}-${index}`}>{issue}</li>)}
                         </ul>
                     )}
                 </div>
@@ -502,11 +734,30 @@ export default function SubmissionPage() {
                 {studentTasks.map((task, idx) => {
                     const locked = isStepLocked(task.taskType);
                     const isCompleted = task.status === 'COMPLETED';
-                    const isCurrent = !locked && !isCompleted;
                     const submissions = task.submissions || [];
                     const lastSubmission = submissions.length > 0 ? submissions[0] : null;
-                    const canSubmit = !locked && ['OPEN', 'IN_PROGRESS', 'REVISION'].includes(task.status);
                     const isOverdue = task.dueDate && new Date(task.dueDate).getTime() < Date.now() && task.status !== 'COMPLETED';
+
+                    const isBM01Initial = task.taskType === 'BM01' || task.taskType === 'BM01_INITIAL_SUBMISSION';
+                    const isBM01Resub = task.taskType === 'BM01_RESUBMISSION';
+
+                    let canSubmit = !locked && ['OPEN', 'IN_PROGRESS', 'REVISION'].includes(task.status);
+                    if (isBM01Initial) {
+                        if (registration.status === 'APPROVED') {
+                            canSubmit = true;
+                        } else if (['BM01_SUBMITTED', 'BM01_RESUBMITTED', 'BM01_PASSED', 'TERMINATED_BM01'].includes(registration.status)) {
+                            canSubmit = false;
+                        }
+                    }
+                    if (isBM01Resub) {
+                        if (registration.status === 'BM01_NEEDS_REVISION') {
+                            canSubmit = true;
+                        } else {
+                            canSubmit = false;
+                        }
+                    }
+
+                    const isCurrent = !locked && !isCompleted && canSubmit;
 
                     return (
                         <div
@@ -520,7 +771,19 @@ export default function SubmissionPage() {
                                     <h4>{formatTaskTitle(task.title)}</h4>
                                     <p>{task.description || 'Thực hiện và nộp biểu mẫu theo đúng biểu mẫu chuẩn của Viện.'}</p>
                                     <div className="sub-meta-pill">
-                                        {isCompleted ? (
+                                        {isBM01Initial && registration.status === 'BM01_SUBMITTED' ? (
+                                            <span className="tag blue">Đã nộp đề cương v1 (Đang chờ Hội đồng xét duyệt)</span>
+                                        ) : (isBM01Initial || isBM01Resub) && registration.status === 'BM01_RESUBMITTED' ? (
+                                            <span className="tag cyan">Đã nộp bản chỉnh sửa (Đang chờ Chủ tịch Hội đồng phê duyệt)</span>
+                                        ) : (isBM01Initial || isBM01Resub) && registration.status === 'TERMINATED_BM01' ? (
+                                            <span className="tag red">Đã dừng thực hiện</span>
+                                        ) : (isBM01Initial || isBM01Resub) && ['BM01_PASSED', 'BM02_SUBMITTED', 'DECISION_ISSUED', 'IN_PROGRESS_BM03', 'BM03_PASSED', 'DEFENSE_READY', 'DEFENDED', 'COMPLETED'].includes(registration.status) ? (
+                                            <span className="tag green">ĐÃ DUYỆT ĐẠT</span>
+                                        ) : isBM01Resub && registration.status === 'BM01_NEEDS_REVISION' ? (
+                                            <span className="tag red">CẦN NỘP LẠI (V2 DUY NHẤT)</span>
+                                        ) : isBM01Initial && registration.status === 'APPROVED' ? (
+                                            <span className="tag teal">ĐANG MỞ NỘP (V1)</span>
+                                        ) : isCompleted ? (
                                             <span className="tag green">ĐÃ DUYỆT ĐẠT</span>
                                         ) : task.status === 'REVISION' ? (
                                             <span className="tag red">YÊU CẦU CHỈNH SỬA</span>
@@ -544,6 +807,16 @@ export default function SubmissionPage() {
                                             </span>
                                         )}
                                     </div>
+                                    {isBM01Initial && registration.status === 'APPROVED' && (
+                                        <div style={{ fontSize: 12, color: '#D97706', marginTop: 4 }}>
+                                            ⚠️ Bản nộp đầu tiên là bản chính thức và không thể thay thế.
+                                        </div>
+                                    )}
+                                    {isBM01Resub && registration.status === 'BM01_NEEDS_REVISION' && (
+                                        <div style={{ fontSize: 12, color: '#D97706', marginTop: 4 }}>
+                                            ⚠️ Sinh viên chỉ được nộp lại đúng 01 lần duy nhất.
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -561,17 +834,35 @@ export default function SubmissionPage() {
                                     </button>
                                 )}
                                 {canSubmit && (
-                                    <button
-                                        className="btn btn-primary btn-sm"
-                                        onClick={() => handleOpenSubmitModal(task)}
-                                    >
-                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                                            <polyline points="17 8 12 3 7 8" />
-                                            <line x1="12" y1="3" x2="12" y2="15" />
-                                        </svg>
-                                        <span>{task.status === 'REVISION' ? 'Nộp lại bài' : 'Nộp bài ngay'}</span>
-                                    </button>
+                                    isBM01Initial && registration.status === 'APPROVED' ? (
+                                        <Tooltip title="Bản nộp đầu tiên là bản chính thức và không thể thay thế">
+                                            <button
+                                                className="btn btn-primary btn-sm"
+                                                onClick={() => handleOpenSubmitModal(task)}
+                                            >
+                                                <UploadOutlined style={{ marginRight: 4 }} />
+                                                <span>Nộp đề cương v1</span>
+                                            </button>
+                                        </Tooltip>
+                                    ) : isBM01Resub || (isBM01Initial && registration.status === 'BM01_NEEDS_REVISION') ? (
+                                        <Tooltip title="Chỉ được nộp lại đúng 01 lần duy nhất">
+                                            <button
+                                                className="btn btn-primary btn-sm"
+                                                onClick={() => handleOpenSubmitModal(task)}
+                                            >
+                                                <UploadOutlined style={{ marginRight: 4 }} />
+                                                <span>Nộp lại đề cương v2</span>
+                                            </button>
+                                        </Tooltip>
+                                    ) : (
+                                        <button
+                                            className="btn btn-primary btn-sm"
+                                            onClick={() => handleOpenSubmitModal(task)}
+                                        >
+                                            <UploadOutlined style={{ marginRight: 4 }} />
+                                            <span>{task.status === 'REVISION' ? 'Nộp lại bài' : 'Nộp bài ngay'}</span>
+                                        </button>
+                                    )
                                 )}
                             </div>
                         </div>

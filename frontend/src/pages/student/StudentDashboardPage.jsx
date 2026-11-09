@@ -11,6 +11,7 @@ import dayjs from 'dayjs';
 import useAuthStore from '../../stores/authStore';
 import dashboardService from '../../services/dashboardService';
 import registrationService from '../../services/registrationService';
+import outlineService from '../../services/outlineService';
 import TitleAdjustmentModal from '../../components/student/TitleAdjustmentModal';
 
 const ACTIVE_FLOW_STATUSES = [
@@ -18,6 +19,7 @@ const ACTIVE_FLOW_STATUSES = [
     'BM01_SUBMITTED',
     'BM01_PASSED',
     'BM01_NEEDS_REVISION',
+    'BM01_RESUBMITTED',
     'BM02_SUBMITTED',
     'DECISION_ISSUED',
     'IN_PROGRESS_BM03',
@@ -34,7 +36,7 @@ const ACTIVE_FLOW_STATUSES = [
     'TERMINATED_FAILED_PROGRESS',
     'TERMINATED_BM04',
 ];
-const WITHDRAWABLE_STATUSES = ['APPROVED', 'BM01_SUBMITTED', 'BM01_PASSED', 'BM01_NEEDS_REVISION', 'BM02_SUBMITTED'];
+const WITHDRAWABLE_STATUSES = ['APPROVED', 'BM01_SUBMITTED', 'BM01_PASSED', 'BM01_NEEDS_REVISION', 'BM01_RESUBMITTED', 'BM02_SUBMITTED'];
 
 export default function StudentDashboardPage() {
     const { user } = useAuthStore();
@@ -42,6 +44,7 @@ export default function StudentDashboardPage() {
 
     const [, setLoading] = useState(true);
     const [data, setData] = useState(null);
+    const [outlineData, setOutlineData] = useState(null);
     const [allowedActions, setAllowedActions] = useState([]);
     const [withdrawModalOpen, setWithdrawModalOpen] = useState(false);
     const [withdrawReason, setWithdrawReason] = useState('');
@@ -52,10 +55,19 @@ export default function StudentDashboardPage() {
     const fetchDashboardData = async () => {
         try {
             setLoading(true);
-            const res = await dashboardService.getStudentStats();
-            if (res.success) {
-                setData(res.data);
-                const regId = res.data?.registrationDetails?.registrationId || res.data?.registrationDetails?.id;
+            const [statsRes, outlineRes] = await Promise.allSettled([
+                dashboardService.getStudentStats(),
+                outlineService.getMyOutline(),
+            ]);
+
+            if (outlineRes.status === 'fulfilled' && outlineRes.value?.success) {
+                setOutlineData(outlineRes.value.data);
+            }
+
+            if (statsRes.status === 'fulfilled' && statsRes.value?.success) {
+                const resData = statsRes.value.data;
+                setData(resData);
+                const regId = resData?.registrationDetails?.registrationId || resData?.registrationDetails?.id;
                 if (regId) {
                     try {
                         const actionRes = await registrationService.getAllowedActions(regId);
@@ -85,6 +97,7 @@ export default function StudentDashboardPage() {
     const { hasRegistration, registrationDetails, taskStatus, upcomingDeadlines } = data || {};
     const hasAnyRegistration = hasRegistration ?? false;
     const currentRegistration = registrationDetails ?? null;
+    const outlineCouncil = outlineData?.outlineCouncil || currentRegistration?.outlineCouncil;
     const canWithdraw = hasAnyRegistration && allowedActions.includes('CANCEL_REGISTRATION');
     const nearestDeadline = upcomingDeadlines && upcomingDeadlines.length > 0 ? upcomingDeadlines[0] : null;
     const titleAdjustmentDeadline = currentRegistration?.decisionDate
@@ -111,6 +124,7 @@ export default function StudentDashboardPage() {
         if (status === 'BM01_SUBMITTED') return <span className="tag blue">Chờ duyệt đề cương chi tiết</span>;
         if (status === 'BM01_PASSED') return <span className="tag green">Đề cương đạt (Chờ Quyết định giao đề tài)</span>;
         if (status === 'BM01_NEEDS_REVISION') return <span className="tag red">Đề cương cần chỉnh sửa</span>;
+        if (status === 'BM01_RESUBMITTED') return <span className="tag cyan">Đã nộp bản sửa (Chờ Chủ tịch duyệt)</span>;
         if (status === 'DECISION_ISSUED') return <span className="tag purple">Đã ban hành Quyết định giao đề tài</span>;
         if (status === 'IN_PROGRESS_BM03') return <span className="tag teal">Đang thực hiện đánh giá tiến độ</span>;
         if (status === 'BM03_SIGNATURE_PENDING') return <span className="tag yellow">Chờ ký biên bản tiến độ (3 ngày)</span>;
@@ -123,6 +137,7 @@ export default function StudentDashboardPage() {
         if (status === 'DEFENSE_READY') return <span className="tag green">Đủ điều kiện bảo vệ</span>;
         if (status === 'DEFENDED') return <span className="tag yellow">Đã bảo vệ</span>;
         if (status === 'COMPLETED') return <span className="tag green">Hoàn tất đồ án</span>;
+        if (status === 'TERMINATED_BM01') return <span className="tag red">Dừng đề tài (Đề cương không đạt)</span>;
         if (status === 'TERMINATED_FAILED_PROGRESS') return <span className="tag red">Dừng đề tài (Tiến độ không đạt)</span>;
         if (status === 'TERMINATED_BM04') return <span className="tag red">Dừng đề tài (Phiếu nhận xét chưa đạt)</span>;
         return <span className="tag green">Đang thực hiện · Học kỳ hiện tại</span>;
@@ -349,6 +364,68 @@ export default function StudentDashboardPage() {
                 </div>
             )}
 
+            {/* Outline Defense Council Session Banner */}
+            {outlineCouncil && (
+                <div
+                    className="card"
+                    style={{
+                        marginBottom: 24,
+                        padding: '16px 20px',
+                        borderLeft: '6px solid var(--primary)',
+                        background: '#F0FDFA',
+                        borderColor: '#99F6E4',
+                    }}
+                >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                        <div>
+                            <div style={{ fontSize: 15, fontWeight: 700, color: '#0F766E', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span>🏛️ Phiên Bảo Vệ &amp; Xét Duyệt Đề Cương: {outlineCouncil.name}</span>
+                            </div>
+                            <div style={{ marginTop: 6, fontSize: 13, color: '#115E59', display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+                                {outlineCouncil.defenseDate && (
+                                    <span>
+                                        ⏰ Thời gian bảo vệ: <strong>{dayjs(outlineCouncil.defenseDate).format('DD/MM/YYYY HH:mm')}</strong>
+                                    </span>
+                                )}
+                                <span>
+                                    Hình thức: <strong>{outlineCouncil.meetingMode === 'MICROSOFT_TEAMS' ? 'Microsoft Teams' : 'Trực tiếp'}</strong>
+                                    {outlineCouncil.meetingMode === 'IN_PERSON' && outlineCouncil.location && (
+                                        <span> — Địa điểm: <strong>{outlineCouncil.location}</strong></span>
+                                    )}
+                                </span>
+                                {outlineCouncil.revisionSubmissionDeadline && (
+                                    <span>
+                                        Hạn nộp bản sửa: <strong>{dayjs(outlineCouncil.revisionSubmissionDeadline).format('DD/MM/YYYY HH:mm')}</strong>
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                            {outlineCouncil.meetingMode === 'MICROSOFT_TEAMS' && outlineCouncil.meetingUrl && (
+                                <a
+                                    href={outlineCouncil.meetingUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="btn btn-primary btn-sm"
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600 }}
+                                >
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M19.5 7h-6.5a1.5 1.5 0 0 0-1.5 1.5v7a1.5 1.5 0 0 0 1.5 1.5h6.5a1.5 1.5 0 0 0 1.5-1.5v-7a1.5 1.5 0 0 0-1.5-1.5zM3 9a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9z" />
+                                    </svg>
+                                    <span>Tham gia Teams</span>
+                                </a>
+                            )}
+                            <button
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => navigate('/student/submissions')}
+                            >
+                                Chi tiết đề cương
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* 6-Stage Milestone Stepper Flow */}
             <div className="card" style={{ marginBottom: 24 }}>
                 <div className="card-header" style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
@@ -373,11 +450,27 @@ export default function StudentDashboardPage() {
                             <div className="step-sub">{hasAnyRegistration ? 'Đã duyệt' : 'Chưa đăng ký'}</div>
                         </div>
 
-                        <div className={`step-node ${progressPercent >= 33 ? 'completed' : progressPercent >= 16 ? 'active' : ''}`} onClick={() => navigate('/student/submissions')}>
-                            <div className="step-circle">{progressPercent >= 33 ? '✓' : '2'}</div>
-                            <div className="step-label">2. Đề cương nghiên cứu chi tiết</div>
-                            <div className="step-sub">Xét duyệt đạt</div>
-                        </div>
+                        {/* Step 2: Đề cương nghiên cứu chi tiết */}
+                        {(() => {
+                            const status = currentRegistration?.status;
+                            const isStep2Completed = ['BM01_PASSED', 'BM02_SUBMITTED', 'DECISION_ISSUED', 'IN_PROGRESS_BM03', 'BM03_PASSED', 'BM04_REVIEW', 'DEFENSE_READY', 'DEFENDED', 'COMPLETED'].includes(status) || progressPercent >= 33;
+                            const isStep2Active = !isStep2Completed && ['APPROVED', 'BM01_SUBMITTED', 'BM01_NEEDS_REVISION', 'BM01_RESUBMITTED'].includes(status);
+                            let subText = 'Xét duyệt đạt';
+                            if (status === 'BM01_SUBMITTED') subText = 'Chờ duyệt đề cương';
+                            else if (status === 'BM01_NEEDS_REVISION') subText = 'Cần chỉnh sửa';
+                            else if (status === 'BM01_RESUBMITTED') subText = 'Đã nộp bản sửa';
+                            else if (status === 'TERMINATED_BM01') subText = 'Dừng thực hiện';
+                            else if (status === 'APPROVED') subText = 'Chờ nộp đề cương';
+                            else if (!isStep2Completed) subText = 'Chưa nộp';
+
+                            return (
+                                <div className={`step-node ${isStep2Completed ? 'completed' : isStep2Active ? 'active' : ''}`} onClick={() => navigate('/student/submissions')}>
+                                    <div className="step-circle">{isStep2Completed ? '✓' : '2'}</div>
+                                    <div className="step-label">2. Đề cương nghiên cứu chi tiết</div>
+                                    <div className="step-sub">{subText}</div>
+                                </div>
+                            );
+                        })()}
 
                         <div className={`step-node ${progressPercent >= 50 ? 'completed' : progressPercent >= 33 ? 'active' : ''}`} onClick={() => setBm02ModalOpen(true)}>
                             <div className="step-circle">{progressPercent >= 50 ? '✓' : '3'}</div>
