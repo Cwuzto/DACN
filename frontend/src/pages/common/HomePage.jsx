@@ -2,11 +2,11 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getRoleHomePath, getUserDisplayRole } from '../../utils/authRedirect';
 import useAuthStore from '../../stores/authStore';
-import { authService } from '../../services/authService';
 import userService from '../../services/userService';
 import portalContentService from '../../services/portalContentService';
 import { getPublicPortalView } from '../../utils/portalContent';
 import { semesterService } from '../../services/semesterService';
+import { getClosestSemester } from '../../utils/semesterDisplay';
 import OpenModal from '../../components/common/OpenModal';
 import AuthModal from '../../components/auth/AuthModal';
 
