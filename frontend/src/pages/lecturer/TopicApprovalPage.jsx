@@ -17,8 +17,6 @@ export default function TopicApprovalPage() {
     const [loading, setLoading] = useState(true);
 
     // Modals for Mentor Approval
-    const [cvModalOpen, setCvModalOpen] = useState(false);
-    const [selectedStudent, setSelectedStudent] = useState(null);
     const [rejectModalOpen, setRejectModalOpen] = useState(false);
     const [rejectingRecord, setRejectingRecord] = useState(null);
     const [rejectReason, setRejectReason] = useState('');
@@ -154,8 +152,10 @@ export default function TopicApprovalPage() {
                         pendingRegistrations.map((record) => {
                             const student = record.student;
                             const topic = record.topic;
-                            const gpa = record.gpa || student?.gpa || '3.45';
-                            const credits = record.completedCredits || '132/140';
+                            const className = student?.studentProfile?.className || student?.department || 'Chưa cập nhật';
+                            const major = student?.studentProfile?.major || topic?.projectCatalog?.name || 'Công nghệ Thông tin';
+                            const topicCode = topic?.code || `DT-${topic?.id || record.topicId}`;
+                            const registrationTime = record.createdAt ? new Date(record.createdAt).toLocaleString('vi-VN') : '—';
 
                             return (
                                 <div
@@ -169,39 +169,41 @@ export default function TopicApprovalPage() {
                                                 <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--fg)' }}>
                                                     {student?.fullName || 'Sinh viên'}{' '}
                                                     <span className="mono" style={{ fontWeight: 'normal', color: 'var(--muted)', fontSize: 12 }}>
-                                                        · MSSV: {student?.code || '-'} · Lớp {student?.class || 'KTPM2021'}
+                                                        · MSSV: {student?.code || '-'} · Lớp: <strong>{className}</strong>
                                                     </span>
                                                 </div>
                                                 <div style={{ fontSize: '12.5px', color: 'var(--muted)', marginTop: 4 }}>
-                                                    Điểm GPA: <strong style={{ color: 'var(--accent)' }}>{gpa} / 4.0</strong> · Tín chỉ tích lũy: <strong style={{ color: 'var(--success)' }}>{credits}</strong> · Email: <span className="mono">{student?.email || 'Chưa cập nhật'}</span>
+                                                    Ngành: <strong style={{ color: 'var(--fg)' }}>{major}</strong> · Email: <span className="mono">{student?.email || 'Chưa cập nhật'}</span>
+                                                    {student?.phone && (
+                                                        <> · SĐT: <span className="mono">{student.phone}</span></>
+                                                    )}
                                                 </div>
                                             </div>
-                                            <span className="tag yellow">Đang chờ bạn duyệt</span>
+                                            <div style={{ textAlign: 'right' }}>
+                                                <span className="tag yellow">Đang chờ bạn duyệt</span>
+                                                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+                                                    Gửi lúc: {registrationTime}
+                                                </div>
+                                            </div>
                                         </div>
 
                                         <div style={{ background: '#F8FAFC', padding: '12px 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, marginBottom: 14, border: '1px solid var(--border)' }}>
-                                            <strong>Nguyện vọng đề tài:</strong> {topic?.code || 'DT-2026'}: <em>"{topic?.title}"</em>
-                                            <br />
-                                            <div style={{ color: '#475569', marginTop: 6 }}>
-                                                <strong>Lời nhắn sinh viên:</strong> "{record.studentNote || record.message || 'Em rất mong muốn được Thầy hướng dẫn nghiên cứu đề tài này để áp dụng kiến thức chuyên ngành vào thực tiễn đồ án tốt nghiệp.'}"
+                                            <div>
+                                                <strong>Nguyện vọng đề tài:</strong> <span className="mono" style={{ color: 'var(--primary)', fontWeight: 600 }}>{topicCode}</span>: <em>"{topic?.title}"</em>
+                                                {topic?.projectCatalog?.name && (
+                                                    <span className="tag teal" style={{ marginLeft: 8, fontSize: 11 }}>
+                                                        {topic.projectCatalog.name}
+                                                    </span>
+                                                )}
                                             </div>
+                                            {topic?.description && (
+                                                <div style={{ color: 'var(--muted)', fontSize: 12.5, marginTop: 6 }}>
+                                                    <strong>Mô tả đề tài:</strong> {topic.description}
+                                                </div>
+                                            )}
                                         </div>
 
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }} className="flex-wrap gap-3">
-                                            <button
-                                                type="button"
-                                                className="btn btn-secondary btn-sm"
-                                                onClick={() => {
-                                                    setSelectedStudent({ student, topic, gpa, credits });
-                                                    setCvModalOpen(true);
-                                                }}
-                                            >
-                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                                                    <polyline points="14 2 14 8 20 8" />
-                                                </svg>
-                                                Xem Bảng điểm & CV Đính Kèm
-                                            </button>
+                                        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }} className="flex-wrap gap-3">
                                             <div style={{ display: 'flex', gap: 8 }}>
                                                 <button
                                                     type="button"
@@ -372,64 +374,7 @@ export default function TopicApprovalPage() {
                 </div>
             )}
 
-            {/* MODAL 1: XEM CV / BẢNG ĐIỂM (CHO GVHD) */}
-            {cvModalOpen && selectedStudent && (
-                <div className="modal-overlay open" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <div className="modal-box" style={{ maxWidth: 540 }}>
-                        <div className="modal-head">
-                            <div className="modal-title">Hồ Sơ Năng Lực & Bảng Điểm Sinh Viên</div>
-                            <button type="button" className="modal-close" onClick={() => setCvModalOpen(false)}>×</button>
-                        </div>
-                        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
-                                <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--primary-light)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 16 }}>
-                                    {selectedStudent.student?.fullName?.[0] || 'S'}
-                                </div>
-                                <div>
-                                    <div style={{ fontWeight: 700, fontSize: 15 }}>{selectedStudent.student?.fullName}</div>
-                                    <div style={{ fontSize: 12, color: 'var(--muted)' }} className="mono">
-                                        MSSV: {selectedStudent.student?.code} · {selectedStudent.student?.email}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                                <div style={{ background: '#F8FAFC', padding: 10, borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                                    <span style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 600 }}>Điểm GPA Tích Lũy</span>
-                                    <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--accent)', marginTop: 2 }}>
-                                        {selectedStudent.gpa} / 4.0
-                                    </div>
-                                </div>
-                                <div style={{ background: '#F8FAFC', padding: 10, borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                                    <span style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 600 }}>Tín Chỉ Hoàn Thành</span>
-                                    <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--success)', marginTop: 2 }}>
-                                        {selectedStudent.credits}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div>
-                                <label style={{ fontWeight: 600, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase' }}>Kỹ năng chuyên môn khai báo:</label>
-                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
-                                    <span className="tag teal">React / Next.js</span>
-                                    <span className="tag blue">Node.js / Express</span>
-                                    <span className="tag gray">PostgreSQL / Supabase</span>
-                                    <span className="tag green">Docker / Git</span>
-                                </div>
-                            </div>
-
-                            <div style={{ padding: 12, background: '#F0FDFA', borderRadius: 'var(--radius-sm)', border: '1px solid #CCFBF1', fontSize: 12.5, color: '#0F766E' }}>
-                                Sinh viên đủ điều kiện học vụ để làm Khóa luận tốt nghiệp theo quy định của Viện Công nghệ Số.
-                            </div>
-                        </div>
-                        <div className="modal-foot">
-                            <button type="button" className="btn btn-secondary" onClick={() => setCvModalOpen(false)}>Đóng</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* MODAL 2: TỪ CHỐI ĐĂNG KÝ (CHO GVHD) */}
+            {/* MODAL 1: TỪ CHỐI ĐĂNG KÝ (CHO GVHD) */}
             {rejectModalOpen && rejectingRecord && (
                 <div className="modal-overlay open" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <div className="modal-box" style={{ maxWidth: 480 }}>

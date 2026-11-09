@@ -646,6 +646,7 @@ const getAllRegistrations = async (req, res, next) => {
                         fullName: true,
                         code: true,
                         email: true,
+                        phone: true,
                         department: true,
                         studentProfile: {
                             select: {
@@ -655,7 +656,17 @@ const getAllRegistrations = async (req, res, next) => {
                         },
                     },
                 },
-                topic: { select: { id: true, title: true, mentorId: true, mentor: { select: { id: true, fullName: true, email: true } } } },
+                topic: {
+                    select: {
+                        id: true,
+                        code: true,
+                        title: true,
+                        description: true,
+                        mentorId: true,
+                        projectCatalog: { select: { id: true, name: true } },
+                        mentor: { select: { id: true, fullName: true, email: true } },
+                    },
+                },
                 council: { select: { id: true, name: true, councilType: true, defenseDate: true, location: true } },
                 outlineCouncil: {
                     include: {
