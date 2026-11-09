@@ -679,6 +679,142 @@ const getRoundCoordinationOverview = async (req, res, next) => {
     }
 };
 
+/**
+ * GET /api/lecturer-assignments/available-lecturers
+ * Query lecturers who are available to be assigned to the given semester & projectCatalog.
+ * A lecturer is available if:
+ * 1. They are active lecturers.
+ * 2. They do NOT already have an active assignment in this semester (and projectCatalogId if specified).
+ * 3. Their current peak load across overlapping rounds allows taking at least 1 student (sweep validation valid for quota = 1).
+ */
+const getAvailableLecturers = async (req, res, next) => {
+    try {
+        const semesterId = Number(req.query.semesterId);
+        const projectCatalogId = req.query.projectCatalogId ? Number(req.query.projectCatalogId) : undefined;
+
+        if (!semesterId) {
+            return res.status(400).json({ success: false, message: 'semesterId là bắt buộc.' });
+        }
+
+        const targetSemester = await prisma.semester.findUnique({
+            where: { id: semesterId },
+        });
+
+        if (!targetSemester) {
+            return res.status(404).json({ success: false, message: 'Đợt đồ án không tồn tại.' });
+        }
+
+        // 1. All active lecturers
+        const allLecturers = await prisma.user.findMany({
+            where: {
+                role: 'LECTURER',
+                isActive: true,
+            },
+            select: {
+                id: true,
+                fullName: true,
+                code: true,
+                email: true,
+                department: true,
+                academicTitle: true,
+            },
+            orderBy: [{ fullName: 'asc' }],
+        });
+
+        if (allLecturers.length === 0) {
+            return res.json({ success: true, data: [] });
+        }
+
+        // 2. Already assigned in this round (for the target catalog if provided, or all in semester if not)
+        const roundAssignments = await prisma.lecturerProjectAssignment.findMany({
+            where: {
+                semesterId,
+                status: { not: 'CLOSED' },
+                ...(projectCatalogId ? { projectCatalogId } : {}),
+            },
+            select: {
+                lecturerId: true,
+                projectCatalogId: true,
+            },
+        });
+
+        const assignedLecturerIds = new Set(roundAssignments.map((a) => a.lecturerId));
+
+        // Filter out lecturers already assigned in this round (with this catalog)
+        const unassignedLecturers = allLecturers.filter((l) => !assignedLecturerIds.has(l.id));
+
+        if (unassignedLecturers.length === 0) {
+            return res.json({ success: true, data: [] });
+        }
+
+        const candidateIds = unassignedLecturers.map((l) => l.id);
+
+        // 3. Fetch all other active assignments for candidate lecturers to compute sweep workload
+        const otherAssignments = await prisma.lecturerProjectAssignment.findMany({
+            where: {
+                lecturerId: { in: candidateIds },
+                status: { not: 'CLOSED' },
+            },
+            include: {
+                semester: {
+                    select: { id: true, name: true, startDate: true, endDate: true },
+                },
+            },
+        });
+
+        const assignmentsByLecturer = new Map();
+        for (const a of otherAssignments) {
+            if (!assignmentsByLecturer.has(a.lecturerId)) {
+                assignmentsByLecturer.set(a.lecturerId, []);
+            }
+            assignmentsByLecturer.get(a.lecturerId).push(a);
+        }
+
+        // 4. Validate capacity sweep for each candidate lecturer
+        const availableLecturers = [];
+
+        for (const lecturer of unassignedLecturers) {
+            const existingAssignments = assignmentsByLecturer.get(lecturer.id) || [];
+
+            // Sweep test for plannedQuota: 1 (minimum to be available)
+            const minTest = validatePlannedQuotaSweep({
+                existingAssignments,
+                newAssignment: {
+                    plannedQuota: 1,
+                    status: 'ACTIVE',
+                    semester: targetSemester,
+                },
+            });
+
+            if (minTest.valid) {
+                // Calculate max available quota they can take (up to 10)
+                const fullTest = validatePlannedQuotaSweep({
+                    existingAssignments,
+                    newAssignment: {
+                        plannedQuota: 10,
+                        status: 'ACTIVE',
+                        semester: targetSemester,
+                    },
+                });
+
+                let availableQuota = 10;
+                if (!fullTest.valid) {
+                    availableQuota = Math.max(1, 10 - (fullTest.peakQuota - 10));
+                }
+
+                availableLecturers.push({
+                    ...lecturer,
+                    availableQuota,
+                });
+            }
+        }
+
+        return res.json({ success: true, data: availableLecturers });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     listLecturerAssignments,
     createLecturerAssignment,
@@ -686,4 +822,5 @@ module.exports = {
     deleteLecturerAssignment,
     bulkUpsertLecturerAssignments,
     getRoundCoordinationOverview,
+    getAvailableLecturers,
 };

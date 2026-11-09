@@ -30,6 +30,22 @@ export const lecturerAssignmentService = {
     },
 
     /**
+     * Lấy danh sách giảng viên khả dụng cho đợt đồ án (chưa được phân công & chưa đạt đỉnh tải)
+     * @param {Object} params { semesterId, projectCatalogId }
+     */
+    getAvailableLecturers: async (params = {}) => {
+        try {
+            const queryParams = {};
+            if (params.semesterId) queryParams.semesterId = params.semesterId;
+            if (params.projectCatalogId) queryParams.projectCatalogId = params.projectCatalogId;
+
+            return await client.get('/lecturer-assignments/available-lecturers', { params: queryParams });
+        } catch (error) {
+            throw wrapServiceError(error, 'Lỗi khi tải danh sách giảng viên khả dụng');
+        }
+    },
+
+    /**
      * Lấy thông tin tổng quan điều phối đợt đồ án
      * @param {Object} params { semesterId, projectCatalogId }
      */

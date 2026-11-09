@@ -7,6 +7,7 @@ const {
     deleteLecturerAssignment,
     bulkUpsertLecturerAssignments,
     getRoundCoordinationOverview,
+    getAvailableLecturers,
 } = require('../controllers/lecturerAssignmentController');
 const { authenticate, authorizePermission } = require('../middlewares/auth');
 const { PERMISSIONS } = require('../constants/permissions');
@@ -25,7 +26,8 @@ router.get(
             PERMISSIONS.PERMISSION_ASSIGN_ACADEMIC,
             PERMISSIONS.MENTOR_ASSIGN,
             PERMISSIONS.LECTURER_DIRECTORY_VIEW,
-            PERMISSIONS.SEMESTER_MANAGE
+            PERMISSIONS.SEMESTER_MANAGE,
+            PERMISSIONS.ENROLLMENT_MANAGE
         ),
         query('semesterId').optional().isInt({ min: 1 }).withMessage('semesterId phải là số nguyên dương.'),
         query('projectCatalogId').optional().isInt({ min: 1 }).withMessage('projectCatalogId phải là số nguyên dương.'),
@@ -34,11 +36,34 @@ router.get(
     getRoundCoordinationOverview
 );
 
+// Available lecturers for a round
+router.get(
+    '/available-lecturers',
+    [
+        authorizePermission(
+            PERMISSIONS.VIEW_PROJECT_ENROLLMENTS,
+            PERMISSIONS.PERMISSION_ASSIGN_ACADEMIC,
+            PERMISSIONS.MENTOR_ASSIGN,
+            PERMISSIONS.LECTURER_DIRECTORY_VIEW,
+            PERMISSIONS.SEMESTER_MANAGE,
+            PERMISSIONS.ENROLLMENT_MANAGE
+        ),
+        query('semesterId').isInt({ min: 1 }).withMessage('semesterId phải là số nguyên dương.'),
+        query('projectCatalogId').optional().isInt({ min: 1 }).withMessage('projectCatalogId phải là số nguyên dương.'),
+        validateRequest,
+    ],
+    getAvailableLecturers
+);
+
 // Bulk upsert assignments (e.g. from Excel or multi-row editor)
 router.post(
     '/bulk-upsert',
     [
-        authorizePermission(PERMISSIONS.PERMISSION_ASSIGN_ACADEMIC, PERMISSIONS.MENTOR_ASSIGN),
+        authorizePermission(
+            PERMISSIONS.PERMISSION_ASSIGN_ACADEMIC,
+            PERMISSIONS.MENTOR_ASSIGN,
+            PERMISSIONS.ENROLLMENT_MANAGE
+        ),
         body('items').isArray({ min: 1 }).withMessage('items phải là mảng không rỗng.'),
         body('items.*.lecturerId').isInt({ min: 1 }).withMessage('lecturerId không hợp lệ.'),
         body('items.*.semesterId').isInt({ min: 1 }).withMessage('semesterId không hợp lệ.'),
@@ -59,7 +84,8 @@ router.get(
             PERMISSIONS.PERMISSION_ASSIGN_ACADEMIC,
             PERMISSIONS.MENTOR_ASSIGN,
             PERMISSIONS.LECTURER_DIRECTORY_VIEW,
-            PERMISSIONS.SEMESTER_MANAGE
+            PERMISSIONS.SEMESTER_MANAGE,
+            PERMISSIONS.ENROLLMENT_MANAGE
         ),
         query('semesterId').optional().isInt({ min: 1 }).withMessage('semesterId phải là số nguyên dương.'),
         query('projectCatalogId').optional().isInt({ min: 1 }).withMessage('projectCatalogId phải là số nguyên dương.'),
@@ -74,7 +100,11 @@ router.get(
 router.post(
     '/',
     [
-        authorizePermission(PERMISSIONS.PERMISSION_ASSIGN_ACADEMIC, PERMISSIONS.MENTOR_ASSIGN),
+        authorizePermission(
+            PERMISSIONS.PERMISSION_ASSIGN_ACADEMIC,
+            PERMISSIONS.MENTOR_ASSIGN,
+            PERMISSIONS.ENROLLMENT_MANAGE
+        ),
         body('lecturerId').isInt({ min: 1 }).withMessage('lecturerId phải là số nguyên dương.'),
         body('semesterId').isInt({ min: 1 }).withMessage('semesterId phải là số nguyên dương.'),
         body('projectCatalogId').isInt({ min: 1 }).withMessage('projectCatalogId phải là số nguyên dương.'),
@@ -89,7 +119,11 @@ router.post(
 router.put(
     '/:id',
     [
-        authorizePermission(PERMISSIONS.PERMISSION_ASSIGN_ACADEMIC, PERMISSIONS.MENTOR_ASSIGN),
+        authorizePermission(
+            PERMISSIONS.PERMISSION_ASSIGN_ACADEMIC,
+            PERMISSIONS.MENTOR_ASSIGN,
+            PERMISSIONS.ENROLLMENT_MANAGE
+        ),
         param('id').isInt({ min: 1 }).withMessage('id không hợp lệ.'),
         body('plannedQuota').optional().isInt({ min: 1 }).withMessage('plannedQuota phải là số nguyên dương.'),
         body('status').optional().isIn(['DRAFT', 'ACTIVE', 'CLOSED']).withMessage('status không hợp lệ.'),
@@ -102,7 +136,11 @@ router.put(
 router.delete(
     '/:id',
     [
-        authorizePermission(PERMISSIONS.PERMISSION_ASSIGN_ACADEMIC, PERMISSIONS.MENTOR_ASSIGN),
+        authorizePermission(
+            PERMISSIONS.PERMISSION_ASSIGN_ACADEMIC,
+            PERMISSIONS.MENTOR_ASSIGN,
+            PERMISSIONS.ENROLLMENT_MANAGE
+        ),
         param('id').isInt({ min: 1 }).withMessage('id không hợp lệ.'),
         validateRequest,
     ],

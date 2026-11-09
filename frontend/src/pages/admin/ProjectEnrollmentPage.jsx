@@ -35,7 +35,8 @@ export function ProjectEnrollmentPage() {
         const permissions = user.permissions || [];
         return (
             permissions.includes('PERMISSION_ASSIGN_ACADEMIC') ||
-            permissions.includes('MENTOR_ASSIGN')
+            permissions.includes('MENTOR_ASSIGN') ||
+            permissions.includes('ENROLLMENT_MANAGE')
         );
     }, [user]);
 

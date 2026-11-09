@@ -87,12 +87,19 @@ function buildUser({ id, role, permissions = [], permissionVersion = 1, isActive
 
 describe('Lecturer Project Assignment Controller (/api/lecturer-assignments)', () => {
     const adminToken = 'admin-token';
+    const enrollmentAdminToken = 'enrollment-admin-token';
     const unauthorizedToken = 'unauthorized-token';
 
     const academicAdmin = buildUser({
         id: 1,
         role: 'ADMIN',
         permissions: ['PERMISSION_ASSIGN_ACADEMIC', 'MENTOR_ASSIGN', 'VIEW_PROJECT_ENROLLMENTS', 'LECTURER_DIRECTORY_VIEW'],
+    });
+
+    const enrollmentAdmin = buildUser({
+        id: 3,
+        role: 'ADMIN',
+        permissions: ['ENROLLMENT_MANAGE', 'VIEW_PROJECT_ENROLLMENTS', 'SEMESTER_MANAGE'],
     });
 
     const unauthorizedUser = buildUser({
@@ -134,12 +141,14 @@ describe('Lecturer Project Assignment Controller (/api/lecturer-assignments)', (
 
         jwt.verify.mockImplementation((token) => {
             if (token === adminToken) return { userId: academicAdmin.id, role: academicAdmin.role, permissionVersion: academicAdmin.permissionVersion };
+            if (token === enrollmentAdminToken) return { userId: enrollmentAdmin.id, role: enrollmentAdmin.role, permissionVersion: enrollmentAdmin.permissionVersion };
             if (token === unauthorizedToken) return { userId: unauthorizedUser.id, role: unauthorizedUser.role, permissionVersion: unauthorizedUser.permissionVersion };
             throw new Error('Invalid token');
         });
 
         mockUser.findUnique.mockImplementation(({ where }) => {
             if (where.id === academicAdmin.id) return Promise.resolve(academicAdmin);
+            if (where.id === enrollmentAdmin.id) return Promise.resolve(enrollmentAdmin);
             if (where.id === unauthorizedUser.id) return Promise.resolve(unauthorizedUser);
             if (where.id === mockLecturer.id) return Promise.resolve(mockLecturer);
             return Promise.resolve(null);
@@ -304,6 +313,34 @@ describe('Lecturer Project Assignment Controller (/api/lecturer-assignments)', (
             expect(res.body.success).toBe(true);
             expect(res.body.data.id).toBe(101);
             expect(res.body.data.plannedQuota).toBe(4);
+        });
+
+        it('allows user with ENROLLMENT_MANAGE permission to create lecturer assignment', async () => {
+            mockSemester.findUnique.mockResolvedValue(mockSem1);
+            mockLecturerProjectAssignment.findMany.mockResolvedValue([]);
+            mockLecturerProjectAssignment.upsert.mockResolvedValue({
+                id: 102,
+                lecturerId: 10,
+                semesterId: 1,
+                projectCatalogId: 1,
+                plannedQuota: 10,
+                status: 'ACTIVE',
+                assignedById: enrollmentAdmin.id,
+            });
+
+            const res = await request(app)
+                .post('/api/lecturer-assignments')
+                .set('Authorization', `Bearer ${enrollmentAdminToken}`)
+                .send({
+                    lecturerId: 10,
+                    semesterId: 1,
+                    projectCatalogId: 1,
+                    plannedQuota: 10,
+                    status: 'ACTIVE',
+                });
+
+            expect(res.status).toBe(201);
+            expect(res.body.success).toBe(true);
         });
     });
 
@@ -558,6 +595,63 @@ describe('Lecturer Project Assignment Controller (/api/lecturer-assignments)', (
             expect(warningAlert).toBeDefined();
             expect(warningAlert.peakConcurrentLoad).toBe(8);
             expect(warningAlert.severity).toBe('WARNING');
+        });
+    });
+
+    describe('GET /api/lecturer-assignments/available-lecturers', () => {
+        it('returns only lecturers who are not already assigned in target semester and have available quota', async () => {
+            mockSemester.findUnique.mockResolvedValue(mockSem1);
+
+            const allLecturers = [
+                { id: 10, fullName: 'TS. Nguyễn Văn A', code: 'GV001', role: 'LECTURER', isActive: true },
+                { id: 20, fullName: 'ThS. Trần Thị B', code: 'GV002', role: 'LECTURER', isActive: true },
+                { id: 30, fullName: 'TS. Lê Văn C', code: 'GV003', role: 'LECTURER', isActive: true },
+            ];
+            mockUser.findMany.mockResolvedValue(allLecturers);
+
+            // 1. Current round assignments: Lecturer 10 is ALREADY assigned in Sem 1
+            // 2. Overlapping assignments for candidate lecturers (20 and 30):
+            // Lecturer 30 is already at 10 quota in overlapping round
+            mockLecturerProjectAssignment.findMany
+                .mockResolvedValueOnce([
+                    { lecturerId: 10, projectCatalogId: 1 },
+                ])
+                .mockResolvedValueOnce([
+                    {
+                        lecturerId: 30,
+                        plannedQuota: 10,
+                        status: 'ACTIVE',
+                        semester: {
+                            id: 99,
+                            name: 'Đợt trùng',
+                            startDate: mockSem1.startDate,
+                            endDate: mockSem1.endDate,
+                        },
+                    },
+                ]);
+
+            const res = await request(app)
+                .get('/api/lecturer-assignments/available-lecturers?semesterId=1&projectCatalogId=1')
+                .set('Authorization', `Bearer ${enrollmentAdminToken}`);
+
+            expect(res.status).toBe(200);
+            expect(res.body.success).toBe(true);
+
+            const available = res.body.data;
+            // Lecturer 10 is excluded (already assigned)
+            // Lecturer 30 is excluded (peak quota = 10 already)
+            // Only Lecturer 20 is available
+            expect(available.length).toBe(1);
+            expect(available[0].id).toBe(20);
+            expect(available[0].availableQuota).toBe(10);
+        });
+
+        it('returns 400 when semesterId is missing', async () => {
+            const res = await request(app)
+                .get('/api/lecturer-assignments/available-lecturers')
+                .set('Authorization', `Bearer ${adminToken}`);
+
+            expect(res.status).toBe(400);
         });
     });
 });

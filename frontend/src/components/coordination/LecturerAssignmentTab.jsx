@@ -52,7 +52,8 @@ export function LecturerAssignmentTab({
         const permissions = user.permissions || [];
         return (
             permissions.includes('PERMISSION_ASSIGN_ACADEMIC') ||
-            permissions.includes('MENTOR_ASSIGN')
+            permissions.includes('MENTOR_ASSIGN') ||
+            permissions.includes('ENROLLMENT_MANAGE')
         );
     }, [user]);
 
@@ -60,6 +61,8 @@ export function LecturerAssignmentTab({
     const [createModalOpen, setCreateModalOpen] = useState(false);
     const [creating, setCreating] = useState(false);
     const [createForm] = Form.useForm();
+    const [availableLecturers, setAvailableLecturers] = useState([]);
+    const [loadingAvailable, setLoadingAvailable] = useState(false);
 
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [editingItem, setEditingItem] = useState(null);
@@ -109,6 +112,33 @@ export function LecturerAssignmentTab({
             }
         } catch {}
     }, []);
+
+    // Fetch available lecturers specifically for target semester & catalog
+    const fetchAvailableLecturers = useCallback(async (semId, catId) => {
+        if (!semId) {
+            setAvailableLecturers([]);
+            return;
+        }
+        setLoadingAvailable(true);
+        try {
+            const res = await lecturerAssignmentService.getAvailableLecturers({
+                semesterId: semId,
+                projectCatalogId: catId || undefined,
+            });
+            if (res?.success) {
+                setAvailableLecturers(res.data || []);
+            }
+        } catch {
+            const assignedIds = new Set(
+                assignments
+                    .filter((a) => a.semesterId === Number(semId) && (!catId || a.projectCatalogId === Number(catId)))
+                    .map((a) => a.lecturerId)
+            );
+            setAvailableLecturers(lecturers.filter((l) => !assignedIds.has(l.id)));
+        } finally {
+            setLoadingAvailable(false);
+        }
+    }, [assignments, lecturers]);
 
     useEffect(() => {
         fetchAssignments();
@@ -579,13 +609,15 @@ export function LecturerAssignmentTab({
                             type="primary"
                             icon={<PlusOutlined />}
                             onClick={() => {
+                                const targetCatId = projectCatalogId ? Number(projectCatalogId) : catalogs[0]?.id;
                                 createForm.resetFields();
                                 createForm.setFieldsValue({
                                     semesterId: Number(semesterId),
-                                    projectCatalogId: projectCatalogId ? Number(projectCatalogId) : catalogs[0]?.id,
+                                    projectCatalogId: targetCatId,
                                     plannedQuota: 10,
                                     status: 'ACTIVE',
                                 });
+                                fetchAvailableLecturers(semesterId, targetCatId);
                                 setCreateModalOpen(true);
                             }}
                         >
@@ -647,15 +679,35 @@ export function LecturerAssignmentTab({
                         name="lecturerId"
                         label="Giảng viên"
                         rules={[{ required: true, message: 'Vui lòng chọn giảng viên' }]}
+                        extra={
+                            <span className="text-[11px] text-slate-500">
+                                Chỉ hiển thị các giảng viên khả dụng chưa được phân công và còn chỉ tiêu trong đợt này.
+                            </span>
+                        }
                     >
                         <Select
                             showSearch
-                            placeholder="Tìm theo tên hoặc mã GV..."
+                            loading={loadingAvailable}
+                            placeholder="Tìm theo tên hoặc mã GV khả dụng..."
                             optionFilterProp="label"
-                            options={lecturers.map((l) => ({
+                            options={availableLecturers.map((l) => ({
                                 value: l.id,
-                                label: `${l.fullName} (${l.code || 'Chưa có mã'}) - ${l.department || 'Bộ môn'}`,
+                                label: `${l.fullName} (${l.code || 'Chưa có mã'}) - ${l.department || 'Bộ môn'}${l.availableQuota !== undefined ? ` (Tối đa ${l.availableQuota} chỉ tiêu)` : ''}`,
                             }))}
+                            notFoundContent={
+                                <div className="py-2 text-center text-xs text-slate-500">
+                                    Không có giảng viên khả dụng (đã được phân công hoặc đã hết chỉ tiêu trong đợt này)
+                                </div>
+                            }
+                            onChange={(selectedLecturerId) => {
+                                const selected = availableLecturers.find((l) => l.id === selectedLecturerId);
+                                if (selected && selected.availableQuota) {
+                                    const currentQuota = createForm.getFieldValue('plannedQuota') || 10;
+                                    createForm.setFieldsValue({
+                                        plannedQuota: Math.min(currentQuota, selected.availableQuota),
+                                    });
+                                }
+                            }}
                         />
                     </Form.Item>
 
@@ -677,6 +729,10 @@ export function LecturerAssignmentTab({
                         >
                             <Select
                                 options={catalogs.map((c) => ({ value: c.id, label: `${c.code} - ${c.name}` }))}
+                                onChange={(newCatId) => {
+                                    createForm.setFieldsValue({ lecturerId: undefined });
+                                    fetchAvailableLecturers(semesterId, newCatId);
+                                }}
                             />
                         </Form.Item>
                     </div>

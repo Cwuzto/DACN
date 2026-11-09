@@ -20,6 +20,35 @@ test('lecturerAssignmentService defines all required methods for coordination hu
     assert.equal(typeof lecturerAssignmentService.update, 'function');
     assert.equal(typeof lecturerAssignmentService.deleteAssignment, 'function');
     assert.equal(typeof lecturerAssignmentService.bulkUpsert, 'function');
+    assert.equal(typeof lecturerAssignmentService.getAvailableLecturers, 'function');
+});
+
+test('lecturerAssignmentService.getAvailableLecturers calls GET /lecturer-assignments/available-lecturers', async () => {
+    let capturedUrl = null;
+    let capturedConfig = null;
+    const originalGet = api.get;
+
+    api.get = async (url, config) => {
+        capturedUrl = url;
+        capturedConfig = config;
+        return { success: true, data: [{ id: 10, fullName: 'GV A', availableQuota: 10 }] };
+    };
+
+    try {
+        const res = await lecturerAssignmentService.getAvailableLecturers({
+            semesterId: 101,
+            projectCatalogId: 5,
+        });
+
+        assert.equal(res.success, true);
+        assert.equal(capturedUrl, '/lecturer-assignments/available-lecturers');
+        assert.deepEqual(capturedConfig.params, {
+            semesterId: 101,
+            projectCatalogId: 5,
+        });
+    } finally {
+        api.get = originalGet;
+    }
 });
 
 test('lecturerAssignmentService.getAll calls GET /lecturer-assignments with query params', async () => {
