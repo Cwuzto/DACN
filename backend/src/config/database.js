@@ -4,7 +4,8 @@ const { PrismaClient } = require('@prisma/client');
 const { PrismaPg } = require('@prisma/adapter-pg');
 const { Pool } = require('pg');
 
-const DEFAULT_DB_POOL_MAX = 2;
+const DEFAULT_DB_POOL_MAX = 8;
+const DEFAULT_DB_POOL_CONNECTION_TIMEOUT = 15000;
 
 function readPositiveInt(value, fallback) {
     const parsed = Number.parseInt(value, 10);
@@ -21,7 +22,7 @@ function readBoolean(value, fallback) {
 
 const dbPoolMax = readPositiveInt(process.env.DB_POOL_MAX, DEFAULT_DB_POOL_MAX);
 const dbPoolIdleTimeout = readPositiveInt(process.env.DB_POOL_IDLE_TIMEOUT_MS, 30000);
-const dbPoolConnectionTimeout = readPositiveInt(process.env.DB_POOL_CONNECTION_TIMEOUT_MS, 10000);
+const dbPoolConnectionTimeout = readPositiveInt(process.env.DB_POOL_CONNECTION_TIMEOUT_MS, DEFAULT_DB_POOL_CONNECTION_TIMEOUT);
 const dbUseSsl = readBoolean(process.env.DB_USE_SSL, true);
 const dbSslRejectUnauthorized = readBoolean(process.env.DB_SSL_REJECT_UNAUTHORIZED, false);
 const rawConnectionString = process.env.DATABASE_URL || '';
@@ -58,3 +59,7 @@ const prisma = new PrismaClient({
 });
 
 module.exports = prisma;
+module.exports.DEFAULT_DB_POOL_MAX = DEFAULT_DB_POOL_MAX;
+module.exports.DEFAULT_DB_POOL_CONNECTION_TIMEOUT = DEFAULT_DB_POOL_CONNECTION_TIMEOUT;
+module.exports.readPositiveInt = readPositiveInt;
+module.exports.prisma = prisma;
