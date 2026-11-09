@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+    Alert,
     Button,
     DatePicker,
     Form,
@@ -34,6 +35,7 @@ import {
     RobotOutlined,
     ClockCircleOutlined,
     EnvironmentOutlined,
+    UnlockOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
@@ -79,6 +81,14 @@ function CouncilAssignmentPage() {
     const [logCouncil, setLogCouncil] = useState(null);
     const [councilLogs, setCouncilLogs] = useState([]);
     const [selectedRegistrationsToAssign, setSelectedRegistrationsToAssign] = useState([]);
+
+    // Reopen Outline Council State
+    const [isReopenModalVisible, setIsReopenModalVisible] = useState(false);
+    const [reopeningCouncil, setReopeningCouncil] = useState(null);
+    const [reopenReason, setReopenReason] = useState('');
+    const [reopenLoading, setReopenLoading] = useState(false);
+    const [reopenBlockingList, setReopenBlockingList] = useState(null);
+    const [reopenError, setReopenError] = useState(null);
 
     const [councilForm] = Form.useForm();
     const [memberForm] = Form.useForm();
@@ -149,6 +159,67 @@ function CouncilAssignmentPage() {
             message.error(error.message || 'Lỗi khi phân công tự động');
         } finally {
             setSubmitLoading(false);
+        }
+    };
+
+    const handleAutoAssignOutline = async () => {
+        if (!selectedSemester) return;
+        try {
+            setSubmitLoading(true);
+            const response = await councilService.autoAssignOutlineCouncils(selectedSemester);
+            if (response.success) {
+                const createdCouncils = response.data?.createdCouncils ?? 0;
+                const assignedStudents = response.data?.assignedStudents ?? 0;
+                const skipped = response.data?.skippedStudents?.length || 0;
+                message.success(`Đã tự động phân công HĐ Đề cương: Tạo ${createdCouncils} hội đồng, xếp ${assignedStudents} sinh viên.`);
+                if (skipped > 0) {
+                    message.warning(`Có ${skipped} sinh viên chưa thể xếp hội đồng (xung đột/không thỏa điều kiện).`);
+                }
+                fetchCouncils();
+            }
+        } catch (error) {
+            message.error(error.message || 'Lỗi khi tự động phân công hội đồng đề cương');
+        } finally {
+            setSubmitLoading(false);
+        }
+    };
+
+    const handleOpenReopenModal = (council) => {
+        setReopeningCouncil(council);
+        setReopenReason('');
+        setReopenBlockingList(null);
+        setReopenError(null);
+        setIsReopenModalVisible(true);
+    };
+
+    const handleConfirmReopen = async () => {
+        if (!reopeningCouncil) return;
+        if (!reopenReason.trim()) {
+            message.warning('Vui lòng nhập lý do mở khóa kết quả.');
+            return;
+        }
+        try {
+            setReopenLoading(true);
+            setReopenBlockingList(null);
+            setReopenError(null);
+            const res = await councilService.reopenResults(reopeningCouncil.id, reopenReason.trim());
+            if (res.success) {
+                message.success('Đã mở khóa kết quả hội đồng thành công. Hội đồng chuyển về trạng thái Nháp (DRAFT).');
+                setIsReopenModalVisible(false);
+                setReopeningCouncil(null);
+                setReopenReason('');
+                fetchCouncils();
+            }
+        } catch (err) {
+            if (err?.blockingRegistrations || err?.error === 'BM02_DEPENDENCY_EXISTS') {
+                setReopenBlockingList(err.blockingRegistrations || []);
+                setReopenError(err.message || 'Không thể mở khóa do sinh viên đã có đơn BM02 / tiến độ kế tiếp gây chặn.');
+            } else {
+                setReopenError(err?.message || 'Lỗi khi mở khóa kết quả hội đồng.');
+                message.error(err?.message || 'Lỗi khi mở khóa kết quả');
+            }
+        } finally {
+            setReopenLoading(false);
         }
     };
 
@@ -564,6 +635,18 @@ function CouncilAssignmentPage() {
                         <Button size="small" onClick={() => showDetailModal(record.id)}>DS</Button>
                         <Button size="small" icon={<HistoryOutlined />} onClick={() => showLogModal(record)} />
                         <Button size="small" icon={<EditOutlined />} onClick={() => showEditModal(record)} />
+                        {record.councilType === 'OUTLINE_REVIEW' && (
+                            <Tooltip title="Mở khóa kết quả (Reopen)">
+                                <Button
+                                    size="small"
+                                    icon={<UnlockOutlined />}
+                                    onClick={() => handleOpenReopenModal(record)}
+                                    style={{ color: '#d97706', borderColor: '#fcd34d' }}
+                                >
+                                    Mở khóa
+                                </Button>
+                            </Tooltip>
+                        )}
                         <Popconfirm
                             title="Xóa hội đồng này?"
                             description="Chỉ xóa được nếu hội đồng chưa có sinh viên nào."
@@ -601,14 +684,31 @@ function CouncilAssignmentPage() {
                             loading={semesters.length === 0}
                             placeholder="Chọn đợt đồ án"
                         />
-                        {canManageDefense && <Button
-                            onClick={handleAutoAssign}
-                            loading={submitLoading}
-                            disabled={!selectedSemester}
-                            icon={<RobotOutlined />}
-                        >
-                            Tự động phân công
-                        </Button>}
+                        {councilTypeFilter === 'OUTLINE_REVIEW' ? (
+                            canManageOutline && (
+                                <Button
+                                    onClick={handleAutoAssignOutline}
+                                    loading={submitLoading}
+                                    disabled={!selectedSemester}
+                                    icon={<RobotOutlined />}
+                                    type="primary"
+                                    ghost
+                                >
+                                    Tự động phân công HĐ Đề cương
+                                </Button>
+                            )
+                        ) : (
+                            canManageDefense && (
+                                <Button
+                                    onClick={handleAutoAssign}
+                                    loading={submitLoading}
+                                    disabled={!selectedSemester}
+                                    icon={<RobotOutlined />}
+                                >
+                                    Tự động phân công
+                                </Button>
+                            )
+                        )}
                         <Button
                             type="primary"
                             icon={<PlusOutlined />}
@@ -1013,6 +1113,15 @@ function CouncilAssignmentPage() {
                                                 </div>
 
                                                 <div className="flex items-center gap-1">
+                                                    {council.councilType === 'OUTLINE_REVIEW' && (
+                                                        <Button
+                                                            size="small"
+                                                            icon={<UnlockOutlined />}
+                                                            onClick={() => handleOpenReopenModal(council)}
+                                                            style={{ color: '#d97706', borderColor: '#fcd34d' }}
+                                                            title="Mở khóa kết quả (Reopen)"
+                                                        />
+                                                    )}
                                                     <Button
                                                         size="small"
                                                         icon={<HistoryOutlined />}
@@ -1251,6 +1360,80 @@ function CouncilAssignmentPage() {
                         </List.Item>
                     )}
                 />
+            </Modal>
+
+            {/* Modal Mở khóa kết quả (Reopen) cho HĐ Đề cương */}
+            <Modal
+                title={
+                    <div className="flex items-center gap-2 text-amber-600">
+                        <UnlockOutlined />
+                        <span>Mở khóa kết quả Hội đồng Đề cương</span>
+                    </div>
+                }
+                open={isReopenModalVisible}
+                onCancel={() => {
+                    if (!reopenLoading) {
+                        setIsReopenModalVisible(false);
+                        setReopeningCouncil(null);
+                        setReopenBlockingList(null);
+                        setReopenError(null);
+                    }
+                }}
+                onOk={handleConfirmReopen}
+                okText="Xác nhận mở khóa"
+                okButtonProps={{ danger: true, loading: reopenLoading }}
+                cancelButtonProps={{ disabled: reopenLoading }}
+                destroyOnClose
+            >
+                <div className="space-y-4 py-2">
+                    <p className="text-sm text-slate-700">
+                        Hội đồng: <strong>{reopeningCouncil?.name}</strong>
+                    </p>
+                    <p className="text-xs text-amber-700 bg-amber-50 p-2.5 rounded border border-amber-200">
+                        ⚠️ Thao tác mở khóa sẽ hủy hiệu lực của bản công bố kết quả hiện tại và chuyển hội đồng về trạng thái Nháp (DRAFT) để Thư ký và Chủ tịch có thể cập nhật kết quả đánh giá.
+                    </p>
+
+                    {reopenError && (
+                        <Alert
+                            type="error"
+                            showIcon
+                            message="Không thể mở khóa kết quả"
+                            description={
+                                <div className="mt-1 space-y-2">
+                                    <div>{reopenError}</div>
+                                    {reopenBlockingList && reopenBlockingList.length > 0 && (
+                                        <div>
+                                            <div className="font-semibold text-xs text-rose-800 mb-1">
+                                                Danh sách sinh viên gây chặn (đã phát sinh đơn BM02 / tiến độ kế tiếp):
+                                            </div>
+                                            <ul className="list-disc pl-5 text-xs text-rose-700 space-y-1">
+                                                {reopenBlockingList.map((item, idx) => (
+                                                    <li key={item.registrationId || idx}>
+                                                        <strong>{item.studentName}</strong> (Mã ĐK: #{item.registrationId}) - Trạng thái: <Tag color="volcano">{item.bm02Status}</Tag>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+                                </div>
+                            }
+                        />
+                    )}
+
+                    <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                            Lý do mở khóa <span className="text-rose-500">*</span>
+                        </label>
+                        <Input.TextArea
+                            rows={3}
+                            placeholder="Nhập lý do cần mở khóa kết quả (bắt buộc, ví dụ: Nhập nhầm kết quả đánh giá, Phúc tra theo yêu cầu...)"
+                            value={reopenReason}
+                            onChange={(e) => setReopenReason(e.target.value)}
+                            maxLength={500}
+                            showCount
+                        />
+                    </div>
+                </div>
             </Modal>
         </div>
     );

@@ -134,8 +134,20 @@ const getAllCouncils = async (req, res, next) => {
                                userPerms.includes('NOTIFICATION_MANAGE') ||
                                userPerms.includes('PROJECT_OVERSIGHT_MANAGE');
 
-        if (hasBroadAccess || userPerms.includes('OUTLINE_COUNCIL_MANAGE')) allowedCouncilTypes.push('OUTLINE_REVIEW');
-        if (hasBroadAccess || userPerms.includes('DEFENSE_COUNCIL_MANAGE')) allowedCouncilTypes.push('DEFENSE_COUNCIL');
+        if (hasBroadAccess || userPerms.includes('OUTLINE_COUNCIL_MANAGE')) {
+            allowedCouncilTypes.push('OUTLINE_REVIEW');
+        } else if (userPerms.includes('OUTLINE_REVIEW')) {
+            allowedCouncilTypes.push('OUTLINE_REVIEW');
+            where.members = { some: { lecturerId: req.user.id } };
+        }
+
+        if (hasBroadAccess || userPerms.includes('DEFENSE_COUNCIL_MANAGE')) {
+            allowedCouncilTypes.push('DEFENSE_COUNCIL');
+        } else if (userPerms.includes('VIEW_DEFENSE_GRADING')) {
+            allowedCouncilTypes.push('DEFENSE_COUNCIL');
+            where.members = { some: { lecturerId: req.user.id } };
+        }
+
         if (where.councilType && !allowedCouncilTypes.includes(where.councilType)) {
             return res.status(403).json({ success: false, message: 'Bạn không có quyền xem loại hội đồng này.' });
         }
@@ -150,6 +162,10 @@ const getAllCouncils = async (req, res, next) => {
                         lecturer: { select: { id: true, fullName: true, avatarUrl: true, code: true } },
                     },
                 },
+                resultBatches: {
+                    orderBy: { versionNumber: 'desc' },
+                    take: 1,
+                },
                 _count: {
                     select: { registrations: true, outlineRegistrations: true, defenseRegistrations: true },
                 },
@@ -161,8 +177,10 @@ const getAllCouncils = async (req, res, next) => {
             const studentCount = c.councilType === 'OUTLINE_REVIEW'
                 ? (c._count.outlineRegistrations || 0)
                 : (c._count.defenseRegistrations || c._count.registrations || 0);
+            const myMember = c.members?.find((m) => m.lecturerId === req.user.id);
             return {
                 ...c,
+                myRole: myMember?.roleInCouncil || null,
                 _count: {
                     ...c._count,
                     registrations: studentCount,
@@ -198,6 +216,13 @@ const getCouncilById = async (req, res, next) => {
                     include: {
                         topic: { select: { id: true, title: true, mentorId: true, mentor: { select: { id: true, fullName: true } } } },
                         student: { select: { id: true, fullName: true, code: true, email: true } },
+                        bm01Evaluations: {
+                            orderBy: { id: 'desc' },
+                            include: {
+                                submission: true,
+                                revisionSubmission: true,
+                            },
+                        },
                     },
                 },
                 defenseRegistrations: {
@@ -206,6 +231,16 @@ const getCouncilById = async (req, res, next) => {
                         student: { select: { id: true, fullName: true, code: true, email: true } },
                         defenseResult: true,
                         memberScores: true,
+                    },
+                },
+                resultBatches: {
+                    orderBy: { versionNumber: 'desc' },
+                    include: {
+                        evaluations: true,
+                        secretaryCompletedBy: { select: { id: true, fullName: true } },
+                        chairPublishedBy: { select: { id: true, fullName: true } },
+                        returnedBy: { select: { id: true, fullName: true } },
+                        reopenedBy: { select: { id: true, fullName: true } },
                     },
                 },
             },
@@ -219,10 +254,13 @@ const getCouncilById = async (req, res, next) => {
             ? council.outlineRegistrations
             : (council.defenseRegistrations?.length > 0 ? council.defenseRegistrations : council.registrations);
 
+        const myMember = council.members?.find((m) => m.lecturerId === req.user.id);
+
         res.json({
             success: true,
             data: {
                 ...council,
+                myRole: myMember?.roleInCouncil || null,
                 registrations: effectiveRegistrations,
             },
         });

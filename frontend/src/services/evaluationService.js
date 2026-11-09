@@ -228,6 +228,14 @@ const evaluationService = {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi tải danh sách khiếu nại chữ ký Checkpoint');
         }
     },
+
+    getMyCouncilDefenses: async (params = {}) => {
+        try {
+            return await api.get('/councils', { params });
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi tải danh sách hội đồng');
+        }
+    },
 };
 
 export default evaluationService;

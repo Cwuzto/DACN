@@ -20,6 +20,8 @@ router.use(authenticate);
 const COUNCIL_PERMISSIONS = [
     PERMISSIONS.OUTLINE_COUNCIL_MANAGE,
     PERMISSIONS.DEFENSE_COUNCIL_MANAGE,
+    PERMISSIONS.OUTLINE_REVIEW,
+    PERMISSIONS.VIEW_DEFENSE_GRADING,
 ];
 
 const permissionForCouncilType = (councilType) => (
@@ -32,7 +34,7 @@ const resolveCouncilPermissions = async (req) => {
     const councilId = parseInt(req.params.id, 10);
     const council = await prisma.council.findUnique({
         where: { id: councilId },
-        select: { id: true, councilType: true },
+        select: { id: true, councilType: true, members: { select: { lecturerId: true } } },
     });
     if (!council) {
         const error = new Error('Không tìm thấy hội đồng.');
@@ -40,6 +42,15 @@ const resolveCouncilPermissions = async (req) => {
         throw error;
     }
     req.authorizationCouncil = council;
+
+    if (req.method === 'GET') {
+        const isMember = council.members?.some((m) => m.lecturerId === req.user?.id);
+        if (isMember) {
+            return council.councilType === 'OUTLINE_REVIEW'
+                ? [PERMISSIONS.OUTLINE_REVIEW]
+                : [PERMISSIONS.VIEW_DEFENSE_GRADING];
+        }
+    }
 
     const required = [permissionForCouncilType(council.councilType)];
     if (req.body?.councilType && req.body.councilType !== council.councilType) {
@@ -64,6 +75,8 @@ router.get(
         PERMISSIONS.VIEW_COUNCIL_ASSIGNMENTS,
         PERMISSIONS.NOTIFICATION_MANAGE,
         PERMISSIONS.PROJECT_OVERSIGHT_MANAGE,
+        PERMISSIONS.OUTLINE_REVIEW,
+        PERMISSIONS.VIEW_DEFENSE_GRADING,
         ...COUNCIL_PERMISSIONS,
     ),
     councilController.getAllCouncils

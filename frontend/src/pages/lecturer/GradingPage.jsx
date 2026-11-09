@@ -5,6 +5,7 @@ import dayjs from 'dayjs';
 
 import evaluationService from '../../services/evaluationService';
 import PageLoader from '../../components/common/PageLoader';
+import OutlineCouncilGradingCard from './components/OutlineCouncilGradingCard';
 
 /**
  * GradingPage — 100% OpenDesign Golden Standard
@@ -91,12 +92,20 @@ export default function GradingPage() {
                             Phòng Đào tạo & Ban Chủ nhiệm Viện sẽ thông báo khi có quyết định phân công chính thức.
                         </p>
                     </div>
+                ) : activeStage === 'outline' ? (
+                    currentList.map((council) => (
+                        <OutlineCouncilGradingCard
+                            key={council.id}
+                            council={council}
+                            onRefreshParent={fetchDefenseData}
+                        />
+                    ))
                 ) : (
                     currentList.map((council, idx) => {
                         const members = council.members || [];
-                        const chairman = members.find((m) => m.role === 'CHAIRMAN')?.lecturer?.fullName || 'PGS.TS Lê Quang Dũng';
-                        const secretary = members.find((m) => m.role === 'SECRETARY')?.lecturer?.fullName || 'TS. Hoàng Văn Tuấn';
-                        const reviewer = members.find((m) => m.role === 'REVIEWER')?.lecturer?.fullName || 'TS. Trần Minh Khoa';
+                        const chairman = members.find((m) => m.roleInCouncil === 'CHAIRMAN' || m.role === 'CHAIRMAN')?.lecturer?.fullName || 'Chưa phân công';
+                        const secretary = members.find((m) => m.roleInCouncil === 'SECRETARY' || m.role === 'SECRETARY')?.lecturer?.fullName || 'Chưa phân công';
+                        const reviewer = members.find((m) => m.roleInCouncil === 'REVIEWER' || m.role === 'REVIEWER')?.lecturer?.fullName || 'Chưa phân công';
 
                         const candidates = council.registrations || council.candidates || [];
                         const gradedCount = candidates.filter((c) => c.defenseResult?.finalScore !== null && c.defenseResult?.finalScore !== undefined).length;
@@ -107,19 +116,19 @@ export default function GradingPage() {
                                     <div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }} className="flex-wrap">
                                             <span className="card-title" style={{ color: '#0F766E' }}>
-                                                {council.name || `Hội Đồng ${idx + 1}: Công Nghệ Phần Mềm & AI`}
+                                                {council.name || `Hội Đồng ${idx + 1}`}
                                             </span>
                                             <span className="tag teal">
                                                 Vai trò: {council.myRole || 'Thành viên Hội đồng'}
                                             </span>
                                         </div>
                                         <div className="card-subtitle" style={{ color: '#115E59' }}>
-                                            Ngày thi: <strong>{council.defenseDate ? dayjs(council.defenseDate).format('dddd, DD/MM/YYYY') : 'Thứ Sáu, 24/10/2026'}</strong> · Ca Sáng (08:00 - 11:30) · Địa điểm: <strong>{council.location || 'Phòng 402, Tòa H1'}</strong>
+                                            Ngày thi: <strong>{council.defenseDate ? dayjs(council.defenseDate).format('dddd, DD/MM/YYYY') : 'Chưa xếp ngày'}</strong> · Địa điểm: <strong>{council.location || 'Chưa phân phòng'}</strong>
                                         </div>
                                     </div>
                                     <div style={{ textAlign: 'right' }}>
                                         <span className="tag green">
-                                            Tiến độ: {gradedCount} / {candidates.length || 4} SV đã có điểm
+                                            Tiến độ: {gradedCount} / {candidates.length} SV đã có điểm
                                         </span>
                                     </div>
                                 </div>
@@ -151,7 +160,7 @@ export default function GradingPage() {
                                             ) : (
                                                 candidates.map((cand, cIdx) => {
                                                     const sName = cand.student?.fullName || cand.studentName || 'Sinh viên';
-                                                    const sCode = cand.student?.code || cand.studentCode || '21110000';
+                                                    const sCode = cand.student?.code || cand.studentCode || 'N/A';
                                                     const score = cand.defenseResult?.finalScore ?? cand.finalScore ?? null;
                                                     const hasScore = score !== null && score !== undefined;
                                                     const mentorName = cand.topic?.mentor?.fullName || cand.mentorName || 'GVHD';
