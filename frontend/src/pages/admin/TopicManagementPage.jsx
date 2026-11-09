@@ -532,7 +532,7 @@ function TopicManagementPage() {
                         {drawerTopic.status === 'PENDING' && (
                             <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-xl space-y-3 pt-3">
                                 <div className="font-bold text-amber-900 text-xs flex items-center gap-1.5">
-                                    <CheckCircleOutlined /> Quyết định thẩm định của Ban Chủ Nhiệm:
+                                    <CheckCircleOutlined /> Thẩm định chuyên môn đề tài:
                                 </div>
                                 <div>
                                     <label className="text-[11px] font-semibold text-slate-700 block mb-1">

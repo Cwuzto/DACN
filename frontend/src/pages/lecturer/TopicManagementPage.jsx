@@ -27,6 +27,10 @@ export default function TopicManagementPage() {
     const [newTopicModalOpen, setNewTopicModalOpen] = useState(false);
     const [cloneModalOpen, setCloneModalOpen] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+    const [reviewModalOpen, setReviewModalOpen] = useState(false);
+    const [selectedPendingTopic, setSelectedPendingTopic] = useState(null);
+    const [reviewRejectReason, setReviewRejectReason] = useState('');
+    const [reviewSubmitting, setReviewSubmitting] = useState(false);
 
     // Semesters State
     const [semesters, setSemesters] = useState([]);
@@ -156,6 +160,48 @@ export default function TopicManagementPage() {
         }
     };
 
+    const handleApproveTopic = async (topicId) => {
+        try {
+            setReviewSubmitting(true);
+            const res = await topicService.changeStatus(topicId, { status: 'APPROVED' });
+            if (res.success) {
+                message.success('Đã chấp thuận hướng dẫn đề tài của sinh viên!');
+                setReviewModalOpen(false);
+                setSelectedPendingTopic(null);
+                fetchTopics();
+            }
+        } catch (error) {
+            message.error(error?.message || 'Không thể chấp thuận đề tài.');
+        } finally {
+            setReviewSubmitting(false);
+        }
+    };
+
+    const handleRejectTopic = async (topicId) => {
+        if (!reviewRejectReason.trim()) {
+            message.warning('Vui lòng nhập lý do từ chối hướng dẫn đề tài.');
+            return;
+        }
+        try {
+            setReviewSubmitting(true);
+            const res = await topicService.changeStatus(topicId, {
+                status: 'REJECTED',
+                rejectReason: reviewRejectReason.trim(),
+            });
+            if (res.success) {
+                message.success('Đã từ chối đề xuất đề tài.');
+                setReviewModalOpen(false);
+                setSelectedPendingTopic(null);
+                setReviewRejectReason('');
+                fetchTopics();
+            }
+        } catch (error) {
+            message.error(error?.message || 'Không thể từ chối đề tài.');
+        } finally {
+            setReviewSubmitting(false);
+        }
+    };
+
     if (loading) {
         return <PageLoader />;
     }
@@ -224,7 +270,7 @@ export default function TopicManagementPage() {
                             className={`seg-tab ${activeTab === 'pending' ? 'active' : ''}`}
                             onClick={() => setActiveTab('pending')}
                         >
-                            Chờ Ban Chủ Nhiệm duyệt ({counts.pending})
+                            Sinh viên đề xuất chờ duyệt ({counts.pending})
                         </div>
                     </div>
 
@@ -308,9 +354,11 @@ export default function TopicManagementPage() {
                                             </td>
                                             <td>
                                                 {isApproved ? (
-                                                    <span className="tag green">Ban Chủ Nhiệm đã duyệt</span>
+                                                    <span className="tag green">Đã duyệt tiếp nhận</span>
                                                 ) : isPending ? (
-                                                    <span className="tag yellow">Chờ Ban Chủ Nhiệm duyệt</span>
+                                                    <span className="tag yellow">
+                                                        {topic.proposedBy?.role === 'STUDENT' ? 'Sinh viên đề xuất' : 'Chờ duyệt'}
+                                                    </span>
                                                 ) : (
                                                     <span className="tag red">Bị từ chối</span>
                                                 )}
@@ -335,10 +383,14 @@ export default function TopicManagementPage() {
                                                 ) : (
                                                     <button
                                                         type="button"
-                                                        className="btn btn-secondary btn-sm"
-                                                        onClick={() => message.info('Đề tài đang trong quy trình thẩm định của Ban Chủ Nhiệm')}
+                                                        className="btn btn-primary btn-sm"
+                                                        onClick={() => {
+                                                            setSelectedPendingTopic(topic);
+                                                            setReviewRejectReason('');
+                                                            setReviewModalOpen(true);
+                                                        }}
                                                     >
-                                                        Xem xét
+                                                        Xem xét đề xuất
                                                     </button>
                                                 )}
                                             </td>
@@ -461,7 +513,7 @@ export default function TopicManagementPage() {
                                 disabled={submitting}
                                 onClick={handleCreateTopic}
                             >
-                                {submitting ? 'Đang gửi...' : 'Gửi Đề Xuất Cho Ban Chủ Nhiệm Duyệt'}
+                                {submitting ? 'Đang lưu...' : 'Lưu đề tài hướng dẫn'}
                             </button>
                         </div>
                     </div>
@@ -504,6 +556,101 @@ export default function TopicManagementPage() {
                             >
                                 Sao Chép Sang Kỳ Này
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL 3: XEM XÉT ĐỀ XUẤT ĐỀ TÀI CỦA SINH VIÊN */}
+            {reviewModalOpen && selectedPendingTopic && (
+                <div className="modal-overlay open" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div className="modal-box" style={{ maxWidth: 620 }}>
+                        <div className="modal-head">
+                            <div className="modal-title">Xem Xét Đề Xuất Đề Tài Của Sinh Viên</div>
+                            <button type="button" className="modal-close" onClick={() => setReviewModalOpen(false)}>×</button>
+                        </div>
+                        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                            <div style={{ background: '#F8FAFC', padding: 12, borderRadius: 8, border: '1px solid #E2E8F0' }}>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>
+                                    Sinh viên gửi đề xuất:
+                                </div>
+                                <div style={{ fontSize: 14, marginTop: 4, color: '#0F766E', fontWeight: 600 }}>
+                                    {selectedPendingTopic.proposedBy?.fullName || 'Sinh viên'}
+                                    {selectedPendingTopic.proposedBy?.code && ` (${selectedPendingTopic.proposedBy.code})`}
+                                </div>
+                                {selectedPendingTopic.proposedBy?.email && (
+                                    <div style={{ fontSize: 12, color: '#475569', marginTop: 2 }}>
+                                        Email: {selectedPendingTopic.proposedBy.email}
+                                    </div>
+                                )}
+                                {selectedPendingTopic.semester?.name && (
+                                    <div style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>
+                                        Đợt đồ án: {selectedPendingTopic.semester.name}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div>
+                                <label style={{ fontSize: 13, fontWeight: 700, display: 'block', marginBottom: 4, color: '#0F172A' }}>
+                                    Tên đề tài sinh viên đề xuất:
+                                </label>
+                                <div style={{ fontSize: 15, fontWeight: 600, color: '#0F172A', background: '#FFFFFF', border: '1px solid #E2E8F0', padding: '10px 12px', borderRadius: 6 }}>
+                                    {selectedPendingTopic.title}
+                                </div>
+                            </div>
+
+                            {selectedPendingTopic.description && (
+                                <div>
+                                    <label style={{ fontSize: 13, fontWeight: 700, display: 'block', marginBottom: 4, color: '#0F172A' }}>
+                                        Mục tiêu nghiên cứu &amp; Phạm vi dự kiến:
+                                    </label>
+                                    <div style={{ fontSize: 13, color: '#334155', whiteSpace: 'pre-line', background: '#F8FAFC', border: '1px solid #E2E8F0', padding: 10, borderRadius: 6 }}>
+                                        {selectedPendingTopic.description}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div>
+                                <label style={{ fontSize: 13, fontWeight: 700, display: 'block', marginBottom: 6, color: '#0F172A' }}>
+                                    Ý kiến phản hồi / Lý do từ chối (nếu không nhận hướng dẫn):
+                                </label>
+                                <textarea
+                                    className="input-field"
+                                    rows={3}
+                                    placeholder="Nêu rõ lý do hoặc định hướng thêm cho sinh viên nếu từ chối..."
+                                    style={{ width: '100%', resize: 'vertical' }}
+                                    value={reviewRejectReason}
+                                    onChange={(e) => setReviewRejectReason(e.target.value)}
+                                />
+                            </div>
+                        </div>
+                        <div className="modal-foot" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <button
+                                type="button"
+                                className="btn btn-secondary"
+                                onClick={() => setReviewModalOpen(false)}
+                            >
+                                Đóng
+                            </button>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                                <button
+                                    type="button"
+                                    className="btn btn-danger"
+                                    style={{ background: '#DC2626', color: '#FFFFFF', border: 'none' }}
+                                    disabled={reviewSubmitting}
+                                    onClick={() => handleRejectTopic(selectedPendingTopic.id)}
+                                >
+                                    {reviewSubmitting ? 'Đang xử lý...' : 'Từ chối hướng dẫn'}
+                                </button>
+                                <button
+                                    type="button"
+                                    className="btn btn-primary"
+                                    disabled={reviewSubmitting}
+                                    onClick={() => handleApproveTopic(selectedPendingTopic.id)}
+                                >
+                                    {reviewSubmitting ? 'Đang xử lý...' : 'Đồng ý hướng dẫn'}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

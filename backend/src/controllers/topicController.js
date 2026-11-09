@@ -501,12 +501,27 @@ const changeTopicStatus = async (req, res, next) => {
                     where: { studentId_semesterId: { studentId: proposer.id, semesterId: existing.semesterId } },
                 });
                 if (!hasReg) {
+                    let activePolicy = null;
+                    if (prisma.periodWorkflowPolicyVersion?.findFirst) {
+                        try {
+                            activePolicy = await prisma.periodWorkflowPolicyVersion.findFirst({
+                                where: { semesterId: existing.semesterId, isActive: true },
+                                orderBy: { version: 'desc' },
+                            });
+                        } catch (_err) {
+                            // Non-fatal if policy version model is mocked or missing in tests
+                        }
+                    }
+
                     await prisma.topicRegistration.create({
                         data: {
                             topicId: existing.id,
                             studentId: proposer.id,
                             semesterId: existing.semesterId,
                             status: 'APPROVED',
+                            assignmentStatus: 'ACTIVE',
+                            effectiveAt: new Date(),
+                            periodPolicyVersionId: activePolicy?.id || null,
                         },
                     });
                 }

@@ -31,7 +31,15 @@ router.put('/:id', authorizePermission(PERMISSIONS.TOPIC_UPDATE_OWN), updateTopi
 // DELETE /api/topics/:id - Xóa đề tài
 router.delete('/:id', authorizePermission(PERMISSIONS.TOPIC_UPDATE_OWN), deleteTopic);
 
-// PATCH /api/topics/:id/status - Duyệt/Từ chối đề tài SV đề xuất
-router.patch('/:id/status', authorizePermission(PERMISSIONS.TOPIC_REVIEW), changeTopicStatus);
+// PATCH /api/topics/:id/status - Duyệt/Từ chối đề tài SV đề xuất (GVHD duyệt đề tài sinh viên gửi cho mình hoặc Ban quản trị/Viện thẩm định)
+router.patch(
+    '/:id/status',
+    authorizePermission(
+        PERMISSIONS.TOPIC_REVIEW,
+        PERMISSIONS.MENTOR_REQUEST_REVIEW,
+        PERMISSIONS.TOPIC_UPDATE_OWN
+    ),
+    changeTopicStatus
+);
 
 module.exports = router;
