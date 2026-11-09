@@ -41,15 +41,15 @@ export default function CheckpointIssueModal({
             });
 
             if (res.success) {
-                message.success(`Đã phát hành biên bản BM03 Checkpoint ${values.checkpointNo} thành công!`);
+                message.success(`Đã phát hành biên bản đánh giá tiến độ đợt ${values.checkpointNo} thành công!`);
                 form.resetFields();
                 onSuccess?.();
                 onClose?.();
             } else {
-                message.error(res.message || 'Không thể phát hành biên bản Checkpoint.');
+                message.error(res.message || 'Không thể phát hành biên bản đánh giá tiến độ.');
             }
         } catch (error) {
-            message.error(error.message || 'Đã có lỗi xảy ra khi phát hành biên bản Checkpoint.');
+            message.error(error.message || 'Đã có lỗi xảy ra khi phát hành biên bản đánh giá tiến độ.');
         } finally {
             setSubmitting(false);
         }
@@ -60,7 +60,7 @@ export default function CheckpointIssueModal({
             title={
                 <div className="flex items-center gap-2 text-base font-semibold text-slate-800">
                     <SafetyCertificateOutlined className="text-[#0F766E] text-lg" />
-                    <span>Phát Hành Biên Bản Đánh Giá Tiến Độ (BM03 Checkpoint)</span>
+                    <span>Phát Hành Biên Bản Đánh Giá Tiến Độ</span>
                 </div>
             }
             open={open}
@@ -73,8 +73,8 @@ export default function CheckpointIssueModal({
                 <Alert
                     type="info"
                     showIcon
-                    message="Quy trình ký song phương BM03 Checkpoint"
-                    description="Sau khi GVHD ký phát hành, sinh viên sẽ nhận được thông báo và có đúng 3 ngày để xem và ký xác nhận biên bản. Kết luận ĐẠT ở Checkpoint 2 sẽ đưa hồ sơ sang BM03_PASSED. Kết luận KHÔNG ĐẠT sẽ chuyển hồ sơ sang trạng thái Dừng thực hiện (TERMINATED_FAILED_PROGRESS)."
+                    message="Quy trình ký xác nhận song phương đánh giá tiến độ"
+                    description="Sau khi GVHD ký phát hành, sinh viên sẽ nhận được thông báo và có 3 ngày để xem và ký xác nhận biên bản. Nếu sinh viên không đạt, đề tài sẽ dừng thực hiện theo quy chế đào tạo."
                 />
 
                 <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
@@ -99,9 +99,9 @@ export default function CheckpointIssueModal({
                     requiredMark="optional"
                 >
                     <Form.Item
-                        label={<span className="font-semibold text-slate-700">Đợt Checkpoint BM03</span>}
+                        label={<span className="font-semibold text-slate-700">Đợt đánh giá tiến độ</span>}
                         name="checkpointNo"
-                        rules={[{ required: true, message: 'Vui lòng chọn đợt Checkpoint' }]}
+                        rules={[{ required: true, message: 'Vui lòng chọn đợt đánh giá tiến độ' }]}
                     >
                         <Radio.Group className="w-full">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -109,14 +109,14 @@ export default function CheckpointIssueModal({
                                     value={1}
                                     className="!h-auto !py-2.5 !px-3 !rounded-lg border border-slate-200 text-left hover:border-[#0F766E]"
                                 >
-                                    <div className="font-semibold text-slate-800">Checkpoint 1 (Tuần 6)</div>
+                                    <div className="font-semibold text-slate-800">Đợt 1 (Tuần 6)</div>
                                     <div className="text-xs text-slate-500 mt-0.5">Yêu cầu hoàn thành tối thiểu 50% khối lượng đề tài</div>
                                 </Radio.Button>
                                 <Radio.Button
                                     value={2}
                                     className="!h-auto !py-2.5 !px-3 !rounded-lg border border-slate-200 text-left hover:border-[#0F766E]"
                                 >
-                                    <div className="font-semibold text-slate-800">Checkpoint 2 (Tuần 11)</div>
+                                    <div className="font-semibold text-slate-800">Đợt 2 (Tuần 11)</div>
                                     <div className="text-xs text-slate-500 mt-0.5">Yêu cầu hoàn thành tối thiểu 85% khối lượng đề tài</div>
                                 </Radio.Button>
                             </div>
@@ -146,7 +146,7 @@ export default function CheckpointIssueModal({
                                 >
                                     <div className="flex items-center gap-1.5 font-bold text-rose-800">
                                         <CloseCircleOutlined className="text-rose-600" />
-                                        <span>KHÔNG ĐẠT (DỪNG ĐỀ TÀI)</span>
+                                        <span>KHÔNG ĐẠT — DỪNG ĐỀ TÀI</span>
                                     </div>
                                     <div className="text-xs text-rose-700 mt-0.5">Tiến độ không đạt, đề xuất dừng học phần</div>
                                 </Radio.Button>
@@ -167,11 +167,11 @@ export default function CheckpointIssueModal({
                     </Form.Item>
 
                     <Form.Item
-                        label={<span className="font-semibold text-slate-700">Liên Kết Minh Chứng / Báo Cáo (Tùy chọn)</span>}
+                        label={<span className="font-semibold text-slate-700">Liên kết minh chứng hoặc báo cáo (Tùy chọn)</span>}
                         name="evidenceUrl"
                     >
                         <Input
-                            placeholder="https://drive.google.com/... hoặc link repository"
+                            placeholder="https://drive.google.com/... hoặc liên kết kho lưu trữ"
                             className="text-xs"
                         />
                     </Form.Item>

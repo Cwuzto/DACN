@@ -68,13 +68,13 @@ export default function GradingPage() {
                         className={`seg-tab ${activeStage === 'defense' ? 'active' : ''}`}
                         onClick={() => setActiveStage('defense')}
                     >
-                        Hội đồng Khóa luận (Pha 5 · {defenseCouncils.length} HĐ)
+                        Hội đồng Khóa luận tốt nghiệp ({defenseCouncils.length} Hội đồng)
                     </div>
                     <div
                         className={`seg-tab ${activeStage === 'outline' ? 'active' : ''}`}
                         onClick={() => setActiveStage('outline')}
                     >
-                        Hội đồng Thẩm định Đề cương (Pha 2 · {outlineCouncils.length} HĐ)
+                        Hội đồng Thẩm định Đề cương ({outlineCouncils.length} Hội đồng)
                     </div>
                 </div>
             </div>
@@ -136,8 +136,8 @@ export default function GradingPage() {
                                                 <th>Sinh viên bảo vệ</th>
                                                 <th>Tên Đề tài Khóa luận</th>
                                                 <th>Giảng viên HD</th>
-                                                <th>Điểm TB Khóa luận</th>
-                                                <th>Trạng thái Điểm</th>
+                                                <th>Điểm trung bình khóa luận</th>
+                                                <th>Trạng thái điểm</th>
                                                 <th style={{ textAlign: 'right' }}>Thao tác</th>
                                             </tr>
                                         </thead>

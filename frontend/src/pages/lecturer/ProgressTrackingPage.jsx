@@ -178,7 +178,7 @@ export default function ProgressTrackingPage() {
             });
 
             if (res.success) {
-                message.success('Đã ghi nhận nhật ký buổi gặp BM03!');
+                message.success('Đã ghi nhận nhật ký buổi gặp hướng dẫn!');
                 setMeetingModalOpen(false);
                 setMeetingContent('');
                 setMeetingNextTask('');
@@ -210,7 +210,7 @@ export default function ProgressTrackingPage() {
                         Theo Dõi Tiến Độ & Biểu Mẫu Hướng Dẫn
                     </h1>
                     <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 2 }}>
-                        Giao nhiệm vụ theo tuần, lưu nhật ký gặp Lab và hoàn thiện hồ sơ thẩm định BM04.
+                        Giao nhiệm vụ theo tuần, lưu nhật ký gặp hướng dẫn và hoàn thiện phiếu nhận xét của người hướng dẫn.
                     </p>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }} className="flex-wrap">
@@ -272,7 +272,7 @@ export default function ProgressTrackingPage() {
                                         <div className="student-card-top">
                                             <span className="student-card-name">{s.student?.fullName}</span>
                                             <span className={`tag ${sPassed ? 'green' : sRisk ? 'red' : 'blue'}`}>
-                                                {sPassed ? 'Đạt BM04' : sRisk ? 'Nguy cơ trễ' : 'Đang làm'}
+                                                {sPassed ? 'Đủ điều kiện BV' : sRisk ? 'Nguy cơ trễ' : 'Đang làm'}
                                             </span>
                                         </div>
                                         <div className="student-card-topic">
@@ -302,7 +302,7 @@ export default function ProgressTrackingPage() {
                                     MSSV: {reg?.student?.code || '-'}
                                 </span>
                                 <span className={`tag ${bm04Status ? 'green' : 'yellow'}`}>
-                                    {bm04Status ? '✓ Đã duyệt BM04 (Cho BV)' : 'Đang thực hiện'}
+                                    {bm04Status ? '✓ Đã duyệt phiếu nhận xét — Đủ điều kiện bảo vệ' : 'Đang thực hiện'}
                                 </span>
                             </div>
                             <div style={{ fontSize: '12.5px', color: 'var(--fg)', marginTop: 3 }}>
@@ -322,7 +322,7 @@ export default function ProgressTrackingPage() {
                                 className="btn btn-primary btn-sm"
                                 onClick={() => setBm04ModalOpen(true)}
                             >
-                                Lập / Cập nhật BM04
+                                Lập / Cập nhật Phiếu nhận xét
                             </button>
                         </div>
                     </div>
@@ -357,7 +357,7 @@ export default function ProgressTrackingPage() {
                                 className="btn btn-danger btn-sm"
                                 onClick={() => setMeetingModalOpen(true)}
                             >
-                                + Ghi nhận Buổi gặp Lab
+                                + Ghi nhận Buổi gặp Hướng dẫn Mới
                             </button>
                         </div>
                     )}
@@ -368,25 +368,25 @@ export default function ProgressTrackingPage() {
                             className={`d-tab ${activeTab === 'tasks' ? 'active' : ''}`}
                             onClick={() => setActiveTab('tasks')}
                         >
-                            1. Nhiệm vụ tuần (Tasks)
+                            1. Nhiệm vụ tuần
                         </div>
                         <div
                             className={`d-tab ${activeTab === 'meeting-logs' ? 'active' : ''}`}
                             onClick={() => setActiveTab('meeting-logs')}
                         >
-                            2. Nhật ký trao đổi (BM03)
+                            2. Nhật ký trao đổi
                         </div>
                         <div
                             className={`d-tab ${activeTab === 'checkpoints' ? 'active' : ''}`}
                             onClick={() => setActiveTab('checkpoints')}
                         >
-                            3. Đánh giá Checkpoint
+                            3. Đánh giá tiến độ
                         </div>
                         <div
                             className={`d-tab ${activeTab === 'archive' ? 'active' : ''}`}
                             onClick={() => setActiveTab('archive')}
                         >
-                            4. Thẩm định BM04 & Lưu chiểu
+                            4. Phiếu nhận xét & Lưu chiểu
                         </div>
                     </div>
 
@@ -468,7 +468,7 @@ export default function ProgressTrackingPage() {
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                                     <div>
                                         <span style={{ fontSize: '13.5px', fontWeight: 700 }}>
-                                            Nhật ký trao đổi hướng dẫn thực tế (BM03):
+                                            Nhật ký trao đổi hướng dẫn thực tế:
                                         </span>
                                         <span className="mono" style={{ color: 'var(--primary)', fontWeight: 700, marginLeft: 6 }}>
                                             {meetingLogs.length} buổi
@@ -479,14 +479,14 @@ export default function ProgressTrackingPage() {
                                         className="btn btn-primary btn-sm"
                                         onClick={() => setMeetingModalOpen(true)}
                                     >
-                                        + Ghi nhận Buổi gặp Lab (1 phút)
+                                        + Ghi Nhận Buổi Gặp Hướng Dẫn Mới
                                     </button>
                                 </div>
 
                                 <div className="timeline" id="meeting-timeline-container">
                                     {meetingLogs.length === 0 ? (
                                         <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--muted)', fontSize: 13 }}>
-                                            Chưa có buổi gặp Lab nào được ghi nhận. Hãy nhấn "+ Ghi nhận Buổi gặp Lab" để lưu thông tin BM03.
+                                            Chưa có buổi gặp hướng dẫn nào được ghi nhận. Hãy nhấn "+ Ghi Nhận Buổi Gặp Hướng Dẫn Mới" để lưu thông tin nhật ký.
                                         </div>
                                     ) : (
                                         meetingLogs.map((log, index) => (
@@ -535,13 +535,13 @@ export default function ProgressTrackingPage() {
                                         <div className="card" style={{ marginBottom: 0 }}>
                                             <div className="card-head flex-wrap gap-2">
                                                 <div>
-                                                    <div className="card-title">Checkpoint 1 (Tuần 6) · Thẩm tra Đề cương & Kiến trúc</div>
-                                                    <div className="card-subtitle">Yêu cầu hoàn thành tối thiểu 50% khối lượng đề tài (Biên bản BM03)</div>
+                                                    <div className="card-title">Đánh giá tiến độ đợt 1 (Tuần 6) · Thẩm tra Đề cương & Kiến trúc</div>
+                                                    <div className="card-subtitle">Yêu cầu hoàn thành tối thiểu 50% khối lượng đề tài (Biên bản đánh giá tiến độ)</div>
                                                 </div>
                                                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                                                     {cp1 ? (
                                                         <span className={`tag ${cp1.conclusion === 'ALLOWED_TO_CONTINUE' ? 'green' : 'red'}`}>
-                                                            {cp1.conclusion === 'ALLOWED_TO_CONTINUE' ? '✓ ĐẠT (Cho phép tiếp tục)' : '✕ KHÔNG ĐẠT (Dừng tiến độ)'}
+                                                            {cp1.conclusion === 'ALLOWED_TO_CONTINUE' ? '✓ Đạt — Cho phép tiếp tục' : '✕ Không đạt — Dừng tiến độ'}
                                                         </span>
                                                     ) : (
                                                         <span className="tag yellow">Chưa đánh giá</span>
@@ -554,7 +554,7 @@ export default function ProgressTrackingPage() {
                                                             setCheckpointModalOpen(true);
                                                         }}
                                                     >
-                                                        {cp1 ? 'Cập nhật CP1' : '+ Đánh giá CP1'}
+                                                        {cp1 ? 'Cập nhật Đợt 1' : '+ Đánh giá Đợt 1'}
                                                     </button>
                                                 </div>
                                             </div>
@@ -605,7 +605,7 @@ export default function ProgressTrackingPage() {
                                                     </div>
                                                 ) : (
                                                     <div style={{ color: 'var(--muted)', fontStyle: 'italic' }}>
-                                                        Chưa lập biên bản đánh giá Checkpoint 1 cho sinh viên này. Nhấn nút "+ Đánh giá CP1" để ghi nhận và ký phát hành.
+                                                        Chưa lập biên bản đánh giá tiến độ đợt 1 cho sinh viên này. Nhấn nút "+ Đánh giá Đợt 1" để ghi nhận và ký phát hành.
                                                     </div>
                                                 )}
                                             </div>
@@ -615,13 +615,13 @@ export default function ProgressTrackingPage() {
                                         <div className="card" style={{ marginBottom: 0, opacity: cp1Passed ? 1 : 0.75 }}>
                                             <div className="card-head flex-wrap gap-2">
                                                 <div>
-                                                    <div className="card-title">Checkpoint 2 (Tuần 11) · Thẩm tra Dự thảo Luận văn & Demo</div>
-                                                    <div className="card-subtitle">Yêu cầu hoàn thành tối thiểu 85% khối lượng đề tài (Biên bản BM03)</div>
+                                                    <div className="card-title">Đánh giá tiến độ đợt 2 (Tuần 11) · Thẩm tra Dự thảo Luận văn & Demo</div>
+                                                    <div className="card-subtitle">Yêu cầu hoàn thành tối thiểu 85% khối lượng đề tài (Biên bản đánh giá tiến độ)</div>
                                                 </div>
                                                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                                                     {cp2 ? (
                                                         <span className={`tag ${cp2.conclusion === 'ALLOWED_TO_CONTINUE' ? 'green' : 'red'}`}>
-                                                            {cp2.conclusion === 'ALLOWED_TO_CONTINUE' ? '✓ ĐẠT (Cho phép hoàn thiện BV)' : '✕ KHÔNG ĐẠT'}
+                                                            {cp2.conclusion === 'ALLOWED_TO_CONTINUE' ? '✓ Đạt — Đủ điều kiện hoàn thiện bảo vệ' : '✕ Không đạt'}
                                                         </span>
                                                     ) : (
                                                         <span className="tag yellow">Chưa đánh giá</span>
@@ -635,14 +635,14 @@ export default function ProgressTrackingPage() {
                                                             setCheckpointModalOpen(true);
                                                         }}
                                                     >
-                                                        {cp2 ? 'Cập nhật CP2' : '+ Đánh giá CP2'}
+                                                        {cp2 ? 'Cập nhật Đợt 2' : '+ Đánh giá Đợt 2'}
                                                     </button>
                                                 </div>
                                             </div>
                                             <div style={{ padding: '16px 20px', fontSize: 13 }}>
                                                 {!cp1Passed ? (
                                                     <div style={{ color: '#DC2626', background: '#FEF2F2', padding: 12, borderRadius: 'var(--radius-sm)', border: '1px solid #FEE2E2' }}>
-                                                        ⚠️ <strong>Quy định tiên quyết:</strong> Sinh viên phải hoàn thành và đạt Checkpoint 1 (có đủ chữ ký của GVHD và Sinh viên) trước khi thực hiện đánh giá Checkpoint 2.
+                                                        ⚠️ <strong>Quy định tiên quyết:</strong> Sinh viên phải hoàn thành và đạt Đợt 1 (có đủ chữ ký của GVHD và Sinh viên) trước khi thực hiện đánh giá Đợt 2.
                                                     </div>
                                                 ) : cp2 ? (
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -690,7 +690,7 @@ export default function ProgressTrackingPage() {
                                                     </div>
                                                 ) : (
                                                     <div style={{ color: 'var(--muted)', fontStyle: 'italic' }}>
-                                                        Chưa lập biên bản đánh giá Checkpoint 2. Nhấn nút "+ Đánh giá CP2" để ghi nhận và ký phát hành.
+                                                        Chưa lập biên bản đánh giá tiến độ đợt 2 cho sinh viên này. Nhấn nút "+ Đánh giá Đợt 2" để ghi nhận và ký phát hành.
                                                     </div>
                                                 )}
                                             </div>
@@ -708,7 +708,7 @@ export default function ProgressTrackingPage() {
                                     <div className="card" style={{ marginBottom: 0, borderLeft: '4px solid var(--success)' }}>
                                         <div className="card-head flex-wrap gap-2">
                                             <div>
-                                                <div className="card-title">Phiếu Nhận Xét Của Giảng Viên Hướng Dẫn (BM04)</div>
+                                                <div className="card-title">Phiếu Nhận Xét Của Giảng Viên Hướng Dẫn</div>
                                                 <div className="card-subtitle">
                                                     Văn bản pháp lý quyết định sinh viên có được phép ra bảo vệ trước Hội đồng
                                                 </div>
@@ -718,7 +718,7 @@ export default function ProgressTrackingPage() {
                                                 className="btn btn-primary btn-sm"
                                                 onClick={() => setBm04ModalOpen(true)}
                                             >
-                                                Xem / Sửa BM04
+                                                Xem / Sửa Phiếu nhận xét
                                             </button>
                                         </div>
                                         <div style={{ padding: '16px 20px', fontSize: 13 }}>
@@ -738,7 +738,7 @@ export default function ProgressTrackingPage() {
                                                 <div>
                                                     <span style={{ color: 'var(--muted)', fontSize: 12 }}>Kết luận pháp lý:</span>
                                                     <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--success)' }}>
-                                                        {bm04Status ? 'ĐỒNG Ý CHO BẢO VỆ' : 'ĐANG ĐÁNH GIÁ'}
+                                                        {bm04Status ? 'Đồng ý cho bảo vệ' : 'Đang đánh giá'}
                                                     </div>
                                                 </div>
                                             </div>
@@ -762,7 +762,7 @@ export default function ProgressTrackingPage() {
                                                 className="btn btn-secondary btn-sm"
                                                 onClick={() => setCertModalOpen(true)}
                                             >
-                                                Xem Giấy Xác Nhận (A4)
+                                                Xem Giấy Xác Nhận
                                             </button>
                                         </div>
 
@@ -821,7 +821,7 @@ export default function ProgressTrackingPage() {
                                                     </tr>
                                                     <tr>
                                                         <td><strong>4. Mã nguồn Codebase</strong></td>
-                                                        <td>GitHub Repo (Public)</td>
+                                                        <td>Kho lưu trữ mã nguồn công khai</td>
                                                         <td className="mono">Đã liên kết</td>
                                                         <td style={{ textAlign: 'right' }}>
                                                             <button
@@ -829,7 +829,7 @@ export default function ProgressTrackingPage() {
                                                                 className="btn btn-secondary btn-sm"
                                                                 onClick={() => message.info('Mở kho lưu trữ GitHub Repository')}
                                                             >
-                                                                Mở Repo
+                                                                Mở mã nguồn
                                                             </button>
                                                         </td>
                                                     </tr>
@@ -918,7 +918,7 @@ export default function ProgressTrackingPage() {
                 <div className="modal-overlay open" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <div className="modal-box" style={{ maxWidth: 540 }}>
                         <div className="modal-head">
-                            <div className="modal-title">+ Ghi Nhận Buổi Gặp Lab Mới (BM03)</div>
+                            <div className="modal-title">+ Ghi Nhận Buổi Gặp Hướng Dẫn Mới</div>
                             <button type="button" className="modal-close" onClick={() => setMeetingModalOpen(false)}>×</button>
                         </div>
                         <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -996,7 +996,7 @@ export default function ProgressTrackingPage() {
                     registration={reg}
                     currentLecturerName={currentUser?.fullName || currentUser?.name || ''}
                     onSuccess={() => {
-                        message.success('Đã cập nhật đánh giá BM04!');
+                        message.success('Đã cập nhật phiếu nhận xét của người hướng dẫn!');
                         setBm04ModalOpen(false);
                     }}
                 />

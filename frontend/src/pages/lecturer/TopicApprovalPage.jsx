@@ -113,7 +113,7 @@ export default function TopicApprovalPage() {
                         Phê Duyệt Nghiệp Vụ Giảng Viên
                     </h1>
                     <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 2 }}>
-                        Quản lý tiếp nhận hướng dẫn sinh viên và thẩm định đề cương chi tiết BM01 với tư cách Chủ tịch Hội đồng.
+                        Quản lý tiếp nhận hướng dẫn sinh viên và thẩm định đề cương nghiên cứu chi tiết với tư cách Chủ tịch Hội đồng.
                     </p>
                 </div>
                 <span className="tag teal" style={{ padding: '6px 12px', fontSize: 12 }}>
@@ -133,7 +133,7 @@ export default function TopicApprovalPage() {
                     className={`seg-tab ${activeTab === 'outline' ? 'active' : ''}`}
                     onClick={() => setActiveTab('outline')}
                 >
-                    Hội Đồng Thẩm Định Đề Cương (BM01) ({pendingOutlineCount})
+                    Hội Đồng Thẩm Định Đề Cương Chi Tiết ({pendingOutlineCount})
                 </div>
             </div>
 
@@ -169,7 +169,7 @@ export default function TopicApprovalPage() {
                                                 <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--fg)' }}>
                                                     {student?.fullName || 'Sinh viên'}{' '}
                                                     <span className="mono" style={{ fontWeight: 'normal', color: 'var(--muted)', fontSize: 12 }}>
-                                                        (MSSV: {student?.code || '-'} · Lớp {student?.class || 'KTPM2021'})
+                                                        · MSSV: {student?.code || '-'} · Lớp {student?.class || 'KTPM2021'}
                                                     </span>
                                                 </div>
                                                 <div style={{ fontSize: '12.5px', color: 'var(--muted)', marginTop: 4 }}>
@@ -236,7 +236,7 @@ export default function TopicApprovalPage() {
             {activeTab === 'outline' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                     <div style={{ padding: '14px 18px', background: '#EFF6FF', borderRadius: 'var(--radius)', border: '1px solid #BFDBFE', fontSize: 13, color: '#1E40AF' }}>
-                        <strong>Quyền hạn Chủ tịch Hội đồng:</strong> Bạn đang xem danh sách các đề cương chi tiết BM01 được phân công cho Hội đồng mà bạn là Chủ tịch. Quyết định thẩm định của Chủ tịch sẽ chốt trạng thái đề cương (ĐẠT hoặc CẦN CHỈNH SỬA).
+                        <strong>Quyền hạn Chủ tịch Hội đồng:</strong> Bạn đang xem danh sách đề cương nghiên cứu chi tiết được phân công cho Hội đồng mà bạn là Chủ tịch. Quyết định thẩm định của Chủ tịch sẽ chốt trạng thái đề cương: Đạt hoặc Yêu cầu chỉnh sửa.
                     </div>
 
                     {councilOutlineRegistrations.length === 0 ? (
@@ -277,11 +277,11 @@ export default function TopicApprovalPage() {
                                                 <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--fg)' }}>
                                                     {student?.fullName || 'Sinh viên'}{' '}
                                                     <span className="mono" style={{ fontWeight: 'normal', color: 'var(--muted)', fontSize: 12 }}>
-                                                        (MSSV: {student?.code || '-'} · Lớp {student?.class || '-'})
+                                                        · MSSV: {student?.code || '-'} · Lớp {student?.class || '-'}
                                                     </span>
                                                 </div>
                                                 <div style={{ fontSize: '12.5px', color: 'var(--muted)', marginTop: 4 }}>
-                                                    Hội đồng: <strong style={{ color: 'var(--primary)' }}>{record.outlineCouncil?.name || 'Hội đồng thẩm định BM01'}</strong> · Vai trò của bạn: <strong style={{ color: '#0F766E' }}>Chủ tịch Hội đồng</strong>
+                                                    Hội đồng: <strong style={{ color: 'var(--primary)' }}>{record.outlineCouncil?.name || 'Hội đồng thẩm định đề cương'}</strong> · Vai trò của bạn: <strong style={{ color: '#0F766E' }}>Chủ tịch Hội đồng</strong>
                                                 </div>
                                             </div>
 
@@ -294,7 +294,7 @@ export default function TopicApprovalPage() {
                                                     )
                                                 )}
                                                 {isPassed && (
-                                                    <span className="tag green">✓ Đã duyệt ĐẠT (BM01_PASSED)</span>
+                                                    <span className="tag green">✓ Đã duyệt đạt đề cương</span>
                                                 )}
                                                 {isNeedsRevision && (
                                                     <span className="tag yellow">⚠ Yêu cầu chỉnh sửa</span>
@@ -316,7 +316,7 @@ export default function TopicApprovalPage() {
                                             {latestSub && (
                                                 <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px dashed #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }} className="flex-wrap gap-2">
                                                     <div style={{ fontSize: 12, color: '#334155' }}>
-                                                        <strong>Hồ sơ nộp:</strong> {latestSub.fileName || 'de_cuong_bm01.pdf'}
+                                                        <strong>Hồ sơ nộp:</strong> {latestSub.fileName || 'de_cuong_nghien_cuu.pdf'}
                                                         {latestSub.content && (
                                                             <div style={{ fontStyle: 'italic', marginTop: 2, color: '#64748B' }}>
                                                                 "{latestSub.content}"
@@ -349,7 +349,7 @@ export default function TopicApprovalPage() {
                                                 {latestSub?.submittedAt ? (
                                                     <span>Nộp lúc: {new Date(latestSub.submittedAt).toLocaleString('vi-VN')}</span>
                                                 ) : (
-                                                    <span>Hồ sơ đang trong tiến trình thẩm định BM01</span>
+                                                    <span>Hồ sơ đang trong tiến trình thẩm định đề cương</span>
                                                 )}
                                             </div>
 

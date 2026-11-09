@@ -109,7 +109,7 @@ export default function LecturerDashboardPage() {
             });
 
             if (res.success) {
-                message.success('Đã lưu nhật ký buổi gặp Lab thành công!');
+                message.success('Đã lưu nhật ký buổi gặp hướng dẫn thành công!');
                 setMeetingModalOpen(false);
                 setMeetingContent('');
                 setMeetingNextTask('');
@@ -125,7 +125,7 @@ export default function LecturerDashboardPage() {
     const handleApproveRevisedBM01 = async (registrationId) => {
         const target = bm01RevisionQueue.find((r) => r.id === registrationId);
         if (target?.allowedActions && !target.allowedActions.includes('APPROVE_BM01_REVISION')) {
-            message.warning('Trạng thái hồ sơ không cho phép thẩm định duyệt lại BM01.');
+            message.warning('Trạng thái hồ sơ không cho phép duyệt lại đề cương.');
             return;
         }
         const key = `bm01-${registrationId}`;
@@ -133,11 +133,11 @@ export default function LecturerDashboardPage() {
             setProcessingWorkflowKey(key);
             const res = await evaluationService.approveResubmittedBM01(registrationId, { outcome: 'PASSED' });
             if (res.success) {
-                message.success('Đã duyệt BM01 chỉnh sửa đạt yêu cầu.');
+                message.success('Đã duyệt đề cương chỉnh sửa đạt yêu cầu.');
                 await fetchDashboardInfo();
             }
         } catch (error) {
-            message.error(error?.message || 'Không thể duyệt lại BM01.');
+            message.error(error?.message || 'Không thể duyệt lại đề cương.');
         } finally {
             setProcessingWorkflowKey('');
         }
@@ -259,7 +259,7 @@ export default function LecturerDashboardPage() {
                         className="btn btn-primary btn-sm"
                         onClick={() => setMeetingModalOpen(true)}
                     >
-                        + Ghi nhận Buổi gặp Lab
+                        + Ghi nhận Buổi Gặp Hướng Dẫn Mới
                     </button>
                 </div>
             </div>
@@ -295,7 +295,7 @@ export default function LecturerDashboardPage() {
                 </div>
 
                 <div className="stat-card">
-                    <span className="stat-label">Tiến độ nộp BM03</span>
+                    <span className="stat-label">Tiến độ đánh giá</span>
                     <div className="stat-value-row">
                         <span className="stat-val mono" style={{ color: 'var(--primary)' }}>
                             {progressPercent}%
@@ -347,7 +347,7 @@ export default function LecturerDashboardPage() {
                                     <span>📜 Quyết định giao đề tài</span>
                                 </div>
                                 <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
-                                    Ban hành QĐ chính thức kèm danh sách BM02, kích hoạt thời hạn 7 ngày điều chỉnh tên đề tài.
+                                    Ban hành Quyết định chính thức kèm danh sách đơn đăng ký, kích hoạt thời hạn 7 ngày điều chỉnh tên đề tài.
                                 </div>
                             </div>
                             <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
@@ -365,10 +365,10 @@ export default function LecturerDashboardPage() {
                         <div style={{ padding: '14px 16px', background: 'white', border: '1px solid #CCFBF1', borderRadius: 'var(--radius-sm)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                             <div>
                                 <div style={{ fontWeight: 700, color: '#0F766E', fontSize: '14px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                                    <span>✅ Xét duyệt đề cương BM02</span>
+                                    <span>✅ Thẩm định đơn đăng ký đề tài</span>
                                 </div>
                                 <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
-                                    Thẩm định đề cương chi tiết BM02 của sinh viên đã nộp để làm căn cứ ra quyết định giao đề tài.
+                                    Thẩm định đơn đăng ký đề tài chính thức của sinh viên đã nộp để làm căn cứ ra quyết định giao đề tài.
                                 </div>
                             </div>
                             <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
@@ -377,7 +377,7 @@ export default function LecturerDashboardPage() {
                                     className="btn btn-secondary btn-sm"
                                     onClick={() => navigate('/lecturer/institute?tab=bm02')}
                                 >
-                                    Mở hàng đợi BM02 →
+                                    Mở hàng đợi thẩm định →
                                 </button>
                             </div>
                         </div>
@@ -431,7 +431,7 @@ export default function LecturerDashboardPage() {
                                     <span>📋 Ủy quyền Chuyên môn</span>
                                 </div>
                                 <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
-                                    Ủy quyền xét duyệt BM02, BM03 hoặc quản lý đề tài cho các cán bộ phụ trách bộ môn.
+                                    Ủy quyền xét duyệt đơn đăng ký đề tài, đánh giá tiến độ hoặc quản lý đề tài cho các cán bộ phụ trách bộ môn.
                                 </div>
                             </div>
                             <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
@@ -449,10 +449,10 @@ export default function LecturerDashboardPage() {
                         <div style={{ padding: '14px 16px', background: 'white', border: '1px solid #CCFBF1', borderRadius: 'var(--radius-sm)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                             <div>
                                 <div style={{ fontWeight: 700, color: '#0F766E', fontSize: '14px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                                    <span>📚 Đề tài toàn Viện & Rubric</span>
+                                    <span>📚 Đề tài toàn Viện & Tiêu chí chấm</span>
                                 </div>
                                 <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
-                                    Rà soát toàn bộ đề tài đăng ký của các giảng viên và cấu hình tiêu chí chấm rubric chuẩn.
+                                    Rà soát toàn bộ đề tài đăng ký của các giảng viên và cấu hình tiêu chí đánh giá chuẩn.
                                 </div>
                             </div>
                             <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
@@ -468,7 +468,7 @@ export default function LecturerDashboardPage() {
                                     className="btn btn-secondary btn-sm"
                                     onClick={() => navigate('/admin/rubric-management')}
                                 >
-                                    Rubric
+                                    Tiêu chí chấm
                                 </button>
                             </div>
                         </div>
@@ -521,10 +521,10 @@ export default function LecturerDashboardPage() {
                     <div style={{ padding: '12px 14px', background: 'white', border: '1px solid #FECACA', borderRadius: 'var(--radius-sm)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }} className="flex-wrap gap-2">
                         <div>
                             <div style={{ fontWeight: 700, color: 'var(--danger)', fontSize: '13.5px' }}>
-                                ⚠️ Cảnh báo học vụ: Sinh viên có nguy cơ chậm tiến độ BM03
+                                ⚠️ Cảnh báo học vụ: Sinh viên có nguy cơ chậm tiến độ
                             </div>
                             <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
-                                Nhắc nhở sinh viên cập nhật tiến độ tuần và đặt lịch hẹn trao đổi định kỳ để đủ điều kiện xét BM04.
+                                Nhắc nhở sinh viên cập nhật tiến độ tuần và đặt lịch hẹn trao đổi định kỳ để đủ điều kiện xét duyệt bảo vệ.
                             </div>
                         </div>
                         <div style={{ display: 'flex', gap: 8 }}>
@@ -540,7 +540,7 @@ export default function LecturerDashboardPage() {
                                 className="btn btn-danger btn-sm"
                                 onClick={() => setMeetingModalOpen(true)}
                             >
-                                + Ghi nhận Buổi gặp
+                                + Ghi nhận Buổi Gặp Hướng Dẫn Mới
                             </button>
                         </div>
                     </div>
@@ -560,7 +560,7 @@ export default function LecturerDashboardPage() {
                             className="btn btn-secondary btn-sm"
                             onClick={() => navigate('/lecturer/grading')}
                         >
-                            Xem Lịch thi & Rubric →
+                            Xem Lịch thi & Tiêu chí chấm →
                         </button>
                     </div>
                 </div>
@@ -571,13 +571,13 @@ export default function LecturerDashboardPage() {
                 <div className="card">
                     <div className="card-head">
                         <div>
-                            <div className="card-title">BM01 Cần Thẩm Định Lại ({bm01RevisionQueue.length})</div>
+                            <div className="card-title">Đề Cương Cần Thẩm Định Lại ({bm01RevisionQueue.length})</div>
                             <div className="card-subtitle">Đề cương sinh viên đã chỉnh sửa, chờ GVHD xác nhận đạt.</div>
                         </div>
                     </div>
                     <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
                         {bm01RevisionQueue.length === 0 ? (
-                            <div style={{ color: 'var(--muted)', fontSize: 13 }}>Không có BM01 chỉnh sửa đang chờ xử lý.</div>
+                            <div style={{ color: 'var(--muted)', fontSize: 13 }}>Không có đề cương chỉnh sửa đang chờ xử lý.</div>
                         ) : bm01RevisionQueue.map((registration) => {
                             const canApprove = !registration.allowedActions || registration.allowedActions.includes('APPROVE_BM01_REVISION');
                             return (
@@ -649,7 +649,7 @@ export default function LecturerDashboardPage() {
                             Danh Sách Sinh Viên Đang Hướng Dẫn ({studentCount} Sinh Viên)
                         </div>
                         <div className="card-subtitle">
-                            Theo dõi tiến độ tổng thể, số buổi gặp Lab thực tế và trạng thái BM04
+                            Theo dõi tiến độ tổng thể, số buổi gặp hướng dẫn thực tế và điều kiện bảo vệ
                         </div>
                     </div>
                     <button
@@ -668,9 +668,9 @@ export default function LecturerDashboardPage() {
                                 <th>Mã ĐT</th>
                                 <th>Tên Đề tài</th>
                                 <th>Sinh viên thực hiện</th>
-                                <th>Tiến độ BM</th>
-                                <th>Số buổi gặp Lab</th>
-                                <th>Thẩm định BM04</th>
+                                <th>Tiến độ thực hiện</th>
+                                <th>Số buổi gặp hướng dẫn</th>
+                                <th>Điều kiện bảo vệ</th>
                                 <th style={{ textAlign: 'right' }}>Thao tác</th>
                             </tr>
                         </thead>
@@ -722,7 +722,7 @@ export default function LecturerDashboardPage() {
                                             </td>
                                             <td>
                                                 <span className={`tag ${bm04Passed ? 'green' : 'yellow'}`}>
-                                                    {bm04Passed ? '✓ Đạt (Cho BV)' : 'Đang xét duyệt'}
+                                                    {bm04Passed ? '✓ Đạt — Đủ điều kiện bảo vệ' : 'Đang xét duyệt'}
                                                 </span>
                                             </td>
                                             <td style={{ textAlign: 'right' }}>
@@ -748,7 +748,7 @@ export default function LecturerDashboardPage() {
                 <div className="modal-overlay open" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <div className="modal-box" style={{ maxWidth: 540 }}>
                         <div className="modal-head">
-                            <div className="modal-title">+ Ghi Nhận Buổi Gặp Lab Mới (BM03)</div>
+                            <div className="modal-title">+ Ghi Nhận Buổi Gặp Hướng Dẫn Mới</div>
                             <button type="button" className="modal-close" onClick={() => setMeetingModalOpen(false)}>×</button>
                         </div>
                         <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -846,7 +846,7 @@ export default function LecturerDashboardPage() {
                                     className="input-field"
                                     value={broadcastSubject}
                                     onChange={(e) => setBroadcastSubject(e.target.value)}
-                                    placeholder="Ví dụ: Nhắc lịch nộp biểu mẫu BM03 và lịch họp tuần 12..."
+                                    placeholder="Ví dụ: Nhắc lịch đánh giá tiến độ và lịch họp tuần 12..."
                                     style={{ width: '100%' }}
                                 />
                             </div>
@@ -914,7 +914,7 @@ export default function LecturerDashboardPage() {
                                     setWorkloadModalOpen(false);
                                 }}
                             >
-                                Xuất Bảng Kê Khai (Excel/PDF)
+                                Xuất Bảng Kê Khai
                             </button>
                         </div>
                     </div>

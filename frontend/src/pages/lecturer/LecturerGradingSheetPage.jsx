@@ -156,7 +156,7 @@ export default function LecturerGradingSheetPage() {
 
             const res = await evaluationService.saveScoreSheet(registrationId, payload);
             if (res.success) {
-                message.success('Đã lưu điểm Rubric (' + totalScore + 'đ) và ký số biên bản điện tử thành công!');
+                message.success('Đã lưu điểm đánh giá (' + totalScore + 'đ) và ký số biên bản điện tử thành công!');
             }
         } catch (e) {
             message.error(e.message || 'Lưu phiếu chấm thất bại');
@@ -235,7 +235,7 @@ export default function LecturerGradingSheetPage() {
                             <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
                             <rect x="6" y="14" width="12" height="8" />
                         </svg>
-                        In Phiếu Chấm Cá Nhân (A4)
+                        In Phiếu Chấm Cá Nhân
                     </button>
                     <button
                         className="btn btn-secondary btn-sm"
@@ -350,11 +350,11 @@ export default function LecturerGradingSheetPage() {
                 </div>
             </div>
 
-            {/* Tiêu Chí Rubric Đánh Giá Khóa Luận */}
+            {/* Tiêu Chí Đánh Giá Khóa Luận */}
             <div className="card" style={{ marginBottom: 20 }}>
                 <div className="card-head" style={{ flexWrap: 'wrap', gap: 10 }}>
                     <div>
-                        <div className="card-title">Bảng Tiêu Chí Đánh Giá Khóa Luận (Rubric)</div>
+                        <div className="card-title">Phiếu Đánh Giá Điểm Bảo Vệ Theo Tiêu Chí</div>
                         <div className="card-subtitle">Kéo thanh trượt hoặc nhập điểm trực tiếp cho từng tiêu chí thành phần</div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -381,7 +381,7 @@ export default function LecturerGradingSheetPage() {
                             return (
                                 <div className="rubric-group" key={group.code || gIdx}>
                                     <div className="rubric-group-title">
-                                        <span>{group.name} (TỐI ĐA {groupMax.toFixed(2)} ĐIỂM)</span>
+                                        <span>{group.name} — Tối đa {groupMax.toFixed(2)} điểm</span>
                                         <span className="mono" style={{ color: 'var(--primary)' }}>
                                             {groupScore.toFixed(2)} / {groupMax.toFixed(2)}đ
                                         </span>
@@ -462,7 +462,7 @@ export default function LecturerGradingSheetPage() {
                                     <div style={{ fontSize: 15, fontWeight: 900, color: '#0F766E', marginTop: 4, textTransform: 'uppercase' }}>
                                         PHIẾU ĐÁNH GIÁ KHÓA LUẬN TỐT NGHIỆP ĐẠI HỌC
                                     </div>
-                                    <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>(Dành cho Thành viên Hội đồng chấm bảo vệ)</div>
+                                    <div style={{ fontSize: '11.5px', color: 'var(--muted)' }}>Dành cho Thành viên Hội đồng chấm bảo vệ</div>
                                 </div>
 
                                 <div style={{ marginBottom: 12, borderBottom: '1px solid #E2E8F0', paddingBottom: 8 }}>
@@ -517,14 +517,14 @@ export default function LecturerGradingSheetPage() {
                                         <div style={{ height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'cursive', color: '#0F766E', fontSize: 15 }}>
                                             {currentEvaluator?.fullName || 'Cán bộ chấm thi'}
                                         </div>
-                                        <div style={{ fontSize: '10.5px', color: 'var(--success)', fontWeight: 600 }}>(Đã ký số SHA-256)</div>
+                                        <div style={{ fontSize: '10.5px', color: 'var(--success)', fontWeight: 600 }}>Đã xác thực chữ ký điện tử</div>
                                     </div>
                                 </div>
                             </div>
                         </div>
                         <div className="modal-foot">
                             <button className="btn btn-secondary" onClick={() => setIsPrintModalOpen(false)} type="button">Đóng</button>
-                            <button className="btn btn-primary" onClick={() => window.print()} type="button">In Phiếu Điểm (Ctrl+P)</button>
+                            <button className="btn btn-primary" onClick={() => window.print()} type="button">In Phiếu Điểm</button>
                         </div>
                     </div>
                 </div>

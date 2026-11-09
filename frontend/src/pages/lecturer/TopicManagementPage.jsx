@@ -224,7 +224,7 @@ export default function TopicManagementPage() {
                             className={`seg-tab ${activeTab === 'pending' ? 'active' : ''}`}
                             onClick={() => setActiveTab('pending')}
                         >
-                            Chờ duyệt BCN ({counts.pending})
+                            Chờ Ban Chủ Nhiệm duyệt ({counts.pending})
                         </div>
                     </div>
 
@@ -248,7 +248,7 @@ export default function TopicManagementPage() {
                                 <th>Tên Đề tài Nghiên cứu</th>
                                 <th>Lĩnh vực / Công nghệ</th>
                                 <th>Sinh viên thực hiện</th>
-                                <th>Tình trạng suất</th>
+                                <th>Chỉ tiêu hướng dẫn</th>
                                 <th>Trạng thái Học vụ</th>
                                 <th style={{ textAlign: 'right' }}>Thao tác</th>
                             </tr>
@@ -303,14 +303,14 @@ export default function TopicManagementPage() {
                                             </td>
                                             <td>
                                                 <span className={`tag ${hasStudent ? 'blue' : isApproved ? 'green' : 'gray'}`}>
-                                                    {hasStudent ? '1 / 1 SV (Đầy)' : '0 / 1 SV (Đang mở)'}
+                                                    {hasStudent ? '1 / 1 sinh viên — Đã tiếp nhận' : '0 / 1 sinh viên — Đang mở'}
                                                 </span>
                                             </td>
                                             <td>
                                                 {isApproved ? (
-                                                    <span className="tag green">Đã duyệt BCN</span>
+                                                    <span className="tag green">Ban Chủ Nhiệm đã duyệt</span>
                                                 ) : isPending ? (
-                                                    <span className="tag yellow">Chờ BCN duyệt</span>
+                                                    <span className="tag yellow">Chờ Ban Chủ Nhiệm duyệt</span>
                                                 ) : (
                                                     <span className="tag red">Bị từ chối</span>
                                                 )}
@@ -398,7 +398,7 @@ export default function TopicManagementPage() {
                                 <input
                                     type="text"
                                     className="input-field"
-                                    placeholder="English Topic Title..."
+                                    placeholder="Nhập tên đề tài bằng tiếng Anh (nếu có)..."
                                     style={{ width: '100%' }}
                                     value={englishTitle}
                                     onChange={(e) => setEnglishTitle(e.target.value)}
@@ -424,7 +424,7 @@ export default function TopicManagementPage() {
                                     <input
                                         type="text"
                                         className="input-field"
-                                        value="1 Sinh viên / 1 Đề tài (Cố định)"
+                                        value="1 Sinh viên / 1 Đề tài — Cố định theo quy định"
                                         disabled
                                         style={{ width: '100%', background: '#F1F5F9', color: '#334155', fontWeight: 600 }}
                                     />
@@ -461,7 +461,7 @@ export default function TopicManagementPage() {
                                 disabled={submitting}
                                 onClick={handleCreateTopic}
                             >
-                                {submitting ? 'Đang gửi...' : 'Gửi Đề Xuất Cho BCN Duyệt'}
+                                {submitting ? 'Đang gửi...' : 'Gửi Đề Xuất Cho Ban Chủ Nhiệm Duyệt'}
                             </button>
                         </div>
                     </div>
