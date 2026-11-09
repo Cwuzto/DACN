@@ -653,6 +653,9 @@ async function submitResubmissionOutline(registrationId, fileData, userId, optio
         if (registration.studentId !== uId) {
             throw new ForbiddenError('FORBIDDEN');
         }
+        if (registration.status === 'BM01_RESUBMITTED') {
+            throw new ConflictError('RESUBMISSION_ALREADY_USED');
+        }
         if (registration.status !== 'BM01_NEEDS_REVISION') {
             throw new BadRequestError('INVALID_REGISTRATION_STATUS');
         }

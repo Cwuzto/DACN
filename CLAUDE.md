@@ -70,55 +70,68 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 
 ## 6. Cập Nhật Phiên Làm Việc (Session Update)
 
-### Phiên 10/11/2026
+### Phiên 10/11/2026 (Hoàn Thành Toàn Diện Phân Hệ Hồ Sơ Đồ Án & Xét Duyệt Đề Cương BM01)
 
 #### 1. Những phần đã hoàn thành
-1. **Giải quyết triệt để xung đột Đăng ký đề tài & Tự đề xuất (Conflict Prevention)**:
-   - Backend (`topicController.js`, `registrationController.js`): Tự động dọn dẹp/xóa các đề xuất đề tài `PENDING` của sinh viên khi sinh viên đăng ký thành công một đề tài có sẵn của Giảng viên.
-   - Thêm guard chặn sinh viên tạo đề xuất mới khi đang có đơn đăng ký đề tài hoặc đang có đề tài được chấp thuận.
-   - Bổ sung nút và API cho phép sinh viên chủ động tự hủy đề xuất đề tài `PENDING` trên giao diện `TopicListPage.jsx`.
-2. **Khắc phục lỗi đếm đơn đăng ký & Khôi phục trạng thái đề tài sau khi từ chối**:
-   - Backend: Cập nhật mệnh đề lọc `_count: { registrations: { where: { status: { not: 'REJECTED' } } } }` trong `topicController.js` và `registrationController.js`. Khi GVHD từ chối sinh viên (`REJECTED`), số lượng sinh viên đăng ký quay về `0/1`, đề tài tự động mở lại cho sinh viên khác đăng ký mà không bị khóa nhầm `1/1 Đã có sinh viên`.
-   - Frontend: Cập nhật hiển thị nhãn trạng thái trực quan tại `TopicManagementPage.jsx` ("Sẵn sàng tuyển SV" khi 0/1) và `TopicListPage.jsx` (thẻ tag "Đã bị từ chối" rõ ràng cho sinh viên).
-3. **Loại bỏ hoàn toàn Dữ liệu giả (Mock Data) trên Màn hình Phê duyệt của GVHD (`TopicApprovalPage.jsx`)**:
-   - Loại bỏ toàn bộ GPA giả (3.45), tín chỉ tích lũy ảo (132/140), lớp sai (`KTPM2021`), lời nhắn ảo và modal CV ảo.
-   - Nối trực tiếp dữ liệu hồ sơ sinh viên thực tế từ CSDL: `studentProfile.className` (`D22CNTT04`), `studentProfile.major` (`Công nghệ Thông tin`), số điện thoại, email và thời gian nộp đơn.
-4. **Sửa lỗi Phê duyệt Đăng ký ("Dữ liệu đầu vào không hợp lệ" & Prisma Schema Error)**:
-   - Sửa lỗi Prisma query `Unknown field code for select statement on model Topic` tại `registrationController.js:640` (loại bỏ `code: true` do model `Topic` không có cột `code`, tính toán hiển thị mã `DT-${topic.id}`).
-   - Sửa validator `rejectReason` trong `registrationRoutes.js`: chỉ bắt buộc khi `action === 'REJECT'`, không báo lỗi khi `action === 'APPROVE'`.
-   - Sửa `registrationService.handleRegistration` phía frontend: không gửi `rejectReason: ''` rỗng khi chấp thuận.
-5. **Nạp dữ liệu học kỳ thật lên Thanh điều hướng Topbar (`AppLayout.jsx`)**:
-   - Triệt tiêu chuỗi tĩnh mock `'Học kỳ 1 (2026 - 2027)'` ở huy hiệu đợt học kỳ (`.period-badge`).
-   - Xây dựng thuật toán phân giải `resolveCurrentSemester` trong `semesterDisplay.js`: tự động nhận diện đợt đang diễn ra trong khung thời gian (`startDate <= now <= endDate`), ưu tiên đợt chính khóa `Đồ án tốt nghiệp — HK1 2026–2027 (Đợt 1 - Chính khóa) · Đang diễn ra` (ID 3).
-   - Cơ chế nạp dữ liệu phòng thủ 2 lớp (thử authenticated endpoint `getAll()`, fallback sang public endpoint `getPublic()`).
-   - Đồng bộ loại bỏ các chuỗi mock học kỳ còn sót trong `StudentDashboardPage.jsx`.
-6. **Brainstorming Thiết kế Chuẩn hóa Luồng Tiền Đề tài (Đăng ký sơ bộ -> Xét duyệt đề cương -> Đơn đăng ký chính thức)**:
-   - Thảo luận và thống nhất nguyên tắc kiến trúc: Lấy **Hồ sơ đồ án** làm trung tâm dữ liệu bất biến, độc lập với Hội đồng xét duyệt.
-   - Tách rời trạng thái đa tầng (Hồ sơ, Hội đồng, Nhiệm vụ, Tài liệu) thay vì phụ thuộc vào một enum phẳng duy nhất.
-   - Phân định rõ trách nhiệm 4 tác nhân: Admin (lập HĐ & phân SV), Chủ tịch HĐ (công bố lịch, chốt kết quả, duyệt bản sửa), Thư ký (lập biên bản dự thảo), Sinh viên (nộp đề cương theo version, khóa bản nộp khi hết hạn).
+1. **CSDL & Migration Additive (Task 1)**:
+   - Tạo bảng mới `CouncilResultBatch` quản lý vòng đời độc lập của kết quả hội đồng (`DRAFT` -> `PENDING_CHAIR` -> `PUBLISHED` -> `SUPERSEDED` -> `REOPENED`).
+   - Mở rộng `Semester`, `Council` (bổ sung `meetingMode`, `meetingLocation`, `meetingLink`, `revisionSubmissionDeadline`), `BM01Evaluation` (`onDelete: Restrict`, `@unique([batchId, registrationId])`, snapshot `supersedesId`).
+   - Mở rộng enum `TaskType` (`BM01_INITIAL_SUBMISSION`, `BM01_RESUBMISSION`), `RegistrationStatus` (`BM01_RESUBMITTED`), và các enums: `CouncilMeetingMode`, `CouncilBatchStatus`, `OutlineInitialOutcome`, `OutlineRevisionApprovalStatus`, `AttendanceStatus`.
+2. **Thuật toán Tự động Phân công Hội đồng Đề cương Trọn gói (Task 2)**:
+   - Triển khai `outlineAutoSetupService.js`: Sắp xếp gom cụm sinh viên theo `mentorId` (Mentor-Clustered Partitioning), cắt lô tối đa 10 SV/HĐ.
+   - Tự động loại trừ các GVHD có sinh viên trong lô khỏi hội đồng (`excludedMentorIds`), chọn 3 giảng viên độc lập (`CHAIRMAN`, `SECRETARY`, `MEMBER`) cân bằng tải tham gia.
+3. **Dịch vụ Nghiệp vụ Xét duyệt Đề cương & Giao dịch Nguyên tử (Task 3)**:
+   - Triển khai `outlineReviewService.js`, `outlineSweepService.js`, `errors.js` với 11 nghiệp vụ nguyên tử.
+   - Khóa vĩnh viễn đề cương v1 ngay lần nộp đầu tiên. Cả 3 kết quả `REVISION_REQUIRED`, `FAIL`, `ABSENT` đều nhận đúng một cơ hội nộp lại v2 (`maxSubmissions = 1`) bằng Atomic Conditional Update (`WHERE revisionSubmissionId IS NULL`) trong transaction.
+   - Chủ tịch duyệt file nộp lại -> `BM01_PASSED`; từ chối hoặc hết hạn -> `TERMINATED_BM01` kèm nhận xét bắt buộc.
+   - Reopen bảo toàn lịch sử append-only: Chuyển batch cũ sang `SUPERSEDED`, tạo batch mới `versionNumber + 1`, snapshot evaluations với `attemptNo = prev + 1`. Chặn tuyệt đối và trả `409 BM02_DEPENDENCY_EXISTS` nếu bất kỳ sinh viên nào đã nộp đơn BM02.
+   - Triệt tiêu hoàn toàn side-effect trên các API GET (chỉ tính toán và trả cờ `isOverdue`).
+4. **API Controllers, Routes & Middleware RBAC (Task 4)**:
+   - Triển khai `outlineController.js`, `outlineRoutes.js`, cập nhật `councilRoutes.js`, `councilController.js`, `app.js`.
+   - Áp dụng middleware phân quyền resource-based `requireCouncilRole` (Chủ tịch vs Thư ký).
+5. **Cổng Sinh viên - Nộp & Theo dõi Đề cương (Task 5)**:
+   - Tạo `frontend/src/services/outlineService.js` hỗ trợ header `Idempotency-Key`.
+   - Nâng cấp `SubmissionPage.jsx`, `StudentDashboardPage.jsx`, `HybridBMFormModal.jsx`: Khóa nút nộp v1/v2 sau một lần upload, hiển thị lịch bảo vệ (phòng học/Teams link), hiển thị kết quả và nhận xét của hội đồng, badge `BM01_RESUBMITTED`, xử lý cảnh báo quá hạn `isOverdue`.
+6. **Cổng Quản trị viên & Giảng viên - Đánh giá & Phân công Hội đồng (Task 6)**:
+   - Mở rộng `frontend/src/services/councilService.js` với 10 methods chuyên trách đề cương, bảo toàn `blockingRegistrations` khi 409.
+   - `CouncilAssignmentPage.jsx`: Thêm nút "Tự động phân công HĐ Đề cương" tại tab `OUTLINE_REVIEW`; thêm modal Mở khóa kết quả (Reopen) bắt lỗi 409 và hiển thị danh sách sinh viên gây chặn.
+   - `GradingPage.jsx` & `OutlineCouncilGradingCard.jsx`: Bảng Thư ký chấm theo ma trận validation tức thời; công cụ Chủ tịch công bố lịch, công bố kết quả, trả lại thư ký, đặt hạn nộp lại v2, thẩm định bản sửa và chốt danh sách quá hạn. Loại bỏ hoàn toàn dữ liệu giả (Zero mock data).
+7. **Kiểm thử Tích hợp Toàn diện E2E & Xác thực Build (Task 7)**:
+   - Viết test E2E `backend/tests/integration/outlineWorkflowFullE2E.test.js` kiểm thử 9 bước khép kín toàn bộ vòng đời xét duyệt đề cương.
+   - Backend: 71/71 suites PASS (600/600 tests PASS 100%).
+   - Frontend: 100/100 tests PASS (100%).
+   - Build Production: Vite build thành công 0 lỗi trong 10.83s.
+8. **Giải quyết Xung đột Đăng ký & Triệt tiêu Dữ liệu giả trước đó**:
+   - Dọn dẹp đề xuất `PENDING` khi sinh viên đăng ký đề tài chính thức thành công.
+   - Khôi phục chỉ tiêu đề tài khi GVHD từ chối (`REJECTED`) về 0/1.
+   - Hiển thị thông tin sinh viên thực tế trên `TopicApprovalPage.jsx` và học kỳ thực tế trên Topbar `AppLayout.jsx`.
 
 #### 2. Trạng thái cập nhật của từng phần
-- **Backend API**: `OPERATIONAL` - 100% route đăng ký, phê duyệt, đề xuất đề tài và phân giải học kỳ hoạt động ổn định, loại bỏ triệt để lỗi validator và query Prisma.
-- **Frontend SPA**: `OPERATIONAL & BUILD PASS` - 3222 modules build production thành công trong 11.6s; Topbar và các màn hình sinh viên/giảng viên hiển thị dữ liệu thật 100%.
-- **Database / Prisma**: `ALIGNED` - Toàn bộ các truy vấn Prisma đã được rà soát và khớp 100% với `schema.prisma`.
+- **Backend API**: `OPERATIONAL & TESTED` - 71/71 test suites PASS, 600/600 tests PASS 100%. Phân hệ BM01 và quản lý hội đồng đề cương hoạt động chuẩn xác theo nghiệp vụ.
+- **Frontend SPA**: `OPERATIONAL & BUILD PASS` - 100/100 tests PASS, production build thành công 0 lỗi. Zero mock data rule tuân thủ nghiêm ngặt.
+- **Database / Prisma**: `ALIGNED & MIGRATED` - Migration additive, bảo toàn tính tương thích ngược, 0 breaking changes, quan hệ snapshot `onDelete: Restrict`.
 - **MCP Servers**: Hoạt động bình thường.
 - **Test Suite**:
-  + Backend: **66/66 test suites PASS, 504/504 tests PASS** (100%).
-  + Frontend: **93/93 tests PASS** (100%).
-- **Git Branch**: `develop` - Đã commit các bản vá trên branch `develop` (các commit: `d8b9d27`, `186d373`, `ce0bfe8`, `f91be8e`, `6ce62a6`).
+  + Backend: **71/71 test suites PASS, 600/600 tests PASS** (100%).
+  + Frontend: **100/100 tests PASS** (100%).
+- **Git Branch**: `develop` - Mã nguồn sạch, sẵn sàng đóng gói.
 
 #### 3. Bước tiếp theo cần làm (Next Session Plan)
-1. **Chốt quyết định về Hạn nộp Đề cương**: Xác nhận giữa phương án Admin ấn định khung hạn chung toàn khóa vs Chủ tịch từng hội đồng linh hoạt quyết định theo ngày bảo vệ.
-2. **Lập Kế hoạch Chi tiết Triển khai Phân hệ Xét duyệt Đề cương**:
-   - CSDL/Backend: Quản lý trạng thái Hội đồng xét duyệt (`CouncilType.OUTLINE_REVIEW`), tạo nhiệm vụ nộp đề cương BM01 theo đợt, ghi nhận kết quả bảo vệ đề cương (Đạt / Sửa / Không đạt).
-   - Backend API: Luồng nộp lại đề cương sau góp ý, Chủ tịch HĐ xác nhận bản sửa; tự động mở nhiệm vụ nộp Đơn đăng ký đề tài chính thức (BM02) sau khi đề cương đạt.
-   - Frontend UI: Giao diện Hội đồng cho Chủ tịch/Thư ký chấm đề cương và màn hình Nộp đề cương cho Sinh viên theo phiên bản.
+1. **Triển khai Phân hệ Đơn Đăng Ký Đề Tài Chính Thức (BM02)**:
+   - Tận dụng trạng thái `BM01_PASSED` làm điều kiện tiên quyết kích hoạt quy trình nộp đơn BM02.
+   - Xây dựng luồng Thẩm định & Phê duyệt BM02 của Hiệu trưởng / Trưởng Viện Công nghệ Số (ra Quyết định giao đề tài chính thức).
+2. **Tích hợp Thông Báo Thời Gian Thực (In-app Notifications)**:
+   - Tự động gửi thông báo cho sinh viên khi Chủ tịch công bố lịch bảo vệ, công bố kết quả đề cương, hoặc mở hạn nộp lại v2.
+3. **Stress-test Thuật toán Phân công Tự động**:
+   - Thử nghiệm tải với dữ liệu giả lập lớn (hàng trăm sinh viên, hàng chục GVHD) để đánh giá độ cân bằng tải của các hội đồng đề cương.
 
 #### 4. Quyết định quan trọng (Decisions & Rationale)
-1. **Dọn dẹp Đề xuất Trùng lặp**: Khi sinh viên đăng ký đề tài của giảng viên thành công, hệ thống tự động xóa đề xuất `PENDING` của sinh viên đó để tránh tình trạng "vừa có đề xuất chờ duyệt, vừa đăng ký đề tài chính thức".
-2. **Loại trừ Đơn Bị Từ Chối Khỏi Chỉ Tiêu Đề Tài**: Khi đếm số lượng sinh viên đang đăng ký đề tài (`_count.registrations`), bắt buộc loại bỏ trạng thái `REJECTED` để giải phóng chỗ cho sinh viên khác tiếp tục đăng ký.
-3. **Loại Bỏ Hoàn Toàn Dữ Liệu Giả (Zero-Mock Policy)**: Tuyệt đối không giữ các trường GPA, tín chỉ, CV mẫu trên giao diện phê duyệt đề tài khi CSDL chưa có các trường này, tránh gây hiểu lầm cho người dùng trong quá trình kiểm thử.
-4. **Hồ Sơ Đồ Án Là Trung Tâm Dữ Liệu**: Trong phân hệ Xét duyệt đề cương, tài liệu đề cương và lịch sử nộp gắn chặt với Hồ sơ đồ án của sinh viên (`TopicRegistration`), không gắn chết vào Hội đồng (`Council`), đảm bảo tính liên tục khi điều chuyển sinh viên giữa các hội đồng.
+1. **Tách biệt `CouncilResultBatch` khỏi `RegistrationStatus`**: `RegistrationStatus` chỉ phản ánh trạng thái tổng hợp của hồ sơ sinh viên (`BM01_SUBMITTED`, `BM01_NEEDS_REVISION`, `BM01_RESUBMITTED`, `BM01_PASSED`, `TERMINATED_BM01`), trong khi `CouncilResultBatch` quản lý riêng quy trình dự thảo, trình ký và công bố của hội đồng.
+2. **Khóa Nộp Lại v2 Nguyên Tử ở Tầng CSDL (Atomic Conditional Update)**: Sử dụng câu lệnh `WHERE revisionSubmissionId IS NULL` trong transaction để đảm bảo cả `REVISION_REQUIRED`, `FAIL`, `ABSENT` đều chỉ có đúng 1 cơ hội nộp lại duy nhất, loại trừ race conditions.
+3. **Bảo toàn Lịch sử Append-Only khi Reopen**: Khi mở khóa kết quả, batch cũ chuyển `SUPERSEDED`, batch mới được tạo với `versionNumber + 1` và snapshot evaluations với `attemptNo = prev + 1`, không bao giờ sửa đè dữ liệu lịch sử.
+4. **Chặn Reopen khi có Dependency Downstream (BM02)**: Trả về mã lỗi `409 BM02_DEPENDENCY_EXISTS` kèm danh sách sinh viên gây chặn nếu đã phát sinh dữ liệu BM02, ngăn chặn việc âm thầm đảo ngược trạng thái hồ sơ học vụ.
+5. **Triệt tiêu Side-Effect trên Read (No Lazy Side-Effects)**: API GET tuyệt đối không cập nhật trạng thái trễ hạn vào CSDL (chỉ tính toán và trả cờ `isOverdue: boolean`). Việc chuyển trạng thái `TERMINATED_BM01` do quá hạn chỉ thực hiện qua scheduled job hoặc thao tác "Chốt danh sách quá hạn" tường minh của Chủ tịch/Admin.
+6. **Thuật toán Phân công Tự động Gom Cụm theo GVHD (Mentor-Clustered Partitioning)**: Tối đa 10 sinh viên / hội đồng, gom cụm các sinh viên chung GVHD để giảm số lượng GVHD bị loại trừ khỏi từng hội đồng, phân công 3 giảng viên độc lập cân bằng khối lượng.
 
 ### Phiên 09/11/2026
 
