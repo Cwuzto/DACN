@@ -628,19 +628,19 @@ export function ProjectEnrollmentPage() {
                             <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3.5">
                                 <div className="text-xs text-amber-800 font-bold">Đã gán nhưng chưa đăng ký đề tài</div>
                                 <div className="text-2xl font-black text-amber-900 mt-1">
-                                    {audit.enrolledWithoutTopicRegistration.length}
+                                    {audit?.enrolledWithoutTopicRegistration?.length || 0}
                                 </div>
                             </div>
                             <div className="rounded-xl border border-rose-200 bg-rose-50/60 p-3.5">
                                 <div className="text-xs text-rose-800 font-bold">Đề tài thiếu tên danh mục</div>
                                 <div className="text-2xl font-black text-rose-900 mt-1">
-                                    {audit.topicsMissingProjectCatalog.length}
+                                    {audit?.topicsMissingProjectCatalog?.length || 0}
                                 </div>
                             </div>
                             <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-3.5">
                                 <div className="text-xs text-blue-800 font-bold">Lệch quy tắc gán đồ án</div>
                                 <div className="text-2xl font-black text-blue-900 mt-1">
-                                    {audit.registrationsRuleMismatch.length}
+                                    {audit?.registrationsRuleMismatch?.length || 0}
                                 </div>
                             </div>
                         </div>

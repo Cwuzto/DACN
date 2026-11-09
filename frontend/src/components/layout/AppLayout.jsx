@@ -5,7 +5,7 @@ import authService from '../../services/authService';
 import { semesterService } from '../../services/semesterService';
 import { getClosestSemester } from '../../utils/semesterDisplay';
 import registrationService from '../../services/registrationService';
-import { getVisibleNavigation } from '../../config/navigationRegistry';
+import { getVisibleNavigation, NAVIGATION_REGISTRY } from '../../config/navigationRegistry';
 import { isInstituteDirector, getUserDisplayRole } from '../../utils/authRedirect';
 import NavIcon from './NavIcon';
 import OpenDrawer from '../common/OpenDrawer';
