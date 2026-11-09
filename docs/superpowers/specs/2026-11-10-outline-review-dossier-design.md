@@ -41,6 +41,7 @@ Trước đây, hệ thống chưa có phân hệ khép kín cho Hội đồng x
 - **G-07**: Đảm bảo tính nguyên tử (atomicity) và chống race condition bằng Conditional Update (`WHERE ... IS NULL`) trong Prisma Transaction.
 - **G-08**: Tách bạch 2 nhiệm vụ độc lập: `BM01_INITIAL_SUBMISSION` và `BM01_RESUBMISSION`.
 - **G-09**: Bảo vệ tính toàn vẹn học vụ: Chặn Admin mở khóa kết quả nếu trong Hội đồng đã có sinh viên nộp/xử lý/duyệt đơn BM02 (`409 BM02_DEPENDENCY_EXISTS`).
+- **G-10**: Cung cấp tính năng Tự động phân công Hội đồng Xét duyệt Đề cương trọn gói: tự động sinh hội đồng, phân bổ 3 giảng viên không xung đột lợi ích, và gom cụm sinh viên theo GVHD để tối ưu việc loại trừ GVHD khỏi hội đồng chấm sinh viên của mình.
 
 ### Non-Goals (Không thuộc phạm vi)
 - Không chấm điểm bảo vệ đồ án cuối kỳ hoặc thành lập hội đồng bảo vệ cuối kỳ (đã được xử lý ở phân hệ bảo vệ).
@@ -510,7 +511,68 @@ sequenceDiagram
 3. **Cổng Quản Trị Viên (`CouncilAssignmentPage.jsx` & `ProjectPeriodPage.jsx`)**:
    - Quản trị cấu hình nộp đề cương theo đợt học kỳ: Thời gian mở, hạn nộp chung toàn đợt, upload file mẫu.
    - Điều phối Hội đồng thẩm định đề cương: Two-column matcher ghép sinh viên vào Hội đồng `OUTLINE_REVIEW` dựa trên đề tài và file đề cương đã nộp.
+   - **Nút "Tự động phân công HĐ Đề cương" (`POST /api/councils/auto-assign-outline`)**: Tự động sinh trọn gói các hội đồng, phân bổ 3 giảng viên không xung đột lợi ích, và gom cụm sinh viên theo GVHD.
    - Nút hành động ngoại lệ "Mở khóa kết quả Hội đồng" kèm modal bắt buộc nhập lý do mở khóa, hiển thị modal cảnh báo chi tiết nếu vướng phụ thuộc đơn BM02.
+
+---
+
+### 5.9. Thuật Toán Tự Động Phân Công Hội Đồng Xét Duyệt Đề Cương (Clustered Auto-Assignment Algorithm)
+
+- **API Endpoint**: `POST /api/councils/auto-assign-outline`
+- **Quyền hạn**: `ADMIN` (yêu cầu quyền `COUNCIL_MANAGE` hoặc vai trò `ADMIN`).
+- **Tham số đầu vào**: `{ semesterId: number }`
+
+#### Nguyên lý Gom cụm theo GVHD (Mentor-Clustered Partitioning):
+Để triệt tiêu tối đa rủi ro xung đột lợi ích (GVHD nằm trong hội đồng chấm sinh viên của chính mình) và tránh tình trạng sinh viên của một GVHD bị phân tán rải rác khắp các hội đồng, thuật toán áp dụng quy trình 4 bước:
+
+1. **Lọc hồ sơ đủ điều kiện**:
+   - Truy vấn các hồ sơ `TopicRegistration` có:
+     + `semesterId === semesterId`
+     + `status === 'BM01_SUBMITTED'` (đã nộp đề cương v1)
+     + `outlineCouncilId === null` (chưa được phân hội đồng đề cương).
+   - Nếu không có sinh viên nào đủ điều kiện: Trả về kết quả thông báo `assigned = 0`.
+
+2. **Gom cụm sinh viên theo GVHD (Mentor Clustering)**:
+   - Sắp xếp danh sách sinh viên theo `topic.mentorId` tăng dần, tiếp theo là `registration.id` tăng dần.
+   - *Kết quả*: Tất cả sinh viên có cùng một GVHD sẽ được xếp đứng liền kề nhau thành từng khối liên tục trong danh sách.
+
+3. **Cắt lô tạo Hội đồng (Chunking & Council Creation)**:
+   - Duyệt mảng sinh viên từ trên xuống dưới, cứ đủ $\le 10$ sinh viên (`MAX_STUDENTS_PER_COUNCIL = 10`) thì ngắt thành một lô (chunk) cho một Hội đồng mới.
+   - Với mỗi lô sinh viên:
+     + Lấy số thứ tự hội đồng tiếp theo trong đợt (ví dụ: *"Hội đồng Xét duyệt Đề cương 1"*, *"Hội đồng Xét duyệt Đề cương 2"*...).
+     + Tạo bản ghi `Council`:
+       ```javascript
+       const council = await tx.council.create({
+         data: {
+           semesterId,
+           name: `Hội đồng Xét duyệt Đề cương ${nextIndex}`,
+           councilType: 'OUTLINE_REVIEW',
+           defenseDate: semester.defenseDate || null,
+           location: null,
+           meetingMode: 'IN_PERSON',
+         }
+       });
+       ```
+     + Gán `outlineCouncilId = council.id` cho toàn bộ sinh viên trong lô đó.
+
+4. **Phân bổ 3 Giảng viên không xung đột lợi ích (Conflict-Free Member Assignment)**:
+   - Thu thập danh sách GVHD của các sinh viên trong lô hiện tại:
+     `const excludedMentorIds = new Set(chunk.map(s => s.topic.mentorId));`
+     *(Nhờ bước gom cụm ở Bước 2, mỗi Hội đồng 10 sinh viên thông thường chỉ có 1 hoặc tối đa 2 GVHD khác nhau, do đó `excludedMentorIds` chỉ có từ 1-2 giảng viên).*
+   - Lọc các giảng viên khả dụng trong Khoa:
+     `const candidates = activeLecturers.filter(l => !excludedMentorIds.has(l.id));`
+   - Sắp xếp các ứng viên theo số lượng hội đồng đã tham gia tăng dần (`lecturerLoads.get(l.id) || 0`) để cân bằng tải giảng viên.
+   - Chọn 3 giảng viên đứng đầu và gán vai trò:
+     + Giảng viên 1: `roleInCouncil = 'CHAIRMAN'`
+     + Giảng viên 2: `roleInCouncil = 'SECRETARY'`
+     + Giảng viên 3: `roleInCouncil = 'MEMBER'`
+   - Cập nhật số tải: `lecturerLoads.set(lecturer.id, currentLoad + 1)`.
+
+5. **Xử lý An toàn & Báo cáo kết quả**:
+   - Nếu khoa không đủ 3 giảng viên độc lập cho một hội đồng: Ghi nhận cảnh báo vào `warnings` và không gán thành viên thiếu để Admin điều phối thủ công.
+   - Giao dịch được thực thi nguyên tử trong một Prisma Transaction.
+   - Ghi nhật ký quản trị `AuditLog` với hành động `AUTO_ASSIGN_OUTLINE_COUNCILS`.
+   - Phản hồi: `{ createdCouncils: number, assignedStudents: number, skippedStudents: number, warnings: string[] }`.
 
 ---
 
@@ -521,13 +583,16 @@ sequenceDiagram
    - Cấu hình `onDelete: Restrict` trên tất cả quan hệ hội đồng và kết quả đánh giá.
    - Kiểm tra `npx prisma validate` và generate Prisma Client.
 2. **Backend Services & Routes**:
+   - Viết `outlineAutoSetupService.js` thực thi thuật toán gom cụm GVHD và phân bổ hội đồng đề cương tự động (`POST /api/councils/auto-assign-outline`).
    - Viết `outlineReviewService.js` chứa toàn bộ các nghiệp vụ chuyển trạng thái nguyên tử, conditional update, idempotency record và thuật toán snapshot reopen.
    - Viết các route controller trong `outlineController.js` và bổ sung middleware xác thực vai trò Hội đồng (`requireCouncilRole('CHAIR')`, `requireCouncilRole('SECRETARY')`).
    - Cập nhật `registrationTransitionService` để quản lý chuyển trạng thái `BM01_SUBMITTED`, `BM01_NEEDS_REVISION`, `BM01_RESUBMITTED`, `BM01_PASSED`, `TERMINATED_BM01`.
    - Viết `outlineSweepService.js` để quét xử lý quá hạn định kỳ (chạy không có side-effect trên GET).
 3. **Frontend Integration**:
-   - Tích hợp API vào `outlineService.js` trên frontend.
+   - Tích hợp API vào `outlineService.js` và `councilService.js` trên frontend.
+   - Bổ sung nút bấm "Tự động phân công HĐ Đề cương" trên giao diện Admin `CouncilAssignmentPage.jsx`.
    - Cập nhật giao diện sinh viên `SubmissionPage.jsx` hiển thị stepper đề cương và form nộp file duy nhất.
    - Hoàn thiện giao diện Hội đồng cho Giảng viên (Thư ký nhập biên bản có validation matrix, Chủ tịch ký duyệt và công bố).
 4. **Unit & Integration Tests**:
-   - Viết test suite chuyên biệt `tests/integration/outlineReviewWorkflow.test.js` bao phủ 100% các nhánh nghiệp vụ (PASS, REVISION -> RESUBMIT -> APPROVE/REJECT, OVERDUE, Reopen Batch Snapshot & BM02 Dependency Guard, Idempotency Replay).
+   - Viết test suite chuyên biệt `tests/integration/outlineAutoSetupService.test.js` kiểm thử thuật toán gom cụm GVHD, cân bằng tải giảng viên và loại trừ xung đột lợi ích.
+   - Viết test suite `tests/integration/outlineReviewWorkflow.test.js` bao phủ 100% các nhánh nghiệp vụ (PASS, REVISION -> RESUBMIT -> APPROVE/REJECT, OVERDUE, Reopen Batch Snapshot & BM02 Dependency Guard, Idempotency Replay).
