@@ -14,17 +14,17 @@ const GROUP_OPTIONS = [
         label: (
             <div className="flex items-center gap-2">
                 <CompassOutlined className="text-blue-500" />
-                <span>Liên kết nhanh (Quick Links)</span>
+                <span>Liên kết nhanh</span>
             </div>
         ),
-        description: 'Hiển thị dạng danh sách liên kết truy cập nhanh ở Footer trang chủ.',
+        description: 'Hiển thị dạng danh sách liên kết truy cập nhanh ở chân trang chủ.',
     },
     {
         value: 'SOCIAL',
         label: (
             <div className="flex items-center gap-2">
                 <ShareAltOutlined className="text-emerald-500" />
-                <span>Mạng xã hội & Truyền thông (Social)</span>
+                <span>Mạng xã hội & Truyền thông</span>
             </div>
         ),
         description: 'Hiển thị ở góc chân trang cạnh thông tin bản quyền (Facebook, YouTube, Cổng Đào tạo...).',
@@ -34,7 +34,7 @@ const GROUP_OPTIONS = [
         label: (
             <div className="flex items-center gap-2">
                 <SafetyCertificateOutlined className="text-amber-500" />
-                <span>Pháp lý & Quy chế (Legal)</span>
+                <span>Pháp lý & Quy chế</span>
             </div>
         ),
         description: 'Quy chế đào tạo, chuẩn liêm chính học thuật, điều khoản sử dụng.',
@@ -51,7 +51,7 @@ export default function LinkManager({ form }) {
                 type="info"
                 showIcon
                 icon={<LinkOutlined />}
-                message={<span className="text-xs font-semibold">Cấu hình liên kết ngoài hoặc điều hướng chân trang (Footer)</span>}
+                message={<span className="text-xs font-semibold">Cấu hình liên kết ngoài hoặc điều hướng chân trang</span>}
                 description={
                     <span className="text-xs text-slate-600">
                         {currentGroupMeta?.description || 'Liên kết sẽ tự động đồng bộ xuống khu vực Footer của Cổng thông tin công khai.'}
@@ -73,7 +73,7 @@ export default function LinkManager({ form }) {
 
             <Form.Item
                 name="href"
-                label="Đường dẫn đích (URL)"
+                label="Đường dẫn đích"
                 rules={[
                     { required: true, message: 'Vui lòng nhập URL.' },
                     {

@@ -397,7 +397,7 @@ function DashboardPage() {
                         <div className="space-y-3.5">
                             <div className="space-y-1.5">
                                 <div className="flex justify-between text-xs">
-                                    <span className="font-bold text-slate-800">Kỹ thuật Phần mềm (KTPM)</span>
+                                    <span className="font-bold text-slate-800">Kỹ thuật Phần mềm</span>
                                     <span className="font-mono text-slate-600 font-medium">92 đề tài • 98% đã gán SV</span>
                                 </div>
                                 <Progress percent={98} strokeColor="#0F766E" size="small" showInfo={false} />
@@ -405,7 +405,7 @@ function DashboardPage() {
 
                             <div className="space-y-1.5">
                                 <div className="flex justify-between text-xs">
-                                    <span className="font-bold text-slate-800">Công nghệ Thông tin (CNTT)</span>
+                                    <span className="font-bold text-slate-800">Công nghệ Thông tin</span>
                                     <span className="font-mono text-slate-600 font-medium">78 đề tài • 84% đã gán SV</span>
                                 </div>
                                 <Progress percent={84} strokeColor="#0284C7" size="small" showInfo={false} />
@@ -413,7 +413,7 @@ function DashboardPage() {
 
                             <div className="space-y-1.5">
                                 <div className="flex justify-between text-xs">
-                                    <span className="font-bold text-slate-800">Hệ thống Thông tin (HTTT)</span>
+                                    <span className="font-bold text-slate-800">Hệ thống Thông tin</span>
                                     <span className="font-mono text-slate-600 font-medium">46 đề tài • 78% đã gán SV</span>
                                 </div>
                                 <Progress percent={78} strokeColor="#7C3AED" size="small" showInfo={false} />
@@ -421,7 +421,7 @@ function DashboardPage() {
 
                             <div className="space-y-1.5">
                                 <div className="flex justify-between text-xs">
-                                    <span className="font-bold text-slate-800">Mạng máy tính & An ninh mạng (MMT)</span>
+                                    <span className="font-bold text-slate-800">Mạng máy tính & An ninh mạng</span>
                                     <span className="font-mono text-slate-600 font-medium">32 đề tài • 68% đã gán SV</span>
                                 </div>
                                 <Progress percent={68} strokeColor="#D97706" size="small" showInfo={false} />

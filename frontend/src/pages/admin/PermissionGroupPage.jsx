@@ -718,7 +718,7 @@ function PermissionGroupPage() {
             {/* 4 KPI Cards (Thống kê ma trận & quyền tự động sinh từ registry) */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
                 <div className="card" style={{ padding: '14px 18px' }}>
-                    <span className="meta">Tổng số vai trò (Roles)</span>
+                    <span className="meta">Tổng số vai trò</span>
                     <p className="h2 num" style={{ marginTop: 2, color: '#0F766E' }}>{matrixStats.totalRoles}</p>
                     <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--muted)' }}>
                         {matrixStats.totalModules} phân hệ nghiệp vụ
@@ -737,7 +737,7 @@ function PermissionGroupPage() {
                     </div>
                 </div>
                 <div className="card" style={{ padding: '14px 18px' }}>
-                    <span className="meta">Phân loại năng lực (Tier)</span>
+                    <span className="meta">Phân loại năng lực quyền</span>
                     <div className="flex items-center gap-2 mt-1">
                         <Tag color="blue" className="text-xs font-semibold m-0">
                             ⚡ {matrixStats.actionPerms} Thao tác
@@ -1057,7 +1057,7 @@ function PermissionGroupPage() {
                                                                                                     {perm.label}
                                                                                                 </span>
                                                                                                 {isProt && (
-                                                                                                    <Tooltip title="Quyền học thuật được bảo vệ (P0 Anti-Escalation). Quản trị viên kỹ thuật không thể sửa đổi nếu thiếu thẩm quyền.">
+                                                                                                    <Tooltip title="Quyền học thuật được bảo vệ chống leo thang đặc quyền. Quản trị viên kỹ thuật không thể sửa đổi nếu thiếu thẩm quyền.">
                                                                                                         <Tag color="volcano" className="text-[10px] m-0 font-medium px-1.5 py-0 flex items-center gap-1">
                                                                                                             <LockOutlined className="text-[9px]" />
                                                                                                             Học thuật bảo vệ
@@ -1302,7 +1302,7 @@ function PermissionGroupPage() {
                 <Form form={form} layout="vertical" className="pt-2">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <Form.Item
-                            label="Mã nhóm quyền (code)"
+                            label="Mã nhóm quyền"
                             name="code"
                             rules={[
                                 { required: true, message: 'Nhập mã nhóm!' },

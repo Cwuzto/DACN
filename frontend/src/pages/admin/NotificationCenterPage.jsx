@@ -237,8 +237,8 @@ function NotificationCenterPage() {
             {/* Page Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 4, flexWrap: 'wrap', gap: 12 }}>
                 <div>
-                    <p className="eyebrow">USER IN-APP ALERTS • THÔNG BÁO TÀI KHOẢN NGƯỜI DÙNG</p>
-                    <h1 className="h1">Gửi Thông Báo Người Dùng (In-App)</h1>
+                    <p className="eyebrow">THÔNG BÁO TÀI KHOẢN NGƯỜI DÙNG</p>
+                    <h1 className="h1">Gửi Thông Báo Người Dùng</h1>
                 </div>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                     <button
@@ -277,7 +277,7 @@ function NotificationCenterPage() {
                     <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--accent)' }}>Hiệu quả tiếp cận thông tin</div>
                 </div>
                 <div className="card" style={{ padding: '14px 18px' }}>
-                    <span className="meta">Mẫu tự động (Active)</span>
+                    <span className="meta">Mẫu tự động đang kích hoạt</span>
                     <p className="h2 num" style={{ marginTop: 2, color: 'var(--success)' }}>
                         {activeTemplatesCount} / {templates.length}
                     </p>
@@ -521,7 +521,7 @@ function NotificationCenterPage() {
                     </Form.Item>
                     <Form.Item
                         name="autoTrigger"
-                        label={<span className="text-xs font-bold text-slate-700">Mã Trigger Sự kiện (System Code)</span>}
+                        label={<span className="text-xs font-bold text-slate-700">Mã kích hoạt sự kiện hệ thống</span>}
                     >
                         <Input disabled className="bg-slate-50 font-mono text-xs" />
                     </Form.Item>

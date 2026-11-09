@@ -169,7 +169,7 @@ export default function BMReviewDrawer({
                             showIcon
                             icon={<ExclamationCircleOutlined className="text-rose-600" />}
                             message={<span className="font-bold text-rose-900 text-xs">CẢNH BÁO QUY CHẾ CHECKPOINT TIẾN ĐỘ BẮT BUỘC</span>}
-                            description="Đồ án gồm 2 đợt Checkpoint tiến độ. Chỉ có 2 kết quả: ĐẠT hoặc KHÔNG ĐẠT. Nếu đánh giá KHÔNG ĐẠT, hệ thống sẽ DỪNG THỰC HIỆN ĐỀ TÀI NGAY LẬP TỨC (TERMINATED_FAILED_PROGRESS) và sinh viên không đủ điều kiện ra bảo vệ."
+                            description="Đồ án gồm 2 đợt đánh giá tiến độ. Chỉ có 2 kết quả: ĐẠT hoặc KHÔNG ĐẠT. Nếu đánh giá KHÔNG ĐẠT, hệ thống sẽ dừng thực hiện đề tài ngay lập tức theo quy chế đào tạo và sinh viên không đủ điều kiện ra bảo vệ."
                             className="mb-4 border-rose-300 bg-rose-50/70"
                         />
                     )}

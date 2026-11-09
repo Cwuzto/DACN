@@ -28,7 +28,7 @@ const DEFAULT_FORMS = [
             { name: 'Tên đề tài (Tiếng Việt & Tiếng Anh)', type: 'Text', required: true },
             { name: 'Tính cấp thiết & Mục tiêu nghiên cứu', type: 'Textarea', required: true },
             { name: 'Phạm vi & Đối tượng nghiên cứu', type: 'Textarea', required: true },
-            { name: 'Công nghệ & Kiến trúc dự kiến (Tech stack)', type: 'Text', required: true },
+            { name: 'Công nghệ & Kiến trúc dự kiến', type: 'Text', required: true },
             { name: 'Kế hoạch triển khai chi tiết 15 tuần', type: 'Table / Grid', required: true },
             { name: 'Sản phẩm dự kiến & Demo bàn giao', type: 'Textarea', required: true },
             { name: 'Tài liệu tham khảo chính', type: 'Textarea', required: false },
@@ -108,7 +108,7 @@ const DEFAULT_FORMS = [
         sub: 'Tổng hợp điểm của 4 thành viên Hội đồng, chữ ký điện tử Chủ tịch & Thư ký',
         role: 'Hội đồng Bảo vệ & Thư ký',
         roleCategory: 'council',
-        period: 'Tại buổi lễ bảo vệ (Pha 5)',
+        period: 'Tại buổi lễ bảo vệ',
         version: 'v2.4',
         status: 'active',
         updatedAt: '15/10/2026',
@@ -130,7 +130,7 @@ const DEFAULT_FORMS = [
         sub: 'Thư viện số và Giáo vụ xác nhận mã Hash nộp bản toàn văn & mã nguồn hoàn chỉnh',
         role: 'Sinh viên & Thư viện / Giáo vụ',
         roleCategory: 'student',
-        period: 'Sau bảo vệ 10 ngày (Pha 6)',
+        period: 'Sau bảo vệ 10 ngày',
         version: 'v2.4',
         status: 'active',
         updatedAt: '15/10/2026',
@@ -692,7 +692,7 @@ export default function RubricManagementPage() {
                         <line x1="12" y1="20" x2="12" y2="4" />
                         <line x1="6" y1="20" x2="6" y2="14" />
                     </svg>
-                    <span>2. Biên tập Tiêu chuẩn Rubric Đánh giá (Admin Rubric Builder)</span>
+                    <span>2. Biên tập Tiêu chuẩn Rubric Đánh giá</span>
                 </button>
                 <button
                     className={`phase-nav-btn ${activeTab === 'history' ? 'active' : ''}`}

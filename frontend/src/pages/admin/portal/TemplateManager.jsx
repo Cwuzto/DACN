@@ -254,7 +254,7 @@ export default function TemplateManager({ form }) {
                         label: <span className="text-xs text-slate-500 hover:text-slate-700">Tùy chọn kỹ thuật nâng cao (Chỉnh sửa URL/MIME thủ công)</span>,
                         children: (
                             <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                                <Form.Item name="fileUrl" label="Đường dẫn tệp (URL)" className="mb-2">
+                                <Form.Item name="fileUrl" label="Đường dẫn tệp" className="mb-2">
                                     <Input placeholder="https://..." />
                                 </Form.Item>
                                 <Form.Item name="fileName" label="Tên tệp hiển thị" className="mb-2">

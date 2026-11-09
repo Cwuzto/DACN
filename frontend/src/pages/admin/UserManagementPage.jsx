@@ -924,7 +924,7 @@ function UserManagementPage() {
                             <Input placeholder="Nhập họ và tên đầy đủ" />
                         </Form.Item>
                         <Form.Item
-                            label={selectedRole === 'STUDENT' ? 'Mã số sinh viên (MSSV) (*)' : 'Mã số người dùng'}
+                            label={selectedRole === 'STUDENT' ? 'Mã số sinh viên (*)' : 'Mã số người dùng'}
                             name="code"
                             rules={[{ required: true, message: 'Nhập mã số!' }]}
                         >
