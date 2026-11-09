@@ -107,3 +107,4 @@ Toàn bộ hệ thống đã được kiểm thử tự động toàn diện:
 4. **Định dạng & Chuẩn mã hóa**:
    - 100% tệp tin đã tạo và chỉnh sửa đạt chuẩn **UTF-8 (no BOM)**.
    - Bảo toàn tuyệt đối kiến trúc `TopicRegistration` (`1 SV / 1 Đề tài`, tối đa 10 SV / GVHD).
+

@@ -9,7 +9,7 @@ const { Text, Title } = Typography;
 const FORM_CONFIGS = {
     BM01: {
         code: 'BM01',
-        title: 'BM01 - Đề cương chi tiết Đồ án',
+        title: 'Đề cương chi tiết Đồ án',
         subtitle: 'Khai báo thông tin đề cương chi tiết và đính kèm bản ký xác nhận',
         fields: [
             { name: 'topicTitle', label: 'Tên đề tài', type: 'input', required: true, placeholder: 'Nhập tên đề tài chính xác' },
@@ -22,7 +22,7 @@ const FORM_CONFIGS = {
     },
     BM02: {
         code: 'BM02',
-        title: 'BM02 - Phiếu giao nhiệm vụ Đồ án',
+        title: 'Đơn đăng ký đề tài & Phiếu giao nhiệm vụ',
         subtitle: 'Xác nhận các mốc nhiệm vụ trọng tâm và nội dung thực hiện',
         fields: [
             { name: 'mainTasks', label: 'Tóm tắt các nhiệm vụ chính', type: 'textarea', required: true, rows: 3, placeholder: 'Liệt kê các nhiệm vụ nghiên cứu và phát triển cốt lõi' },
@@ -34,7 +34,7 @@ const FORM_CONFIGS = {
     },
     BM03_CHECKPOINT_1: {
         code: 'BM03',
-        title: 'BM03 - Báo cáo Tiến độ Đợt 1 (Tuần 6)',
+        title: 'Báo cáo Tiến độ Đợt 1 (Tuần 6)',
         subtitle: 'Báo cáo khối lượng công việc hoàn thành đợt 1 (Mục tiêu tối thiểu >= 40%)',
         fields: [
             { name: 'progressPercent', label: 'Khối lượng hoàn thành (%)', type: 'number', min: 0, max: 100, required: true, placeholder: 'Nhập % (0 - 100)' },
@@ -47,7 +47,7 @@ const FORM_CONFIGS = {
     },
     BM03_CHECKPOINT_2: {
         code: 'BM03',
-        title: 'BM03 - Báo cáo Tiến độ Đợt 2 (Tuần 10)',
+        title: 'Báo cáo Tiến độ Đợt 2 (Tuần 10)',
         subtitle: 'Báo cáo hoàn thiện sản phẩm và chuẩn bị bản thảo báo cáo (Mục tiêu >= 80%)',
         fields: [
             { name: 'progressPercent', label: 'Khối lượng hoàn thành (%)', type: 'number', min: 0, max: 100, required: true, placeholder: 'Nhập % (0 - 100)' },
@@ -213,7 +213,7 @@ export default function HybridBMFormModal({
                 <div className="border-b border-slate-100 pb-4 mb-5">
                     <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded bg-blue-50 text-blue-700 text-xs font-semibold mb-2">
                         <span className="material-symbols-outlined text-[14px]">description</span>
-                        {config.code} - BIỂU MẪU ĐỒ ÁN
+                        BIỂU MẪU ĐỒ ÁN
                     </div>
                     <Title level={4} className="!mb-1 !text-slate-800">
                         {config.title}

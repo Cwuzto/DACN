@@ -85,16 +85,16 @@ export default function BM02ReviewDrawer({
             if (res.success || res.submission) {
                 message.success(
                     action === 'APPROVE'
-                        ? 'Đã phê duyệt đề cương BM02 thành công!'
-                        : 'Đã gửi yêu cầu chỉnh sửa đề cương BM02 cho sinh viên.'
+                        ? 'Đã phê duyệt đơn đăng ký đề tài thành công!'
+                        : 'Đã gửi yêu cầu chỉnh sửa đơn đăng ký đề tài cho sinh viên.'
                 );
                 if (onSuccess) onSuccess(res.data || res);
                 if (onClose) onClose();
             } else {
-                message.error(res.message || 'Không thể cập nhật kết quả thẩm định BM02');
+                message.error(res.message || 'Không thể cập nhật kết quả thẩm định');
             }
         } catch (error) {
-            message.error(error?.message || 'Đã xảy ra lỗi khi thẩm định hồ sơ BM02');
+            message.error(error?.message || 'Đã xảy ra lỗi khi thẩm định hồ sơ');
         } finally {
             setSubmitting(false);
         }
@@ -109,7 +109,7 @@ export default function BM02ReviewDrawer({
             title={(
                 <div className="flex items-center gap-2">
                     <CheckCircleOutlined className="text-teal-600 text-lg" />
-                    <span className="font-bold text-slate-800">Thẩm định Đơn Đề cương BM02</span>
+                    <span className="font-bold text-slate-800">Thẩm định Đơn Đăng Ký Đề Tài</span>
                 </div>
             )}
             open={open}
@@ -127,7 +127,7 @@ export default function BM02ReviewDrawer({
                         onClick={() => form.submit()}
                         className={selectedAction === 'APPROVE' ? '!bg-teal-600 hover:!bg-teal-700' : '!bg-amber-600 hover:!bg-amber-700'}
                     >
-                        {selectedAction === 'APPROVE' ? 'Xác nhận Phê duyệt BM02' : 'Xác nhận Yêu cầu Sửa đổi'}
+                        {selectedAction === 'APPROVE' ? 'Xác nhận Phê duyệt Đơn' : 'Xác nhận Yêu cầu Sửa đổi'}
                     </Button>
                 </div>
             )}

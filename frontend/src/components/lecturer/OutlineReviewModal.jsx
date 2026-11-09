@@ -65,7 +65,7 @@ export default function OutlineReviewModal({
             if (res.success) {
                 message.success(
                     decision === 'PASSED'
-                        ? 'Đã duyệt ĐẠT đề cương BM01! Sinh viên có thể tiến hành nộp BM02.'
+                        ? 'Đã duyệt ĐẠT đề cương! Sinh viên có thể tiến hành nộp đơn đăng ký đề tài chính thức.'
                         : 'Đã gửi yêu cầu chỉnh sửa đề cương tới sinh viên.'
                 );
                 onSuccess?.();
@@ -85,7 +85,7 @@ export default function OutlineReviewModal({
             title={
                 <div className="flex items-center gap-2 text-base font-semibold text-slate-800">
                     <FileTextOutlined className="text-blue-600 text-lg" />
-                    <span>Hội Đồng Thẩm Định Đề Cương BM01 — Kết Luận Của Chủ Tịch</span>
+                    <span>Hội Đồng Thẩm Định Đề Cương — Kết Luận Của Chủ Tịch</span>
                 </div>
             }
             open={open}
@@ -99,7 +99,7 @@ export default function OutlineReviewModal({
                     type="info"
                     showIcon
                     message="Thẩm quyền Chủ tịch Hội đồng Thẩm định Đề cương"
-                    description="Với vai trò Chủ tịch Hội đồng, quyết định của bạn sẽ trực tiếp chốt kết quả đề cương BM01. Nếu ĐẠT, sinh viên sẽ chuyển sang trạng thái BM01_PASSED và được phép nộp BM02. Nếu CẦN CHỈNH SỬA, sinh viên sẽ được thông báo để chỉnh sửa và nộp lại cho GVHD."
+                    description="Với vai trò Chủ tịch Hội đồng, quyết định của bạn sẽ trực tiếp chốt kết quả đề cương chi tiết. Nếu ĐẠT, đề cương được thông qua và sinh viên được phép nộp đơn đăng ký đề tài chính thức. Nếu CẦN CHỈNH SỬA, sinh viên sẽ được thông báo để chỉnh sửa và nộp lại cho GVHD."
                 />
 
                 {/* THÔNG TIN ĐỀ TÀI & HỘI ĐỒNG */}
@@ -187,10 +187,10 @@ export default function OutlineReviewModal({
                             >
                                 <div className="ml-1">
                                     <div className="font-semibold text-emerald-700 flex items-center gap-1.5">
-                                        <CheckCircleOutlined /> ĐẠT — Thông qua Đề Cương (BM01_PASSED)
+                                        <CheckCircleOutlined /> ĐẠT — Thông qua Đề cương
                                     </div>
                                     <div className="text-xs text-slate-500 mt-0.5">
-                                        Đề cương đáp ứng đầy đủ yêu cầu khoa học và mục tiêu đồ án. Cho phép sinh viên nộp BM02.
+                                        Đề cương đáp ứng đầy đủ yêu cầu khoa học và mục tiêu đồ án. Cho phép sinh viên tiến hành nộp đơn đăng ký đề tài chính thức.
                                     </div>
                                 </div>
                             </Radio>
@@ -201,7 +201,7 @@ export default function OutlineReviewModal({
                             >
                                 <div className="ml-1">
                                     <div className="font-semibold text-amber-700 flex items-center gap-1.5">
-                                        <ExclamationCircleOutlined /> CẦN CHỈNH SỬA — Yêu Cầu Chỉnh Sửa Đề Cương (BM01_NEEDS_REVISION)
+                                        <ExclamationCircleOutlined /> CẦN CHỈNH SỬA — Yêu Cầu Chỉnh Sửa Đề Cương
                                     </div>
                                     <div className="text-xs text-slate-500 mt-0.5">
                                         Đề cương cần bổ sung, chỉnh sửa nội dung theo góp ý chuyên môn của Hội đồng.

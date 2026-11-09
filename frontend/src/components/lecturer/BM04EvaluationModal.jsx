@@ -40,15 +40,15 @@ export default function BM04EvaluationModal({
             });
 
             if (res.success) {
-                message.success('Đã lập và ký khóa biểu mẫu BM04 thành công!');
+                message.success('Đã lập và ký khóa phiếu nhận xét thành công!');
                 form.resetFields();
                 onSuccess?.();
                 onClose?.();
             } else {
-                message.error(res.message || 'Không thể nộp phiếu BM04.');
+                message.error(res.message || 'Không thể nộp phiếu nhận xét.');
             }
         } catch (error) {
-            message.error(error.message || 'Đã có lỗi xảy ra khi nộp phiếu BM04.');
+            message.error(error.message || 'Đã có lỗi xảy ra khi nộp phiếu nhận xét.');
         } finally {
             setSubmitting(false);
         }
@@ -59,7 +59,7 @@ export default function BM04EvaluationModal({
             title={
                 <div className="flex items-center gap-2 text-base font-semibold text-slate-800">
                     <SafetyCertificateOutlined className="text-emerald-600 text-lg" />
-                    <span>Lập Phiếu Nhận Xét & Đánh Giá Của GVHD (Biểu Mẫu BM04)</span>
+                    <span>Lập Phiếu Nhận Xét & Đánh Giá Của Người Hướng Dẫn</span>
                 </div>
             }
             open={open}
@@ -73,7 +73,7 @@ export default function BM04EvaluationModal({
                     type="warning"
                     showIcon
                     message="Tính bất biến & Trách nhiệm pháp lý của GVHD"
-                    description="Biểu mẫu BM04 chỉ cần duy nhất chữ ký xác nhận của GVHD. Sau khi ký nộp, phiếu sẽ được KHÓA VĨNH VIỄN, không thể chỉnh sửa. Nếu kết luận ĐỒNG Ý, sinh viên sẽ tự động được chuyển sang trạng thái Sẵn sàng xếp Hội đồng bảo vệ."
+                    description="Phiếu nhận xét chỉ cần duy nhất chữ ký xác nhận của GVHD. Sau khi ký nộp, phiếu sẽ được KHÓA VĨNH VIỄN, không thể chỉnh sửa. Nếu kết luận ĐỒNG Ý, sinh viên sẽ tự động được chuyển sang trạng thái Sẵn sàng xếp Hội đồng bảo vệ."
                 />
 
                 <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
@@ -209,7 +209,7 @@ export default function BM04EvaluationModal({
                             Hủy bỏ
                         </button>
                         <Popconfirm
-                            title="Xác nhận nộp & Khóa vĩnh viễn phiếu BM04?"
+                            title="Xác nhận nộp & Khóa vĩnh viễn phiếu nhận xét?"
                             description="Sau khi ký nộp, bạn sẽ KHÔNG THỂ thay đổi kết luận hay chỉnh sửa nhận xét. Bạn có chắc chắn muốn nộp?"
                             onConfirm={() => form.submit()}
                             okText="Đồng ý ký khóa"
@@ -221,7 +221,7 @@ export default function BM04EvaluationModal({
                                 disabled={submitting}
                                 className="px-5 py-2 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition disabled:opacity-50"
                             >
-                                {submitting ? 'Đang ký khóa...' : 'Ký Xác Nhận & Khóa Phiếu BM04'}
+                                {submitting ? 'Đang ký khóa...' : 'Ký Xác Nhận & Khóa Phiếu Nhận Xét'}
                             </button>
                         </Popconfirm>
                     </div>
