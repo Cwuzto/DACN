@@ -95,6 +95,11 @@ model User {
   resolvedManualReviewCases       ManualReviewCase[]            @relation("ManualReviewResolvedBy")
   reviewedBM01Evaluations         BM01Evaluation[]              @relation("BM01ReviewedBy")
   submittedBM01Evaluations        BM01Evaluation[]              @relation("BM01SubmittedBy")
+  reviewedRevisionBM01Evaluations BM01Evaluation[]              @relation("BM01RevisionReviewedBy")
+  batchSecretaryCouncilBatches    CouncilResultBatch[]          @relation("BatchSecretary")
+  batchChairCouncilBatches        CouncilResultBatch[]          @relation("BatchChair")
+  batchReturnedCouncilBatches     CouncilResultBatch[]          @relation("BatchReturnedBy")
+  batchReopenedCouncilBatches     CouncilResultBatch[]          @relation("BatchReopenedBy")
   submittedBM02Submissions        BM02Submission[]              @relation("BM02SubmittedBy")
   reviewedBM02Submissions         BM02Submission[]              @relation("BM02ReviewedBy")
   issuedAssignmentDecisions       AssignmentDecision[]          @relation("AssignmentDecisionIssuer")
@@ -146,8 +151,14 @@ model Semester {
   registrationDeadline   DateTime?                     @map("registration_deadline")
   midtermReportDate      DateTime?                     @map("midterm_report_date")
   defenseDate            DateTime?                     @map("defense_date")
-  registrationOpen       Boolean                       @default(true) @map("registration_open")
-  status                 SemesterStatus                @default(UPCOMING)
+  registrationOpen            Boolean                       @default(true) @map("registration_open")
+  status                      SemesterStatus                @default(UPCOMING)
+  outlineSubmissionOpenAt     DateTime?                     @map("outline_submission_open_at")
+  outlineSubmissionDeadline   DateTime?                     @map("outline_submission_deadline")
+  outlineTemplateFileUrl      String?                       @map("outline_template_file_url")
+  outlineTemplateFileId       Int?                          @map("outline_template_file_id")
+  outlineAllowedExtensions    Json                          @default("[\".docx\", \".pdf\"]") @map("outline_allowed_extensions")
+  outlineMaxFileSizeBytes     Int                           @default(20971520) @map("outline_max_file_size_bytes")
   createdAt              DateTime                      @default(now()) @map("created_at")
   updatedAt              DateTime                      @updatedAt @map("updated_at")
   councils               Council[]
@@ -263,34 +274,52 @@ model TopicRegistration {
 }
 
 model BM01Evaluation {
-  id              Int                         @id @default(autoincrement())
-  registrationId  Int                         @map("registration_id")
-  attemptNo       Int                         @map("attempt_no")
-  outcome         BM01Outcome?
-  issues          Json?
-  deadlineAt      DateTime?                   @map("deadline_at")
-  notifiedAt      DateTime?                   @map("notified_at")
-  submittedAt     DateTime?                   @map("submitted_at")
-  submittedById   Int?                        @map("submitted_by_id")
-  submissionId    Int?                        @unique @map("submission_id")
-  supersedesId    Int?                        @unique @map("supersedes_id")
-  reviewedAt      DateTime?                   @map("reviewed_at")
-  reviewedById    Int?                        @map("reviewed_by_id")
-  policyVersionId Int                         @map("policy_version_id")
-  createdAt       DateTime                    @default(now()) @map("created_at")
-  registration    TopicRegistration           @relation(fields: [registrationId], references: [id], onDelete: Restrict)
-  submittedBy     User?                       @relation("BM01SubmittedBy", fields: [submittedById], references: [id], onDelete: SetNull)
-  submission      Submission?                 @relation(fields: [submissionId], references: [id], onDelete: Restrict)
-  supersedes      BM01Evaluation?             @relation("BM01Supersession", fields: [supersedesId], references: [id], onDelete: Restrict)
-  supersededBy    BM01Evaluation?             @relation("BM01Supersession")
-  reviewedBy      User?                       @relation("BM01ReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
-  policyVersion   PeriodWorkflowPolicyVersion @relation("BM01PolicyVersion", fields: [policyVersionId], references: [id], onDelete: Restrict)
+  id                         Int                           @id @default(autoincrement())
+  registrationId             Int                           @map("registration_id")
+  attemptNo                  Int                           @map("attempt_no")
+  outcome                    BM01Outcome?
+  issues                     Json?
+  deadlineAt                 DateTime?                     @map("deadline_at")
+  notifiedAt                 DateTime?                     @map("notified_at")
+  submittedAt                DateTime?                     @map("submitted_at")
+  submittedById              Int?                          @map("submitted_by_id")
+  submissionId               Int?                          @unique @map("submission_id")
+  supersedesId               Int?                          @unique @map("supersedes_id")
+  reviewedAt                 DateTime?                     @map("reviewed_at")
+  reviewedById               Int?                          @map("reviewed_by_id")
+  policyVersionId            Int                           @map("policy_version_id")
+  councilId                  Int?                          @map("council_id")
+  batchId                    Int?                          @map("batch_id")
+  initialOutcome             OutlineInitialOutcome?        @map("initial_outcome")
+  attendanceStatus           AttendanceStatus?             @default(PRESENT) @map("attendance_status")
+  comment                    String?
+  revisionRequirements       String?                       @map("revision_requirements")
+  revisionSubmissionId       Int?                          @unique @map("revision_submission_id")
+  revisionApprovalStatus     OutlineRevisionApprovalStatus? @default(NOT_REQUIRED) @map("revision_approval_status")
+  revisionReviewedAt         DateTime?                     @map("revision_reviewed_at")
+  revisionReviewedById       Int?                          @map("revision_reviewed_by_id")
+  revisionFeedback           String?                       @map("revision_feedback")
+  createdAt                  DateTime                      @default(now()) @map("created_at")
+  registration               TopicRegistration             @relation(fields: [registrationId], references: [id], onDelete: Restrict)
+  submittedBy                User?                         @relation("BM01SubmittedBy", fields: [submittedById], references: [id], onDelete: SetNull)
+  submission                 Submission?                   @relation(fields: [submissionId], references: [id], onDelete: Restrict)
+  supersedes                 BM01Evaluation?               @relation("BM01Supersession", fields: [supersedesId], references: [id], onDelete: Restrict)
+  supersededBy               BM01Evaluation?               @relation("BM01Supersession")
+  reviewedBy                 User?                         @relation("BM01ReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  policyVersion              PeriodWorkflowPolicyVersion   @relation("BM01PolicyVersion", fields: [policyVersionId], references: [id], onDelete: Restrict)
+  council                    Council?                      @relation(fields: [councilId], references: [id], onDelete: Restrict)
+  batch                      CouncilResultBatch?           @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  revisionSubmission         Submission?                   @relation("BM01RevisionSubmission", fields: [revisionSubmissionId], references: [id], onDelete: Restrict)
+  revisionReviewedBy         User?                         @relation("BM01RevisionReviewedBy", fields: [revisionReviewedById], references: [id], onDelete: Restrict)
 
   @@unique([registrationId, attemptNo])
+  @@unique([batchId, registrationId])
   @@index([registrationId, outcome])
   @@index([submittedById])
   @@index([reviewedById])
   @@index([policyVersionId])
+  @@index([councilId])
+  @@index([batchId])
   @@map("bm01_evaluations")
 }
 
@@ -527,26 +556,66 @@ model Submission {
   task           Task              @relation(fields: [taskId], references: [id])
   registration   TopicRegistration @relation(fields: [registrationId], references: [id])
   bm01Evaluation BM01Evaluation?
+  bm01RevisionEvaluation BM01Evaluation? @relation("BM01RevisionSubmission")
 
   @@map("submissions")
 }
 
 model Council {
-  id                   Int                 @id @default(autoincrement())
-  semesterId           Int                 @map("semester_id")
-  name                 String
-  councilType          CouncilType         @default(DEFENSE_COUNCIL) @map("council_type")
-  location             String?
-  defenseDate          DateTime?           @map("defense_date")
-  createdAt            DateTime            @default(now()) @map("created_at")
-  updatedAt            DateTime            @updatedAt @map("updated_at")
-  members              CouncilMember[]
-  semester             Semester            @relation(fields: [semesterId], references: [id])
-  registrations        TopicRegistration[] @relation("CouncilLegacy")
-  outlineRegistrations TopicRegistration[] @relation("OutlineCouncil")
-  defenseRegistrations TopicRegistration[] @relation("DefenseCouncil")
+  id                         Int                  @id @default(autoincrement())
+  semesterId                 Int                  @map("semester_id")
+  name                       String
+  councilType                CouncilType          @default(DEFENSE_COUNCIL) @map("council_type")
+  location                   String?
+  defenseDate                DateTime?            @map("defense_date")
+  meetingMode                CouncilMeetingMode?  @default(IN_PERSON) @map("meeting_mode")
+  meetingUrl                 String?              @map("meeting_url")
+  schedulePublishedAt        DateTime?            @map("schedule_published_at")
+  revisionSubmissionDeadline DateTime?            @map("revision_submission_deadline")
+  isActive                   Boolean              @default(true) @map("is_active")
+  deletedAt                  DateTime?            @map("deleted_at")
+  rowVersion                 Int                  @default(1) @map("row_version")
+  createdAt                  DateTime             @default(now()) @map("created_at")
+  updatedAt                  DateTime             @updatedAt @map("updated_at")
+  members                    CouncilMember[]
+  semester                   Semester             @relation(fields: [semesterId], references: [id])
+  registrations              TopicRegistration[]  @relation("CouncilLegacy")
+  outlineRegistrations       TopicRegistration[]  @relation("OutlineCouncil")
+  defenseRegistrations       TopicRegistration[]  @relation("DefenseCouncil")
+  resultBatches              CouncilResultBatch[]
+  bm01Evaluations            BM01Evaluation[]
 
   @@map("councils")
+}
+
+model CouncilResultBatch {
+  id                     Int                 @id @default(autoincrement())
+  councilId              Int                 @map("council_id")
+  versionNumber          Int                 @default(1) @map("version_number")
+  status                 CouncilBatchStatus  @default(DRAFT)
+  secretaryCompletedAt   DateTime?           @map("secretary_completed_at")
+  secretaryCompletedById Int?                @map("secretary_completed_by_id")
+  chairPublishedAt       DateTime?           @map("chair_published_at")
+  chairPublishedById     Int?                @map("chair_published_by_id")
+  returnedAt             DateTime?           @map("returned_at")
+  returnedById           Int?                @map("returned_by_id")
+  returnReason           String?             @map("return_reason")
+  reopenedAt             DateTime?           @map("reopened_at")
+  reopenedById           Int?                @map("reopened_by_id")
+  reopenReason           String?             @map("reopen_reason")
+  createdAt              DateTime            @default(now()) @map("created_at")
+  updatedAt              DateTime            @updatedAt @map("updated_at")
+
+  council                Council             @relation(fields: [councilId], references: [id], onDelete: Restrict)
+  secretaryCompletedBy   User?               @relation("BatchSecretary", fields: [secretaryCompletedById], references: [id], onDelete: Restrict)
+  chairPublishedBy       User?               @relation("BatchChair", fields: [chairPublishedById], references: [id], onDelete: Restrict)
+  returnedBy             User?               @relation("BatchReturnedBy", fields: [returnedById], references: [id], onDelete: Restrict)
+  reopenedBy             User?               @relation("BatchReopenedBy", fields: [reopenedById], references: [id], onDelete: Restrict)
+  evaluations            BM01Evaluation[]
+
+  @@unique([councilId, versionNumber])
+  @@index([councilId, status])
+  @@map("council_result_batches")
 }
 
 model CouncilMember {
@@ -973,6 +1042,7 @@ enum RegistrationStatus {
   REJECTED
   BM01_SUBMITTED
   BM01_NEEDS_REVISION
+  BM01_RESUBMITTED
   BM01_PASSED
   BM02_SUBMITTED
   BM02_NEEDS_REVISION
@@ -1240,6 +1310,8 @@ enum EnrollmentSource {
 
 enum TaskType {
   BM01
+  BM01_INITIAL_SUBMISSION
+  BM01_RESUBMISSION
   BM02
   BM03_CHECKPOINT_1
   BM03_CHECKPOINT_2
@@ -1289,4 +1361,38 @@ enum MentorAssignmentStatus {
   TRANSFERRED
   CANCELLED
 }
+
+enum CouncilMeetingMode {
+  IN_PERSON
+  MICROSOFT_TEAMS
+}
+
+enum CouncilBatchStatus {
+  DRAFT
+  PENDING_CHAIR
+  PUBLISHED
+  SUPERSEDED
+  REOPENED
+}
+
+enum OutlineInitialOutcome {
+  PASS
+  REVISION_REQUIRED
+  FAIL
+  ABSENT
+}
+
+enum OutlineRevisionApprovalStatus {
+  NOT_REQUIRED
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  EXCUSED
+}
+
 
