@@ -291,9 +291,6 @@ const registerTopic = async (req, res, next) => {
                         status: { in: MENTOR_ACTIVE_REGISTRATION_STATUSES },
                     },
                     include: {
-                        semester: {
-                            select: { id: true, name: true, startDate: true, endDate: true },
-                        },
                         topic: {
                             select: {
                                 id: true,
