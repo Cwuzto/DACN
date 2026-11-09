@@ -70,6 +70,55 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 
 ## 6. Cập Nhật Phiên Làm Việc (Session Update)
 
+### Phiên 09/11/2026
+
+#### 1. Những phần đã hoàn thành
+1. **Kiến trúc Bảo mật Chống Leo thang Đặc quyền (P0 Anti-Escalation & Academic Scope Guard)**:
+   - Ngăn chặn Quản trị viên kỹ thuật tự nâng quyền hoặc gán 48 quyền học thuật được bảo vệ (`ACADEMIC_PROTECTED_PERMISSIONS`) nếu không sở hữu thẩm quyền học thuật `PERMISSION_ASSIGN_ACADEMIC`.
+   - Kiểm tra delta quyền trong cùng transaction khi tạo/sửa nhóm hoặc gán nhóm cho người dùng.
+   - Thẩm định phạm vi học thuật theo khoa chính thức (`TopicRegistration.topic.mentor.department`), loại bỏ cơ chế fallback mơ hồ.
+   - Kiểm tra hiệu lực ủy quyền `AcademicDelegation` thời gian thực (in-tx delegation check), vô hiệu hóa cache khi thu hồi ủy quyền.
+   - Tách route và phân quyền độc lập cho các nghiệp vụ: `CHECKPOINT_ISSUE`, `SIGNATURE_APPEAL_REVIEW`, `RESULT_PUBLICATION_PUBLISH`.
+2. **Tối ưu hóa Giao diện Ma trận Phân quyền P1 (Permission Matrix UX & Registry Stats)**:
+   - Tái cấu trúc ma trận phân quyền thành Accordion 14 module chức năng có nút Thu gọn/Mở rộng tất cả (`Expand/Collapse All`).
+   - Bộ lọc đa chiều: Hành động vs Xem dữ liệu, Quyền học thuật vs Kỹ thuật hệ thống, tìm kiếm từ khóa thời gian thực.
+   - Nhóm gộp mã bí danh (Canonical Alias Grouping): Tinh gọn 10 cặp alias về mã chuẩn đại diện, tự động đồng bộ payload khi lưu.
+   - KPI thống kê quyền sinh tự động từ registry (loại bỏ số liệu hardcode).
+   - Khóa checkbox an toàn (Guard disable) trên UI đối với admin kỹ thuật không có thẩm quyền học thuật.
+3. **Khắc phục Lỗi Điều hướng & Giao diện Trắng Trang**:
+   - Sửa lỗi `ReferenceError: NAVIGATION_REGISTRY is not defined` trong `AppLayout.jsx` khi URL chứa query params `?tab=...`.
+   - Sửa lỗi 403 Forbidden khi Admin truy cập Trung tâm thông báo (`NotificationCenterPage.jsx`) bằng cách lazy-load hội đồng và mở rộng quyền đọc `GET /api/councils`.
+4. **Sửa lỗi Schema Prisma trên Đợt Đồ án (`Semester`) & Hồ sơ Đăng ký (`TopicRegistration`)**:
+   - Khắc phục lỗi Prisma crash `Unknown field code for select statement on model Semester` tại `lecturerAssignmentController.js` và `manualReviewController.js` (loại bỏ `code: true` trên `Semester`).
+   - Sửa lỗi trắng trang tại Hàng đợi thẩm định (`/admin/manual-reviews`) do chọn trường `code` không tồn tại trên `Semester`.
+   - Khắc phục lỗi `Unknown field semester for include statement on model TopicRegistration` tại `lecturerAssignmentController.js` (dòng 75 và 614), chuyển sang truy vấn chuẩn qua `topic.semester`.
+5. **Điều phối Phân công Giảng viên (`LecturerProjectAssignment`) & Lọc Giảng viên Khả dụng**:
+   - Cấp quyền `ENROLLMENT_MANAGE` cho toàn bộ các thao tác ghi của phân công giảng viên trong `lecturerAssignmentRoutes.js`, cho phép Quản trị viên điều phối đợt đồ án không bị lỗi 403.
+   - Triển khai API mới `GET /api/lecturer-assignments/available-lecturers`:
+     + Lọc bỏ giảng viên đã được phân công trong đợt đồ án.
+     + Ứng dụng thuật toán sweep kiểm tra tải đỉnh thời gian thực, loại bỏ giảng viên đã chạm trần 10 sinh viên ở các đợt gối đầu.
+     + Tính toán chỉ tiêu tối đa còn khả dụng (`availableQuota`) và tự động giới hạn `plannedQuota` trên form UI.
+
+#### 2. Trạng thái cập nhật của từng phần
+- **Backend API**: `OPERATIONAL` - Tất cả các route điều phối đợt đồ án, phân công giảng viên, ma trận quyền và phân hệ bảo mật hoạt động ổn định.
+- **Frontend SPA**: `BUILD PASS` - 3222 modules build production thành công trong 13.7s; giao diện ma trận quyền và điều phối đợt đồ án phản hồi mượt mà.
+- **Database / Prisma**: `ALIGNED` - Toàn bộ các truy vấn Prisma đã được rà soát và khớp 100% với `schema.prisma`.
+- **MCP Servers**: Hoạt động bình thường.
+- **Test Suite**:
+  + Backend: **66/66 test suites PASS, 499/499 tests PASS** (100%).
+  + Frontend: **93/93 tests PASS** (100%).
+- **Git Branch**: `develop` - Đã push toàn bộ commits lên GitHub.
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+1. Kiểm tra nghiệm thu luồng E2E phân công giảng viên từ file Excel trong tab Giảng viên hướng dẫn.
+2. Kiểm tra lại luồng xử lý quyết định thẩm định đề cương và kháng nghị chữ ký tiến độ BM03.
+3. Rà soát hiệu năng các câu truy vấn sweep capacity khi số lượng giảng viên và sinh viên tăng cao (stress test dữ liệu lớn).
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+1. **Phân quyền điều phối đợt đồ án**: Bổ sung `ENROLLMENT_MANAGE` cho các route phân công giảng viên (`LecturerProjectAssignment`) vì đây là công tác điều phối đợt chung của Quản trị viên và Giáo vụ, tách biệt với quyền phân công người hướng dẫn đích danh từng đề tài (`MENTOR_ASSIGN`).
+2. **Lọc Giảng viên Khả dụng tại Tầng Backend**: Thực hiện sweep capacity trên server (`GET /api/lecturer-assignments/available-lecturers`) thay vì lọc thủ công trên client, nhằm đảm bảo quy chế "1 GVHD tối đa 10 sinh viên" được bảo vệ chặt chẽ trên toàn bộ các đợt đồ án gối đầu.
+3. **Truy vấn quan hệ kỳ học qua `Topic`**: `TopicRegistration` liên kết trực tiếp với `Topic` và `Topic` mới có quan hệ `Semester`, do đó toàn bộ các truy vấn lấy thông tin kỳ học của hồ sơ phải đi qua `topic.semester`.
+
 ### Phiên 28/10/2026
 
 #### 1. Những phần đã hoàn thành
