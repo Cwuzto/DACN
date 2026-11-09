@@ -1150,7 +1150,8 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 - **Git Branch**: Branch remediation gồm 19 commits sạch, có review package chi tiết cho từng task và toàn nhánh (`review-7b0d820..d253250.diff`).
 
 #### 3. Bước tiếp theo cần làm (Next Session Plan)
-1. **Deploy Production Database Migration**: Chạy `npx prisma migrate deploy` trên môi trường Production để áp dụng enum `ArchivePhase`.
+1. **Loại bỏ nút mô phỏng "Kê khai Giờ chuẩn" trên Dashboard Giảng viên**: Gỡ bỏ nút bấm và modal mô phỏng `Kê Khai Giờ Chuẩn Hướng Dẫn & Hội Đồng` trong `frontend/src/pages/lecturer/LecturerDashboardPage.jsx` để giao diện gọn gàng, tránh gây hiểu lầm cho giảng viên.
+2. **Deploy Production Database Migration**: Chạy `npx prisma migrate deploy` trên môi trường Production để áp dụng enum `ArchivePhase`.
 2. **Backfill Archive Data**: Chạy script `node backend/scripts/migrations/backfillArchivePhases.js --dry-run=false` với tài khoản quản trị để phân loại chính xác các hồ sơ lưu chiểu cũ.
 3. **End-to-End User Acceptance Test (UAT)**: Thực hiện kịch bản kiểm chứng thực tế từ tài khoản `sv001`, `lecturer01` (Trưởng Viện / GVHD), `lecturer02` (Chủ tịch HĐ) và `admin` theo 10 bước của Kế hoạch Nghiệm thu Toàn tuyến.
 4. **CI/CD Polish**: Bổ sung cờ `--forceExit` vào script test trong `backend/package.json` để tự động ngắt kết nối database pool sau khi Jest hoàn tất.
