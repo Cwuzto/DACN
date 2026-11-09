@@ -46,9 +46,17 @@ export const topicService = {
         }
     },
 
-    getMentors: async () => {
+    propose: async (data) => {
         try {
-            return await api.get('/topics/mentors');
+            return await api.post('/topics', data);
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi gửi đề xuất đề tài');
+        }
+    },
+
+    getMentors: async (params = {}) => {
+        try {
+            return await api.get('/topics/mentors', { params });
         } catch (error) {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi tải danh sách giảng viên');
         }

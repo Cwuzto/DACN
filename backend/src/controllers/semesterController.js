@@ -4,6 +4,7 @@ const { safeNotify } = require('../services/notificationService');
 const { auditLog } = require('../services/auditLogService');
 const { issueAssignmentDecision, createDecisionAmendment } = require('../services/academicDocumentService');
 const { WorkflowTransitionError } = require('../services/registrationTransitionService');
+const { createPolicyVersion, DEFAULT_POLICY } = require('../services/workflowPolicyService');
 
 const REGISTRATION_TOGGLE_WARNING_WINDOW_DAYS = 14;
 
@@ -184,6 +185,18 @@ const createSemester = async (req, res, next) => {
                 status: calculatedStatus,
             },
         });
+
+        if (prisma.periodWorkflowPolicyVersion?.create) {
+            try {
+                await createPolicyVersion({
+                    semesterId: newSemester.id,
+                    policy: DEFAULT_POLICY,
+                    createdById: req.user?.id || null,
+                });
+            } catch (policyErr) {
+                console.error('Failed to create default workflow policy version for semester:', policyErr);
+            }
+        }
 
         res.status(201).json({
             success: true,

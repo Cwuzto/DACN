@@ -118,11 +118,19 @@ export default function TopicListPage() {
             const params = { semesterId: currentSemesterId };
             if (selectedProjectCatalogId) params.projectCatalogId = selectedProjectCatalogId;
 
-            const [topicRes, regRes, enrollRes] = await Promise.all([
+            const [topicRes, regRes, enrollRes, mentorRes] = await Promise.all([
                 topicService.getAll(params),
                 registrationService.getMyRegistration({ semesterId: currentSemesterId }),
                 registrationService.getMyProjectEnrollments({ semesterId: currentSemesterId }),
+                topicService.getMentors({
+                    semesterId: currentSemesterId,
+                    ...(selectedProjectCatalogId ? { projectCatalogId: selectedProjectCatalogId } : {}),
+                }),
             ]);
+
+            if (mentorRes.success && Array.isArray(mentorRes.data) && mentorRes.data.length > 0) {
+                setMentors(mentorRes.data);
+            }
 
             if (topicRes.success) {
                 setTopics((topicRes.data || []).map((topic, index) => ({
