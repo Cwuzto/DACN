@@ -78,9 +78,6 @@ const listLecturerAssignments = async (req, res, next) => {
                 status: { notIn: INACTIVE_REGISTRATION_STATUSES },
             },
             include: {
-                semester: {
-                    select: { id: true, name: true, startDate: true, endDate: true },
-                },
                 topic: {
                     select: {
                         id: true,
@@ -615,9 +612,6 @@ const getRoundCoordinationOverview = async (req, res, next) => {
                     status: { notIn: INACTIVE_REGISTRATION_STATUSES },
                 },
                 include: {
-                    semester: {
-                        select: { id: true, name: true, startDate: true, endDate: true },
-                    },
                     topic: {
                         select: {
                             id: true,
