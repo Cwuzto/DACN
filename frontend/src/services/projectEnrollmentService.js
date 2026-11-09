@@ -1,4 +1,4 @@
-import api from './api';
+import api from './api.js';
 
 const wrapServiceError = (error, fallbackMessage) => {
     if (error?.success === false) return error;
@@ -27,6 +27,34 @@ const projectEnrollmentService = {
             return await api.post('/project-enrollments/bulk-upsert', { items });
         } catch (error) {
             throw wrapServiceError(error, 'Lỗi khi lưu gán môn đồ án');
+        }
+    },
+
+    /** Gán môn đồ án cho 1 sinh viên */
+    createEnrollment: async ({ semesterId, projectCatalogId, studentId, note, status = 'ACTIVE', source = 'MANUAL' }) => {
+        try {
+            return await projectEnrollmentService.bulkUpsert([
+                { semesterId, projectCatalogId, studentId, note, status, source },
+            ]);
+        } catch (error) {
+            throw wrapServiceError(error, 'Lỗi khi gán môn đồ án');
+        }
+    },
+
+    /** Gán môn đồ án hàng loạt cho danh sách sinh viên */
+    bulkAssign: async ({ semesterId, projectCatalogId, studentIds = [], note, status = 'ACTIVE', source = 'MANUAL' }) => {
+        try {
+            const items = (studentIds || []).map((studentId) => ({
+                semesterId,
+                projectCatalogId,
+                studentId,
+                note,
+                status,
+                source,
+            }));
+            return await projectEnrollmentService.bulkUpsert(items);
+        } catch (error) {
+            throw wrapServiceError(error, 'Lỗi khi gán môn đồ án hàng loạt');
         }
     },
 
