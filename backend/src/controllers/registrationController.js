@@ -659,7 +659,6 @@ const getAllRegistrations = async (req, res, next) => {
                 topic: {
                     select: {
                         id: true,
-                        code: true,
                         title: true,
                         description: true,
                         mentorId: true,
