@@ -334,9 +334,8 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
   // Cohort: HK2 Pending (sv011–sv020)
   for (let number = 11; number <= 20; number += 1) {
     const student = students[number - 1];
-    const mentor = number <= 15
-      ? accountsByEmail.get('lecturer04@university.edu.vn')
-      : accountsByEmail.get('lecturer05@university.edu.vn');
+    const mentorNumber = ((number - 1) % 12) + 1;
+    const mentor = accountsByEmail.get(`lecturer${String(mentorNumber).padStart(2, '0')}@university.edu.vn`);
     const padStr = String(number).padStart(3, '0');
 
     await prisma.studentProjectEnrollment.create({
@@ -394,9 +393,8 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
   // Cohort: HK2 Approved (sv021–sv030)
   for (let number = 21; number <= 30; number += 1) {
     const student = students[number - 1];
-    const mentor = number <= 25
-      ? accountsByEmail.get('lecturer06@university.edu.vn')
-      : accountsByEmail.get('lecturer07@university.edu.vn');
+    const mentorNumber = ((number - 1) % 12) + 1;
+    const mentor = accountsByEmail.get(`lecturer${String(mentorNumber).padStart(2, '0')}@university.edu.vn`);
     const padStr = String(number).padStart(3, '0');
 
     await prisma.studentProjectEnrollment.create({
