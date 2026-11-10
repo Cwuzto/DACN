@@ -48,6 +48,7 @@ import registrationService from '../../services/registrationService';
 import { semesterService } from '../../services/semesterService';
 import userService from '../../services/userService';
 import PageHeader from '../../components/common/PageHeader';
+import CouncilAuditLogModal from '../../components/admin/CouncilAuditLogModal';
 import { PROJECT_NAME, formatSemesterLabel } from '../../utils/semesterDisplay';
 import useAuthStore from '../../stores/authStore';
 
@@ -1513,39 +1514,12 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
             </Modal>
 
             {/* Modal Lịch sử thao tác */}
-            <Modal
-                title={`Lịch sử thao tác - ${logCouncil?.name || ''}`}
+            <CouncilAuditLogModal
                 open={isLogModalVisible}
                 onCancel={() => setIsLogModalVisible(false)}
-                footer={null}
-                width={800}
-                destroyOnClose
-            >
-                <List
-                    dataSource={councilLogs}
-                    locale={{ emptyText: 'Chưa có nhật ký ghi nhận cho hội đồng này.' }}
-                    renderItem={(item) => (
-                        <List.Item>
-                            <Descriptions column={1} size="small" bordered style={{ width: '100%' }}>
-                                <Descriptions.Item label="Thao tác">
-                                    <span className="font-bold text-slate-900">{actionTextMap[item.action] || item.action}</span>
-                                </Descriptions.Item>
-                                <Descriptions.Item label="Người thực hiện">
-                                    {item.user?.fullName || 'N/A'} {item.user?.code ? `(${item.user.code})` : ''} - <Tag>{item.user?.role || 'N/A'}</Tag>
-                                </Descriptions.Item>
-                                <Descriptions.Item label="Thời gian">
-                                    {item.createdAt ? dayjs(item.createdAt).format('DD/MM/YYYY HH:mm:ss') : 'N/A'}
-                                </Descriptions.Item>
-                                <Descriptions.Item label="Chi tiết">
-                                    <pre className="whitespace-pre-wrap text-xs bg-slate-50 rounded p-2 border border-slate-100 font-mono">
-                                        {JSON.stringify(item.details || {}, null, 2)}
-                                    </pre>
-                                </Descriptions.Item>
-                            </Descriptions>
-                        </List.Item>
-                    )}
-                />
-            </Modal>
+                council={logCouncil}
+                logs={councilLogs}
+            />
 
             {/* Modal Mở khóa kết quả (Reopen) cho HĐ Đề cương */}
             <Modal

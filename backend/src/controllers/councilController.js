@@ -325,6 +325,25 @@ const createCouncil = async (req, res, next) => {
         const validCouncilTypes = ['OUTLINE_REVIEW', 'DEFENSE_COUNCIL'];
         const councilTypeValue = councilType && validCouncilTypes.includes(councilType) ? councilType : 'DEFENSE_COUNCIL';
 
+        let memberDetails = [];
+        if (normalizedMembers.length) {
+            const lecturerIds = normalizedMembers.map((member) => member.lecturerId);
+            const lecturers = await prisma.user.findMany({
+                where: { id: { in: lecturerIds } },
+                select: { id: true, fullName: true, code: true },
+            });
+            const lecturerMap = new Map(lecturers.map((l) => [l.id, l]));
+            memberDetails = normalizedMembers.map((member) => {
+                const lec = lecturerMap.get(member.lecturerId);
+                return {
+                    roleInCouncil: member.roleInCouncil,
+                    lecturerId: member.lecturerId,
+                    fullName: lec?.fullName || 'N/A',
+                    code: lec?.code || null,
+                };
+            });
+        }
+
         const result = await prisma.$transaction(async (tx) => {
             const newCouncil = await tx.council.create({
                 data: {
@@ -361,7 +380,16 @@ const createCouncil = async (req, res, next) => {
             'CREATE_COUNCIL',
             'Council',
             result.council.id,
-            { semesterId: semesterIdInt, memberCount: normalizedMembers.length },
+            {
+                summary: `Khởi tạo hội đồng "${name}"`,
+                councilName: name,
+                councilType: councilTypeValue,
+                location: location || 'Chưa xếp phòng',
+                defenseDate: defenseDateValue,
+                memberCount: normalizedMembers.length,
+                members: memberDetails,
+                semesterId: semesterIdInt,
+            },
             getRequestIp(req),
         );
 
@@ -385,7 +413,18 @@ const updateCouncil = async (req, res, next) => {
         const councilId = parseInt(id, 10);
         const { name, councilType, location, defenseDate, members } = req.body;
 
-        const existing = await prisma.council.findUnique({ where: { id: councilId } });
+        const existing = await prisma.council.findUnique({
+            where: { id: councilId },
+            include: {
+                members: {
+                    include: {
+                        lecturer: {
+                            select: { id: true, fullName: true, code: true },
+                        },
+                    },
+                },
+            },
+        });
         if (!existing) {
             return res.status(404).json({ success: false, message: 'Không tìm thấy hội đồng.' });
         }
@@ -393,6 +432,81 @@ const updateCouncil = async (req, res, next) => {
         const defenseDateValue = defenseDate !== undefined
             ? (defenseDate ? new Date(defenseDate) : null)
             : existing.defenseDate;
+
+        const changes = [];
+        if (name !== undefined && name !== existing.name) {
+            changes.push({
+                field: 'name',
+                label: 'Tên hội đồng',
+                from: existing.name,
+                to: name,
+            });
+        }
+        if (location !== undefined && location !== existing.location) {
+            changes.push({
+                field: 'location',
+                label: 'Địa điểm / Phòng họp',
+                from: existing.location || 'Chưa xếp phòng',
+                to: location || 'Chưa xếp phòng',
+            });
+        }
+        if (defenseDate !== undefined) {
+            const oldDateStr = existing.defenseDate ? new Date(existing.defenseDate).toISOString() : null;
+            const newDateStr = defenseDateValue ? defenseDateValue.toISOString() : null;
+            if (oldDateStr !== newDateStr) {
+                changes.push({
+                    field: 'defenseDate',
+                    label: 'Ngày họp',
+                    from: existing.defenseDate || null,
+                    to: defenseDateValue || null,
+                });
+            }
+        }
+
+        let updatedMemberDetails = undefined;
+        let normalizedMembers = [];
+        if (members !== undefined) {
+            normalizedMembers = normalizeMemberInput(members);
+            const newLecturerIds = normalizedMembers.map((m) => m.lecturerId);
+            const newLecturers = newLecturerIds.length > 0 ? await prisma.user.findMany({
+                where: { id: { in: newLecturerIds } },
+                select: { id: true, fullName: true, code: true },
+            }) : [];
+            const newLecturerMap = new Map(newLecturers.map((l) => [l.id, l]));
+            updatedMemberDetails = normalizedMembers.map((m) => {
+                const lec = newLecturerMap.get(m.lecturerId);
+                return {
+                    roleInCouncil: m.roleInCouncil,
+                    lecturerId: m.lecturerId,
+                    fullName: lec?.fullName || 'N/A',
+                    code: lec?.code || null,
+                };
+            });
+
+            const ROLE_NAMES = {
+                CHAIRMAN: 'Chủ tịch HĐ',
+                SECRETARY: 'Thư ký HĐ',
+                REVIEWER: 'UV Phản biện',
+            };
+            const formatMemberDisplay = (m) => (m ? (m.code ? `${m.fullName} (${m.code})` : m.fullName) : 'Chưa phân công');
+            const rolesToCheck = ['CHAIRMAN', 'SECRETARY', 'REVIEWER'];
+            for (const roleKey of rolesToCheck) {
+                const oldMember = existing.members?.find((m) => m.roleInCouncil === roleKey);
+                const newMember = updatedMemberDetails.find((m) => m.roleInCouncil === roleKey);
+                const oldLecturer = oldMember ? { fullName: oldMember.lecturer?.fullName, code: oldMember.lecturer?.code, lecturerId: oldMember.lecturerId } : null;
+                const oldId = oldMember?.lecturerId;
+                const newId = newMember?.lecturerId;
+                if (oldId !== newId) {
+                    changes.push({
+                        field: `member_${roleKey.toLowerCase()}`,
+                        role: roleKey,
+                        label: ROLE_NAMES[roleKey] || roleKey,
+                        from: formatMemberDisplay(oldLecturer),
+                        to: formatMemberDisplay(newMember),
+                    });
+                }
+            }
+        }
 
         const result = await prisma.$transaction(async (tx) => {
             await tx.council.update({
@@ -408,7 +522,6 @@ const updateCouncil = async (req, res, next) => {
             let lecturerIdsForWarning = [];
 
             if (members !== undefined) {
-                const normalizedMembers = normalizeMemberInput(members);
                 validateCouncilComposition(normalizedMembers);
                 lecturerIdsForWarning = normalizedMembers.map((member) => member.lecturerId);
 
@@ -447,7 +560,13 @@ const updateCouncil = async (req, res, next) => {
             'UPDATE_COUNCIL',
             'Council',
             councilId,
-            { hasMembersPayload: members !== undefined },
+            {
+                updateType: members !== undefined ? 'MEMBERS_UPDATE' : 'INFO_UPDATE',
+                summary: members !== undefined ? 'Cập nhật thành viên hội đồng' : 'Cập nhật thông tin hội đồng',
+                hasMembersPayload: members !== undefined,
+                changes,
+                members: updatedMemberDetails,
+            },
             getRequestIp(req),
         );
 
@@ -575,6 +694,15 @@ const assignRegistrationsToCouncil = async (req, res, next) => {
                 where: { id: { in: uniqueRegistrationIds } },
                 data: updateData,
             });
+
+            return {
+                assignedStudents: registrations.map((r) => ({
+                    registrationId: r.id,
+                    studentCode: r.student?.code || null,
+                    studentName: r.student?.fullName || 'N/A',
+                    topicTitle: r.topic?.title || 'Chưa có tên đề tài',
+                })),
+            };
         });
 
         await auditLog(
@@ -582,7 +710,12 @@ const assignRegistrationsToCouncil = async (req, res, next) => {
             'ASSIGN_COUNCIL',
             'Council',
             councilId,
-            { registrationIds: uniqueRegistrationIds },
+            {
+                summary: `Phân công ${result.assignedStudents.length} sinh viên vào hội đồng`,
+                studentCount: result.assignedStudents.length,
+                registrationIds: uniqueRegistrationIds,
+                students: result.assignedStudents,
+            },
             getRequestIp(req),
         );
 
@@ -652,6 +785,15 @@ const removeRegistrationFromCouncil = async (req, res, next) => {
             return res.status(404).json({ success: false, message: 'Không tìm thấy hội đồng.' });
         }
 
+        const targetReg = await prisma.topicRegistration.findUnique({
+            where: { id: registrationIdInt },
+            select: {
+                id: true,
+                student: { select: { fullName: true, code: true } },
+                topic: { select: { title: true } },
+            },
+        });
+
         const where = { id: registrationIdInt };
         const updateData = {};
         if (council.councilType === 'OUTLINE_REVIEW') {
@@ -674,7 +816,15 @@ const removeRegistrationFromCouncil = async (req, res, next) => {
                 'REMOVE_REGISTRATION_FROM_COUNCIL',
                 'Council',
                 councilId,
-                { registrationId: registrationIdInt },
+                {
+                    summary: targetReg?.student
+                        ? `Gỡ sinh viên ${targetReg.student.fullName} (${targetReg.student.code}) khỏi hội đồng`
+                        : 'Gỡ sinh viên khỏi hội đồng',
+                    registrationId: registrationIdInt,
+                    studentCode: targetReg?.student?.code || null,
+                    studentName: targetReg?.student?.fullName || null,
+                    topicTitle: targetReg?.topic?.title || null,
+                },
                 getRequestIp(req),
             );
         }
@@ -765,6 +915,18 @@ const reopenCouncilResults = async (req, res, next) => {
         const { reason } = req.body;
         const result = await outlineReviewService.reopenCouncilResults(councilId, reason, req.user.id);
 
+        await auditLog(
+            req.user.id,
+            'REOPEN_COUNCIL_RESULTS',
+            'Council',
+            councilId,
+            {
+                summary: 'Mở khóa kết quả xét duyệt đề cương',
+                reason: reason || 'Không có lý do',
+            },
+            getRequestIp(req),
+        );
+
         res.status(200).json({
             success: true,
             message: 'Đã mở khóa kết quả hội đồng.',
@@ -780,6 +942,21 @@ const publishCouncilSchedule = async (req, res, next) => {
         const councilId = parseInt(req.params.id, 10);
         const scheduleData = req.body;
         const result = await outlineReviewService.publishCouncilSchedule(councilId, scheduleData, req.user.id);
+
+        await auditLog(
+            req.user.id,
+            'PUBLISH_COUNCIL_SCHEDULE',
+            'Council',
+            councilId,
+            {
+                summary: 'Công bố lịch họp hội đồng',
+                defenseDate: scheduleData?.defenseDate,
+                location: scheduleData?.location,
+                meetingMode: scheduleData?.meetingMode,
+                meetingLink: scheduleData?.meetingLink,
+            },
+            getRequestIp(req),
+        );
 
         res.status(200).json({
             success: true,
@@ -844,6 +1021,17 @@ const publishCouncilResults = async (req, res, next) => {
         const councilId = parseInt(req.params.id, 10);
         const idempotencyKey = req.headers['idempotency-key'] || req.header('Idempotency-Key');
         const result = await outlineReviewService.publishCouncilResults(councilId, req.user.id, idempotencyKey);
+
+        await auditLog(
+            req.user.id,
+            'PUBLISH_COUNCIL_RESULTS',
+            'Council',
+            councilId,
+            {
+                summary: 'Công bố kết quả xét duyệt đề cương',
+            },
+            getRequestIp(req),
+        );
 
         res.status(200).json({
             success: true,

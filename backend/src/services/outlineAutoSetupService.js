@@ -273,6 +273,7 @@ const runAutoOutlineCouncilSetupForSemester = async (semesterId, options = {}, d
         let assignedStudents = 0;
         let skippedStudents = [];
         const warnings = [];
+        const actorId = options?.actorId || options?.userId;
 
         // Check if options.proposedCouncils is provided
         if (Array.isArray(options.proposedCouncils)) {
@@ -357,6 +358,44 @@ const runAutoOutlineCouncilSetupForSemester = async (semesterId, options = {}, d
                         roleInCouncil: m.roleInCouncil,
                     })),
                 });
+
+                if (actorId) {
+                    try {
+                        const fetchedLecturers = await tx.user.findMany({
+                            where: { id: { in: lecturerIds } },
+                            select: { id: true, fullName: true, code: true },
+                        });
+                        const lecturerMap = new Map((fetchedLecturers || []).map((l) => [l.id, l]));
+                        const memberDetails = item.members.map((m) => {
+                            const lec = lecturerMap.get(Number(m.lecturerId));
+                            return {
+                                roleInCouncil: m.roleInCouncil,
+                                lecturerId: Number(m.lecturerId),
+                                fullName: lec?.fullName || 'N/A',
+                                code: lec?.code || null,
+                            };
+                        });
+
+                        await tx.auditLog.create({
+                            data: {
+                                userId: actorId,
+                                action: 'AUTO_ASSIGN_COUNCIL',
+                                entityType: 'Council',
+                                entityId: String(council.id),
+                                details: {
+                                    summary: 'Phân công tự động hội đồng xét duyệt đề cương',
+                                    councilName: council.name,
+                                    memberCount: memberDetails.length,
+                                    members: memberDetails,
+                                    studentCount: regIds.length,
+                                },
+                                ipAddress: options?.ipAddress || null,
+                            },
+                        });
+                    } catch (logErr) {
+                        console.error(`[outlineAutoSetup] Audit log for council ${council.id} failed:`, logErr?.message || logErr);
+                    }
+                }
             }
 
             skippedStudents = Array.isArray(options.skippedStudents) ? options.skippedStudents : [];
@@ -440,7 +479,7 @@ const runAutoOutlineCouncilSetupForSemester = async (semesterId, options = {}, d
             // Fetch active lecturers
             const lecturers = await tx.user.findMany({
                 where: { role: 'LECTURER', isActive: true },
-                select: { id: true, fullName: true },
+                select: { id: true, fullName: true, code: true },
             });
 
             // Calculate initial lecturer workloads across all councils in this semester
@@ -518,11 +557,40 @@ const runAutoOutlineCouncilSetupForSemester = async (semesterId, options = {}, d
                 selected.forEach((lecturer) => {
                     lecturerLoads.set(lecturer.id, (lecturerLoads.get(lecturer.id) || 0) + 1);
                 });
+
+                const memberDetails = selected.map((lecturer, index) => ({
+                    roleInCouncil: OUTLINE_ROLE_ORDER[index],
+                    lecturerId: lecturer.id,
+                    fullName: lecturer.fullName,
+                    code: lecturer.code || null,
+                }));
+
+                if (actorId) {
+                    try {
+                        await tx.auditLog.create({
+                            data: {
+                                userId: actorId,
+                                action: 'AUTO_ASSIGN_COUNCIL',
+                                entityType: 'Council',
+                                entityId: String(council.id),
+                                details: {
+                                    summary: 'Phân công tự động hội đồng xét duyệt đề cương',
+                                    councilName: council.name,
+                                    memberCount: memberDetails.length,
+                                    members: memberDetails,
+                                    studentCount: chunkRegistrationIds.length,
+                                },
+                                ipAddress: options?.ipAddress || null,
+                            },
+                        });
+                    } catch (logErr) {
+                        console.error(`[outlineAutoSetup] Audit log for council ${council.id} failed:`, logErr?.message || logErr);
+                    }
+                }
             }
         }
 
         // Step 5: Audit Log & Return
-        const actorId = options?.actorId || options?.userId;
         if (actorId) {
             try {
                 await tx.auditLog.create({

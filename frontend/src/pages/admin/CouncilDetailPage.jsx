@@ -31,8 +31,10 @@ import {
     CheckCircleOutlined,
     ExclamationCircleOutlined,
     SearchOutlined,
+    HistoryOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import CouncilAuditLogModal from '../../components/admin/CouncilAuditLogModal';
 import councilService from '../../services/councilService';
 import registrationService from '../../services/registrationService';
 import userService from '../../services/userService';
@@ -56,6 +58,8 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
     const [isMemberModalVisible, setIsMemberModalVisible] = useState(false);
     const [isAssignModalVisible, setIsAssignModalVisible] = useState(false);
     const [isReopenModalVisible, setIsReopenModalVisible] = useState(false);
+    const [isLogModalVisible, setIsLogModalVisible] = useState(false);
+    const [councilLogs, setCouncilLogs] = useState([]);
 
     const [submitLoading, setSubmitLoading] = useState(false);
     const [councilForm] = Form.useForm();
@@ -372,6 +376,19 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
         }
     };
 
+    const openLogModal = async () => {
+        if (!council?.id) return;
+        try {
+            setIsLogModalVisible(true);
+            const res = await councilService.getCouncilLogs(council.id);
+            if (res?.success) {
+                setCouncilLogs(res.data || []);
+            }
+        } catch (err) {
+            message.error(err?.message || 'Không thể tải lịch sử thao tác của hội đồng');
+        }
+    };
+
     const renderStatusTag = (status) => {
         const colorMap = {
             APPROVED: 'green',
@@ -520,6 +537,9 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
 
                     {/* Action buttons */}
                     <div className="flex items-center gap-2 flex-wrap">
+                        <Button icon={<HistoryOutlined />} onClick={openLogModal}>
+                            Lịch sử thao tác
+                        </Button>
                         <Button icon={<EditOutlined />} onClick={openEditModal}>
                             Sửa thông tin HĐ
                         </Button>
@@ -922,6 +942,14 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                     </div>
                 </div>
             </Modal>
+
+            {/* Modal Lịch sử thao tác */}
+            <CouncilAuditLogModal
+                open={isLogModalVisible}
+                onCancel={() => setIsLogModalVisible(false)}
+                council={council}
+                logs={councilLogs}
+            />
         </div>
     );
 }
