@@ -90,9 +90,20 @@ const councilService = {
     },
 
     // Outline Review (BM01) Methods
-    autoAssignOutlineCouncils: async (semesterId) => {
+    previewAutoOutlineCouncils: async (semesterId) => {
         try {
-            return await api.post('/councils/auto-assign-outline', { semesterId });
+            return await api.post('/councils/auto-assign-outline/preview', { semesterId });
+        } catch (error) {
+            throw wrapServiceError(error, 'Lỗi khi xem trước phân công hội đồng đề cương');
+        }
+    },
+
+    autoAssignOutlineCouncils: async (semesterId, proposedCouncils) => {
+        try {
+            return await api.post('/councils/auto-assign-outline', {
+                semesterId,
+                ...(proposedCouncils ? { proposedCouncils } : {}),
+            });
         } catch (error) {
             throw wrapServiceError(error, 'Lỗi khi tự động phân công hội đồng đề cương');
         }

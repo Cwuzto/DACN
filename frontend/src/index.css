@@ -1333,7 +1333,7 @@ tbody tr:last-child td {
 
  .council-jury-grid {
  display: grid;
- grid-template-columns: repeat(4, 1fr);
+ grid-template-columns: repeat(3, 1fr);
  gap: 10px;
  background: var(--bg);
  border: 1px solid var(--border);

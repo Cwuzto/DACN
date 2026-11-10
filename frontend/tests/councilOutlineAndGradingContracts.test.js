@@ -11,6 +11,7 @@ test('councilService defines all required outline review methods with proper end
     const serviceSource = read('src/services/councilService.js');
 
     const expectedMethods = [
+        'previewAutoOutlineCouncils',
         'autoAssignOutlineCouncils',
         'publishSchedule',
         'saveDraftResult',
@@ -32,7 +33,9 @@ test('councilService defines all required outline review methods with proper end
     });
 
     // Check endpoint bindings
+    assert.match(serviceSource, /\/councils\/auto-assign-outline\/preview/);
     assert.match(serviceSource, /\/councils\/auto-assign-outline/);
+    assert.match(serviceSource, /autoAssignOutlineCouncils:\s*async\s*\(\s*semesterId,\s*proposedCouncils\s*\)/);
     assert.match(serviceSource, /\/councils\/\$\{councilId\}\/schedule/);
     assert.match(serviceSource, /\/councils\/\$\{councilId\}\/results\/\$\{registrationId\}/);
     assert.match(serviceSource, /\/councils\/\$\{councilId\}\/results\/secretary-complete/);
@@ -47,12 +50,16 @@ test('councilService defines all required outline review methods with proper end
     assert.match(serviceSource, /Idempotency-Key/i);
 });
 
-test('CouncilAssignmentPage connects auto-assign outline button and reopen modal with 409 BM02 error handling', () => {
+test('CouncilAssignmentPage connects auto-assign outline button, preview modal, dynamic conflict warning and safe reopen modal with 409 BM02 error handling', () => {
     const pageSource = read('src/pages/admin/CouncilAssignmentPage.jsx');
+    const cssSource = read('src/index.css');
 
-    // Auto assign outline hook
+    // Auto assign outline hook & preview modal
+    assert.match(pageSource, /previewAutoOutlineCouncils/);
     assert.match(pageSource, /autoAssignOutlineCouncils/);
     assert.match(pageSource, /Tự động phân công HĐ Đề cương/);
+    assert.match(pageSource, /Xem trước Phân công Tự động HĐ Đề cương/);
+    assert.match(pageSource, /handleConfirmAutoAssignOutline/);
 
     // Reopen modal and trigger
     assert.match(pageSource, /handleOpenReopenModal/);
@@ -63,6 +70,14 @@ test('CouncilAssignmentPage connects auto-assign outline button and reopen modal
     assert.match(pageSource, /BM02_DEPENDENCY_EXISTS|blockingRegistrations/);
     assert.match(pageSource, /reopenBlockingList/);
     assert.match(pageSource, /reopenReason/);
+
+    // Council navigation, dynamic conflict warning, and renamed buttons
+    assert.match(pageSource, /\/admin\/outline-councils\//);
+    assert.match(pageSource, /Đổi thành viên HĐ/);
+    assert.match(pageSource, /là GVHD của sinh viên HĐ này/);
+
+    // .council-jury-grid must be 3 columns
+    assert.match(cssSource, /\.council-jury-grid[\s\S]*?grid-template-columns:\s*repeat\(3,\s*1fr\)/);
 });
 
 test('GradingPage and OutlineCouncilGradingCard provide complete Chairman and Secretary workflows with zero mock data', () => {
