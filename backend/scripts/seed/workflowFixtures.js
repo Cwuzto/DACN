@@ -11,11 +11,13 @@ const RUBRIC_VERSION = 'RUBRIC-DATN-2026';
 const TIMELINE_TASK_TYPE = 'BM03_CHECKPOINT';
 
 function statusForStudent(number) {
-  if (number <= 30) return 'COMPLETED';
-  if (number <= 40) return null;
-  if (number <= 50) return 'PENDING';
-  if (number <= 55) return 'BM01_NEEDS_REVISION';
-  if (number <= 60) return 'BM02_SUBMITTED';
+  if (number <= 10) return null;
+  if (number <= 20) return 'PENDING';
+  if (number <= 30) return 'APPROVED';
+  if (number <= 35) return 'BM01_SUBMITTED';
+  if (number <= 40) return 'BM01_NEEDS_REVISION';
+  if (number <= 45) return 'BM01_RESUBMITTED';
+  if (number <= 50) return 'BM02_SUBMITTED';
   if (number <= 70) return 'DECISION_ISSUED';
   if (number <= 84) return 'IN_PROGRESS';
   if (number === 85) return 'CHECKPOINT_SIGNATURE_APPEAL_SUBMITTED';
@@ -38,7 +40,7 @@ function buildRegistrationFixture({ number, semesterId, catalogId, studentId, me
       registration: null,
     };
   }
-  const hasDecision = !['PENDING', 'BM01_NEEDS_REVISION', 'BM01_PASSED', 'BM02_SUBMITTED'].includes(status);
+  const hasDecision = !['PENDING', 'APPROVED', 'BM01_SUBMITTED', 'BM01_NEEDS_REVISION', 'BM01_RESUBMITTED', 'BM01_PASSED', 'BM02_SUBMITTED'].includes(status);
   return {
     enrollment,
     topic: {
@@ -56,9 +58,9 @@ function buildRegistrationFixture({ number, semesterId, catalogId, studentId, me
       semesterId,
       periodPolicyVersionId: policyVersionId,
       status,
-      outlineReviewStatus: status === 'BM01_NEEDS_REVISION' ? 'REVISION_REQUIRED' : (status === 'PENDING' ? 'PENDING' : 'PASSED'),
+      outlineReviewStatus: status === 'BM01_NEEDS_REVISION' ? 'REVISION_REQUIRED' : (['PENDING', 'APPROVED', 'BM01_SUBMITTED'].includes(status) ? 'PENDING' : 'PASSED'),
       outlineFeedback: status === 'BM01_NEEDS_REVISION' ? 'Bổ sung phạm vi và kế hoạch thực hiện.' : null,
-      decisionNumber: hasDecision ? 'QD-DATN-2026-D1' : null,
+      decisionNumber: hasDecision ? 'QD-DATN-2026-HK1' : null,
       decisionDate: hasDecision ? new Date('2026-09-01T00:00:00.000Z') : null,
       stateVersion: 1,
     },
@@ -109,14 +111,13 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
   const lecturer02 = accountsByEmail.get('lecturer02@university.edu.vn');
   const lecturer03 = accountsByEmail.get('lecturer03@university.edu.vn');
 
-  // 1. Create 3 Semesters and attach policy versions
-  const pastSemesterRecord = await prisma.semester.create({ data: semesterDefs.pastSemester });
-  const period2Record = await prisma.semester.create({ data: semesterDefs.period2Supplementary });
-  const period1Record = await prisma.semester.create({ data: semesterDefs.period1Main });
+  // 1. Create 2 Semesters and attach policy versions
+  const semesterHK1Record = await prisma.semester.create({ data: semesterDefs.semesterHK1 });
+  const semesterHK2Record = await prisma.semester.create({ data: semesterDefs.semesterHK2 });
 
-  const pastPolicy = await prisma.periodWorkflowPolicyVersion.create({
+  const policyHK1 = await prisma.periodWorkflowPolicyVersion.create({
     data: {
-      semesterId: pastSemesterRecord.id,
+      semesterId: semesterHK1Record.id,
       version: 1,
       policy: DEFAULT_POLICY,
       checksum: checksum(DEFAULT_POLICY),
@@ -124,19 +125,9 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
     },
   });
 
-  const period2Policy = await prisma.periodWorkflowPolicyVersion.create({
+  const policyHK2 = await prisma.periodWorkflowPolicyVersion.create({
     data: {
-      semesterId: period2Record.id,
-      version: 1,
-      policy: DEFAULT_POLICY,
-      checksum: checksum(DEFAULT_POLICY),
-      createdById: admin.id,
-    },
-  });
-
-  const period1Policy = await prisma.periodWorkflowPolicyVersion.create({
-    data: {
-      semesterId: period1Record.id,
+      semesterId: semesterHK2Record.id,
       version: 1,
       policy: DEFAULT_POLICY,
       checksum: checksum(DEFAULT_POLICY),
@@ -212,10 +203,10 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
       delegateeId: lecturer02.id,
       capabilityCode: 'BM02_REVIEW',
       department: 'Viện Công nghệ số',
-      semesterId: period1Record.id,
+      semesterId: semesterHK1Record.id,
       effectiveFrom: new Date(referenceDate.getTime() - 5 * 86400000),
       effectiveTo: new Date(referenceDate.getTime() + 60 * 86400000),
-      reason: 'Ủy quyền thẩm định đề cương và duyệt BM02 học kỳ 1 năm học 2026-2027',
+      reason: 'Ủy quyền thẩm định đề cương và duyệt BM02 Học kỳ 1 năm học 2026-2027',
       idempotencyKey: 'seed-delegation-active-01',
       status: 'ACTIVE',
     },
@@ -227,9 +218,10 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
       delegateeId: lecturer03.id,
       capabilityCode: 'OUTLINE_REVIEW',
       department: 'Viện Công nghệ số',
+      semesterId: semesterHK1Record.id,
       effectiveFrom: new Date(referenceDate.getTime() - 90 * 86400000),
       effectiveTo: new Date(referenceDate.getTime() - 10 * 86400000),
-      reason: 'Ủy quyền thẩm định đề cương đợt xét bổ sung kỳ trước',
+      reason: 'Ủy quyền thẩm định đề cương đợt xét duyệt Học kỳ 1',
       idempotencyKey: 'seed-delegation-expired-02',
       status: 'ACTIVE',
     },
@@ -238,8 +230,8 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
   // 5. Public Announcements
   const announcement1 = await prisma.publicAnnouncement.create({
     data: {
-      title: 'Thông báo mở đăng ký đề tài Đợt 2 bổ sung',
-      content: 'Viện Công nghệ số thông báo mở cổng đăng ký đề tài tốt nghiệp Đợt 2 (bổ sung) cho sinh viên đủ điều kiện. Hạn chót đăng ký theo lịch trình học kỳ.',
+      title: 'Thông báo mở đăng ký đề tài tốt nghiệp Học kỳ 2',
+      content: 'Viện Công nghệ số thông báo mở cổng đăng ký đề tài tốt nghiệp Học kỳ 2 năm học 2026–2027 cho sinh viên đủ điều kiện. Hạn chót đăng ký theo lịch trình học kỳ.',
       category: 'REGISTRATION',
       isPublished: true,
       isPinned: true,
@@ -249,7 +241,7 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
 
   const announcement2 = await prisma.publicAnnouncement.create({
     data: {
-      title: 'Hướng dẫn nộp đề cương BM01 và lưu ý kiểm tra trùng lặp',
+      title: 'Hướng dẫn nộp đề cương BM01 Học kỳ 1',
       content: 'Sinh viên sau khi được GVHD đồng ý hướng dẫn cần hoàn thiện đề cương BM01 và nộp đúng hạn. Lưu ý kiểm tra đạo văn và tỷ lệ trùng lặp theo quy định.',
       category: 'ACADEMIC',
       isPublished: true,
@@ -260,8 +252,8 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
 
   const announcement3 = await prisma.publicAnnouncement.create({
     data: {
-      title: 'Lịch bảo vệ chính thức của Đợt 1 tại các hội đồng chuyên ngành',
-      content: 'Công bố danh sách sinh viên đủ điều kiện bảo vệ và danh sách 4 hội đồng chuyên ngành Đợt 1. Sinh viên có mặt đúng giờ quy định.',
+      title: 'Lịch bảo vệ chính thức của Hội đồng khóa luận tốt nghiệp Học kỳ 1',
+      content: 'Công bố danh sách sinh viên đủ điều kiện bảo vệ và danh sách 4 hội đồng chuyên ngành Học kỳ 1. Sinh viên có mặt đúng giờ quy định.',
       category: 'DEFENSE',
       isPublished: true,
       isPinned: false,
@@ -269,10 +261,40 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
     },
   });
 
-  // 6. Councils in Đợt 1
+  // 6. Councils in HK1
   const lecturers = [...accountsByEmail.values()].filter((user) => user.role === 'LECTURER').sort((a, b) => a.email.localeCompare(b.email));
-  const councils = await createCouncils(prisma, period1Record.id, lecturers, period1Record.defenseDate || referenceDate);
+  const councils = await createCouncils(prisma, semesterHK1Record.id, lecturers, semesterHK1Record.defenseDate || referenceDate);
   const councilLoadMap = new Map(councils.map((c) => [c.id, 0]));
+
+  // Outline Review Council in HK1
+  const outlineCouncil = await prisma.council.create({
+    data: {
+      semesterId: semesterHK1Record.id,
+      name: 'Hội đồng thẩm định đề cương 1',
+      councilType: 'OUTLINE_REVIEW',
+      location: 'Phòng 101',
+      defenseDate: referenceDate,
+      meetingMode: 'IN_PERSON',
+    },
+  });
+  await prisma.councilMember.createMany({
+    data: [
+      { councilId: outlineCouncil.id, lecturerId: lecturers[0].id, roleInCouncil: 'CHAIRMAN' },
+      { councilId: outlineCouncil.id, lecturerId: lecturers[1].id, roleInCouncil: 'SECRETARY' },
+      { councilId: outlineCouncil.id, lecturerId: lecturers[2].id, roleInCouncil: 'MEMBER' },
+    ],
+  });
+  const outlineBatch = await prisma.councilResultBatch.create({
+    data: {
+      councilId: outlineCouncil.id,
+      versionNumber: 1,
+      status: 'PUBLISHED',
+      chairPublishedAt: referenceDate,
+      chairPublishedById: admin.id,
+      secretaryCompletedAt: referenceDate,
+      secretaryCompletedById: lecturers[1].id,
+    },
+  });
 
   const students = [...accountsByEmail.values()].filter((user) => user.role === 'STUDENT').sort((a, b) => a.email.localeCompare(b.email));
   const registrations = new Map();
@@ -282,120 +304,47 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
   const bm02Model = prisma.bM02Submission || prisma.bm02Submission;
   const bm04Model = prisma.bM04Evaluation || prisma.bm04Evaluation;
 
-  // 7. Seed Cohorts
+  // --- HK2 COHORTS (sv001–sv030) in semesterHK2Record ---
 
-  // Cohort: Kỳ Cũ (sv001–sv030)
-  for (let number = 1; number <= 30; number += 1) {
-    const student = students[number - 1];
-    const mentorEmail = advisorEmailForStudentNumber(number);
-    const mentor = accountsByEmail.get(mentorEmail);
-    const padStr = String(number).padStart(3, '0');
-
-    await prisma.studentProjectEnrollment.create({
-      data: { studentId: student.id, semesterId: pastSemesterRecord.id, projectCatalogId: catalog.id, status: 'ACTIVE', source: 'SEED' },
-    });
-    const topic = await prisma.topic.create({
-      data: {
-        semesterId: pastSemesterRecord.id,
-        projectCatalogId: catalog.id,
-        mentorId: mentor.id,
-        proposedById: mentor.id,
-        maxStudents: 1,
-        title: `Đồ án tốt nghiệp ${padStr}`,
-        description: `Dữ liệu tốt nghiệp kỳ cũ cho sinh viên ${padStr}.`,
-        status: 'APPROVED',
-      },
-    });
-    const registration = await prisma.topicRegistration.create({
-      data: {
-        studentId: student.id,
-        semesterId: pastSemesterRecord.id,
-        topicId: topic.id,
-        periodPolicyVersionId: pastPolicy.id,
-        status: 'COMPLETED',
-        outlineReviewStatus: 'PASSED',
-        decisionNumber: 'QD-DATN-2025-K2',
-        decisionDate: new Date('2026-01-20T00:00:00.000Z'),
-        defenseCouncilId: null,
-        stateVersion: 1,
-      },
-    });
-    await prisma.projectArchive.create({
-      data: {
-        registrationId: registration.id,
-        phase: 'POST_DEFENSE',
-        status: 'APPROVED',
-        reviewedBy: admin.id,
-        reportFileUrl: `https://archive.dacn.edu.vn/demo/sv${padStr}.pdf`,
-        reportFileName: `${topic.title}.pdf`,
-        sourceCodeUrl: 'https://github.com/dacn/demo-archive',
-        reviewedAt: referenceDate,
-      },
-    });
-    await prisma.registrationStateHistory.create({
-      data: {
-        registrationId: registration.id,
-        fromStatus: 'REGISTERED',
-        toStatus: 'COMPLETED',
-        fromStateVersion: 0,
-        toStateVersion: 1,
-        actorId: admin.id,
-        reason: 'Hoàn thành đồ án kỳ trước',
-        reference: { fixture: number },
-        idempotencyKey: `seed-registration-${number}`,
-      },
-    });
-    await prisma.idempotencyRecord.create({
-      data: {
-        scope: 'seed',
-        key: `seed-registration-${number}`,
-        commandHash: 'controlled-demo-seed-v2',
-        registrationId: registration.id,
-        response: { status: 'COMPLETED' },
-      },
-    });
-    registrations.set(number, { ...registration, student, topic, mentor, council: null });
-  }
-
-  // Cohort: Đợt 2 Unregistered (sv031–sv040)
-  for (let number = 31; number <= 40; number += 1) {
+  // Cohort: HK2 Unregistered (sv001–sv010)
+  for (let number = 1; number <= 10; number += 1) {
     const student = students[number - 1];
     await prisma.studentProjectEnrollment.create({
-      data: { studentId: student.id, semesterId: period2Record.id, projectCatalogId: catalog.id, status: 'ACTIVE', source: 'SEED' },
+      data: { studentId: student.id, semesterId: semesterHK2Record.id, projectCatalogId: catalog.id, status: 'ACTIVE', source: 'SEED' },
     });
   }
 
-  // Seed 10 open topics in period2 (1 per mentor lecturer01..lecturer10)
-  for (let i = 1; i <= 10; i += 1) {
+  // Seed 12 open topics in HK2 (1 per mentor lecturer01..lecturer12)
+  for (let i = 1; i <= 12; i += 1) {
     const mentor = accountsByEmail.get(`lecturer${String(i).padStart(2, '0')}@university.edu.vn`);
     await prisma.topic.create({
       data: {
-        semesterId: period2Record.id,
+        semesterId: semesterHK2Record.id,
         projectCatalogId: catalog.id,
         mentorId: mentor.id,
         proposedById: mentor.id,
         maxStudents: 1,
-        title: `Đề tài gợi ý đợt 2 - ${mentor.fullName}`,
-        description: 'Đề tài mở sẵn sàng tiếp nhận đăng ký cho Đợt 2 bổ sung.',
+        title: `Đề tài gợi ý HK2 - ${mentor.fullName}`,
+        description: 'Đề tài mở sẵn sàng tiếp nhận đăng ký cho Học kỳ 2 năm học 2026–2027.',
         status: 'APPROVED',
       },
     });
   }
 
-  // Cohort: Đợt 2 Pending (sv041–sv050)
-  for (let number = 41; number <= 50; number += 1) {
+  // Cohort: HK2 Pending (sv011–sv020)
+  for (let number = 11; number <= 20; number += 1) {
     const student = students[number - 1];
-    const mentor = number <= 45
+    const mentor = number <= 15
       ? accountsByEmail.get('lecturer04@university.edu.vn')
       : accountsByEmail.get('lecturer05@university.edu.vn');
     const padStr = String(number).padStart(3, '0');
 
     await prisma.studentProjectEnrollment.create({
-      data: { studentId: student.id, semesterId: period2Record.id, projectCatalogId: catalog.id, status: 'ACTIVE', source: 'SEED' },
+      data: { studentId: student.id, semesterId: semesterHK2Record.id, projectCatalogId: catalog.id, status: 'ACTIVE', source: 'SEED' },
     });
     const topic = await prisma.topic.create({
       data: {
-        semesterId: period2Record.id,
+        semesterId: semesterHK2Record.id,
         projectCatalogId: catalog.id,
         mentorId: mentor.id,
         proposedById: mentor.id,
@@ -408,9 +357,9 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
     const registration = await prisma.topicRegistration.create({
       data: {
         studentId: student.id,
-        semesterId: period2Record.id,
+        semesterId: semesterHK2Record.id,
         topicId: topic.id,
-        periodPolicyVersionId: period2Policy.id,
+        periodPolicyVersionId: policyHK2.id,
         status: 'PENDING',
         outlineReviewStatus: 'PENDING',
         defenseCouncilId: null,
@@ -425,7 +374,7 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
         fromStateVersion: 0,
         toStateVersion: 1,
         actorId: student.id,
-        reason: 'Đăng ký nguyện vọng đề tài đợt 2',
+        reason: 'Đăng ký nguyện vọng đề tài HK2',
         reference: { fixture: number },
         idempotencyKey: `seed-registration-${number}`,
       },
@@ -442,18 +391,20 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
     registrations.set(number, { ...registration, student, topic, mentor, council: null });
   }
 
-  // Cohort: Đợt 2 BM01 revision (sv051–sv055)
-  for (let number = 51; number <= 55; number += 1) {
+  // Cohort: HK2 Approved (sv021–sv030)
+  for (let number = 21; number <= 30; number += 1) {
     const student = students[number - 1];
-    const mentor = accountsByEmail.get('lecturer06@university.edu.vn');
+    const mentor = number <= 25
+      ? accountsByEmail.get('lecturer06@university.edu.vn')
+      : accountsByEmail.get('lecturer07@university.edu.vn');
     const padStr = String(number).padStart(3, '0');
 
     await prisma.studentProjectEnrollment.create({
-      data: { studentId: student.id, semesterId: period2Record.id, projectCatalogId: catalog.id, status: 'ACTIVE', source: 'SEED' },
+      data: { studentId: student.id, semesterId: semesterHK2Record.id, projectCatalogId: catalog.id, status: 'ACTIVE', source: 'SEED' },
     });
     const topic = await prisma.topic.create({
       data: {
-        semesterId: period2Record.id,
+        semesterId: semesterHK2Record.id,
         projectCatalogId: catalog.id,
         mentorId: mentor.id,
         proposedById: mentor.id,
@@ -466,12 +417,146 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
     const registration = await prisma.topicRegistration.create({
       data: {
         studentId: student.id,
-        semesterId: period2Record.id,
+        semesterId: semesterHK2Record.id,
         topicId: topic.id,
-        periodPolicyVersionId: period2Policy.id,
+        periodPolicyVersionId: policyHK2.id,
+        status: 'APPROVED',
+        outlineReviewStatus: 'PENDING',
+        defenseCouncilId: null,
+        stateVersion: 1,
+      },
+    });
+    await prisma.registrationStateHistory.create({
+      data: {
+        registrationId: registration.id,
+        fromStatus: 'PENDING',
+        toStatus: 'APPROVED',
+        fromStateVersion: 0,
+        toStateVersion: 1,
+        actorId: mentor.id,
+        reason: 'GVHD duyệt đăng ký đề tài HK2',
+        reference: { fixture: number },
+        idempotencyKey: `seed-registration-${number}`,
+      },
+    });
+    await prisma.idempotencyRecord.create({
+      data: {
+        scope: 'seed',
+        key: `seed-registration-${number}`,
+        commandHash: 'controlled-demo-seed-v2',
+        registrationId: registration.id,
+        response: { status: 'APPROVED' },
+      },
+    });
+    registrations.set(number, { ...registration, student, topic, mentor, council: null });
+  }
+
+  // --- HK1 COHORTS (sv031–sv120) in semesterHK1Record ---
+  const getHK1Mentor = (num) => {
+    const mentorNumber = ((num - 31) % 12) + 1;
+    return accountsByEmail.get(`lecturer${String(mentorNumber).padStart(2, '0')}@university.edu.vn`);
+  };
+
+  // Cohort: HK1 BM01 Submitted (sv031–sv035)
+  for (let number = 31; number <= 35; number += 1) {
+    const student = students[number - 1];
+    const mentor = getHK1Mentor(number);
+    const padStr = String(number).padStart(3, '0');
+
+    await prisma.studentProjectEnrollment.create({
+      data: { studentId: student.id, semesterId: semesterHK1Record.id, projectCatalogId: catalog.id, status: 'ACTIVE', source: 'SEED' },
+    });
+    const topic = await prisma.topic.create({
+      data: {
+        semesterId: semesterHK1Record.id,
+        projectCatalogId: catalog.id,
+        mentorId: mentor.id,
+        proposedById: mentor.id,
+        maxStudents: 1,
+        title: `Đồ án tốt nghiệp ${padStr}`,
+        description: `Dữ liệu demo cho sinh viên ${padStr}.`,
+        status: 'APPROVED',
+      },
+    });
+    const registration = await prisma.topicRegistration.create({
+      data: {
+        studentId: student.id,
+        semesterId: semesterHK1Record.id,
+        topicId: topic.id,
+        periodPolicyVersionId: policyHK1.id,
+        status: 'BM01_SUBMITTED',
+        outlineReviewStatus: 'PENDING',
+        outlineCouncilId: outlineCouncil.id,
+        defenseCouncilId: null,
+        stateVersion: 1,
+      },
+    });
+    await prisma.task.create({
+      data: {
+        registrationId: registration.id,
+        title: 'Nộp đề cương chi tiết (BM01)',
+        content: 'Nộp bản đề cương chính thức để Hội đồng thẩm định xét duyệt.',
+        taskType: 'BM01_INITIAL_SUBMISSION',
+        dueDate: new Date(referenceDate.getTime() + 7 * 86400000),
+        status: 'COMPLETED',
+      },
+    });
+    await prisma.registrationStateHistory.create({
+      data: {
+        registrationId: registration.id,
+        fromStatus: 'REGISTERED',
+        toStatus: 'BM01_SUBMITTED',
+        fromStateVersion: 0,
+        toStateVersion: 1,
+        actorId: student.id,
+        reason: 'Sinh viên nộp đề cương v1',
+        reference: { fixture: number },
+        idempotencyKey: `seed-registration-${number}`,
+      },
+    });
+    await prisma.idempotencyRecord.create({
+      data: {
+        scope: 'seed',
+        key: `seed-registration-${number}`,
+        commandHash: 'controlled-demo-seed-v2',
+        registrationId: registration.id,
+        response: { status: 'BM01_SUBMITTED' },
+      },
+    });
+    registrations.set(number, { ...registration, student, topic, mentor, council: null });
+  }
+
+  // Cohort: HK1 BM01 revision (sv036–sv040)
+  for (let number = 36; number <= 40; number += 1) {
+    const student = students[number - 1];
+    const mentor = getHK1Mentor(number);
+    const padStr = String(number).padStart(3, '0');
+
+    await prisma.studentProjectEnrollment.create({
+      data: { studentId: student.id, semesterId: semesterHK1Record.id, projectCatalogId: catalog.id, status: 'ACTIVE', source: 'SEED' },
+    });
+    const topic = await prisma.topic.create({
+      data: {
+        semesterId: semesterHK1Record.id,
+        projectCatalogId: catalog.id,
+        mentorId: mentor.id,
+        proposedById: mentor.id,
+        maxStudents: 1,
+        title: `Đồ án tốt nghiệp ${padStr}`,
+        description: `Dữ liệu demo cho sinh viên ${padStr}.`,
+        status: 'APPROVED',
+      },
+    });
+    const registration = await prisma.topicRegistration.create({
+      data: {
+        studentId: student.id,
+        semesterId: semesterHK1Record.id,
+        topicId: topic.id,
+        periodPolicyVersionId: policyHK1.id,
         status: 'BM01_NEEDS_REVISION',
         outlineReviewStatus: 'REVISION_REQUIRED',
-        outlineFeedback: 'Cần bổ sung phạm vi nghiên cứu',
+        outlineFeedback: 'Cần bổ sung phạm vi nghiên cứu và kế hoạch thực nghiệm.',
+        outlineCouncilId: outlineCouncil.id,
         defenseCouncilId: null,
         stateVersion: 1,
       },
@@ -480,23 +565,37 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
       data: {
         registrationId: registration.id,
         attemptNo: 1,
+        initialOutcome: 'REVISION_REQUIRED',
         outcome: 'NEEDS_REVISION',
-        issues: { feedback: 'Cần bổ sung phạm vi nghiên cứu' },
-        deadlineAt: new Date(referenceDate.getTime() + 3 * 86400000),
-        policyVersionId: period2Policy.id,
+        issues: { feedback: 'Cần bổ sung phạm vi nghiên cứu và kế hoạch thực nghiệm.' },
+        revisionRequirements: 'Bổ sung sơ đồ kiến trúc và kế hoạch thực hiện tuần 1-6.',
+        deadlineAt: new Date(referenceDate.getTime() + 5 * 86400000),
+        policyVersionId: policyHK1.id,
         reviewedById: mentor.id,
         reviewedAt: referenceDate,
+        batchId: outlineBatch.id,
+        councilId: outlineCouncil.id,
+      },
+    });
+    await prisma.task.create({
+      data: {
+        registrationId: registration.id,
+        title: 'Nộp lại đề cương đã chỉnh sửa (v2)',
+        content: 'Chỉnh sửa theo góp ý của Hội đồng thẩm định đề cương và nộp lại bản v2.',
+        taskType: 'BM01_RESUBMISSION',
+        dueDate: new Date(referenceDate.getTime() + 5 * 86400000),
+        status: 'OPEN',
       },
     });
     await prisma.registrationStateHistory.create({
       data: {
         registrationId: registration.id,
-        fromStatus: 'REGISTERED',
+        fromStatus: 'BM01_SUBMITTED',
         toStatus: 'BM01_NEEDS_REVISION',
         fromStateVersion: 0,
         toStateVersion: 1,
-        actorId: mentor.id,
-        reason: 'Yêu cầu chỉnh sửa BM01',
+        actorId: admin.id,
+        reason: 'Hội đồng yêu cầu chỉnh sửa đề cương',
         reference: { fixture: number },
         idempotencyKey: `seed-registration-${number}`,
       },
@@ -513,18 +612,18 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
     registrations.set(number, { ...registration, student, topic, mentor, council: null });
   }
 
-  // Cohort: Đợt 2 BM02 submitted (sv056–sv060)
-  for (let number = 56; number <= 60; number += 1) {
+  // Cohort: HK1 BM01 Resubmitted (sv041–sv045)
+  for (let number = 41; number <= 45; number += 1) {
     const student = students[number - 1];
-    const mentor = accountsByEmail.get('lecturer06@university.edu.vn');
+    const mentor = getHK1Mentor(number);
     const padStr = String(number).padStart(3, '0');
 
     await prisma.studentProjectEnrollment.create({
-      data: { studentId: student.id, semesterId: period2Record.id, projectCatalogId: catalog.id, status: 'ACTIVE', source: 'SEED' },
+      data: { studentId: student.id, semesterId: semesterHK1Record.id, projectCatalogId: catalog.id, status: 'ACTIVE', source: 'SEED' },
     });
     const topic = await prisma.topic.create({
       data: {
-        semesterId: period2Record.id,
+        semesterId: semesterHK1Record.id,
         projectCatalogId: catalog.id,
         mentorId: mentor.id,
         proposedById: mentor.id,
@@ -537,9 +636,94 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
     const registration = await prisma.topicRegistration.create({
       data: {
         studentId: student.id,
-        semesterId: period2Record.id,
+        semesterId: semesterHK1Record.id,
         topicId: topic.id,
-        periodPolicyVersionId: period2Policy.id,
+        periodPolicyVersionId: policyHK1.id,
+        status: 'BM01_RESUBMITTED',
+        outlineReviewStatus: 'REVISION_REQUIRED',
+        outlineFeedback: 'Bản nộp v2 đã cập nhật theo yêu cầu, chờ Chủ tịch hội đồng thẩm định duyệt.',
+        outlineCouncilId: outlineCouncil.id,
+        defenseCouncilId: null,
+        stateVersion: 1,
+      },
+    });
+    await bm01Model.create({
+      data: {
+        registrationId: registration.id,
+        attemptNo: 1,
+        initialOutcome: 'REVISION_REQUIRED',
+        outcome: 'NEEDS_REVISION',
+        issues: { feedback: 'Đã nộp bản sửa đổi v2' },
+        deadlineAt: new Date(referenceDate.getTime() + 3 * 86400000),
+        policyVersionId: policyHK1.id,
+        reviewedById: mentor.id,
+        reviewedAt: referenceDate,
+        batchId: outlineBatch.id,
+        councilId: outlineCouncil.id,
+      },
+    });
+    await prisma.task.create({
+      data: {
+        registrationId: registration.id,
+        title: 'Nộp lại đề cương đã chỉnh sửa (v2)',
+        content: 'Chỉnh sửa theo góp ý của Hội đồng thẩm định đề cương và nộp lại bản v2.',
+        taskType: 'BM01_RESUBMISSION',
+        dueDate: new Date(referenceDate.getTime() + 3 * 86400000),
+        status: 'COMPLETED',
+      },
+    });
+    await prisma.registrationStateHistory.create({
+      data: {
+        registrationId: registration.id,
+        fromStatus: 'BM01_NEEDS_REVISION',
+        toStatus: 'BM01_RESUBMITTED',
+        fromStateVersion: 0,
+        toStateVersion: 1,
+        actorId: student.id,
+        reason: 'Sinh viên nộp lại đề cương v2',
+        reference: { fixture: number },
+        idempotencyKey: `seed-registration-${number}`,
+      },
+    });
+    await prisma.idempotencyRecord.create({
+      data: {
+        scope: 'seed',
+        key: `seed-registration-${number}`,
+        commandHash: 'controlled-demo-seed-v2',
+        registrationId: registration.id,
+        response: { status: 'BM01_RESUBMITTED' },
+      },
+    });
+    registrations.set(number, { ...registration, student, topic, mentor, council: null });
+  }
+
+  // Cohort: HK1 BM02 Submitted (sv046–sv050)
+  for (let number = 46; number <= 50; number += 1) {
+    const student = students[number - 1];
+    const mentor = getHK1Mentor(number);
+    const padStr = String(number).padStart(3, '0');
+
+    await prisma.studentProjectEnrollment.create({
+      data: { studentId: student.id, semesterId: semesterHK1Record.id, projectCatalogId: catalog.id, status: 'ACTIVE', source: 'SEED' },
+    });
+    const topic = await prisma.topic.create({
+      data: {
+        semesterId: semesterHK1Record.id,
+        projectCatalogId: catalog.id,
+        mentorId: mentor.id,
+        proposedById: mentor.id,
+        maxStudents: 1,
+        title: `Đồ án tốt nghiệp ${padStr}`,
+        description: `Dữ liệu demo cho sinh viên ${padStr}.`,
+        status: 'APPROVED',
+      },
+    });
+    const registration = await prisma.topicRegistration.create({
+      data: {
+        studentId: student.id,
+        semesterId: semesterHK1Record.id,
+        topicId: topic.id,
+        periodPolicyVersionId: policyHK1.id,
         status: 'BM02_SUBMITTED',
         outlineReviewStatus: 'PASSED',
         defenseCouncilId: null,
@@ -552,7 +736,7 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
         versionNo: 1,
         attemptNo: 1,
         outcome: 'PENDING_REVIEW',
-        policyVersionId: period2Policy.id,
+        policyVersionId: policyHK1.id,
         submittedById: student.id,
         submittedAt: referenceDate,
         fileUrl: `https://storage.dacn.edu.vn/demo/bm02/sv${padStr}.pdf`,
@@ -563,10 +747,20 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
       where: { id: registration.id },
       data: { currentBM02SubmissionId: bm02.id },
     });
+    await prisma.task.create({
+      data: {
+        registrationId: registration.id,
+        title: 'Nộp Đơn đăng ký đề tài tốt nghiệp (BM02)',
+        content: 'Hoàn thiện hồ sơ BM02 sau khi đề cương được duyệt.',
+        taskType: 'BM02',
+        dueDate: new Date(referenceDate.getTime() + 10 * 86400000),
+        status: 'COMPLETED',
+      },
+    });
     await prisma.registrationStateHistory.create({
       data: {
         registrationId: registration.id,
-        fromStatus: 'REGISTERED',
+        fromStatus: 'BM01_PASSED',
         toStatus: 'BM02_SUBMITTED',
         fromStateVersion: 0,
         toStateVersion: 1,
@@ -588,24 +782,18 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
     registrations.set(number, { ...registration, student, topic, mentor, council: null, currentBM02Submission: bm02 });
   }
 
-  // Helper for mentor assignment in Đợt 1 (sv061–sv120, 60 students distributed across 12 lecturers)
-  const getPeriod1Mentor = (num) => {
-    const mentorNumber = ((num - 61) % 12) + 1;
-    return accountsByEmail.get(`lecturer${String(mentorNumber).padStart(2, '0')}@university.edu.vn`);
-  };
-
-  // Cohort: Đợt 1 Decision Issued (sv061–sv070)
-  for (let number = 61; number <= 70; number += 1) {
+  // Cohort: HK1 Decision Issued (sv051–sv070, 20 SV)
+  for (let number = 51; number <= 70; number += 1) {
     const student = students[number - 1];
-    const mentor = getPeriod1Mentor(number);
+    const mentor = getHK1Mentor(number);
     const padStr = String(number).padStart(3, '0');
 
     await prisma.studentProjectEnrollment.create({
-      data: { studentId: student.id, semesterId: period1Record.id, projectCatalogId: catalog.id, status: 'ACTIVE', source: 'SEED' },
+      data: { studentId: student.id, semesterId: semesterHK1Record.id, projectCatalogId: catalog.id, status: 'ACTIVE', source: 'SEED' },
     });
     const topic = await prisma.topic.create({
       data: {
-        semesterId: period1Record.id,
+        semesterId: semesterHK1Record.id,
         projectCatalogId: catalog.id,
         mentorId: mentor.id,
         proposedById: mentor.id,
@@ -618,12 +806,12 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
     const registration = await prisma.topicRegistration.create({
       data: {
         studentId: student.id,
-        semesterId: period1Record.id,
+        semesterId: semesterHK1Record.id,
         topicId: topic.id,
-        periodPolicyVersionId: period1Policy.id,
+        periodPolicyVersionId: policyHK1.id,
         status: 'DECISION_ISSUED',
         outlineReviewStatus: 'PASSED',
-        decisionNumber: 'QD-DATN-2026-D1',
+        decisionNumber: 'QD-DATN-2026-HK1',
         decisionDate: referenceDate,
         defenseCouncilId: null,
         stateVersion: 1,
@@ -635,7 +823,7 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
         versionNo: 1,
         attemptNo: 1,
         outcome: 'APPROVED',
-        policyVersionId: period1Policy.id,
+        policyVersionId: policyHK1.id,
         submittedById: student.id,
         reviewedById: admin.id,
         reviewedAt: referenceDate,
@@ -651,16 +839,16 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
       data: {
         registrationId: registration.id,
         bm02SubmissionId: bm02.id,
-        decisionNumber: 'QD-DATN-2026-D1',
+        decisionNumber: 'QD-DATN-2026-HK1',
         issuedAt: referenceDate,
         effectiveAt: referenceDate,
         issuedById: admin.id,
-        policyVersionId: period1Policy.id,
+        policyVersionId: policyHK1.id,
         idempotencyKey: `seed-decision-${number}`,
       },
     });
 
-    if (number === 61) {
+    if (number === 51) {
       await prisma.topicTitleAdjustment.create({
         data: {
           registrationId: registration.id,
@@ -674,7 +862,7 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
       });
     }
 
-    if (number === 62) {
+    if (number === 52) {
       await prisma.topicTitleAdjustment.create({
         data: {
           registrationId: registration.id,
@@ -695,7 +883,7 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
           reason: 'Điều chỉnh tên đề tài theo phê duyệt',
           changes: { adjustedTitle: `${topic.title} (Đã chuẩn hóa)` },
           signedById: admin.id,
-          idempotencyKey: 'seed-amendment-sv062',
+          idempotencyKey: 'seed-amendment-sv052',
           effectiveAt: referenceDate,
         },
       });
@@ -741,19 +929,19 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
     registrations.set(number, { ...registration, student, topic, mentor, council: null, decision });
   }
 
-  // Cohort: Đợt 1 Checkpoint & Appeal (sv071–sv085)
+  // Cohort: HK1 Checkpoint & Appeal (sv071–sv085, 15 SV)
   for (let number = 71; number <= 85; number += 1) {
     const student = students[number - 1];
-    const mentor = getPeriod1Mentor(number);
+    const mentor = getHK1Mentor(number);
     const padStr = String(number).padStart(3, '0');
     const status = number === 85 ? 'CHECKPOINT_SIGNATURE_APPEAL_SUBMITTED' : 'IN_PROGRESS';
 
     await prisma.studentProjectEnrollment.create({
-      data: { studentId: student.id, semesterId: period1Record.id, projectCatalogId: catalog.id, status: 'ACTIVE', source: 'SEED' },
+      data: { studentId: student.id, semesterId: semesterHK1Record.id, projectCatalogId: catalog.id, status: 'ACTIVE', source: 'SEED' },
     });
     const topic = await prisma.topic.create({
       data: {
-        semesterId: period1Record.id,
+        semesterId: semesterHK1Record.id,
         projectCatalogId: catalog.id,
         mentorId: mentor.id,
         proposedById: mentor.id,
@@ -766,12 +954,12 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
     const registration = await prisma.topicRegistration.create({
       data: {
         studentId: student.id,
-        semesterId: period1Record.id,
+        semesterId: semesterHK1Record.id,
         topicId: topic.id,
-        periodPolicyVersionId: period1Policy.id,
+        periodPolicyVersionId: policyHK1.id,
         status,
         outlineReviewStatus: 'PASSED',
-        decisionNumber: 'QD-DATN-2026-D1',
+        decisionNumber: 'QD-DATN-2026-HK1',
         decisionDate: new Date(referenceDate.getTime() - 40 * 86400000),
         defenseCouncilId: null,
         stateVersion: 1,
@@ -783,7 +971,7 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
         versionNo: 1,
         attemptNo: 1,
         outcome: 'APPROVED',
-        policyVersionId: period1Policy.id,
+        policyVersionId: policyHK1.id,
         submittedById: student.id,
         reviewedById: admin.id,
         reviewedAt: referenceDate,
@@ -797,11 +985,11 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
       data: {
         registrationId: registration.id,
         bm02SubmissionId: bm02.id,
-        decisionNumber: 'QD-DATN-2026-D1',
+        decisionNumber: 'QD-DATN-2026-HK1',
         issuedAt: referenceDate,
         effectiveAt: referenceDate,
         issuedById: admin.id,
-        policyVersionId: period1Policy.id,
+        policyVersionId: policyHK1.id,
         idempotencyKey: `seed-decision-${number}`,
       },
     });
@@ -821,7 +1009,7 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
         studentSignedById: student.id,
         studentSignedAt: referenceDate,
         studentSignature: `SIG_STUDENT_${student.id}`,
-        policyVersionId: period1Policy.id,
+        policyVersionId: policyHK1.id,
       },
     });
 
@@ -843,7 +1031,7 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
           studentSignature: null,
           studentSignDeadlineAt: new Date(referenceDate.getTime() + 1 * 86400000),
           isAppealed: true,
-          policyVersionId: period1Policy.id,
+          policyVersionId: policyHK1.id,
         },
       });
       await prisma.checkpointSignatureAppeal.create({
@@ -874,7 +1062,7 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
           studentSignedById: student.id,
           studentSignedAt: referenceDate,
           studentSignature: `SIG_STUDENT_${student.id}`,
-          policyVersionId: period1Policy.id,
+          policyVersionId: policyHK1.id,
         },
       });
     }
@@ -915,19 +1103,19 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
     registrations.set(number, { ...registration, student, topic, mentor, council: null });
   }
 
-  // Cohort: Đợt 1 BM04 & Pre-defense Archive (sv086–sv095)
+  // Cohort: HK1 BM04 & Pre-defense Archive (sv086–sv095, 10 SV)
   for (let number = 86; number <= 95; number += 1) {
     const student = students[number - 1];
-    const mentor = getPeriod1Mentor(number);
+    const mentor = getHK1Mentor(number);
     const padStr = String(number).padStart(3, '0');
     const status = number <= 90 ? 'BM03_PASSED' : 'BM04_REVIEW';
 
     await prisma.studentProjectEnrollment.create({
-      data: { studentId: student.id, semesterId: period1Record.id, projectCatalogId: catalog.id, status: 'ACTIVE', source: 'SEED' },
+      data: { studentId: student.id, semesterId: semesterHK1Record.id, projectCatalogId: catalog.id, status: 'ACTIVE', source: 'SEED' },
     });
     const topic = await prisma.topic.create({
       data: {
-        semesterId: period1Record.id,
+        semesterId: semesterHK1Record.id,
         projectCatalogId: catalog.id,
         mentorId: mentor.id,
         proposedById: mentor.id,
@@ -940,12 +1128,12 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
     const registration = await prisma.topicRegistration.create({
       data: {
         studentId: student.id,
-        semesterId: period1Record.id,
+        semesterId: semesterHK1Record.id,
         topicId: topic.id,
-        periodPolicyVersionId: period1Policy.id,
+        periodPolicyVersionId: policyHK1.id,
         status,
         outlineReviewStatus: 'PASSED',
-        decisionNumber: 'QD-DATN-2026-D1',
+        decisionNumber: 'QD-DATN-2026-HK1',
         decisionDate: new Date(referenceDate.getTime() - 60 * 86400000),
         defenseCouncilId: null,
         stateVersion: 1,
@@ -957,7 +1145,7 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
         versionNo: 1,
         attemptNo: 1,
         outcome: 'APPROVED',
-        policyVersionId: period1Policy.id,
+        policyVersionId: policyHK1.id,
         submittedById: student.id,
         reviewedById: admin.id,
         reviewedAt: referenceDate,
@@ -971,11 +1159,11 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
       data: {
         registrationId: registration.id,
         bm02SubmissionId: bm02.id,
-        decisionNumber: 'QD-DATN-2026-D1',
+        decisionNumber: 'QD-DATN-2026-HK1',
         issuedAt: referenceDate,
         effectiveAt: referenceDate,
         issuedById: admin.id,
-        policyVersionId: period1Policy.id,
+        policyVersionId: policyHK1.id,
         idempotencyKey: `seed-decision-${number}`,
       },
     });
@@ -983,7 +1171,7 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
     await bm04Model.create({
       data: {
         registrationId: registration.id,
-        semesterId: period1Record.id,
+        semesterId: semesterHK1Record.id,
         studentId: student.id,
         lecturerId: mentor.id,
         thesisFormatScore: '2.0',
@@ -995,7 +1183,7 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
         lecturerSignature: `SIG_LECTURER_${mentor.id}`,
         signedAt: referenceDate,
         isLocked: true,
-        policyVersionId: period1Policy.id,
+        policyVersionId: policyHK1.id,
       },
     });
 
@@ -1049,20 +1237,20 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
     registrations.set(number, { ...registration, student, topic, mentor, council: null });
   }
 
-  // Cohort: Đợt 1 Defense Students (sv096–sv120, 25 SV)
+  // Cohort: HK1 Defense Students (sv096–sv120, 25 SV)
   for (let number = 96; number <= 120; number += 1) {
     const student = students[number - 1];
-    const mentor = getPeriod1Mentor(number);
+    const mentor = getHK1Mentor(number);
     const padStr = String(number).padStart(3, '0');
     const status = statusForStudent(number);
     const council = allocateCouncilForRegistration({ mentorId: mentor.id, councils, councilLoadMap });
 
     await prisma.studentProjectEnrollment.create({
-      data: { studentId: student.id, semesterId: period1Record.id, projectCatalogId: catalog.id, status: 'ACTIVE', source: 'SEED' },
+      data: { studentId: student.id, semesterId: semesterHK1Record.id, projectCatalogId: catalog.id, status: 'ACTIVE', source: 'SEED' },
     });
     const topic = await prisma.topic.create({
       data: {
-        semesterId: period1Record.id,
+        semesterId: semesterHK1Record.id,
         projectCatalogId: catalog.id,
         mentorId: mentor.id,
         proposedById: mentor.id,
@@ -1075,12 +1263,12 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
     const registration = await prisma.topicRegistration.create({
       data: {
         studentId: student.id,
-        semesterId: period1Record.id,
+        semesterId: semesterHK1Record.id,
         topicId: topic.id,
-        periodPolicyVersionId: period1Policy.id,
+        periodPolicyVersionId: policyHK1.id,
         status,
         outlineReviewStatus: 'PASSED',
-        decisionNumber: 'QD-DATN-2026-D1',
+        decisionNumber: 'QD-DATN-2026-HK1',
         decisionDate: new Date(referenceDate.getTime() - 60 * 86400000),
         defenseCouncilId: council.id,
         stateVersion: 1,
@@ -1092,7 +1280,7 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
         versionNo: 1,
         attemptNo: 1,
         outcome: 'APPROVED',
-        policyVersionId: period1Policy.id,
+        policyVersionId: policyHK1.id,
         submittedById: student.id,
         reviewedById: admin.id,
         reviewedAt: referenceDate,
@@ -1106,11 +1294,11 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
       data: {
         registrationId: registration.id,
         bm02SubmissionId: bm02.id,
-        decisionNumber: 'QD-DATN-2026-D1',
+        decisionNumber: 'QD-DATN-2026-HK1',
         issuedAt: referenceDate,
         effectiveAt: referenceDate,
         issuedById: admin.id,
-        policyVersionId: period1Policy.id,
+        policyVersionId: policyHK1.id,
         idempotencyKey: `seed-decision-${number}`,
       },
     });
@@ -1118,7 +1306,7 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
     await bm04Model.create({
       data: {
         registrationId: registration.id,
-        semesterId: period1Record.id,
+        semesterId: semesterHK1Record.id,
         studentId: student.id,
         lecturerId: mentor.id,
         thesisFormatScore: '2.0',
@@ -1130,7 +1318,7 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
         lecturerSignature: `SIG_LECTURER_${mentor.id}`,
         signedAt: referenceDate,
         isLocked: true,
-        policyVersionId: period1Policy.id,
+        policyVersionId: policyHK1.id,
       },
     });
 
@@ -1187,22 +1375,27 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
   }
 
   return {
-    semester: period1Record,
+    semester: semesterHK1Record,
     semesters: {
-      pastSemester: pastSemesterRecord,
-      period2Supplementary: period2Record,
-      period1Main: period1Record,
+      semesterHK1: semesterHK1Record,
+      semesterHK2: semesterHK2Record,
+      period1Main: semesterHK1Record,
+      period2Supplementary: semesterHK2Record,
+      pastSemester: semesterHK1Record,
     },
     catalog,
-    policy: period1Policy,
+    policy: policyHK1,
     policies: {
-      pastPolicy,
-      period2Policy,
-      period1Policy,
+      policyHK1,
+      policyHK2,
+      period1Policy: policyHK1,
+      period2Policy: policyHK2,
+      pastPolicy: policyHK1,
     },
     admin,
     registrations,
     councils,
+    outlineCouncil,
     rubric,
     delegations: [delegationActive, delegationExpired],
     announcements: [announcement1, announcement2, announcement3],
@@ -1211,7 +1404,7 @@ async function seedAcademicFixtures({ prisma, accountsByEmail, baseDate, calenda
 
 async function seedDefenseEvidenceAndPublications({ prisma, context, fixtures }) {
   const adminId = context.admin.id;
-  const targetSemester = context.semesters?.period1Main || context.semester;
+  const targetSemester = context.semesters?.semesterHK1 || context.semesters?.period1Main || context.semester;
 
   // 1. Process 101..120 defense evidence
   // 101..105: AWAITING_SCORES (scores entered/unlocked)
@@ -1365,7 +1558,7 @@ async function seedDefenseEvidenceAndPublications({ prisma, context, fixtures })
   const supplementaryFixture = fixtures.get(112);
 
   const initialEvidence = await createLockedEvidence(initialFixture, 8.5, 'Kết quả bảo vệ đạt', 'PASSED');
-  const supplementaryEvidence = await createLockedEvidence(supplementaryFixture, 8.5, 'Kết quả bảo vệ đợt bổ sung', 'PASSED');
+  const supplementaryEvidence = await createLockedEvidence(supplementaryFixture, 8.5, 'Kết quả bảo vệ công bố bổ sung', 'PASSED');
 
   const initialApproval = await createApproval(initialFixture, initialEvidence, 'PASSED', 8.5);
   const oldApproval = await createApproval(supplementaryFixture, supplementaryEvidence, 'PASSED', 8.5);

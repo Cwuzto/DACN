@@ -2,8 +2,8 @@ function validateDemoSummary(summary) {
   if (summary.admins !== 1 || summary.lecturers !== 12 || summary.students !== 120) {
     throw new Error('Demo seed must contain 1 admin, 12 lecturers, and 120 students.');
   }
-  if (summary.semesters !== 3) {
-    throw new Error('Demo seed must contain exactly 3 semesters.');
+  if (summary.semesters !== 2) {
+    throw new Error('Demo seed must contain exactly 2 semesters (HK1 and HK2).');
   }
   if (!summary.academicDelegations || summary.academicDelegations < 2) {
     throw new Error('Demo seed must contain at least 2 academic delegations.');

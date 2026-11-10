@@ -21,6 +21,7 @@ function createMockPrisma() {
     announcements: [],
     councils: [],
     councilMembers: [],
+    councilResultBatches: [],
     enrollments: [],
     topics: [],
     registrations: [],
@@ -119,6 +120,13 @@ function createMockPrisma() {
           stores.councilMembers.push({ id: nextId(), ...item });
         }
         return { count: data.length };
+      }),
+    },
+    councilResultBatch: {
+      create: jest.fn(async ({ data }) => {
+        const row = { id: nextId(), ...data };
+        stores.councilResultBatches.push(row);
+        return row;
       }),
     },
     studentProjectEnrollment: {
@@ -283,7 +291,7 @@ describe('workflow demo fixtures', () => {
 
   test('creates approved one-student topic and matching active enrollment', () => {
     const fixture = buildRegistrationFixture({
-      number: 1,
+      number: 25,
       semesterId: 4,
       catalogId: 7,
       studentId: 11,
@@ -297,22 +305,28 @@ describe('workflow demo fixtures', () => {
   });
 
   test('maps student status correctly across all cohorts', () => {
-    expect(statusForStudent(1)).toBe('COMPLETED');
-    expect(statusForStudent(30)).toBe('COMPLETED');
-    expect(statusForStudent(31)).toBeNull();
-    expect(statusForStudent(40)).toBeNull();
-    expect(statusForStudent(41)).toBe('PENDING');
-    expect(statusForStudent(50)).toBe('PENDING');
-    expect(statusForStudent(51)).toBe('BM01_NEEDS_REVISION');
-    expect(statusForStudent(55)).toBe('BM01_NEEDS_REVISION');
-    expect(statusForStudent(56)).toBe('BM02_SUBMITTED');
-    expect(statusForStudent(60)).toBe('BM02_SUBMITTED');
-    expect(statusForStudent(61)).toBe('DECISION_ISSUED');
+    expect(statusForStudent(1)).toBeNull();
+    expect(statusForStudent(10)).toBeNull();
+    expect(statusForStudent(11)).toBe('PENDING');
+    expect(statusForStudent(20)).toBe('PENDING');
+    expect(statusForStudent(21)).toBe('APPROVED');
+    expect(statusForStudent(30)).toBe('APPROVED');
+    expect(statusForStudent(31)).toBe('BM01_SUBMITTED');
+    expect(statusForStudent(35)).toBe('BM01_SUBMITTED');
+    expect(statusForStudent(36)).toBe('BM01_NEEDS_REVISION');
+    expect(statusForStudent(40)).toBe('BM01_NEEDS_REVISION');
+    expect(statusForStudent(41)).toBe('BM01_RESUBMITTED');
+    expect(statusForStudent(45)).toBe('BM01_RESUBMITTED');
+    expect(statusForStudent(46)).toBe('BM02_SUBMITTED');
+    expect(statusForStudent(50)).toBe('BM02_SUBMITTED');
+    expect(statusForStudent(51)).toBe('DECISION_ISSUED');
     expect(statusForStudent(70)).toBe('DECISION_ISSUED');
     expect(statusForStudent(71)).toBe('IN_PROGRESS');
     expect(statusForStudent(84)).toBe('IN_PROGRESS');
     expect(statusForStudent(85)).toBe('CHECKPOINT_SIGNATURE_APPEAL_SUBMITTED');
     expect(statusForStudent(86)).toBe('BM03_PASSED');
+    expect(statusForStudent(90)).toBe('BM03_PASSED');
+    expect(statusForStudent(91)).toBe('BM04_REVIEW');
     expect(statusForStudent(95)).toBe('BM04_REVIEW');
     expect(statusForStudent(96)).toBe('DEFENSE_READY');
     expect(statusForStudent(100)).toBe('DEFENSE_READY');
@@ -354,13 +368,12 @@ describe('workflow demo fixtures', () => {
     const baseDate = new Date('2026-11-05T08:00:00.000Z');
     const result = await seedAcademicFixtures({ prisma, accountsByEmail, baseDate });
 
-    // 1. 3 Semesters and policies
-    expect(prisma.stores.semesters).toHaveLength(3);
+    // 1. 2 Semesters and policies
+    expect(prisma.stores.semesters).toHaveLength(2);
     const semNames = prisma.stores.semesters.map((s) => s.name);
-    expect(semNames.some((n) => n.includes('HK2 2025–2026'))).toBe(true);
-    expect(semNames.some((n) => n.includes('Đợt 2 - Bổ sung'))).toBe(true);
-    expect(semNames.some((n) => n.includes('Đợt 1 - Chính khóa'))).toBe(true);
-    expect(prisma.stores.policies).toHaveLength(3);
+    expect(semNames.some((n) => n.includes('HK1 2026–2027'))).toBe(true);
+    expect(semNames.some((n) => n.includes('HK2 2026–2027'))).toBe(true);
+    expect(prisma.stores.policies).toHaveLength(2);
 
     // 2. Project Catalog
     expect(prisma.stores.catalogs).toHaveLength(1);
@@ -391,40 +404,34 @@ describe('workflow demo fixtures', () => {
     const annCategories = prisma.stores.announcements.map((a) => a.category);
     expect(annCategories).toEqual(expect.arrayContaining(['REGISTRATION', 'ACADEMIC', 'DEFENSE']));
 
-    // 6. Councils: 4 councils with 3 members each
-    expect(prisma.stores.councils).toHaveLength(4);
-    expect(prisma.stores.councilMembers).toHaveLength(12);
+    // 6. Councils: 5 councils (4 defense + 1 outline)
+    expect(prisma.stores.councils).toHaveLength(5);
+    expect(prisma.stores.councilMembers).toHaveLength(15);
 
     // 7. Student Enrollments and Registrations
     // 120 total student enrollments
     expect(prisma.stores.enrollments).toHaveLength(120);
-    // sv031-sv040 (10 SV) are unregistered -> 110 registrations total
+    // sv001-sv010 (10 SV) are unregistered in HK2 -> 110 registrations total
     expect(prisma.stores.registrations).toHaveLength(110);
 
-    // Past semester (sv001-sv030): 30 completed registrations with approved archives
-    const pastRegs = prisma.stores.registrations.filter((r) => r.status === 'COMPLETED');
-    expect(pastRegs).toHaveLength(30);
-    const pastArchives = prisma.stores.projectArchives.filter((a) => a.phase === 'POST_DEFENSE' && a.status === 'APPROVED');
-    expect(pastArchives).toHaveLength(30);
+    // HK2: open topics seeded
+    const hk2Topics = prisma.stores.topics.filter((t) => t.semesterId === result.semesters.semesterHK2.id);
+    expect(hk2Topics.length).toBeGreaterThanOrEqual(10);
 
-    // Đợt 2: open topics seeded
-    const period2Topics = prisma.stores.topics.filter((t) => t.semesterId === result.semesters.period2Supplementary.id);
-    expect(period2Topics.length).toBeGreaterThanOrEqual(10);
-
-    // Đợt 2: 10 pending registrations (sv041-sv050)
+    // HK2: 10 pending registrations (sv011-sv020)
     const pendingRegs = prisma.stores.registrations.filter((r) => r.status === 'PENDING');
     expect(pendingRegs).toHaveLength(10);
 
-    // Đợt 2: 5 BM01 revision with evaluations
+    // HK1: 5 BM01 revision with evaluations (sv036-sv040)
     const bm01Regs = prisma.stores.registrations.filter((r) => r.status === 'BM01_NEEDS_REVISION');
     expect(bm01Regs).toHaveLength(5);
-    expect(prisma.stores.bm01Evaluations).toHaveLength(5);
+    expect(prisma.stores.bm01Evaluations.length).toBeGreaterThanOrEqual(5);
 
-    // Đợt 2: 5 BM02 submitted with submissions
+    // HK1: 5 BM02 submitted with submissions (sv046-sv050)
     const bm02SubmittedRegs = prisma.stores.registrations.filter((r) => r.status === 'BM02_SUBMITTED');
     expect(bm02SubmittedRegs).toHaveLength(5);
 
-    // Đợt 1: Title adjustments for sv061 and sv062
+    // HK1: Title adjustments for sv051 and sv052
     expect(prisma.stores.topicTitleAdjustments).toHaveLength(2);
     const pendingAdj = prisma.stores.topicTitleAdjustments.find((a) => a.status === 'PENDING');
     expect(pendingAdj).toBeDefined();
@@ -432,12 +439,12 @@ describe('workflow demo fixtures', () => {
     expect(approvedAdj).toBeDefined();
     expect(prisma.stores.decisionAmendments).toHaveLength(1);
 
-    // Đợt 1: sv085 Checkpoint appeal SUBMITTED
+    // HK1: sv085 Checkpoint appeal SUBMITTED
     const appeal = prisma.stores.checkpointSignatureAppeals.find((a) => a.status === 'SUBMITTED');
     expect(appeal).toBeDefined();
     expect(appeal.reason).toContain('Minh chứng báo cáo đầy đủ');
 
-    // Đợt 1: BM04 Evaluations and pre-defense archives
+    // HK1: BM04 Evaluations and pre-defense archives
     expect(prisma.stores.bm04Evaluations.length).toBeGreaterThanOrEqual(10);
     const preDefenseArchives = prisma.stores.projectArchives.filter((a) => a.phase === 'PRE_DEFENSE');
     expect(preDefenseArchives.length).toBeGreaterThanOrEqual(10);

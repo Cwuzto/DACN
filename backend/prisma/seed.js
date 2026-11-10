@@ -8,15 +8,16 @@ const { resetApplicationData, describeDatabaseTarget } = require('../scripts/see
 const { seedAcademicFixtures, seedDefenseEvidenceAndPublications } = require('../scripts/seed/workflowFixtures');
 const { validateDemoSeed } = require('../scripts/seed/validateDemoSeed');
 
-async function createAccounts(db) {
-  const hashByPassword = new Map();
+async function createAccounts(db, precomputedHashes) {
+  const accounts = buildAccounts();
+  const accountsData = accounts.map(({ password, ...data }) => ({
+    ...data,
+    passwordHash: precomputedHashes.get(password),
+  }));
+  await db.user.createMany({ data: accountsData });
+  const allUsers = await db.user.findMany();
   const accountsByEmail = new Map();
-  for (const account of buildAccounts()) {
-    if (!hashByPassword.has(account.password)) {
-      hashByPassword.set(account.password, await bcrypt.hash(account.password, 10));
-    }
-    const { password, ...data } = account;
-    const user = await db.user.create({ data: { ...data, passwordHash: hashByPassword.get(password) } });
+  for (const user of allUsers) {
     accountsByEmail.set(user.email, user);
   }
   return accountsByEmail;
@@ -41,39 +42,46 @@ async function assignPermissionGroups(db, accountsByEmail) {
 
 async function main() {
   console.log('[seed] Target:', describeDatabaseTarget(process.env.DATABASE_URL));
+  console.log('[seed] Precomputing password hashes...');
+  const precomputedHashes = new Map();
+  for (const pwd of ['admin123', 'lecturer123', 'student123']) {
+    precomputedHashes.set(pwd, await bcrypt.hash(pwd, 10));
+  }
   console.log('[seed] Resetting reviewed application tables...');
   const { academic, publications, summary } = await prisma.$transaction(async (tx) => {
     await resetApplicationData(tx, process.env);
     await seedPermissionCatalog(tx);
-    const accountsByEmail = await createAccounts(tx);
+    const accountsByEmail = await createAccounts(tx, precomputedHashes);
     await assignPermissionGroups(tx, accountsByEmail);
     const seededAcademic = await seedAcademicFixtures({ prisma: tx, accountsByEmail });
     const seededPublications = await seedDefenseEvidenceAndPublications({ prisma: tx, context: seededAcademic, fixtures: seededAcademic.registrations });
     const seededSummary = await validateDemoSeed(tx);
     return { academic: seededAcademic, publications: seededPublications, summary: seededSummary };
-  }, { timeout: 120000, maxWait: 30000 });
+  }, { timeout: 360000, maxWait: 60000 });
   console.log('[seed] Controlled demo seed complete.');
   console.table({
     ...summary,
-    pastSemester: academic.semesters.pastSemester.name,
-    period2Supplementary: academic.semesters.period2Supplementary.name,
-    period1Main: academic.semesters.period1Main.name,
+    semesterHK1: academic.semesters.semesterHK1.name,
+    semesterHK2: academic.semesters.semesterHK2.name,
     publications: Object.keys(publications).length,
   });
   console.log('[seed] Test Account Credentials:');
   console.log('[seed] - Admin: admin@university.edu.vn / admin123');
   console.log('[seed] - Viện trưởng: lecturer01@university.edu.vn / lecturer123');
   console.log('[seed] - GV ủy quyền BM02: lecturer02@university.edu.vn / lecturer123');
-  console.log('[seed] - Kỳ cũ tốt nghiệp: sv001@university.edu.vn / student123');
-  console.log('[seed] - Đợt 2 chưa ĐK: sv031@university.edu.vn / student123');
-  console.log('[seed] - Đợt 2 chờ duyệt: sv041@university.edu.vn / student123');
-  console.log('[seed] - Đợt 2 sửa BM01: sv051@university.edu.vn / student123');
-  console.log('[seed] - Đợt 2 duyệt BM02: sv056@university.edu.vn / student123');
-  console.log('[seed] - Đợt 1 QĐ giao: sv061@university.edu.vn / student123');
-  console.log('[seed] - Đợt 1 Checkpoint: sv071@university.edu.vn / student123');
-  console.log('[seed] - Đợt 1 Khiếu nại chữ ký: sv085@university.edu.vn / student123');
-  console.log('[seed] - Đợt 1 Đánh giá BM04: sv086@university.edu.vn / student123');
-  console.log('[seed] - Đợt 1 Hội đồng bảo vệ: sv096@university.edu.vn / student123');
+  console.log('[seed] - HK2 chưa ĐK: sv001@university.edu.vn / student123');
+  console.log('[seed] - HK2 chờ duyệt: sv011@university.edu.vn / student123');
+  console.log('[seed] - HK2 đã duyệt đề tài: sv021@university.edu.vn / student123');
+  console.log('[seed] - HK1 nộp đề cương v1: sv031@university.edu.vn / student123');
+  console.log('[seed] - HK1 sửa đề cương: sv036@university.edu.vn / student123');
+  console.log('[seed] - HK1 nộp lại v2: sv041@university.edu.vn / student123');
+  console.log('[seed] - HK1 nộp BM02: sv046@university.edu.vn / student123');
+  console.log('[seed] - HK1 QĐ giao: sv051@university.edu.vn / student123');
+  console.log('[seed] - HK1 Checkpoint: sv071@university.edu.vn / student123');
+  console.log('[seed] - HK1 Khiếu nại chữ ký: sv085@university.edu.vn / student123');
+  console.log('[seed] - HK1 Đánh giá BM04: sv086@university.edu.vn / student123');
+  console.log('[seed] - HK1 Sẵn sàng bảo vệ: sv096@university.edu.vn / student123');
+  console.log('[seed] - HK1 Hội đồng bảo vệ: sv101@university.edu.vn / student123');
 }
 
 main()

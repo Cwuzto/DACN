@@ -391,7 +391,7 @@ function AppLayout({ role }) {
                         {/* Institutional Period Badge */}
                         <div className="period-badge">
                             <span className="period-dot"></span>
-                            <span>{currentSemester?.name || 'Đồ án tốt nghiệp — HK1 2026–2027 (Đợt 1 - Chính khóa)'} · Đang diễn ra</span>
+                            <span>{currentSemester?.name || 'Đồ án tốt nghiệp — HK1 2026–2027'} · Đang diễn ra</span>
                         </div>
 
                         <span className="hidden sm:inline" style={{ color: 'var(--border)' }}>|</span>

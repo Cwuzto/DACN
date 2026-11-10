@@ -1225,4 +1225,71 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 3. **Che Điểm Hoàn Toàn Trước Công Bố**: Tránh việc sinh viên xem được điểm thô trước khi Hội đồng/Viện trưởng phê duyệt và ban hành snapshot công bố chính thức, ngăn ngừa khiếu nại sai quy trình và rò rỉ thông tin học vụ.
 4. **Chống Race Condition Quota 10 SV Bằng 2 Tầng**: Không chỉ dựa vào kiểm tra ở controller, mà sử dụng cả khóa đồng thời `acquireMentorLock` ở tầng service và mức cô lập giao dịch `Serializable` ở tầng CSDL để đảm bảo không thể vượt quá 10 SV/GVHD dưới tải đồng thời.
 
+### Phiên 10/11/2026 — Tái Cấu Trúc Bộ Dữ Liệu Seed Chuẩn (Chỉ HK1 & HK2) và Tối Ưu Hóa Giao Dịch
+
+#### 1. Những phần đã hoàn thành
+
+1. **Loại bỏ Hoàn toàn Khái niệm "Chính Khóa" / "Bổ Sung" / "Đợt 1" / "Đợt 2"**:
+   - Tinh chỉnh toàn bộ tệp định nghĩa và kiểm định seed: `backend/scripts/seed/demoFixtures.js`, `backend/scripts/seed/workflowFixtures.js`, `backend/scripts/seed/validateDemoSeed.js`, `backend/scripts/seed/resetApplicationData.js`, `backend/prisma/seed.js`.
+   - Hệ thống chuẩn hóa chỉ gồm đúng 2 học kỳ:
+     * `semesterHK1`: `DATN-HK1-2026-27` — `Đồ án tốt nghiệp — HK1 2026–2027` (Đang diễn ra ở giai đoạn bảo vệ và tổng kết).
+     * `semesterHK2`: `DATN-HK2-2026-27` — `Đồ án tốt nghiệp — HK2 2026–2027` (Đang mở đăng ký nguyện vọng `REGISTRATION`).
+   - Cập nhật giao diện Frontend loại bỏ các chuỗi gắn cứng `(Đợt 1 - Chính khóa)` tại [AppLayout.jsx](file:///d:/DACN/frontend/src/components/layout/AppLayout.jsx), [StudentDashboardPage.jsx](file:///d:/DACN/frontend/src/pages/student/StudentDashboardPage.jsx) và tối ưu logic hiển thị ưu tiên tại [semesterDisplay.js](file:///d:/DACN/frontend/src/utils/semesterDisplay.js).
+
+2. **Chuẩn Hóa Phân Bổ 120 Sinh Viên Theo Tiến Độ Thực Tế**:
+   - **Học kỳ 2 (30 SV: `sv001`–`sv030`)**:
+     * `1..10`: `HK2_UNREGISTERED` (Chỉ có ghi danh học kỳ, chưa đăng ký đề tài).
+     * `11..20`: `HK2_PENDING` (Đã đăng ký nguyện vọng, chờ GVHD duyệt).
+     * `21..30`: `HK2_APPROVED` (GVHD đã duyệt đăng ký đề tài).
+     * Tạo 12 đề tài mở của 12 giảng viên sẵn sàng tiếp nhận đăng ký trong HK2.
+   - **Học kỳ 1 (90 SV: `sv031`–`sv120`)**:
+     * `31..35`: `HK1_BM01_SUBMITTED` (Nộp đề cương v1, task `BM01_INITIAL_SUBMISSION` completed).
+     * `36..40`: `HK1_BM01_NEEDS_REVISION` (Hội đồng yêu cầu chỉnh sửa, task `BM01_RESUBMISSION` open).
+     * `41..45`: `HK1_BM01_RESUBMITTED` (Đã nộp lại đề cương v2, chờ Chủ tịch hội đồng duyệt).
+     * `46..50`: `HK1_BM02_SUBMITTED` (Đã nộp đơn đăng ký đề tài BM02).
+     * `51..70`: `HK1_DECISION` (Đã ban hành QĐ giao đề tài; sv051 có yêu cầu điều chỉnh tên PENDING, sv052 có yêu cầu APPROVED và phụ lục quyết định).
+     * `71..85`: `HK1_CHECKPOINT` (Đánh giá tiến độ Checkpoint 1 & 2; sv085 có khiếu nại chữ ký `CHECKPOINT_SIGNATURE_APPEAL_SUBMITTED`).
+     * `86..95`: `HK1_BM04` (sv086..090 `BM03_PASSED`, sv091..095 `BM04_REVIEW` và nộp lưu chiểu sơ bộ pre-defense).
+     * `96..100`: `DEFENSE_READY` (Đủ điều kiện sẵn sàng bảo vệ).
+     * `101..120`: `HK1_DEFENSE` (20 SV được phân bổ vào 4 Hội đồng bảo vệ với Zero-COI; trải qua đầy đủ các trạng thái `AWAITING_SCORES`, `AWAITING_FINAL_APPROVAL`, `DEFENSE_PASSED`, `DEFENSE_FAILED` và ban hành 4 đợt công bố kết quả).
+
+3. **Tối Ưu Hóa Giao Dịch & Khắc Phục Lỗi Quá Tải Mạng Supabase**:
+   - Sửa enum `CouncilMeetingMode` trong `workflowFixtures.js` từ `'OFFLINE'` thành `'IN_PERSON'` chuẩn schema Prisma.
+   - Thêm `council_result_batches` vào danh sách `APPLICATION_TABLES` trong `resetApplicationData.js` phục vụ truncate sạch khi reset.
+   - Tối ưu `backend/prisma/seed.js`: Pre-compute hash mật khẩu trước khi mở transaction, thay thế 133 lệnh insert đơn lẻ bằng `createMany` + `findMany`, nâng transaction timeout lên 360s.
+   - Seed trực tiếp thành công 100% lên cơ sở dữ liệu PostgreSQL Supabase qua cổng session 5432.
+
+4. **Kiểm Thử Toàn Tuyến & Kiểm Tra Độc Lập Qua Subagent**:
+   - Backend Unit & Integration Tests:
+     * `demoFixtures.test.js`: 6/6 tests PASS.
+     * `validateDemoSeed.test.js`: 13/13 tests PASS.
+     * `workflowFixtures.test.js`: 6/6 tests PASS.
+     * Core Integration Suites (`outlineWorkflowFullE2E`, `bm01.routes`, `semesters.routes`, `registrations.routes`): 30/30 tests PASS.
+   - Frontend Tests & Build:
+     * `npm test --prefix frontend`: **100/100 tests PASS**.
+     * `npm run build --prefix frontend`: **PASS (19.55s, 0 errors)**.
+   - Task Reviewer Subagent: Xác nhận 100% tuân thủ mô hình `TopicRegistration`, `maxStudents = 1`, không vượt quota 10 SV/GVHD, Zero-COI và định dạng UTF-8 (no BOM).
+
+#### 2. Trạng thái cập nhật của từng phần
+
+- **Database/Prisma**: `UP TO DATE & SEEDED`; CSDL PostgreSQL Supabase nạp sạch 120 sinh viên, 12 giảng viên, 2 học kỳ (HK1 & HK2) và 4 hội đồng bảo vệ + 1 hội đồng đề cương.
+- **Backend API**: `STABLE & TESTED`; 100% unit tests và integration tests liên quan đều PASS.
+- **Frontend SPA**: `BUILD PASS (100%)`; 100/100 tests pass, build production thành công 0 lỗi.
+- **Dữ liệu & Mã hóa**: 100% đạt chuẩn UTF-8 (no BOM), không còn tàn dư mock data hoặc khái niệm chính khóa/bổ sung.
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+
+1. **UAT Trực Quan Trên Web**: Đăng nhập thử nghiệm trên giao diện với các tài khoản đại diện của từng giai đoạn:
+   - Admin: `admin@university.edu.vn`
+   - Viện trưởng / Chủ tịch HĐ: `lecturer01@university.edu.vn`
+   - Sinh viên HK2 đăng ký mới: `sv001@university.edu.vn`
+   - Sinh viên HK1 các giai đoạn: `sv031` (BM01 v1), `sv036` (BM01 sửa), `sv046` (BM02), `sv071` (Checkpoint), `sv085` (Khiếu nại chữ ký), `sv101` (Bảo vệ).
+2. **Triển Khai Tính Năng Mới**: Tiếp nhận các yêu cầu nghiệp vụ tiếp theo từ người dùng.
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+
+1. **Quy Chuẩn 2 Học Kỳ Độc Lập HK1 & HK2**: Thay thế hoàn toàn cách chia "Đợt 1 Chính khóa" và "Đợt 2 Bổ sung" bằng 2 Học kỳ chuẩn học vụ ĐHQG (`HK1 2026–2027` và `HK2 2026–2027`). Cách tiếp cận này phản ánh đúng thực tế đào tạo đại học, làm rõ ràng vai trò của từng học kỳ (HK1 kết thúc/bảo vệ, HK2 mở đăng ký mới).
+2. **Tách Rời Việc Tính Toán Mật Khẩu Khỏi Giao Dịch CSDL**: Chạy bcrypt hash bên ngoài transaction giúp tiết kiệm hàng nghìn chu kỳ CPU và giảm thiểu thời gian chiếm giữ interactive transaction, đảm bảo script seed chạy nhanh và không bị timeout qua kết nối cloud latency cao.
+3. **Batch Insertion Cho Danh Sách Tài Khoản**: Chuyển từ 133 lệnh insert tuần tự sang 1 lệnh `createMany` duy nhất, giảm 99% thời gian round-trip mạng sang cụm máy chủ Supabase.
+
 

@@ -112,9 +112,9 @@ export const resolveCurrentSemester = (list = []) => {
     });
 
     if (currentlyRunning.length > 0) {
-        // Prefer "Chính khóa" or "Đợt 1" if available
+        // Prefer "HK1" or active ongoing semester
         const mainPeriod = currentlyRunning.find((s) =>
-            s.name?.includes('Chính khóa') || s.name?.includes('Đợt 1') || s.code?.includes('D1')
+            s.name?.includes('HK1') || s.code?.includes('HK1') || s.name?.includes('Chính khóa') || s.name?.includes('Đợt 1') || s.code?.includes('D1')
         );
         if (mainPeriod) return mainPeriod;
         return currentlyRunning[0];
@@ -126,7 +126,7 @@ export const resolveCurrentSemester = (list = []) => {
     );
     if (activeStatusSemesters.length > 0) {
         const mainActive = activeStatusSemesters.find((s) =>
-            s.name?.includes('Chính khóa') || s.name?.includes('Đợt 1') || s.code?.includes('D1')
+            s.name?.includes('HK1') || s.code?.includes('HK1') || s.name?.includes('Chính khóa') || s.name?.includes('Đợt 1') || s.code?.includes('D1')
         );
         if (mainActive) return mainActive;
         return activeStatusSemesters[0];

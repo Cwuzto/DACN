@@ -38,74 +38,61 @@ describe('deterministic demo fixtures', () => {
     const baseDate = new Date('2026-11-05T12:00:00.000Z');
     const semesters = getSemesterDefinitions(baseDate);
 
-    // pastSemester
-    expect(semesters.pastSemester).toEqual({
-      code: 'DATN-HK2-2025-26',
-      name: 'Đồ án tốt nghiệp — HK2 2025–2026',
-      startDate: new Date('2026-01-05T00:00:00.000Z'),
-      registrationDeadline: new Date('2026-01-20T00:00:00.000Z'),
-      midtermReportDate: new Date('2026-03-25T00:00:00.000Z'),
-      defenseDate: new Date('2026-05-15T00:00:00.000Z'),
-      endDate: new Date('2026-05-30T00:00:00.000Z'),
-      registrationOpen: false,
-      status: 'COMPLETED',
-    });
+    // semesterHK1
+    const hk1 = semesters.semesterHK1;
+    expect(hk1.code).toBe('DATN-HK1-2026-27');
+    expect(hk1.name).toBe('Đồ án tốt nghiệp — HK1 2026–2027');
+    expect(hk1.startDate).toEqual(new Date(baseDate.getTime() - 90 * 24 * 60 * 60 * 1000));
+    expect(hk1.registrationDeadline).toEqual(new Date(baseDate.getTime() - 60 * 24 * 60 * 60 * 1000));
+    expect(hk1.midtermReportDate).toEqual(new Date(baseDate.getTime() - 20 * 24 * 60 * 60 * 1000));
+    expect(hk1.defenseDate).toEqual(baseDate);
+    expect(hk1.endDate).toEqual(new Date(baseDate.getTime() + 15 * 24 * 60 * 60 * 1000));
+    expect(hk1.registrationOpen).toBe(false);
+    expect(hk1.status).toBe('DEFENSE');
 
-    // period2Supplementary
-    const p2 = semesters.period2Supplementary;
-    expect(p2.code).toBe('DATN-HK1-2026-27-D2');
-    expect(p2.name).toBe('Đồ án tốt nghiệp — HK1 2026–2027 (Đợt 2 - Bổ sung)');
-    expect(p2.startDate).toEqual(new Date(baseDate.getTime() - 10 * 24 * 60 * 60 * 1000));
-    expect(p2.registrationDeadline).toEqual(new Date(baseDate.getTime() + 14 * 24 * 60 * 60 * 1000));
-    expect(p2.midtermReportDate).toEqual(new Date(baseDate.getTime() + 45 * 24 * 60 * 60 * 1000));
-    expect(p2.defenseDate).toEqual(new Date(baseDate.getTime() + 75 * 24 * 60 * 60 * 1000));
-    expect(p2.endDate).toEqual(new Date(baseDate.getTime() + 90 * 24 * 60 * 60 * 1000));
-    expect(p2.registrationOpen).toBe(true);
-    expect(p2.status).toBe('REGISTRATION');
-    expect(p2.registrationDeadline.getTime()).toBeGreaterThan(baseDate.getTime());
-
-    // period1Main
-    const p1 = semesters.period1Main;
-    expect(p1.code).toBe('DATN-HK1-2026-27-D1');
-    expect(p1.name).toBe('Đồ án tốt nghiệp — HK1 2026–2027 (Đợt 1 - Chính khóa)');
-    expect(p1.startDate).toEqual(new Date(baseDate.getTime() - 90 * 24 * 60 * 60 * 1000));
-    expect(p1.registrationDeadline).toEqual(new Date(baseDate.getTime() - 60 * 24 * 60 * 60 * 1000));
-    expect(p1.midtermReportDate).toEqual(new Date(baseDate.getTime() - 20 * 24 * 60 * 60 * 1000));
-    expect(p1.defenseDate).toEqual(baseDate);
-    expect(p1.endDate).toEqual(new Date(baseDate.getTime() + 15 * 24 * 60 * 60 * 1000));
-    expect(p1.registrationOpen).toBe(false);
-    expect(p1.status).toBe('DEFENSE');
+    // semesterHK2
+    const hk2 = semesters.semesterHK2;
+    expect(hk2.code).toBe('DATN-HK2-2026-27');
+    expect(hk2.name).toBe('Đồ án tốt nghiệp — HK2 2026–2027');
+    expect(hk2.startDate).toEqual(new Date(baseDate.getTime() - 10 * 24 * 60 * 60 * 1000));
+    expect(hk2.registrationDeadline).toEqual(new Date(baseDate.getTime() + 14 * 24 * 60 * 60 * 1000));
+    expect(hk2.midtermReportDate).toEqual(new Date(baseDate.getTime() + 45 * 24 * 60 * 60 * 1000));
+    expect(hk2.defenseDate).toEqual(new Date(baseDate.getTime() + 75 * 24 * 60 * 60 * 1000));
+    expect(hk2.endDate).toEqual(new Date(baseDate.getTime() + 90 * 24 * 60 * 60 * 1000));
+    expect(hk2.registrationOpen).toBe(true);
+    expect(hk2.status).toBe('REGISTRATION');
+    expect(hk2.registrationDeadline.getTime()).toBeGreaterThan(baseDate.getTime());
 
     // DEMO_SEMESTERS exported constant
-    expect(DEMO_SEMESTERS.pastSemester.status).toBe('COMPLETED');
-    expect(DEMO_SEMESTERS.period2Supplementary.status).toBe('REGISTRATION');
-    expect(DEMO_SEMESTERS.period2Supplementary.registrationOpen).toBe(true);
-    expect(DEMO_SEMESTERS.period1Main.status).toBe('DEFENSE');
-    expect(DEMO_SEMESTERS.period1Main.registrationOpen).toBe(false);
+    expect(DEMO_SEMESTERS.semesterHK1.status).toBe('DEFENSE');
+    expect(DEMO_SEMESTERS.semesterHK2.status).toBe('REGISTRATION');
+    expect(DEMO_SEMESTERS.semesterHK2.registrationOpen).toBe(true);
   });
 
-  test('preserves DEMO_CALENDAR aliasing period1Main for backward compatibility', () => {
+  test('preserves DEMO_CALENDAR aliasing semesterHK1 for backward compatibility', () => {
     expect(DEMO_CALENDAR).toBeDefined();
-    expect(DEMO_CALENDAR.name).toBe(DEMO_SEMESTERS.period1Main.name);
+    expect(DEMO_CALENDAR.name).toBe(DEMO_SEMESTERS.semesterHK1.name);
     expect(DEMO_CALENDAR.status).toBe('DEFENSE');
     expect(DEMO_CALENDAR.registrationOpen).toBe(false);
-    expect(DEMO_CALENDAR.defenseDate).toEqual(DEMO_SEMESTERS.period1Main.defenseDate);
-    expect(DEMO_CALENDAR.startDate).toEqual(DEMO_SEMESTERS.period1Main.startDate);
+    expect(DEMO_CALENDAR.defenseDate).toEqual(DEMO_SEMESTERS.semesterHK1.defenseDate);
+    expect(DEMO_CALENDAR.startDate).toEqual(DEMO_SEMESTERS.semesterHK1.startDate);
   });
 
   test('partitions all 120 students cleanly across cohorts with no gaps or overlaps', () => {
     expect(STUDENT_COHORTS).toBeDefined();
 
     const expectedCohorts = {
-      PAST: { start: 1, end: 30, count: 30 },
-      PERIOD2_UNREGISTERED: { start: 31, end: 40, count: 10 },
-      PERIOD2_PENDING: { start: 41, end: 50, count: 10 },
-      PERIOD2_BM01_NEEDS_REVISION: { start: 51, end: 55, count: 5 },
-      PERIOD2_BM02_SUBMITTED: { start: 56, end: 60, count: 5 },
-      PERIOD1_DECISION: { start: 61, end: 70, count: 10 },
-      PERIOD1_CHECKPOINT: { start: 71, end: 85, count: 15 },
-      PERIOD1_BM04: { start: 86, end: 95, count: 10 },
-      PERIOD1_DEFENSE: { start: 96, end: 120, count: 25 },
+      HK2_UNREGISTERED: { start: 1, end: 10, count: 10 },
+      HK2_PENDING: { start: 11, end: 20, count: 10 },
+      HK2_APPROVED: { start: 21, end: 30, count: 10 },
+      HK1_BM01_SUBMITTED: { start: 31, end: 35, count: 5 },
+      HK1_BM01_NEEDS_REVISION: { start: 36, end: 40, count: 5 },
+      HK1_BM01_RESUBMITTED: { start: 41, end: 45, count: 5 },
+      HK1_BM02_SUBMITTED: { start: 46, end: 50, count: 5 },
+      HK1_DECISION: { start: 51, end: 70, count: 20 },
+      HK1_CHECKPOINT: { start: 71, end: 85, count: 15 },
+      HK1_BM04: { start: 86, end: 95, count: 10 },
+      HK1_DEFENSE: { start: 96, end: 120, count: 25 },
     };
 
     let totalCount = 0;

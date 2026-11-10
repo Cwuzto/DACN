@@ -4,33 +4,9 @@ const addDays = (base, days) => new Date(base.getTime() + days * DAY_MS);
 function getSemesterDefinitions(baseDate = new Date()) {
   const base = baseDate instanceof Date ? new Date(baseDate.getTime()) : new Date(baseDate);
 
-  const pastSemester = {
-    code: 'DATN-HK2-2025-26',
-    name: 'Đồ án tốt nghiệp — HK2 2025–2026',
-    startDate: new Date('2026-01-05T00:00:00.000Z'),
-    registrationDeadline: new Date('2026-01-20T00:00:00.000Z'),
-    midtermReportDate: new Date('2026-03-25T00:00:00.000Z'),
-    defenseDate: new Date('2026-05-15T00:00:00.000Z'),
-    endDate: new Date('2026-05-30T00:00:00.000Z'),
-    registrationOpen: false,
-    status: 'COMPLETED',
-  };
-
-  const period2Supplementary = {
-    code: 'DATN-HK1-2026-27-D2',
-    name: 'Đồ án tốt nghiệp — HK1 2026–2027 (Đợt 2 - Bổ sung)',
-    startDate: addDays(base, -10),
-    registrationDeadline: addDays(base, 14),
-    midtermReportDate: addDays(base, 45),
-    defenseDate: addDays(base, 75),
-    endDate: addDays(base, 90),
-    registrationOpen: true,
-    status: 'REGISTRATION',
-  };
-
-  const period1Main = {
-    code: 'DATN-HK1-2026-27-D1',
-    name: 'Đồ án tốt nghiệp — HK1 2026–2027 (Đợt 1 - Chính khóa)',
+  const semesterHK1 = {
+    code: 'DATN-HK1-2026-27',
+    name: 'Đồ án tốt nghiệp — HK1 2026–2027',
     startDate: addDays(base, -90),
     registrationDeadline: addDays(base, -60),
     midtermReportDate: addDays(base, -20),
@@ -40,17 +16,30 @@ function getSemesterDefinitions(baseDate = new Date()) {
     status: 'DEFENSE',
   };
 
+  const semesterHK2 = {
+    code: 'DATN-HK2-2026-27',
+    name: 'Đồ án tốt nghiệp — HK2 2026–2027',
+    startDate: addDays(base, -10),
+    registrationDeadline: addDays(base, 14),
+    midtermReportDate: addDays(base, 45),
+    defenseDate: addDays(base, 75),
+    endDate: addDays(base, 90),
+    registrationOpen: true,
+    status: 'REGISTRATION',
+  };
+
   return {
-    pastSemester,
-    period2Supplementary,
-    period1Main,
+    semesterHK1,
+    semesterHK2,
+    period1Main: semesterHK1,
+    period2Supplementary: semesterHK2,
   };
 }
 
 const DEMO_SEMESTERS = Object.freeze(getSemesterDefinitions());
 
 const DEMO_CALENDAR = Object.freeze({
-  ...DEMO_SEMESTERS.period1Main,
+  ...DEMO_SEMESTERS.semesterHK1,
 });
 
 function createCohort(start, end) {
@@ -72,12 +61,23 @@ function createCohort(start, end) {
 }
 
 const STUDENT_COHORTS = Object.freeze({
-  PAST: createCohort(1, 30),
-  PERIOD2_UNREGISTERED: createCohort(31, 40),
-  PERIOD2_PENDING: createCohort(41, 50),
-  PERIOD2_BM01_NEEDS_REVISION: createCohort(51, 55),
-  PERIOD2_BM02_SUBMITTED: createCohort(56, 60),
-  PERIOD1_DECISION: createCohort(61, 70),
+  HK2_UNREGISTERED: createCohort(1, 10),
+  HK2_PENDING: createCohort(11, 20),
+  HK2_APPROVED: createCohort(21, 30),
+  HK1_BM01_SUBMITTED: createCohort(31, 35),
+  HK1_BM01_NEEDS_REVISION: createCohort(36, 40),
+  HK1_BM01_RESUBMITTED: createCohort(41, 45),
+  HK1_BM02_SUBMITTED: createCohort(46, 50),
+  HK1_DECISION: createCohort(51, 70),
+  HK1_CHECKPOINT: createCohort(71, 85),
+  HK1_BM04: createCohort(86, 95),
+  HK1_DEFENSE: createCohort(96, 120),
+  // Backward-compatibility aliases
+  PERIOD2_UNREGISTERED: createCohort(1, 10),
+  PERIOD2_PENDING: createCohort(11, 20),
+  PERIOD2_BM01_NEEDS_REVISION: createCohort(36, 40),
+  PERIOD2_BM02_SUBMITTED: createCohort(46, 50),
+  PERIOD1_DECISION: createCohort(51, 70),
   PERIOD1_CHECKPOINT: createCohort(71, 85),
   PERIOD1_BM04: createCohort(86, 95),
   PERIOD1_DEFENSE: createCohort(96, 120),

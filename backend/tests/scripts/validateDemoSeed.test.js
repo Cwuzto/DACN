@@ -5,7 +5,7 @@ describe('multi-semester demo seed summary validator', () => {
     admins: 1,
     lecturers: 12,
     students: 120,
-    semesters: 3,
+    semesters: 2,
     academicDelegations: 2,
     rubricCriteria: 6,
     activeEnrollments: 120,
@@ -26,9 +26,9 @@ describe('multi-semester demo seed summary validator', () => {
     );
   });
 
-  test('rejects if semesters count is not exactly 3', () => {
-    expect(() => validateDemoSummary({ ...baseValidSummary, semesters: 2 })).toThrow(
-      /3 semesters/i
+  test('rejects if semesters count is not exactly 2', () => {
+    expect(() => validateDemoSummary({ ...baseValidSummary, semesters: 3 })).toThrow(
+      /2 semesters/i
     );
   });
 
@@ -87,21 +87,18 @@ describe('multi-semester demo seed summary validator', () => {
   });
 
   test('derives multi-semester metrics, Zero-COI council checks, and capacity from persisted rows', async () => {
-    // 120 enrollments across 3 semesters
+    // 120 enrollments across 2 semesters (HK2: 30, HK1: 90)
     const enrollments = Array.from({ length: 120 }, (_, index) => ({
       studentId: index + 1,
-      semesterId: index < 30 ? 1 : (index < 60 ? 2 : 3),
+      semesterId: index < 30 ? 2 : 1,
     }));
 
-    // 110 registrations (sv031 - sv040 have no registration)
+    // 110 registrations (sv001 - sv010 have no registration)
     // 12 mentors: mentorIds 2 to 13
-    // In sem 1: 30 registrations across mentors (max 3 per mentor)
-    // In sem 2: 20 registrations across mentors (max 2 per mentor)
-    // In sem 3: 60 registrations across mentors (5 per mentor)
     const registrations = [];
     for (let i = 1; i <= 120; i++) {
-      if (i >= 31 && i <= 40) continue; // no registration cohort
-      const semesterId = i <= 30 ? 1 : (i <= 60 ? 2 : 3);
+      if (i >= 1 && i <= 10) continue; // no registration cohort in HK2
+      const semesterId = i <= 30 ? 2 : 1;
       const mentorId = ((i - 1) % 12) + 2; // 2..13
       registrations.push({
         id: registrations.length + 1,
@@ -127,7 +124,7 @@ describe('multi-semester demo seed summary validator', () => {
           .mockResolvedValueOnce(12)  // LECTURER
           .mockResolvedValueOnce(120), // STUDENT
       },
-      semester: { count: jest.fn().mockResolvedValue(3) },
+      semester: { count: jest.fn().mockResolvedValue(2) },
       academicDelegation: { count: jest.fn().mockResolvedValue(2) },
       rubricCriterion: { count: jest.fn().mockResolvedValue(6) },
       topicRegistration: { findMany: jest.fn().mockResolvedValue(registrations) },
@@ -140,7 +137,7 @@ describe('multi-semester demo seed summary validator', () => {
     expect(summary.admins).toBe(1);
     expect(summary.lecturers).toBe(12);
     expect(summary.students).toBe(120);
-    expect(summary.semesters).toBe(3);
+    expect(summary.semesters).toBe(2);
     expect(summary.academicDelegations).toBe(2);
     expect(summary.rubricCriteria).toBe(6);
     expect(summary.activeEnrollments).toBe(120);
@@ -149,7 +146,6 @@ describe('multi-semester demo seed summary validator', () => {
     expect(summary.timelineTasks).toBe(4);
     expect(summary.mentorsWithRegistrations).toBe(12);
     expect(summary.maxMentorActivePerPeriod).toBeLessThanOrEqual(10);
-    expect(summary.maxMentorActivePerPeriod).toBe(5); // In sem 3, 60 / 12 = 5 per mentor
   });
 
   test('detects council conflicts and completed defense failures', async () => {
