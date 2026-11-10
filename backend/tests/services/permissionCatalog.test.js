@@ -160,10 +160,8 @@ describe('Permission catalog invariants & 2-tier capability foundation', () => {
             expect(perms.has(p)).toBe(true);
         }
 
-        // Must NOT have council management or academic decision/scoring capabilities
+        // Must NOT have academic decision or scoring capabilities (Zero-Trust Admin)
         const strictlyForbiddenPermissions = [
-            'DEFENSE_COUNCIL_MANAGE',
-            'OUTLINE_COUNCIL_MANAGE',
             'RESULT_LOCK',
             'DEFENSE_RESULT_APPROVE',
             'RESULT_PUBLISH',

@@ -119,6 +119,17 @@ model User {
   delegateeDelegations            AcademicDelegation[]          @relation("DelegateeDelegations")
   lecturerProjectAssignments      LecturerProjectAssignment[]   @relation("LecturerAssignments")
   createdLecturerAssignments      LecturerProjectAssignment[]   @relation("AssignedByLecturerAssignments")
+  electronicSignatures            ElectronicSignatureEvent[]    @relation("ElectronicSigner")
+  issuedTopicAssignmentDecisions  TopicAssignmentDecision[]     @relation("TopicAssignmentDecisionIssuer")
+  createdBM02ARequests            BM02AAdjustmentRequest[]      @relation("BM02ACreator")
+  issuedTitleAdjustmentAppendices TitleAdjustmentAppendix[]     @relation("TitleAdjustmentAppendixIssuer")
+  signedBM03ProgressRecords       BM03ProgressRecord[]          @relation("BM03AdvisorSigner")
+  signedBM03MeetingEntries        BM03MeetingEntry[]            @relation("BM03MeetingAdvisorSigner")
+  evaluatedBM03Stages             BM03StageEvaluation[]         @relation("BM03StageEvaluator")
+  requestedMoreInfoStopReviews    InstituteStopReview[]         @relation("StopReviewMoreInfoRequester")
+  reviewedStopReviews             InstituteStopReview[]         @relation("StopReviewer")
+  requestedMoreInfoDefenseReviews InstituteDefenseReview[]      @relation("DefenseReviewMoreInfoRequester")
+  reviewedDefenseReviews          InstituteDefenseReview[]      @relation("DefenseReviewer")
 
   @@map("users")
 }
@@ -159,6 +170,8 @@ model Semester {
   outlineTemplateFileId       Int?                          @map("outline_template_file_id")
   outlineAllowedExtensions    Json                          @default("[\".docx\", \".pdf\"]") @map("outline_allowed_extensions")
   outlineMaxFileSizeBytes     Int                           @default(20971520) @map("outline_max_file_size_bytes")
+  lockedPolicyVersionId       Int?                          @map("locked_policy_version_id")
+  lockedPolicyVersion         PeriodWorkflowPolicyVersion?  @relation("SemesterLockedPolicy", fields: [lockedPolicyVersionId], references: [id], onDelete: Restrict)
   createdAt              DateTime                      @default(now()) @map("created_at")
   updatedAt              DateTime                      @updatedAt @map("updated_at")
   councils               Council[]
@@ -169,6 +182,7 @@ model Semester {
   resultPublications     ResultPublication[]
   academicDelegations    AcademicDelegation[]
   lecturerAssignments    LecturerProjectAssignment[]
+  topicAssignmentDecisions TopicAssignmentDecision[]
 
   @@map("semesters")
 }
@@ -232,6 +246,8 @@ model TopicRegistration {
   outlineFeedback            String?                      @map("outline_feedback")
   decisionNumber             String?                      @map("decision_number")
   decisionDate               DateTime?                    @map("decision_date")
+  decisionPublishedAt        DateTime?                    @map("decision_published_at")
+  bm01ApprovedTitleSnapshot  String?                      @map("bm01_approved_title_snapshot")
   adjustedTitle              String?                      @map("adjusted_title")
   assignmentStatus           MentorAssignmentStatus       @default(ACTIVE) @map("assignment_status")
   effectiveAt                DateTime                     @default(now()) @map("effective_at")
@@ -267,6 +283,15 @@ model TopicRegistration {
   mentorTransfers            MentorTransfer[]
   defenseResultApprovals     DefenseResultApproval[]
   resultPublicationItems     ResultPublicationItem[]
+  electronicSignatureEvents  ElectronicSignatureEvent[]
+  topicAssignmentDecisionItem TopicAssignmentDecisionItem?
+  bm02aRequests              BM02AAdjustmentRequest[]
+  titleAdjustmentAppendixItems TitleAdjustmentAppendixItem[]
+  bm03Record                 BM03ProgressRecord?
+  bm03MeetingEntries         BM03MeetingEntry[]
+  bm03StageEvaluations       BM03StageEvaluation[]
+  instituteStopReviews       InstituteStopReview[]
+  instituteDefenseReviews    InstituteDefenseReview[]
 
   @@unique([studentId, semesterId])
   @@index([semesterId, periodPolicyVersionId])
@@ -332,6 +357,11 @@ model BM02Submission {
   outcome                BM02Outcome                 @default(PENDING_REVIEW)
   issues                 Json?
   content                String?                     @db.Text
+  bm01ApprovedTitle      String?                     @map("bm01_approved_title")
+  bm02ProposedTitle      String?                     @map("bm02_proposed_title")
+  titleChangeReason      String?                     @map("title_change_reason") @db.Text
+  studentSnapshot        Json?                       @map("student_snapshot")
+  mentorSnapshot         Json?                       @map("mentor_snapshot")
   fileUrl                String?                     @map("file_url")
   fileName               String?                     @map("file_name")
   submittedById          Int                         @map("submitted_by_id")
@@ -349,6 +379,7 @@ model BM02Submission {
   reviewedBy             User?                       @relation("BM02ReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
   policyVersion          PeriodWorkflowPolicyVersion @relation("BM02PolicyVersion", fields: [policyVersionId], references: [id], onDelete: Restrict)
   assignmentDecision     AssignmentDecision?
+  topicAssignmentDecisionItem TopicAssignmentDecisionItem?
 
   @@unique([registrationId, versionNo])
   @@index([registrationId, outcome])
@@ -414,6 +445,8 @@ model PeriodWorkflowPolicyVersion {
   assignmentDecisions   AssignmentDecision[]   @relation("DecisionPolicyVersion")
   checkpointEvaluations CheckpointEvaluation[] @relation("CheckpointPolicyVersion")
   bm04Evaluations       BM04Evaluation[]       @relation("BM04PolicyVersion")
+  lockedSemesters       Semester[]             @relation("SemesterLockedPolicy")
+  topicAssignmentDecisions TopicAssignmentDecision[] @relation("TopicDecisionPolicyVersion")
 
   @@unique([semesterId, version])
   @@index([semesterId, isActive])
@@ -1044,9 +1077,13 @@ enum RegistrationStatus {
   BM01_NEEDS_REVISION
   BM01_RESUBMITTED
   BM01_PASSED
+  BM02_OPEN
   BM02_SUBMITTED
   BM02_NEEDS_REVISION
+  BM02_REVISION_REQUIRED
   BM02_RESUBMITTED
+  BM02_APPROVED
+  BM02_REJECTED
   BM02_EXCEPTION_REVIEW
   DECISION_ISSUED
   IN_PROGRESS
@@ -1059,6 +1096,12 @@ enum RegistrationStatus {
   BM03_PASSED
   BM04_REVIEW
   DEFENSE_READY
+  DEFENSE_ELIGIBLE
+  NOT_ELIGIBLE_FOR_DEFENSE
+  ELIGIBLE_BY_INSTITUTE
+  AUTO_NOT_ELIGIBLE
+  AUTO_TERMINATED
+  STOP_REVIEW_PENDING
   AWAITING_SCORES
   AWAITING_FINAL_APPROVAL
   DEFENSE_PASSED
@@ -1142,14 +1185,24 @@ model BM04Evaluation {
   applicabilityScore   String                       @map("applicability_score") @db.Text
   attitudeScore        String                       @map("attitude_score") @db.Text
   conclusion           BM04Conclusion
+  programOutcome       BM04ProgramOutcome?          @map("program_outcome")
+  defenseRecommendation BM04DefenseRecommendation?  @map("defense_recommendation")
+  mismatchReason       String?                      @map("mismatch_reason") @db.Text
+  status               BM04ReviewStatus             @default(DRAFT)
+  effectiveTitleSnapshot String?                    @map("effective_title_snapshot")
+  studentClassSnapshot String?                      @map("student_class_snapshot")
   generalNotes         String?                      @map("general_notes") @db.Text
   lecturerSignature    String                       @map("lecturer_signature")
+  payloadHash          String?                      @map("payload_hash")
+  signatureEventId     Int?                         @map("signature_event_id")
+  finalPdfFileUrl      String?                      @map("final_pdf_file_url")
   signedAt             DateTime                     @default(now()) @map("signed_at")
   isLocked             Boolean                      @default(true) @map("is_locked")
   policyVersionId      Int?                         @map("policy_version_id")
   policyVersion        PeriodWorkflowPolicyVersion? @relation("BM04PolicyVersion", fields: [policyVersionId], references: [id], onDelete: Restrict)
   createdAt            DateTime                     @default(now()) @map("created_at")
   updatedAt            DateTime                     @updatedAt @map("updated_at")
+  instituteDefenseReview InstituteDefenseReview?
 
   @@index([semesterId, studentId])
   @@index([policyVersionId])
@@ -1394,5 +1447,385 @@ enum AttendanceStatus {
   ABSENT
   EXCUSED
 }
+
+model ElectronicSignatureEvent {
+  id                      Int               @id @default(autoincrement())
+  registrationId          Int               @map("registration_id")
+  entityType              String            @map("entity_type")
+  entityId                Int               @map("entity_id")
+  versionNumber           Int               @default(1) @map("version_number")
+  signerId                Int               @map("signer_id")
+  signerRole              String            @map("signer_role")
+  action                  String
+  signedAt                DateTime          @default(now()) @map("signed_at")
+  signatureImageId        String?           @map("signature_image_id")
+  payloadHash             String            @map("payload_hash")
+  ipAddress               String?           @map("ip_address")
+  userAgent               String?           @map("user_agent")
+  rejectionOrReturnReason String?           @map("rejection_or_return_reason") @db.Text
+  registration            TopicRegistration @relation(fields: [registrationId], references: [id], onDelete: Restrict)
+  signer                  User              @relation("ElectronicSigner", fields: [signerId], references: [id], onDelete: Restrict)
+
+  @@index([entityType, entityId, versionNumber])
+  @@index([registrationId])
+  @@index([signerId])
+  @@map("electronic_signature_events")
+}
+
+model TopicAssignmentDecision {
+  id                  Int                           @id @default(autoincrement())
+  semesterId          Int                           @map("semester_id")
+  decisionNumber      String                        @unique @map("decision_number")
+  decisionDate        DateTime                      @map("decision_date")
+  decisionPublishedAt DateTime?                     @map("decision_published_at")
+  fileUrl             String?                       @map("file_url")
+  fileName            String?                       @map("file_name")
+  issuedById          Int                           @map("issued_by_id")
+  policyVersionId     Int                           @map("policy_version_id")
+  status              String                        @default("PUBLISHED")
+  idempotencyKey      String                        @unique @map("idempotency_key")
+  createdAt           DateTime                      @default(now()) @map("created_at")
+  semester            Semester                      @relation(fields: [semesterId], references: [id], onDelete: Restrict)
+  issuedBy            User                          @relation("TopicAssignmentDecisionIssuer", fields: [issuedById], references: [id], onDelete: Restrict)
+  policyVersion       PeriodWorkflowPolicyVersion   @relation("TopicDecisionPolicyVersion", fields: [policyVersionId], references: [id], onDelete: Restrict)
+  items               TopicAssignmentDecisionItem[]
+  appendices          TitleAdjustmentAppendix[]
+  bm02aRequests       BM02AAdjustmentRequest[]
+
+  @@index([semesterId, status])
+  @@index([issuedById])
+  @@index([policyVersionId])
+  @@map("topic_assignment_decisions")
+}
+
+model TopicAssignmentDecisionItem {
+  id                    Int                     @id @default(autoincrement())
+  decisionId            Int                     @map("decision_id")
+  registrationId        Int                     @unique @map("registration_id")
+  bm02SubmissionId      Int                     @unique @map("bm02_submission_id")
+  approvedTitleSnapshot String                  @map("approved_title_snapshot")
+  studentCodeSnapshot   String                  @map("student_code_snapshot")
+  studentNameSnapshot   String                  @map("student_name_snapshot")
+  mentorNameSnapshot    String                  @map("mentor_name_snapshot")
+  createdAt             DateTime                @default(now()) @map("created_at")
+  decision              TopicAssignmentDecision @relation(fields: [decisionId], references: [id], onDelete: Restrict)
+  registration          TopicRegistration       @relation(fields: [registrationId], references: [id], onDelete: Restrict)
+  bm02Submission        BM02Submission          @relation(fields: [bm02SubmissionId], references: [id], onDelete: Restrict)
+
+  @@index([decisionId])
+  @@map("topic_assignment_decision_items")
+}
+
+model BM02AAdjustmentRequest {
+  id                      Int                           @id @default(autoincrement())
+  registrationId          Int                           @map("registration_id")
+  decisionId              Int                           @map("decision_id")
+  status                  BM02AStatus                   @default(STUDENT_PREPARING)
+  revisionCount           Int                           @default(0) @map("revision_count")
+  currentVersionNumber    Int                           @default(1) @map("current_version_number")
+  titleAdjustmentDeadline DateTime                      @map("title_adjustment_deadline")
+  finalPayloadHash        String?                       @map("final_payload_hash")
+  finalPdfFileUrl         String?                       @map("final_pdf_file_url")
+  createdById             Int                           @map("created_by_id")
+  createdAt               DateTime                      @default(now()) @map("created_at")
+  updatedAt               DateTime                      @updatedAt @map("updated_at")
+  registration            TopicRegistration             @relation(fields: [registrationId], references: [id], onDelete: Restrict)
+  decision                TopicAssignmentDecision       @relation(fields: [decisionId], references: [id], onDelete: Restrict)
+  createdBy               User                          @relation("BM02ACreator", fields: [createdById], references: [id], onDelete: Restrict)
+  versions                BM02AFormVersion[]
+  appendixItems           TitleAdjustmentAppendixItem[]
+
+  @@index([registrationId])
+  @@index([decisionId])
+  @@index([status])
+  @@map("bm02a_adjustment_requests")
+}
+
+model BM02AFormVersion {
+  id                         Int                    @id @default(autoincrement())
+  requestId                  Int                    @map("request_id")
+  versionNumber              Int                    @map("version_number")
+  studentSnapshot            Json                   @map("student_snapshot")
+  registeredTitleSnapshot    String                 @map("registered_title_snapshot")
+  proposedTitle              String                 @map("proposed_title")
+  reason                     String                 @db.Text
+  payloadHash                String                 @map("payload_hash")
+  studentSignatureEventId    Int?                   @map("student_signature_event_id")
+  advisorSignatureEventId    Int?                   @map("advisor_signature_event_id")
+  departmentSignatureEventId Int?                   @map("department_signature_event_id")
+  returnedByRole             String?                @map("returned_by_role")
+  returnReason               String?                @map("return_reason") @db.Text
+  returnedAt                 DateTime?              @map("returned_at")
+  isLocked                   Boolean                @default(false) @map("is_locked")
+  createdAt                  DateTime               @default(now()) @map("created_at")
+  request                    BM02AAdjustmentRequest @relation(fields: [requestId], references: [id], onDelete: Restrict)
+
+  @@unique([requestId, versionNumber])
+  @@index([requestId])
+  @@map("bm02a_form_versions")
+}
+
+model TitleAdjustmentAppendix {
+  id                   Int                           @id @default(autoincrement())
+  decisionId           Int                           @map("decision_id")
+  appendixNumber       String                        @unique @map("appendix_number")
+  sequenceNo           Int                           @map("sequence_no")
+  signedDate           DateTime                      @map("signed_date")
+  recordedAt           DateTime                      @default(now()) @map("recorded_at")
+  fileUrl              String?                       @map("file_url")
+  fileName             String?                       @map("file_name")
+  issuedById           Int                           @map("issued_by_id")
+  status               AppendixStatus                @default(DRAFT)
+  supersedesAppendixId Int?                          @unique @map("supersedes_appendix_id")
+  idempotencyKey       String?                       @unique @map("idempotency_key")
+  createdAt            DateTime                      @default(now()) @map("created_at")
+  decision             TopicAssignmentDecision       @relation(fields: [decisionId], references: [id], onDelete: Restrict)
+  issuedBy             User                          @relation("TitleAdjustmentAppendixIssuer", fields: [issuedById], references: [id], onDelete: Restrict)
+  supersedes           TitleAdjustmentAppendix?      @relation("AppendixSupersession", fields: [supersedesAppendixId], references: [id], onDelete: Restrict)
+  supersededBy         TitleAdjustmentAppendix?      @relation("AppendixSupersession")
+  items                TitleAdjustmentAppendixItem[]
+
+  @@index([decisionId])
+  @@index([issuedById])
+  @@index([signedDate])
+  @@map("title_adjustment_appendices")
+}
+
+model TitleAdjustmentAppendixItem {
+  id             Int                     @id @default(autoincrement())
+  appendixId     Int                     @map("appendix_id")
+  bm02aRequestId Int                     @map("bm02a_request_id")
+  registrationId Int                     @map("registration_id")
+  oldTitle       String                  @map("old_title")
+  newTitle       String                  @map("new_title")
+  createdAt      DateTime                @default(now()) @map("created_at")
+  appendix       TitleAdjustmentAppendix @relation(fields: [appendixId], references: [id], onDelete: Restrict)
+  bm02aRequest   BM02AAdjustmentRequest  @relation(fields: [bm02aRequestId], references: [id], onDelete: Restrict)
+  registration   TopicRegistration       @relation(fields: [registrationId], references: [id], onDelete: Restrict)
+
+  @@unique([appendixId, bm02aRequestId])
+  @@index([appendixId])
+  @@index([registrationId])
+  @@map("title_adjustment_appendix_items")
+}
+
+model BM03ProgressRecord {
+  id                       Int                   @id @default(autoincrement())
+  registrationId           Int                   @unique @map("registration_id")
+  effectiveTitleSnapshot   String                @map("effective_title_snapshot")
+  midtermStageEvaluationId Int?                  @unique @map("midterm_stage_evaluation_id")
+  finalStageEvaluationId   Int?                  @unique @map("final_stage_evaluation_id")
+  finalConclusion          String?               @map("final_conclusion")
+  isClosedEarly            Boolean               @default(false) @map("is_closed_early")
+  advisorSignedById        Int?                  @map("advisor_signed_by_id")
+  advisorSignedAt          DateTime?             @map("advisor_signed_at")
+  advisorPayloadHash       String?               @map("advisor_payload_hash")
+  advisorSignatureEventId  Int?                  @map("advisor_signature_event_id")
+  studentAckStatus         BM03AckStatus?        @map("student_ack_status")
+  studentAckDeadlineAt     DateTime?             @map("student_ack_deadline_at")
+  studentAckAt             DateTime?             @map("student_ack_at")
+  studentComment           String?               @map("student_comment") @db.Text
+  studentSignatureEventId  Int?                  @map("student_signature_event_id")
+  finalPdfFileUrl          String?               @map("final_pdf_file_url")
+  createdAt                DateTime              @default(now()) @map("created_at")
+  updatedAt                DateTime              @updatedAt @map("updated_at")
+  registration             TopicRegistration     @relation(fields: [registrationId], references: [id], onDelete: Restrict)
+  advisorSignedBy          User?                 @relation("BM03AdvisorSigner", fields: [advisorSignedById], references: [id], onDelete: Restrict)
+  midtermStageEvaluation   BM03StageEvaluation?  @relation("BM03MidtermStage", fields: [midtermStageEvaluationId], references: [id], onDelete: Restrict)
+  finalStageEvaluation     BM03StageEvaluation?  @relation("BM03FinalStage", fields: [finalStageEvaluationId], references: [id], onDelete: Restrict)
+  meetings                 BM03MeetingEntry[]
+  stageEvaluations         BM03StageEvaluation[] @relation("BM03RecordEvaluations")
+  stopReviews              InstituteStopReview[]
+
+  @@map("bm03_progress_records")
+}
+
+model BM03MeetingEntry {
+  id                   Int                 @id @default(autoincrement())
+  bm03RecordId         Int                 @map("bm03_record_id")
+  registrationId       Int                 @map("registration_id")
+  versionNumber        Int                 @default(1) @map("version_number")
+  supersedesEntryId    Int?                @unique @map("supersedes_entry_id")
+  meetingDate          DateTime            @map("meeting_date")
+  meetingMode          CouncilMeetingMode  @default(IN_PERSON) @map("meeting_mode")
+  locationOrLink       String              @map("location_or_link")
+  discussionContent    String              @map("discussion_content") @db.Text
+  studentCompletedWork String              @map("student_completed_work") @db.Text
+  remainingIssues      String?             @map("remaining_issues") @db.Text
+  nextTasks            String              @map("next_tasks") @db.Text
+  expectedDeadline     DateTime?           @map("expected_deadline")
+  progressRating       BM03ProgressRating  @map("progress_rating")
+  evidenceFileUrl      String?             @map("evidence_file_url")
+  evidenceFileName     String?             @map("evidence_file_name")
+  advisorSignedById    Int?                @map("advisor_signed_by_id")
+  advisorSignedAt      DateTime?           @map("advisor_signed_at")
+  payloadHash          String?             @map("payload_hash")
+  signatureEventId     Int?                @map("signature_event_id")
+  isLocked             Boolean             @default(false) @map("is_locked")
+  createdAt            DateTime            @default(now()) @map("created_at")
+  bm03Record           BM03ProgressRecord  @relation(fields: [bm03RecordId], references: [id], onDelete: Restrict)
+  registration         TopicRegistration   @relation(fields: [registrationId], references: [id], onDelete: Restrict)
+  advisorSignedBy      User?               @relation("BM03MeetingAdvisorSigner", fields: [advisorSignedById], references: [id], onDelete: Restrict)
+  supersedes           BM03MeetingEntry?   @relation("MeetingEntrySupersession", fields: [supersedesEntryId], references: [id], onDelete: Restrict)
+  supersededBy         BM03MeetingEntry?   @relation("MeetingEntrySupersession")
+
+  @@index([bm03RecordId])
+  @@index([registrationId])
+  @@map("bm03_meeting_entries")
+}
+
+model BM03StageEvaluation {
+  id             Int                 @id @default(autoincrement())
+  bm03RecordId   Int                 @map("bm03_record_id")
+  registrationId Int                 @map("registration_id")
+  stage          BM03StageType
+  comments       String              @db.Text
+  decision       BM03StageDecision
+  evaluatedById  Int                 @map("evaluated_by_id")
+  evaluatedAt    DateTime            @default(now()) @map("evaluated_at")
+  payloadHash    String              @map("payload_hash")
+  bm03Record     BM03ProgressRecord  @relation("BM03RecordEvaluations", fields: [bm03RecordId], references: [id], onDelete: Restrict)
+  registration   TopicRegistration   @relation(fields: [registrationId], references: [id], onDelete: Restrict)
+  evaluatedBy    User                @relation("BM03StageEvaluator", fields: [evaluatedById], references: [id], onDelete: Restrict)
+  midtermFor     BM03ProgressRecord? @relation("BM03MidtermStage")
+  finalFor       BM03ProgressRecord? @relation("BM03FinalStage")
+  stopReview     InstituteStopReview?
+
+  @@index([bm03RecordId])
+  @@index([registrationId])
+  @@map("bm03_stage_evaluations")
+}
+
+model InstituteStopReview {
+  id                      Int                 @id @default(autoincrement())
+  bm03RecordId            Int                 @map("bm03_record_id")
+  stageEvaluationId       Int                 @unique @map("stage_evaluation_id")
+  registrationId          Int                 @map("registration_id")
+  stage                   BM03StageType
+  status                  StopReviewStatus    @default(STOP_REVIEW_PENDING)
+  stopProposalSubmittedAt DateTime            @default(now()) @map("stop_proposal_submitted_at")
+  stopReviewDeadline      DateTime            @map("stop_review_deadline")
+  extensionCount          Int                 @default(0) @map("extension_count")
+  extendedAt              DateTime?           @map("extended_at")
+  moreInfoRequestedById   Int?                @map("more_info_requested_by_id")
+  moreInfoRequestNote     String?             @map("more_info_request_note") @db.Text
+  moreInfoRespondedAt     DateTime?           @map("more_info_responded_at")
+  moreInfoResponseNote    String?             @map("more_info_response_note") @db.Text
+  decision                String?
+  decisionSource          String?             @map("decision_source")
+  reviewedById            Int?                @map("reviewed_by_id")
+  reviewedAt              DateTime?           @map("reviewed_at")
+  reviewReason            String?             @map("review_reason") @db.Text
+  idempotencyKey          String?             @unique @map("idempotency_key")
+  bm03Record              BM03ProgressRecord  @relation(fields: [bm03RecordId], references: [id], onDelete: Restrict)
+  stageEvaluation         BM03StageEvaluation @relation(fields: [stageEvaluationId], references: [id], onDelete: Restrict)
+  registration            TopicRegistration   @relation(fields: [registrationId], references: [id], onDelete: Restrict)
+  moreInfoRequestedBy     User?               @relation("StopReviewMoreInfoRequester", fields: [moreInfoRequestedById], references: [id], onDelete: Restrict)
+  reviewedBy              User?               @relation("StopReviewer", fields: [reviewedById], references: [id], onDelete: Restrict)
+
+  @@index([bm03RecordId])
+  @@index([registrationId])
+  @@map("institute_stop_reviews")
+}
+
+model InstituteDefenseReview {
+  id                    Int                 @id @default(autoincrement())
+  bm04EvaluationId      Int                 @unique @map("bm04_evaluation_id")
+  registrationId        Int                 @map("registration_id")
+  status                BM04ReviewStatus    @default(PENDING_INSTITUTE_REVIEW)
+  submittedAt           DateTime            @default(now()) @map("submitted_at")
+  reviewDeadlineAt      DateTime            @map("review_deadline_at")
+  extensionCount        Int                 @default(0) @map("extension_count")
+  extendedAt            DateTime?           @map("extended_at")
+  moreInfoRequestedById Int?                @map("more_info_requested_by_id")
+  moreInfoRequestNote   String?             @map("more_info_request_note") @db.Text
+  moreInfoResponseNote  String?             @map("more_info_response_note") @db.Text
+  decision              String?
+  decisionSource        String?             @map("decision_source")
+  reviewedById          Int?                @map("reviewed_by_id")
+  reviewedAt            DateTime?           @map("reviewed_at")
+  reviewReason          String?             @map("review_reason") @db.Text
+  idempotencyKey        String?             @unique @map("idempotency_key")
+  bm04Evaluation        BM04Evaluation      @relation(fields: [bm04EvaluationId], references: [id], onDelete: Restrict)
+  registration          TopicRegistration   @relation(fields: [registrationId], references: [id], onDelete: Restrict)
+  moreInfoRequestedBy   User?               @relation("DefenseReviewMoreInfoRequester", fields: [moreInfoRequestedById], references: [id], onDelete: Restrict)
+  reviewedBy            User?               @relation("DefenseReviewer", fields: [reviewedById], references: [id], onDelete: Restrict)
+
+  @@index([registrationId])
+  @@map("institute_defense_reviews")
+}
+
+enum BM02AStatus {
+  STUDENT_PREPARING
+  PENDING_ADVISOR
+  RETURNED_FOR_CORRECTION
+  PENDING_DEPARTMENT_APPROVAL
+  APPROVED_PENDING_APPENDIX
+  REJECTED_FINAL
+  EXPIRED
+  ASSIGNED_TO_APPENDIX
+  ADJUSTMENT_ISSUED
+}
+
+enum AppendixStatus {
+  DRAFT
+  ISSUED
+  VOID
+  SUPERSEDED
+}
+
+enum BM03AckStatus {
+  PENDING_STUDENT_ACKNOWLEDGEMENT
+  ACKNOWLEDGED
+  ACKNOWLEDGED_WITH_COMMENT
+  DECLINED_TO_ACKNOWLEDGE
+  ACKNOWLEDGEMENT_TIMEOUT
+}
+
+enum BM03ProgressRating {
+  ON_TRACK
+  AT_RISK
+  BEHIND
+  NO_PROGRESS
+}
+
+enum BM03StageType {
+  MIDTERM
+  FINAL
+}
+
+enum BM03StageDecision {
+  CONTINUE
+  CONTINUE_TO_BM04
+  PROPOSE_STOP
+}
+
+enum StopReviewStatus {
+  STOP_REVIEW_PENDING
+  MORE_INFO_REQUIRED
+  STOP_APPROVED
+  STOP_REJECTED
+  AUTO_TERMINATED
+}
+
+enum BM04ProgramOutcome {
+  MEETS_PROGRAM_OUTCOMES
+  DOES_NOT_MEET_PROGRAM_OUTCOMES
+}
+
+enum BM04DefenseRecommendation {
+  APPROVE_FOR_DEFENSE
+  NOT_APPROVE_FOR_DEFENSE
+}
+
+enum BM04ReviewStatus {
+  DRAFT
+  SIGNED_APPROVED
+  PENDING_INSTITUTE_REVIEW
+  NOT_ELIGIBLE_FOR_DEFENSE
+  ELIGIBLE_BY_INSTITUTE
+  AUTO_NOT_ELIGIBLE
+}
+
 
 
