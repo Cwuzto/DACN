@@ -100,13 +100,16 @@ jest.mock('../../src/config/database', () => mockPrisma);
 jest.mock('../../src/services/auditLogService', () => ({
     auditLog: jest.fn().mockResolvedValue(undefined),
 }));
+
+const mockGenerateImmutableAcademicPdf = jest.fn().mockResolvedValue({
+    fileUrl: 'https://storage.example.com/academic/bm03-final.pdf',
+    fileName: 'bm03-final.pdf',
+    pdfHash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+    pdfBuffer: Buffer.from('mock-pdf'),
+});
+
 jest.mock('../../src/services/academicPdfService', () => ({
-    generateImmutableAcademicPdf: jest.fn().mockResolvedValue({
-        fileUrl: 'https://storage.example.com/academic/bm03-final.pdf',
-        fileName: 'bm03-final.pdf',
-        pdfHash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
-        pdfBuffer: Buffer.from('mock-pdf'),
-    }),
+    generateImmutableAcademicPdf: (...args) => mockGenerateImmutableAcademicPdf(...args),
 }));
 
 jest.mock('jsonwebtoken', () => ({
@@ -115,6 +118,7 @@ jest.mock('jsonwebtoken', () => ({
 }));
 
 const {
+    getBM03Record,
     getOrCreateBM03Record,
     createBM03Meeting,
     signBM03Meeting,
@@ -231,8 +235,30 @@ describe('Task 5: Chặng 2 Backend — BM03 Guidance Meetings, Midterm/Final Ev
         mockBM03ProgressRecord.findFirst.mockResolvedValue(baseBM03Record);
     });
 
-    describe('1. BM03 Record Initialization and Title Resolution', () => {
-        it('getOrCreateBM03Record creates record with snapshot title from resolveEffectiveTopicTitle if none exists', async () => {
+    describe('1. BM03 Record Initialization and Title Resolution (No Side-Effects on GET)', () => {
+        it('getBM03Record is purely read-only: returns existing record and does NOT call create', async () => {
+            const record = await getBM03Record(registrationId);
+            expect(record).toBeDefined();
+            expect(record.id).toBe(bm03RecordId);
+            expect(mockBM03ProgressRecord.create).not.toHaveBeenCalled();
+        });
+
+        it('getBM03Record returns virtual projection without DB write when record does not exist yet', async () => {
+            mockBM03ProgressRecord.findUnique.mockResolvedValueOnce(null);
+            mockTopicAssignmentDecisionItem.findFirst.mockResolvedValueOnce({
+                approvedTitleSnapshot: 'Tên Đề Tài Theo Quyết Định Gốc',
+                decision: { decisionNumber: 'QD-2026-01', decisionDate: new Date() },
+            });
+
+            const record = await getBM03Record(registrationId);
+            expect(record).toBeDefined();
+            expect(record.id).toBeNull();
+            expect(record.isVirtualProjection).toBe(true);
+            expect(record.effectiveTitleSnapshot).toBe('Tên Đề Tài Theo Quyết Định Gốc');
+            expect(mockBM03ProgressRecord.create).not.toHaveBeenCalled();
+        });
+
+        it('getOrCreateBM03Record creates record with snapshot title from resolveEffectiveTopicTitle only when called by mutating actions', async () => {
             mockBM03ProgressRecord.findUnique.mockResolvedValueOnce(null);
             mockTopicAssignmentDecisionItem.findFirst.mockResolvedValueOnce({
                 approvedTitleSnapshot: 'Tên Đề Tài Theo Quyết Định Gốc',
@@ -253,12 +279,6 @@ describe('Task 5: Chặng 2 Backend — BM03 Guidance Meetings, Midterm/Final Ev
                     effectiveTitleSnapshot: 'Tên Đề Tài Theo Quyết Định Gốc',
                 }),
             }));
-        });
-
-        it('getOrCreateBM03Record returns existing record idempotently', async () => {
-            const record = await getOrCreateBM03Record(registrationId);
-            expect(record.id).toBe(bm03RecordId);
-            expect(mockBM03ProgressRecord.create).not.toHaveBeenCalled();
         });
     });
 
@@ -635,7 +655,8 @@ describe('Task 5: Chặng 2 Backend — BM03 Guidance Meetings, Midterm/Final Ev
                 registration: baseRegistration,
             };
             mockInstituteStopReview.findUnique.mockResolvedValueOnce(stopReview);
-            mockInstituteStopReview.update.mockResolvedValueOnce({
+            mockInstituteStopReview.updateMany.mockResolvedValueOnce({ count: 1 });
+            mockInstituteStopReview.findUnique.mockResolvedValueOnce({
                 ...stopReview,
                 status: 'STOP_APPROVED',
                 decision: 'APPROVE_STOP',
@@ -678,7 +699,8 @@ describe('Task 5: Chặng 2 Backend — BM03 Guidance Meetings, Midterm/Final Ev
                 registration: baseRegistration,
             };
             mockInstituteStopReview.findUnique.mockResolvedValueOnce(stopReview);
-            mockInstituteStopReview.update.mockResolvedValueOnce({
+            mockInstituteStopReview.updateMany.mockResolvedValueOnce({ count: 1 });
+            mockInstituteStopReview.findUnique.mockResolvedValueOnce({
                 ...stopReview,
                 status: 'STOP_REJECTED',
                 decision: 'REJECT_STOP',
@@ -696,6 +718,29 @@ describe('Task 5: Chặng 2 Backend — BM03 Guidance Meetings, Midterm/Final Ev
                 where: { id: registrationId },
                 data: expect.objectContaining({ status: 'IN_PROGRESS_BM03' }),
             }));
+        });
+
+        it('decideStopReview fails with 409 CONCURRENT_UPDATE_CONFLICT if updateMany affects 0 rows', async () => {
+            const stopReview = {
+                id: stopReviewId,
+                bm03RecordId,
+                registrationId,
+                status: 'STOP_REVIEW_PENDING',
+                stopReviewDeadline: deadline168h,
+                extensionCount: 0,
+                registration: baseRegistration,
+            };
+            mockInstituteStopReview.findUnique.mockResolvedValueOnce(stopReview);
+            mockInstituteStopReview.updateMany.mockResolvedValueOnce({ count: 0 }); // Concurrency conflict!
+
+            await expect(
+                decideStopReview({
+                    stopReviewId,
+                    reviewerId: instituteReviewerId,
+                    decision: 'APPROVE_STOP',
+                    reason: 'Concurrent approve',
+                }, { now })
+            ).rejects.toThrow('Đề xuất dừng đã được xử lý bởi phiên làm việc khác.');
         });
     });
 
@@ -775,6 +820,26 @@ describe('Task 5: Chặng 2 Backend — BM03 Guidance Meetings, Midterm/Final Ev
                 studentAckStatus: 'PENDING_STUDENT_ACKNOWLEDGEMENT',
                 studentAckDeadlineAt: deadline48h,
                 registration: baseRegistration,
+                meetings: [
+                    {
+                        id: 1,
+                        versionNumber: 1,
+                        meetingDate: new Date('2026-11-10T09:00:00Z'),
+                        meetingMode: 'IN_PERSON',
+                        discussionContent: 'Nội dung v1 (đã bị sửa đổi)',
+                        progressRating: 'BEHIND',
+                        supersededBy: { id: 2, versionNumber: 2 }, // Superseded!
+                    },
+                    {
+                        id: 2,
+                        versionNumber: 2,
+                        meetingDate: new Date('2026-11-10T09:00:00Z'),
+                        meetingMode: 'IN_PERSON',
+                        discussionContent: 'Nội dung v2 (chính xác)',
+                        progressRating: 'ON_TRACK',
+                        supersededBy: null, // Active!
+                    },
+                ],
             };
             mockBM03ProgressRecord.findUnique.mockResolvedValue(signedRecord);
         });
@@ -811,7 +876,7 @@ describe('Task 5: Chặng 2 Backend — BM03 Guidance Meetings, Midterm/Final Ev
             ).rejects.toThrow(/Bắt buộc nhập lý do khi từ chối xác nhận BM03/);
         });
 
-        it('student acknowledges: records signature event, generates immutable PDF, transitions registration to BM03_PASSED, and opens Task(BM04)', async () => {
+        it('student acknowledges: records signature event, generates immutable PDF filtering out superseded meetings, transitions registration to BM03_PASSED, and opens Task(BM04)', async () => {
             mockElectronicSignatureEvent.create.mockResolvedValueOnce({ id: 102 });
             mockBM03ProgressRecord.update.mockResolvedValueOnce({
                 ...signedRecord,
@@ -833,6 +898,28 @@ describe('Task 5: Chặng 2 Backend — BM03 Guidance Meetings, Midterm/Final Ev
             }, { now: within48h });
 
             expect(acknowledged.studentAckStatus).toBe('ACKNOWLEDGED');
+
+            // Verify PDF generation received only active meeting (v2) and filtered out superseded meeting (v1)
+            expect(mockGenerateImmutableAcademicPdf).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    sections: expect.arrayContaining([
+                        expect.objectContaining({
+                            heading: '2. NHẬT KÝ CÁC BUỔI HƯỚNG DẪN',
+                            lines: expect.arrayContaining([
+                                expect.stringContaining('Nội dung v2 (chính xác)'),
+                            ]),
+                        }),
+                    ]),
+                }),
+                expect.anything(),
+            );
+
+            // Ensure v1 does NOT appear in lines
+            const pdfCallArgs = mockGenerateImmutableAcademicPdf.mock.calls[0][0];
+            const meetingSection = pdfCallArgs.sections.find((s) => s.heading === '2. NHẬT KÝ CÁC BUỔI HƯỚNG DẪN');
+            expect(meetingSection.lines.length).toBe(1);
+            expect(meetingSection.lines[0]).not.toContain('đã bị sửa đổi');
+
             expect(mockElectronicSignatureEvent.create).toHaveBeenCalledWith(expect.objectContaining({
                 data: expect.objectContaining({
                     entityType: 'BM03_RECORD',
@@ -857,7 +944,7 @@ describe('Task 5: Chặng 2 Backend — BM03 Guidance Meetings, Midterm/Final Ev
     });
 
     describe('7. HTTP Endpoints via Supertest', () => {
-        it('GET /api/bm03/:registrationId returns BM03 record', async () => {
+        it('GET /api/bm03/:registrationId returns BM03 record without mutating database', async () => {
             const res = await request(app)
                 .get(`/api/bm03/${registrationId}`)
                 .set('Authorization', 'Bearer student-token');
@@ -865,6 +952,7 @@ describe('Task 5: Chặng 2 Backend — BM03 Guidance Meetings, Midterm/Final Ev
             expect(res.status).toBe(200);
             expect(res.body.success).toBe(true);
             expect(res.body.data.id).toBe(bm03RecordId);
+            expect(mockBM03ProgressRecord.create).not.toHaveBeenCalled();
         });
 
         it('POST /api/bm03/:registrationId/meetings creates meeting entry', async () => {
@@ -1025,7 +1113,8 @@ describe('Task 5: Chặng 2 Backend — BM03 Guidance Meetings, Midterm/Final Ev
                 registration: baseRegistration,
             };
             mockInstituteStopReview.findUnique.mockResolvedValueOnce(stopReview);
-            mockInstituteStopReview.update.mockResolvedValueOnce({
+            mockInstituteStopReview.updateMany.mockResolvedValueOnce({ count: 1 });
+            mockInstituteStopReview.findUnique.mockResolvedValueOnce({
                 ...stopReview,
                 status: 'STOP_APPROVED',
                 decision: 'APPROVE_STOP',

@@ -1,4 +1,5 @@
 const {
+    getBM03Record,
     getOrCreateBM03Record,
     createBM03Meeting,
     signBM03Meeting,
@@ -38,11 +39,12 @@ function handleWorkflowError(res, error, next) {
 
 /**
  * GET /api/bm03/:registrationId
+ * Pure read-only endpoint (no DB mutation on GET).
  */
 const getBM03RecordController = async (req, res, next) => {
     try {
         const { registrationId } = req.params;
-        const record = await getOrCreateBM03Record(registrationId);
+        const record = await getBM03Record(registrationId);
         return res.status(200).json({
             success: true,
             data: record,
