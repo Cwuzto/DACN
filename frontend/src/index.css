@@ -14,14 +14,14 @@
   --font-mono: 'JetBrains Mono', monospace;
 
   /* Surfaces & Canvas */
-  --bg: #F8FAFC;
+  --bg: #F1F5F9;
   --surface: #FFFFFF;
-  --surface-subtle: #F1F5F9;
-  --border: #E2E8F0;
-  --border-light: #F1F5F9;
+  --surface-subtle: #F8FAFC;
+  --border: #CBD5E1;
+  --border-light: #E2E8F0;
   --fg: #0F172A;
-  --muted: #475569;
-  --muted-subtle: #64748B;
+  --muted: #334155;
+  --muted-subtle: #475569;
 
   /* Primary Brand (Pine Teal) */
   /* Primary Brand & Accents (Pine Teal - OpenDesign Golden Standard) */
@@ -1198,17 +1198,18 @@ tbody tr:last-child td {
  align-items: start;
  }
  .matcher-pane {
- background: var(--surface);
- border: 1px solid var(--border);
+ background: #FFFFFF;
+ border: 1.5px solid #CBD5E1;
  border-radius: var(--radius-lg);
  display: flex;
  flex-direction: column;
  overflow: hidden;
+ box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
  }
  .matcher-pane-header {
  padding: 16px 20px;
- border-bottom: 1px solid var(--border);
- background: var(--surface);
+ border-bottom: 1.5px solid #CBD5E1;
+ background: #F8FAFC;
  display: flex;
  align-items: center;
  justify-content: space-between;
@@ -1222,22 +1223,24 @@ tbody tr:last-child td {
  gap: 12px;
  }
  .candidate-card {
- background: var(--bg);
- border: 1px solid var(--border);
+ background: #FFFFFF;
+ border: 1.5px solid #CBD5E1;
  border-radius: var(--radius);
  padding: 12px 14px;
  transition: all 0.15s ease;
  cursor: pointer;
  position: relative;
+ box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
  }
  .candidate-card:hover {
- border-color: var(--accent);
- background: var(--surface);
- box-shadow: 0 4px 12px color-mix(in oklch, var(--fg) 5%, transparent);
+ border-color: #0F766E;
+ background: #FFFFFF;
+ box-shadow: 0 4px 12px rgba(15, 118, 110, 0.12);
  }
  .candidate-card.assigned {
- border-left: 3px solid var(--success);
- background: color-mix(in oklch, var(--success) 3%, var(--surface));
+ border-left: 4px solid #16A34A;
+ border-color: #86EFAC;
+ background: #F0FDF4;
  }
  .candidate-card-top {
  display: flex;
@@ -1246,36 +1249,36 @@ tbody tr:last-child td {
  margin-bottom: 6px;
  }
  .candidate-name {
- font-weight: 600;
- color: var(--fg);
+ font-weight: 700;
+ color: #0F172A;
  font-size: 13.5px;
  }
  .candidate-topic {
  font-size: 12.5px;
- color: var(--fg);
+ color: #1E293B;
  line-height: 1.35;
  margin-bottom: 8px;
- font-weight: 500;
+ font-weight: 600;
  }
  .candidate-meta-row {
  display: flex;
  align-items: center;
  justify-content: space-between;
  font-size: 11.5px;
- color: var(--muted);
- border-top: 1px dashed var(--border);
+ color: #334155;
+ border-top: 1px dashed #CBD5E1;
  padding-top: 8px;
  margin-top: 6px;
  }
  .candidate-score-pill {
  font-family: var(--font-mono);
- font-weight: 600;
+ font-weight: 700;
  font-size: 11px;
- color: var(--success);
- background: var(--success-soft);
+ color: #15803D;
+ background: #DCFCE7;
  padding: 2px 7px;
  border-radius: var(--radius-full);
- border: 1px solid color-mix(in oklch, var(--success) 25%, transparent);
+ border: 1px solid #86EFAC;
  }
 
  /* Thẻ Hội đồng (Council Card) */
@@ -1288,24 +1291,25 @@ tbody tr:last-child td {
  padding-right: 4px;
  }
  .council-card {
- background: var(--surface);
- border: 1px solid var(--border);
+ background: #FFFFFF;
+ border: 1.5px solid #CBD5E1;
  border-radius: var(--radius-lg);
  padding: 20px;
  display: flex;
  flex-direction: column;
  gap: 14px;
- box-shadow: 0 1px 3px color-mix(in oklch, var(--fg) 2%, transparent);
- transition: border-color 0.15s ease;
+ box-shadow: 0 2px 4px rgba(15, 23, 42, 0.06);
+ transition: border-color 0.15s ease, box-shadow 0.15s ease;
  }
  .council-card:hover {
- border-color: color-mix(in oklch, var(--border) 70%, var(--accent));
+ border-color: #0F766E;
+ box-shadow: 0 4px 12px rgba(15, 118, 110, 0.10);
  }
  .council-card-header {
  display: flex;
  align-items: flex-start;
  justify-content: space-between;
- border-bottom: 1px solid var(--border);
+ border-bottom: 1.5px solid #CBD5E1;
  padding-bottom: 14px;
  }
  .council-title-box { display: flex; flex-direction: column; gap: 4px; }
@@ -1325,9 +1329,10 @@ tbody tr:last-child td {
  align-items: center;
  gap: 16px;
  font-size: 12.5px;
- color: var(--muted);
+ color: #334155;
  margin-top: 4px;
  flex-wrap: wrap;
+ font-weight: 500;
  }
  .council-venue-item { display: flex; align-items: center; gap: 5px; }
 
@@ -1335,23 +1340,65 @@ tbody tr:last-child td {
  display: grid;
  grid-template-columns: repeat(3, 1fr);
  gap: 10px;
- background: var(--bg);
- border: 1px solid var(--border);
+ background: #F8FAFC;
+ border: 1.5px solid #CBD5E1;
  border-radius: var(--radius);
- padding: 10px 14px;
+ padding: 10px 12px;
  }
- .jury-cell { display: flex; flex-direction: column; gap: 2px; }
+ .jury-cell {
+ display: flex;
+ flex-direction: column;
+ gap: 3px;
+ padding: 8px 10px;
+ border-radius: var(--radius-sm);
+ }
+ .jury-cell-chair {
+ background: #F0FDFA;
+ border: 1.5px solid #99F6E4;
+ }
+ .jury-cell-chair .jury-role-label {
+ color: #134E4A;
+ font-weight: 700;
+ }
+ .jury-cell-chair .jury-person-name {
+ color: #042F2E;
+ font-weight: 700;
+ }
+ .jury-cell-sec {
+ background: #EFF6FF;
+ border: 1.5px solid #BFDBFE;
+ }
+ .jury-cell-sec .jury-role-label {
+ color: #1E3A8A;
+ font-weight: 700;
+ }
+ .jury-cell-sec .jury-person-name {
+ color: #172554;
+ font-weight: 700;
+ }
+ .jury-cell-rev {
+ background: #FAF5FF;
+ border: 1.5px solid #E9D5FF;
+ }
+ .jury-cell-rev .jury-role-label {
+ color: #581C87;
+ font-weight: 700;
+ }
+ .jury-cell-rev .jury-person-name {
+ color: #3B0764;
+ font-weight: 700;
+ }
  .jury-role-label {
  font-family: var(--font-mono);
  font-size: 10px;
  text-transform: uppercase;
  letter-spacing: 0.06em;
- color: var(--muted);
+ color: #334155;
  }
  .jury-person-name {
  font-size: 12.5px;
- font-weight: 600;
- color: var(--fg);
+ font-weight: 700;
+ color: #0F172A;
  white-space: nowrap;
  overflow: hidden;
  text-overflow: ellipsis;

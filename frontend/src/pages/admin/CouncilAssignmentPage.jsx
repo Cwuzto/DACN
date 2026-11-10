@@ -673,7 +673,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                             <span>{record.location || 'Chưa xếp phòng'}</span>
                         </div>
                         {conflicts.length > 0 && (
-                            <span className="inline-flex items-center gap-1 text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-semibold text-xs">
+                            <span className="inline-flex items-center gap-1 text-amber-950 bg-amber-100 px-2 py-0.5 rounded border border-amber-300 font-bold text-xs">
                                 ⚠️ Có GV {conflicts.join(', ')} là GVHD của sinh viên HĐ này
                             </span>
                         )}
@@ -692,20 +692,20 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                 return (
                     <div className="text-xs space-y-1">
                         <div className="flex items-center gap-1.5">
-                            <span className="bg-teal-100 text-teal-800 text-[10px] font-bold px-1.5 py-0.2 rounded">CT</span>
-                            <span className={chairman ? 'font-medium text-slate-800' : 'text-slate-500 italic'}>
+                            <span className="bg-teal-100 text-teal-900 border border-teal-200 text-[10px] font-bold px-1.5 py-0.5 rounded">CT</span>
+                            <span className={chairman ? 'font-semibold text-slate-800' : 'text-slate-500 italic'}>
                                 {chairman || 'Chưa phân công'}
                             </span>
                         </div>
                         <div className="flex items-center gap-1.5">
-                            <span className="bg-cyan-100 text-cyan-800 text-[10px] font-bold px-1.5 py-0.2 rounded">TK</span>
-                            <span className={secretary ? 'font-medium text-slate-800' : 'text-slate-500 italic'}>
+                            <span className="bg-blue-100 text-blue-900 border border-blue-200 text-[10px] font-bold px-1.5 py-0.5 rounded">TK</span>
+                            <span className={secretary ? 'font-semibold text-slate-800' : 'text-slate-500 italic'}>
                                 {secretary || 'Chưa phân công'}
                             </span>
                         </div>
                         <div className="flex items-center gap-1.5">
-                            <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-1.5 py-0.2 rounded">PB</span>
-                            <span className={reviewer ? 'font-medium text-slate-800' : 'text-slate-500 italic'}>
+                            <span className="bg-purple-100 text-purple-900 border border-purple-200 text-[10px] font-bold px-1.5 py-0.5 rounded">PB</span>
+                            <span className={reviewer ? 'font-semibold text-slate-800' : 'text-slate-500 italic'}>
                                 {reviewer || 'Chưa phân công'}
                             </span>
                         </div>
@@ -872,41 +872,49 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
 
             {/* Phase Switcher Navigation */}
             {!forcedCouncilType ? (
-                <div className="flex items-center justify-between pb-3 border-b border-slate-200 flex-wrap gap-3">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-300 flex-wrap gap-3">
                     <div className="flex items-center gap-3">
                         {canManageOutline && <button
-                            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg border transition-all cursor-pointer ${
+                            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg border transition-all cursor-pointer ${
                                 councilTypeFilter === 'OUTLINE_REVIEW'
-                                    ? 'bg-teal-50 border-teal-600 text-teal-800 shadow-xs'
-                                    : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                                    ? 'bg-teal-50 border-teal-600 text-teal-900 shadow-sm'
+                                    : 'bg-white border-slate-300 text-slate-700 hover:border-slate-400 font-semibold'
                             }`}
                             onClick={() => setCouncilTypeFilter('OUTLINE_REVIEW')}
                         >
                             <span className="material-symbols-outlined text-base">description</span>
                             <span>1. Hội đồng Thẩm định Đề cương (Giai đoạn 2)</span>
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-mono">
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-mono font-bold ${
+                                councilTypeFilter === 'OUTLINE_REVIEW'
+                                    ? 'bg-teal-100 text-teal-900'
+                                    : 'bg-slate-100 text-slate-700'
+                            }`}>
                                 {councils.filter((c) => c.councilType === 'OUTLINE_REVIEW').length} HĐ
                             </span>
                         </button>}
                         {canManageDefense && <button
-                            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg border transition-all cursor-pointer ${
+                            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg border transition-all cursor-pointer ${
                                 councilTypeFilter === 'DEFENSE_COUNCIL'
-                                    ? 'bg-teal-50 border-teal-600 text-teal-800 shadow-xs'
-                                    : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                                    ? 'bg-teal-50 border-teal-600 text-teal-900 shadow-sm'
+                                    : 'bg-white border-slate-300 text-slate-700 hover:border-slate-400 font-semibold'
                             }`}
                             onClick={() => setCouncilTypeFilter('DEFENSE_COUNCIL')}
                         >
                             <span className="material-symbols-outlined text-base">gavel</span>
                             <span>2. Hội đồng Chấm Bảo vệ Khóa luận (Giai đoạn 5)</span>
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-teal-100 text-teal-800 font-mono font-bold">
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-mono font-bold ${
+                                councilTypeFilter === 'DEFENSE_COUNCIL'
+                                    ? 'bg-teal-100 text-teal-900'
+                                    : 'bg-slate-100 text-slate-700'
+                            }`}>
                                 {councils.filter((c) => c.councilType === 'DEFENSE_COUNCIL').length} HĐ
                             </span>
                         </button>}
                         {canManageOutline && canManageDefense && <button
-                            className={`inline-flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-lg border transition-all cursor-pointer ${
+                            className={`inline-flex items-center gap-2 px-3 py-2 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
                                 councilTypeFilter === 'ALL'
-                                    ? 'bg-teal-50 border-teal-600 text-teal-800 font-bold'
-                                    : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'
+                                    ? 'bg-teal-50 border-teal-600 text-teal-900 shadow-sm'
+                                    : 'bg-white border-slate-300 text-slate-700 hover:border-slate-400'
                             }`}
                             onClick={() => setCouncilTypeFilter('ALL')}
                         >
@@ -927,9 +935,9 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                     </div>
                 </div>
             ) : (
-                <div className="flex items-center justify-between pb-3 border-b border-slate-200 flex-wrap gap-3">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-300 flex-wrap gap-3">
                     <div className="flex items-center gap-2">
-                        <Tag color="cyan" className="px-3 py-1 text-sm font-semibold">
+                        <Tag color="cyan" className="px-3 py-1 text-sm font-bold border border-teal-300">
                             {councilTypeFilter === 'OUTLINE_REVIEW'
                                 ? `Hội đồng Đề cương: ${councils.filter((c) => c.councilType === 'OUTLINE_REVIEW').length} HĐ`
                                 : `Hội đồng Bảo vệ: ${councils.filter((c) => c.councilType === 'DEFENSE_COUNCIL').length} HĐ`}
@@ -950,47 +958,47 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
 
             {/* Quick Metrics Banner */}
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
+                <div className="bg-white p-4 rounded-xl border border-slate-300 shadow-sm flex items-center justify-between">
                     <div>
-                        <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Tổng Hội đồng</span>
+                        <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Tổng Hội đồng</span>
                         <p className="text-2xl font-black text-slate-900 mt-1 font-mono">{filteredCouncils.length} HĐ</p>
                     </div>
-                    <span className="text-xs px-2.5 py-1 rounded-full bg-teal-50 text-teal-700 font-semibold border border-teal-100">
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-teal-50 text-teal-800 font-bold border border-teal-200">
                         {filteredCouncils.filter((c) => c.members?.length === 3).length} Đủ 3 CB
                     </span>
                 </div>
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
+                <div className="bg-white p-4 rounded-xl border border-slate-300 shadow-sm flex items-center justify-between">
                     <div>
-                        <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Sinh viên Trong Đợt</span>
-                        <p className="text-2xl font-black text-teal-700 mt-1 font-mono">{candidateStats.total} SV</p>
+                        <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Sinh viên Trong Đợt</span>
+                        <p className="text-2xl font-black text-teal-800 mt-1 font-mono">{candidateStats.total} SV</p>
                     </div>
-                    <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-100">
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 font-bold border border-emerald-200">
                         Hợp lệ
                     </span>
                 </div>
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
+                <div className="bg-white p-4 rounded-xl border border-slate-300 shadow-sm flex items-center justify-between">
                     <div>
-                        <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Đã xếp vào Hội đồng</span>
-                        <p className="text-2xl font-black text-emerald-600 mt-1 font-mono">
+                        <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Đã xếp vào Hội đồng</span>
+                        <p className="text-2xl font-black text-emerald-700 mt-1 font-mono">
                             {candidateStats.assigned} / {candidateStats.total} SV
                         </p>
                     </div>
-                    <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${
+                    <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${
                         candidateStats.unassigned === 0
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
-                            : 'bg-amber-50 text-amber-700 border border-amber-100'
+                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
+                            : 'bg-amber-100 text-amber-900 border border-amber-300'
                     }`}>
                         {candidateStats.unassigned === 0 ? 'Đã xếp đủ 100%' : `${candidateStats.unassigned} chưa xếp`}
                     </span>
                 </div>
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
+                <div className="bg-white p-4 rounded-xl border border-slate-300 shadow-sm flex items-center justify-between">
                     <div>
-                        <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Xung đột Lợi ích</span>
-                        <p className={`text-lg font-bold mt-1 ${conflictCount === 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Xung đột Lợi ích</span>
+                        <p className={`text-lg font-black mt-1 ${conflictCount === 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
                             {conflictCount === 0 ? '✓ 0 Vi phạm' : `⚠ ${conflictCount} Vi phạm`}
                         </p>
                     </div>
-                    <span className="text-[11px] text-slate-500 font-medium">
+                    <span className="text-[11px] text-slate-600 font-semibold">
                         (GVHD ≠ Giám khảo)
                     </span>
                 </div>
@@ -1004,22 +1012,22 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                         <div className="matcher-pane-header">
                             <div>
                                 <h3 className="font-bold text-slate-900 text-sm">Hàng đợi Sinh viên</h3>
-                                <span className="text-xs text-slate-500 font-medium">
+                                <span className="text-xs text-slate-600 font-medium">
                                     {councilTypeFilter === 'OUTLINE_REVIEW' ? 'Đề cương đã nộp' : 'Điều phối ca bảo vệ'}
                                 </span>
                             </div>
-                            <span className="px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 font-mono text-xs font-bold border border-teal-100">
+                            <span className="px-2 py-0.5 rounded-full bg-teal-50 text-teal-800 font-mono text-xs font-bold border border-teal-200">
                                 {filteredCandidates.length} SV
                             </span>
                         </div>
 
                         {/* Filter tabs inside candidate pane */}
-                        <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 flex items-center gap-1.5">
+                        <div className="px-3 py-2 bg-slate-100/90 border-b border-slate-300 flex items-center gap-1.5">
                             <button
                                 className={`px-2.5 py-1 text-xs rounded font-medium transition-colors ${
                                     candidateFilter === 'all'
-                                        ? 'bg-white text-teal-800 shadow-xs font-semibold'
-                                        : 'text-slate-600 hover:text-slate-900'
+                                        ? 'bg-white text-teal-900 shadow-sm font-bold border border-slate-300'
+                                        : 'text-slate-700 hover:text-slate-900 font-medium'
                                 }`}
                                 onClick={() => setCandidateFilter('all')}
                             >
@@ -1028,8 +1036,8 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                             <button
                                 className={`px-2.5 py-1 text-xs rounded font-medium transition-colors ${
                                     candidateFilter === 'unassigned'
-                                        ? 'bg-white text-amber-700 shadow-xs font-semibold'
-                                        : 'text-slate-600 hover:text-slate-900'
+                                        ? 'bg-white text-amber-800 shadow-sm font-bold border border-amber-300'
+                                        : 'text-slate-700 hover:text-slate-900 font-medium'
                                 }`}
                                 onClick={() => setCandidateFilter('unassigned')}
                             >
@@ -1038,8 +1046,8 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                             <button
                                 className={`px-2.5 py-1 text-xs rounded font-medium transition-colors ${
                                     candidateFilter === 'assigned'
-                                        ? 'bg-white text-emerald-700 shadow-xs font-semibold'
-                                        : 'text-slate-600 hover:text-slate-900'
+                                        ? 'bg-white text-emerald-800 shadow-sm font-bold border border-emerald-300'
+                                        : 'text-slate-700 hover:text-slate-900 font-medium'
                                 }`}
                                 onClick={() => setCandidateFilter('assigned')}
                             >
@@ -1048,9 +1056,9 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                         </div>
 
                         {/* Search input */}
-                        <div className="p-3 border-b border-slate-200">
+                        <div className="p-3 border-b border-slate-300 bg-white">
                             <Input
-                                prefix={<SearchOutlined className="text-slate-400" />}
+                                prefix={<SearchOutlined className="text-slate-500" />}
                                 placeholder="Tìm MSSV, tên SV, GVHD..."
                                 value={candidateSearch}
                                 onChange={(e) => setCandidateSearch(e.target.value)}
@@ -1062,7 +1070,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                         {/* Candidates List */}
                         <div className="matcher-pane-body">
                             {filteredCandidates.length === 0 ? (
-                                <div className="text-center py-8 text-slate-500 font-medium text-xs">
+                                <div className="text-center py-8 text-slate-600 font-medium text-xs">
                                     Không có sinh viên nào thỏa mãn bộ lọc.
                                 </div>
                             ) : (
@@ -1079,31 +1087,31 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                             className={`candidate-card ${isAssigned ? 'assigned' : ''}`}
                                         >
                                             <div className="flex items-center justify-between mb-1.5">
-                                                <span className="font-mono font-bold text-xs text-teal-700">
+                                                <span className="font-mono font-bold text-xs text-teal-900 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200">
                                                     {reg.student?.code || 'SV-N/A'}
                                                 </span>
-                                                <span className="text-[10px] px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">
+                                                <span className="text-[10px] px-2 py-0.5 rounded bg-slate-100 text-slate-800 font-bold border border-slate-200">
                                                     {reg.status}
                                                 </span>
                                             </div>
                                             <div className="font-bold text-slate-900 text-xs">
                                                 {reg.student?.fullName || 'N/A'}
                                             </div>
-                                            <div className="text-xs text-slate-600 line-clamp-2 mt-1">
+                                            <div className="text-xs text-slate-800 line-clamp-2 mt-1 font-medium">
                                                 {reg.adjustedTitle || reg.topic?.title || 'Chưa có tên đề tài'}
                                             </div>
-                                            <div className="flex items-center justify-between text-[11px] text-slate-500 border-t border-dashed border-slate-200 pt-2 mt-2">
+                                            <div className="flex items-center justify-between text-[11px] text-slate-600 border-t border-dashed border-slate-300 pt-2 mt-2">
                                                 <span>
-                                                    GVHD: <strong className="text-slate-800">{reg.topic?.lecturer?.fullName || 'N/A'}</strong>
+                                                    GVHD: <strong className="text-slate-900">{reg.topic?.lecturer?.fullName || 'N/A'}</strong>
                                                 </span>
-                                                <span className="font-mono text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
+                                                <span className="font-mono text-emerald-800 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-300">
                                                     Đạt điều kiện
                                                 </span>
                                             </div>
                                             <div className="mt-2.5 flex items-center justify-between">
                                                 {isAssigned ? (
                                                     <>
-                                                        <span className="text-xs text-emerald-700 font-bold inline-flex items-center gap-1">
+                                                        <span className="text-xs text-emerald-800 font-bold inline-flex items-center gap-1">
                                                             <CheckCircleOutlined />
                                                             {assignedCouncil?.name || 'Đã vào HĐ'}
                                                         </span>
@@ -1111,7 +1119,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                                             size="small"
                                                             danger
                                                             type="text"
-                                                            className="text-xs"
+                                                            className="text-xs font-bold"
                                                             onClick={() => handleRemoveRegistration(assignedCouncilId, reg.id)}
                                                         >
                                                             Hủy ghép
@@ -1119,14 +1127,14 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                                     </>
                                                 ) : (
                                                     <>
-                                                        <span className="text-xs text-amber-600 font-medium">
+                                                        <span className="text-xs text-amber-800 font-bold">
                                                             Chưa gán HĐ
                                                         </span>
                                                         <Button
                                                             size="small"
                                                             type="primary"
                                                             icon={<UserAddOutlined />}
-                                                            className="text-xs"
+                                                            className="text-xs font-bold"
                                                             onClick={() => {
                                                                 if (filteredCouncils.length > 0) {
                                                                     showAssignModal(filteredCouncils[0]);
@@ -1152,18 +1160,18 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                         <div className="matcher-pane-header">
                             <div>
                                 <h3 className="font-bold text-slate-900 text-sm">Danh sách Hội đồng & Ca thi Chi tiết</h3>
-                                <span className="text-xs text-slate-500 font-medium">
-                                    Đợt bảo vệ: <strong>{semesters.find((s) => s.id === selectedSemester)?.name || 'Hiện tại'}</strong>
+                                <span className="text-xs text-slate-600 font-medium">
+                                    Đợt bảo vệ: <strong className="text-slate-900">{semesters.find((s) => s.id === selectedSemester)?.name || 'Hiện tại'}</strong>
                                 </span>
                             </div>
-                            <span className="px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 font-mono text-xs font-bold border border-teal-100">
+                            <span className="px-2 py-0.5 rounded-full bg-teal-50 text-teal-800 font-mono text-xs font-bold border border-teal-200">
                                 {filteredCouncils.length} Hội đồng
                             </span>
                         </div>
 
                         <div className="councils-board p-4">
                             {filteredCouncils.length === 0 ? (
-                                <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-500 font-medium">
+                                <div className="bg-white rounded-xl border border-slate-300 p-8 text-center text-slate-600 font-medium">
                                     <span className="material-symbols-outlined text-4xl mb-2 text-slate-400 block">groups</span>
                                     Chưa có hội đồng nào trong đợt này. Nhấp "Lập Hội đồng Mới" ở trên để tạo.
                                 </div>
@@ -1185,31 +1193,31 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                                 <div className="space-y-1.5">
                                                     <div className="flex items-center gap-2 flex-wrap">
                                                         <span
-                                                            className="font-bold text-teal-800 hover:text-teal-900 cursor-pointer hover:underline text-sm"
+                                                            className="font-bold text-teal-900 hover:text-teal-950 cursor-pointer hover:underline text-sm"
                                                             onClick={() => navigate(council.councilType === 'OUTLINE_REVIEW' ? `/admin/outline-councils/${council.id}` : `/admin/defense-councils/${council.id}`)}
                                                         >
                                                             {council.name}
                                                         </span>
-                                                        <Tag color={council.councilType === 'OUTLINE_REVIEW' ? 'purple' : 'teal'}>
+                                                        <Tag color={council.councilType === 'OUTLINE_REVIEW' ? 'purple' : 'teal'} className="font-bold border border-slate-300">
                                                             {council.councilType === 'OUTLINE_REVIEW' ? 'Thẩm định Đề cương' : 'Chấm Bảo vệ'}
                                                         </Tag>
                                                         <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${
-                                                            isComplete ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
+                                                            isComplete ? 'bg-emerald-50 text-emerald-800 border border-emerald-300' : 'bg-rose-50 text-rose-800 border border-rose-300'
                                                         }`}>
                                                             {isComplete ? '3 Giảng viên (Chuẩn Viện)' : 'Chưa đủ 3 GV'}
                                                         </span>
                                                     </div>
-                                                    <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
+                                                    <div className="flex items-center gap-3 text-xs text-slate-600 flex-wrap font-medium">
                                                         <span className="inline-flex items-center gap-1">
-                                                            <CalendarOutlined className="text-slate-400" />
+                                                            <CalendarOutlined className="text-slate-500" />
                                                             {council.defenseDate ? dayjs(council.defenseDate).format('DD/MM/YYYY') : 'Chưa xếp ngày'}
                                                         </span>
                                                         <span className="inline-flex items-center gap-1">
-                                                            <EnvironmentOutlined className="text-slate-400" />
+                                                            <EnvironmentOutlined className="text-slate-500" />
                                                             {council.location || 'Chưa xếp phòng'}
                                                         </span>
                                                         {conflicts.length > 0 && (
-                                                            <span className="inline-flex items-center gap-1 text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-semibold text-xs">
+                                                            <span className="inline-flex items-center gap-1 text-amber-950 bg-amber-100 px-2 py-0.5 rounded border border-amber-300 font-bold text-xs">
                                                                 ⚠️ Có GV {conflicts.join(', ')} là GVHD của sinh viên HĐ này
                                                             </span>
                                                         )}
@@ -1219,16 +1227,16 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                                 {/* Capacity Meter */}
                                                 <div className="flex flex-col items-end gap-1 min-w-[120px]">
                                                     <div className="flex items-center gap-1.5">
-                                                        <span className="text-xs text-slate-600 font-medium">Đang nhận:</span>
-                                                        <strong className="text-sm font-mono text-slate-900">{assignedCount} / {maxSlots} SV</strong>
+                                                        <span className="text-xs text-slate-700 font-bold">Đang nhận:</span>
+                                                        <strong className="text-sm font-mono text-slate-950 font-black">{assignedCount} / {maxSlots} SV</strong>
                                                     </div>
-                                                    <div className="w-28 bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                                                    <div className="w-28 bg-slate-200 rounded-full h-2 overflow-hidden">
                                                         <div
-                                                            className={`h-full rounded-full ${assignedCount >= maxSlots ? 'bg-rose-500' : 'bg-teal-600'}`}
+                                                            className={`h-full rounded-full ${assignedCount >= maxSlots ? 'bg-rose-600' : 'bg-teal-700'}`}
                                                             style={{ width: `${percent}%` }}
                                                         />
                                                     </div>
-                                                    <span className="text-[10px] text-slate-500 font-medium">
+                                                    <span className="text-[10px] text-slate-700 font-bold">
                                                         {assignedCount >= maxSlots ? 'Đã đủ slot' : `Còn ${maxSlots - assignedCount} chỗ`}
                                                     </span>
                                                 </div>
@@ -1236,34 +1244,34 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
 
                                             {/* Jury Members Row (3 members) */}
                                             <div className="council-jury-grid">
-                                                <div className="jury-cell">
-                                                    <span className="text-[10px] font-bold text-teal-800 uppercase tracking-wider">
+                                                <div className="jury-cell jury-cell-chair bg-teal-50 border-1.5 border-teal-200 rounded-md p-2">
+                                                    <span className="text-[10px] font-bold text-teal-900 uppercase tracking-wider">
                                                         1. Chủ tịch Hội đồng
                                                     </span>
-                                                    <span className={`text-xs font-semibold ${chairman ? 'text-slate-800' : 'text-slate-500 italic'}`}>
+                                                    <span className={`text-xs font-bold ${chairman ? 'text-teal-950' : 'text-slate-500 italic'}`}>
                                                         {chairman || 'Chưa phân công'}
                                                     </span>
                                                 </div>
-                                                <div className="jury-cell">
-                                                    <span className="text-[10px] font-bold text-cyan-800 uppercase tracking-wider">
+                                                <div className="jury-cell jury-cell-sec bg-blue-50 border-1.5 border-blue-200 rounded-md p-2">
+                                                    <span className="text-[10px] font-bold text-blue-900 uppercase tracking-wider">
                                                         2. Thư ký Hội đồng
                                                     </span>
-                                                    <span className={`text-xs font-semibold ${secretary ? 'text-slate-800' : 'text-slate-500 italic'}`}>
+                                                    <span className={`text-xs font-bold ${secretary ? 'text-blue-950' : 'text-slate-500 italic'}`}>
                                                         {secretary || 'Chưa phân công'}
                                                     </span>
                                                 </div>
-                                                <div className="jury-cell">
-                                                    <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider">
+                                                <div className="jury-cell jury-cell-rev bg-purple-50 border-1.5 border-purple-200 rounded-md p-2">
+                                                    <span className="text-[10px] font-bold text-purple-900 uppercase tracking-wider">
                                                         3. UV Phản biện
                                                     </span>
-                                                    <span className={`text-xs font-semibold ${reviewer ? 'text-slate-800' : 'text-slate-500 italic'}`}>
+                                                    <span className={`text-xs font-bold ${reviewer ? 'text-purple-950' : 'text-slate-500 italic'}`}>
                                                         {reviewer || 'Chưa phân công'}
                                                     </span>
                                                 </div>
                                             </div>
 
                                             {/* Council Card Action Footer */}
-                                            <div className="flex items-center justify-between pt-2 border-t border-slate-100 flex-wrap gap-2">
+                                            <div className="flex items-center justify-between pt-2 border-t border-slate-200 flex-wrap gap-2">
                                                 <div className="flex items-center gap-1.5">
                                                     <Button
                                                         size="small"
@@ -1289,7 +1297,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                                             size="small"
                                                             icon={<UnlockOutlined />}
                                                             onClick={() => handleOpenReopenModal(council)}
-                                                            style={{ color: '#d97706', borderColor: '#fcd34d' }}
+                                                            style={{ color: '#b45309', borderColor: '#f59e0b', fontWeight: 600 }}
                                                             title="Mở khóa kết quả (Reopen)"
                                                         />
                                                     )}
@@ -1332,7 +1340,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                 </div>
             ) : (
                 /* View Mode 2: TABLE VIEW */
-                <div className="bg-white rounded-lg border border-slate-200 shadow-xs overflow-hidden">
+                <div className="bg-white rounded-lg border border-slate-300 shadow-sm overflow-hidden">
                     <Table
                         dataSource={filteredCouncils}
                         columns={columns}
@@ -1408,15 +1416,21 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                 </p>
                 <Form form={memberForm} layout="vertical">
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <Form.Item name="chairman" label="Chủ tịch HĐ" rules={[{ required: true, message: 'Chọn chủ tịch' }]}>
-                            <Select showSearch placeholder="Chọn giảng viên" optionFilterProp="label" options={lecturerOptions} />
-                        </Form.Item>
-                        <Form.Item name="secretary" label="Thư ký HĐ" rules={[{ required: true, message: 'Chọn thư ký' }]}>
-                            <Select showSearch placeholder="Chọn giảng viên" optionFilterProp="label" options={lecturerOptions} />
-                        </Form.Item>
-                        <Form.Item name="reviewer" label="Phản biện HĐ" rules={[{ required: true, message: 'Chọn phản biện' }]}>
-                            <Select showSearch placeholder="Chọn giảng viên" optionFilterProp="label" options={lecturerOptions} />
-                        </Form.Item>
+                        <div className="bg-teal-50/70 p-2.5 rounded-lg border border-teal-200">
+                            <Form.Item name="chairman" label={<span className="text-teal-900 font-bold">1. Chủ tịch HĐ</span>} rules={[{ required: true, message: 'Chọn chủ tịch' }]} className="mb-0">
+                                <Select showSearch placeholder="Chọn giảng viên" optionFilterProp="label" options={lecturerOptions} />
+                            </Form.Item>
+                        </div>
+                        <div className="bg-blue-50/70 p-2.5 rounded-lg border border-blue-200">
+                            <Form.Item name="secretary" label={<span className="text-blue-900 font-bold">2. Thư ký HĐ</span>} rules={[{ required: true, message: 'Chọn thư ký' }]} className="mb-0">
+                                <Select showSearch placeholder="Chọn giảng viên" optionFilterProp="label" options={lecturerOptions} />
+                            </Form.Item>
+                        </div>
+                        <div className="bg-purple-50/70 p-2.5 rounded-lg border border-purple-200">
+                            <Form.Item name="reviewer" label={<span className="text-purple-900 font-bold">3. Phản biện HĐ</span>} rules={[{ required: true, message: 'Chọn phản biện' }]} className="mb-0">
+                                <Select showSearch placeholder="Chọn giảng viên" optionFilterProp="label" options={lecturerOptions} />
+                            </Form.Item>
+                        </div>
                     </div>
                 </Form>
             </Modal>
@@ -1653,12 +1667,14 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                         />
                     )}
 
-                    <div className="text-xs text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-200 flex items-center justify-between flex-wrap gap-2">
+                    <div className="text-xs text-slate-700 bg-slate-100 p-3 rounded-lg border border-slate-300 flex items-center justify-between flex-wrap gap-2">
                         <span>
-                            Dự kiến tạo: <strong className="text-teal-800">{previewProposedCouncils.length}</strong> hội đồng | Tổng sinh viên: <strong className="text-teal-800">{previewProposedCouncils.reduce((sum, c) => sum + (c.registrations?.length || 0), 0)}</strong> SV
+                            Dự kiến tạo: <strong className="text-teal-900 font-bold">{previewProposedCouncils.length}</strong> hội đồng | Tổng sinh viên: <strong className="text-teal-900 font-bold">{previewProposedCouncils.reduce((sum, c) => sum + (c.registrations?.length || 0), 0)}</strong> SV
                         </span>
                         {previewSkippedStudents.length > 0 && (
-                            <span className="text-amber-700 font-medium">Bỏ qua: {previewSkippedStudents.length} SV chưa đủ điều kiện</span>
+                            <span className="text-amber-900 font-bold bg-amber-100 px-2.5 py-0.5 rounded border border-amber-300">
+                                Bỏ qua: {previewSkippedStudents.length} SV chưa đủ điều kiện
+                            </span>
                         )}
                     </div>
 
@@ -1682,19 +1698,19 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                         const reviewer = council.members?.find((m) => m.roleInCouncil === 'REVIEWER');
 
                         return (
-                            <div key={council.tempId || idx} className="border border-slate-200 rounded-xl p-4 bg-white shadow-xs space-y-3">
+                            <div key={council.tempId || idx} className="border-1.5 border-slate-300 rounded-xl p-4 bg-white shadow-xs space-y-3">
                                 {/* Header */}
                                 <div className="flex items-center justify-between flex-wrap gap-2">
                                     <div className="space-y-0.5">
                                         <div className="flex items-center gap-2">
-                                            <span className="font-bold text-slate-800 text-sm">{council.name}</span>
-                                            <Tag color="purple" className="text-xs font-semibold">
+                                            <span className="font-bold text-teal-950 text-sm">{council.name}</span>
+                                            <Tag color="purple" className="text-xs font-bold border border-purple-300">
                                                 {council.registrations?.length || 0} sinh viên
                                             </Tag>
                                         </div>
                                         {council.excludedMentors?.length > 0 && (
-                                            <div className="text-[11px] text-slate-500">
-                                                GVHD của SV: <span className="font-medium text-slate-700">{council.excludedMentors.map((m) => m.fullName).join(', ')}</span>
+                                            <div className="text-[11px] text-slate-600 font-medium">
+                                                GVHD của SV: <span className="font-bold text-slate-900">{council.excludedMentors.map((m) => m.fullName).join(', ')}</span>
                                             </div>
                                         )}
                                     </div>
@@ -1704,7 +1720,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                         type="dashed"
                                         icon={isExpanded ? <UpOutlined /> : <DownOutlined />}
                                         onClick={() => handleToggleExpandCouncil(council.tempId)}
-                                        className="text-xs"
+                                        className="text-xs font-semibold"
                                     >
                                         {isExpanded
                                             ? `Ẩn danh sách sinh viên (${council.registrations?.length || 0})`
@@ -1714,7 +1730,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
 
                                 {/* Expandable student list table */}
                                 {isExpanded && (
-                                    <div className="border border-slate-200 rounded-lg overflow-hidden my-2">
+                                    <div className="border border-slate-300 rounded-lg overflow-hidden my-2">
                                         <Table
                                             size="small"
                                             pagination={false}
@@ -1726,14 +1742,18 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                                     key: 'stt',
                                                     width: 50,
                                                     align: 'center',
-                                                    render: (_, __, i) => i + 1,
+                                                    render: (_, __, i) => <span className="font-bold text-slate-700">{i + 1}</span>,
                                                 },
                                                 {
                                                     title: 'MSSV',
                                                     dataIndex: 'studentCode',
                                                     key: 'studentCode',
                                                     width: 110,
-                                                    render: (val, r) => val || r.student?.code || '—',
+                                                    render: (val, r) => (
+                                                        <span className="font-mono font-bold text-teal-900 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200">
+                                                            {val || r.student?.code || '—'}
+                                                        </span>
+                                                    ),
                                                 },
                                                 {
                                                     title: 'Họ và tên',
@@ -1741,7 +1761,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                                     key: 'studentName',
                                                     width: 160,
                                                     render: (val, r) => (
-                                                        <span className="font-medium text-slate-800">
+                                                        <span className="font-bold text-slate-900">
                                                             {val || r.student?.fullName || '—'}
                                                         </span>
                                                     ),
@@ -1750,7 +1770,11 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                                     title: 'Tên đề tài',
                                                     dataIndex: 'topicTitle',
                                                     key: 'topicTitle',
-                                                    render: (val, r) => val || r.topic?.title || '—',
+                                                    render: (val, r) => (
+                                                        <span className="font-medium text-slate-800">
+                                                            {val || r.topic?.title || '—'}
+                                                        </span>
+                                                    ),
                                                 },
                                                 {
                                                     title: 'Giảng viên HD',
@@ -1758,7 +1782,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                                     key: 'mentorName',
                                                     width: 160,
                                                     render: (val, r) => (
-                                                        <span className="text-slate-600">
+                                                        <span className="font-medium text-slate-700">
                                                             {val || r.topic?.mentor?.fullName || r.topic?.lecturer?.fullName || '—'}
                                                         </span>
                                                     ),
@@ -1769,9 +1793,9 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                 )}
 
                                 {/* 3 Select inputs for CHAIRMAN, SECRETARY, REVIEWER */}
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 border-t border-slate-100">
-                                    <div>
-                                        <label className="block text-[11px] font-bold text-teal-800 uppercase tracking-wider mb-1">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 border-t border-slate-200">
+                                    <div className="bg-teal-50/70 p-2.5 rounded-lg border border-teal-200">
+                                        <label className="block text-[11px] font-bold text-teal-900 uppercase tracking-wider mb-1">
                                             1. Chủ tịch Hội đồng
                                         </label>
                                         <Select
@@ -1789,8 +1813,8 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                         />
                                     </div>
 
-                                    <div>
-                                        <label className="block text-[11px] font-bold text-cyan-800 uppercase tracking-wider mb-1">
+                                    <div className="bg-blue-50/70 p-2.5 rounded-lg border border-blue-200">
+                                        <label className="block text-[11px] font-bold text-blue-900 uppercase tracking-wider mb-1">
                                             2. Thư ký Hội đồng
                                         </label>
                                         <Select
@@ -1808,8 +1832,8 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                         />
                                     </div>
 
-                                    <div>
-                                        <label className="block text-[11px] font-bold text-amber-800 uppercase tracking-wider mb-1">
+                                    <div className="bg-purple-50/70 p-2.5 rounded-lg border border-purple-200">
+                                        <label className="block text-[11px] font-bold text-purple-900 uppercase tracking-wider mb-1">
                                             3. UV Phản biện
                                         </label>
                                         <Select
@@ -1830,14 +1854,14 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
 
                                 {/* Inline duplicate lecturer warning */}
                                 {isDuplicate && (
-                                    <div className="text-rose-700 bg-rose-50 px-2.5 py-1.5 rounded border border-rose-200 text-xs font-semibold">
+                                    <div className="text-rose-900 bg-rose-100 px-3 py-2 rounded-md border border-rose-300 text-xs font-bold">
                                         ⚠️ Mỗi hội đồng phải có đúng 3 giảng viên khác nhau (Chủ tịch, Thư ký, UV Phản biện).
                                     </div>
                                 )}
 
                                 {/* Live Conflict Warning */}
                                 {liveConflicts.length > 0 && (
-                                    <div className="text-amber-700 bg-amber-50 px-2.5 py-1.5 rounded border border-amber-200 text-xs font-semibold">
+                                    <div className="text-amber-950 bg-amber-100 px-3 py-2 rounded-md border border-amber-300 text-xs font-bold">
                                         ⚠️ Có GV {liveConflicts.join(', ')} là GVHD của sinh viên HĐ này
                                     </div>
                                 )}

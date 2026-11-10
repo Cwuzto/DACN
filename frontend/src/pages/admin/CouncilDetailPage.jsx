@@ -397,27 +397,27 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
             key: 'index',
             width: 60,
             align: 'center',
-            render: (_text, _record, index) => <span className="text-slate-500 font-medium">{index + 1}</span>,
+            render: (_text, _record, index) => <span className="text-slate-600 font-bold">{index + 1}</span>,
         },
         {
             title: 'MSSV',
             dataIndex: ['student', 'code'],
             key: 'studentCode',
             width: 120,
-            render: (code) => <span className="font-mono font-bold text-teal-800">{code || 'N/A'}</span>,
+            render: (code) => <span className="bg-teal-50 border border-teal-300 text-teal-900 font-mono font-bold px-2 py-0.5 rounded">{code || 'N/A'}</span>,
         },
         {
             title: 'Họ và tên',
             dataIndex: ['student', 'fullName'],
             key: 'studentName',
             width: 200,
-            render: (name) => <span className="font-semibold text-slate-800">{name || 'N/A'}</span>,
+            render: (name) => <span className="font-bold text-slate-900">{name || 'N/A'}</span>,
         },
         {
             title: 'Tên đề tài',
             key: 'topicTitle',
             render: (_text, reg) => (
-                <span className="text-slate-700">
+                <span className="text-slate-800 font-medium">
                     {reg.adjustedTitle || reg.topic?.title || 'Không có đề tài'}
                 </span>
             ),
@@ -427,7 +427,7 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
             key: 'mentor',
             width: 180,
             render: (_text, reg) => (
-                <span className="text-slate-600 font-medium">
+                <span className="text-slate-700 font-medium">
                     {reg.topic?.mentor?.fullName || reg.topic?.lecturer?.fullName || 'N/A'}
                 </span>
             ),
@@ -498,21 +498,23 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                     </Button>
                 </div>
 
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-300">
                     <div>
                         <div className="flex items-center gap-2.5 flex-wrap">
-                            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+                            <h1 className="text-2xl font-black text-slate-900 tracking-tight">
                                 {council.name}
                             </h1>
-                            <Tag color={effectiveCouncilType === 'OUTLINE_REVIEW' ? 'blue' : 'purple'} className="font-semibold">
+                            <Tag color={effectiveCouncilType === 'OUTLINE_REVIEW' ? 'purple' : 'teal'} className="font-bold border border-slate-300">
                                 {effectiveCouncilType === 'OUTLINE_REVIEW' ? 'Thẩm định Đề cương' : 'Chấm Bảo vệ'}
                             </Tag>
-                            <Tag color={council.members?.length === 3 ? 'success' : 'warning'} className="font-semibold">
+                            <span className={`text-xs px-2.5 py-1 rounded font-bold ${
+                                council.members?.length === 3 ? 'bg-emerald-50 text-emerald-800 border border-emerald-300' : 'bg-rose-50 text-rose-800 border border-rose-300'
+                            }`}>
                                 {council.members?.length === 3 ? '3 Giảng viên (Chuẩn Viện)' : 'Chưa đủ 3 GV'}
-                            </Tag>
+                            </span>
                         </div>
-                        <p className="text-xs text-slate-500 mt-1">
-                            Học kỳ: <span className="font-semibold text-slate-700">{council.semester?.name || '---'}</span>
+                        <p className="text-xs text-slate-600 mt-1 font-medium">
+                            Học kỳ: <span className="font-bold text-slate-900">{council.semester?.name || '---'}</span>
                         </p>
                     </div>
 
@@ -528,7 +530,7 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                             type="primary"
                             icon={<UserAddOutlined />}
                             onClick={openAssignModal}
-                            className="bg-teal-700 hover:bg-teal-800"
+                            className="bg-teal-700 hover:bg-teal-800 font-semibold"
                         >
                             Gán thêm Sinh viên
                         </Button>
@@ -546,24 +548,24 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                 {/* Left Card: Lịch & Địa điểm (1/3) */}
                 <Card
                     title={
-                        <div className="flex items-center gap-2 text-slate-800 font-bold text-base">
+                        <div className="flex items-center gap-2 text-slate-900 font-bold text-base">
                             <CalendarOutlined className="text-teal-700" />
                             <span>Thông tin lịch & địa điểm</span>
                         </div>
                     }
-                    className="shadow-sm border border-slate-200 rounded-lg"
+                    className="shadow-sm border border-slate-300 rounded-lg"
                 >
                     <div className="space-y-4">
                         <div>
-                            <span className="text-xs text-slate-500 block mb-0.5 font-medium">Ngày tổ chức</span>
-                            <span className="font-semibold text-slate-800 text-sm">
+                            <span className="text-xs text-slate-600 block mb-0.5 font-semibold">Ngày tổ chức</span>
+                            <span className="font-bold text-slate-900 text-sm">
                                 {council.defenseDate ? dayjs(council.defenseDate).format('DD/MM/YYYY') : 'Chưa xếp'}
                             </span>
                         </div>
 
                         <div>
-                            <span className="text-xs text-slate-500 block mb-0.5 font-medium">Hình thức họp</span>
-                            <span className="font-semibold text-slate-800 text-sm">
+                            <span className="text-xs text-slate-600 block mb-0.5 font-semibold">Hình thức họp</span>
+                            <span className="font-bold text-slate-900 text-sm">
                                 {council.meetingMode === 'ONLINE'
                                     ? 'Trực tuyến (Online)'
                                     : council.meetingMode === 'HYBRID'
@@ -573,24 +575,24 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                         </div>
 
                         <div>
-                            <span className="text-xs text-slate-500 block mb-0.5 font-medium">Phòng họp / Link</span>
-                            <div className="flex items-center gap-1.5 font-semibold text-slate-800 text-sm">
-                                <EnvironmentOutlined className="text-slate-400" />
+                            <span className="text-xs text-slate-600 block mb-0.5 font-semibold">Phòng họp / Link</span>
+                            <div className="flex items-center gap-1.5 font-bold text-slate-900 text-sm">
+                                <EnvironmentOutlined className="text-teal-700" />
                                 <span>{council.location || council.meetingUrl || 'Chưa xếp phòng'}</span>
                             </div>
                         </div>
 
-                        <div className="pt-2 border-t border-slate-100">
+                        <div className="pt-2 border-t border-slate-200">
                             <div className="flex justify-between items-center mb-1">
-                                <span className="text-xs text-slate-500 font-medium">Quy mô sinh viên</span>
-                                <span className="text-xs font-bold text-slate-700">
+                                <span className="text-xs text-slate-600 font-semibold">Quy mô sinh viên</span>
+                                <span className="text-xs font-black text-slate-900">
                                     {effectiveRegistrations.length} / 10 SV
                                 </span>
                             </div>
                             <Progress
                                 percent={Math.min(100, (effectiveRegistrations.length / 10) * 100)}
                                 showInfo={false}
-                                strokeColor={effectiveRegistrations.length > 10 ? '#ef4444' : '#0d9488'}
+                                strokeColor={effectiveRegistrations.length > 10 ? '#ef4444' : '#0f766e'}
                                 size="small"
                             />
                         </div>
@@ -601,43 +603,43 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                 <Card
                     title={
                         <div className="flex items-center justify-between flex-wrap gap-2">
-                            <div className="flex items-center gap-2 text-slate-800 font-bold text-base">
+                            <div className="flex items-center gap-2 text-slate-900 font-bold text-base">
                                 <TeamOutlined className="text-teal-700" />
                                 <span>Thành phần Hội đồng (3 Ủy viên)</span>
                             </div>
                             {conflictNames.length > 0 && (
-                                <span className="inline-flex items-center gap-1 text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded border border-amber-200 font-semibold text-xs">
+                                <span className="inline-flex items-center gap-1 text-amber-950 bg-amber-100 px-2.5 py-1 rounded border border-amber-300 font-bold text-xs">
                                     ⚠️ Có GV {conflictNames.join(', ')} là GVHD của sinh viên HĐ này
                                 </span>
                             )}
                         </div>
                     }
-                    className="lg:col-span-2 shadow-sm border border-slate-200 rounded-lg"
+                    className="lg:col-span-2 shadow-sm border border-slate-300 rounded-lg"
                 >
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         {/* 1. Chairman */}
-                        <div className="p-3.5 bg-slate-50/80 rounded-lg border border-slate-200 flex flex-col justify-between">
+                        <div className="p-3.5 bg-teal-50 rounded-lg border-2 border-teal-200 text-teal-950 flex flex-col justify-between">
                             <div>
-                                <span className="text-xs font-bold text-teal-800 block mb-2 uppercase tracking-wider">
+                                <span className="text-xs font-bold text-teal-900 block mb-2 uppercase tracking-wider">
                                     1. Chủ tịch Hội đồng
                                 </span>
                                 {chairman ? (
                                     <div className="flex items-start gap-2.5">
                                         <Avatar icon={<UserOutlined />} className="bg-teal-700 flex-shrink-0" />
                                         <div className="min-w-0">
-                                            <div className="font-bold text-slate-800 text-sm truncate">
+                                            <div className="font-bold text-teal-950 text-sm truncate">
                                                 {chairman.lecturer?.fullName || 'N/A'}
                                             </div>
-                                            <div className="text-xs text-slate-500">
+                                            <div className="text-xs text-teal-800 font-medium">
                                                 Mã: {chairman.lecturer?.code || '---'}
                                             </div>
-                                            <div className="text-xs text-slate-500 truncate" title={chairman.lecturer?.email}>
+                                            <div className="text-xs text-teal-800 font-medium truncate" title={chairman.lecturer?.email}>
                                                 {chairman.lecturer?.email || '---'}
                                             </div>
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="text-xs text-slate-400 italic py-2">
+                                    <div className="text-xs text-slate-500 italic py-2">
                                         Chưa phân công
                                     </div>
                                 )}
@@ -645,28 +647,28 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                         </div>
 
                         {/* 2. Secretary */}
-                        <div className="p-3.5 bg-slate-50/80 rounded-lg border border-slate-200 flex flex-col justify-between">
+                        <div className="p-3.5 bg-blue-50 rounded-lg border-2 border-blue-200 text-blue-950 flex flex-col justify-between">
                             <div>
-                                <span className="text-xs font-bold text-blue-800 block mb-2 uppercase tracking-wider">
+                                <span className="text-xs font-bold text-blue-900 block mb-2 uppercase tracking-wider">
                                     2. Thư ký Hội đồng
                                 </span>
                                 {secretary ? (
                                     <div className="flex items-start gap-2.5">
                                         <Avatar icon={<UserOutlined />} className="bg-blue-600 flex-shrink-0" />
                                         <div className="min-w-0">
-                                            <div className="font-bold text-slate-800 text-sm truncate">
+                                            <div className="font-bold text-blue-950 text-sm truncate">
                                                 {secretary.lecturer?.fullName || 'N/A'}
                                             </div>
-                                            <div className="text-xs text-slate-500">
+                                            <div className="text-xs text-blue-800 font-medium">
                                                 Mã: {secretary.lecturer?.code || '---'}
                                             </div>
-                                            <div className="text-xs text-slate-500 truncate" title={secretary.lecturer?.email}>
+                                            <div className="text-xs text-blue-800 font-medium truncate" title={secretary.lecturer?.email}>
                                                 {secretary.lecturer?.email || '---'}
                                             </div>
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="text-xs text-slate-400 italic py-2">
+                                    <div className="text-xs text-slate-500 italic py-2">
                                         Chưa phân công
                                     </div>
                                 )}
@@ -674,28 +676,28 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                         </div>
 
                         {/* 3. Reviewer */}
-                        <div className="p-3.5 bg-slate-50/80 rounded-lg border border-slate-200 flex flex-col justify-between">
+                        <div className="p-3.5 bg-purple-50 rounded-lg border-2 border-purple-200 text-purple-950 flex flex-col justify-between">
                             <div>
-                                <span className="text-xs font-bold text-indigo-800 block mb-2 uppercase tracking-wider">
+                                <span className="text-xs font-bold text-purple-900 block mb-2 uppercase tracking-wider">
                                     3. Ủy viên Phản biện
                                 </span>
                                 {reviewer ? (
                                     <div className="flex items-start gap-2.5">
-                                        <Avatar icon={<UserOutlined />} className="bg-indigo-600 flex-shrink-0" />
+                                        <Avatar icon={<UserOutlined />} className="bg-purple-600 flex-shrink-0" />
                                         <div className="min-w-0">
-                                            <div className="font-bold text-slate-800 text-sm truncate">
+                                            <div className="font-bold text-purple-950 text-sm truncate">
                                                 {reviewer.lecturer?.fullName || 'N/A'}
                                             </div>
-                                            <div className="text-xs text-slate-500">
+                                            <div className="text-xs text-purple-800 font-medium">
                                                 Mã: {reviewer.lecturer?.code || '---'}
                                             </div>
-                                            <div className="text-xs text-slate-500 truncate" title={reviewer.lecturer?.email}>
+                                            <div className="text-xs text-purple-800 font-medium truncate" title={reviewer.lecturer?.email}>
                                                 {reviewer.lecturer?.email || '---'}
                                             </div>
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="text-xs text-slate-400 italic py-2">
+                                    <div className="text-xs text-slate-500 italic py-2">
                                         Chưa phân công
                                     </div>
                                 )}
@@ -709,12 +711,12 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
             <Card
                 title={
                     <div className="flex items-center justify-between flex-wrap gap-4 py-1">
-                        <span className="font-bold text-slate-800 text-base">
+                        <span className="font-bold text-slate-900 text-base">
                             Danh sách Sinh viên thuộc Hội đồng ({effectiveRegistrations.length} SV)
                         </span>
                         <Input
                             placeholder="Tìm kiếm theo MSSV, tên SV, đề tài, GVHD..."
-                            prefix={<SearchOutlined className="text-slate-400" />}
+                            prefix={<SearchOutlined className="text-slate-500" />}
                             value={searchText}
                             onChange={(e) => setSearchText(e.target.value)}
                             allowClear
@@ -722,7 +724,7 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                         />
                     </div>
                 }
-                className="shadow-sm border border-slate-200 rounded-lg"
+                className="shadow-sm border border-slate-300 rounded-lg"
             >
                 <Table
                     columns={columns}
@@ -783,27 +785,36 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                 </p>
                 <Form form={memberForm} layout="vertical">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <Form.Item
-                            name="chairman"
-                            label="1. Chủ tịch HĐ"
-                            rules={[{ required: true, message: 'Chọn chủ tịch' }]}
-                        >
-                            <Select showSearch placeholder="Chọn giảng viên" optionFilterProp="label" options={lecturerOptions} />
-                        </Form.Item>
-                        <Form.Item
-                            name="secretary"
-                            label="2. Thư ký HĐ"
-                            rules={[{ required: true, message: 'Chọn thư ký' }]}
-                        >
-                            <Select showSearch placeholder="Chọn giảng viên" optionFilterProp="label" options={lecturerOptions} />
-                        </Form.Item>
-                        <Form.Item
-                            name="reviewer"
-                            label="3. Phản biện HĐ"
-                            rules={[{ required: true, message: 'Chọn phản biện' }]}
-                        >
-                            <Select showSearch placeholder="Chọn giảng viên" optionFilterProp="label" options={lecturerOptions} />
-                        </Form.Item>
+                        <div className="bg-teal-50/70 p-2.5 rounded-lg border border-teal-200">
+                            <Form.Item
+                                name="chairman"
+                                label={<span className="text-teal-900 font-bold">1. Chủ tịch HĐ</span>}
+                                rules={[{ required: true, message: 'Chọn chủ tịch' }]}
+                                className="mb-0"
+                            >
+                                <Select showSearch placeholder="Chọn giảng viên" optionFilterProp="label" options={lecturerOptions} />
+                            </Form.Item>
+                        </div>
+                        <div className="bg-blue-50/70 p-2.5 rounded-lg border border-blue-200">
+                            <Form.Item
+                                name="secretary"
+                                label={<span className="text-blue-900 font-bold">2. Thư ký HĐ</span>}
+                                rules={[{ required: true, message: 'Chọn thư ký' }]}
+                                className="mb-0"
+                            >
+                                <Select showSearch placeholder="Chọn giảng viên" optionFilterProp="label" options={lecturerOptions} />
+                            </Form.Item>
+                        </div>
+                        <div className="bg-purple-50/70 p-2.5 rounded-lg border border-purple-200">
+                            <Form.Item
+                                name="reviewer"
+                                label={<span className="text-purple-900 font-bold">3. Phản biện HĐ</span>}
+                                rules={[{ required: true, message: 'Chọn phản biện' }]}
+                                className="mb-0"
+                            >
+                                <Select showSearch placeholder="Chọn giảng viên" optionFilterProp="label" options={lecturerOptions} />
+                            </Form.Item>
+                        </div>
                     </div>
                 </Form>
             </Modal>
