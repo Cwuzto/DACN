@@ -6,6 +6,7 @@ const routes = require('./routes');
 const delegationRoutes = require('./routes/delegationRoutes');
 const outlineRoutes = require('./routes/outlineRoutes');
 const bm02WorkflowRoutes = require('./routes/bm02WorkflowRoutes');
+const bm02aRoutes = require('./routes/bm02aRoutes');
 const errorHandler = require('./middlewares/errorHandler');
 const { startScheduledJobs } = require('./jobs');
 
@@ -47,6 +48,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/delegations', delegationRoutes);
 app.use('/api/outline', outlineRoutes);
 app.use('/api', bm02WorkflowRoutes);
+app.use('/api', bm02aRoutes);
 app.use('/api', routes);
 
 // Root route
