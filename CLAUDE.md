@@ -1333,8 +1333,61 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 
 #### 4. Quyết định quan trọng (Decisions & Rationale)
 
-1. **Tái Sử Dụng Giao Diện với Prop `forcedCouncilType`**: Thay vì tạo 2 trang component riêng gây trùng lặp logic matcher, phân công và modal, việc sử dụng prop `forcedCouncilType` giúp tái sử dụng 100% logic vững chắc đã có, đồng thời cô lập hoàn toàn trải nghiệm người dùng theo đúng từng loại hội đồng.
-2. **Cấp Quyền Trực Tiếp Cho `QUAN_TRI_VIEN`**: Admin hệ thống cần có quyền giám sát và can thiệp toàn bộ vòng đời học vụ nên việc cấp quyền `OUTLINE_COUNCIL_MANAGE` và `DEFENSE_COUNCIL_MANAGE` là hoàn toàn chuẩn mực theo RBAC.
+---
+
+### Cập Nhật Phiên Làm Việc (Session Update - Bố Cục HĐ Xét Duyệt, Xem Trước Phân Công & Trang Chi Tiết Riêng)
+
+#### 1. Những phần đã hoàn thành
+
+1. **Chuẩn Hóa 3 Vai Trò & Thuật Toán Phân Công Tự Động HĐ Đề Cương (Backend)**:
+   - Sửa [`backend/src/services/outlineAutoSetupService.js`](file:///d:/DACN/backend/src/services/outlineAutoSetupService.js): Đổi `OUTLINE_ROLE_ORDER` từ `['CHAIRMAN', 'SECRETARY', 'MEMBER']` sang `['CHAIRMAN', 'SECRETARY', 'REVIEWER']`. Đảm bảo thành viên thứ 3 luôn là Ủy viên Phản biện.
+   - Bổ sung hàm `previewAutoOutlineCouncilSetup`: Tính toán gom cụm sinh viên theo GVHD (tối đa 10 SV/HĐ), chọn 3 giảng viên có tải thấp nhất không trùng GVHD của nhóm SV đó và trả về phương án dự kiến `proposedCouncils` mà không ghi CSDL.
+   - Tạo endpoint `POST /api/councils/auto-assign-outline/preview` (`previewAutoAssignOutlineCouncils`) trong [`councilController.js`](file:///d:/DACN/backend/src/controllers/councilController.js) và [`councilRoutes.js`](file:///d:/DACN/backend/src/routes/councilRoutes.js).
+   - Nâng cấp `runAutoOutlineCouncilSetupForSemester` (`POST /api/councils/auto-assign-outline`): Hỗ trợ nhận `options.proposedCouncils` từ Frontend khi Admin xác nhận; kiểm tra nghiêm ngặt 3 giảng viên khác nhau và đủ 3 vai trò `CHAIRMAN`, `SECRETARY`, `REVIEWER`. Vẫn giữ nguyên logic tự động khi không truyền payload để tương thích ngược 100% với Cronjob ngầm.
+
+2. **Cân Đối Bố Cục Trang Quản Lý & Modal Xem Trước Tinh Chỉnh (Frontend)**:
+   - [`frontend/src/index.css`](file:///d:/DACN/frontend/src/index.css): Cập nhật `.council-jury-grid` từ 4 cột thành 3 cột đều nhau (`repeat(3, 1fr)`).
+   - [`frontend/src/pages/admin/CouncilAssignmentPage.jsx`](file:///d:/DACN/frontend/src/pages/admin/CouncilAssignmentPage.jsx):
+     * Cột phải (Danh sách Hội đồng) được bọc trong `.matcher-pane` với `.matcher-pane-header` đồng bộ hoàn toàn về viền, padding và chiều cao tiêu đề với cột trái.
+     * Cảnh báo xung đột lợi ích động: Ẩn hoàn toàn nhãn tĩnh `"✓ 0 Xung đột"`; chỉ hiển thị cảnh báo **`⚠️ Có GV [Tên GV] là GVHD của sinh viên HĐ này`** khi có thành viên HĐ trùng với GVHD của sinh viên trong hội đồng đó.
+     * Tên Hội đồng trở thành liên kết click để chuyển trực tiếp sang trang chi tiết riêng (`/admin/outline-councils/:id` hoặc `/admin/defense-councils/:id`), bỏ nút "Danh sách" dư thừa.
+     * Đổi tên nút thành **"Đổi thành viên HĐ"**.
+     * Modal Xem trước Phân công Tự động: Hiển thị các HĐ dự kiến kèm 3 ô chọn Chủ tịch, Thư ký, Phản biện (chống chọn trùng người), có cảnh báo live nếu chọn GVHD của SV trong HĐ, và có nút **`📋 Xem danh sách SV (N) ▾`** để xổ bảng danh sách sinh viên dự kiến trước khi xác nhận lưu.
+
+3. **Xây Dựng Trang Chi Tiết Hội Đồng Riêng Biệt (`CouncilDetailPage.jsx`)**:
+   - Tạo [`frontend/src/pages/admin/CouncilDetailPage.jsx`](file:///d:/DACN/frontend/src/pages/admin/CouncilDetailPage.jsx) và đăng ký 2 routes `/admin/outline-councils/:id` và `/admin/defense-councils/:id` trong [`frontend/src/App.jsx`](file:///d:/DACN/frontend/src/App.jsx).
+   - Nút `← Quay lại Danh sách HĐ` tự động điều hướng về đúng trang danh sách tương ứng.
+   - Bố cục 2 cột cân đối: Khối thông tin lịch/địa điểm/quy mô SV bên trái (1/3) và 3 thẻ ủy viên hội đồng bên phải (2/3) kèm cảnh báo xung đột động.
+   - Bảng sinh viên đầy đủ: Ô tìm kiếm nhanh, phân trang, nút `Gỡ` sinh viên với Popconfirm.
+   - Tích hợp đầy đủ các Modal nghiệp vụ: Sửa thông tin HĐ, Đổi thành viên HĐ, Gán thêm SV, và Mở khóa kết quả (Reopen) xử lý an toàn lỗi 409 BM02.
+
+4. **Kiểm Thử Toàn Tuyến & Đánh Giá Độc Lập Qua Subagent**:
+   - Backend tests: 57/57 tests PASS (`outlineAutoSetupService.test.js`, `outlineWorkflowFullE2E.test.js`, `outlineRoutes.test.js`).
+   - Frontend tests: 101/101 tests PASS (`councilOutlineAndGradingContracts.test.js`, `navigationRegistry.test.js`,...).
+   - Frontend build: `vite build` 100% SUCCESS (0 errors, 11.88s).
+   - Mã hóa: 100% tệp đạt chuẩn UTF-8 (no BOM).
+
+#### 2. Trạng thái cập nhật của từng phần
+
+- **Database/Prisma**: `UP TO DATE`; CSDL PostgreSQL Supabase sẵn sàng cho luồng phân công xem trước và xác nhận.
+- **Backend API**: `STABLE & TESTED`; Các endpoints preview và auto-assign hoạt động hoàn hảo.
+- **Frontend SPA**: `BUILD PASS (100%)`; 101/101 tests pass, build production thành công 0 lỗi.
+- **Dữ liệu & Mã hóa**: 100% đạt chuẩn UTF-8 (no BOM), tuân thủ nghiêm ngặt mô hình `TopicRegistration`.
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+
+1. Người dùng kiểm tra trải nghiệm trực tiếp trên giao diện Admin (`http://localhost:5173`):
+   - Mở menu **"HĐ Xét duyệt Đề cương"**: Kiểm tra bố cục 2 cột thẳng hàng, lưới 3 giảng viên đều nhau.
+   - Bấm nút **`🤖 Tự động phân công HĐ Đề cương`**: Xem trước các HĐ dự kiến, bấm `📋 Xem danh sách SV (N)`, thử đổi giảng viên rồi bấm `✓ Xác nhận & Phân công`.
+   - Nhấp vào **tên một Hội đồng**: Trải nghiệm **Trang Chi tiết Hội đồng riêng**, kiểm tra thông tin, 3 giảng viên, cảnh báo xung đột và thao tác gán/gỡ sinh viên.
+2. Sẵn sàng tiếp nhận các yêu cầu tiếp theo từ người dùng.
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+
+1. **Tách API `Preview` và `Confirm` ở Backend**: Giữ nguyên tắc tính toán logic nghiệp vụ tập trung ở tầng Service, giúp Frontend mượt mà, đồng thời Cronjob tự động vẫn tái sử dụng được 100% logic này mà không bị phụ thuộc vào UI.
+2. **Ẩn Hoàn Toàn Dòng Cảnh Báo Khi An Toàn**: Tránh gây nhiễu thị giác; chỉ cảnh báo đỏ/cam khi phát hiện thực tế có thành viên hội đồng là GVHD của sinh viên trong hội đồng đó.
+3. **Mở Trang Chi Tiết Bằng Tên Hội Đồng**: Thay vì tạo quá nhiều nút bấm làm chật chội thẻ hội đồng, biến tên hội đồng thành liên kết bấm được giúp giao diện tối giản, hiện đại và chuẩn mực UX.
+
 
 
 
