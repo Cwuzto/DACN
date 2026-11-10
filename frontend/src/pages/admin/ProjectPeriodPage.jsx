@@ -605,7 +605,9 @@ function ProjectPeriodPage() {
     const fetchPeriodAppendices = async (period) => {
         try {
             setAppendixLoading(true);
-            const decId = period?.assignmentDecisions?.[0]?.id || period?.id;
+            const decId = period?.assignmentDecisions?.[0]?.id
+                || period?.topicAssignmentDecisions?.[0]?.id
+                || period?.id;
             const res = await bm02aService.getAppendices(decId);
             if (res.success && Array.isArray(res.data)) {
                 setAppendicesList(res.data);
@@ -644,7 +646,11 @@ function ProjectPeriodPage() {
     const handleCreateAppendixSubmit = async (values) => {
         try {
             setAppendixSubmitting(true);
-            const decId = selectedAppendixPeriod?.assignmentDecisions?.[0]?.id || selectedAppendixPeriod?.id;
+            const selectedReq = eligibleBm02aRequests.find((r) => selectedBm02aIds.includes(r.id));
+            const decId = selectedReq?.decisionId
+                || selectedAppendixPeriod?.assignmentDecisions?.[0]?.id
+                || selectedAppendixPeriod?.topicAssignmentDecisions?.[0]?.id
+                || selectedAppendixPeriod?.id;
             const res = await bm02aService.createAppendix({
                 decisionId: decId,
                 appendixNumber: values.appendixNumber.trim(),

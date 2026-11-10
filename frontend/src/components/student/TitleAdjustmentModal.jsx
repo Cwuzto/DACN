@@ -134,10 +134,12 @@ export default function TitleAdjustmentModal({
                 reason: values.reason.trim(),
             });
 
-            if (createRes.success && createRes.data?.request?.id) {
-                const reqId = createRes.data.request.id;
-                const v1PayloadHash = createRes.data.version?.payloadHash;
+            const createdReq = createRes.data?.request || createRes.data;
+            const reqId = createdReq?.id;
+            const v1PayloadHash = createRes.data?.version?.payloadHash
+                || createdReq?.versions?.[0]?.payloadHash;
 
+            if (createRes.success && reqId) {
                 // Student signs and submits
                 await bm02aService.studentSignSubmit(reqId, {
                     payloadHash: v1PayloadHash,
@@ -168,9 +170,15 @@ export default function TitleAdjustmentModal({
                 reason: values.reason.trim(),
             });
 
-            if (revRes.success && revRes.data?.request) {
-                const v2PayloadHash = revRes.data.version?.payloadHash;
-                await bm02aService.studentSignSubmit(latestRequest.id, {
+            const revisedReq = revRes.data?.request || revRes.data;
+            const reqId = revisedReq?.id || latestRequest?.id;
+            const v2PayloadHash = revRes.data?.version?.payloadHash
+                || revRes.data?.newVersion?.payloadHash
+                || revisedReq?.versions?.find((v) => v.versionNumber === 2)?.payloadHash
+                || revisedReq?.versions?.[0]?.payloadHash;
+
+            if (revRes.success && reqId) {
+                await bm02aService.studentSignSubmit(reqId, {
                     payloadHash: v2PayloadHash,
                     signatureImageId: null,
                 });
