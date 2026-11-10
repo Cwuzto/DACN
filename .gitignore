@@ -54,6 +54,9 @@ PROJECT_OVERVIEW.md
 # Temporary isolated worktrees
 /.worktrees/
 
+# Superpowers scratch & brainstorm
+.superpowers/
+
 # Stray root package files
 /package.json
 /package-lock.json
