@@ -145,7 +145,32 @@ async function reviewBM02(input, options = {}) {
             if (input.action === 'RETURN_FOR_REVISION') {
                 targetStatus = terminal ? 'TERMINATED_BM02' : 'BM02_NEEDS_REVISION';
             }
-            if (input.action === 'APPROVE' && isExceptionState) targetStatus = expectedNormalStatus;
+            if (input.action === 'APPROVE') {
+                if (isExceptionState) {
+                    targetStatus = expectedNormalStatus;
+                } else if (input.targetStatus === 'BM02_APPROVED' || input.transitionStatus === 'BM02_APPROVED') {
+                    targetStatus = 'BM02_APPROVED';
+                }
+            }
+
+            // Sync Task(taskType='BM02')
+            if (tx.task) {
+                const bm02Task = await tx.task.findFirst({
+                    where: { registrationId: registration.id, taskType: 'BM02' },
+                });
+                if (bm02Task) {
+                    let taskStatus = bm02Task.status;
+                    if (input.action === 'APPROVE') {
+                        taskStatus = 'COMPLETED';
+                    } else if (input.action === 'RETURN_FOR_REVISION') {
+                        taskStatus = terminal ? 'TERMINATED' : 'REVISION';
+                    }
+                    await tx.task.update({
+                        where: { id: bm02Task.id },
+                        data: { status: taskStatus },
+                    });
+                }
+            }
 
             if (targetStatus !== registration.status) {
                 await transitionRegistration({

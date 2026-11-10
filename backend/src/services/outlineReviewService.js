@@ -503,30 +503,55 @@ async function publishCouncilResults(councilId, chairId, idempotencyKey, options
                         revisionApprovalStatus: 'NOT_REQUIRED',
                     },
                 });
+                const reg = await tx.topicRegistration.findUnique({
+                    where: { id: evaluation.registrationId },
+                    include: { topic: true, semester: true },
+                });
+                let policyVersionId = reg?.periodPolicyVersionId || reg?.semester?.lockedPolicyVersionId || null;
+                if (!policyVersionId && reg?.semesterId && tx.periodWorkflowPolicyVersion) {
+                    const activePolicy = await tx.periodWorkflowPolicyVersion.findFirst({
+                        where: { semesterId: reg.semesterId, isActive: true },
+                        orderBy: { version: 'desc' },
+                    });
+                    if (activePolicy) {
+                        policyVersionId = activePolicy.id;
+                    }
+                }
+                const bm01Title = reg?.bm01ApprovedTitleSnapshot || reg?.topic?.title || null;
+
                 await tx.topicRegistration.update({
                     where: { id: evaluation.registrationId },
                     data: {
                         status: 'BM01_PASSED',
                         stateVersion: { increment: 1 },
+                        bm01ApprovedTitleSnapshot: bm01Title,
+                        ...(policyVersionId && !reg?.periodPolicyVersionId ? { periodPolicyVersionId: policyVersionId } : {}),
                     },
                 });
 
                 // Create BM02 task if not already existing
-                const existingBm02Task = await tx.task.findFirst({
-                    where: {
-                        registrationId: evaluation.registrationId,
-                        taskType: 'BM02',
-                    },
-                });
-                if (!existingBm02Task) {
-                    await tx.task.create({
-                        data: {
+                if (tx.task) {
+                    const existingBm02Task = await tx.task.findFirst({
+                        where: {
                             registrationId: evaluation.registrationId,
-                            title: 'Nộp đơn đăng ký đề tài chính thức (BM02)',
                             taskType: 'BM02',
-                            status: 'OPEN',
                         },
                     });
+                    if (!existingBm02Task) {
+                        await tx.task.create({
+                            data: {
+                                registrationId: evaluation.registrationId,
+                                title: 'Nộp đơn đăng ký đề tài chính thức (BM02)',
+                                taskType: 'BM02',
+                                status: 'OPEN',
+                            },
+                        });
+                    } else if (existingBm02Task.status !== 'OPEN') {
+                        await tx.task.update({
+                            where: { id: existingBm02Task.id },
+                            data: { status: 'OPEN' },
+                        });
+                    }
                 }
             } else {
                 await tx.bM01Evaluation.update({
@@ -785,30 +810,55 @@ async function reviewResubmission(councilId, registrationId, decision, revisionF
                 },
             });
 
+            const reg = await tx.topicRegistration.findUnique({
+                where: { id: regId },
+                include: { topic: true, semester: true },
+            });
+            let policyVersionId = reg?.periodPolicyVersionId || reg?.semester?.lockedPolicyVersionId || null;
+            if (!policyVersionId && reg?.semesterId && tx.periodWorkflowPolicyVersion) {
+                const activePolicy = await tx.periodWorkflowPolicyVersion.findFirst({
+                    where: { semesterId: reg.semesterId, isActive: true },
+                    orderBy: { version: 'desc' },
+                });
+                if (activePolicy) {
+                    policyVersionId = activePolicy.id;
+                }
+            }
+            const bm01Title = reg?.bm01ApprovedTitleSnapshot || reg?.topic?.title || null;
+
             const updatedReg = await tx.topicRegistration.update({
                 where: { id: regId },
                 data: {
                     status: 'BM01_PASSED',
                     stateVersion: { increment: 1 },
+                    bm01ApprovedTitleSnapshot: bm01Title,
+                    ...(policyVersionId && !reg?.periodPolicyVersionId ? { periodPolicyVersionId: policyVersionId } : {}),
                 },
             });
 
             // Create BM02 task if not already existing
-            const existingBm02Task = await tx.task.findFirst({
-                where: {
-                    registrationId: regId,
-                    taskType: 'BM02',
-                },
-            });
-            if (!existingBm02Task) {
-                await tx.task.create({
-                    data: {
+            if (tx.task) {
+                const existingBm02Task = await tx.task.findFirst({
+                    where: {
                         registrationId: regId,
-                        title: 'Nộp đơn đăng ký đề tài chính thức (BM02)',
                         taskType: 'BM02',
-                        status: 'OPEN',
                     },
                 });
+                if (!existingBm02Task) {
+                    await tx.task.create({
+                        data: {
+                            registrationId: regId,
+                            title: 'Nộp đơn đăng ký đề tài chính thức (BM02)',
+                            taskType: 'BM02',
+                            status: 'OPEN',
+                        },
+                    });
+                } else if (existingBm02Task.status !== 'OPEN') {
+                    await tx.task.update({
+                        where: { id: existingBm02Task.id },
+                        data: { status: 'OPEN' },
+                    });
+                }
             }
 
             return updatedReg;

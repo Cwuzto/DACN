@@ -2,7 +2,12 @@ const crypto = require('crypto');
 const prisma = require('../config/database');
 const { safeNotify } = require('../services/notificationService');
 const { auditLog } = require('../services/auditLogService');
-const { issueAssignmentDecision, createDecisionAmendment } = require('../services/academicDocumentService');
+const {
+    createTopicDecision,
+    publishTopicDecision,
+    issueAssignmentDecision,
+    createDecisionAmendment,
+} = require('../services/academicDocumentService');
 const { WorkflowTransitionError } = require('../services/registrationTransitionService');
 const { createPolicyVersion, DEFAULT_POLICY } = require('../services/workflowPolicyService');
 
@@ -482,30 +487,21 @@ const issuePeriodDecision = async (req, res, next) => {
         const registrationIds = eligibleRegistrations.map((r) => r.id);
 
         await prisma.$transaction(async (tx) => {
-            for (const reg of eligibleRegistrations) {
-                await issueAssignmentDecision({
-                    registrationId: reg.id,
-                    issuedById: userId,
-                    decisionNumber: generatedDecisionNumber,
-                    issuedAt: effectiveDecisionDate,
-                    idempotencyKey: `${requestKey}:${reg.id}`,
-                }, { tx });
+            const draftDecision = await createTopicDecision({
+                semesterId,
+                decisionNumber: generatedDecisionNumber,
+                decisionDate: effectiveDecisionDate,
+                registrationIds,
+                issuedById: userId,
+                idempotencyKey: `compat-create-${requestKey}`,
+            }, { tx });
 
-                const hasBM03 = await tx.task.findFirst({
-                    where: { registrationId: reg.id, taskType: 'BM03_CHECKPOINT_1' },
-                });
-                if (!hasBM03) {
-                    await tx.task.create({
-                        data: {
-                            registrationId: reg.id,
-                            title: 'BM03 - Báo cáo tiến độ Đợt 1 (Tuần 6)',
-                            content: 'Báo cáo tiến độ thực hiện đồ án đợt 1: khối lượng công việc hoàn thành và kế hoạch giai đoạn tiếp theo.',
-                            taskType: 'BM03_CHECKPOINT_1',
-                            status: 'OPEN',
-                        },
-                    });
-                }
-            }
+            await publishTopicDecision({
+                decisionId: draftDecision.id,
+                publishedById: userId,
+                publishedAt: effectiveDecisionDate,
+                idempotencyKey: `compat-publish-${requestKey}`,
+            }, { tx });
         });
 
         for (const reg of eligibleRegistrations) {

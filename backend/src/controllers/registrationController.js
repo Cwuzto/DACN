@@ -1275,20 +1275,22 @@ const updateOutlineReview = async (req, res, next) => {
 const submitBM02 = async (req, res, next) => {
     try {
         const studentId = req.user.id;
-        const { registrationId, officialTitle, content, fileUrl, fileName } = req.body;
+        const { registrationId, officialTitle, bm02ProposedTitle, titleChangeReason, content, fileUrl, fileName } = req.body;
 
         const regIdInt = parseInt(registrationId, 10);
         if (!Number.isInteger(regIdInt) || regIdInt <= 0) {
             return res.status(400).json({ success: false, message: 'registrationId không hợp lệ.' });
         }
 
-        if (officialTitle && String(officialTitle).trim()) {
-            return res.status(409).json({ success: false, code: 'TITLE_AMENDMENT_REQUIRED', message: 'Tên đề tài phải được điều chỉnh qua quy trình điều chỉnh có audit.' });
-        }
+        const proposedTitle = (bm02ProposedTitle && String(bm02ProposedTitle).trim())
+            || (officialTitle && String(officialTitle).trim())
+            || null;
 
         const commandSubmission = await submitBM02Command({
             registrationId: regIdInt,
             studentId,
+            bm02ProposedTitle: proposedTitle,
+            titleChangeReason: titleChangeReason || null,
             content,
             fileUrl,
             fileName,
