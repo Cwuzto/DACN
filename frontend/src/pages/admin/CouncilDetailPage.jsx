@@ -477,7 +477,7 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                     onClick={() => navigate(effectiveCouncilType === 'OUTLINE_REVIEW' ? '/admin/outline-councils' : '/admin/defense-councils')}
                     className="mb-4"
                 >
-                    ← Quay lại Danh sách HĐ
+                    Quay lại Danh sách HĐ
                 </Button>
                 <Empty description="Không tìm thấy thông tin hội đồng" />
             </div>
@@ -494,7 +494,7 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                         onClick={() => navigate(effectiveCouncilType === 'OUTLINE_REVIEW' ? '/admin/outline-councils' : '/admin/defense-councils')}
                         className="mb-3 hover:border-teal-600 hover:text-teal-700 font-medium"
                     >
-                        ← Quay lại Danh sách HĐ
+                        Quay lại Danh sách HĐ
                     </Button>
                 </div>
 
@@ -519,10 +519,10 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                     {/* Action buttons */}
                     <div className="flex items-center gap-2 flex-wrap">
                         <Button icon={<EditOutlined />} onClick={openEditModal}>
-                            ✏️ Sửa thông tin HĐ
+                            Sửa thông tin HĐ
                         </Button>
                         <Button icon={<TeamOutlined />} onClick={openMemberModal}>
-                            👥 Đổi thành viên HĐ
+                            Đổi thành viên HĐ
                         </Button>
                         <Button
                             type="primary"
@@ -530,11 +530,11 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                             onClick={openAssignModal}
                             className="bg-teal-700 hover:bg-teal-800"
                         >
-                            + Gán thêm Sinh viên
+                            Gán thêm Sinh viên
                         </Button>
                         {effectiveCouncilType === 'OUTLINE_REVIEW' && (
                             <Button danger icon={<UnlockOutlined />} onClick={openReopenModal}>
-                                🔓 Mở khóa kết quả
+                                Mở khóa kết quả
                             </Button>
                         )}
                     </div>

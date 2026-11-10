@@ -36,6 +36,10 @@ AI Agent phải tự động cập nhật mục **`Session Update`** trong file 
    - Tất cả các file (`.md`, `.js`, `.jsx`, `.json`, `.prisma`, `.yml`) phải lưu ở định dạng **UTF-8 (no BOM)**.
 5. **Chủ động cảnh báo ngữ cảnh**:
    - Khi phiên làm việc kéo dài hoặc ngữ cảnh chat sắp đầy, Agent chủ động nhắc người dùng gõ `end phiên` và mở cửa sổ chat mới.
+6. **Chuẩn thiết kế Giao diện & Nút bấm (UI/UX Button Standards)**:
+   - **Tuyệt đối không chèn ký tự thô / emoji vào nhãn nút bấm**: Không chèn các ký tự đồ họa thô hoặc emoji (như `←`, `→`, `+`, `🤖`, `📋`, `✓`, `✏️`, `👥`, `🗑️`, `🔓`, `▾`, `▴`, `↗`, v.v.) trực tiếp vào chuỗi text của nút bấm (button label).
+   - **Sử dụng component Icon chính quy**: Khi cần hiển thị biểu tượng, luôn sử dụng prop `icon={<IconComponent />}` từ thư viện `@ant-design/icons` (ví dụ: `<Button icon={<ArrowLeftOutlined />}>Quay lại</Button>`, `<Button icon={<PlusOutlined />}>Lập hội đồng</Button>`).
+   - **Không lặp icon trong text**: Khi nút đã có icon component thông qua prop `icon`, nhãn text bên trong phải là văn bản tiếng Việt thuần túy, chuyên nghiệp và ngắn gọn (tránh trường hợp vừa có prop `icon={<ArrowLeftOutlined />}` vừa viết `← Quay lại`).
 
 ---
 

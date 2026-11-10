@@ -28,6 +28,7 @@ import {
     PlusOutlined,
     HistoryOutlined,
     UserOutlined,
+    UserAddOutlined,
     CheckCircleOutlined,
     ExclamationCircleOutlined,
     SearchOutlined,
@@ -37,6 +38,8 @@ import {
     ClockCircleOutlined,
     EnvironmentOutlined,
     UnlockOutlined,
+    DownOutlined,
+    UpOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
@@ -656,7 +659,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                 className="font-bold text-teal-800 hover:text-teal-900 cursor-pointer hover:underline text-sm"
                                 onClick={() => navigate(record.councilType === 'OUTLINE_REVIEW' ? `/admin/outline-councils/${record.id}` : `/admin/defense-councils/${record.id}`)}
                             >
-                                {text} ↗
+                                {text}
                             </span>
                             <Tag
                                 color={record.councilType === 'OUTLINE_REVIEW' ? 'purple' : 'teal'}
@@ -1122,6 +1125,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                                         <Button
                                                             size="small"
                                                             type="primary"
+                                                            icon={<UserAddOutlined />}
                                                             className="text-xs"
                                                             onClick={() => {
                                                                 if (filteredCouncils.length > 0) {
@@ -1131,7 +1135,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                                                 }
                                                             }}
                                                         >
-                                                            + Gán HĐ
+                                                            Gán HĐ
                                                         </Button>
                                                     </>
                                                 )}
@@ -1161,7 +1165,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                             {filteredCouncils.length === 0 ? (
                                 <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-500 font-medium">
                                     <span className="material-symbols-outlined text-4xl mb-2 text-slate-400 block">groups</span>
-                                    Chưa có hội đồng nào trong đợt này. Nhấp "+ Lập Hội đồng Mới" ở trên để tạo.
+                                    Chưa có hội đồng nào trong đợt này. Nhấp "Lập Hội đồng Mới" ở trên để tạo.
                                 </div>
                             ) : (
                                 filteredCouncils.map((council) => {
@@ -1184,7 +1188,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                                             className="font-bold text-teal-800 hover:text-teal-900 cursor-pointer hover:underline text-sm"
                                                             onClick={() => navigate(council.councilType === 'OUTLINE_REVIEW' ? `/admin/outline-councils/${council.id}` : `/admin/defense-councils/${council.id}`)}
                                                         >
-                                                            {council.name} ↗
+                                                            {council.name}
                                                         </span>
                                                         <Tag color={council.councilType === 'OUTLINE_REVIEW' ? 'purple' : 'teal'}>
                                                             {council.councilType === 'OUTLINE_REVIEW' ? 'Thẩm định Đề cương' : 'Chấm Bảo vệ'}
@@ -1275,7 +1279,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                                         onClick={() => showAssignModal(council)}
                                                         disabled={!isComplete}
                                                     >
-                                                        + Gán Sinh viên
+                                                        Gán Sinh viên
                                                     </Button>
                                                 </div>
 
@@ -1698,12 +1702,13 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                     <Button
                                         size="small"
                                         type="dashed"
+                                        icon={isExpanded ? <UpOutlined /> : <DownOutlined />}
                                         onClick={() => handleToggleExpandCouncil(council.tempId)}
                                         className="text-xs"
                                     >
                                         {isExpanded
-                                            ? `📋 Ẩn danh sách SV (${council.registrations?.length || 0}) ▴`
-                                            : `📋 Xem danh sách SV (${council.registrations?.length || 0}) ▾`}
+                                            ? `Ẩn danh sách sinh viên (${council.registrations?.length || 0})`
+                                            : `Xem danh sách sinh viên (${council.registrations?.length || 0})`}
                                     </Button>
                                 </div>
 
