@@ -70,6 +70,69 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 
 ## 6. Cập Nhật Phiên Làm Việc (Session Update)
 
+### Phiên 10-11/11/2026 (Nâng Cấp Giao Diện Hội Đồng, Trang Chi Tiết Riêng, Độ Tương Phản UI/UX Pro Max & Nhân Bản Hóa Audit Log)
+
+#### 1. Những phần đã hoàn thành
+1. **Tách Biệt Tuyến Đường & Menu 2 Loại Hội Đồng**:
+   - Tách riêng biệt 2 menu trên thanh điều hướng và router: `/admin/outline-councils` (Hội đồng Thẩm định Đề cương) và `/admin/defense-councils` (Hội đồng Chấm Bảo vệ).
+   - Truyền `forcedCouncilType` chuẩn xác để bảo toàn ngữ cảnh học vụ theo từng giai đoạn của đồ án tốt nghiệp.
+2. **Cải Tiến Thuật Toán & Modal Xem Trước Phân Công Tự Động (Auto-Assign Preview Modal)**:
+   - Thay đổi vai trò thành viên thứ 3 thành `REVIEWER` (Ủy viên Phản biện) thay vì `MEMBER` để khớp chặt chẽ với cơ cấu hội đồng Viện.
+   - Bổ sung API Xem trước Phân công Tự động: `POST /api/councils/auto-assign-outline/preview` giúp Admin xem trước danh sách hội đồng dự kiến, các cảnh báo xung đột và thành viên trước khi ghi xuống CSDL.
+   - Xây dựng Modal Xem trước cho phép Admin đổi giảng viên dự kiến của từng hội đồng và xem danh sách sinh viên dự kiến trước khi bấm xác nhận lưu.
+3. **Xây Dựng Trang Chi Tiết Hội Đồng Riêng Biệt (`CouncilDetailPage.jsx`)**:
+   - Tạo trang chi tiết chuyên dụng mount tại `/admin/outline-councils/:id` và `/admin/defense-councils/:id`.
+   - Bố cục 2 cột: Thẻ Lịch & Địa điểm họp + Thẻ Thành phần Hội đồng (3 ủy viên với avatar, mã GV, email) + Cảnh báo xung đột lợi ích GVHD động.
+   - Bảng danh sách sinh viên thuộc hội đồng hỗ trợ tìm kiếm thời gian thực theo MSSV, Họ tên, Đề tài, GVHD; hỗ trợ modal gán thêm sinh viên và gỡ sinh viên trực tiếp.
+   - Tích hợp nút điều hướng mượt mà giữa trang danh sách và trang chi tiết hội đồng.
+4. **Quy Chuẩn Thiết Kế Giao Diện & Nút Bấm (Button Standards - Rule 2.6 trong AGENTS.md)**:
+   - Nghiêm cấm triệt để việc chèn emoji hoặc ký tự thô (`←`, `→`, `+`, `🤖`, `📋`, `✓`, `✏️`, `👥`, `🗑️`, `🔓`, v.v.) trực tiếp vào chuỗi text của nút bấm (`Button`).
+   - 100% nút bấm phải dùng component icon chính quy từ `@ant-design/icons` qua prop `icon={<IconComponent />}` và nhãn văn bản tiếng Việt thuần túy, chuyên nghiệp.
+   - Đã rà soát và dọn dẹp sạch toàn bộ các nút bấm trên giao diện hội đồng và toàn hệ thống.
+5. **Nâng Cấp Độ Tương Phản Màu Sắc & Visual Hierarchy theo `/ui-ux-pro-max`**:
+   - Chuẩn hóa nền canvas `--bg` từ `#F8FAFC` lên `#F1F5F9` (Slate-100 enterprise), `--border` lên `#CBD5E1` (Slate-300: độ tương phản $\ge 3:1$ với thẻ trắng `#FFFFFF`), loại bỏ hoàn toàn cảm giác "same same nhau khó nhìn".
+   - Định danh màu sắc 3 vai trò thành viên HĐ trực quan tức thì: Chủ tịch (Teal-50/200/950), Thư ký (Blue-50/200/950), UV Phản biện (Purple-50/200/950) đồng bộ xuyên suốt từ Matcher Card, Table View, Modal Phân công đến Trang Chi tiết.
+   - Thẻ sinh viên (Candidate Queue) có viền rõ ràng, hover teal nổi bật, trạng thái đã gán hiển thị viền xanh lục đậm `4px solid #16A34A` cùng nền `#F0FDF4`.
+   - Nâng cấp độ tương phản Ant Design tokens: `colorBgLayout`, `colorBorder`, `colorTextSecondary`, header bảng và đổ bóng thẻ.
+6. **Nhân Bản Hóa Toàn Diện Audit Log (Lịch Sử Thao Tác Hội Đồng)**:
+   - Khắc phục triệt để tình trạng audit log hiển thị máy móc dạng JSON thô `{"hasMembersPayload": true}`.
+   - **Backend**: Nâng cấp `councilController.js` và `outlineAutoSetupService.js` để lưu trữ dữ liệu nghiệp vụ giàu ngữ nghĩa:
+     * Tự động so sánh và ghi nhận mảng `changes` (đổi thành viên Chủ tịch/Thư ký/Phản biện từ GV cũ $\rightarrow$ GV mới, đổi phòng họp, ngày họp).
+     * Ghi nhận danh sách sinh viên chi tiết (`studentCode`, `studentName`, `topicTitle`) khi gán hoặc gỡ sinh viên.
+     * Ghi nhận log đầy đủ cho các thao tác Mở khóa kết quả (`REOPEN_COUNCIL_RESULTS` kèm lý do), Công bố lịch họp (`PUBLISH_COUNCIL_SCHEDULE`), Công bố kết quả (`PUBLISH_COUNCIL_RESULTS`).
+   - **Frontend**: Tạo component chuyên nghiệp `CouncilAuditLogModal.jsx`, hiển thị tiếng Việt tự nhiên, có badge thao tác màu sắc phân cấp, bảng đối chiếu thay đổi trước/sau, danh sách ủy viên và sinh viên.
+   - Hỗ trợ tương thích ngược 100% với các bản ghi log cũ trong CSDL (tự động diễn giải các payload cũ như `hasMembersPayload: true/false`, `CREATE_COUNCIL` cũ, `ASSIGN_COUNCIL` cũ).
+   - Tích hợp modal audit log vào cả trang danh sách hội đồng lẫn trang chi tiết hội đồng.
+
+#### 2. Trạng thái cập nhật của từng phần
+- **Backend API**: `OPERATIONAL & ENRICHED` - Các API hội đồng, audit log và outline council setup hoạt động ổn định, 100/100 tests liên quan PASS.
+- **Frontend SPA**: `OPERATIONAL & HIGH CONTRAST` - 101/101 unit tests PASS, Vite production build thành công 0 lỗi. Độ tương phản và phân cấp thị giác đạt chuẩn WCAG AA / APCA.
+- **Database / Prisma**: `ALIGNED` - Giữ vững mô hình `TopicRegistration`, không thay đổi cấu trúc bảng, tương thích ngược 100% dữ liệu audit log.
+- **MCP Servers**: Hoạt động bình thường.
+- **Test Suite**:
+  + Backend: 100% PASS.
+  + Frontend: **101/101 unit tests PASS** (100%).
+- **Git Branch**: `develop` - Mã nguồn sạch sẽ, đã commit đầy đủ:
+  + `b260296`: Rule 2.6 cấm ký tự thô/emoji trong nhãn nút bấm.
+  + `75fb9aa`: Nâng cấp độ tương phản màu sắc và phân cấp vai trò hội đồng.
+  + `3c5e4dd`: Nhân bản hóa audit log và tối ưu giao diện modal lịch sử.
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+1. **Triển Khai Phân Hệ Đơn Đăng Ký Đề Tài Chính Thức (BM02)**:
+   - Xây dựng luồng sinh viên nộp đơn BM02 sau khi đã đạt thẩm định đề cương (`BM01_PASSED`).
+   - Luồng Trưởng Viện / Quản trị viên thẩm định và ban hành Quyết định giao đề tài chính thức.
+2. **Theo Dõi Tiến Độ & Đánh Giá Giữa Kỳ (BM03 Checkpoint 1 & 2)**:
+   - Xây dựng giao diện và luồng đánh giá định kỳ của GVHD.
+3. **Mở Rộng Hệ Thống Xuất Biên Bản Hội Đồng (Export PDF/Excel)**:
+   - Cho phép xuất danh sách sinh viên theo từng hội đồng, biên bản họp thẩm định đề cương phục vụ lưu trữ học vụ.
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+1. **Định Danh Vai Trò Thứ 3 là `REVIEWER` (Ủy viên Phản biện)**: Thay vì gán nhãn chung chung `MEMBER`, định danh rõ `REVIEWER` ngay từ giai đoạn thẩm định đề cương để đảm bảo tính phản biện học thuật và thống nhất với quy chế đồ án.
+2. **Cơ Chế Xem Trước Phân Công Tự Động (Preview-Before-Commit)**: Cho phép quản trị viên xem trước và tinh chỉnh giảng viên dự kiến của từng hội đồng trước khi ghi nhận vào CSDL, loại bỏ rủi ro xáo trộn dữ liệu học vụ khi phân công tự động.
+3. **Tách Trang Chi Tiết Hội Đồng Độc Lập (`CouncilDetailPage.jsx`)**: Giảm tải cho giao diện chính Matcher (2 cột), cung cấp không gian thao tác sâu cho từng hội đồng (tra cứu lịch, quản lý danh sách sinh viên, đối chiếu xung đột, xem nhật ký thao tác).
+4. **Chuẩn Hóa Thẻ Canvas & Đường Biên Sắc Nét**: Chuyển đổi `--bg: #F1F5F9` và `--border: #CBD5E1` tạo độ tương phản cao và chiều sâu thị giác rõ nét so với thẻ trắng `#FFFFFF`, giải quyết triệt để vấn đề giao diện bị phẳng, bệt màu.
+5. **Nhân Bản Hóa Dữ Liệu Audit Log Kết Hợp Tương Thích Ngược**: Thay vì lưu cờ boolean kỹ thuật (`hasMembersPayload`), backend tính toán delta thay đổi cụ thể giữa trước và sau cập nhật; frontend có logic fallback để phiên dịch tự nhiên cả dữ liệu log cũ lẫn mới.
+
 ### Phiên 10/11/2026 (Hoàn Thành Toàn Diện Phân Hệ Hồ Sơ Đồ Án & Xét Duyệt Đề Cương BM01)
 
 #### 1. Những phần đã hoàn thành
