@@ -1,8 +1,22 @@
 const crypto = require('crypto');
 const prisma = require('../config/database');
 const { transitionRegistration, WorkflowTransitionError } = require('./registrationTransitionService');
+const { resolveEffectiveTopicTitle } = require('./topicTitleResolverService');
+const { computeCanonicalPayloadHash, recordSignatureEvent } = require('./electronicSignatureService');
+const { generateImmutableAcademicPdf } = require('./academicPdfService');
+const { validateAcademicScope } = require('./academicScopeService');
 
 const BM04_SUBMIT_SCOPE = 'bm04-submit-command';
+
+class BM04WorkflowError extends Error {
+    constructor(message, code, statusCode = 400) {
+        super(message);
+        this.name = 'BM04WorkflowError';
+        this.code = code;
+        this.status = statusCode;
+        this.statusCode = statusCode;
+    }
+}
 
 function requireCommandKey(prefix, key) {
     if (!key || typeof key !== 'string' || key.trim().length < 8) {
@@ -45,10 +59,666 @@ async function saveReceipt(tx, { scope, key, hash, registrationId, response }) {
 }
 
 /**
- * GVHD lập và ký khóa phiếu nhận xét BM04
- * Supports both signatures:
- *   submitBM04(input, options)
- *   submitBM04(registrationId, mentorId, payload, options)
+ * Pure read-only lookup for a BM04Evaluation record.
+ * STRICT INVARIANT: MUST NOT write or mutate DB on GET.
+ * If no record exists yet, returns a read-only projection without DB write.
+ */
+async function getBM04Record(registrationId, options = {}) {
+    const db = options.tx || options.prisma || prisma;
+    const regId = Number(registrationId);
+    const now = options.now ? new Date(options.now) : new Date();
+
+    const record = await db.bM04Evaluation.findUnique({
+        where: { registrationId: regId },
+        include: {
+            registration: {
+                include: {
+                    topic: { include: { mentor: { select: { id: true, fullName: true, department: true } } } },
+                    student: { select: { id: true, fullName: true, code: true, class: true } },
+                },
+            },
+            instituteDefenseReview: {
+                include: {
+                    reviewedBy: { select: { id: true, fullName: true } },
+                    moreInfoRequestedBy: { select: { id: true, fullName: true } },
+                },
+            },
+        },
+    });
+
+    if (record) {
+        return record;
+    }
+
+    const registration = await db.topicRegistration.findUnique({
+        where: { id: regId },
+        include: {
+            topic: { include: { mentor: { select: { id: true, fullName: true, department: true } } } },
+            student: { select: { id: true, fullName: true, code: true, class: true } },
+        },
+    });
+
+    if (!registration) {
+        throw new BM04WorkflowError('Không tìm thấy hồ sơ đăng ký đề tài.', 'REGISTRATION_NOT_FOUND', 404);
+    }
+
+    let titleInfo;
+    try {
+        titleInfo = await resolveEffectiveTopicTitle(regId, now, options);
+    } catch (e) {
+        titleInfo = null;
+    }
+
+    const effectiveTitle = titleInfo?.title || registration.topic?.title || '';
+
+    return {
+        id: null,
+        registrationId: regId,
+        status: 'DRAFT',
+        isLocked: false,
+        effectiveTitleSnapshot: effectiveTitle,
+        studentClassSnapshot: registration.student?.class || null,
+        thesisFormatScore: '',
+        researchContentScore: '',
+        applicabilityScore: '',
+        attitudeScore: '',
+        conclusion: 'AGREED_FOR_DEFENSE',
+        programOutcome: null,
+        defenseRecommendation: null,
+        mismatchReason: null,
+        generalNotes: null,
+        lecturerSignature: null,
+        signedAt: null,
+        finalPdfFileUrl: null,
+        instituteDefenseReview: null,
+        registration,
+    };
+}
+
+/**
+ * Saves an unlocked draft of BM04 (status = 'DRAFT', isLocked = false).
+ */
+async function saveBM04Draft(input, options = {}) {
+    const db = options.tx || options.prisma || prisma;
+    const {
+        registrationId,
+        advisorId,
+        thesisFormatScore,
+        researchContentScore,
+        applicabilityScore,
+        attitudeScore,
+        programOutcome,
+        defenseRecommendation,
+        mismatchReason,
+        generalNotes,
+    } = input || {};
+
+    const regId = Number(registrationId);
+    const advId = Number(advisorId);
+    const now = options.now ? new Date(options.now) : new Date();
+
+    const execute = async (tx) => {
+        const registration = await tx.topicRegistration.findUnique({
+            where: { id: regId },
+            include: {
+                topic: { include: { mentor: true } },
+                student: true,
+                bm04Evaluation: true,
+            },
+        });
+
+        if (!registration) {
+            throw new BM04WorkflowError('Không tìm thấy hồ sơ đăng ký đề tài.', 'REGISTRATION_NOT_FOUND', 404);
+        }
+
+        if (registration.topic?.mentorId !== advId) {
+            throw new BM04WorkflowError('Chỉ giảng viên hướng dẫn của đề tài này mới có quyền lưu nháp phiếu BM04.', 'ONLY_CURRENT_MENTOR_ALLOWED', 403);
+        }
+
+        const existing = registration.bm04Evaluation || (await tx.bM04Evaluation.findUnique({ where: { registrationId: regId } }));
+        if (existing?.isLocked) {
+            throw new BM04WorkflowError('Phiếu nhận xét BM04 này đã được ký xác nhận và khóa vĩnh viễn, không thể cập nhật lại.', 'BM04_ALREADY_LOCKED', 400);
+        }
+
+        let titleInfo;
+        try {
+            titleInfo = await resolveEffectiveTopicTitle(regId, now, { ...options, tx });
+        } catch (e) {
+            titleInfo = null;
+        }
+        const effectiveTitle = titleInfo?.title || registration.topic?.title || '';
+        const studentClass = registration.student?.class || null;
+
+        const conclusion = defenseRecommendation === 'NOT_APPROVE_FOR_DEFENSE' ? 'NOT_AGREED_FOR_DEFENSE' : 'AGREED_FOR_DEFENSE';
+
+        const draft = await tx.bM04Evaluation.upsert({
+            where: { registrationId: regId },
+            create: {
+                registrationId: regId,
+                semesterId: registration.semesterId,
+                studentId: registration.studentId,
+                lecturerId: advId,
+                thesisFormatScore: thesisFormatScore ? String(thesisFormatScore).trim() : '',
+                researchContentScore: researchContentScore ? String(researchContentScore).trim() : '',
+                applicabilityScore: applicabilityScore ? String(applicabilityScore).trim() : '',
+                attitudeScore: attitudeScore ? String(attitudeScore).trim() : '',
+                conclusion,
+                programOutcome: programOutcome || null,
+                defenseRecommendation: defenseRecommendation || null,
+                mismatchReason: mismatchReason ? String(mismatchReason).trim() : null,
+                generalNotes: generalNotes ? String(generalNotes).trim() : null,
+                status: 'DRAFT',
+                isLocked: false,
+                effectiveTitleSnapshot: effectiveTitle,
+                studentClassSnapshot: studentClass,
+                lecturerSignature: '',
+                policyVersionId: registration.periodPolicyVersionId,
+            },
+            update: {
+                thesisFormatScore: thesisFormatScore !== undefined ? String(thesisFormatScore).trim() : undefined,
+                researchContentScore: researchContentScore !== undefined ? String(researchContentScore).trim() : undefined,
+                applicabilityScore: applicabilityScore !== undefined ? String(applicabilityScore).trim() : undefined,
+                attitudeScore: attitudeScore !== undefined ? String(attitudeScore).trim() : undefined,
+                conclusion,
+                programOutcome: programOutcome !== undefined ? programOutcome : undefined,
+                defenseRecommendation: defenseRecommendation !== undefined ? defenseRecommendation : undefined,
+                mismatchReason: mismatchReason !== undefined ? (mismatchReason ? String(mismatchReason).trim() : null) : undefined,
+                generalNotes: generalNotes !== undefined ? (generalNotes ? String(generalNotes).trim() : null) : undefined,
+                status: 'DRAFT',
+                isLocked: false,
+                effectiveTitleSnapshot: effectiveTitle,
+                studentClassSnapshot: studentClass,
+            },
+        });
+
+        return draft;
+    };
+
+    if (options.tx) return execute(options.tx);
+    return db.$transaction(execute);
+}
+
+/**
+ * Signs and submits BM04 evaluation:
+ * - Validates 4 criteria + 2 conclusions.
+ * - Enforces conclusion compatibility and mismatch reason.
+ * - Branches:
+ *   Branch A (APPROVE_FOR_DEFENSE): SIGNED_APPROVED -> DEFENSE_READY -> Task(BM04) COMPLETED
+ *   Branch B (NOT_APPROVE_FOR_DEFENSE): PENDING_INSTITUTE_REVIEW -> InstituteDefenseReview (168h SLA)
+ */
+async function signAndSubmitBM04(input, options = {}) {
+    const db = options.tx || options.prisma || prisma;
+    const {
+        registrationId,
+        advisorId,
+        thesisFormatScore,
+        researchContentScore,
+        applicabilityScore,
+        attitudeScore,
+        programOutcome,
+        defenseRecommendation,
+        mismatchReason,
+        generalNotes,
+        lecturerSignature,
+        signatureImageId,
+        ipAddress,
+        userAgent,
+    } = input || {};
+
+    const regId = Number(registrationId);
+    const advId = Number(advisorId);
+    const now = options.now ? new Date(options.now) : new Date();
+
+    if (!thesisFormatScore || !researchContentScore || !applicabilityScore || !attitudeScore) {
+        throw new BM04WorkflowError('Vui lòng điền đầy đủ nhận xét cho cả 4 tiêu chí đánh giá bắt buộc.', 'MISSING_CRITERIA_FEEDBACK', 400);
+    }
+
+    if (!programOutcome || !['MEETS_PROGRAM_OUTCOMES', 'DOES_NOT_MEET_PROGRAM_OUTCOMES'].includes(programOutcome)) {
+        throw new BM04WorkflowError('Kết luận chuẩn đầu ra không hợp lệ.', 'INVALID_BM04_CONCLUSION', 400);
+    }
+
+    if (!defenseRecommendation || !['APPROVE_FOR_DEFENSE', 'NOT_APPROVE_FOR_DEFENSE'].includes(defenseRecommendation)) {
+        throw new BM04WorkflowError('Đề nghị bảo vệ không hợp lệ.', 'INVALID_BM04_CONCLUSION', 400);
+    }
+
+    if (programOutcome === 'DOES_NOT_MEET_PROGRAM_OUTCOMES' && defenseRecommendation === 'APPROVE_FOR_DEFENSE') {
+        throw new BM04WorkflowError('Không thể đề nghị cho bảo vệ khi không đạt chuẩn đầu ra.', 'INVALID_BM04_CONCLUSION_COMBINATION', 400);
+    }
+
+    if (programOutcome === 'MEETS_PROGRAM_OUTCOMES' && defenseRecommendation === 'NOT_APPROVE_FOR_DEFENSE') {
+        if (!mismatchReason || !String(mismatchReason).trim()) {
+            throw new BM04WorkflowError('Phải giải trình rõ lý do không cho bảo vệ khi sinh viên đã đạt chuẩn đầu ra.', 'MISMATCH_REASON_REQUIRED', 400);
+        }
+    }
+
+    if (!lecturerSignature || !String(lecturerSignature).trim()) {
+        throw new BM04WorkflowError('Chữ ký xác nhận của GVHD là bắt buộc.', 'LECTURER_SIGNATURE_REQUIRED', 400);
+    }
+
+    const isApprove = defenseRecommendation === 'APPROVE_FOR_DEFENSE';
+
+    const execute = async (tx) => {
+        const registration = await tx.topicRegistration.findUnique({
+            where: { id: regId },
+            include: {
+                topic: { include: { mentor: true } },
+                student: true,
+                archive: true,
+                bm04Evaluation: true,
+            },
+        });
+
+        if (!registration) {
+            throw new BM04WorkflowError('Không tìm thấy hồ sơ đăng ký đề tài.', 'REGISTRATION_NOT_FOUND', 404);
+        }
+
+        if (registration.topic?.mentorId !== advId) {
+            throw new BM04WorkflowError('Chỉ giảng viên hướng dẫn của đề tài này mới có quyền lập và ký phiếu BM04.', 'ONLY_CURRENT_MENTOR_ALLOWED', 403);
+        }
+
+        const existing = registration.bm04Evaluation || (await tx.bM04Evaluation.findUnique({ where: { registrationId: regId } }));
+        if (existing?.isLocked) {
+            throw new BM04WorkflowError('Phiếu nhận xét BM04 này đã được ký xác nhận và khóa vĩnh viễn, không thể cập nhật lại.', 'BM04_ALREADY_LOCKED', 400);
+        }
+
+        if (!['BM03_PASSED', 'BM04_REVIEW'].includes(registration.status)) {
+            throw new BM04WorkflowError('Chỉ được lập BM04 khi hồ sơ đang ở trạng thái BM03_PASSED.', 'INVALID_TRANSITION', 409);
+        }
+
+        if (isApprove) {
+            const archive = registration.archive;
+            const hasValidPreDefenseArchive = Boolean(
+                archive &&
+                (archive.phase === 'PRE_DEFENSE' || (!archive.phase && (archive.reportFileUrl || archive.sourceCodeUrl))) &&
+                (archive.status === 'SUBMITTED' || (!archive.status && (archive.reportFileUrl || archive.sourceCodeUrl))) &&
+                (archive.reportFileUrl || archive.sourceCodeUrl || archive.slideFileUrl || archive.demoVideoUrl),
+            );
+
+            if (!hasValidPreDefenseArchive) {
+                throw new BM04WorkflowError(
+                    'Sinh viên chưa nộp tài liệu lưu chiểu sơ bộ trước bảo vệ (bản thảo báo cáo/slide/mã nguồn). Không thể ký duyệt BM04 cho phép bảo vệ.',
+                    'PRE_DEFENSE_ARCHIVE_REQUIRED',
+                    400,
+                );
+            }
+        }
+
+        let titleInfo;
+        try {
+            titleInfo = await resolveEffectiveTopicTitle(regId, now, { ...options, tx });
+        } catch (e) {
+            titleInfo = null;
+        }
+        const effectiveTitle = titleInfo?.title || registration.topic?.title || '';
+        const studentClass = registration.student?.class || null;
+
+        const conclusion = isApprove ? 'AGREED_FOR_DEFENSE' : 'NOT_AGREED_FOR_DEFENSE';
+        const evalStatus = isApprove ? 'SIGNED_APPROVED' : 'PENDING_INSTITUTE_REVIEW';
+
+        const payload = {
+            registrationId: regId,
+            effectiveTitleSnapshot: effectiveTitle,
+            thesisFormatScore: String(thesisFormatScore).trim(),
+            researchContentScore: String(researchContentScore).trim(),
+            applicabilityScore: String(applicabilityScore).trim(),
+            attitudeScore: String(attitudeScore).trim(),
+            programOutcome,
+            defenseRecommendation,
+            mismatchReason: mismatchReason ? String(mismatchReason).trim() : null,
+            generalNotes: generalNotes ? String(generalNotes).trim() : null,
+            advisorId: advId,
+        };
+        const payloadHash = computeCanonicalPayloadHash(payload);
+
+        // Pre-create or upsert BM04 evaluation
+        const initialEvaluation = await tx.bM04Evaluation.upsert({
+            where: { registrationId: regId },
+            create: {
+                registrationId: regId,
+                semesterId: registration.semesterId,
+                studentId: registration.studentId,
+                lecturerId: advId,
+                thesisFormatScore: String(thesisFormatScore).trim(),
+                researchContentScore: String(researchContentScore).trim(),
+                applicabilityScore: String(applicabilityScore).trim(),
+                attitudeScore: String(attitudeScore).trim(),
+                conclusion,
+                programOutcome,
+                defenseRecommendation,
+                mismatchReason: mismatchReason ? String(mismatchReason).trim() : null,
+                generalNotes: generalNotes ? String(generalNotes).trim() : null,
+                lecturerSignature: String(lecturerSignature).trim(),
+                status: evalStatus,
+                isLocked: true,
+                effectiveTitleSnapshot: effectiveTitle,
+                studentClassSnapshot: studentClass,
+                signedAt: now,
+                policyVersionId: registration.periodPolicyVersionId,
+            },
+            update: {
+                thesisFormatScore: String(thesisFormatScore).trim(),
+                researchContentScore: String(researchContentScore).trim(),
+                applicabilityScore: String(applicabilityScore).trim(),
+                attitudeScore: String(attitudeScore).trim(),
+                conclusion,
+                programOutcome,
+                defenseRecommendation,
+                mismatchReason: mismatchReason ? String(mismatchReason).trim() : null,
+                generalNotes: generalNotes ? String(generalNotes).trim() : null,
+                lecturerSignature: String(lecturerSignature).trim(),
+                status: evalStatus,
+                isLocked: true,
+                effectiveTitleSnapshot: effectiveTitle,
+                studentClassSnapshot: studentClass,
+                signedAt: now,
+            },
+        });
+
+        // Record signature event
+        const sigEvent = await recordSignatureEvent({
+            registrationId: regId,
+            entityType: 'BM04_EVALUATION',
+            entityId: initialEvaluation.id,
+            versionNumber: 1,
+            signerId: advId,
+            signerRole: 'ADVISOR',
+            action: 'SIGN',
+            expectedPayloadHash: payloadHash,
+            signatureImageId,
+            ipAddress,
+            userAgent,
+        }, { ...options, tx });
+
+        // Generate immutable academic PDF
+        let finalPdfFileUrl = null;
+        try {
+            const sections = [
+                {
+                    heading: '1. THÔNG TIN CHUNG',
+                    lines: [
+                        `Tên đề tài: ${effectiveTitle}`,
+                        `Sinh viên thực hiện: ${registration.student?.fullName || ''} (MSSV: ${registration.student?.code || ''})`,
+                        `Lớp: ${studentClass || 'N/A'}`,
+                        `Giảng viên hướng dẫn: ${registration.topic?.mentor?.fullName || ''}`,
+                    ],
+                },
+                {
+                    heading: '2. ĐÁNH GIÁ 4 TIÊU CHÍ BẮT BUỘC',
+                    lines: [
+                        `Hình thức & Trình bày: ${thesisFormatScore}`,
+                        `Nội dung nghiên cứu: ${researchContentScore}`,
+                        `Tính ứng dụng / thực tiễn: ${applicabilityScore}`,
+                        `Thái độ & Tinh thần làm việc: ${attitudeScore}`,
+                    ],
+                },
+                {
+                    heading: '3. KẾT LUẬN & ĐỀ NGHỊ',
+                    lines: [
+                        `Chuẩn đầu ra: ${programOutcome === 'MEETS_PROGRAM_OUTCOMES' ? 'Đạt chuẩn đầu ra' : 'Không đạt chuẩn đầu ra'}`,
+                        `Đề nghị bảo vệ: ${defenseRecommendation === 'APPROVE_FOR_DEFENSE' ? 'Đồng ý cho ra bảo vệ' : 'Không đồng ý cho ra bảo vệ'}`,
+                        mismatchReason ? `Lý do giải trình: ${mismatchReason}` : '',
+                        generalNotes ? `Nhận xét chung: ${generalNotes}` : '',
+                    ].filter(Boolean),
+                },
+            ];
+
+            const signatures = [
+                {
+                    roleLabel: 'Giảng viên hướng dẫn',
+                    signerName: registration.topic?.mentor?.fullName || 'GVHD',
+                    signedAt: now,
+                    payloadHash,
+                },
+            ];
+
+            const pdfResult = await generateImmutableAcademicPdf({
+                docType: 'BM04',
+                registrationId: regId,
+                entityId: initialEvaluation.id,
+                versionNumber: 1,
+                title: 'PHIẾU NHẬN XÉT ĐỒ ÁN TỐT NGHIỆP CỦA GVHD (BM04)',
+                sections,
+                signatures,
+            }, { ...options, tx });
+
+            finalPdfFileUrl = pdfResult?.fileUrl || null;
+        } catch (pdfErr) {
+            console.error('[signAndSubmitBM04] PDF generation error:', pdfErr.message);
+        }
+
+        const updatedEvaluation = await tx.bM04Evaluation.update?.({
+            where: { id: initialEvaluation.id },
+            data: {
+                status: evalStatus,
+                conclusion,
+                isLocked: true,
+                payloadHash,
+                signatureEventId: sigEvent?.id || null,
+                finalPdfFileUrl,
+            },
+        });
+
+        const evaluation = updatedEvaluation || {
+            ...initialEvaluation,
+            status: evalStatus,
+            conclusion,
+            isLocked: true,
+            payloadHash,
+            signatureEventId: sigEvent?.id || null,
+            finalPdfFileUrl,
+        };
+
+        if (isApprove) {
+            // Branch A: APPROVE_FOR_DEFENSE
+            await tx.topicRegistration.updateMany({
+                where: { id: regId },
+                data: {
+                    status: 'DEFENSE_READY',
+                    stateVersion: { increment: 1 },
+                },
+            });
+
+            if (tx.task?.updateMany) {
+                await tx.task.updateMany({
+                    where: { registrationId: regId, taskType: 'BM04' },
+                    data: { status: 'COMPLETED' },
+                });
+            }
+        } else {
+            // Branch B: NOT_APPROVE_FOR_DEFENSE
+            const reviewDeadlineAt = new Date(now.getTime() + 168 * 3600 * 1000);
+            await tx.instituteDefenseReview.create({
+                data: {
+                    bm04EvaluationId: evaluation.id,
+                    registrationId: regId,
+                    status: 'PENDING_INSTITUTE_REVIEW',
+                    submittedAt: now,
+                    reviewDeadlineAt,
+                    extensionCount: 0,
+                },
+            });
+
+            await tx.topicRegistration.updateMany({
+                where: { id: regId },
+                data: {
+                    status: 'BM04_REVIEW',
+                    stateVersion: { increment: 1 },
+                },
+            });
+        }
+
+        return evaluation;
+    };
+
+    if (options.tx) return execute(options.tx);
+    return db.$transaction(execute);
+}
+
+/**
+ * Institute requests more info on a defense review (+72h SLA extension, max 1 time).
+ */
+async function requestMoreInfoForDefenseReview(input, options = {}) {
+    const db = options.tx || options.prisma || prisma;
+    const { reviewId, reviewerId, note } = input || {};
+    const revId = Number(reviewId);
+    const userId = Number(reviewerId);
+    const now = options.now ? new Date(options.now) : new Date();
+
+    const execute = async (tx) => {
+        const review = await tx.instituteDefenseReview.findUnique({
+            where: { id: revId },
+        });
+
+        if (!review) {
+            throw new BM04WorkflowError('Đề nghị thẩm định bảo vệ không tồn tại.', 'DEFENSE_REVIEW_NOT_FOUND', 404);
+        }
+
+        if (review.extensionCount > 0) {
+            throw new BM04WorkflowError('Chỉ được yêu cầu bổ sung thông tin và gia hạn duy nhất 1 lần.', 'EXTENSION_QUOTA_EXHAUSTED', 409);
+        }
+
+        if (review.status !== 'PENDING_INSTITUTE_REVIEW') {
+            throw new BM04WorkflowError('Đề nghị thẩm định bảo vệ không ở trạng thái chờ thẩm định.', 'INVALID_DEFENSE_REVIEW_STATUS', 409);
+        }
+
+        if (now.getTime() > review.reviewDeadlineAt.getTime()) {
+            throw new BM04WorkflowError('Đã quá thời hạn thẩm định của Viện.', 'DEFENSE_REVIEW_DEADLINE_EXPIRED', 409);
+        }
+
+        if (validateAcademicScope) {
+            await validateAcademicScope(tx, {
+                actorId: userId,
+                registrationId: review.registrationId,
+                capabilityCode: 'BM04_REJECTION_REVIEW',
+                now,
+            });
+        }
+
+        const newDeadline = new Date(review.reviewDeadlineAt.getTime() + 72 * 3600 * 1000);
+
+        const updateRes = await tx.instituteDefenseReview.updateMany({
+            where: {
+                id: revId,
+                extensionCount: 0,
+                status: 'PENDING_INSTITUTE_REVIEW',
+            },
+            data: {
+                extensionCount: 1,
+                extendedAt: now,
+                reviewDeadlineAt: newDeadline,
+                moreInfoRequestedById: userId,
+                moreInfoRequestNote: note ? String(note).trim() : null,
+                decision: 'REQUEST_MORE_INFO',
+            },
+        });
+
+        if (updateRes.count === 0) {
+            throw new BM04WorkflowError('Yêu cầu bổ sung thông tin không thể thực hiện.', 'EXTENSION_QUOTA_EXHAUSTED', 409);
+        }
+
+        return await tx.instituteDefenseReview.findUnique({ where: { id: revId } });
+    };
+
+    if (options.tx) return execute(options.tx);
+    return db.$transaction(execute);
+}
+
+/**
+ * Institute decides defense review:
+ * - APPROVE_NOT_ELIGIBLE: marks NOT_ELIGIBLE_FOR_DEFENSE
+ * - OVERRIDE_ELIGIBLE: marks DEFENSE_READY & ELIGIBLE_BY_INSTITUTE (without altering advisor's signed BM04)
+ */
+async function decideDefenseReview(input, options = {}) {
+    const db = options.tx || options.prisma || prisma;
+    const { reviewId, reviewerId, decision, reason, idempotencyKey } = input || {};
+    const revId = Number(reviewId);
+    const userId = Number(reviewerId);
+    const now = options.now ? new Date(options.now) : new Date();
+
+    if (!['APPROVE_NOT_ELIGIBLE', 'OVERRIDE_ELIGIBLE'].includes(decision)) {
+        throw new BM04WorkflowError('Quyết định thẩm định phải là APPROVE_NOT_ELIGIBLE hoặc OVERRIDE_ELIGIBLE.', 'INVALID_DECISION', 400);
+    }
+
+    const execute = async (tx) => {
+        const review = await tx.instituteDefenseReview.findUnique({
+            where: { id: revId },
+        });
+
+        if (!review) {
+            throw new BM04WorkflowError('Đề nghị thẩm định bảo vệ không tồn tại.', 'DEFENSE_REVIEW_NOT_FOUND', 404);
+        }
+
+        if (review.status !== 'PENDING_INSTITUTE_REVIEW') {
+            throw new BM04WorkflowError('Đề nghị thẩm định bảo vệ đã có quyết định hoặc không ở trạng thái thẩm định.', 'INVALID_DEFENSE_REVIEW_STATUS', 409);
+        }
+
+        if (validateAcademicScope) {
+            await validateAcademicScope(tx, {
+                actorId: userId,
+                registrationId: review.registrationId,
+                capabilityCode: 'BM04_REJECTION_REVIEW',
+                now,
+            });
+        }
+
+        const targetStatus = decision === 'APPROVE_NOT_ELIGIBLE' ? 'NOT_ELIGIBLE_FOR_DEFENSE' : 'ELIGIBLE_BY_INSTITUTE';
+
+        const updateRes = await tx.instituteDefenseReview.updateMany({
+            where: {
+                id: revId,
+                status: 'PENDING_INSTITUTE_REVIEW',
+            },
+            data: {
+                status: targetStatus,
+                decision,
+                decisionSource: 'INSTITUTE_REVIEWER',
+                reviewedById: userId,
+                reviewedAt: now,
+                reviewReason: reason ? String(reason).trim() : null,
+                idempotencyKey: idempotencyKey || null,
+            },
+        });
+
+        if (updateRes.count === 0) {
+            throw new BM04WorkflowError('Đề xuất thẩm định bảo vệ đã được xử lý bởi phiên làm việc khác.', 'CONCURRENT_UPDATE_CONFLICT', 409);
+        }
+
+        // Update BM04 evaluation status without modifying scores or conclusion
+        await tx.bM04Evaluation.update({
+            where: { id: review.bm04EvaluationId },
+            data: { status: targetStatus },
+        });
+
+        // Update registration
+        if (decision === 'APPROVE_NOT_ELIGIBLE') {
+            await tx.topicRegistration.update({
+                where: { id: review.registrationId },
+                data: { status: 'NOT_ELIGIBLE_FOR_DEFENSE' },
+            });
+        } else {
+            // OVERRIDE_ELIGIBLE: marks DEFENSE_READY + completes Task(BM04)
+            await tx.topicRegistration.update({
+                where: { id: review.registrationId },
+                data: { status: 'DEFENSE_READY' },
+            });
+
+            if (tx.task?.updateMany) {
+                await tx.task.updateMany({
+                    where: { registrationId: review.registrationId, taskType: 'BM04' },
+                    data: { status: 'COMPLETED' },
+                });
+            }
+        }
+
+        return await tx.instituteDefenseReview.findUnique({ where: { id: revId } });
+    };
+
+    if (options.tx) return execute(options.tx);
+    return db.$transaction(execute);
+}
+
+/**
+ * Backward-compatible submitBM04 for existing tests and endpoints.
  */
 async function submitBM04(firstArg, secondArg, thirdArg, fourthArg) {
     let input;
@@ -183,7 +853,6 @@ async function submitBM04(firstArg, secondArg, thirdArg, fourthArg) {
             },
         });
 
-        // Cập nhật trạng thái qua transition service tăng stateVersion nguyên tử (CAS)
         const transitionResult = await transitionRegistration({
             registrationId: registration.id,
             expectedStatus: registration.status,
@@ -196,7 +865,6 @@ async function submitBM04(firstArg, secondArg, thirdArg, fourthArg) {
             idempotencyKey: `${key}:transition`,
         }, { tx });
 
-        // Cập nhật task BM04 nếu có
         if (tx.task?.updateMany) {
             await tx.task.updateMany({
                 where: { registrationId: registration.id, taskType: 'BM04' },
@@ -204,7 +872,6 @@ async function submitBM04(firstArg, secondArg, thirdArg, fourthArg) {
             });
         }
 
-        // Ghi nhận audit log trong transaction nếu tx.auditLog có sẵn
         if (tx.auditLog?.create) {
             await tx.auditLog.create({
                 data: {
@@ -243,5 +910,11 @@ async function submitBM04(firstArg, secondArg, thirdArg, fourthArg) {
 
 module.exports = {
     BM04_SUBMIT_SCOPE,
+    BM04WorkflowError,
+    getBM04Record,
+    saveBM04Draft,
+    signAndSubmitBM04,
+    requestMoreInfoForDefenseReview,
+    decideDefenseReview,
     submitBM04,
 };

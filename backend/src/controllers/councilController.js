@@ -668,11 +668,18 @@ const assignRegistrationsToCouncil = async (req, res, next) => {
             }
 
             if (council.councilType === 'DEFENSE_COUNCIL') {
+                const allowedStatuses = ['DEFENSE_READY', 'DEFENSE_ELIGIBLE', 'ELIGIBLE_BY_INSTITUTE'];
                 for (const reg of registrations) {
-                    const isBM04Agreed = reg.status === 'DEFENSE_READY'
-                        && reg.bm04Evaluation?.conclusion === 'AGREED_FOR_DEFENSE'
-                        && reg.bm04Evaluation?.isLocked === true;
-                    if (!isBM04Agreed) {
+                    const isStatusAllowed = allowedStatuses.includes(reg.status)
+                        || allowedStatuses.includes(reg.bm04Evaluation?.status);
+                    const isEligible = isStatusAllowed
+                        && (
+                            (reg.bm04Evaluation?.conclusion === 'AGREED_FOR_DEFENSE' && reg.bm04Evaluation?.isLocked === true)
+                            || reg.bm04Evaluation?.status === 'ELIGIBLE_BY_INSTITUTE'
+                            || reg.status === 'ELIGIBLE_BY_INSTITUTE'
+                            || reg.status === 'DEFENSE_ELIGIBLE'
+                        );
+                    if (!isEligible) {
                         throw createHttpError(
                             400,
                             `Sinh viên ${reg.student.fullName} (${reg.student.code}) chưa có kết luận ĐỒNG Ý cho ra bảo vệ tại biểu mẫu BM04 nên chưa đủ điều kiện xếp Hội đồng bảo vệ.`,
