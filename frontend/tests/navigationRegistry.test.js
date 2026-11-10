@@ -6,8 +6,8 @@ import {
     getVisibleNavigation,
 } from '../src/config/navigationRegistry.js';
 
-test('NAVIGATION_REGISTRY contains exactly 27 items with required keys and unique keys/permissions', () => {
-    assert.equal(NAVIGATION_REGISTRY.length, 27, 'Registry must contain exactly 27 entries');
+test('NAVIGATION_REGISTRY contains exactly 28 items with required keys and unique keys/permissions', () => {
+    assert.equal(NAVIGATION_REGISTRY.length, 28, 'Registry must contain exactly 28 entries');
 
     const expectedKeys = new Set([
         // Khối 1: Hồ sơ của tôi (5)
@@ -25,8 +25,9 @@ test('NAVIGATION_REGISTRY contains exactly 27 items with required keys and uniqu
         'bm02-reviews',
         'assignment-decisions',
         'academic-delegations',
-        // Khối 4: Hội đồng & bảo vệ (3)
-        'council-assignments',
+        // Khối 4: Hội đồng & bảo vệ (4)
+        'outline-councils',
+        'defense-councils',
         'defense-grading',
         'defense-lock',
         // Khối 5: Kết quả & công bố (3)
@@ -73,8 +74,8 @@ test('NAVIGATION_REGISTRY contains exactly 27 items with required keys and uniqu
         seenPermissions.add(item.requiredPermission);
     }
 
-    assert.equal(seenKeys.size, 27);
-    assert.equal(seenPermissions.size, 27);
+    assert.equal(seenKeys.size, 28);
+    assert.equal(seenPermissions.size, 28);
 });
 
 test('NAVIGATION_GROUPS defines the 7 domain groups in strict business order', () => {
@@ -171,7 +172,8 @@ test('Institute leader (VIEN_TRUONG) sees "Thẩm định & quyết định", "H
         'VIEW_BM02_REVIEWS',
         'VIEW_ASSIGNMENT_DECISIONS',
         'VIEW_ACADEMIC_DELEGATIONS',
-        'VIEW_COUNCIL_ASSIGNMENTS',
+        'OUTLINE_COUNCIL_MANAGE',
+        'DEFENSE_COUNCIL_MANAGE',
         'VIEW_DEFENSE_GRADING',
         'VIEW_DEFENSE_LOCK_LEDGER',
         'VIEW_DEFENSE_RESULT_APPROVALS',
@@ -196,7 +198,7 @@ test('Institute leader (VIEN_TRUONG) sees "Thẩm định & quyết định", "H
     const councilGroup = nav.find((n) => n.group === 'Hội đồng & bảo vệ');
     assert.deepEqual(
         councilGroup.items.map((i) => i.key),
-        ['council-assignments', 'defense-grading', 'defense-lock']
+        ['outline-councils', 'defense-councils', 'defense-grading', 'defense-lock']
     );
 
     const resultGroup = nav.find((n) => n.group === 'Kết quả & công bố');

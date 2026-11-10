@@ -119,14 +119,22 @@ export const NAVIGATION_REGISTRY = [
         route: '/lecturer/institute?tab=delegations',
     },
 
-    // KHỐI 4: HỘI ĐỒNG & BẢO VỆ (3 mục)
+    // KHỐI 4: HỘI ĐỒNG & BẢO VỆ (4 mục)
     {
-        key: 'council-assignments',
-        label: 'Phân công Hội đồng',
+        key: 'outline-councils',
+        label: 'HĐ Xét duyệt Đề cương',
+        icon: 'fact_check',
+        group: 'Hội đồng & bảo vệ',
+        requiredPermission: 'OUTLINE_COUNCIL_MANAGE',
+        route: '/admin/outline-councils',
+    },
+    {
+        key: 'defense-councils',
+        label: 'HĐ Bảo vệ khóa luận',
         icon: 'groups',
         group: 'Hội đồng & bảo vệ',
-        requiredPermission: 'VIEW_COUNCIL_ASSIGNMENTS',
-        route: '/admin/councils',
+        requiredPermission: 'DEFENSE_COUNCIL_MANAGE',
+        route: '/admin/defense-councils',
     },
     {
         key: 'defense-grading',

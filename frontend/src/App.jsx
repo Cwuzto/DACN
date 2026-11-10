@@ -171,7 +171,9 @@ function App() {
                                     <Route path="rubric-management" element={<RubricManagementPage />} />
                                 </Route>
                                 <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_COUNCIL_ASSIGNMENTS', 'OUTLINE_COUNCIL_MANAGE', 'DEFENSE_COUNCIL_MANAGE']} />}>
-                                    <Route path="councils" element={<CouncilAssignmentPage />} />
+                                    <Route path="councils" element={<Navigate to="/admin/outline-councils" replace />} />
+                                    <Route path="outline-councils" element={<CouncilAssignmentPage forcedCouncilType="OUTLINE_REVIEW" />} />
+                                    <Route path="defense-councils" element={<CouncilAssignmentPage forcedCouncilType="DEFENSE_COUNCIL" />} />
                                 </Route>
                                 <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_PROJECT_ENROLLMENTS', 'ENROLLMENT_MANAGE', 'PROJECT_CATALOG_MANAGE', 'PERMISSION_ASSIGN_ACADEMIC', 'MENTOR_ASSIGN']} />}>
                                     <Route path="project-enrollments" element={<ProjectEnrollmentPage />} />
