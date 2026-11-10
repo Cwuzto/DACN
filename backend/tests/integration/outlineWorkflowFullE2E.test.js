@@ -595,7 +595,7 @@ describe('Full E2E Outline Review & Council Lifecycle (Task 7 - Steps 1 to 9)', 
 
         const chairman = members.find((m) => m.roleInCouncil === 'CHAIRMAN');
         const secretary = members.find((m) => m.roleInCouncil === 'SECRETARY');
-        const member = members.find((m) => m.roleInCouncil === 'MEMBER');
+        const reviewer = members.find((m) => m.roleInCouncil === 'REVIEWER');
 
         expect(chairman).toBeDefined();
         expect(chairman.lecturerId).toBe(30);
@@ -603,8 +603,8 @@ describe('Full E2E Outline Review & Council Lifecycle (Task 7 - Steps 1 to 9)', 
         expect(secretary).toBeDefined();
         expect(secretary.lecturerId).toBe(31);
 
-        expect(member).toBeDefined();
-        expect(member.lecturerId).toBe(32);
+        expect(reviewer).toBeDefined();
+        expect(reviewer.lecturerId).toBe(32);
 
         // Ensure mentor 20 is not assigned to this council
         expect(members.some((m) => m.lecturerId === 20)).toBe(false);

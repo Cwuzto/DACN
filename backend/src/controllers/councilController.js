@@ -3,7 +3,10 @@ const { MAX_STUDENTS_PER_COUNCIL } = require('../constants/councilLimits');
 const { auditLog } = require('../services/auditLogService');
 const { runAutoCouncilSetupForSemester } = require('../services/councilAutoSetupService');
 const outlineReviewService = require('../services/outlineReviewService');
-const { runAutoOutlineCouncilSetupForSemester } = require('../services/outlineAutoSetupService');
+const {
+    runAutoOutlineCouncilSetupForSemester,
+    previewAutoOutlineCouncilSetup,
+} = require('../services/outlineAutoSetupService');
 
 const handleOutlineError = (error, res, next) => {
     if (error.statusCode === 409 && error.details?.blockingRegistrations) {
@@ -723,10 +726,25 @@ const deleteCouncil = async (req, res, next) => {
     }
 };
 
+const previewAutoAssignOutlineCouncils = async (req, res, next) => {
+    try {
+        const semesterId = parseInt(req.body.semesterId, 10);
+        const result = await previewAutoOutlineCouncilSetup(semesterId);
+
+        res.status(200).json({
+            success: true,
+            data: result,
+        });
+    } catch (error) {
+        handleOutlineError(error, res, next);
+    }
+};
+
 const autoAssignOutlineCouncils = async (req, res, next) => {
     try {
         const semesterId = parseInt(req.body.semesterId, 10);
         const result = await runAutoOutlineCouncilSetupForSemester(semesterId, {
+            proposedCouncils: req.body.proposedCouncils,
             actorId: req.user.id,
             ipAddress: getRequestIp(req),
         });
@@ -901,6 +919,7 @@ module.exports = {
     autoAssignRegistrationsToCouncils,
     removeRegistrationFromCouncil,
     deleteCouncil,
+    previewAutoAssignOutlineCouncils,
     autoAssignOutlineCouncils,
     reopenCouncilResults,
     publishCouncilSchedule,

@@ -21,6 +21,7 @@ jest.mock('../../src/services/outlineReviewService', () => ({
 
 jest.mock('../../src/services/outlineAutoSetupService', () => ({
     runAutoOutlineCouncilSetupForSemester: jest.fn(),
+    previewAutoOutlineCouncilSetup: jest.fn(),
 }));
 
 jest.mock('../../src/services/outlineSweepService', () => ({
@@ -235,6 +236,54 @@ describe('Integration - Outline Review & Council Routes (Task 4)', () => {
                 .send({ semesterId: 1 });
 
             expect(res.status).toBe(403);
+        });
+
+        test('POST /api/councils/auto-assign-outline/preview - returns 200 when called by Admin', async () => {
+            outlineAutoSetupService.previewAutoOutlineCouncilSetup.mockResolvedValue({
+                proposedCouncils: [],
+                skippedStudents: [],
+                warnings: [],
+            });
+
+            const res = await request(app)
+                .post('/api/councils/auto-assign-outline/preview')
+                .set('Authorization', 'Bearer admin-token')
+                .send({ semesterId: 1 });
+
+            expect(res.status).toBe(200);
+            expect(res.body.success).toBe(true);
+            expect(outlineAutoSetupService.previewAutoOutlineCouncilSetup).toHaveBeenCalledWith(1);
+        });
+
+        test('POST /api/councils/auto-assign-outline/preview - returns 403 when called by student', async () => {
+            const res = await request(app)
+                .post('/api/councils/auto-assign-outline/preview')
+                .set('Authorization', 'Bearer student-token')
+                .send({ semesterId: 1 });
+
+            expect(res.status).toBe(403);
+        });
+
+        test('POST /api/councils/auto-assign-outline - passes proposedCouncils when provided', async () => {
+            outlineAutoSetupService.runAutoOutlineCouncilSetupForSemester.mockResolvedValue({
+                createdCouncils: 1,
+                assignedStudents: 2,
+                skippedStudents: [],
+                warnings: [],
+            });
+
+            const proposed = [{ tempId: 'temp-1', members: [], registrationIds: [1, 2] }];
+            const res = await request(app)
+                .post('/api/councils/auto-assign-outline')
+                .set('Authorization', 'Bearer admin-token')
+                .send({ semesterId: 1, proposedCouncils: proposed });
+
+            expect(res.status).toBe(200);
+            expect(res.body.success).toBe(true);
+            expect(outlineAutoSetupService.runAutoOutlineCouncilSetupForSemester).toHaveBeenCalledWith(
+                1,
+                expect.objectContaining({ proposedCouncils: proposed })
+            );
         });
 
         test('POST /api/councils/:id/results/reopen - returns 409 with blockingRegistrations when BM02 exists', async () => {

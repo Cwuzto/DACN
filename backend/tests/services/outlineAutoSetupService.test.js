@@ -1,4 +1,8 @@
-const { runAutoOutlineCouncilSetupForSemester, getNextOutlineCouncilIndex } = require('../../src/services/outlineAutoSetupService');
+const {
+    runAutoOutlineCouncilSetupForSemester,
+    previewAutoOutlineCouncilSetup,
+    getNextOutlineCouncilIndex,
+} = require('../../src/services/outlineAutoSetupService');
 
 describe('outlineAutoSetupService', () => {
     let mockTx;
@@ -41,6 +45,12 @@ describe('outlineAutoSetupService', () => {
 
         mockDb = {
             $transaction: jest.fn((callback) => callback(mockTx)),
+            semester: mockTx.semester,
+            topicRegistration: mockTx.topicRegistration,
+            council: mockTx.council,
+            councilMember: mockTx.councilMember,
+            user: mockTx.user,
+            auditLog: mockTx.auditLog,
         };
     });
 
@@ -213,7 +223,7 @@ describe('outlineAutoSetupService', () => {
             expect(mockTx.councilMember.createMany).toHaveBeenCalledTimes(1);
             const memberCreationData = mockTx.councilMember.createMany.mock.calls[0][0].data;
 
-            // Must have 3 members: CHAIRMAN, SECRETARY, MEMBER
+            // Must have 3 members: CHAIRMAN, SECRETARY, REVIEWER
             expect(memberCreationData).toHaveLength(3);
             const assignedLecturerIds = memberCreationData.map((m) => m.lecturerId);
 
@@ -224,7 +234,7 @@ describe('outlineAutoSetupService', () => {
             // Role assignment order verification
             expect(memberCreationData[0].roleInCouncil).toBe('CHAIRMAN');
             expect(memberCreationData[1].roleInCouncil).toBe('SECRETARY');
-            expect(memberCreationData[2].roleInCouncil).toBe('MEMBER');
+            expect(memberCreationData[2].roleInCouncil).toBe('REVIEWER');
         });
     });
 
@@ -368,6 +378,257 @@ describe('outlineAutoSetupService', () => {
                     ipAddress: '127.0.0.1',
                 }),
             });
+        });
+    });
+
+    describe('previewAutoOutlineCouncilSetup (read-only preview)', () => {
+        it('throws an error for non-integer or non-positive semesterId', async () => {
+            await expect(previewAutoOutlineCouncilSetup(null, mockDb)).rejects.toThrow('Mã học kỳ không hợp lệ.');
+            await expect(previewAutoOutlineCouncilSetup('invalid', mockDb)).rejects.toThrow('Mã học kỳ không hợp lệ.');
+            await expect(previewAutoOutlineCouncilSetup(0, mockDb)).rejects.toThrow('Mã học kỳ không hợp lệ.');
+        });
+
+        it('returns empty proposedCouncils and warning if semester does not exist', async () => {
+            mockTx.semester.findUnique.mockResolvedValue(null);
+
+            const result = await previewAutoOutlineCouncilSetup(999, mockDb);
+
+            expect(result).toEqual({
+                proposedCouncils: [],
+                skippedStudents: [],
+                warnings: ['Học kỳ không tồn tại.'],
+            });
+        });
+
+        it('returns proposed councils with 3 members (CHAIRMAN, SECRETARY, REVIEWER) without writing to DB', async () => {
+            const registrations = [
+                {
+                    id: 1,
+                    studentId: 10,
+                    status: 'BM01_SUBMITTED',
+                    outlineCouncilId: null,
+                    student: { id: 10, fullName: 'Sinh Vien A', code: 'SV001' },
+                    topic: { id: 1, title: 'De tai 1', mentorId: 101, mentor: { id: 101, fullName: 'GV Huong Dan 1' } },
+                },
+                {
+                    id: 2,
+                    studentId: 20,
+                    status: 'BM01_SUBMITTED',
+                    outlineCouncilId: null,
+                    student: { id: 20, fullName: 'Sinh Vien B', code: 'SV002' },
+                    topic: { id: 2, title: 'De tai 2', mentorId: 101, mentor: { id: 101, fullName: 'GV Huong Dan 1' } },
+                },
+                {
+                    id: 3,
+                    studentId: 30,
+                    status: 'BM01_SUBMITTED',
+                    outlineCouncilId: null,
+                    student: { id: 30, fullName: 'Sinh Vien C', code: 'SV003' },
+                    topic: null,
+                },
+            ];
+            mockTx.topicRegistration.findMany.mockResolvedValue(registrations);
+
+            const lecturers = [
+                { id: 101, fullName: 'GV Huong Dan 1' },
+                { id: 201, fullName: 'GV A' },
+                { id: 202, fullName: 'GV B' },
+                { id: 203, fullName: 'GV C' },
+            ];
+            mockTx.user.findMany.mockResolvedValue(lecturers);
+
+            const result = await previewAutoOutlineCouncilSetup(1, mockDb);
+
+            expect(result.skippedStudents).toHaveLength(1);
+            expect(result.skippedStudents[0]).toEqual({ id: 3, studentId: 30, reason: 'NO_MENTOR' });
+            expect(result.proposedCouncils).toHaveLength(1);
+
+            const council = result.proposedCouncils[0];
+            expect(council.tempId).toBe('temp-1');
+            expect(council.name).toBe('Hội đồng Xét duyệt Đề cương 1');
+            expect(council.registrations).toHaveLength(2);
+            expect(council.registrations[0]).toEqual({
+                id: 1,
+                studentId: 10,
+                studentCode: 'SV001',
+                studentName: 'Sinh Vien A',
+                topicTitle: 'De tai 1',
+                mentorId: 101,
+                mentorName: 'GV Huong Dan 1',
+            });
+            expect(council.excludedMentors).toEqual([{ id: 101, fullName: 'GV Huong Dan 1' }]);
+
+            // Ensure 3 members assigned with CHAIRMAN, SECRETARY, REVIEWER
+            expect(council.members).toHaveLength(3);
+            expect(council.members[0]).toEqual({ lecturerId: 201, lecturerName: 'GV A', roleInCouncil: 'CHAIRMAN' });
+            expect(council.members[1]).toEqual({ lecturerId: 202, lecturerName: 'GV B', roleInCouncil: 'SECRETARY' });
+            expect(council.members[2]).toEqual({ lecturerId: 203, lecturerName: 'GV C', roleInCouncil: 'REVIEWER' });
+
+            // Verify read-only: no database mutations
+            expect(mockTx.council.create).not.toHaveBeenCalled();
+            expect(mockTx.topicRegistration.updateMany).not.toHaveBeenCalled();
+            expect(mockTx.councilMember.createMany).not.toHaveBeenCalled();
+        });
+
+        it('warns when not enough non-conflict lecturers in preview', async () => {
+            const registrations = [
+                {
+                    id: 1,
+                    studentId: 10,
+                    status: 'BM01_SUBMITTED',
+                    outlineCouncilId: null,
+                    student: { id: 10, fullName: 'SV 1', code: 'SV1' },
+                    topic: { id: 1, title: 'T1', mentorId: 101, mentor: { id: 101, fullName: 'M1' } },
+                },
+            ];
+            mockTx.topicRegistration.findMany.mockResolvedValue(registrations);
+            // Only 2 lecturers excluding mentor 101
+            mockTx.user.findMany.mockResolvedValue([
+                { id: 101, fullName: 'M1' },
+                { id: 201, fullName: 'GV 1' },
+                { id: 202, fullName: 'GV 2' },
+            ]);
+
+            const result = await previewAutoOutlineCouncilSetup(1, mockDb);
+
+            expect(result.warnings.length).toBeGreaterThan(0);
+            expect(result.warnings[0]).toContain('does not have enough eligible non-conflict lecturers');
+            expect(result.proposedCouncils[0].members).toHaveLength(0);
+        });
+    });
+
+    describe('options.proposedCouncils in runAutoOutlineCouncilSetupForSemester', () => {
+        it('persists customized proposed councils when valid', async () => {
+            const proposed = [
+                {
+                    tempId: 'temp-1',
+                    name: 'Hội đồng Tùy chỉnh 1',
+                    registrationIds: [1, 2],
+                    members: [
+                        { lecturerId: 201, roleInCouncil: 'CHAIRMAN' },
+                        { lecturerId: 202, roleInCouncil: 'SECRETARY' },
+                        { lecturerId: 203, roleInCouncil: 'REVIEWER' },
+                    ],
+                },
+            ];
+
+            mockTx.council.create.mockResolvedValue({ id: 55, name: 'Hội đồng Tùy chỉnh 1' });
+
+            const result = await runAutoOutlineCouncilSetupForSemester(1, { proposedCouncils: proposed }, mockDb);
+
+            expect(result.createdCouncils).toBe(1);
+            expect(result.assignedStudents).toBe(2);
+
+            expect(mockTx.council.create).toHaveBeenCalledWith({
+                data: expect.objectContaining({
+                    name: 'Hội đồng Tùy chỉnh 1',
+                    councilType: 'OUTLINE_REVIEW',
+                    meetingMode: 'IN_PERSON',
+                }),
+            });
+
+            expect(mockTx.topicRegistration.updateMany).toHaveBeenCalledWith({
+                where: { id: { in: [1, 2] } },
+                data: { outlineCouncilId: 55 },
+            });
+
+            expect(mockTx.councilMember.createMany).toHaveBeenCalledWith({
+                data: [
+                    { councilId: 55, lecturerId: 201, roleInCouncil: 'CHAIRMAN' },
+                    { councilId: 55, lecturerId: 202, roleInCouncil: 'SECRETARY' },
+                    { councilId: 55, lecturerId: 203, roleInCouncil: 'REVIEWER' },
+                ],
+            });
+        });
+
+        it('handles proposedCouncils with registrations objects instead of registrationIds array', async () => {
+            const proposed = [
+                {
+                    tempId: 'temp-1',
+                    registrations: [{ id: 10 }, { id: 20 }],
+                    members: [
+                        { lecturerId: 201, roleInCouncil: 'CHAIRMAN' },
+                        { lecturerId: 202, roleInCouncil: 'SECRETARY' },
+                        { lecturerId: 203, roleInCouncil: 'REVIEWER' },
+                    ],
+                },
+            ];
+
+            mockTx.council.create.mockResolvedValue({ id: 60, name: 'Hội đồng Xét duyệt Đề cương 1' });
+
+            const result = await runAutoOutlineCouncilSetupForSemester(1, { proposedCouncils: proposed }, mockDb);
+
+            expect(result.createdCouncils).toBe(1);
+            expect(result.assignedStudents).toBe(2);
+            expect(mockTx.topicRegistration.updateMany).toHaveBeenCalledWith({
+                where: { id: { in: [10, 20] } },
+                data: { outlineCouncilId: 60 },
+            });
+        });
+
+        it('returns zero created councils when proposedCouncils is empty array', async () => {
+            const result = await runAutoOutlineCouncilSetupForSemester(1, { proposedCouncils: [] }, mockDb);
+
+            expect(result).toEqual({
+                createdCouncils: 0,
+                assignedStudents: 0,
+                skippedStudents: [],
+                warnings: [],
+            });
+            expect(mockTx.council.create).not.toHaveBeenCalled();
+        });
+
+        it('rejects proposedCouncils when members have duplicate lecturers', async () => {
+            const proposed = [
+                {
+                    tempId: 'temp-1',
+                    registrationIds: [1],
+                    members: [
+                        { lecturerId: 201, roleInCouncil: 'CHAIRMAN' },
+                        { lecturerId: 201, roleInCouncil: 'SECRETARY' }, // Duplicate!
+                        { lecturerId: 203, roleInCouncil: 'REVIEWER' },
+                    ],
+                },
+            ];
+
+            await expect(
+                runAutoOutlineCouncilSetupForSemester(1, { proposedCouncils: proposed }, mockDb)
+            ).rejects.toThrow('Hội đồng phải có đúng 3 giảng viên khác nhau với các vai trò CHAIRMAN, SECRETARY, REVIEWER.');
+        });
+
+        it('rejects proposedCouncils when members length is not 3', async () => {
+            const proposed = [
+                {
+                    tempId: 'temp-1',
+                    registrationIds: [1],
+                    members: [
+                        { lecturerId: 201, roleInCouncil: 'CHAIRMAN' },
+                        { lecturerId: 202, roleInCouncil: 'SECRETARY' },
+                    ],
+                },
+            ];
+
+            await expect(
+                runAutoOutlineCouncilSetupForSemester(1, { proposedCouncils: proposed }, mockDb)
+            ).rejects.toThrow('Hội đồng phải có đúng 3 giảng viên khác nhau với các vai trò CHAIRMAN, SECRETARY, REVIEWER.');
+        });
+
+        it('rejects proposedCouncils when member roles do not match required roles', async () => {
+            const proposed = [
+                {
+                    tempId: 'temp-1',
+                    registrationIds: [1],
+                    members: [
+                        { lecturerId: 201, roleInCouncil: 'CHAIRMAN' },
+                        { lecturerId: 202, roleInCouncil: 'SECRETARY' },
+                        { lecturerId: 203, roleInCouncil: 'MEMBER' }, // Invalid role, must be REVIEWER
+                    ],
+                },
+            ];
+
+            await expect(
+                runAutoOutlineCouncilSetupForSemester(1, { proposedCouncils: proposed }, mockDb)
+            ).rejects.toThrow('Hội đồng phải có đúng 3 giảng viên khác nhau với các vai trò CHAIRMAN, SECRETARY, REVIEWER.');
         });
     });
 });

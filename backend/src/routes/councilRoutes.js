@@ -155,11 +155,30 @@ router.post(
 );
 
 router.post(
+    '/auto-assign-outline/preview',
+    [
+        body('semesterId')
+            .isInt({ min: 1 })
+            .withMessage('semesterId phải là số nguyên dương.'),
+        validateRequest,
+    ],
+    authorizeRoleOrPermission(
+        ['ADMIN'],
+        [PERMISSIONS.OUTLINE_COUNCIL_MANAGE, PERMISSIONS.DEFENSE_COUNCIL_MANAGE]
+    ),
+    councilController.previewAutoAssignOutlineCouncils
+);
+
+router.post(
     '/auto-assign-outline',
     [
         body('semesterId')
             .isInt({ min: 1 })
             .withMessage('semesterId phải là số nguyên dương.'),
+        body('proposedCouncils')
+            .optional()
+            .isArray()
+            .withMessage('proposedCouncils phải là một mảng.'),
         validateRequest,
     ],
     authorizeRoleOrPermission(
