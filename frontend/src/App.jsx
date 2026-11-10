@@ -100,6 +100,7 @@ const UserManagementPage = lazy(() => import('./pages/admin/UserManagementPage')
 const ProjectPeriodPage = lazy(() => import('./pages/admin/ProjectPeriodPage'));
 const AdminTopicManagementPage = lazy(() => import('./pages/admin/TopicManagementPage'));
 const CouncilAssignmentPage = lazy(() => import('./pages/admin/CouncilAssignmentPage'));
+const CouncilDetailPage = lazy(() => import('./pages/admin/CouncilDetailPage'));
 const ProjectOversightPage = lazy(() => import('./pages/admin/ProjectOversightPage'));
 const GradingDefensePage = lazy(() => import('./pages/admin/GradingDefensePage'));
 const NotificationCenterPage = lazy(() => import('./pages/admin/NotificationCenterPage'));
@@ -173,7 +174,9 @@ function App() {
                                 <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_COUNCIL_ASSIGNMENTS', 'OUTLINE_COUNCIL_MANAGE', 'DEFENSE_COUNCIL_MANAGE']} />}>
                                     <Route path="councils" element={<Navigate to="/admin/outline-councils" replace />} />
                                     <Route path="outline-councils" element={<CouncilAssignmentPage forcedCouncilType="OUTLINE_REVIEW" />} />
+                                    <Route path="outline-councils/:id" element={<CouncilDetailPage forcedCouncilType="OUTLINE_REVIEW" />} />
                                     <Route path="defense-councils" element={<CouncilAssignmentPage forcedCouncilType="DEFENSE_COUNCIL" />} />
+                                    <Route path="defense-councils/:id" element={<CouncilDetailPage forcedCouncilType="DEFENSE_COUNCIL" />} />
                                 </Route>
                                 <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_PROJECT_ENROLLMENTS', 'ENROLLMENT_MANAGE', 'PROJECT_CATALOG_MANAGE', 'PERMISSION_ASSIGN_ACADEMIC', 'MENTOR_ASSIGN']} />}>
                                     <Route path="project-enrollments" element={<ProjectEnrollmentPage />} />

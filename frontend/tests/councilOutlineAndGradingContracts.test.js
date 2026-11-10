@@ -123,3 +123,26 @@ test('GradingPage and OutlineCouncilGradingCard provide complete Chairman and Se
     assert.match(outlineCardSource, /isMissingRevisionReq|Bắt buộc.*yêu cầu sửa đổi/i);
     assert.match(outlineCardSource, /isMissingFailComment|Bắt buộc.*nhận xét/i);
 });
+
+test('CouncilDetailPage implements dedicated detail page contracts and App.jsx mounts council detail routes', () => {
+    const detailPagePath = 'src/pages/admin/CouncilDetailPage.jsx';
+    assert.ok(fs.existsSync(path.join(root, detailPagePath)), 'CouncilDetailPage.jsx must exist');
+    const detailSource = read(detailPagePath);
+    const appSource = read('src/App.jsx');
+
+    // Detail page required calls and actions
+    assert.match(detailSource, /councilService\.getCouncilById/);
+    assert.match(detailSource, /Đổi thành viên HĐ/);
+    assert.match(detailSource, /là GVHD của sinh viên HĐ này/);
+    assert.doesNotMatch(detailSource, /0 Xung đột lợi ích với GVHD/);
+    assert.match(detailSource, /councilService\.removeRegistration/);
+    assert.match(detailSource, /Quay lại Danh sách HĐ/);
+
+    // Dynamic conflict warning logic
+    assert.match(detailSource, /conflictNames/);
+
+    // App.jsx route registration
+    assert.match(appSource, /CouncilDetailPage/);
+    assert.match(appSource, /outline-councils\/:id/);
+    assert.match(appSource, /defense-councils\/:id/);
+});
