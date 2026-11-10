@@ -607,7 +607,7 @@ const assignRegistrationsToCouncil = async (req, res, next) => {
             });
         }
 
-        await prisma.$transaction(async (tx) => {
+        const result = await prisma.$transaction(async (tx) => {
             const council = await tx.council.findUnique({
                 where: { id: councilId },
                 include: {
@@ -856,7 +856,7 @@ const deleteCouncil = async (req, res, next) => {
             });
         }
 
-        await prisma.$transaction(async (tx) => {
+        const result = await prisma.$transaction(async (tx) => {
             await tx.councilMember.deleteMany({ where: { councilId: parsedId } });
             await tx.council.delete({ where: { id: parsedId } });
         });
