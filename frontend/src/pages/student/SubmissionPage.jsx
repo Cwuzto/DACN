@@ -18,6 +18,7 @@ import {
     LinkOutlined,
     LockOutlined,
     ReloadOutlined,
+    AuditOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import taskService from '../../services/taskService';
@@ -29,6 +30,7 @@ import outlineService from '../../services/outlineService';
 import HybridBMFormModal from '../../components/forms/HybridBMFormModal';
 import BMSubmissionViewer from '../../components/forms/BMSubmissionViewer';
 import CheckpointSignModal from '../../components/student/CheckpointSignModal';
+import TitleAdjustmentModal from '../../components/student/TitleAdjustmentModal';
 import useAuthStore from '../../stores/authStore';
 
 const formatTaskTitle = (title) => {
@@ -53,6 +55,7 @@ export default function SubmissionPage() {
     const [modalVisible, setModalVisible] = useState(false);
     const [activeTask, setActiveTask] = useState(null);
     const [submitting, setSubmitting] = useState(false);
+    const [titleAdjustmentOpen, setTitleAdjustmentOpen] = useState(false);
 
     // Viewer state
     const [viewerVisible, setViewerVisible] = useState(false);
@@ -551,6 +554,46 @@ export default function SubmissionPage() {
                 </div>
             )}
 
+            {/* Decision Published Banner */}
+            {(registration?.decisionPublishedAt || registration?.status === 'DECISION_ISSUED') && (
+                <div
+                    className="card"
+                    style={{
+                        marginBottom: 18,
+                        padding: '14px 18px',
+                        borderColor: '#7C3AED',
+                        background: '#F5F3FF',
+                        borderLeftWidth: 4,
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: 12,
+                    }}
+                >
+                    <div>
+                        <div style={{ fontWeight: 700, color: '#5B21B6', fontSize: 14 }}>
+                            Quyết định giao đề tài tốt nghiệp chính thức
+                        </div>
+                        <div style={{ marginTop: 2, fontSize: 13, color: '#6D28D9' }}>
+                            Số: <strong>{registration?.decisionNumber || '—'}</strong>
+                            {registration?.decisionPublishedAt && (
+                                <span> · Công bố lúc: {dayjs(registration.decisionPublishedAt).format('DD/MM/YYYY HH:mm')}</span>
+                            )}
+                            <span> · Cửa sổ nộp phiếu điều chỉnh tên BM02-A (168 giờ)</span>
+                        </div>
+                    </div>
+                    <Button
+                        type="primary"
+                        icon={<AuditOutlined />}
+                        className="!bg-purple-600 hover:!bg-purple-700"
+                        onClick={() => setTitleAdjustmentOpen(true)}
+                    >
+                        Đề nghị điều chỉnh tên đề tài (BM02-A)
+                    </Button>
+                </div>
+            )}
+
             {/* Checkpoint Urgent Notification Banner */}
             {(() => {
                 const pendingCp = checkpoints.find((cp) => !cp.studentSignature);
@@ -935,10 +978,25 @@ export default function SubmissionPage() {
             {/* Hybrid BM Form Modal */}
             <HybridBMFormModal
                 open={modalVisible}
+                visible={modalVisible}
                 onClose={() => setModalVisible(false)}
                 onSubmit={handleSubmitForm}
                 task={activeTask}
+                registration={registration}
                 loading={submitting}
+                submitting={submitting}
+            />
+
+            {/* Title Adjustment BM02-A Modal */}
+            <TitleAdjustmentModal
+                open={titleAdjustmentOpen}
+                onClose={() => setTitleAdjustmentOpen(false)}
+                registration={registration}
+                registrationId={registration?.id}
+                currentTitle={registration?.adjustedTitle || registration?.topic?.title}
+                decisionDate={registration?.decisionDate}
+                decisionPublishedAt={registration?.decisionPublishedAt}
+                onSuccess={fetchData}
             />
 
             {/* Submission Viewer Modal */}

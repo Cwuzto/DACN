@@ -104,9 +104,61 @@ const registrationService = {
 
     submitBM02: async (data) => {
         try {
+            const regId = data.registrationId;
+            if (regId) {
+                return await api.post(`/bm02/applications/${regId}/submit`, data, idempotencyConfig());
+            }
             return await api.post('/registrations/bm02-submit', data, idempotencyConfig());
         } catch (error) {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi nộp BM02');
+        }
+    },
+
+    submitBM02Application: async (registrationId, data) => {
+        try {
+            return await api.post(`/bm02/applications/${registrationId}/submit`, data, idempotencyConfig());
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi nộp đơn BM02');
+        }
+    },
+
+    resubmitBM02Application: async (id, data) => {
+        try {
+            return await api.post(`/bm02/applications/${id}/resubmit`, data, idempotencyConfig());
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi nộp lại đơn BM02');
+        }
+    },
+
+    requestBM02Revision: async (id, data) => {
+        try {
+            return await api.post(`/bm02/applications/${id}/request-revision`, data, idempotencyConfig());
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi yêu cầu chỉnh sửa BM02');
+        }
+    },
+
+    approveBM02Application: async (id) => {
+        try {
+            return await api.post(`/bm02/applications/${id}/approve`, {}, idempotencyConfig());
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi phê duyệt đơn BM02');
+        }
+    },
+
+    createTopicDecision: async (data) => {
+        try {
+            return await api.post('/topic-decisions', data, idempotencyConfig());
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi lập Quyết định giao đề tài');
+        }
+    },
+
+    publishTopicDecision: async (id, data = {}) => {
+        try {
+            return await api.post(`/topic-decisions/${id}/publish`, data, idempotencyConfig());
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi ban hành Quyết định giao đề tài');
         }
     },
 
@@ -188,6 +240,12 @@ export const {
     reviewOutlineTopic,
     updateOutlineReview,
     submitBM02,
+    submitBM02Application,
+    resubmitBM02Application,
+    requestBM02Revision,
+    approveBM02Application,
+    createTopicDecision,
+    publishTopicDecision,
     reviewBM02,
     reviewBM02Submission,
     requestTitleAdjustment,

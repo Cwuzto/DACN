@@ -7,6 +7,7 @@ const {
     reviseBM02A,
     getBM02ARequestById,
     getBM02ARequestsByRegistration,
+    getPendingBM02AQueue,
     BM02AWorkflowError,
 } = require('../services/bm02aWorkflowService');
 
@@ -353,6 +354,18 @@ const getAppendixController = async (req, res, next) => {
 };
 
 /**
+ * GET /api/bm02a/pending
+ */
+const getPendingBM02AQueueController = async (req, res, next) => {
+    try {
+        const result = await getPendingBM02AQueue(req.user);
+        return res.status(200).json({ success: true, data: result });
+    } catch (error) {
+        return handleWorkflowError(res, error, next);
+    }
+};
+
+/**
  * GET /api/title-adjustment-appendices/decisions/:decisionId
  */
 const getAppendicesByDecisionController = async (req, res, next) => {
@@ -374,6 +387,7 @@ module.exports = {
     reviseBM02AController,
     getBM02ARequestController,
     getBM02ARequestsByRegistrationController,
+    getPendingBM02AQueueController,
     createAppendixDraftController,
     updateAppendixItemsController,
     issueAppendixController,

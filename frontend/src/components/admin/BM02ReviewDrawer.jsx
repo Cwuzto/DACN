@@ -149,11 +149,25 @@ export default function BM02ReviewDrawer({
                             )}
                         </div>
                     </Descriptions.Item>
-                    <Descriptions.Item label={<Text strong>Tên đề tài</Text>}>
+                    <Descriptions.Item label={<Text strong>Tên đề tài BM01</Text>}>
                         <span className="font-medium text-slate-800">
-                            {registration?.adjustedTitle || registration?.topic?.title || 'Chưa cập nhật'}
+                            {submission?.bm01ApprovedTitle || registration?.bm01ApprovedTitleSnapshot || registration?.topic?.title || 'Chưa cập nhật'}
                         </span>
                     </Descriptions.Item>
+                    {submission?.bm02ProposedTitle && (
+                        <Descriptions.Item label={<Text strong>Tên đề tài đề xuất (BM02)</Text>}>
+                            <span className="font-semibold text-blue-700">
+                                {submission.bm02ProposedTitle}
+                            </span>
+                        </Descriptions.Item>
+                    )}
+                    {submission?.titleChangeReason && (
+                        <Descriptions.Item label={<Text strong>Lý do điều chỉnh tên</Text>}>
+                            <span className="text-amber-800 text-xs italic">
+                                {submission.titleChangeReason}
+                            </span>
+                        </Descriptions.Item>
+                    )}
                     <Descriptions.Item label={<Text strong>Giảng viên hướng dẫn</Text>}>
                         <span className="text-slate-700">
                             {registration?.topic?.mentor?.fullName || 'Chưa phân công'}

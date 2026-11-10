@@ -773,6 +773,43 @@ async function getBM02ARequestsByRegistration(registrationId, options = {}) {
     });
 }
 
+/**
+ * Gets pending BM02-A queue for lecturer or department head / admin.
+ */
+async function getPendingBM02AQueue(user = {}, options = {}) {
+    const db = options.tx || options.prisma || prisma;
+    const where = {};
+    if (user.role === 'LECTURER') {
+        where.registration = {
+            topic: {
+                mentorId: user.id,
+            },
+        };
+    }
+    return db.bM02AAdjustmentRequest.findMany({
+        where,
+        include: {
+            registration: {
+                include: {
+                    student: { select: { id: true, fullName: true, code: true, email: true } },
+                    topic: {
+                        include: {
+                            mentor: { select: { id: true, fullName: true, code: true, email: true, department: true } },
+                        },
+                    },
+                },
+            },
+            versions: {
+                orderBy: { versionNumber: 'desc' },
+            },
+            appendixItems: {
+                include: { appendix: true },
+            },
+        },
+        orderBy: { createdAt: 'desc' },
+    });
+}
+
 module.exports = {
     BM02AWorkflowError,
     createBM02ARequest,
@@ -783,4 +820,5 @@ module.exports = {
     reviseBM02A,
     getBM02ARequestById,
     getBM02ARequestsByRegistration,
+    getPendingBM02AQueue,
 };

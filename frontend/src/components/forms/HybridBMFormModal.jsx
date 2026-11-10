@@ -47,14 +47,17 @@ const FORM_CONFIGS = {
     BM02: {
         code: 'BM02',
         title: 'Đơn đăng ký đề tài & Phiếu giao nhiệm vụ',
-        subtitle: 'Xác nhận các mốc nhiệm vụ trọng tâm và nội dung thực hiện',
+        subtitle: 'Xác nhận các mốc nhiệm vụ trọng tâm và nội dung thực hiện (BM02)',
         fields: [
+            { name: 'bm01ApprovedTitle', label: 'Tên đề tài đã duyệt tại đề cương (BM01)', type: 'readonly', required: false },
+            { name: 'bm02ProposedTitle', label: 'Tên đề tài chính thức đề xuất (BM02)', type: 'input', required: true, placeholder: 'Cập nhật cách diễn đạt tên đề tài theo góp ý của Hội đồng' },
+            { name: 'titleChangeReason', label: 'Lý do điều chỉnh cách diễn đạt tên đề tài', type: 'textarea', required: false, rows: 2, placeholder: 'Bắt buộc khi tên đề xuất khác với đề tài BM01 đã duyệt' },
             { name: 'mainTasks', label: 'Tóm tắt các nhiệm vụ chính', type: 'textarea', required: true, rows: 3, placeholder: 'Liệt kê các nhiệm vụ nghiên cứu và phát triển cốt lõi' },
             { name: 'timelineMilestones', label: 'Các mốc thời gian & tiến độ', type: 'textarea', required: true, rows: 2, placeholder: 'Giai đoạn 1: Thiết kế, Giai đoạn 2: Lập trình, Giai đoạn 3: Đánh giá...' },
             { name: 'specialRequirements', label: 'Yêu cầu kỹ thuật đặc thù', type: 'textarea', required: false, rows: 2, placeholder: 'Yêu cầu về kiểm thử, bảo mật, tài liệu kỹ thuật...' },
         ],
         fileRequired: true,
-        fileHint: 'Đính kèm bản scan Phiếu giao nhiệm vụ có chữ ký (.pdf, .docx)',
+        fileHint: 'Đính kèm bản scan Đơn đăng ký đề tài & Phiếu giao nhiệm vụ có chữ ký (.pdf, .docx, tối đa 20MB)',
     },
     BM03_CHECKPOINT_1: {
         code: 'BM03',
@@ -145,6 +148,12 @@ export default function HybridBMFormModal({
             const initialValues = {};
             if (taskType === 'BM01' || taskType === 'BM01_INITIAL_SUBMISSION' || taskType === 'BM01_RESUBMISSION') {
                 initialValues.topicTitle = registration?.topic?.title || '';
+            } else if (taskType === 'BM02') {
+                const approvedTitle = registration?.bm01ApprovedTitleSnapshot || registration?.topic?.title || '';
+                const proposedTitle = registration?.currentBM02Submission?.bm02ProposedTitle || approvedTitle;
+                initialValues.bm01ApprovedTitle = approvedTitle;
+                initialValues.bm02ProposedTitle = proposedTitle;
+                initialValues.titleChangeReason = registration?.currentBM02Submission?.titleChangeReason || '';
             } else if (taskType === 'BM03_CHECKPOINT') {
                 initialValues.progressPercent = 50;
             }
@@ -204,6 +213,23 @@ export default function HybridBMFormModal({
             return;
         }
 
+        // Conditional validation for BM02 titleChangeReason
+        if (taskType === 'BM02') {
+            const approved = String(values.bm01ApprovedTitle || '').trim();
+            const proposed = String(values.bm02ProposedTitle || '').trim();
+            const reason = String(values.titleChangeReason || '').trim();
+            if (approved && proposed && approved !== proposed && !reason) {
+                message.error('Vui lòng nêu rõ lý do điều chỉnh cách diễn đạt tên đề tài theo góp ý của Hội đồng.');
+                form.setFields([
+                    {
+                        name: 'titleChangeReason',
+                        errors: ['Lý do điều chỉnh tên đề tài là bắt buộc khi tên đề xuất khác với đề cương BM01 đã duyệt!'],
+                    },
+                ]);
+                return;
+            }
+        }
+
         // Package hybrid data
         const structuredData = {
             taskType,
@@ -217,6 +243,13 @@ export default function HybridBMFormModal({
             fileUrl: uploadedFile?.url || null,
             fileName: uploadedFile?.name || null,
         };
+
+        if (taskType === 'BM02') {
+            payload.registrationId = registration?.id;
+            payload.bm01ApprovedTitle = values.bm01ApprovedTitle || registration?.bm01ApprovedTitleSnapshot || registration?.topic?.title;
+            payload.bm02ProposedTitle = values.bm02ProposedTitle;
+            payload.titleChangeReason = values.titleChangeReason;
+        }
 
         onSubmit(payload);
     };
@@ -297,7 +330,12 @@ export default function HybridBMFormModal({
                             rules={[{ required: f.required, message: `Vui lòng nhập ${f.label.toLowerCase()}` }]}
                             className="mb-4"
                         >
-                            {f.type === 'textarea' ? (
+                            {f.type === 'readonly' ? (
+                                <Input
+                                    disabled
+                                    className="rounded-lg text-sm bg-slate-100 text-slate-700 cursor-not-allowed font-medium h-10 border-slate-200"
+                                />
+                            ) : f.type === 'textarea' ? (
                                 <TextArea
                                     rows={f.rows || 3}
                                     placeholder={f.placeholder}

@@ -6,6 +6,9 @@ import {
     ClockCircleOutlined,
     ExclamationCircleOutlined,
     UploadOutlined,
+    FileDoneOutlined,
+    DownloadOutlined,
+    CloseOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import useAuthStore from '../../stores/authStore';
@@ -218,8 +221,10 @@ export default function StudentDashboardPage() {
                                 </button>
                             ) : null}
                             {['BM03_SIGNATURE_PENDING', 'CHECKPOINT_SIGNATURE_APPEAL_OPEN'].includes(currentRegistration?.status) && (
-                                <button
-                                    className="btn btn-primary btn-sm"
+                                <Button
+                                    type="primary"
+                                    size="small"
+                                    icon={currentRegistration?.status === 'CHECKPOINT_SIGNATURE_APPEAL_OPEN' ? <ExclamationCircleOutlined /> : <FileDoneOutlined />}
                                     onClick={() => navigate('/student/submissions')}
                                     style={{
                                         background: currentRegistration?.status === 'CHECKPOINT_SIGNATURE_APPEAL_OPEN' ? '#DC2626' : '#2563EB',
@@ -227,8 +232,8 @@ export default function StudentDashboardPage() {
                                         fontWeight: 700,
                                     }}
                                 >
-                                    {currentRegistration?.status === 'CHECKPOINT_SIGNATURE_APPEAL_OPEN' ? '⚠️ Khiếu nại biên bản tiến độ' : '✍️ Ký Biên Bản Tiến Độ Ngay'}
-                                </button>
+                                    {currentRegistration?.status === 'CHECKPOINT_SIGNATURE_APPEAL_OPEN' ? 'Khiếu nại biên bản tiến độ' : 'Ký biên bản tiến độ ngay'}
+                                </Button>
                             )}
                             {allowedActions.includes('REQUEST_TITLE_CHANGE') && (
                                 <button
@@ -739,19 +744,20 @@ export default function StudentDashboardPage() {
                 open={bm02ModalOpen}
                 onCancel={() => setBm02ModalOpen(false)}
                 footer={[
-                    <button key="close" className="btn btn-secondary" onClick={() => setBm02ModalOpen(false)}>
+                    <Button key="close" icon={<CloseOutlined />} onClick={() => setBm02ModalOpen(false)}>
                         Đóng
-                    </button>,
-                    <button
+                    </Button>,
+                    <Button
                         key="print"
-                        className="btn btn-primary"
+                        type="primary"
+                        icon={<DownloadOutlined />}
                         onClick={() => {
                             message.success('Đang chuẩn bị văn bản in quyết định số ' + (currentRegistration?.decisionNumber || '458/QĐ-VCS'));
                             setBm02ModalOpen(false);
                         }}
                     >
-                        Tải Bản Ký Quyết Định (.pdf)
-                    </button>,
+                        Tải bản ký quyết định
+                    </Button>,
                 ]}
             >
                 <div style={{ padding: '16px 20px', background: '#F8FAFC', borderRadius: 8, fontSize: 13, lineHeight: 1.6 }}>

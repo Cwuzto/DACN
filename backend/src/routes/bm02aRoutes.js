@@ -51,6 +51,12 @@ router.post(
 );
 
 router.get(
+    '/bm02a/pending',
+    authenticate,
+    bm02aController.getPendingBM02AQueueController,
+);
+
+router.get(
     '/bm02a/requests/:id',
     authenticate,
     bm02aController.getBM02ARequestController,

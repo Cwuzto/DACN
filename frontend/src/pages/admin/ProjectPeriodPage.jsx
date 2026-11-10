@@ -42,6 +42,7 @@ import {
 import dayjs from 'dayjs';
 
 import registrationService from '../../services/registrationService';
+import bm02aService from '../../services/bm02aService';
 import { semesterService } from '../../services/semesterService';
 import { topicService } from '../../services/topicService';
 import delegationService from '../../services/delegationService';
@@ -132,7 +133,7 @@ function PeriodTimeline({ milestones, status }) {
     );
 }
 
-function PeriodCard({ period, onEdit, onDelete, onClone, onIssueDecision, onViewDecisionList, isAdmin = true }) {
+function PeriodCard({ period, onEdit, onDelete, onClone, onIssueDecision, onViewDecisionList, onManageAppendices, isAdmin = true }) {
     const isCompleted = period.status === 'COMPLETED';
     const cfg = statusConfig[period.status] || statusConfig.UPCOMING;
 
@@ -157,6 +158,12 @@ function PeriodCard({ period, onEdit, onDelete, onClone, onIssueDecision, onView
                     </div>
                     <h4 className="text-base font-black text-slate-900 leading-snug">{period.name}</h4>
                     <p className="text-xs text-slate-500 font-medium">Mã đợt: {period.code}</p>
+                    {period.decisionPublishedAt && (
+                        <div className="text-[11px] text-purple-700 font-medium flex items-center gap-1">
+                            <ClockCircleOutlined />
+                            <span>Công bố QĐ: {dayjs(period.decisionPublishedAt).format('DD/MM/YYYY HH:mm')}</span>
+                        </div>
+                    )}
                 </div>
 
                 {/* Progress Steps Timeline */}
@@ -205,6 +212,18 @@ function PeriodCard({ period, onEdit, onDelete, onClone, onIssueDecision, onView
                                     onClick={() => onViewDecisionList(period)}
                                 >
                                     Danh sách QĐ
+                                </Button>
+                            </Tooltip>
+                        )}
+                        {onManageAppendices && (
+                            <Tooltip title="Quản lý Phụ lục điều chỉnh tên đề tài (BM02-A)">
+                                <Button
+                                    icon={<AuditOutlined />}
+                                    size="small"
+                                    className="!text-teal-700 hover:!text-teal-800 !border-teal-200 hover:!border-teal-400 bg-teal-50/50 font-medium"
+                                    onClick={() => onManageAppendices(period)}
+                                >
+                                    Phụ lục điều chỉnh
                                 </Button>
                             </Tooltip>
                         )}
@@ -270,6 +289,17 @@ function ProjectPeriodPage() {
     const [decisionPeriod, setDecisionPeriod] = useState(null);
     const [decisionSubmitting, setDecisionSubmitting] = useState(false);
     const [decisionForm] = Form.useForm();
+
+    // Appendix Manager State
+    const [appendixModalVisible, setAppendixModalVisible] = useState(false);
+    const [selectedAppendixPeriod, setSelectedAppendixPeriod] = useState(null);
+    const [appendicesList, setAppendicesList] = useState([]);
+    const [appendixLoading, setAppendixLoading] = useState(false);
+    const [createAppendixModalVisible, setCreateAppendixModalVisible] = useState(false);
+    const [appendixForm] = Form.useForm();
+    const [eligibleBm02aRequests, setEligibleBm02aRequests] = useState([]);
+    const [selectedBm02aIds, setSelectedBm02aIds] = useState([]);
+    const [appendixSubmitting, setAppendixSubmitting] = useState(false);
 
     const [allRegistrations, setAllRegistrations] = useState([]);
     const [decisionListModalVisible, setDecisionListModalVisible] = useState(false);
@@ -530,6 +560,7 @@ function ProjectPeriodPage() {
         decisionForm.resetFields();
         decisionForm.setFieldsValue({
             decisionDate: dayjs(),
+            decisionPublishedAt: dayjs(),
             decisionNumber: `QĐ-${period.id}/${dayjs().year()}/QĐ-VIEN`,
         });
         setDecisionModalVisible(true);
@@ -539,13 +570,21 @@ function ProjectPeriodPage() {
         if (!decisionPeriod) return;
         try {
             setDecisionSubmitting(true);
+            const pubDate = values.decisionPublishedAt ? values.decisionPublishedAt.toISOString() : new Date().toISOString();
             const res = await semesterService.issuePeriodDecision(decisionPeriod.id, {
                 decisionNumber: values.decisionNumber.trim(),
                 decisionDate: values.decisionDate.toISOString(),
+                decisionPublishedAt: pubDate,
                 decisionFileUrl: values.decisionFileUrl?.trim() || undefined,
             });
             if (res.success) {
-                message.success(res.message || 'Ban hành Quyết định giao đề tài thành công!');
+                const decId = res.data?.id || res.id || decisionPeriod.assignmentDecisions?.[0]?.id;
+                if (decId) {
+                    try {
+                        await registrationService.publishTopicDecision(decId, { publishedAt: pubDate });
+                    } catch {}
+                }
+                message.success(res.message || 'Ban hành và công bố Quyết định giao đề tài thành công!');
                 setDecisionModalVisible(false);
                 fetchSemesters();
             }
@@ -553,6 +592,96 @@ function ProjectPeriodPage() {
             message.error(error?.message || 'Không thể ban hành quyết định');
         } finally {
             setDecisionSubmitting(false);
+        }
+    };
+
+    // Appendix Manager Handlers
+    const handleOpenAppendixManager = async (period) => {
+        setSelectedAppendixPeriod(period);
+        setAppendixModalVisible(true);
+        fetchPeriodAppendices(period);
+    };
+
+    const fetchPeriodAppendices = async (period) => {
+        try {
+            setAppendixLoading(true);
+            const decId = period?.assignmentDecisions?.[0]?.id || period?.id;
+            const res = await bm02aService.getAppendices(decId);
+            if (res.success && Array.isArray(res.data)) {
+                setAppendicesList(res.data);
+            } else {
+                setAppendicesList([]);
+            }
+        } catch {
+            setAppendicesList([]);
+        } finally {
+            setAppendixLoading(false);
+        }
+    };
+
+    const handleOpenCreateAppendix = async () => {
+        appendixForm.resetFields();
+        appendixForm.setFieldsValue({
+            signedDate: dayjs(),
+            appendixNumber: `PL-${dayjs().year()}-${Date.now().toString().slice(-4)}/PL-VIEN`,
+        });
+        setSelectedBm02aIds([]);
+        try {
+            const queueRes = await bm02aService.getPendingQueue();
+            if (queueRes.success && Array.isArray(queueRes.data)) {
+                const eligible = queueRes.data.filter((r) =>
+                    ['APPROVED_PENDING_APPENDIX', 'ASSIGNED_TO_APPENDIX'].includes(r.status)
+                    || (r.versions && r.versions.length > 0)
+                );
+                setEligibleBm02aRequests(eligible);
+            }
+        } catch {
+            setEligibleBm02aRequests([]);
+        }
+        setCreateAppendixModalVisible(true);
+    };
+
+    const handleCreateAppendixSubmit = async (values) => {
+        try {
+            setAppendixSubmitting(true);
+            const decId = selectedAppendixPeriod?.assignmentDecisions?.[0]?.id || selectedAppendixPeriod?.id;
+            const res = await bm02aService.createAppendix({
+                decisionId: decId,
+                appendixNumber: values.appendixNumber.trim(),
+                signedDate: values.signedDate.toISOString(),
+                bm02aRequestIds: selectedBm02aIds,
+            });
+
+            if (res.success) {
+                message.success('Tạo dự thảo phụ lục điều chỉnh tên đề tài thành công!');
+                setCreateAppendixModalVisible(false);
+                fetchPeriodAppendices(selectedAppendixPeriod);
+            } else {
+                message.error(res.message || 'Không thể tạo phụ lục.');
+            }
+        } catch (error) {
+            message.error(error?.message || 'Lỗi khi tạo phụ lục');
+        } finally {
+            setAppendixSubmitting(false);
+        }
+    };
+
+    const handleIssueAppendixAction = async (appendixId) => {
+        try {
+            setAppendixLoading(true);
+            const res = await bm02aService.issueAppendix(appendixId, {
+                signedDate: new Date().toISOString(),
+            });
+            if (res.success) {
+                message.success('Ban hành phụ lục điều chỉnh tên đề tài thành công! Tên mới đã có hiệu lực chính thức.');
+                fetchPeriodAppendices(selectedAppendixPeriod);
+            } else {
+                message.error(res.message || 'Không thể ban hành phụ lục.');
+            }
+        } catch (error) {
+            message.error(error?.message || 'Lỗi khi ban hành phụ lục');
+        } finally {
+            setAppendixLoading(false);
         }
     };
 
@@ -828,15 +957,13 @@ function ProjectPeriodPage() {
                     <h1 className="h1">{isAdmin ? 'Quản lý Đợt Đồ án & Học kỳ Học vụ' : 'Đợt Đồ án & Ban hành Quyết định'}</h1>
                 </div>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                    <button className="btn btn-secondary" onClick={fetchSemesters}>
-                        <ReloadOutlined />
-                        <span>Làm mới</span>
-                    </button>
+                    <Button icon={<ReloadOutlined />} onClick={fetchSemesters}>
+                        Làm mới
+                    </Button>
                     {isAdmin && (
-                        <button className="btn btn-primary" onClick={handleAdd}>
-                            <PlusOutlined />
-                            <span>Khởi tạo Đợt Đồ án mới</span>
-                        </button>
+                        <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
+                            Khởi tạo Đợt Đồ án mới
+                        </Button>
                     )}
                 </div>
             </div>
@@ -975,6 +1102,7 @@ function ProjectPeriodPage() {
                                                     onClone={handleClone}
                                                     onIssueDecision={handleOpenIssueDecision}
                                                     onViewDecisionList={handleOpenDecisionList}
+                                                    onManageAppendices={handleOpenAppendixManager}
                                                     isAdmin={isAdmin}
                                                 />
                                             ))
@@ -1505,6 +1633,14 @@ function ProjectPeriodPage() {
                         </Form.Item>
 
                         <Form.Item
+                            name="decisionPublishedAt"
+                            label="Thời điểm công bố Quyết định (Kích hoạt cửa sổ 168h BM02-A)"
+                            rules={[{ required: true, message: 'Vui lòng chọn thời điểm công bố' }]}
+                        >
+                            <DatePicker showTime format="DD/MM/YYYY HH:mm" style={{ width: '100%' }} />
+                        </Form.Item>
+
+                        <Form.Item
                             name="decisionFileUrl"
                             label="Đường dẫn văn bản scan Quyết định (URL / Tùy chọn)"
                         >
@@ -1925,6 +2061,186 @@ function ProjectPeriodPage() {
                             className="!bg-teal-600 hover:!bg-teal-700"
                         >
                             Xác nhận ủy quyền
+                        </Button>
+                    </div>
+                </Form>
+            </Modal>
+
+            {/* Modal Quản lý Phụ lục điều chỉnh tên đề tài */}
+            <Modal
+                title={(
+                    <div className="flex items-center gap-2">
+                        <AuditOutlined className="text-teal-600 text-lg" />
+                        <span>Phụ lục điều chỉnh tên đề tài ({selectedAppendixPeriod?.name})</span>
+                    </div>
+                )}
+                open={appendixModalVisible}
+                onCancel={() => {
+                    setAppendixModalVisible(false);
+                    setSelectedAppendixPeriod(null);
+                }}
+                footer={[
+                    <Button key="close" icon={<CloseOutlined />} onClick={() => setAppendixModalVisible(false)}>
+                        Đóng
+                    </Button>,
+                    <Button
+                        key="create"
+                        type="primary"
+                        icon={<PlusOutlined />}
+                        className="!bg-teal-600 hover:!bg-teal-700"
+                        onClick={handleOpenCreateAppendix}
+                    >
+                        Tạo dự thảo phụ lục
+                    </Button>,
+                ]}
+                width={800}
+                destroyOnClose
+            >
+                <div className="space-y-4 py-2">
+                    <Alert
+                        type="info"
+                        showIcon
+                        message="Quản lý Phụ lục điều chỉnh tên đề tài theo đợt"
+                        description="Các phiếu đổi tên BM02-A sau khi được Phụ trách bộ môn phê duyệt sẽ được gom thành các đợt Phụ lục điều chỉnh. Sau khi ban hành (ISSUED), tên đề tài mới sẽ chính thức có hiệu lực học vụ."
+                    />
+
+                    <Spin spinning={appendixLoading}>
+                        {appendicesList.length === 0 ? (
+                            <div className="p-8 text-center bg-slate-50 rounded-lg border border-slate-200 text-slate-500">
+                                Chưa có phụ lục điều chỉnh tên đề tài nào cho đợt này.
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                {appendicesList.map((app) => (
+                                    <div key={app.id} className="p-4 bg-white border border-slate-200 rounded-lg shadow-2xs space-y-2">
+                                        <div className="flex justify-between items-center">
+                                            <div className="flex items-center gap-2">
+                                                <strong className="text-slate-800">{app.appendixNumber}</strong>
+                                                <Tag color={app.status === 'ISSUED' ? 'green' : 'gold'}>
+                                                    {app.status === 'ISSUED' ? 'Đã ban hành' : 'Bản dự thảo'}
+                                                </Tag>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs text-slate-500">
+                                                    Ngày ký: {dayjs(app.signedDate).format('DD/MM/YYYY')}
+                                                </span>
+                                                {app.status === 'DRAFT' && (
+                                                    <Button
+                                                        type="primary"
+                                                        size="small"
+                                                        icon={<FileDoneOutlined />}
+                                                        className="!bg-emerald-600 hover:!bg-emerald-700"
+                                                        onClick={() => handleIssueAppendixAction(app.id)}
+                                                    >
+                                                        Ban hành phụ lục
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {app.items && app.items.length > 0 && (
+                                            <div className="mt-2 text-xs border-t border-slate-100 pt-2 space-y-1">
+                                                {app.items.map((item) => (
+                                                    <div key={item.id} className="flex justify-between bg-slate-50 p-2 rounded">
+                                                        <span>
+                                                            <strong className="text-slate-700">{item.oldTitle}</strong>
+                                                            <span className="text-slate-400 mx-2">thành</span>
+                                                            <strong className="text-blue-700">{item.newTitle}</strong>
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </Spin>
+                </div>
+            </Modal>
+
+            {/* Modal Lập dự thảo phụ lục mới */}
+            <Modal
+                title="Lập dự thảo phụ lục điều chỉnh tên đề tài"
+                open={createAppendixModalVisible}
+                onCancel={() => setCreateAppendixModalVisible(false)}
+                footer={null}
+                width={650}
+                destroyOnClose
+            >
+                <Form form={appendixForm} layout="vertical" onFinish={handleCreateAppendixSubmit} className="pt-2">
+                    <Form.Item
+                        name="appendixNumber"
+                        label="Số Phụ lục ban hành"
+                        rules={[{ required: true, message: 'Vui lòng nhập số phụ lục.' }]}
+                    >
+                        <Input placeholder="Ví dụ: PL-2026-001/PL-VIEN" />
+                    </Form.Item>
+
+                    <Form.Item
+                        name="signedDate"
+                        label="Ngày ký phụ lục"
+                        rules={[{ required: true, message: 'Vui lòng chọn ngày ký.' }]}
+                    >
+                        <DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} />
+                    </Form.Item>
+
+                    <div className="mb-4">
+                        <label className="text-xs font-semibold text-slate-700 block mb-2">
+                            Chọn các hồ sơ BM02-A đưa vào phụ lục ({selectedBm02aIds.length} đã chọn):
+                        </label>
+                        {eligibleBm02aRequests.length === 0 ? (
+                            <p className="text-xs text-slate-500 italic">
+                                Không có yêu cầu BM02-A nào đang chờ đưa vào phụ lục.
+                            </p>
+                        ) : (
+                            <div className="max-h-48 overflow-y-auto space-y-1.5 border border-slate-200 rounded p-2">
+                                {eligibleBm02aRequests.map((req) => {
+                                    const v = req.versions?.[0];
+                                    const isSelected = selectedBm02aIds.includes(req.id);
+                                    return (
+                                        <div
+                                            key={req.id}
+                                            className={`p-2 rounded border text-xs cursor-pointer flex justify-between items-center ${
+                                                isSelected ? 'bg-blue-50 border-blue-300' : 'bg-slate-50 border-slate-200'
+                                            }`}
+                                            onClick={() => {
+                                                if (isSelected) {
+                                                    setSelectedBm02aIds(selectedBm02aIds.filter((id) => id !== req.id));
+                                                } else {
+                                                    setSelectedBm02aIds([...selectedBm02aIds, req.id]);
+                                                }
+                                            }}
+                                        >
+                                            <div>
+                                                <strong>{req.registration?.student?.fullName}</strong> ({req.registration?.student?.code})
+                                                <div className="text-slate-600">Đổi thành: <em>"{v?.proposedTitle}"</em></div>
+                                            </div>
+                                            <input
+                                                type="checkbox"
+                                                checked={isSelected}
+                                                readOnly
+                                                className="cursor-pointer"
+                                            />
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                        <Button icon={<CloseOutlined />} onClick={() => setCreateAppendixModalVisible(false)}>
+                            Hủy bỏ
+                        </Button>
+                        <Button
+                            type="primary"
+                            htmlType="submit"
+                            icon={<PlusOutlined />}
+                            loading={appendixSubmitting}
+                            className="!bg-teal-600 hover:!bg-teal-700"
+                        >
+                            Lập dự thảo phụ lục
                         </Button>
                     </div>
                 </Form>
