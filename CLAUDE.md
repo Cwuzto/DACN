@@ -1292,4 +1292,49 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 2. **Tách Rời Việc Tính Toán Mật Khẩu Khỏi Giao Dịch CSDL**: Chạy bcrypt hash bên ngoài transaction giúp tiết kiệm hàng nghìn chu kỳ CPU và giảm thiểu thời gian chiếm giữ interactive transaction, đảm bảo script seed chạy nhanh và không bị timeout qua kết nối cloud latency cao.
 3. **Batch Insertion Cho Danh Sách Tài Khoản**: Chuyển từ 133 lệnh insert tuần tự sang 1 lệnh `createMany` duy nhất, giảm 99% thời gian round-trip mạng sang cụm máy chủ Supabase.
 
+---
+
+### Cập Nhật Phiên Làm Việc (Session Update - Tách Riêng HĐ Xét Duyệt & HĐ Bảo Vệ)
+
+#### 1. Những phần đã hoàn thành
+
+1. **Bổ Sung Quyền Quản Lý Hội Đồng Cho Nhóm QUAN_TRI_VIEN (Admin)**:
+   - Cập nhật [`backend/src/constants/permissions.js`](file:///d:/DACN/backend/src/constants/permissions.js): Bổ sung `OUTLINE_COUNCIL_MANAGE`, `DEFENSE_COUNCIL_MANAGE`, `VIEW_COUNCIL_ASSIGNMENTS`, `VIEW_DEFENSE_ASSIGNMENTS` vào nhóm vai trò `QUAN_TRI_VIEN`.
+   - Cập nhật trực tiếp vào bảng `permission_group_permissions` trên CSDL PostgreSQL Supabase để tài khoản `admin@university.edu.vn` có hiệu lực ngay lập tức.
+
+2. **Tách Biệt Menu Điều Hướng & Định Tuyến (Navigation & Routing)**:
+   - Cập nhật [`frontend/src/config/navigationRegistry.js`](file:///d:/DACN/frontend/src/config/navigationRegistry.js): Tách mục `council-assignments` chung thành 2 mục độc lập thuộc khối **"Hội đồng & bảo vệ"**:
+     * `outline-councils`: Nhãn **"HĐ Xét duyệt Đề cương"**, icon `fact_check`, quyền `OUTLINE_COUNCIL_MANAGE`, route `/admin/outline-councils`.
+     * `defense-councils`: Nhãn **"HĐ Bảo vệ khóa luận"**, icon `groups`, quyền `DEFENSE_COUNCIL_MANAGE`, route `/admin/defense-councils`.
+   - Cập nhật [`frontend/src/App.jsx`](file:///d:/DACN/frontend/src/App.jsx): Đăng ký 2 routes riêng biệt truyền prop `forcedCouncilType="OUTLINE_REVIEW"` và `forcedCouncilType="DEFENSE_COUNCIL"`. Đường dẫn cũ `/admin/councils` được tự động chuyển hướng (`Navigate replace`) sang `/admin/outline-councils` để bảo toàn tương thích ngược.
+
+3. **Tối Ưu Hóa Giao Diện CouncilAssignmentPage Chống Nhầm Lẫn**:
+   - Khóa cứng chế độ hội đồng khi nhận prop `forcedCouncilType`, tự động ẩn thanh chuyển đổi giai đoạn (Phase Switcher) không cần thiết và thay thế bằng Tag thông tin số lượng HĐ tương ứng.
+   - Tiêu đề trang (`PageHeader`) và nhãn nút bấm tự động thích ứng theo ngữ cảnh (`Phân công Hội đồng Xét duyệt Đề cương` / `Phân công Hội đồng Bảo vệ Khóa luận`).
+   - Khắc phục triệt để lỗi cú pháp JSX mồ côi (lines 819–826), đảm bảo `npm run build` thành công 100%.
+
+4. **Kiểm Thử Toàn Diện**:
+   - `frontend/tests/navigationRegistry.test.js`: Cập nhật bộ test 28 items kiểm tra quyền hiển thị menu của Viện trưởng và Quản trị viên. 100/100 frontend tests PASS.
+   - `backend/tests`: Test luồng phân công và fixtures PASS 100%.
+
+#### 2. Trạng thái cập nhật của từng phần
+
+- **Database/Prisma**: `UP TO DATE`; Nhóm `QUAN_TRI_VIEN` đã được cấp đầy đủ quyền quản lý và xem hội đồng cả 2 loại.
+- **Backend API**: `RUNNING (Port 5000)`; Server chạy ổn định, các schedulers tự động và API phân công hoạt động bình thường.
+- **Frontend SPA**: `RUNNING (Port 5173)`; 100/100 tests pass, `vite build` 0 lỗi.
+- **Dữ liệu & Mã hóa**: 100% đạt chuẩn UTF-8 (no BOM).
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+
+1. Người dùng nghiệm thu trực quan trên giao diện Admin (`admin@university.edu.vn` / `admin123`):
+   - Kiểm tra menu bên trái thấy tách rõ ràng **"HĐ Xét duyệt Đề cương"** và **"HĐ Bảo vệ khóa luận"**.
+   - Bấm nút `🤖 Tự động phân công HĐ Đề cương` trên học kỳ HK2 để kiểm tra thuật toán phân bổ 15 SV vào các hội đồng không trùng GVHD.
+2. Tiếp tục thực hiện các yêu cầu tinh chỉnh hoặc tính năng mới tiếp theo.
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+
+1. **Tái Sử Dụng Giao Diện với Prop `forcedCouncilType`**: Thay vì tạo 2 trang component riêng gây trùng lặp logic matcher, phân công và modal, việc sử dụng prop `forcedCouncilType` giúp tái sử dụng 100% logic vững chắc đã có, đồng thời cô lập hoàn toàn trải nghiệm người dùng theo đúng từng loại hội đồng.
+2. **Cấp Quyền Trực Tiếp Cho `QUAN_TRI_VIEN`**: Admin hệ thống cần có quyền giám sát và can thiệp toàn bộ vòng đời học vụ nên việc cấp quyền `OUTLINE_COUNCIL_MANAGE` và `DEFENSE_COUNCIL_MANAGE` là hoàn toàn chuẩn mực theo RBAC.
+
+
 
