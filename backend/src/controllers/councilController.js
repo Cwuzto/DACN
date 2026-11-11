@@ -1,5 +1,9 @@
 const prisma = require('../config/database');
-const { MAX_STUDENTS_PER_COUNCIL } = require('../constants/councilLimits');
+const {
+    MAX_STUDENTS_PER_COUNCIL,
+    MAX_STUDENTS_PER_OUTLINE_COUNCIL,
+    MAX_STUDENTS_PER_DEFENSE_COUNCIL,
+} = require('../constants/councilLimits');
 const { auditLog } = require('../services/auditLogService');
 const { runAutoCouncilSetupForSemester } = require('../services/councilAutoSetupService');
 const outlineReviewService = require('../services/outlineReviewService');
@@ -7,6 +11,23 @@ const {
     runAutoOutlineCouncilSetupForSemester,
     previewAutoOutlineCouncilSetup,
 } = require('../services/outlineAutoSetupService');
+const { resolveEffectiveTopicTitle } = require('../services/topicTitleResolverService');
+
+const splitConfirmedStudentsIntoShifts = (registrationIds = []) => {
+    if (!Array.isArray(registrationIds)) return [];
+    const N = registrationIds.length;
+    const morningCount = Math.ceil(N / 2);
+    return registrationIds.map((reg, index) => {
+        const registrationId = typeof reg === 'object' && reg !== null ? (reg.id || reg.registrationId) : reg;
+        const isMorning = index < morningCount;
+        return {
+            registrationId,
+            defenseSequenceNo: index + 1,
+            defenseSessionShift: isMorning ? 'MORNING' : 'AFTERNOON',
+            defenseOrderInShift: isMorning ? (index + 1) : (index - morningCount + 1),
+        };
+    });
+};
 
 const handleOutlineError = (error, res, next) => {
     if (error.statusCode === 409 && error.details?.blockingRegistrations) {
@@ -55,21 +76,32 @@ const normalizeMemberInput = (members = []) => {
 
     return normalized;
 };
-const validateCouncilComposition = (members = []) => {
-    if (!Array.isArray(members) || members.length !== 3) {
-        throw createHttpError(400, 'Mỗi hội đồng phải có đúng 3 giảng viên.');
+
+const validateCouncilComposition = (members = [], options = {}) => {
+    if (!Array.isArray(members)) {
+        throw createHttpError(400, 'Danh sách thành viên hội đồng không hợp lệ.');
+    }
+    const allowFourth = options.allowFourthScoringMember === true || members.length === 4;
+    if (members.length < 3 || members.length > (allowFourth ? 4 : 3)) {
+        throw createHttpError(400, allowFourth ? 'Hội đồng phải có 3 hoặc 4 giảng viên.' : 'Mỗi hội đồng phải có đúng 3 giảng viên.');
     }
 
-    const roleSet = new Set(members.map((member) => member.roleInCouncil));
+    const roleCounts = {};
+    for (const member of members) {
+        roleCounts[member.roleInCouncil] = (roleCounts[member.roleInCouncil] || 0) + 1;
+    }
+
     const expectedRoles = ['CHAIRMAN', 'SECRETARY', 'REVIEWER'];
     for (const role of expectedRoles) {
-        if (!roleSet.has(role)) {
+        if (!roleCounts[role] || roleCounts[role] !== 1) {
             throw createHttpError(400, 'Hội đồng phải đủ 3 vai trò: CHAIRMAN, SECRETARY, REVIEWER.');
         }
     }
 
-    if (roleSet.size !== 3) {
-        throw createHttpError(400, 'Mỗi vai trò chỉ được có 1 giảng viên.');
+    if (members.length === 4) {
+        if (roleCounts['MEMBER'] !== 1) {
+            throw createHttpError(400, 'Thành viên thứ 4 của hội đồng phải có vai trò là MEMBER.');
+        }
     }
 };
 
@@ -279,12 +311,27 @@ const getCouncilById = async (req, res, next) => {
             });
         }
 
+        const enrichedRegistrations = await Promise.all((effectiveRegistrations || []).map(async (reg) => {
+            try {
+                const resolved = await resolveEffectiveTopicTitle(reg.id);
+                return {
+                    ...reg,
+                    effectiveTitle: resolved?.title || reg.topic?.title || 'Chưa có tên đề tài',
+                };
+            } catch {
+                return {
+                    ...reg,
+                    effectiveTitle: reg.topic?.title || 'Chưa có tên đề tài',
+                };
+            }
+        }));
+
         res.json({
             success: true,
             data: {
                 ...council,
                 myRole: myMember?.roleInCouncil || null,
-                registrations: effectiveRegistrations,
+                registrations: enrichedRegistrations,
             },
         });
     } catch (error) {
@@ -326,7 +373,7 @@ const getCouncilAuditLogs = async (req, res, next) => {
 
 const createCouncil = async (req, res, next) => {
     try {
-        const { semesterId, name, councilType, location, defenseDate, members } = req.body;
+        const { semesterId, name, councilType, location, defenseDate, members, allowFourthScoringMember } = req.body;
 
         if (!semesterId || !name) {
             return res.status(400).json({
@@ -339,7 +386,7 @@ const createCouncil = async (req, res, next) => {
         const defenseDateValue = defenseDate ? new Date(defenseDate) : null;
         const normalizedMembers = normalizeMemberInput(members || []);
         if (normalizedMembers.length) {
-            validateCouncilComposition(normalizedMembers);
+            validateCouncilComposition(normalizedMembers, { allowFourthScoringMember });
         }
 
         const validCouncilTypes = ['OUTLINE_REVIEW', 'DEFENSE_COUNCIL'];
@@ -372,6 +419,7 @@ const createCouncil = async (req, res, next) => {
                     councilType: councilTypeValue,
                     location,
                     defenseDate: defenseDateValue,
+                    allowFourthScoringMember: Boolean(allowFourthScoringMember),
                 },
             });
 
@@ -381,6 +429,7 @@ const createCouncil = async (req, res, next) => {
                         councilId: newCouncil.id,
                         lecturerId: member.lecturerId,
                         roleInCouncil: member.roleInCouncil,
+                        isScoringMember: true,
                     })),
                 });
             }
@@ -431,7 +480,7 @@ const updateCouncil = async (req, res, next) => {
     try {
         const { id } = req.params;
         const councilId = parseInt(id, 10);
-        const { name, councilType, location, defenseDate, members } = req.body;
+        const { name, councilType, location, defenseDate, members, allowFourthScoringMember } = req.body;
 
         const existing = await prisma.council.findUnique({
             where: { id: councilId },
@@ -485,6 +534,10 @@ const updateCouncil = async (req, res, next) => {
 
         let updatedMemberDetails = undefined;
         let normalizedMembers = [];
+        const finalAllowFourth = allowFourthScoringMember !== undefined
+            ? Boolean(allowFourthScoringMember)
+            : Boolean(existing.allowFourthScoringMember);
+
         if (members !== undefined) {
             normalizedMembers = normalizeMemberInput(members);
             const newLecturerIds = normalizedMembers.map((m) => m.lecturerId);
@@ -507,9 +560,10 @@ const updateCouncil = async (req, res, next) => {
                 CHAIRMAN: 'Chủ tịch HĐ',
                 SECRETARY: 'Thư ký HĐ',
                 REVIEWER: 'UV Phản biện',
+                MEMBER: 'Ủy viên HĐ',
             };
             const formatMemberDisplay = (m) => (m ? (m.code ? `${m.fullName} (${m.code})` : m.fullName) : 'Chưa phân công');
-            const rolesToCheck = ['CHAIRMAN', 'SECRETARY', 'REVIEWER'];
+            const rolesToCheck = ['CHAIRMAN', 'SECRETARY', 'REVIEWER', 'MEMBER'];
             for (const roleKey of rolesToCheck) {
                 const oldMember = existing.members?.find((m) => m.roleInCouncil === roleKey);
                 const newMember = updatedMemberDetails.find((m) => m.roleInCouncil === roleKey);
@@ -536,13 +590,14 @@ const updateCouncil = async (req, res, next) => {
                     ...(councilType !== undefined && { councilType }),
                     location,
                     defenseDate: defenseDateValue,
+                    ...(allowFourthScoringMember !== undefined && { allowFourthScoringMember: Boolean(allowFourthScoringMember) }),
                 },
             });
 
             let lecturerIdsForWarning = [];
 
             if (members !== undefined) {
-                validateCouncilComposition(normalizedMembers);
+                validateCouncilComposition(normalizedMembers, { allowFourthScoringMember: finalAllowFourth });
                 lecturerIdsForWarning = normalizedMembers.map((member) => member.lecturerId);
 
                 await validateCouncilMembersAgainstAssignedStudents(tx, councilId, lecturerIdsForWarning);
@@ -554,6 +609,7 @@ const updateCouncil = async (req, res, next) => {
                             councilId,
                             lecturerId: member.lecturerId,
                             roleInCouncil: member.roleInCouncil,
+                            isScoringMember: true,
                         })),
                     });
                 }
@@ -640,14 +696,18 @@ const assignRegistrationsToCouncil = async (req, res, next) => {
                 throw createHttpError(404, 'Không tìm thấy hội đồng.');
             }
 
-            validateCouncilComposition(council.members);
+            validateCouncilComposition(council.members, { allowFourthScoringMember: council.allowFourthScoringMember });
 
             const currentStudentCount = council.councilType === 'OUTLINE_REVIEW'
                 ? (council._count.outlineRegistrations || 0)
                 : (council._count.defenseRegistrations || council._count.registrations || 0);
 
-            if (currentStudentCount + uniqueRegistrationIds.length > MAX_STUDENTS_PER_COUNCIL) {
-                throw createHttpError(400, `Hội đồng tối đa ${MAX_STUDENTS_PER_COUNCIL} sinh viên.`);
+            const maxLimit = council.councilType === 'OUTLINE_REVIEW'
+                ? MAX_STUDENTS_PER_OUTLINE_COUNCIL
+                : MAX_STUDENTS_PER_DEFENSE_COUNCIL;
+
+            if (currentStudentCount + uniqueRegistrationIds.length > maxLimit) {
+                throw createHttpError(400, `Hội đồng tối đa ${maxLimit} sinh viên.`);
             }
 
             const registrations = await tx.topicRegistration.findMany({
@@ -1141,7 +1201,518 @@ const finalizeResubmissions = async (req, res, next) => {
     }
 };
 
+const publishDefenseEligibleList = async (req, res, next) => {
+    try {
+        const semesterIdInt = parseInt(req.params.semesterId, 10);
+        if (!Number.isInteger(semesterIdInt) || semesterIdInt <= 0) {
+            return res.status(400).json({ success: false, message: 'semesterId không hợp lệ.' });
+        }
+
+        const semester = await prisma.semester.findUnique({
+            where: { id: semesterIdInt },
+            include: {
+                lockedDefenseRubricVersion: true,
+            },
+        });
+
+        if (!semester) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy học kỳ.' });
+        }
+
+        // Primary Guard: Check if semester has an active locked rubric
+        let lockedRubricId = semester.lockedDefenseRubricVersionId;
+        if (!lockedRubricId || !semester.lockedDefenseRubricVersion || !semester.lockedDefenseRubricVersion.lockedAt) {
+            const activeLockedRubric = await prisma.rubricVersion.findFirst({
+                where: {
+                    OR: [
+                        { id: lockedRubricId || 0 },
+                        { isActive: true, lockedAt: { not: null } },
+                    ],
+                },
+            });
+
+            if (!activeLockedRubric || !activeLockedRubric.lockedAt || Math.abs(activeLockedRubric.totalMaxScore - 10.0) > 0.001) {
+                return res.status(409).json({
+                    success: false,
+                    code: 'RUBRIC_NOT_LOCKED',
+                    message: 'Không thể công bố danh sách bảo vệ khi học kỳ chưa có barem chấm (Rubric) được khóa với tổng điểm 10.0.',
+                });
+            }
+            lockedRubricId = activeLockedRubric.id;
+        }
+
+        const eligibleRegistrations = await prisma.topicRegistration.findMany({
+            where: {
+                semesterId: semesterIdInt,
+                OR: [
+                    { status: 'DEFENSE_READY' },
+                    { status: 'DEFENSE_ELIGIBLE' },
+                    { status: 'ELIGIBLE_BY_INSTITUTE' },
+                    {
+                        bm04Evaluation: {
+                            isLocked: true,
+                            conclusion: 'AGREED_FOR_DEFENSE',
+                        },
+                    },
+                ],
+            },
+            include: {
+                student: { select: { fullName: true, code: true } },
+                topic: { select: { title: true } },
+            },
+        });
+
+        const now = new Date();
+        const updatedSemester = await prisma.semester.update({
+            where: { id: semesterIdInt },
+            data: {
+                lockedDefenseRubricVersionId: lockedRubricId,
+                defenseEligibleListPublishedAt: now,
+                defenseEligibleListPublishedById: req.user.id,
+            },
+        });
+
+        await auditLog(
+            req.user.id,
+            'PUBLISH_DEFENSE_ELIGIBLE_LIST',
+            'Semester',
+            semesterIdInt,
+            {
+                summary: `Công bố danh sách ${eligibleRegistrations.length} sinh viên đủ điều kiện ra bảo vệ`,
+                eligibleCount: eligibleRegistrations.length,
+                lockedRubricVersionId: lockedRubricId,
+                publishedAt: now,
+            },
+            getRequestIp(req),
+        );
+
+        return res.json({
+            success: true,
+            message: `Đã công bố danh sách ${eligibleRegistrations.length} sinh viên đủ điều kiện ra bảo vệ.`,
+            data: {
+                semester: updatedSemester,
+                eligibleCount: eligibleRegistrations.length,
+                lockedRubricVersionId: lockedRubricId,
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+const confirmAndPublishDefenseSchedule = async (req, res, next) => {
+    try {
+        const councilId = parseInt(req.params.id, 10);
+        const { orderedRegistrationIds } = req.body;
+
+        const council = await prisma.council.findUnique({
+            where: { id: councilId },
+            include: {
+                semester: {
+                    include: {
+                        lockedDefenseRubricVersion: true,
+                    },
+                },
+                registrations: {
+                    include: {
+                        student: { select: { id: true, fullName: true, code: true } },
+                        topic: { select: { title: true } },
+                    },
+                },
+                members: true,
+            },
+        });
+
+        if (!council) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy hội đồng.' });
+        }
+
+        // Secondary Guard: Semester must have locked rubric and published eligible list
+        const semester = council.semester;
+        const hasLockedRubric = Boolean(
+            semester?.lockedDefenseRubricVersionId ||
+            (semester?.lockedDefenseRubricVersion && semester.lockedDefenseRubricVersion.lockedAt)
+        );
+        if (!hasLockedRubric) {
+            return res.status(409).json({
+                success: false,
+                code: 'RUBRIC_NOT_LOCKED',
+                message: 'Barem chấm bảo vệ (Rubric) của học kỳ chưa được khóa. Không thể công bố lịch bảo vệ.',
+            });
+        }
+
+        if (!semester?.defenseEligibleListPublishedAt) {
+            return res.status(409).json({
+                success: false,
+                code: 'ELIGIBLE_LIST_NOT_PUBLISHED',
+                message: 'Danh sách sinh viên đủ điều kiện bảo vệ của học kỳ chưa được công bố.',
+            });
+        }
+
+        let regIdsToOrder = orderedRegistrationIds;
+        if (!Array.isArray(regIdsToOrder) || regIdsToOrder.length === 0) {
+            regIdsToOrder = council.registrations.map((r) => r.id);
+        }
+
+        const shiftSplits = splitConfirmedStudentsIntoShifts(regIdsToOrder);
+        const now = new Date();
+
+        await prisma.$transaction(async (tx) => {
+            for (const item of shiftSplits) {
+                await tx.topicRegistration.update({
+                    where: { id: item.registrationId },
+                    data: {
+                        defenseSequenceNo: item.defenseSequenceNo,
+                        defenseSessionShift: item.defenseSessionShift,
+                        defenseOrderInShift: item.defenseOrderInShift,
+                        defenseSchedulePublishedAt: now,
+                    },
+                });
+            }
+
+            await tx.council.update({
+                where: { id: councilId },
+                data: {
+                    scheduleConfirmedAt: now,
+                    scheduleConfirmedById: req.user.id,
+                    schedulePublishedAt: now,
+                    schedulePublishedById: req.user.id,
+                },
+            });
+        });
+
+        const studentUserIds = council.registrations.map((r) => r.studentId).filter(Boolean);
+        if (studentUserIds.length > 0) {
+            await prisma.notification.createMany({
+                data: studentUserIds.map((userId) => ({
+                    userId,
+                    title: 'Lịch bảo vệ chính thức đã được công bố',
+                    content: `Lịch bảo vệ khóa luận cho hội đồng ${council.name} đã được công bố chính thức. Vui lòng kiểm tra ca bảo vệ và thứ tự của bạn.`,
+                    type: 'DEFENSE_SCHEDULE_PUBLISHED',
+                })),
+            });
+        }
+
+        await auditLog(
+            req.user.id,
+            'CONFIRM_AND_PUBLISH_DEFENSE_SCHEDULE',
+            'Council',
+            councilId,
+            {
+                summary: `Xác nhận và công bố lịch bảo vệ cho hội đồng ${council.name} (${shiftSplits.length} sinh viên)`,
+                councilId,
+                totalStudents: shiftSplits.length,
+                schedule: shiftSplits,
+                publishedAt: now,
+            },
+            getRequestIp(req),
+        );
+
+        const updated = await prisma.council.findUnique({
+            where: { id: councilId },
+            include: {
+                registrations: {
+                    include: {
+                        student: { select: { fullName: true, code: true } },
+                        topic: { select: { title: true } },
+                    },
+                    orderBy: [{ defenseSessionShift: 'asc' }, { defenseOrderInShift: 'asc' }],
+                },
+            },
+        });
+
+        return res.json({
+            success: true,
+            message: `Đã công bố lịch bảo vệ thành công cho ${shiftSplits.length} sinh viên.`,
+            data: updated,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+const adjustStudentDefenseSchedule = async (req, res, next) => {
+    try {
+        const councilId = parseInt(req.params.id, 10);
+        const registrationId = parseInt(req.params.registrationId, 10);
+        const { newShift, newOrderInShift, reason } = req.body;
+
+        if (!reason || !String(reason).trim()) {
+            return res.status(400).json({
+                success: false,
+                message: 'Lý do điều chỉnh lịch (reason) bắt buộc phải được cung cấp và không được để trống.',
+            });
+        }
+
+        if (!['MORNING', 'AFTERNOON'].includes(newShift)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Ca bảo vệ mới (newShift) phải là MORNING hoặc AFTERNOON.',
+            });
+        }
+
+        const newOrder = parseInt(newOrderInShift, 10);
+        if (!Number.isInteger(newOrder) || newOrder <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Thứ tự trong ca (newOrderInShift) phải là số nguyên dương.',
+            });
+        }
+
+        const council = await prisma.council.findUnique({
+            where: { id: councilId },
+        });
+        if (!council) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy hội đồng.' });
+        }
+
+        const reg = await prisma.topicRegistration.findUnique({
+            where: { id: registrationId },
+            include: {
+                student: { select: { fullName: true, code: true } },
+                topic: { select: { title: true } },
+            },
+        });
+        if (!reg) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy hồ sơ đăng ký.' });
+        }
+
+        const oldShift = reg.defenseSessionShift;
+        const oldOrderInShift = reg.defenseOrderInShift;
+        const cleanReason = String(reason).trim();
+
+        const updated = await prisma.$transaction(async (tx) => {
+            const updatedReg = await tx.topicRegistration.update({
+                where: { id: registrationId },
+                data: {
+                    defenseSessionShift: newShift,
+                    defenseOrderInShift: newOrder,
+                },
+            });
+
+            await tx.defenseScheduleAdjustmentLog.create({
+                data: {
+                    registrationId,
+                    councilId,
+                    oldShift: oldShift || null,
+                    newShift,
+                    oldOrderInShift: oldOrderInShift || null,
+                    newOrderInShift: newOrder,
+                    reason: cleanReason,
+                    adjustedById: req.user.id,
+                },
+            });
+
+            return updatedReg;
+        });
+
+        if (reg.studentId) {
+            await prisma.notification.create({
+                data: {
+                    userId: reg.studentId,
+                    title: 'Lịch bảo vệ của bạn đã được điều chỉnh',
+                    content: `Lịch bảo vệ của bạn đã được chuyển sang ca ${newShift === 'MORNING' ? 'Sáng' : 'Chiều'}, STT: ${newOrder}. Lý do: ${cleanReason}`,
+                    type: 'DEFENSE_SCHEDULE_ADJUSTED',
+                },
+            });
+        }
+
+        await auditLog(
+            req.user.id,
+            'ADJUST_DEFENSE_SCHEDULE',
+            'TopicRegistration',
+            registrationId,
+            {
+                summary: `Điều chỉnh ca bảo vệ cho sinh viên ${reg.student?.fullName || ''} (${oldShift || 'N/A'} -> ${newShift})`,
+                councilId,
+                registrationId,
+                oldShift,
+                newShift,
+                oldOrderInShift,
+                newOrderInShift: newOrder,
+                reason: cleanReason,
+            },
+            getRequestIp(req),
+        );
+
+        return res.json({
+            success: true,
+            message: 'Điều chỉnh lịch bảo vệ sinh viên thành công.',
+            data: updated,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+const replaceDefenseCouncilMember = async (req, res, next) => {
+    try {
+        const councilId = parseInt(req.params.id, 10);
+        const { oldMemberId, newLecturerId, reason, confirmLockedSheetOverride } = req.body;
+
+        if (!reason || !String(reason).trim()) {
+            return res.status(400).json({
+                success: false,
+                message: 'Lý do thay thế thành viên (reason) bắt buộc phải được cung cấp.',
+            });
+        }
+
+        const newLecId = parseInt(newLecturerId, 10);
+        if (!Number.isInteger(newLecId) || newLecId <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'newLecturerId phải là số nguyên dương.',
+            });
+        }
+
+        const council = await prisma.council.findUnique({
+            where: { id: councilId },
+            include: {
+                members: {
+                    where: { isActive: true },
+                    include: { lecturer: { select: { id: true, fullName: true } } },
+                },
+                registrations: {
+                    include: { topic: { select: { mentorId: true } } },
+                },
+            },
+        });
+
+        if (!council) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy hội đồng.' });
+        }
+
+        if (council.scoreBookLocked) {
+            return res.status(400).json({
+                success: false,
+                message: 'Hội đồng đã khóa sổ điểm. Không thể thay thế thành viên chấm.',
+            });
+        }
+
+        const oldMemberIdParsed = parseInt(oldMemberId, 10);
+        const oldMember = council.members.find((m) => m.id === oldMemberIdParsed || m.lecturerId === oldMemberIdParsed);
+        if (!oldMember) {
+            return res.status(404).json({
+                success: false,
+                message: 'Không tìm thấy thành viên hội đồng cần thay thế hoặc thành viên không còn hoạt động.',
+            });
+        }
+
+        const registrationsInCouncil = await prisma.topicRegistration.findMany({
+            where: {
+                OR: [{ defenseCouncilId: councilId }, { councilId: councilId }],
+            },
+            include: {
+                topic: { select: { mentorId: true, title: true } },
+                student: { select: { fullName: true } },
+            },
+        });
+
+        const conflict = registrationsInCouncil.find((r) => r.topic?.mentorId === newLecId);
+        if (conflict) {
+            return res.status(400).json({
+                success: false,
+                message: `Conflict of interest: Giảng viên mới đang là giảng viên hướng dẫn của đề tài "${conflict.topic?.title || ''}".`,
+            });
+        }
+
+        if (council.members.some((m) => m.lecturerId === newLecId && m.id !== oldMember.id)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Giảng viên này đã là thành viên trong hội đồng.',
+            });
+        }
+
+        const lockedScores = await prisma.defenseMemberScore.findMany({
+            where: {
+                evaluatorId: oldMember.lecturerId,
+                scoreLocked: true,
+                isEffective: true,
+            },
+        });
+
+        if (lockedScores.length > 0 && confirmLockedSheetOverride !== true) {
+            return res.status(409).json({
+                success: false,
+                code: 'LOCKED_SHEET_OVERRIDE_CONFIRMATION_REQUIRED',
+                message: 'Thành viên này đã có phiếu chấm điểm được khóa. Bạn phải xác nhận ghi đè (confirmLockedSheetOverride: true) để thay thế.',
+            });
+        }
+
+        const cleanReason = String(reason).trim();
+        const now = new Date();
+
+        const result = await prisma.$transaction(async (tx) => {
+            await tx.defenseMemberScore.updateMany({
+                where: {
+                    evaluatorId: oldMember.lecturerId,
+                    isEffective: true,
+                },
+                data: {
+                    isEffective: false,
+                    supersededReason: cleanReason,
+                },
+            });
+
+            const updatedOldMember = await tx.councilMember.update({
+                where: { id: oldMember.id },
+                data: {
+                    isActive: false,
+                    replacementReason: cleanReason,
+                    replacedAt: now,
+                },
+            });
+
+            const newMember = await tx.councilMember.create({
+                data: {
+                    councilId,
+                    lecturerId: newLecId,
+                    roleInCouncil: oldMember.roleInCouncil,
+                    isScoringMember: true,
+                    isActive: true,
+                    assignedById: req.user.id,
+                },
+                include: {
+                    lecturer: { select: { id: true, fullName: true, email: true, code: true } },
+                },
+            });
+
+            await tx.councilMember.update({
+                where: { id: oldMember.id },
+                data: { replacedByMemberId: newMember.id },
+            });
+
+            return { replacedMember: updatedOldMember, newMember };
+        });
+
+        await auditLog(
+            req.user.id,
+            'REPLACE_COUNCIL_MEMBER',
+            'Council',
+            councilId,
+            {
+                summary: `Thay thế thành viên ${oldMember.roleInCouncil} trong hội đồng ${council.name}`,
+                oldMemberId: oldMember.id,
+                oldLecturerId: oldMember.lecturerId,
+                newLecturerId: newLecId,
+                role: oldMember.roleInCouncil,
+                reason: cleanReason,
+            },
+            getRequestIp(req),
+        );
+
+        return res.json({
+            success: true,
+            message: 'Thay thế thành viên hội đồng thành công.',
+            data: result,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
+    splitConfirmedStudentsIntoShifts,
     getAllCouncils,
     getCouncilById,
     getCouncilAuditLogs,
@@ -1162,5 +1733,9 @@ module.exports = {
     setRevisionDeadline,
     reviewResubmission,
     finalizeResubmissions,
+    publishDefenseEligibleList,
+    confirmAndPublishDefenseSchedule,
+    adjustStudentDefenseSchedule,
+    replaceDefenseCouncilMember,
 };
 

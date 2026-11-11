@@ -1,15 +1,20 @@
 const prisma = require('../config/database');
-const { MAX_STUDENTS_PER_COUNCIL } = require('../constants/councilLimits');
+const { MAX_STUDENTS_PER_COUNCIL, MAX_STUDENTS_PER_DEFENSE_COUNCIL } = require('../constants/councilLimits');
 
 const ROLE_ORDER = ['CHAIRMAN', 'SECRETARY', 'REVIEWER'];
-const COUNCIL_NAME_PREFIX = 'Há»™i Ä‘á»“ng';
+const COUNCIL_NAME_PREFIX = 'Hội đồng';
 const DEFAULT_LOOKAHEAD_DAYS = 14;
 const DEFENSE_ASSIGNMENT_STATUSES = ['SUBMITTED', 'DEFENDED', 'COMPLETED'];
 
 const isValidCouncilComposition = (members = []) => {
-    if (!Array.isArray(members) || members.length !== 3) return false;
+    if (!Array.isArray(members) || (members.length !== 3 && members.length !== 4)) return false;
     const roleSet = new Set(members.map((member) => member.roleInCouncil));
-    return ROLE_ORDER.every((role) => roleSet.has(role)) && roleSet.size === 3;
+    const hasCoreRoles = ROLE_ORDER.every((role) => roleSet.has(role));
+    if (!hasCoreRoles) return false;
+    if (members.length === 4) {
+        return roleSet.has('MEMBER') && roleSet.size === 4;
+    }
+    return roleSet.size === 3;
 };
 
 const getNextCouncilIndex = (councils = []) => {
@@ -183,7 +188,7 @@ const autoAssignRegistrationsForSemester = async (tx, semesterId) => {
         let placed = false;
 
         for (const council of usableCouncils) {
-            if (council.currentCount >= MAX_STUDENTS_PER_COUNCIL) continue;
+            if (council.currentCount >= MAX_STUDENTS_PER_DEFENSE_COUNCIL) continue;
             if (council.memberLecturerIds.has(registration.topic?.mentorId)) continue;
 
             await tx.topicRegistration.update({

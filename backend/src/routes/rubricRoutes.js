@@ -27,6 +27,12 @@ router.put('/:id', authorizePermission(PERMISSIONS.RUBRIC_MANAGE), rubricControl
 // Kích hoạt phiên bản thành ACTIVE (Admin)
 router.post('/:id/activate', authorizePermission(PERMISSIONS.RUBRIC_MANAGE), rubricController.activateRubric);
 
+// Khóa phiên bản Rubric (Admin)
+router.post('/:id/lock', authorizePermission(PERMISSIONS.RUBRIC_MANAGE), rubricController.lockRubric);
+
+// Khôi phục barem mẫu chuẩn 4 nhóm, 14 mục (Admin)
+router.post('/:id/restore-default', authorizePermission(PERMISSIONS.RUBRIC_MANAGE), rubricController.restoreDefaultRubric);
+
 // Xóa phiên bản nháp (Admin)
 router.delete('/:id', authorizePermission(PERMISSIONS.RUBRIC_MANAGE), rubricController.deleteRubric);
 

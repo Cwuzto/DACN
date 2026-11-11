@@ -102,8 +102,12 @@ router.post(
             .withMessage('lecturerId phải là số nguyên dương.'),
         body('members.*.roleInCouncil')
             .optional()
-            .isIn(['CHAIRMAN', 'SECRETARY', 'REVIEWER'])
+            .isIn(['CHAIRMAN', 'SECRETARY', 'REVIEWER', 'MEMBER'])
             .withMessage('roleInCouncil không hợp lệ.'),
+        body('allowFourthScoringMember')
+            .optional()
+            .isBoolean()
+            .withMessage('allowFourthScoringMember phải là boolean.'),
         validateRequest,
     ],
     authorizeCouncilCreate,
@@ -132,8 +136,12 @@ router.put(
             .withMessage('lecturerId phải là số nguyên dương.'),
         body('members.*.roleInCouncil')
             .optional()
-            .isIn(['CHAIRMAN', 'SECRETARY', 'REVIEWER'])
+            .isIn(['CHAIRMAN', 'SECRETARY', 'REVIEWER', 'MEMBER'])
             .withMessage('roleInCouncil không hợp lệ.'),
+        body('allowFourthScoringMember')
+            .optional()
+            .isBoolean()
+            .withMessage('allowFourthScoringMember phải là boolean.'),
         validateRequest,
     ],
     authorizeCouncilById,
@@ -326,6 +334,55 @@ router.post(
     ],
     authorizeCouncilById,
     councilController.removeRegistrationFromCouncil
+);
+
+router.post(
+    '/semesters/:semesterId/publish-eligible-defense-list',
+    [
+        param('semesterId').isInt({ min: 1 }).withMessage('semesterId phải là số nguyên dương.'),
+        validateRequest,
+    ],
+    authorizePermission(PERMISSIONS.DEFENSE_COUNCIL_MANAGE),
+    councilController.publishDefenseEligibleList
+);
+
+router.post(
+    '/:id/confirm-and-publish-schedule',
+    [
+        param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
+        body('orderedRegistrationIds').optional().isArray().withMessage('orderedRegistrationIds phải là mảng.'),
+        validateRequest,
+    ],
+    authorizeCouncilById,
+    councilController.confirmAndPublishDefenseSchedule
+);
+
+router.patch(
+    '/:id/registrations/:registrationId/schedule',
+    [
+        param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
+        param('registrationId').isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
+        body('newShift').isIn(['MORNING', 'AFTERNOON']).withMessage('newShift phải là MORNING hoặc AFTERNOON.'),
+        body('newOrderInShift').isInt({ min: 1 }).withMessage('newOrderInShift phải là số nguyên dương.'),
+        body('reason').isString().trim().notEmpty().withMessage('reason bắt buộc và không được để trống.'),
+        validateRequest,
+    ],
+    authorizeCouncilById,
+    councilController.adjustStudentDefenseSchedule
+);
+
+router.post(
+    '/:id/members/replace',
+    [
+        param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
+        body('oldMemberId').isInt({ min: 1 }).withMessage('oldMemberId phải là số nguyên dương.'),
+        body('newLecturerId').isInt({ min: 1 }).withMessage('newLecturerId phải là số nguyên dương.'),
+        body('reason').isString().trim().notEmpty().withMessage('reason bắt buộc và không được để trống.'),
+        body('confirmLockedSheetOverride').optional().isBoolean(),
+        validateRequest,
+    ],
+    authorizeCouncilById,
+    councilController.replaceDefenseCouncilMember
 );
 
 module.exports = router;

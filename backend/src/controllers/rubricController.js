@@ -96,6 +96,40 @@ const deleteRubric = async (req, res, next) => {
     }
 };
 
+const lockRubric = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { semesterId } = req.body;
+        const locked = await rubricService.lockRubricVersion(id, {
+            semesterId: semesterId ? parseInt(semesterId, 10) : undefined,
+            actorId: req.user.id,
+        });
+        res.json({
+            success: true,
+            message: `Đã khóa thành công phiên bản Rubric ${locked.version}.`,
+            data: locked,
+        });
+    } catch (error) {
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({ success: false, message: error.message, code: error.code });
+        }
+        res.status(400).json({ success: false, message: error.message });
+    }
+};
+
+const restoreDefaultRubric = async (req, res, next) => {
+    try {
+        const updated = await rubricService.restoreDefaultReferenceRubric(req.params.id, req.user.id);
+        res.json({
+            success: true,
+            message: 'Đã khôi phục barem về mẫu tham chiếu chuẩn 4 nhóm, 14 mục thành công.',
+            data: updated,
+        });
+    } catch (error) {
+        res.status(400).json({ success: false, message: error.message });
+    }
+};
+
 const checkEditStatus = async (req, res, next) => {
     try {
         const status = await rubricService.checkCanEditRubric();
@@ -111,6 +145,8 @@ module.exports = {
     getRubricById,
     createRubric,
     updateRubric,
+    lockRubric,
+    restoreDefaultRubric,
     activateRubric,
     deleteRubric,
     checkEditStatus,
