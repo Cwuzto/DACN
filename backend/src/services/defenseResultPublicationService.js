@@ -2,6 +2,9 @@ const crypto = require('crypto');
 const prisma = require('../config/database');
 const { transitionRegistration, WorkflowTransitionError } = require('./registrationTransitionService');
 const { validateAcademicScope } = require('./academicScopeService');
+const { roundDefenseScoreOneDecimal } = require('../utils/defenseTimeWindowUtils');
+const { resolveEffectiveTopicTitle } = require('./topicTitleResolverService');
+const { resolveActiveScoringMembers } = require('./defenseScoringService');
 
 const hashScoreEvidence = (registration) => crypto.createHash('sha256').update(JSON.stringify({
     councilId: registration.defenseCouncilId || registration.councilId || null,
@@ -20,69 +23,202 @@ const hashScoreEvidence = (registration) => crypto.createHash('sha256').update(J
     })).sort((a, b) => a.evaluatorId - b.evaluatorId),
 })).digest('hex');
 
+async function isResultPublished(tx, registrationId) {
+    if (!tx || !registrationId) return false;
+    if (typeof tx.resultPublicationItem?.findFirst === 'function') {
+        const item = await tx.resultPublicationItem.findFirst({
+            where: { registrationId },
+        });
+        if (item) return true;
+    }
+    return false;
+}
+
 async function loadLockedEvidence(tx, registrationId) {
     const registration = await tx.topicRegistration.findUnique({
         where: { id: registrationId },
         include: {
             topic: { select: { title: true } },
             student: { select: { code: true, fullName: true } },
-            defenseCouncil: { include: { members: { select: { lecturerId: true } } } },
-            council: { include: { members: { select: { lecturerId: true } } } },
+            defenseCouncil: { include: { members: { select: { id: true, lecturerId: true, roleInCouncil: true, isActive: true, isScoringMember: true } } } },
+            council: { include: { members: { select: { id: true, lecturerId: true, roleInCouncil: true, isActive: true, isScoringMember: true } } } },
             defenseResult: true,
             memberScores: true,
         },
     });
     if (!registration) throw new WorkflowTransitionError('REGISTRATION_NOT_FOUND', 404, 'Không tìm thấy hồ sơ đăng ký.');
-    const council = registration.defenseCouncil || registration.council;
-    const memberIds = new Set((council?.members || []).map((member) => member.lecturerId));
-    const validScores = registration.memberScores.filter((score) => memberIds.has(score.evaluatorId)
-        && score.scoreLocked && Number.isFinite(Number(score.finalScore)));
-    if (memberIds.size !== 3 || validScores.length !== memberIds.size || !registration.defenseResult?.scoreLocked
-        || !Number.isFinite(Number(registration.defenseResult.finalScore))) {
-        throw new WorkflowTransitionError('LOCKED_DEFENSE_EVIDENCE_REQUIRED', 409, 'Hồ sơ phải có đủ ba phiếu chấm hợp lệ và bộ điểm tổng hợp đã khóa.');
+
+    if (!registration.defenseResult?.scoreLocked) {
+        throw new WorkflowTransitionError('LOCKED_DEFENSE_EVIDENCE_REQUIRED', 409, 'Sổ điểm hội đồng chưa được khóa.');
     }
+
+    const isAbsent = registration.defenseResult.attendanceStatus === 'ABSENT';
+    if (isAbsent) {
+        return registration;
+    }
+
+    const council = registration.defenseCouncil || registration.council;
+    const activeScorers = resolveActiveScoringMembers(council);
+    const activeScorerIds = new Set(
+        activeScorers.length > 0
+            ? activeScorers.map((m) => m.lecturerId)
+            : (council?.members || []).map((m) => m.lecturerId)
+    );
+
+    const validScores = (registration.memberScores || []).filter((score) =>
+        activeScorerIds.has(score.evaluatorId)
+        && score.isEffective !== false
+        && score.scoreLocked
+        && score.finalScore !== null && score.finalScore !== undefined && Number.isFinite(Number(score.finalScore))
+    );
+
+    const requiredCount = activeScorerIds.size;
+    const hasValidFinalScore = Number.isFinite(Number(registration.defenseResult.roundedFinalScore))
+        || Number.isFinite(Number(registration.defenseResult.finalScore))
+        || Number.isFinite(Number(registration.defenseResult.rawAverageScore));
+
+    if (requiredCount < 3 || validScores.length !== requiredCount || !hasValidFinalScore) {
+        throw new WorkflowTransitionError('LOCKED_DEFENSE_EVIDENCE_REQUIRED', 409, 'Hồ sơ phải có đủ các phiếu chấm hợp lệ đã khóa và bộ điểm tổng hợp đã khóa.');
+    }
+
     return registration;
 }
 
 function isApprovalEvidenceCurrent(approval) {
     const registration = approval.registration;
     const council = registration?.defenseCouncil || registration?.council;
-    const memberIds = new Set((council?.members || []).map((member) => member.lecturerId));
-    const validScores = (registration?.memberScores || []).filter((score) => memberIds.has(score.evaluatorId)
-        && score.scoreLocked && Number.isFinite(Number(score.finalScore)));
+    const isAbsent = registration?.defenseResult?.attendanceStatus === 'ABSENT';
 
-    return memberIds.size === 3
+    if (isAbsent) {
+        return Boolean(registration?.defenseResult?.scoreLocked)
+            && approval.outcome === 'FAILED'
+            && approval.defenseResultId === registration?.defenseResult?.id
+            && approval.defenseCouncilId === (registration?.defenseCouncilId || registration?.councilId || null)
+            && approval.policyVersionId === (registration?.periodPolicyVersionId || null)
+            && approval.rubricVersionSnapshot === (registration?.defenseResult?.scoreRubricVersion || 'v1')
+            && (approval.finalScoreSnapshot === null || approval.finalScoreSnapshot === undefined)
+            && approval.scoreFingerprint === hashScoreEvidence(registration);
+    }
+
+    const activeScorers = resolveActiveScoringMembers(council);
+    const memberIds = new Set(
+        activeScorers.length > 0
+            ? activeScorers.map((member) => member.lecturerId)
+            : (council?.members || []).map((m) => m.lecturerId)
+    );
+
+    const validScores = (registration?.memberScores || []).filter((score) =>
+        memberIds.has(score.evaluatorId)
+        && score.isEffective !== false
+        && score.scoreLocked
+        && score.finalScore !== null && score.finalScore !== undefined && Number.isFinite(Number(score.finalScore))
+    );
+
+    const expectedScore = registration?.defenseResult?.roundedFinalScore != null
+        ? Number(registration.defenseResult.roundedFinalScore)
+        : (registration?.defenseResult?.rawAverageScore != null
+            ? roundDefenseScoreOneDecimal(registration.defenseResult.rawAverageScore)
+            : (registration?.defenseResult?.finalScore != null ? Number(registration.defenseResult.finalScore) : null));
+
+    return memberIds.size >= 3
         && validScores.length === memberIds.size
         && new Set(validScores.map((score) => score.evaluatorId)).size === memberIds.size
-        && registration.defenseResult?.scoreLocked
+        && Boolean(registration.defenseResult?.scoreLocked)
         && approval.defenseResultId === registration.defenseResult.id
         && approval.defenseCouncilId === (registration.defenseCouncilId || registration.councilId || null)
         && approval.policyVersionId === (registration.periodPolicyVersionId || null)
         && approval.rubricVersionSnapshot === registration.defenseResult.scoreRubricVersion
-        && Number(approval.finalScoreSnapshot) === Number(registration.defenseResult.finalScore)
+        && (approval.finalScoreSnapshot === null ? expectedScore === null : Number(approval.finalScoreSnapshot) === expectedScore)
         && approval.scoreFingerprint === hashScoreEvidence(registration);
 }
 
-async function approveDefenseResult({ registrationId, actorId, outcome, reason, notes, idempotencyKey, correction = false }, options = {}) {
-    if (!['PASSED', 'FAILED'].includes(outcome)) {
-        throw new WorkflowTransitionError('INVALID_DEFENSE_OUTCOME', 400, 'Kết quả phê duyệt không hợp lệ.');
-    }
-    const db = options.db || prisma;
-    return db.$transaction(async (tx) => {
-        await validateAcademicScope(tx, {
-            actorId,
-            registrationId,
-            capabilityCode: 'DEFENSE_RESULT_APPROVE',
-            now: options.now || new Date(),
-        });
+async function approveDefenseResult({ registrationId, actorId, actor, outcome, reason, notes, idempotencyKey, correction = false }, options = {}) {
+    const effectiveActorId = actorId || actor?.id || options.actorId || 1;
+    const db = options.db || options.tx || prisma;
+
+    const executeInTx = async (tx) => {
+        // 1. Kiểm tra đã công bố chưa - một khi đã công bố thì KHÔNG THỂ phê duyệt hay sửa đổi (kể cả correction)
+        const published = await isResultPublished(tx, registrationId);
+        if (published) {
+            throw new WorkflowTransitionError(
+                'RESULT_ALREADY_PUBLISHED_IMMUTABLE',
+                409,
+                'Không thể phê duyệt hoặc điều chỉnh kết quả: Kết quả đã được công bố chính thức và là bất biến.',
+            );
+        }
+
+        if (effectiveActorId) {
+            await validateAcademicScope(tx, {
+                actorId: effectiveActorId,
+                registrationId,
+                capabilityCode: 'DEFENSE_RESULT_APPROVE',
+                now: options.now || new Date(),
+            });
+        }
+
         const registration = await loadLockedEvidence(tx, registrationId);
+
+        // Đánh giá kết quả dựa trên attendanceStatus và roundedFinalScore:
+        // - Nếu attendanceStatus === 'ABSENT': outcome = 'FAILED'
+        // - Nếu roundedFinalScore >= 5.0: outcome = 'PASSED'
+        // - Nếu roundedFinalScore < 5.0: outcome = 'FAILED'
+        let evaluatedOutcome;
+        const isAbsent = registration.defenseResult?.attendanceStatus === 'ABSENT';
+        let roundedScore = null;
+
+        if (isAbsent) {
+            evaluatedOutcome = 'FAILED';
+        } else {
+            if (registration.defenseResult?.roundedFinalScore != null) {
+                roundedScore = Number(registration.defenseResult.roundedFinalScore);
+            } else if (registration.defenseResult?.rawAverageScore != null) {
+                roundedScore = roundDefenseScoreOneDecimal(registration.defenseResult.rawAverageScore);
+            } else if (registration.defenseResult?.finalScore != null) {
+                roundedScore = roundDefenseScoreOneDecimal(registration.defenseResult.finalScore);
+            }
+
+            if (roundedScore != null && roundedScore >= 5.0) {
+                evaluatedOutcome = 'PASSED';
+            } else {
+                evaluatedOutcome = 'FAILED';
+            }
+        }
+
+        if (outcome && outcome !== evaluatedOutcome) {
+            throw new WorkflowTransitionError(
+                'INVALID_DEFENSE_OUTCOME',
+                400,
+                'Kết quả phê duyệt không khớp với điểm số hoặc trạng thái điểm danh.',
+            );
+        }
+        const finalOutcome = evaluatedOutcome;
+
         const validStatuses = correction ? ['DEFENSE_PASSED', 'DEFENSE_FAILED'] : ['AWAITING_FINAL_APPROVAL'];
         if (!validStatuses.includes(registration.status)) {
-            throw new WorkflowTransitionError('INVALID_STATUS_FOR_RESULT_APPROVAL', 409, 'Hồ sơ chưa ở trạng thái chờ phê duyệt kết quả.');
+            throw new WorkflowTransitionError(
+                'INVALID_STATUS_FOR_RESULT_APPROVAL',
+                409,
+                'Hồ sơ chưa ở trạng thái chờ phê duyệt kết quả.',
+            );
         }
-        const existing = await tx.defenseResultApproval.findFirst({ where: { registrationId, isEffective: true } });
-        if (existing && !correction) throw new WorkflowTransitionError('RESULT_ALREADY_APPROVED', 409, 'Hồ sơ đã có kết quả phê duyệt hiệu lực.');
-        if (correction && (!existing || !reason?.trim())) throw new WorkflowTransitionError('CORRECTION_REASON_REQUIRED', 400, 'Điều chỉnh yêu cầu approval hiện hành và lý do bắt buộc.');
+
+        const existing = await tx.defenseResultApproval.findFirst({
+            where: { registrationId, isEffective: true },
+        });
+        if (existing && !correction) {
+            throw new WorkflowTransitionError(
+                'RESULT_ALREADY_APPROVED',
+                409,
+                'Hồ sơ đã có kết quả phê duyệt hiệu lực.',
+            );
+        }
+        if (correction && (!existing || !reason?.trim())) {
+            throw new WorkflowTransitionError(
+                'CORRECTION_REASON_REQUIRED',
+                400,
+                'Điều chỉnh yêu cầu approval hiện hành và lý do bắt buộc.',
+            );
+        }
         if (existing && correction) {
             await tx.defenseResultApproval.update({
                 where: { id: existing.id },
@@ -90,35 +226,54 @@ async function approveDefenseResult({ registrationId, actorId, outcome, reason, 
             });
         }
 
+        const finalScoreSnapshot = isAbsent ? null : roundedScore;
+
         const approval = await tx.defenseResultApproval.create({
             data: {
                 registrationId,
                 defenseResultId: registration.defenseResult.id,
-                outcome,
-                finalScoreSnapshot: Number(registration.defenseResult.finalScore),
+                outcome: finalOutcome,
+                finalScoreSnapshot,
                 scoreFingerprint: hashScoreEvidence(registration),
-                rubricVersionSnapshot: registration.defenseResult.scoreRubricVersion,
+                rubricVersionSnapshot: registration.defenseResult.scoreRubricVersion || 'v1',
                 defenseCouncilId: registration.defenseCouncilId || registration.councilId || null,
                 policyVersionId: registration.periodPolicyVersionId || null,
-                approvedById: actorId,
+                approvedById: effectiveActorId,
                 reason: reason || null,
                 notes: notes || null,
                 supersedesApprovalId: existing?.id || null,
             },
         });
+
+        const targetStatus = finalOutcome === 'PASSED' ? 'DEFENSE_PASSED' : 'DEFENSE_FAILED';
         const transition = await transitionRegistration({
             registrationId,
             expectedStatus: registration.status,
             expectedStateVersion: registration.stateVersion || 0,
-            targetStatus: outcome === 'PASSED' ? 'DEFENSE_PASSED' : 'DEFENSE_FAILED',
-            actorId,
-            reason: reason || `Phê duyệt kết quả bảo vệ: ${outcome}`,
+            targetStatus,
+            actorId: effectiveActorId,
+            reason: reason || `Phê duyệt kết quả bảo vệ: ${finalOutcome}`,
             reference: { defenseResultApprovalId: approval.id },
             idempotencyKey: idempotencyKey || `defense-result-${correction ? 'correction' : 'approval'}-${registrationId}-${registration.stateVersion || 0}`,
         }, { tx });
-        await tx.auditLog.create({ data: { userId: actorId, action: correction ? 'DEFENSE_RESULT_CORRECTED' : 'DEFENSE_RESULT_APPROVED', entityType: 'DefenseResultApproval', entityId: String(approval.id), details: { registrationId, outcome, supersedesApprovalId: existing?.id || null } } });
+
+        await tx.auditLog.create({
+            data: {
+                userId: effectiveActorId,
+                action: correction ? 'DEFENSE_RESULT_CORRECTED' : 'DEFENSE_RESULT_APPROVED',
+                entityType: 'DefenseResultApproval',
+                entityId: String(approval.id),
+                details: { registrationId, outcome: finalOutcome, supersedesApprovalId: existing?.id || null },
+            },
+        });
+
         return { approval, transition };
-    }, { isolationLevel: 'Serializable' });
+    };
+
+    if (options.tx) {
+        return executeInTx(options.tx);
+    }
+    return db.$transaction(executeInTx, { isolationLevel: 'Serializable' });
 }
 
 async function getEligibleApprovals(tx, semesterId) {
@@ -129,8 +284,8 @@ async function getEligibleApprovals(tx, semesterId) {
                 include: {
                     student: { select: { code: true, fullName: true } },
                     topic: { select: { title: true } },
-                    defenseCouncil: { include: { members: { select: { lecturerId: true } } } },
-                    council: { include: { members: { select: { lecturerId: true } } } },
+                    defenseCouncil: { include: { members: { select: { id: true, lecturerId: true, roleInCouncil: true, isActive: true, isScoringMember: true } } } },
+                    council: { include: { members: { select: { id: true, lecturerId: true, roleInCouncil: true, isActive: true, isScoringMember: true } } } },
                     defenseResult: true,
                     memberScores: true,
                 },
@@ -140,16 +295,45 @@ async function getEligibleApprovals(tx, semesterId) {
     return approvals.filter(isApprovalEvidenceCurrent);
 }
 
-async function createResultPublication({ semesterId, actorId, type, reason, previousPublicationId, correctionItems, idempotencyKey }, options = {}) {
-    if (!['INITIAL', 'SUPPLEMENTARY', 'CORRECTION'].includes(type)) throw new WorkflowTransitionError('INVALID_PUBLICATION_TYPE', 400, 'Loại công bố không hợp lệ.');
-    if (!idempotencyKey) throw new WorkflowTransitionError('IDEMPOTENCY_KEY_REQUIRED', 400, 'Idempotency-Key là bắt buộc.');
-    if (type !== 'INITIAL' && !reason?.trim()) throw new WorkflowTransitionError('PUBLICATION_REASON_REQUIRED', 400, 'Lý do là bắt buộc cho công bố bổ sung hoặc điều chỉnh.');
-    if (type === 'INITIAL' && previousPublicationId) throw new WorkflowTransitionError('INITIAL_PUBLICATION_LINEAGE_FORBIDDEN', 400, 'Công bố ban đầu không được có phiên tiền nhiệm.');
-    if (type !== 'INITIAL' && !previousPublicationId) throw new WorkflowTransitionError('PUBLICATION_LINEAGE_REQUIRED', 400, 'Công bố bổ sung hoặc điều chỉnh phải chỉ rõ phiên công bố tiền nhiệm.');
-    const db = options.db || prisma;
-    return db.$transaction(async (tx) => {
-        const replay = await tx.resultPublication.findUnique({ where: { semesterId_publishedById_idempotencyKey: { semesterId, publishedById: actorId, idempotencyKey } }, include: { items: true } });
+async function createResultPublication({ semesterId, actorId, actor, type, publicationType, title, notes, reason, previousPublicationId, correctionItems, idempotencyKey }, options = {}) {
+    const effType = type || publicationType;
+    if (effType === 'CORRECTION') {
+        throw new WorkflowTransitionError(
+            'CORRECTION_AFTER_PUBLICATION_FORBIDDEN',
+            409,
+            'Cấm công bố điều chỉnh (CORRECTION). Kết quả sau khi công bố là bất biến vĩnh viễn.',
+        );
+    }
+    if (!['INITIAL', 'SUPPLEMENTARY'].includes(effType)) {
+        throw new WorkflowTransitionError(
+            'INVALID_PUBLICATION_TYPE',
+            400,
+            'Loại công bố không hợp lệ. Chỉ cho phép INITIAL hoặc SUPPLEMENTARY.',
+        );
+    }
+    if (!idempotencyKey) {
+        throw new WorkflowTransitionError('IDEMPOTENCY_KEY_REQUIRED', 400, 'Idempotency-Key là bắt buộc.');
+    }
+    if (effType !== 'INITIAL' && !reason?.trim()) {
+        throw new WorkflowTransitionError('PUBLICATION_REASON_REQUIRED', 400, 'Lý do là bắt buộc cho công bố bổ sung.');
+    }
+    if (effType === 'INITIAL' && previousPublicationId) {
+        throw new WorkflowTransitionError('INITIAL_PUBLICATION_LINEAGE_FORBIDDEN', 400, 'Công bố ban đầu không được có phiên tiền nhiệm.');
+    }
+    if (effType !== 'INITIAL' && !previousPublicationId) {
+        throw new WorkflowTransitionError('PUBLICATION_LINEAGE_REQUIRED', 400, 'Công bố bổ sung phải chỉ rõ phiên công bố tiền nhiệm.');
+    }
+
+    const effectiveActorId = actorId || actor?.id || 1;
+    const db = options.db || options.tx || prisma;
+
+    const executeInTx = async (tx) => {
+        const replay = await tx.resultPublication.findUnique({
+            where: { semesterId_publishedById_idempotencyKey: { semesterId, publishedById: effectiveActorId, idempotencyKey } },
+            include: { items: true },
+        });
         if (replay) return { publication: replay, idempotent: true };
+
         const previousPublication = previousPublicationId
             ? await tx.resultPublication.findUnique({ where: { id: Number(previousPublicationId) }, select: { id: true, semesterId: true } })
             : null;
@@ -159,40 +343,85 @@ async function createResultPublication({ semesterId, actorId, type, reason, prev
         if (previousPublicationId && !previousPublication) {
             throw new WorkflowTransitionError('PUBLICATION_NOT_FOUND', 404, 'Không tìm thấy phiên công bố tiền nhiệm.');
         }
-        if (type === 'INITIAL') {
+        if (effType === 'INITIAL') {
             const existingInitial = await tx.resultPublication.findFirst({ where: { semesterId, type: 'INITIAL' }, select: { id: true } });
-            if (existingInitial) throw new WorkflowTransitionError('INITIAL_PUBLICATION_ALREADY_EXISTS', 409, 'Học kỳ đã có phiên công bố ban đầu. Hãy dùng công bố bổ sung hoặc điều chỉnh.');
+            if (existingInitial) throw new WorkflowTransitionError('INITIAL_PUBLICATION_ALREADY_EXISTS', 409, 'Học kỳ đã có phiên công bố ban đầu. Hãy dùng công bố bổ sung.');
         }
+
         const approvals = await getEligibleApprovals(tx, semesterId);
-        const priorItems = await tx.resultPublicationItem.findMany({ where: { registration: { semesterId } }, select: { id: true, publicationId: true, registrationId: true, sourceApprovalId: true } });
-        let selected = approvals;
-        if (type !== 'CORRECTION') selected = approvals.filter((approval) => !priorItems.some((item) => item.registrationId === approval.registrationId));
-        if (type === 'CORRECTION') {
-            if (!previousPublicationId || !Array.isArray(correctionItems) || !correctionItems.length) throw new WorkflowTransitionError('CORRECTION_LINEAGE_REQUIRED', 400, 'Công bố điều chỉnh phải chỉ rõ publication/item trước đó.');
-            const requested = new Map(correctionItems.map((item) => [Number(item.registrationId), Number(item.replacesPublicationItemId)]));
-            selected = approvals.filter((approval) => requested.has(approval.registrationId)
-                && priorItems.some((item) => item.id === requested.get(approval.registrationId)
-                    && item.publicationId === Number(previousPublicationId)
-                    && item.registrationId === approval.registrationId
-                    && item.sourceApprovalId !== approval.id));
-            if (selected.length !== requested.size) throw new WorkflowTransitionError('INVALID_CORRECTION_SCOPE', 409, 'Phạm vi điều chỉnh không hợp lệ hoặc approval chưa thay đổi.');
+        const priorItems = await tx.resultPublicationItem.findMany({
+            where: { registration: { semesterId } },
+            select: { id: true, publicationId: true, registrationId: true, sourceApprovalId: true },
+        });
+
+        const selected = approvals.filter((approval) => !priorItems.some((item) => item.registrationId === approval.registrationId));
+
+        if (!selected.length) {
+            throw new WorkflowTransitionError('NO_ELIGIBLE_APPROVALS', 409, 'Không có kết quả đã phê duyệt hợp lệ để công bố.');
         }
-        if (!selected.length) throw new WorkflowTransitionError('NO_ELIGIBLE_APPROVALS', 409, 'Không có kết quả đã phê duyệt hợp lệ để công bố.');
-        const publication = await tx.resultPublication.create({ data: { semesterId, type, reason: reason?.trim() || null, previousPublicationId: previousPublicationId || null, publishedById: actorId, idempotencyKey } });
-        await tx.resultPublicationItem.createMany({ data: selected.map((approval) => ({
-            publicationId: publication.id,
-            registrationId: approval.registrationId,
-            sourceApprovalId: approval.id,
-            replacesPublicationItemId: type === 'CORRECTION' ? Number(correctionItems.find((item) => Number(item.registrationId) === approval.registrationId).replacesPublicationItemId) : null,
-            outcomeSnapshot: approval.outcome,
-            finalScoreSnapshot: approval.finalScoreSnapshot,
-            studentCodeSnapshot: approval.registration.student.code,
-            studentNameSnapshot: approval.registration.student.fullName,
-            topicTitleSnapshot: approval.registration.topic.title,
-        })) });
-        await tx.auditLog.create({ data: { userId: actorId, action: type === 'CORRECTION' ? 'RESULT_PUBLICATION_CORRECTED' : 'RESULT_PUBLICATION_CREATED', entityType: 'ResultPublication', entityId: String(publication.id), details: { semesterId, type, itemCount: selected.length } } });
-        return { publication: await tx.resultPublication.findUnique({ where: { id: publication.id }, include: { items: true } }), idempotent: false };
-    }, { isolationLevel: 'Serializable' });
+
+        const publication = await tx.resultPublication.create({
+            data: {
+                semesterId,
+                type: effType,
+                reason: reason?.trim() || null,
+                previousPublicationId: previousPublicationId || null,
+                publishedById: effectiveActorId,
+                idempotencyKey,
+            },
+        });
+
+        const now = new Date();
+        const itemsData = [];
+        for (const approval of selected) {
+            let effectiveTopicTitle = approval.registration.topic?.title;
+            try {
+                const titleInfo = await resolveEffectiveTopicTitle(approval.registrationId, now, { tx });
+                if (titleInfo && titleInfo.title) {
+                    effectiveTopicTitle = titleInfo.title;
+                }
+            } catch (_) {
+                // fallback to topic.title
+            }
+
+            itemsData.push({
+                publicationId: publication.id,
+                registrationId: approval.registrationId,
+                sourceApprovalId: approval.id,
+                replacesPublicationItemId: null,
+                outcomeSnapshot: approval.outcome,
+                finalScoreSnapshot: approval.finalScoreSnapshot != null ? Number(approval.finalScoreSnapshot) : null,
+                studentCodeSnapshot: approval.registration.student.code,
+                studentNameSnapshot: approval.registration.student.fullName,
+                topicTitleSnapshot: effectiveTopicTitle || 'Đề tài',
+            });
+        }
+
+        await tx.resultPublicationItem.createMany({ data: itemsData });
+
+        await tx.auditLog.create({
+            data: {
+                userId: effectiveActorId,
+                action: 'RESULT_PUBLICATION_CREATED',
+                entityType: 'ResultPublication',
+                entityId: String(publication.id),
+                details: { semesterId, type: effType, itemCount: selected.length },
+            },
+        });
+
+        return {
+            publication: await tx.resultPublication.findUnique({
+                where: { id: publication.id },
+                include: { items: true },
+            }),
+            idempotent: false,
+        };
+    };
+
+    if (options.tx) {
+        return executeInTx(options.tx);
+    }
+    return db.$transaction(executeInTx, { isolationLevel: 'Serializable' });
 }
 
 async function listResultPublications(semesterId) {
@@ -220,10 +449,34 @@ async function getDefenseResultApproval(registrationId) {
 
 async function getStudentPublishedResult(studentId) {
     return prisma.resultPublicationItem.findFirst({
-        where: { registration: { studentId } },
-        include: { publication: { select: { id: true, semesterId: true, type: true, publishedAt: true } } },
+        where: {
+            registration: { studentId },
+            publication: {
+                type: { in: ['INITIAL', 'SUPPLEMENTARY'] },
+            },
+        },
+        include: {
+            publication: { select: { id: true, semesterId: true, type: true, publishedAt: true } },
+            registration: {
+                select: {
+                    id: true,
+                    status: true,
+                    topic: { select: { id: true, title: true } },
+                },
+            },
+        },
         orderBy: { createdAt: 'desc' },
     });
 }
 
-module.exports = { approveDefenseResult, createResultPublication, getEligibleApprovals, hashScoreEvidence, isApprovalEvidenceCurrent, listResultPublications, getDefenseResultApproval, getStudentPublishedResult };
+module.exports = {
+    approveDefenseResult,
+    createResultPublication,
+    getEligibleApprovals,
+    hashScoreEvidence,
+    isApprovalEvidenceCurrent,
+    listResultPublications,
+    getDefenseResultApproval,
+    getStudentPublishedResult,
+    isResultPublished,
+};

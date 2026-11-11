@@ -127,6 +127,16 @@ async function saveMemberScoreSheet(input, options = {}) {
             throw new WorkflowTransitionError('REGISTRATION_NOT_FOUND', 404, 'Không tìm thấy đăng ký đề tài.');
         }
 
+        // Kiểm tra đã công bố chưa - kết quả là bất biến sau công bố
+        const published = await isResultPublished(tx, registrationId);
+        if (published) {
+            throw new WorkflowTransitionError(
+                'RESULT_ALREADY_PUBLISHED_IMMUTABLE',
+                409,
+                'Không thể chấm điểm: Kết quả đã được công bố chính thức và là bất biến.',
+            );
+        }
+
         // INV-11 & INV-20: Giảng viên hướng dẫn tuyệt đối không được chấm điểm hội đồng cho sinh viên mình hướng dẫn
         if (registration.topic?.mentorId === effectiveEvaluatorId) {
             throw new WorkflowTransitionError(
@@ -414,6 +424,16 @@ async function lockMemberScoreSheet(input, options = {}) {
 
         if (!registration) {
             throw new WorkflowTransitionError('REGISTRATION_NOT_FOUND', 404, 'Không tìm thấy đăng ký đề tài.');
+        }
+
+        // Kiểm tra đã công bố chưa - kết quả là bất biến sau công bố
+        const published = await isResultPublished(tx, registrationId);
+        if (published) {
+            throw new WorkflowTransitionError(
+                'RESULT_ALREADY_PUBLISHED_IMMUTABLE',
+                409,
+                'Không thể khóa phiếu điểm: Kết quả đã được công bố chính thức và là bất biến.',
+            );
         }
 
         // INV-11 & INV-20: Giảng viên hướng dẫn tuyệt đối không được chấm điểm hội đồng cho sinh viên mình hướng dẫn
@@ -1199,6 +1219,16 @@ async function lockDefenseScores(input, options = {}) {
 
         if (!registration) {
             throw new WorkflowTransitionError('REGISTRATION_NOT_FOUND', 404, 'Không tìm thấy hồ sơ đăng ký.');
+        }
+
+        // Kiểm tra đã công bố chưa - kết quả là bất biến sau công bố
+        const published = await isResultPublished(tx, registrationId);
+        if (published) {
+            throw new WorkflowTransitionError(
+                'RESULT_ALREADY_PUBLISHED_IMMUTABLE',
+                409,
+                'Không thể thay đổi trạng thái khóa điểm: Kết quả đã được công bố chính thức và là bất biến.',
+            );
         }
 
         const effectiveCouncil = registration.defenseCouncil || registration.council;

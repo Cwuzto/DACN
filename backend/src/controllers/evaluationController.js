@@ -317,13 +317,14 @@ const getMyGrades = async (req, res, next) => {
 
         const isResultPublished = async (reg) => {
             if (Array.isArray(reg.resultPublicationItems) && reg.resultPublicationItems.length > 0) {
-                return reg.resultPublicationItems.some((item) => {
+                const found = reg.resultPublicationItems.find((item) => {
                     const pub = item.publication;
                     if (!pub) return false;
                     const validSemester = !reg.semesterId || !pub.semesterId || reg.semesterId === pub.semesterId;
                     const validType = ['INITIAL', 'SUPPLEMENTARY', 'CORRECTION'].includes(pub.type);
                     return validSemester && validType;
                 });
+                return found || null;
             }
 
             if (prisma.resultPublicationItem?.findFirst) {
@@ -340,21 +341,21 @@ const getMyGrades = async (req, res, next) => {
                     if (item && item.publication) {
                         const validSemester = !reg.semesterId || !item.publication.semesterId || reg.semesterId === item.publication.semesterId;
                         const validType = ['INITIAL', 'SUPPLEMENTARY', 'CORRECTION'].includes(item.publication.type);
-                        return validSemester && validType;
+                        return validSemester && validType ? item : null;
                     }
                 } catch (_) {
-                    return false;
+                    return null;
                 }
             }
 
-            return false;
+            return null;
         };
 
         const sanitized = await Promise.all(
             registrations.map(async (reg) => {
-                const published = await isResultPublished(reg);
+                const publishedItem = await isResultPublished(reg);
                 const { resultPublicationItems, ...rest } = reg;
-                if (!published) {
+                if (!publishedItem) {
                     return {
                         ...rest,
                         defenseResult: null,
@@ -362,8 +363,20 @@ const getMyGrades = async (req, res, next) => {
                         isPublished: false,
                     };
                 }
+                const formattedDefenseResult = rest.defenseResult ? {
+                    ...rest.defenseResult,
+                    finalScore: publishedItem.finalScoreSnapshot != null
+                        ? Number(publishedItem.finalScoreSnapshot)
+                        : (rest.defenseResult.roundedFinalScore != null ? Number(rest.defenseResult.roundedFinalScore) : rest.defenseResult.finalScore),
+                } : null;
+
                 return {
                     ...rest,
+                    topic: {
+                        ...rest.topic,
+                        title: publishedItem.topicTitleSnapshot || rest.topic?.title,
+                    },
+                    defenseResult: formattedDefenseResult,
                     isPublished: true,
                 };
             })
@@ -1309,7 +1322,10 @@ const publishDefenseResults = async (req, res, next) => {
         const result = await createResultPublication({
             semesterId,
             actorId: req.user.id,
-            type: req.body.type,
+            type: req.body.type || req.body.publicationType,
+            publicationType: req.body.publicationType || req.body.type,
+            title: req.body.title,
+            notes: req.body.notes,
             reason: req.body.reason,
             previousPublicationId: req.body.previousPublicationId,
             correctionItems: req.body.correctionItems,

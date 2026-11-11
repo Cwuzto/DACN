@@ -847,7 +847,7 @@ model DefenseResultApproval {
   registrationId        Int                     @map("registration_id")
   defenseResultId       Int                     @map("defense_result_id")
   outcome               DefenseApprovalOutcome
-  finalScoreSnapshot    Float                   @map("final_score_snapshot")
+  finalScoreSnapshot    Float?                  @map("final_score_snapshot")
   scoreFingerprint      String                  @map("score_fingerprint")
   rubricVersionSnapshot String                  @map("rubric_version_snapshot")
   defenseCouncilId      Int?                    @map("defense_council_id")
@@ -902,7 +902,7 @@ model ResultPublicationItem {
   sourceApprovalId          Int                     @map("source_approval_id")
   replacesPublicationItemId Int?                    @map("replaces_publication_item_id")
   outcomeSnapshot           DefenseApprovalOutcome  @map("outcome_snapshot")
-  finalScoreSnapshot        Float                   @map("final_score_snapshot")
+  finalScoreSnapshot        Float?                  @map("final_score_snapshot")
   studentCodeSnapshot       String                  @map("student_code_snapshot")
   studentNameSnapshot       String                  @map("student_name_snapshot")
   topicTitleSnapshot        String                  @map("topic_title_snapshot")

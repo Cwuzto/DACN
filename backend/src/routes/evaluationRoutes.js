@@ -208,14 +208,14 @@ router.get(
 const approveResultGuards = [
     authorizePermission(PERMISSIONS.DEFENSE_RESULT_APPROVE),
     param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
-    body('outcome').isIn(['PASSED', 'FAILED']).withMessage('outcome phải là PASSED hoặc FAILED.'),
+    body('outcome').optional().isIn(['PASSED', 'FAILED']).withMessage('outcome phải là PASSED hoặc FAILED.'),
     body('reason').optional({ nullable: true }).isString().trim().isLength({ max: 4000 }),
     body('notes').optional({ nullable: true }).isString().trim().isLength({ max: 8000 }),
     validateRequest,
 ];
 
 router.post(
-    ['/admin-defense-center/:id/result-approval', '/councils/:id/results/approve'],
+    ['/admin-defense-center/:id/result-approval', '/councils/:id/results/approve', '/admin-defense-center/:id/approve-result', '/:id/approve-result'],
     approveResultGuards,
     evaluationController.approveDefenseResultAction,
 );

@@ -105,7 +105,7 @@ describe('defenseResultPublicationService', () => {
         }, { db: transactionDb(tx) })).rejects.toMatchObject({ code: 'INVALID_PUBLICATION_LINEAGE', status: 409 });
     });
 
-    it('INV-31: rejects correction when the replaced item is not in the declared predecessor publication', async () => {
+    it('INV-31 & Spec 5.4: rejects CORRECTION publication type as post-publication edits are strictly forbidden', async () => {
         const approval = validApproval();
         const tx = {
             resultPublication: {
@@ -127,7 +127,7 @@ describe('defenseResultPublicationService', () => {
             previousPublicationId: 700,
             correctionItems: [{ registrationId: 101, replacesPublicationItemId: 900 }],
             idempotencyKey: 'correction-key-001',
-        }, { db: transactionDb(tx) })).rejects.toMatchObject({ code: 'INVALID_CORRECTION_SCOPE', status: 409 });
+        }, { db: transactionDb(tx) })).rejects.toMatchObject({ code: 'CORRECTION_AFTER_PUBLICATION_FORBIDDEN', status: 409 });
     });
 
     it('INV-29: writes student, topic, outcome and score as source-independent snapshot fields', async () => {
