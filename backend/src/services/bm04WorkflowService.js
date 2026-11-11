@@ -74,7 +74,7 @@ async function getBM04Record(registrationId, options = {}) {
             registration: {
                 include: {
                     topic: { include: { mentor: { select: { id: true, fullName: true, department: true } } } },
-                    student: { select: { id: true, fullName: true, code: true, class: true } },
+                    student: { select: { id: true, fullName: true, code: true, studentProfile: { select: { className: true } } } },
                 },
             },
             instituteDefenseReview: {
@@ -94,7 +94,7 @@ async function getBM04Record(registrationId, options = {}) {
         where: { id: regId },
         include: {
             topic: { include: { mentor: { select: { id: true, fullName: true, department: true } } } },
-            student: { select: { id: true, fullName: true, code: true, class: true } },
+            student: { select: { id: true, fullName: true, code: true, studentProfile: { select: { className: true } } } },
         },
     });
 
@@ -117,7 +117,7 @@ async function getBM04Record(registrationId, options = {}) {
         status: 'DRAFT',
         isLocked: false,
         effectiveTitleSnapshot: effectiveTitle,
-        studentClassSnapshot: registration.student?.class || null,
+        studentClassSnapshot: registration.student?.class || registration.student?.studentProfile?.className || null,
         thesisFormatScore: '',
         researchContentScore: '',
         applicabilityScore: '',
@@ -187,7 +187,7 @@ async function saveBM04Draft(input, options = {}) {
             titleInfo = null;
         }
         const effectiveTitle = titleInfo?.title || registration.topic?.title || '';
-        const studentClass = registration.student?.class || null;
+        const studentClass = registration.student?.class || registration.student?.studentProfile?.className || null;
 
         const conclusion = defenseRecommendation === 'NOT_APPROVE_FOR_DEFENSE' ? 'NOT_AGREED_FOR_DEFENSE' : 'AGREED_FOR_DEFENSE';
 
@@ -350,7 +350,7 @@ async function signAndSubmitBM04(input, options = {}) {
             titleInfo = null;
         }
         const effectiveTitle = titleInfo?.title || registration.topic?.title || '';
-        const studentClass = registration.student?.class || null;
+        const studentClass = registration.student?.class || registration.student?.studentProfile?.className || null;
 
         const conclusion = isApprove ? 'AGREED_FOR_DEFENSE' : 'NOT_AGREED_FOR_DEFENSE';
         const evalStatus = isApprove ? 'SIGNED_APPROVED' : 'PENDING_INSTITUTE_REVIEW';

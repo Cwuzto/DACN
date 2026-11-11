@@ -10,6 +10,8 @@
     "db:deploy": "npx prisma migrate deploy",
     "db:status": "npx prisma migrate status",
     "db:seed": "node prisma/seed.js",
+    "db:seed:phase1": "node prisma/seedPhase1.js",
+    "db:seed:phase2": "node prisma/seedPhase2.js",
     "db:seed:reset": "node prisma/seed.js",
     "db:studio": "npx prisma studio",
     "db:reset": "npx prisma migrate reset",

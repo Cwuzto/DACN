@@ -41,4 +41,25 @@ describe('application reset boundary', () => {
     expect(prisma.$executeRawUnsafe.mock.calls[0][0]).toMatch(/^TRUNCATE TABLE public\./);
     expect(prisma.$executeRawUnsafe.mock.calls[0][0]).toContain('RESTART IDENTITY CASCADE');
   });
+
+  test('includes all 12 BM02-BM04 phase 2 tables in APPLICATION_TABLES', () => {
+    const { APPLICATION_TABLES } = require(modulePath);
+    const requiredTables = [
+      'topic_assignment_decisions',
+      'topic_assignment_decision_items',
+      'bm02a_adjustment_requests',
+      'bm02a_form_versions',
+      'electronic_signature_events',
+      'title_adjustment_appendices',
+      'title_adjustment_appendix_items',
+      'bm03_progress_records',
+      'bm03_meeting_entries',
+      'bm03_stage_evaluations',
+      'institute_stop_reviews',
+      'institute_defense_reviews',
+    ];
+    for (const table of requiredTables) {
+      expect(APPLICATION_TABLES).toContain(table);
+    }
+  });
 });

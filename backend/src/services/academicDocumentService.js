@@ -57,9 +57,16 @@ async function submitBM02({ registrationId, studentId, bm02ProposedTitle, titleC
                     select: {
                         id: true,
                         fullName: true,
-                        studentCode: true,
+                        code: true,
                         email: true,
-                        className: true,
+                        studentProfile: {
+                            select: {
+                                className: true,
+                                gender: true,
+                                dateOfBirth: true,
+                                major: true,
+                            },
+                        },
                     },
                 },
             },
@@ -116,9 +123,9 @@ async function submitBM02({ registrationId, studentId, bm02ProposedTitle, titleC
         const studentSnapshot = registration.student ? {
             id: registration.student.id,
             fullName: registration.student.fullName,
-            studentCode: registration.student.studentCode,
+            studentCode: registration.student.studentCode || registration.student.code,
             email: registration.student.email,
-            className: registration.student.className,
+            className: registration.student.className || registration.student.studentProfile?.className,
         } : null;
 
         const mentorSnapshot = registration.topic?.mentor ? {
@@ -407,7 +414,7 @@ async function createTopicDecision({
                 registrationId: reg.id,
                 bm02SubmissionId: reg.currentBM02Submission.id,
                 approvedTitleSnapshot: approvedTitle,
-                studentCodeSnapshot: reg.student?.studentCode || '',
+                studentCodeSnapshot: reg.student?.studentCode || reg.student?.code || '',
                 studentNameSnapshot: reg.student?.fullName || '',
                 mentorNameSnapshot: reg.topic?.mentor?.fullName || '',
             });

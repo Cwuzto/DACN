@@ -193,4 +193,33 @@ describe('multi-semester demo seed summary validator', () => {
 
     await expect(validateDemoSeed(prisma)).rejects.toThrow();
   });
+
+  test('phase1Fixtures and phase2Fixtures expose complete 133-account inventory and student profiles', () => {
+    const phase1 = require('../../scripts/seed/phase1Fixtures');
+    const phase2 = require('../../scripts/seed/phase2Fixtures');
+
+    const accounts1 = phase1.buildAccounts();
+    const accounts2 = phase2.buildAccounts();
+
+    expect(accounts1).toHaveLength(133);
+    expect(accounts2).toHaveLength(133);
+    expect(accounts1.filter((a) => a.role === 'ADMIN')).toHaveLength(1);
+    expect(accounts1.filter((a) => a.role === 'LECTURER')).toHaveLength(12);
+    expect(accounts1.filter((a) => a.role === 'STUDENT')).toHaveLength(120);
+
+    for (let i = 1; i <= 120; i++) {
+      const p1 = phase1.buildStudentProfileData(i);
+      const p2 = phase2.buildStudentProfileData(i);
+      expect(p1.studentId).toBe(`2200${String(i).padStart(3, '0')}`);
+      expect(p2.studentId).toBe(`2200${String(i).padStart(3, '0')}`);
+      expect(p1.placeOfBirth).toBeTruthy();
+      expect(p1.className).toBeTruthy();
+      expect(p1.cohort).toBeTruthy();
+      expect(p1.major).toBeTruthy();
+      expect(p2.placeOfBirth).toBeTruthy();
+      expect(p2.className).toBeTruthy();
+      expect(p2.cohort).toBeTruthy();
+      expect(p2.major).toBeTruthy();
+    }
+  });
 });

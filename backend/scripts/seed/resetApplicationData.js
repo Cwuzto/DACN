@@ -10,6 +10,10 @@ const APPLICATION_TABLES = Object.freeze([
   'student_project_enrollments', 'student_profiles', 'lecturer_project_assignments', 'public_announcements', 'portal_configurations', 'portal_links',
   'portal_templates', 'portal_content_revisions', 'topic_title_adjustments',
   'bm04_evaluations', 'checkpoint_evaluations', 'checkpoint_signature_appeals', 'mentor_transfers',
+  'electronic_signature_events', 'topic_assignment_decisions', 'topic_assignment_decision_items',
+  'bm02a_adjustment_requests', 'bm02a_form_versions', 'title_adjustment_appendices',
+  'title_adjustment_appendix_items', 'bm03_progress_records', 'bm03_meeting_entries',
+  'bm03_stage_evaluations', 'institute_stop_reviews', 'institute_defense_reviews',
 ]);
 
 const RESET_CONFIRMATION = 'RESET_DACN_DEMO';
