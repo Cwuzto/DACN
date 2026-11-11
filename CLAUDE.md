@@ -70,6 +70,72 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 
 ## 6. Cập Nhật Phiên Làm Việc (Session Update)
 
+### Phiên 11/11/2026 (Hoàn Tất Chuỗi Quy Trình Học Vụ BM02 – BM04, 5 Sweep Jobs, 2 Bộ Seed Độc Lập & Củng Cố Hội Đồng)
+
+#### 1. Những phần đã hoàn thành
+1. **Thiết kế & Thực thi toàn trình Chuỗi Quy trình Học vụ từ BM02 đến BM04 (8/8 Tasks theo Phương án 3)**:
+   - **Tài liệu đặc tả & Kế hoạch**: Hoàn thiện tài liệu kiến trúc [2026-11-11-bm02-to-bm04-workflow-design.md](file:///d:/DACN/docs/superpowers/specs/2026-11-11-bm02-to-bm04-workflow-design.md) và kế hoạch triển khai [2026-11-11-bm02-to-bm04-implementation-plan.md](file:///d:/DACN/docs/superpowers/plans/2026-11-11-bm02-to-bm04-implementation-plan.md).
+   - **Mở rộng Additive Prisma Schema (`backend/prisma/schema.prisma`)**:
+     * Bổ sung 12 bảng mới: `TopicDecision`, `TopicDecisionItem`, `TitleAdjustmentAppendix`, `TitleAdjustmentAppendixItem`, `BM03Record`, `BM03SessionEntry`, `BM03CheckpointReview`, `InstituteStopReview`, `InstituteDefenseReview`, `AcademicElectronicSignature`, `AcademicDocumentSnapshot`, `ScheduledSweepExecution`.
+     * Mở rộng các bảng hiện có (`TopicRegistration`, `TopicTitleAdjustment`, `BM04Evaluation`) và 10 enums trạng thái học vụ mới mà không phá vỡ bất kỳ luồng BM01 hay Hội đồng hiện hữu nào.
+   - **Dịch vụ nền tảng dùng chung**:
+     * `topicTitleResolverService.js`: Hàm `resolveEffectiveTopicTitle(registrationId, { atTime, tx })` phân giải tên đề tài chuẩn tại mọi mốc thời gian.
+     * `electronicSignatureService.js`: Chữ ký điện tử nội bộ gắn `payloadHash` SHA-256 (`canonicalJsonHash`), kiểm tra chống giả mạo và xác thực danh tính người ký.
+     * `academicPdfService.js` & `academicDocumentService.js`: Xuất PDF chuẩn hành chính học vụ và lưu snapshot bất biến `AcademicDocumentSnapshot`.
+2. **Chặng 1A & 1B — Đăng ký BM02, Quyết định giao đề tài, Điều chỉnh tên BM02-A & Phụ lục**:
+   - **Backend BM02 & Quyết định (`academicWorkflowService.js`)**: Nộp BM02 (`submitBM02`) cho phép đề xuất tinh chỉnh tên kèm lý do (`bm02ProposedTitle` + `titleChangeReason`) mà vẫn giữ nguyên `bm01ApprovedTitleSnapshot`; Viện duyệt BM02 tối đa 1 lần yêu cầu sửa (`reviewBM02`); lập và công bố Quyết định giao đề tài theo đợt (`createTopicDecision`, `publishTopicDecision`), kích hoạt cửa sổ 168 giờ tính từ `decisionPublishedAt`.
+   - **Backend BM02-A & Phụ lục (`bm02aWorkflowService.js`, `titleAdjustmentAppendixService.js`)**: Luồng đơn xin điều chỉnh tên đề tài BM02-A trong 168 giờ, giới hạn tối đa 2 phiên bản (`v1`, `v2`) bằng cập nhật nguyên tử `revisionCount = 0`, chuỗi 3 chữ ký tuần tự bắt buộc (`STUDENT` $\rightarrow$ `ADVISOR` $\rightarrow$ `HEAD_OF_DEPT`) cùng `payloadHash`, và phát hành Phụ lục điều chỉnh tên theo đợt (`ISSUED`).
+   - **Frontend Chặng 1A & 1B**: Xây dựng `bm02aService.js`, `TitleAdjustmentModal.jsx` (stepper 3 chữ ký, đồng hồ đếm ngược 168h, so sánh tên cũ/mới), nâng cấp `HybridBMFormModal.jsx`, `BM02ReviewDrawer.jsx`, `TopicApprovalPage.jsx`, `ProjectPeriodPage.jsx`.
+3. **Chặng 2 — Theo dõi thực hiện đề tài BM03 & Thẩm định dừng thực hiện**:
+   - **Backend BM03 (`bm03WorkflowService.js`, `bm03Controller.js`, `bm03Routes.js`)**:
+     * Nhật ký từng buổi hướng dẫn (`BM03SessionEntry`): Chỉ GVHD ghi nhận và ký khóa (`isLocked = true`), sinh viên xem công khai theo thời gian thực mà không phải ký từng buổi.
+     * Đánh giá Giữa kỳ (`MIDTERM`: `CONTINUE` / `PROPOSE_STOP`) và Cuối kỳ (`FINAL`: `CONTINUE_TO_BM04` / `PROPOSE_STOP`).
+     * Khi GVHD đề xuất `PROPOSE_STOP`, hệ thống tạo hồ sơ `InstituteStopReview` với SLA 168 giờ và tối đa 1 lần gia hạn 72 giờ (`extensionCount = 0`).
+     * Khi hoàn tất Cuối kỳ (`CONTINUE_TO_BM04`), GVHD ký toàn phiếu BM03, mở cửa sổ 48 giờ để sinh viên ký xác nhận hoặc ghi nhận ý kiến bảo lưu trước khi xuất PDF chốt sổ.
+4. **Chặng 3 — Đánh giá trước bảo vệ BM04, Thẩm định không bảo vệ & 5 Scheduled Sweep Jobs**:
+   - **Backend BM04 (`bm04WorkflowService.js`, `bm04Controller.js`, `bm04Routes.js`)**:
+     * Phiếu đánh giá BM04 với 4 tiêu chí bắt buộc và 2 kết luận độc lập: `programOutcome` (`COMPLETED` / `NOT_COMPLETED`) và `defenseRecommendation` (`ALLOW_DEFENSE` / `DO_NOT_ALLOW_DEFENSE`).
+     * Nhánh đồng ý (`COMPLETED` + `ALLOW_DEFENSE`): Sau khi GVHD ký số, tự động chuyển ngay sang `DEFENSE_READY` (không qua Viện duyệt từng hồ sơ) và xuất PDF BM04.
+     * Nhánh không đồng ý (`DO_NOT_ALLOW_DEFENSE`): Mở hồ sơ `InstituteDefenseReview` với SLA 168 giờ + tối đa 1 lần gia hạn 72 giờ để Viện thẩm định (`REJECTED_FINAL` hoặc trả về `BM03_IN_PROGRESS`).
+   - **5 Scheduled Sweep Jobs (`bm02ToBm04SweepService.js`)**:
+     * Tự động hóa idempotent cho: (1) Đóng cửa sổ 168h BM02-A hết hạn, (2) Chốt BM03 quá hạn 48h sinh viên chưa ký bằng `ACKNOWLEDGEMENT_TIMEOUT`, (3) Xử lý quá hạn SLA 168h thẩm định dừng BM03 bằng `SYSTEM_TIMEOUT`, (4) Xử lý quá hạn SLA 168h thẩm định không bảo vệ BM04 bằng `SYSTEM_TIMEOUT`, (5) Cảnh báo SLA sắp hết hạn trước 24h. Tuyệt đối không tạo chữ ký giả của Admin hay Sinh viên khi timeout.
+   - **Frontend Chặng 2 & 3**: Nâng cấp `evaluationService.js`, `meetingLogService.js`, `ProgressTrackingPage.jsx`, `StudentProgressDetailPanel.jsx`, `BM04EvaluationModal.jsx`, `SubmissionPage.jsx`, `StudentDashboardPage.jsx`, `ProjectOversightPage.jsx` (Hàng đợi thẩm định dừng BM03 & không bảo vệ BM04 kèm đếm ngược SLA 168h và nút gia hạn +72h).
+5. **Kiểm thử Tích hợp E2E Toàn Trình (`bm02ToBm04FullE2E.test.js`)**:
+   - Viết bộ kiểm thử tích hợp 2.297 dòng với **29/29 test cases PASS**, kiểm chứng toàn bộ 15 tiêu chí nghiệm thu từ `BM01_PASSED` $\rightarrow$ `DEFENSE_READY`, bao gồm cả race condition (`Promise.all`) trên giới hạn sửa 1 lần và gia hạn SLA 1 lần.
+6. **Xây dựng 2 Bộ Seed Độc Lập cho Giai đoạn 1 & Giai đoạn 2**:
+   - Cập nhật `backend/scripts/seed/resetApplicationData.js` bao phủ đủ 62 bảng ứng dụng.
+   - **Bộ Seed Giai đoạn 1 (`npm --prefix backend run db:seed:phase1`)**: `backend/prisma/seedPhase1.js` & `backend/scripts/seed/phase1Fixtures.js` tạo 1 Admin, 12 GV, 120 SV chia thành 8 kịch bản phủ kín quy trình từ chưa đăng ký, chờ duyệt GVHD, nộp đề cương BM01 v1, tự động phân công HĐ Đề cương, Thư ký chấm nháp, Chủ tịch công bố kết quả, nộp lại v2 đến `BM01_PASSED`.
+   - **Bộ Seed Giai đoạn 2 (`npm --prefix backend run db:seed:phase2`)**: `backend/prisma/seedPhase2.js` & `backend/scripts/seed/phase2Fixtures.js` tạo 1 Admin, 12 GV, 120 SV chia thành 15 kịch bản phủ kín quy trình từ `BM01_PASSED` qua BM02, Quyết định giao đề tài, BM02-A (còn hạn/hết hạn/phụ lục), BM03 (nhật ký buổi học, thẩm định dừng, cửa sổ 48h), BM04 (đồng ý/thẩm định không bảo vệ) đến `DEFENSE_READY` và Hội đồng bảo vệ.
+7. **Rà soát & Củng cố `backend/src/controllers/councilController.js`**:
+   - Mở rộng kiểm tra xung đột lợi ích (COI) trong `validateCouncilMembersAgainstAssignedStudents` trên cả `outlineCouncilId` và `defenseCouncilId`.
+   - Bổ sung kiểm tra quyền thành viên hội đồng trong `getCouncilById` đối với giảng viên không có quyền quản trị.
+   - Đồng bộ điều kiện kiểm tra gán sinh viên vào Hội đồng bảo vệ trong `assignRegistrationsToCouncil` (`defenseCouncilId || councilId`, tương thích đầy đủ các trường kết luận BM04).
+   - Sửa `deleteCouncil` kiểm tra tổng số sinh viên trên cả 3 quan hệ (`registrations`, `outlineRegistrations`, `defenseRegistrations`) và dọn dẹp các dòng `await prisma.$transaction` bị lặp.
+
+#### 2. Trạng thái cập nhật của từng phần
+- **Database (Supabase PostgreSQL & Prisma)**: Đã đồng bộ hoàn toàn schema mới (`npx prisma db push` & `npx prisma generate`), hiện đang nạp sẵn dữ liệu **Bộ Seed Giai đoạn 2** (120 sinh viên, 15 kịch bản BM02–BM04).
+- **Backend API**: Hoạt động ổn định 100%; toàn bộ 5 bộ test quy trình BM02–BM04 đạt **124/124 tests PASS**, 4 bộ test Hội đồng & E2E đạt **75/75 tests PASS**.
+- **Frontend SPA**: Tuân thủ 100% Rule 2.6 (không chèn ký tự thô/emoji vào nhãn `Button`); **114/114 frontend tests PASS**; `npm --prefix frontend run build` thành công (**0 lỗi**).
+- **Git**: Đã commit sạch sẽ toàn bộ các chặng triển khai, bộ seed và bản vá `councilController.js` trên nhánh `develop`.
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+1. **Kiểm thử Trải nghiệm Người dùng (Manual UI Walkthrough) với 2 Bộ Seed**:
+   - Chạy thử nghiệm trực tiếp trên trình duyệt với các tài khoản mẫu trong `db:seed:phase1` và `db:seed:phase2` để rà soát tinh chỉnh UX trên từng màn hình (Sinh viên, GVHD, Trưởng bộ môn, Viện/Admin).
+2. **Hoàn thiện Giai đoạn 5 & 6 (Chấm điểm Hội đồng Bảo vệ & Nộp Lưu chiểu sau bảo vệ)**:
+   - Rà soát chi tiết luồng chấm điểm độc lập của 3 thành viên Hội đồng Bảo vệ (`DEFENSE_COUNCIL`), xuất biên bản tổng hợp điểm bảo vệ và luồng nộp quyển/source code lưu chiểu sau bảo vệ.
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+1. **Kiến trúc Sổ cái Học vụ Bất biến (Phương án 3 — Additive Schema)**:
+   - Không ghi đè tên đề tài hay xóa lịch sử các lần nộp/duyệt; mọi văn bản pháp lý (Quyết định giao đề tài, Phụ lục điều chỉnh tên, Phiếu BM03, Phiếu BM04) đều được băm SHA-256 (`payloadHash`), ký điện tử nội bộ và lưu snapshot PDF bất biến.
+2. **Thứ tự ưu tiên phân giải tên đề tài (`resolveEffectiveTopicTitle`)**:
+   - Phụ lục `ISSUED` có `signedDate <= atTime` mới nhất $\rightarrow$ Quyết định giao đề tài `PUBLISHED` $\rightarrow$ BM02 `APPROVED` $\rightarrow$ Tên đề tài gốc trên `TopicRegistration`. Tuyệt đối không lấy tên từ đơn BM02-A đang nháp hoặc chờ duyệt làm tên chính thức.
+3. **Chống giả mạo chữ ký khi quá hạn SLA (Timeout Integrity)**:
+   - Khi sinh viên quá hạn 48h xác nhận BM03 hoặc Viện quá hạn 168h (+72h) thẩm định dừng/không bảo vệ, Sweep Job xử lý chuyển trạng thái bằng `ACKNOWLEDGEMENT_TIMEOUT` / `SYSTEM_TIMEOUT` và in ghi chú hệ thống lên PDF, tuyệt đối không sinh chữ ký giả của Sinh viên hay Admin.
+4. **Tách biệt 2 Bộ Seed Giai đoạn 1 và Giai đoạn 2**:
+   - Đảm bảo mỗi bộ seed có 120 sinh viên (12 GVHD $\times$ 10 SV, tuân thủ nghiêm ngặt trần 10 SV/GVHD/đợt) nhưng tập trung sâu vào từng giai đoạn nghiệp vụ riêng biệt, giúp dev và QA có thể kiểm thử ngay lập tức mọi nhánh trạng thái của Giai đoạn 1 hoặc Giai đoạn 2 chỉ bằng 1 câu lệnh.
+
+---
+
 ### Phiên 10-11/11/2026 (Nâng Cấp Giao Diện Hội Đồng, Trang Chi Tiết Riêng, Độ Tương Phản UI/UX Pro Max & Nhân Bản Hóa Audit Log)
 
 #### 1. Những phần đã hoàn thành
