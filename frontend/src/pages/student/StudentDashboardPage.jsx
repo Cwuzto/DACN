@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Input, Modal, message } from 'antd';
+import { Button, Input, Modal, Alert, Radio, message } from 'antd';
 import {
     ArrowRightOutlined,
     ClockCircleOutlined,
@@ -9,12 +9,17 @@ import {
     FileDoneOutlined,
     DownloadOutlined,
     CloseOutlined,
+    FilePdfOutlined,
+    CheckCircleOutlined,
+    CloseCircleOutlined,
+    FileTextOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import useAuthStore from '../../stores/authStore';
 import dashboardService from '../../services/dashboardService';
 import registrationService from '../../services/registrationService';
 import outlineService from '../../services/outlineService';
+import evaluationService from '../../services/evaluationService';
 import TitleAdjustmentModal from '../../components/student/TitleAdjustmentModal';
 
 const ACTIVE_FLOW_STATUSES = [
@@ -54,6 +59,40 @@ export default function StudentDashboardPage() {
     const [withdrawing, setWithdrawing] = useState(false);
     const [titleModalOpen, setTitleModalOpen] = useState(false);
     const [bm02ModalOpen, setBm02ModalOpen] = useState(false);
+    const [bm03Record, setBm03Record] = useState(null);
+    const [bm04Record, setBm04Record] = useState(null);
+    const [bm03AckModalOpen, setBm03AckModalOpen] = useState(false);
+    const [bm03AckAction, setBm03AckAction] = useState('ACKNOWLEDGED');
+    const [bm03AckComment, setBm03AckComment] = useState('');
+    const [ackSubmitting, setAckSubmitting] = useState(false);
+
+    const handleStudentAckBM03 = async (actionToSubmit) => {
+        const action = actionToSubmit || bm03AckAction;
+        if (action === 'DECLINED_TO_ACKNOWLEDGE' && !bm03AckComment.trim()) {
+            message.warning('Bắt buộc nhập lý do khi từ chối ký xác nhận.');
+            return;
+        }
+        if (!bm03Record?.id) return;
+        try {
+            setAckSubmitting(true);
+            const res = await evaluationService.studentAcknowledgeBM03(bm03Record.id, {
+                action,
+                comment: bm03AckComment.trim() || undefined,
+            });
+            if (res.success) {
+                message.success('Đã gửi phản hồi xác nhận BM03 thành công!');
+                setBm03AckModalOpen(false);
+                setBm03AckComment('');
+                fetchDashboardData();
+            } else {
+                message.error(res.message || 'Không thể gửi phản hồi.');
+            }
+        } catch (error) {
+            message.error(error?.message || 'Lỗi khi gửi phản hồi.');
+        } finally {
+            setAckSubmitting(false);
+        }
+    };
 
     const fetchDashboardData = async () => {
         try {
@@ -73,11 +112,22 @@ export default function StudentDashboardPage() {
                 const regId = resData?.registrationDetails?.registrationId || resData?.registrationDetails?.id;
                 if (regId) {
                     try {
-                        const actionRes = await registrationService.getAllowedActions(regId);
-                        if (actionRes.success && Array.isArray(actionRes.data?.allowedActions)) {
+                        const [actionRes, bm03Res, bm04Res] = await Promise.all([
+                            registrationService.getAllowedActions(regId).catch(() => ({ success: false })),
+                            evaluationService.getBM03Record(regId).catch(() => ({ success: false })),
+                            evaluationService.getBM04Record(regId).catch(() => ({ success: false })),
+                        ]);
+
+                        if (actionRes?.success && Array.isArray(actionRes.data?.allowedActions)) {
                             setAllowedActions(actionRes.data.allowedActions);
                         } else {
                             setAllowedActions([]);
+                        }
+                        if (bm03Res?.success && bm03Res.data) {
+                            setBm03Record(bm03Res.data);
+                        }
+                        if (bm04Res?.success && bm04Res.data) {
+                            setBm04Record(bm04Res.data);
                         }
                     } catch {
                         setAllowedActions([]);
@@ -177,6 +227,30 @@ export default function StudentDashboardPage() {
 
     return (
         <div style={{ padding: '24px 32px' }} data-od-id="view-dashboard" className="sub-view">
+            {/* BM03 48h Acknowledgement Banner */}
+            {bm03Record?.advisorSignedAt && bm03Record?.studentAckStatus === 'PENDING_STUDENT_ACKNOWLEDGEMENT' && (
+                <Alert
+                    type="warning"
+                    showIcon
+                    message={<span style={{ fontWeight: 700, fontSize: 14 }}>Xác nhận đã biết Phiếu theo dõi tiến độ BM03 (Thời hạn 48 giờ)</span>}
+                    description={
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-1.5">
+                            <div>
+                                GVHD đã ký xác nhận toàn phiếu BM03. Bạn có 48 giờ để xác nhận đã biết (Hạn chót: {bm03Record.studentAckDeadlineAt ? dayjs(bm03Record.studentAckDeadlineAt).format('DD/MM/YYYY HH:mm') : '48 giờ'}).
+                            </div>
+                            <Button
+                                type="primary"
+                                icon={<FileDoneOutlined />}
+                                onClick={() => setBm03AckModalOpen(true)}
+                            >
+                                Ký xác nhận đã biết BM03
+                            </Button>
+                        </div>
+                    }
+                    style={{ marginBottom: 20, borderRadius: 8 }}
+                />
+            )}
+
             {/* Topic Hero Banner Card */}
             {hasAnyRegistration && currentRegistration?.topic ? (
                 <div className="topic-hero-card">
@@ -195,7 +269,27 @@ export default function StudentDashboardPage() {
                                 Chuyên ngành: <strong>{currentRegistration.topic.projectCatalogName || 'Công nghệ Thông tin'}</strong> · Học kỳ: <strong>{currentRegistration.topic.semesterName || currentRegistration.semester?.name || 'Đồ án tốt nghiệp — HK1 2026–2027'}</strong>
                             </p>
                         </div>
-                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center' }}>
+                            {bm03Record?.finalPdfFileUrl && (
+                                <Button
+                                    size="small"
+                                    icon={<FilePdfOutlined />}
+                                    href={bm03Record.finalPdfFileUrl}
+                                    target="_blank"
+                                >
+                                    Tải PDF BM03
+                                </Button>
+                            )}
+                            {bm04Record?.finalPdfFileUrl && (
+                                <Button
+                                    size="small"
+                                    icon={<FilePdfOutlined />}
+                                    href={bm04Record.finalPdfFileUrl}
+                                    target="_blank"
+                                >
+                                    Tải PDF BM04
+                                </Button>
+                            )}
                             <button
                                 className="btn btn-secondary btn-sm"
                                 onClick={() => {
@@ -810,6 +904,124 @@ export default function StudentDashboardPage() {
                         value={withdrawReason}
                         onChange={(e) => setWithdrawReason(e.target.value)}
                     />
+                </div>
+            </Modal>
+
+            {/* BM03 Acknowledgement Modal */}
+            <Modal
+                title={
+                    <div className="flex items-center gap-2 font-semibold">
+                        <FileDoneOutlined className="text-teal-600" />
+                        <span>Xác Nhận Đã Biết Phiếu Theo Dõi Tiến Độ (BM03)</span>
+                    </div>
+                }
+                open={bm03AckModalOpen}
+                onCancel={() => setBm03AckModalOpen(false)}
+                footer={null}
+                width={640}
+            >
+                <div className="space-y-4 pt-2">
+                    <Alert
+                        type="info"
+                        showIcon
+                        message="Thời hạn phản hồi: 48 giờ"
+                        description={`Biểu mẫu BM03 đã được GVHD hoàn tất và ký số lúc ${bm03Record?.advisorSignedAt ? dayjs(bm03Record.advisorSignedAt).format('DD/MM/YYYY HH:mm') : '---'}. Sinh viên vui lòng đọc kỹ nội dung và chọn 1 trong 3 hình thức phản hồi.`}
+                    />
+
+                    {bm03Record?.finalPdfFileUrl && (
+                        <div>
+                            <Button
+                                type="link"
+                                icon={<FilePdfOutlined />}
+                                href={bm03Record.finalPdfFileUrl}
+                                target="_blank"
+                                className="p-0 text-teal-700"
+                            >
+                                Tải PDF BM03 để kiểm tra trước khi xác nhận
+                            </Button>
+                        </div>
+                    )}
+
+                    <div className="space-y-2">
+                        <label className="font-semibold block text-slate-800">Lựa chọn phản hồi của sinh viên (*):</label>
+                        <Radio.Group
+                            value={bm03AckAction}
+                            onChange={(e) => setBm03AckAction(e.target.value)}
+                            className="w-full space-y-2"
+                        >
+                            <div className="p-3 border rounded-lg hover:bg-slate-50 cursor-pointer flex items-start gap-2.5">
+                                <Radio value="ACKNOWLEDGED" />
+                                <div>
+                                    <div className="font-bold text-slate-800">Ký xác nhận đã biết</div>
+                                    <div className="text-xs text-slate-500">Đồng thuận và xác nhận đã biết đầy đủ kết quả theo dõi tiến độ BM03 của GVHD.</div>
+                                </div>
+                            </div>
+                            <div className="p-3 border rounded-lg hover:bg-slate-50 cursor-pointer flex items-start gap-2.5">
+                                <Radio value="ACKNOWLEDGED_WITH_COMMENT" />
+                                <div>
+                                    <div className="font-bold text-slate-800">Xác nhận kèm ý kiến</div>
+                                    <div className="text-xs text-slate-500">Xác nhận đã biết và gửi thêm ý kiến phản hồi tới GVHD và Viện.</div>
+                                </div>
+                            </div>
+                            <div className="p-3 border rounded-lg hover:bg-rose-50 border-rose-200 cursor-pointer flex items-start gap-2.5">
+                                <Radio value="DECLINED_TO_ACKNOWLEDGE" />
+                                <div>
+                                    <div className="font-bold text-rose-700">Từ chối ký</div>
+                                    <div className="text-xs text-rose-600">Từ chối ký xác nhận (bắt buộc nhập lý do cụ thể để Viện xem xét).</div>
+                                </div>
+                            </div>
+                        </Radio.Group>
+                    </div>
+
+                    {(bm03AckAction === 'ACKNOWLEDGED_WITH_COMMENT' || bm03AckAction === 'DECLINED_TO_ACKNOWLEDGE') && (
+                        <div className="space-y-1">
+                            <label className="font-semibold block text-slate-800">
+                                {bm03AckAction === 'DECLINED_TO_ACKNOWLEDGE' ? 'Lý do từ chối ký (* bắt buộc):' : 'Ý kiến phản hồi bổ sung:'}
+                            </label>
+                            <Input.TextArea
+                                rows={3}
+                                value={bm03AckComment}
+                                onChange={(e) => setBm03AckComment(e.target.value)}
+                                placeholder={bm03AckAction === 'DECLINED_TO_ACKNOWLEDGE' ? 'Nêu rõ lý do từ chối ký xác nhận...' : 'Nhập ý kiến của bạn...'}
+                            />
+                        </div>
+                    )}
+
+                    <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                        <Button onClick={() => setBm03AckModalOpen(false)}>
+                            Đóng
+                        </Button>
+                        {bm03AckAction === 'ACKNOWLEDGED' && (
+                            <Button
+                                type="primary"
+                                icon={<CheckCircleOutlined />}
+                                loading={ackSubmitting}
+                                onClick={() => handleStudentAckBM03('ACKNOWLEDGED')}
+                            >
+                                Ký xác nhận đã biết
+                            </Button>
+                        )}
+                        {bm03AckAction === 'ACKNOWLEDGED_WITH_COMMENT' && (
+                            <Button
+                                type="primary"
+                                icon={<FileDoneOutlined />}
+                                loading={ackSubmitting}
+                                onClick={() => handleStudentAckBM03('ACKNOWLEDGED_WITH_COMMENT')}
+                            >
+                                Xác nhận kèm ý kiến
+                            </Button>
+                        )}
+                        {bm03AckAction === 'DECLINED_TO_ACKNOWLEDGE' && (
+                            <Button
+                                danger
+                                icon={<CloseCircleOutlined />}
+                                loading={ackSubmitting}
+                                onClick={() => handleStudentAckBM03('DECLINED_TO_ACKNOWLEDGE')}
+                            >
+                                Từ chối ký
+                            </Button>
+                        )}
+                    </div>
                 </div>
             </Modal>
         </div>

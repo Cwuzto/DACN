@@ -5,14 +5,19 @@ import {
     Empty,
     Input,
     Modal,
+    Radio,
     Tag,
     message,
     Tooltip,
 } from 'antd';
 import {
     CheckCircleOutlined,
+    CloseCircleOutlined,
     ClockCircleOutlined,
     ExclamationCircleOutlined,
+    FileDoneOutlined,
+    FilePdfOutlined,
+    FileTextOutlined,
     FolderOpenOutlined,
     GithubOutlined,
     LinkOutlined,
@@ -62,6 +67,14 @@ export default function SubmissionPage() {
     const [viewerSubmission, setViewerSubmission] = useState(null);
     const [bm04ViewerOpen, setBm04ViewerOpen] = useState(false);
     const [bm04Evaluation, setBm04Evaluation] = useState(null);
+    const [bm03Record, setBm03Record] = useState(null);
+    const [bm04Record, setBm04Record] = useState(null);
+
+    // BM03 48h Student Acknowledgement state
+    const [bm03AckModalOpen, setBm03AckModalOpen] = useState(false);
+    const [bm03AckAction, setBm03AckAction] = useState('ACKNOWLEDGED');
+    const [bm03AckComment, setBm03AckComment] = useState('');
+    const [ackSubmitting, setAckSubmitting] = useState(false);
 
     // Pre-defense archive state
     const [preDefenseArchive, setPreDefenseArchive] = useState(null);
@@ -81,13 +94,42 @@ export default function SubmissionPage() {
 
     const handleViewBM04 = async () => {
         try {
-            const res = await evaluationService.getBM04Evaluation(registration.id);
+            const res = await evaluationService.getBM04Record(registration.id);
             if (res.success) {
                 setBm04Evaluation(res.data);
+                setBm04Record(res.data);
                 setBm04ViewerOpen(true);
             }
         } catch (error) {
             message.error(error?.message || 'Không thể tải Phiếu nhận xét.');
+        }
+    };
+
+    const handleStudentAckBM03 = async (actionToSubmit) => {
+        const action = actionToSubmit || bm03AckAction;
+        if (action === 'DECLINED_TO_ACKNOWLEDGE' && !bm03AckComment.trim()) {
+            message.warning('Bắt buộc nhập lý do khi từ chối ký xác nhận.');
+            return;
+        }
+        if (!bm03Record?.id) return;
+        try {
+            setAckSubmitting(true);
+            const res = await evaluationService.studentAcknowledgeBM03(bm03Record.id, {
+                action,
+                comment: bm03AckComment.trim() || undefined,
+            });
+            if (res.success) {
+                message.success('Đã gửi phản hồi xác nhận BM03 thành công!');
+                setBm03AckModalOpen(false);
+                setBm03AckComment('');
+                fetchData();
+            } else {
+                message.error(res.message || 'Không thể gửi phản hồi.');
+            }
+        } catch (error) {
+            message.error(error?.message || 'Lỗi khi gửi phản hồi.');
+        } finally {
+            setAckSubmitting(false);
         }
     };
 
@@ -103,18 +145,25 @@ export default function SubmissionPage() {
                 const regData = regRes.data;
                 setRegistration(regData);
 
-                const [taskRes, logRes, cpRes, archiveRes, outlineRes] = await Promise.all([
+                const [taskRes, logRes, cpRes, archiveRes, outlineRes, bm03Res, bm04Res] = await Promise.all([
                     taskService.getTasksByRegistration(regData.id).catch(() => ({ success: false, data: [] })),
                     meetingLogService.getMeetingLogs(regData.id).catch(() => ({ success: false, data: [] })),
                     evaluationService.getCheckpointEvaluations(regData.id).catch(() => ({ success: false, data: [] })),
                     archiveService.getArchiveByRegistration(regData.id).catch(() => ({ success: false })),
                     outlineService.getMyOutline().catch(() => ({ success: false, data: null })),
+                    evaluationService.getBM03Record(regData.id).catch(() => ({ success: false, data: null })),
+                    evaluationService.getBM04Record(regData.id).catch(() => ({ success: false, data: null })),
                 ]);
 
                 if (taskRes.success) setTasks(taskRes.data || []);
                 if (logRes.success) setMeetingLogs(logRes.data || []);
                 if (cpRes.success) setCheckpoints(cpRes.data || []);
                 if (outlineRes?.success && outlineRes.data) setOutlineData(outlineRes.data);
+                if (bm03Res?.success && bm03Res.data) setBm03Record(bm03Res.data);
+                if (bm04Res?.success && bm04Res.data) {
+                    setBm04Record(bm04Res.data);
+                    setBm04Evaluation(bm04Res.data);
+                }
 
                 if (archiveRes?.success && archiveRes.data) {
                     const arch = archiveRes.data.archive || archiveRes.data;
@@ -134,6 +183,8 @@ export default function SubmissionPage() {
                 setMeetingLogs([]);
                 setCheckpoints([]);
                 setPreDefenseArchive(null);
+                setBm03Record(null);
+                setBm04Record(null);
             }
         } catch (error) {
             message.error(error?.message || 'Không thể tải dữ liệu nộp biểu mẫu.');
@@ -360,6 +411,30 @@ export default function SubmissionPage() {
                     banner
                     message={<span style={{ fontWeight: 700, fontSize: 14 }}>Đề tài đã dừng thực hiện trong đợt này</span>}
                     description="Đề cương đồ án không đạt yêu cầu xét duyệt của Hội đồng hoặc quá hạn nộp lại đề cương v2 theo quy định học vụ của Viện."
+                    style={{ marginBottom: 20, borderRadius: 8 }}
+                />
+            )}
+
+            {/* BM03 Student 48-Hour Acknowledgement Banner */}
+            {bm03Record?.advisorSignedAt && bm03Record?.studentAckStatus === 'PENDING_STUDENT_ACKNOWLEDGEMENT' && (
+                <Alert
+                    type="warning"
+                    showIcon
+                    message={<span style={{ fontWeight: 700, fontSize: 14 }}>Xác nhận đã biết Phiếu theo dõi tiến độ BM03 (Thời hạn 48 giờ)</span>}
+                    description={
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-1.5">
+                            <div>
+                                Giảng viên hướng dẫn đã hoàn tất và ký xác nhận toàn phiếu BM03. Vui lòng phản hồi xác nhận đã biết trong thời hạn quy định (Hạn chót: {bm03Record.studentAckDeadlineAt ? dayjs(bm03Record.studentAckDeadlineAt).format('DD/MM/YYYY HH:mm') : '48 giờ'}).
+                            </div>
+                            <Button
+                                type="primary"
+                                icon={<FileDoneOutlined />}
+                                onClick={() => setBm03AckModalOpen(true)}
+                            >
+                                Phản hồi phiếu BM03
+                            </Button>
+                        </div>
+                    }
                     style={{ marginBottom: 20, borderRadius: 8 }}
                 />
             )}
@@ -930,16 +1005,39 @@ export default function SubmissionPage() {
                             </div>
                         </div>
                     </div>
-                    {['DEFENSE_READY', 'TERMINATED_BM04', 'DEFENDED', 'COMPLETED'].includes(registration.status) && (
-                        <Button onClick={handleViewBM04}>Xem Phiếu nhận xét đã ký</Button>
-                    )}
+                    <div className="flex items-center gap-2 flex-wrap">
+                        {['DEFENSE_READY', 'TERMINATED_BM04', 'DEFENDED', 'COMPLETED', 'BM04_REVIEW'].includes(registration.status) && (
+                            <Button icon={<FileDoneOutlined />} onClick={handleViewBM04}>Xem Phiếu nhận xét đã ký</Button>
+                        )}
+                        {(bm04Record?.finalPdfFileUrl || bm04Evaluation?.finalPdfFileUrl) && (
+                            <Button
+                                type="primary"
+                                icon={<FilePdfOutlined />}
+                                href={bm04Record?.finalPdfFileUrl || bm04Evaluation?.finalPdfFileUrl}
+                                target="_blank"
+                            >
+                                Tải PDF BM04 đã ký
+                            </Button>
+                        )}
+                    </div>
                 </div>
             </div>
 
             {/* Meeting Logs Section */}
             {meetingLogs.length > 0 && (
                 <div className="card" style={{ marginTop: 24, padding: 20 }}>
-                    <h3 className="h3" style={{ marginBottom: 14 }}>Nhật Ký Làm Việc &amp; Trao Đổi Lab Với GVHD ({meetingLogs.length})</h3>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+                        <h3 className="h3 m-0">Nhật Ký Làm Việc &amp; Trao Đổi Lab Với GVHD ({meetingLogs.length})</h3>
+                        {bm03Record?.finalPdfFileUrl && (
+                            <Button
+                                icon={<FilePdfOutlined />}
+                                href={bm03Record.finalPdfFileUrl}
+                                target="_blank"
+                            >
+                                Tải PDF BM03 đã ký
+                            </Button>
+                        )}
+                    </div>
                     <div className="table-container">
                         <table className="data-table">
                             <thead>
@@ -958,13 +1056,17 @@ export default function SubmissionPage() {
                                         <td className="num" style={{ fontWeight: 700, color: 'var(--primary)' }}>#{idx + 1}</td>
                                         <td>{dayjs(log.meetingDate).format('DD/MM/YYYY')}</td>
                                         <td>
-                                            <span className="tag teal">{log.location || 'Văn phòng Lab'}</span>
+                                            <span className="tag teal">{log.locationOrLink || log.location || 'Văn phòng Lab'}</span>
                                         </td>
-                                        <td style={{ maxWidth: 260 }}>{log.content}</td>
-                                        <td style={{ maxWidth: 260 }}>{log.nextPlan || 'Tiếp tục triển khai theo kế hoạch'}</td>
+                                        <td style={{ maxWidth: 260 }}>{log.discussionContent || log.content || 'Sinh viên báo cáo kết quả và thảo luận giải pháp.'}</td>
+                                        <td style={{ maxWidth: 260 }}>{log.nextTasks || log.nextPlan || 'Tiếp tục triển khai theo kế hoạch'}</td>
                                         <td>
                                             <span className="status-badge" style={{ background: 'var(--success-soft)', color: 'var(--success)' }}>
-                                                {log.mentorNote || 'Đạt tiến độ'}
+                                                {log.progressRating === 'ON_TRACK' ? 'Đúng tiến độ' :
+                                                 log.progressRating === 'AT_RISK' ? 'Có rủi ro' :
+                                                 log.progressRating === 'BEHIND' ? 'Chậm tiến độ' :
+                                                 log.progressRating === 'NO_PROGRESS' ? 'Không có tiến độ' :
+                                                 (log.mentorNote || 'Đạt tiến độ')}
                                             </span>
                                         </td>
                                     </tr>
@@ -974,6 +1076,124 @@ export default function SubmissionPage() {
                     </div>
                 </div>
             )}
+
+            {/* Modal Xác Nhận BM03 48 Giờ */}
+            <Modal
+                title={
+                    <div className="flex items-center gap-2 font-semibold">
+                        <FileDoneOutlined className="text-teal-600" />
+                        <span>Xác Nhận Đã Biết Phiếu Theo Dõi Tiến Độ (BM03)</span>
+                    </div>
+                }
+                open={bm03AckModalOpen}
+                onCancel={() => setBm03AckModalOpen(false)}
+                footer={null}
+                width={640}
+            >
+                <div className="space-y-4 pt-2">
+                    <Alert
+                        type="info"
+                        showIcon
+                        message="Thời hạn phản hồi: 48 giờ"
+                        description={`Biểu mẫu BM03 đã được GVHD hoàn tất và ký số lúc ${bm03Record?.advisorSignedAt ? dayjs(bm03Record.advisorSignedAt).format('DD/MM/YYYY HH:mm') : '---'}. Sinh viên đọc kỹ nội dung và chọn 1 trong 3 hình thức phản hồi dưới đây.`}
+                    />
+
+                    {bm03Record?.finalPdfFileUrl && (
+                        <div>
+                            <Button
+                                type="link"
+                                icon={<FilePdfOutlined />}
+                                href={bm03Record.finalPdfFileUrl}
+                                target="_blank"
+                                className="p-0 text-teal-700"
+                            >
+                                Tải PDF BM03 để kiểm tra trước khi xác nhận
+                            </Button>
+                        </div>
+                    )}
+
+                    <div className="space-y-2">
+                        <label className="font-semibold block text-slate-800">Lựa chọn phản hồi của sinh viên (*):</label>
+                        <Radio.Group
+                            value={bm03AckAction}
+                            onChange={(e) => setBm03AckAction(e.target.value)}
+                            className="w-full space-y-2"
+                        >
+                            <div className="p-3 border rounded-lg hover:bg-slate-50 cursor-pointer flex items-start gap-2.5">
+                                <Radio value="ACKNOWLEDGED" />
+                                <div>
+                                    <div className="font-bold text-slate-800">Ký xác nhận đã biết</div>
+                                    <div className="text-xs text-slate-500">Đồng thuận và xác nhận đã biết đầy đủ kết quả theo dõi tiến độ BM03 của GVHD.</div>
+                                </div>
+                            </div>
+                            <div className="p-3 border rounded-lg hover:bg-slate-50 cursor-pointer flex items-start gap-2.5">
+                                <Radio value="ACKNOWLEDGED_WITH_COMMENT" />
+                                <div>
+                                    <div className="font-bold text-slate-800">Xác nhận kèm ý kiến</div>
+                                    <div className="text-xs text-slate-500">Xác nhận đã biết và gửi thêm ý kiến phản hồi tới GVHD và Viện.</div>
+                                </div>
+                            </div>
+                            <div className="p-3 border rounded-lg hover:bg-rose-50 border-rose-200 cursor-pointer flex items-start gap-2.5">
+                                <Radio value="DECLINED_TO_ACKNOWLEDGE" />
+                                <div>
+                                    <div className="font-bold text-rose-700">Từ chối ký</div>
+                                    <div className="text-xs text-rose-600">Từ chối ký xác nhận (bắt buộc nhập lý do cụ thể để Viện xem xét).</div>
+                                </div>
+                            </div>
+                        </Radio.Group>
+                    </div>
+
+                    {(bm03AckAction === 'ACKNOWLEDGED_WITH_COMMENT' || bm03AckAction === 'DECLINED_TO_ACKNOWLEDGE') && (
+                        <div className="space-y-1">
+                            <label className="font-semibold block text-slate-800">
+                                {bm03AckAction === 'DECLINED_TO_ACKNOWLEDGE' ? 'Lý do từ chối ký (* bắt buộc):' : 'Ý kiến phản hồi bổ sung:'}
+                            </label>
+                            <Input.TextArea
+                                rows={3}
+                                value={bm03AckComment}
+                                onChange={(e) => setBm03AckComment(e.target.value)}
+                                placeholder={bm03AckAction === 'DECLINED_TO_ACKNOWLEDGE' ? 'Nêu rõ lý do từ chối ký xác nhận...' : 'Nhập ý kiến của bạn...'}
+                            />
+                        </div>
+                    )}
+
+                    <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                        <Button onClick={() => setBm03AckModalOpen(false)}>
+                            Đóng
+                        </Button>
+                        {bm03AckAction === 'ACKNOWLEDGED' && (
+                            <Button
+                                type="primary"
+                                icon={<CheckCircleOutlined />}
+                                loading={ackSubmitting}
+                                onClick={() => handleStudentAckBM03('ACKNOWLEDGED')}
+                            >
+                                Ký xác nhận đã biết
+                            </Button>
+                        )}
+                        {bm03AckAction === 'ACKNOWLEDGED_WITH_COMMENT' && (
+                            <Button
+                                type="primary"
+                                icon={<FileDoneOutlined />}
+                                loading={ackSubmitting}
+                                onClick={() => handleStudentAckBM03('ACKNOWLEDGED_WITH_COMMENT')}
+                            >
+                                Xác nhận kèm ý kiến
+                            </Button>
+                        )}
+                        {bm03AckAction === 'DECLINED_TO_ACKNOWLEDGE' && (
+                            <Button
+                                danger
+                                icon={<CloseCircleOutlined />}
+                                loading={ackSubmitting}
+                                onClick={() => handleStudentAckBM03('DECLINED_TO_ACKNOWLEDGE')}
+                            >
+                                Từ chối ký
+                            </Button>
+                        )}
+                    </div>
+                </div>
+            </Modal>
 
             {/* Hybrid BM Form Modal */}
             <HybridBMFormModal

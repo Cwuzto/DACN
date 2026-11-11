@@ -1,6 +1,19 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { message } from 'antd';
+import { Button, Tag, Alert, Select, Radio, Input, Space, Popconfirm, message } from 'antd';
+import {
+    PlusOutlined,
+    CheckCircleOutlined,
+    ClockCircleOutlined,
+    CloseCircleOutlined,
+    FilePdfOutlined,
+    FileDoneOutlined,
+    SaveOutlined,
+    SafetyCertificateOutlined,
+    NotificationOutlined,
+    ExclamationCircleOutlined,
+    TeamOutlined,
+} from '@ant-design/icons';
 import dayjs from 'dayjs';
 
 import registrationService from '../../services/registrationService';
@@ -57,12 +70,29 @@ export default function ProgressTrackingPage() {
     const [taskDueDate, setTaskDueDate] = useState(dayjs().add(7, 'day').format('YYYY-MM-DD'));
     const [taskSubmitting, setTaskSubmitting] = useState(false);
 
-    // New Meeting Form
+    // New Meeting Form (BM03 Meeting Entry)
     const [meetingDate, setMeetingDate] = useState(dayjs().format('YYYY-MM-DD'));
+    const [meetingMode, setMeetingMode] = useState('IN_PERSON');
     const [meetingLocation, setMeetingLocation] = useState('Tại Lab H2-502');
     const [meetingContent, setMeetingContent] = useState('');
+    const [studentCompletedWork, setStudentCompletedWork] = useState('');
+    const [remainingIssues, setRemainingIssues] = useState('');
     const [meetingNextTask, setMeetingNextTask] = useState('');
+    const [expectedDeadline, setExpectedDeadline] = useState(dayjs().add(7, 'day').format('YYYY-MM-DD'));
+    const [progressRating, setProgressRating] = useState('ON_TRACK');
     const [meetingSubmitting, setMeetingSubmitting] = useState(false);
+    const [signingMeetingId, setSigningMeetingId] = useState(null);
+
+    // BM03 State & Stage Evaluations
+    const [bm03Record, setBm03Record] = useState(null);
+    const [signingWholeBm03, setSigningWholeBm03] = useState(false);
+    const [midtermDecision, setMidtermDecision] = useState('CONTINUE');
+    const [midtermComments, setMidtermComments] = useState('');
+    const [midtermSubmitting, setMidtermSubmitting] = useState(false);
+
+    const [finalDecision, setFinalDecision] = useState('CONTINUE_TO_BM04');
+    const [finalComments, setFinalComments] = useState('');
+    const [finalSubmitting, setFinalSubmitting] = useState(false);
 
     // Fetch initial student list
     useEffect(() => {
@@ -96,17 +126,36 @@ export default function ProgressTrackingPage() {
     const loadStudentDetails = useCallback(async () => {
         if (!selectedStudent?.id) return;
         try {
-            const [taskRes, logRes, arcRes, cpRes] = await Promise.all([
+            const [taskRes, logRes, arcRes, cpRes, bm03Res] = await Promise.all([
                 taskService.getTasksByRegistration(selectedStudent.id).catch(() => ({ success: false, data: [] })),
                 meetingLogService.getMeetingLogs(selectedStudent.id).catch(() => ({ success: false, data: [] })),
                 archiveService.getArchiveByRegistration(selectedStudent.id).catch(() => ({ success: false, data: null })),
                 evaluationService.getCheckpointEvaluations(selectedStudent.id).catch(() => ({ success: false, data: [] })),
+                evaluationService.getBM03Record(selectedStudent.id).catch(() => ({ success: false, data: null })),
             ]);
 
             if (taskRes.success) setTasks(taskRes.data || []);
-            if (logRes.success) setMeetingLogs(logRes.data || []);
             if (arcRes.success) setArchiveData(arcRes.data?.archive || null);
             if (cpRes.success) setCheckpoints(cpRes.data || []);
+
+            if (bm03Res?.success && bm03Res.data) {
+                setBm03Record(bm03Res.data);
+                if (Array.isArray(bm03Res.data.meetingEntries) && bm03Res.data.meetingEntries.length > 0) {
+                    setMeetingLogs(bm03Res.data.meetingEntries);
+                } else if (logRes.success) {
+                    setMeetingLogs(logRes.data || []);
+                }
+                if (bm03Res.data.midtermStageEvaluation) {
+                    setMidtermDecision(bm03Res.data.midtermStageEvaluation.decision || 'CONTINUE');
+                    setMidtermComments(bm03Res.data.midtermStageEvaluation.comments || '');
+                }
+                if (bm03Res.data.finalStageEvaluation) {
+                    setFinalDecision(bm03Res.data.finalStageEvaluation.decision || 'CONTINUE_TO_BM04');
+                    setFinalComments(bm03Res.data.finalStageEvaluation.comments || '');
+                }
+            } else if (logRes.success) {
+                setMeetingLogs(logRes.data || []);
+            }
         } catch {
             // Ignore silent load errors
         }
@@ -169,26 +218,125 @@ export default function ProgressTrackingPage() {
 
         try {
             setMeetingSubmitting(true);
-            const res = await meetingLogService.createMeetingLog({
-                registrationId: selectedStudent.id,
+            const res = await evaluationService.createMeetingEntry(selectedStudent.id, {
                 meetingDate: new Date(meetingDate),
-                meetingMode: meetingLocation.includes('Meet') ? 'ONLINE' : 'IN_PERSON',
-                meetingNote: meetingContent.trim(),
-                nextMilestone: meetingNextTask.trim() || undefined,
+                meetingMode: meetingLocation.includes('Meet') || meetingLocation.includes('Online') ? 'ONLINE' : meetingMode,
+                locationOrLink: meetingLocation.trim(),
+                discussionContent: meetingContent.trim(),
+                studentCompletedWork: studentCompletedWork.trim() || undefined,
+                remainingIssues: remainingIssues.trim() || undefined,
+                nextTasks: meetingNextTask.trim() || undefined,
+                expectedDeadline: expectedDeadline ? new Date(expectedDeadline) : undefined,
+                progressRating,
             });
 
             if (res.success) {
-                message.success('Đã ghi nhận nhật ký buổi gặp hướng dẫn!');
+                message.success('Đã ghi nhận nhật ký buổi hướng dẫn BM03 thành công!');
                 setMeetingModalOpen(false);
                 setMeetingContent('');
+                setStudentCompletedWork('');
+                setRemainingIssues('');
                 setMeetingNextTask('');
-                const updatedLogs = await meetingLogService.getMeetingLogs(selectedStudent.id);
-                if (updatedLogs.success) setMeetingLogs(updatedLogs.data || []);
+                loadStudentDetails();
+            } else {
+                message.error(res.message || 'Không thể lưu nhật ký');
             }
         } catch (error) {
             message.error(error?.message || 'Không thể lưu nhật ký');
         } finally {
             setMeetingSubmitting(false);
+        }
+    };
+
+    const handleSignMeetingEntry = async (meetingId) => {
+        try {
+            setSigningMeetingId(meetingId);
+            const res = await evaluationService.signMeetingEntry(meetingId, {
+                signatureImageId: currentUser?.signatureImageId || null,
+            });
+            if (res.success) {
+                message.success('Đã ký khóa buổi hướng dẫn thành công!');
+                loadStudentDetails();
+            } else {
+                message.error(res.message || 'Không thể ký khóa buổi hướng dẫn');
+            }
+        } catch (error) {
+            message.error(error?.message || 'Lỗi khi ký khóa buổi hướng dẫn');
+        } finally {
+            setSigningMeetingId(null);
+        }
+    };
+
+    const handleSubmitMidtermEvaluation = async () => {
+        if (!midtermComments.trim()) {
+            message.warning('Vui lòng nhập nhận xét đánh giá giữa kỳ');
+            return;
+        }
+        try {
+            setMidtermSubmitting(true);
+            const res = await evaluationService.submitStageEvaluation(selectedStudent.id, {
+                stage: 'MIDTERM',
+                decision: midtermDecision,
+                comments: midtermComments.trim(),
+            });
+            if (res.success) {
+                message.success('Đã lưu đánh giá giữa kỳ thành công!');
+                loadStudentDetails();
+            } else {
+                message.error(res.message || 'Không thể lưu đánh giá giữa kỳ');
+            }
+        } catch (error) {
+            message.error(error?.message || 'Lỗi khi lưu đánh giá giữa kỳ');
+        } finally {
+            setMidtermSubmitting(false);
+        }
+    };
+
+    const handleSubmitFinalEvaluation = async () => {
+        if (!finalComments.trim()) {
+            message.warning('Vui lòng nhập nhận xét đánh giá cuối kỳ');
+            return;
+        }
+        try {
+            setFinalSubmitting(true);
+            const res = await evaluationService.submitStageEvaluation(selectedStudent.id, {
+                stage: 'FINAL',
+                decision: finalDecision,
+                comments: finalComments.trim(),
+            });
+            if (res.success) {
+                message.success('Đã lưu đánh giá cuối kỳ thành công!');
+                loadStudentDetails();
+            } else {
+                message.error(res.message || 'Không thể lưu đánh giá cuối kỳ');
+            }
+        } catch (error) {
+            message.error(error?.message || 'Lỗi khi lưu đánh giá cuối kỳ');
+        } finally {
+            setFinalSubmitting(false);
+        }
+    };
+
+    const handleAdvisorSignWholeBM03 = async () => {
+        if (!bm03Record?.id) {
+            message.warning('Chưa có hồ sơ BM03 để ký');
+            return;
+        }
+        try {
+            setSigningWholeBm03(true);
+            const res = await evaluationService.advisorSignWholeBM03(bm03Record.id, {
+                signatureImageId: currentUser?.signatureImageId || null,
+            });
+            if (res.success) {
+                message.success('Đã ký xác nhận toàn phiếu BM03 thành công! Sinh viên có 48 giờ để xác nhận.');
+                loadStudentDetails();
+            } else {
+                message.error(res.message || 'Không thể ký toàn phiếu BM03');
+            }
+        } catch (error) {
+            message.error(error?.message || 'Lỗi khi ký toàn phiếu BM03');
+        } finally {
+            setSigningWholeBm03(false);
         }
     };
 
@@ -213,25 +361,20 @@ export default function ProgressTrackingPage() {
                         Giao nhiệm vụ theo tuần, lưu nhật ký gặp hướng dẫn và hoàn thiện phiếu nhận xét của người hướng dẫn.
                     </p>
                 </div>
-                <div style={{ display: 'flex', gap: 8 }} className="flex-wrap">
-                    <button
-                        type="button"
-                        className="btn btn-secondary btn-sm"
+                <div style={{ display: 'flex', gap: 8 }} className="flex-wrap items-center">
+                    <Button
+                        icon={<NotificationOutlined />}
                         onClick={() => message.success(`Đã gửi email nhắc nhở đôn đốc tiến độ đến ${students.length} sinh viên!`)}
                     >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                        </svg>
                         Nhắc nộp bài hàng loạt
-                    </button>
-                    <button
-                        type="button"
-                        className="btn btn-primary btn-sm"
+                    </Button>
+                    <Button
+                        type="primary"
+                        icon={<PlusOutlined />}
                         onClick={() => setNewTaskModalOpen(true)}
                     >
-                        + Giao việc mới
-                    </button>
+                        Giao việc mới
+                    </Button>
                 </div>
             </div>
 
@@ -399,13 +542,13 @@ export default function ProgressTrackingPage() {
                                     <div style={{ fontSize: 13, fontWeight: 600 }}>
                                         Danh sách nhiệm vụ giao theo tuần ({tasks.length} nhiệm vụ)
                                     </div>
-                                    <button
-                                        type="button"
-                                        className="btn btn-primary btn-sm"
+                                    <Button
+                                        type="primary"
+                                        icon={<PlusOutlined />}
                                         onClick={() => setNewTaskModalOpen(true)}
                                     >
-                                        + Thêm nhiệm vụ tuần mới
-                                    </button>
+                                        Thêm nhiệm vụ tuần mới
+                                    </Button>
                                 </div>
 
                                 <div className="table-wrap">
@@ -468,229 +611,303 @@ export default function ProgressTrackingPage() {
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                                     <div>
                                         <span style={{ fontSize: '13.5px', fontWeight: 700 }}>
-                                            Nhật ký trao đổi hướng dẫn thực tế:
+                                            Nhật ký trao đổi hướng dẫn thực tế (BM03):
                                         </span>
                                         <span className="mono" style={{ color: 'var(--primary)', fontWeight: 700, marginLeft: 6 }}>
                                             {meetingLogs.length} buổi
                                         </span>
                                     </div>
-                                    <button
-                                        type="button"
-                                        className="btn btn-primary btn-sm"
+                                    <Button
+                                        type="primary"
+                                        icon={<PlusOutlined />}
                                         onClick={() => setMeetingModalOpen(true)}
                                     >
-                                        + Ghi Nhận Buổi Gặp Hướng Dẫn Mới
-                                    </button>
+                                        Ghi nhận buổi hướng dẫn mới
+                                    </Button>
                                 </div>
 
                                 <div className="timeline" id="meeting-timeline-container">
                                     {meetingLogs.length === 0 ? (
                                         <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--muted)', fontSize: 13 }}>
-                                            Chưa có buổi gặp hướng dẫn nào được ghi nhận. Hãy nhấn "+ Ghi Nhận Buổi Gặp Hướng Dẫn Mới" để lưu thông tin nhật ký.
+                                            Chưa có buổi gặp hướng dẫn nào được ghi nhận. Hãy nhấn "Ghi nhận buổi hướng dẫn mới" để lưu thông tin nhật ký.
                                         </div>
                                     ) : (
-                                        meetingLogs.map((log, index) => (
-                                            <div key={log.id || index} className="timeline-node">
-                                                <div className="timeline-dot done" />
-                                                <div className="timeline-card">
-                                                    <div className="timeline-head">
-                                                        <div>
-                                                            <strong>Buổi {meetingLogs.length - index}: {log.meetingMode === 'ONLINE' ? 'Online Google Meet' : 'Gặp trực tiếp tại Lab'}</strong>
-                                                            <span className="tag teal" style={{ marginLeft: 6 }}>
-                                                                {log.meetingMode === 'ONLINE' ? 'Google Meet' : 'Lab H2-502'}
+                                        meetingLogs.map((log, index) => {
+                                            const ratingTag = log.progressRating === 'ON_TRACK'
+                                                ? <Tag color="success">Đúng tiến độ (ON_TRACK)</Tag>
+                                                : log.progressRating === 'AT_RISK'
+                                                ? <Tag color="warning">Có rủi ro (AT_RISK)</Tag>
+                                                : log.progressRating === 'BEHIND'
+                                                ? <Tag color="error">Chậm tiến độ (BEHIND)</Tag>
+                                                : log.progressRating === 'NO_PROGRESS'
+                                                ? <Tag color="default">Không có tiến độ (NO_PROGRESS)</Tag>
+                                                : <Tag color="processing">Tiến độ đạt yêu cầu</Tag>;
+
+                                            return (
+                                                <div key={log.id || index} className="timeline-node">
+                                                    <div className="timeline-dot done" />
+                                                    <div className="timeline-card">
+                                                        <div className="timeline-head flex-wrap gap-2">
+                                                            <div className="flex items-center gap-2 flex-wrap">
+                                                                <strong>Buổi {meetingLogs.length - index}: {log.meetingMode === 'ONLINE' ? 'Trực tuyến' : 'Trực tiếp tại Lab'}</strong>
+                                                                <span className="tag teal">
+                                                                    {log.locationOrLink || (log.meetingMode === 'ONLINE' ? 'Online Meet' : 'Lab H2-502')}
+                                                                </span>
+                                                                {ratingTag}
+                                                                {log.isLocked ? (
+                                                                    <Tag color="purple">Đã ký khóa</Tag>
+                                                                ) : (
+                                                                    <Tag color="orange">Chưa khóa</Tag>
+                                                                )}
+                                                            </div>
+                                                            <span className="mono" style={{ fontSize: '11.5px', color: 'var(--muted)' }}>
+                                                                {dayjs(log.meetingDate).format('DD/MM/YYYY')}
                                                             </span>
                                                         </div>
-                                                        <span className="mono" style={{ fontSize: '11.5px', color: 'var(--muted)' }}>
-                                                            {dayjs(log.meetingDate).format('DD/MM/YYYY')}
-                                                        </span>
-                                                    </div>
-                                                    <div style={{ fontSize: '12.5px', color: 'var(--fg)', lineHeight: 1.5 }}>
-                                                        <div><strong>Nội dung trao đổi:</strong> {log.meetingNote || log.summary || 'Sinh viên báo cáo kết quả tiến độ và chạy thử nghiệm.'}</div>
-                                                        {log.nextMilestone && (
-                                                            <div style={{ marginTop: 4 }}><strong>Nhiệm vụ tiếp theo:</strong> {log.nextMilestone}</div>
-                                                        )}
-                                                        <span style={{ color: 'var(--success)', fontWeight: 600, marginTop: 4, display: 'block' }}>
-                                                            ✓ Đánh giá: Tiến độ đạt yêu cầu.
-                                                        </span>
+                                                        <div style={{ fontSize: '12.5px', color: 'var(--fg)', lineHeight: 1.5, marginTop: 8 }} className="space-y-1.5">
+                                                            <div><strong>Nội dung trao đổi:</strong> {log.discussionContent || log.meetingNote || log.summary || 'Sinh viên báo cáo kết quả và chạy thử nghiệm.'}</div>
+                                                            <div><strong>Kết quả sinh viên đã hoàn thành:</strong> {log.studentCompletedWork || 'Chưa ghi nhận'}</div>
+                                                            {log.remainingIssues && (
+                                                                <div><strong>Vấn đề tồn đọng:</strong> {log.remainingIssues}</div>
+                                                            )}
+                                                            {(log.nextTasks || log.nextMilestone) && (
+                                                                <div><strong>Nhiệm vụ kỳ tới:</strong> {log.nextTasks || log.nextMilestone}</div>
+                                                            )}
+                                                            {log.expectedDeadline && (
+                                                                <div className="font-mono text-xs text-slate-500">
+                                                                    Hạn hoàn thành: {dayjs(log.expectedDeadline).format('DD/MM/YYYY')}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2">
+                                                            {log.isLocked ? (
+                                                                <span className="text-xs text-slate-500 font-mono">
+                                                                    Đã ký bởi GVHD {log.advisorSignedAt ? dayjs(log.advisorSignedAt).format('DD/MM/YYYY HH:mm') : ''}
+                                                                </span>
+                                                            ) : (
+                                                                <Button
+                                                                    size="small"
+                                                                    type="primary"
+                                                                    icon={<SafetyCertificateOutlined />}
+                                                                    loading={signingMeetingId === log.id}
+                                                                    onClick={() => handleSignMeetingEntry(log.id)}
+                                                                >
+                                                                    Ký khóa buổi hướng dẫn
+                                                                </Button>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            </div>
-                                        ))
+                                            );
+                                        })
                                     )}
                                 </div>
                             </div>
                         )}
 
-                        {/* TAB 3: CHECKPOINTS */}
+                        {/* TAB 3: CHECKPOINTS & BM03 STAGE EVALUATIONS */}
                         {activeTab === 'checkpoints' && (() => {
-                            const cp1 = checkpoints.find((cp) => cp.checkpointNo === 1);
-                            const cp2 = checkpoints.find((cp) => cp.checkpointNo === 2);
-                            const cp1Completed = cp1 && cp1.studentSignature;
-                            const cp1Passed = cp1Completed && cp1.conclusion === 'ALLOWED_TO_CONTINUE';
+                            const midtermEval = bm03Record?.midtermStageEvaluation;
+                            const finalEval = bm03Record?.finalStageEvaluation;
 
                             return (
                                 <div id="tab-checkpoints" className="tab-pane-content">
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                                        {/* Card Checkpoint 1 */}
-                                        <div className="card" style={{ marginBottom: 0 }}>
+                                        {/* Midterm Stage Evaluation Card */}
+                                        <div className="card" style={{ marginBottom: 0, borderLeft: '4px solid #0F766E' }}>
                                             <div className="card-head flex-wrap gap-2">
                                                 <div>
-                                                    <div className="card-title">Đánh giá tiến độ đợt 1 (Tuần 6) · Thẩm tra Đề cương & Kiến trúc</div>
-                                                    <div className="card-subtitle">Yêu cầu hoàn thành tối thiểu 50% khối lượng đề tài (Biên bản đánh giá tiến độ)</div>
+                                                    <div className="card-title">Đánh giá giữa kỳ (BM03 Midterm Stage Evaluation)</div>
+                                                    <div className="card-subtitle">Đánh giá tiến độ giữa giai đoạn đồ án · Kết luận Tiếp tục hoặc Đề nghị dừng</div>
                                                 </div>
-                                                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                                                    {cp1 ? (
-                                                        <span className={`tag ${cp1.conclusion === 'ALLOWED_TO_CONTINUE' ? 'green' : 'red'}`}>
-                                                            {cp1.conclusion === 'ALLOWED_TO_CONTINUE' ? '✓ Đạt — Cho phép tiếp tục' : '✕ Không đạt — Dừng tiến độ'}
-                                                        </span>
+                                                <div>
+                                                    {midtermEval ? (
+                                                        <Tag color={midtermEval.decision === 'CONTINUE' ? 'success' : 'error'}>
+                                                            {midtermEval.decision === 'CONTINUE' ? 'Tiếp tục thực hiện' : 'Đề nghị dừng đề tài'}
+                                                        </Tag>
                                                     ) : (
-                                                        <span className="tag yellow">Chưa đánh giá</span>
+                                                        <Tag color="warning">Chưa đánh giá giữa kỳ</Tag>
                                                     )}
-                                                    <button
-                                                        type="button"
-                                                        className="btn btn-primary btn-sm"
-                                                        onClick={() => {
-                                                            setSelectedCheckpointNo(1);
-                                                            setCheckpointModalOpen(true);
-                                                        }}
-                                                    >
-                                                        {cp1 ? 'Cập nhật Đợt 1' : '+ Đánh giá Đợt 1'}
-                                                    </button>
                                                 </div>
                                             </div>
-                                            <div style={{ padding: '16px 20px', fontSize: 13 }}>
-                                                {cp1 ? (
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
-                                                            <div>
-                                                                <span style={{ color: 'var(--muted)', fontSize: 12 }}>GVHD ký phát hành:</span>
-                                                                <div style={{ fontWeight: 600 }}>{cp1.mentorSignature || 'Đã ký số'}</div>
-                                                                <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>
-                                                                    {cp1.mentorSignatureDate ? dayjs(cp1.mentorSignatureDate).format('DD/MM/YYYY HH:mm') : '---'}
-                                                                </div>
-                                                            </div>
-                                                            <div>
-                                                                <span style={{ color: 'var(--muted)', fontSize: 12 }}>Sinh viên xác nhận:</span>
-                                                                {cp1.studentSignature ? (
-                                                                    <>
-                                                                        <div style={{ fontWeight: 600, color: 'var(--success)' }}>✓ {cp1.studentSignature}</div>
-                                                                        <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>
-                                                                            {dayjs(cp1.studentSignatureDate).format('DD/MM/YYYY HH:mm')}
-                                                                        </div>
-                                                                    </>
-                                                                ) : (
-                                                                    <div style={{ color: '#D97706', fontWeight: 600 }}>
-                                                                        Chờ SV ký (Hạn: {cp1.studentSignDeadlineAt ? dayjs(cp1.studentSignDeadlineAt).format('DD/MM/YYYY HH:mm') : '3 ngày'})
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                            <div>
-                                                                <span style={{ color: 'var(--muted)', fontSize: 12 }}>Minh chứng:</span>
-                                                                <div>
-                                                                    {cp1.evidenceUrl ? (
-                                                                        <a href={cp1.evidenceUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', textDecoration: 'underline' }}>
-                                                                            {cp1.evidenceName || 'Mở tài liệu minh chứng'}
-                                                                        </a>
-                                                                    ) : (
-                                                                        <span style={{ color: 'var(--muted)' }}>Không có đính kèm</span>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        {cp1.comments && (
-                                                            <div style={{ background: '#F8FAFC', padding: 12, borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', marginTop: 4 }}>
-                                                                <strong>Ý kiến nhận xét của GVHD:</strong> {cp1.comments}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                ) : (
-                                                    <div style={{ color: 'var(--muted)', fontStyle: 'italic' }}>
-                                                        Chưa lập biên bản đánh giá tiến độ đợt 1 cho sinh viên này. Nhấn nút "+ Đánh giá Đợt 1" để ghi nhận và ký phát hành.
+                                            <div style={{ padding: '16px 20px', fontSize: 13 }} className="space-y-3">
+                                                {midtermEval && (
+                                                    <div className="p-3 bg-slate-50 rounded border border-slate-200 text-xs space-y-1">
+                                                        <div><strong>Kết luận đã lưu:</strong> {midtermEval.decision === 'CONTINUE' ? 'Cho phép tiếp tục thực hiện' : 'Đề nghị dừng đề tài'}</div>
+                                                        <div><strong>Nhận xét:</strong> {midtermEval.comments}</div>
+                                                        <div className="text-slate-500 font-mono text-[11px]">Đã đánh giá lúc: {dayjs(midtermEval.evaluatedAt).format('DD/MM/YYYY HH:mm')}</div>
                                                     </div>
                                                 )}
+
+                                                <div className="space-y-2">
+                                                    <label className="font-semibold block text-slate-700">Kết luận đánh giá giữa kỳ:</label>
+                                                    <Radio.Group value={midtermDecision} onChange={(e) => setMidtermDecision(e.target.value)}>
+                                                        <Radio value="CONTINUE">Cho phép tiếp tục (CONTINUE)</Radio>
+                                                        <Radio value="PROPOSE_STOP">Đề nghị dừng đề tài (PROPOSE_STOP)</Radio>
+                                                    </Radio.Group>
+                                                </div>
+
+                                                {midtermDecision === 'PROPOSE_STOP' && (
+                                                    <Alert
+                                                        type="warning"
+                                                        showIcon
+                                                        message="Cảnh báo quy trình thẩm định cấp Viện (SLA 168h)"
+                                                        description="Đề nghị dừng đề tài sẽ chuyển ngay sang hàng đợi thẩm định của Viện với thời hạn xử lý 168 giờ (+72h nếu yêu cầu bổ sung thông tin)."
+                                                    />
+                                                )}
+
+                                                <div className="space-y-1">
+                                                    <label className="font-semibold block text-slate-700">Ý kiến nhận xét của GVHD (*):</label>
+                                                    <Input.TextArea
+                                                        rows={2}
+                                                        value={midtermComments}
+                                                        onChange={(e) => setMidtermComments(e.target.value)}
+                                                        placeholder="Nhận xét chi tiết khối lượng thực hiện, tiến độ và năng lực của sinh viên..."
+                                                    />
+                                                </div>
+
+                                                <Button
+                                                    type="primary"
+                                                    icon={<SaveOutlined />}
+                                                    loading={midtermSubmitting}
+                                                    onClick={handleSubmitMidtermEvaluation}
+                                                >
+                                                    Lưu đánh giá giữa kỳ
+                                                </Button>
                                             </div>
                                         </div>
 
-                                        {/* Card Checkpoint 2 */}
-                                        <div className="card" style={{ marginBottom: 0, opacity: cp1Passed ? 1 : 0.75 }}>
+                                        {/* Final Stage Evaluation Card */}
+                                        <div className="card" style={{ marginBottom: 0, borderLeft: '4px solid #2563EB' }}>
                                             <div className="card-head flex-wrap gap-2">
                                                 <div>
-                                                    <div className="card-title">Đánh giá tiến độ đợt 2 (Tuần 11) · Thẩm tra Dự thảo Luận văn & Demo</div>
-                                                    <div className="card-subtitle">Yêu cầu hoàn thành tối thiểu 85% khối lượng đề tài (Biên bản đánh giá tiến độ)</div>
+                                                    <div className="card-title">Đánh giá cuối kỳ (BM03 Final Stage Evaluation)</div>
+                                                    <div className="card-subtitle">Kết luận hoàn thành tiến độ BM03 · Điều kiện tiên quyết để mở BM04</div>
                                                 </div>
-                                                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                                                    {cp2 ? (
-                                                        <span className={`tag ${cp2.conclusion === 'ALLOWED_TO_CONTINUE' ? 'green' : 'red'}`}>
-                                                            {cp2.conclusion === 'ALLOWED_TO_CONTINUE' ? '✓ Đạt — Đủ điều kiện hoàn thiện bảo vệ' : '✕ Không đạt'}
-                                                        </span>
+                                                <div>
+                                                    {finalEval ? (
+                                                        <Tag color={finalEval.decision === 'CONTINUE_TO_BM04' ? 'success' : 'error'}>
+                                                            {finalEval.decision === 'CONTINUE_TO_BM04' ? 'Chuyển sang BM04' : 'Đề nghị dừng đề tài'}
+                                                        </Tag>
                                                     ) : (
-                                                        <span className="tag yellow">Chưa đánh giá</span>
+                                                        <Tag color="warning">Chưa đánh giá cuối kỳ</Tag>
                                                     )}
-                                                    <button
-                                                        type="button"
-                                                        className="btn btn-primary btn-sm"
-                                                        disabled={!cp1Passed}
-                                                        onClick={() => {
-                                                            setSelectedCheckpointNo(2);
-                                                            setCheckpointModalOpen(true);
-                                                        }}
-                                                    >
-                                                        {cp2 ? 'Cập nhật Đợt 2' : '+ Đánh giá Đợt 2'}
-                                                    </button>
                                                 </div>
                                             </div>
-                                            <div style={{ padding: '16px 20px', fontSize: 13 }}>
-                                                {!cp1Passed ? (
-                                                    <div style={{ color: '#DC2626', background: '#FEF2F2', padding: 12, borderRadius: 'var(--radius-sm)', border: '1px solid #FEE2E2' }}>
-                                                        ⚠️ <strong>Quy định tiên quyết:</strong> Sinh viên phải hoàn thành và đạt Đợt 1 (có đủ chữ ký của GVHD và Sinh viên) trước khi thực hiện đánh giá Đợt 2.
+                                            <div style={{ padding: '16px 20px', fontSize: 13 }} className="space-y-3">
+                                                {finalEval && (
+                                                    <div className="p-3 bg-slate-50 rounded border border-slate-200 text-xs space-y-1">
+                                                        <div><strong>Kết luận đã lưu:</strong> {finalEval.decision === 'CONTINUE_TO_BM04' ? 'Đạt - Chuyển sang BM04' : 'Đề nghị dừng đề tài'}</div>
+                                                        <div><strong>Nhận xét:</strong> {finalEval.comments}</div>
+                                                        <div className="text-slate-500 font-mono text-[11px]">Đã đánh giá lúc: {dayjs(finalEval.evaluatedAt).format('DD/MM/YYYY HH:mm')}</div>
                                                     </div>
-                                                ) : cp2 ? (
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
-                                                            <div>
-                                                                <span style={{ color: 'var(--muted)', fontSize: 12 }}>GVHD ký phát hành:</span>
-                                                                <div style={{ fontWeight: 600 }}>{cp2.mentorSignature || 'Đã ký số'}</div>
-                                                                <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>
-                                                                    {cp2.mentorSignatureDate ? dayjs(cp2.mentorSignatureDate).format('DD/MM/YYYY HH:mm') : '---'}
-                                                                </div>
-                                                            </div>
-                                                            <div>
-                                                                <span style={{ color: 'var(--muted)', fontSize: 12 }}>Sinh viên xác nhận:</span>
-                                                                {cp2.studentSignature ? (
-                                                                    <>
-                                                                        <div style={{ fontWeight: 600, color: 'var(--success)' }}>✓ {cp2.studentSignature}</div>
-                                                                        <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>
-                                                                            {dayjs(cp2.studentSignatureDate).format('DD/MM/YYYY HH:mm')}
-                                                                        </div>
-                                                                    </>
-                                                                ) : (
-                                                                    <div style={{ color: '#D97706', fontWeight: 600 }}>
-                                                                        Chờ SV ký (Hạn: {cp2.studentSignDeadlineAt ? dayjs(cp2.studentSignDeadlineAt).format('DD/MM/YYYY HH:mm') : '3 ngày'})
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                            <div>
-                                                                <span style={{ color: 'var(--muted)', fontSize: 12 }}>Minh chứng:</span>
-                                                                <div>
-                                                                    {cp2.evidenceUrl ? (
-                                                                        <a href={cp2.evidenceUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', textDecoration: 'underline' }}>
-                                                                            {cp2.evidenceName || 'Mở tài liệu minh chứng'}
-                                                                        </a>
-                                                                    ) : (
-                                                                        <span style={{ color: 'var(--muted)' }}>Không có đính kèm</span>
-                                                                    )}
-                                                                </div>
-                                                            </div>
+                                                )}
+
+                                                <div className="space-y-2">
+                                                    <label className="font-semibold block text-slate-700">Kết luận đánh giá cuối kỳ:</label>
+                                                    <Radio.Group value={finalDecision} onChange={(e) => setFinalDecision(e.target.value)}>
+                                                        <Radio value="CONTINUE_TO_BM04">Đạt yêu cầu - Chuyển sang BM04 (CONTINUE_TO_BM04)</Radio>
+                                                        <Radio value="PROPOSE_STOP">Đề nghị dừng đề tài (PROPOSE_STOP)</Radio>
+                                                    </Radio.Group>
+                                                </div>
+
+                                                {finalDecision === 'PROPOSE_STOP' && (
+                                                    <Alert
+                                                        type="warning"
+                                                        showIcon
+                                                        message="Cảnh báo quy trình thẩm định cấp Viện (SLA 168h)"
+                                                        description="Đề nghị dừng đề tài cuối kỳ sẽ chuyển sang hàng đợi thẩm định của Viện với thời hạn xử lý 168 giờ."
+                                                    />
+                                                )}
+
+                                                <div className="space-y-1">
+                                                    <label className="font-semibold block text-slate-700">Ý kiến nhận xét tổng kết (*):</label>
+                                                    <Input.TextArea
+                                                        rows={2}
+                                                        value={finalComments}
+                                                        onChange={(e) => setFinalComments(e.target.value)}
+                                                        placeholder="Tổng kết toàn bộ quá trình thực hiện đồ án của sinh viên..."
+                                                    />
+                                                </div>
+
+                                                <Button
+                                                    type="primary"
+                                                    icon={<SaveOutlined />}
+                                                    loading={finalSubmitting}
+                                                    onClick={handleSubmitFinalEvaluation}
+                                                >
+                                                    Lưu đánh giá cuối kỳ
+                                                </Button>
+                                            </div>
+                                        </div>
+
+                                        {/* Whole BM03 Sign Card */}
+                                        <div className="card" style={{ marginBottom: 0, borderLeft: '4px solid #7C3AED' }}>
+                                            <div className="card-head flex-wrap gap-2">
+                                                <div>
+                                                    <div className="card-title">Ký toàn phiếu BM03 & Xác nhận sinh viên (48h)</div>
+                                                    <div className="card-subtitle">Chữ ký điện tử nội bộ chốt toàn bộ quá trình theo dõi tiến độ</div>
+                                                </div>
+                                                <div>
+                                                    {bm03Record?.advisorSignedAt ? (
+                                                        <Tag color="purple">GVHD đã ký số</Tag>
+                                                    ) : (
+                                                        <Tag color="default">Chưa ký toàn phiếu</Tag>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div style={{ padding: '16px 20px', fontSize: 13 }} className="space-y-3">
+                                                {bm03Record?.advisorSignedAt ? (
+                                                    <div className="p-3 bg-purple-50/50 rounded border border-purple-200 text-xs space-y-2">
+                                                        <div className="font-semibold text-purple-900">
+                                                            ✓ GVHD đã ký xác nhận toàn phiếu BM03 lúc {dayjs(bm03Record.advisorSignedAt).format('DD/MM/YYYY HH:mm')}
                                                         </div>
-                                                        {cp2.comments && (
-                                                            <div style={{ background: '#F8FAFC', padding: 12, borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', marginTop: 4 }}>
-                                                                <strong>Ý kiến nhận xét của GVHD:</strong> {cp2.comments}
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-slate-600">Trạng thái phản hồi của sinh viên:</span>
+                                                            {bm03Record.studentAckStatus === 'ACKNOWLEDGED' ? (
+                                                                <Tag color="green">Sinh viên đã xác nhận đã biết</Tag>
+                                                            ) : bm03Record.studentAckStatus === 'ACKNOWLEDGED_WITH_COMMENT' ? (
+                                                                <Tag color="blue">Sinh viên xác nhận kèm ý kiến</Tag>
+                                                            ) : bm03Record.studentAckStatus === 'DECLINED_TO_ACKNOWLEDGE' ? (
+                                                                <Tag color="red">Sinh viên từ chối ký</Tag>
+                                                            ) : bm03Record.studentAckStatus === 'ACKNOWLEDGEMENT_TIMEOUT' ? (
+                                                                <Tag color="purple">Quá hạn 48h (Tự động chuyển tiếp)</Tag>
+                                                            ) : (
+                                                                <Tag color="gold">Chờ sinh viên xác nhận (Hạn: 48h)</Tag>
+                                                            )}
+                                                        </div>
+                                                        {bm03Record.studentComment && (
+                                                            <div className="text-slate-700 bg-white p-2 rounded border border-slate-200">
+                                                                <strong>Ý kiến sinh viên:</strong> {bm03Record.studentComment}
+                                                            </div>
+                                                        )}
+                                                        {bm03Record.finalPdfFileUrl && (
+                                                            <div className="pt-1">
+                                                                <Button
+                                                                    type="link"
+                                                                    icon={<FilePdfOutlined />}
+                                                                    href={bm03Record.finalPdfFileUrl}
+                                                                    target="_blank"
+                                                                    className="p-0 text-purple-700"
+                                                                >
+                                                                    Tải PDF BM03 đã ký
+                                                                </Button>
                                                             </div>
                                                         )}
                                                     </div>
                                                 ) : (
-                                                    <div style={{ color: 'var(--muted)', fontStyle: 'italic' }}>
-                                                        Chưa lập biên bản đánh giá tiến độ đợt 2 cho sinh viên này. Nhấn nút "+ Đánh giá Đợt 2" để ghi nhận và ký phát hành.
+                                                    <div className="space-y-3">
+                                                        <p className="text-xs text-slate-600 m-0">
+                                                            Sau khi hoàn tất đánh giá cuối kỳ với kết luận chuyển sang BM04, GVHD thực hiện ký xác nhận toàn phiếu BM03. Hệ thống sẽ mở cửa sổ 48 giờ để sinh viên xem và phản hồi.
+                                                        </p>
+                                                        <Button
+                                                            type="primary"
+                                                            icon={<FileDoneOutlined />}
+                                                            loading={signingWholeBm03}
+                                                            onClick={handleAdvisorSignWholeBM03}
+                                                        >
+                                                            Ký toàn phiếu BM03
+                                                        </Button>
                                                     </div>
                                                 )}
                                             </div>
@@ -849,7 +1066,7 @@ export default function ProgressTrackingPage() {
                 <div className="modal-overlay open" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <div className="modal-box" style={{ maxWidth: 540 }}>
                         <div className="modal-head">
-                            <div className="modal-title">+ Giao Nhiệm Vụ Tuần Cho Sinh Viên</div>
+                            <div className="modal-title">Giao Nhiệm Vụ Tuần Cho Sinh Viên</div>
                             <button type="button" className="modal-close" onClick={() => setNewTaskModalOpen(false)}>×</button>
                         </div>
                         <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -898,16 +1115,16 @@ export default function ProgressTrackingPage() {
                                 />
                             </div>
                         </div>
-                        <div className="modal-foot">
-                            <button type="button" className="btn btn-secondary" onClick={() => setNewTaskModalOpen(false)}>Hủy</button>
-                            <button
-                                type="button"
-                                className="btn btn-primary"
-                                disabled={taskSubmitting}
+                        <div className="modal-foot flex justify-end gap-2">
+                            <Button onClick={() => setNewTaskModalOpen(false)}>Hủy</Button>
+                            <Button
+                                type="primary"
+                                icon={<PlusOutlined />}
+                                loading={taskSubmitting}
                                 onClick={handleCreateTask}
                             >
-                                {taskSubmitting ? 'Đang lưu...' : 'Giao Việc'}
-                            </button>
+                                Giao việc
+                            </Button>
                         </div>
                     </div>
                 </div>
@@ -916,9 +1133,9 @@ export default function ProgressTrackingPage() {
             {/* MODAL: GHI NHẬN BUỔI GẶP LAB (BM03) */}
             {meetingModalOpen && (
                 <div className="modal-overlay open" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <div className="modal-box" style={{ maxWidth: 540 }}>
+                    <div className="modal-box" style={{ maxWidth: 600 }}>
                         <div className="modal-head">
-                            <div className="modal-title">+ Ghi Nhận Buổi Gặp Hướng Dẫn Mới</div>
+                            <div className="modal-title">Ghi Nhận Buổi Hướng Dẫn Mới (BM03)</div>
                             <button type="button" className="modal-close" onClick={() => setMeetingModalOpen(false)}>×</button>
                         </div>
                         <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -940,49 +1157,107 @@ export default function ProgressTrackingPage() {
                                     <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Hình thức làm việc:</label>
                                     <select
                                         className="input-field"
-                                        value={meetingLocation}
-                                        onChange={(e) => setMeetingLocation(e.target.value)}
+                                        value={meetingMode}
+                                        onChange={(e) => setMeetingMode(e.target.value)}
                                         style={{ width: '100%' }}
                                     >
-                                        <option>Tại Lab H2-502</option>
-                                        <option>Online Google Meet</option>
-                                        <option>Văn phòng Bộ môn</option>
+                                        <option value="IN_PERSON">Trực tiếp tại Lab (IN_PERSON)</option>
+                                        <option value="ONLINE">Trực tuyến (ONLINE)</option>
                                     </select>
                                 </div>
                             </div>
                             <div>
-                                <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Tóm tắt nội dung sinh viên đã báo cáo:</label>
-                                <textarea
+                                <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Địa điểm / Đường dẫn họp (locationOrLink):</label>
+                                <input
+                                    type="text"
                                     className="input-field"
-                                    rows={3}
-                                    value={meetingContent}
-                                    onChange={(e) => setMeetingContent(e.target.value)}
-                                    placeholder="Ví dụ: Sinh viên báo cáo kết quả tối ưu hóa truy vấn cơ sở dữ liệu và hoàn thiện giao diện..."
+                                    value={meetingLocation}
+                                    onChange={(e) => setMeetingLocation(e.target.value)}
+                                    placeholder="Ví dụ: Lab H2-502 hoặc https://meet.google.com/xyz"
                                     style={{ width: '100%' }}
                                 />
                             </div>
                             <div>
-                                <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Nhiệm vụ giao cho tuần tiếp theo:</label>
-                                <input
-                                    type="text"
+                                <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Đánh giá tiến độ buổi gặp (progressRating):</label>
+                                <Select
+                                    value={progressRating}
+                                    onChange={setProgressRating}
+                                    style={{ width: '100%' }}
+                                    options={[
+                                        { value: 'ON_TRACK', label: 'Đúng tiến độ (ON_TRACK)' },
+                                        { value: 'AT_RISK', label: 'Có rủi ro (AT_RISK)' },
+                                        { value: 'BEHIND', label: 'Chậm tiến độ (BEHIND)' },
+                                        { value: 'NO_PROGRESS', label: 'Không có tiến độ (NO_PROGRESS)' },
+                                    ]}
+                                />
+                            </div>
+                            <div>
+                                <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Nội dung trao đổi (*):</label>
+                                <textarea
                                     className="input-field"
-                                    value={meetingNextTask}
-                                    onChange={(e) => setMeetingNextTask(e.target.value)}
-                                    placeholder="Ví dụ: Hoàn thiện slide thuyết trình và chạy thử demo kiểm thử tải..."
+                                    rows={2}
+                                    value={meetingContent}
+                                    onChange={(e) => setMeetingContent(e.target.value)}
+                                    placeholder="Sinh viên báo cáo công việc thực hiện, kết quả đạt được..."
                                     style={{ width: '100%' }}
                                 />
                             </div>
+                            <div>
+                                <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Kết quả sinh viên đã hoàn thành (studentCompletedWork):</label>
+                                <textarea
+                                    className="input-field"
+                                    rows={2}
+                                    value={studentCompletedWork}
+                                    onChange={(e) => setStudentCompletedWork(e.target.value)}
+                                    placeholder="Mô tả cụ thể module/tính năng/kết quả đã xong..."
+                                    style={{ width: '100%' }}
+                                />
+                            </div>
+                            <div>
+                                <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Vấn đề còn tồn đọng (remainingIssues):</label>
+                                <textarea
+                                    className="input-field"
+                                    rows={2}
+                                    value={remainingIssues}
+                                    onChange={(e) => setRemainingIssues(e.target.value)}
+                                    placeholder="Khó khăn, lỗi kỹ thuật hoặc vướng mắc cần giải quyết..."
+                                    style={{ width: '100%' }}
+                                />
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                                <div>
+                                    <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Nhiệm vụ cho kỳ tiếp theo (nextTasks):</label>
+                                    <input
+                                        type="text"
+                                        className="input-field"
+                                        value={meetingNextTask}
+                                        onChange={(e) => setMeetingNextTask(e.target.value)}
+                                        placeholder="Công việc kỳ tới..."
+                                        style={{ width: '100%' }}
+                                    />
+                                </div>
+                                <div>
+                                    <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Hạn hoàn thành (expectedDeadline):</label>
+                                    <input
+                                        type="date"
+                                        className="input-field"
+                                        value={expectedDeadline}
+                                        onChange={(e) => setExpectedDeadline(e.target.value)}
+                                        style={{ width: '100%' }}
+                                    />
+                                </div>
+                            </div>
                         </div>
-                        <div className="modal-foot">
-                            <button type="button" className="btn btn-secondary" onClick={() => setMeetingModalOpen(false)}>Hủy</button>
-                            <button
-                                type="button"
-                                className="btn btn-primary"
-                                disabled={meetingSubmitting}
+                        <div className="modal-foot flex justify-end gap-2">
+                            <Button onClick={() => setMeetingModalOpen(false)}>Hủy</Button>
+                            <Button
+                                type="primary"
+                                icon={<SaveOutlined />}
+                                loading={meetingSubmitting}
                                 onClick={handleCreateMeeting}
                             >
-                                {meetingSubmitting ? 'Đang lưu...' : 'Lưu Nhật Ký Buổi Gặp'}
-                            </button>
+                                Lưu nhật ký buổi gặp
+                            </Button>
                         </div>
                     </div>
                 </div>

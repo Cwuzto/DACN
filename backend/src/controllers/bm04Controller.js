@@ -4,6 +4,7 @@ const {
     signAndSubmitBM04,
     requestMoreInfoForDefenseReview,
     decideDefenseReview,
+    listDefenseReviews,
     BM04WorkflowError,
 } = require('../services/bm04WorkflowService');
 
@@ -213,6 +214,22 @@ const runSweepJobsController = async (req, res, next) => {
     }
 };
 
+/**
+ * GET /api/bm04/defense-reviews
+ */
+const listDefenseReviewsController = async (req, res, next) => {
+    try {
+        const { status } = req.query;
+        const result = await listDefenseReviews({ status });
+        return res.status(200).json({
+            success: true,
+            data: result,
+        });
+    } catch (error) {
+        return handleWorkflowError(res, error, next);
+    }
+};
+
 module.exports = {
     getBM04RecordController,
     saveBM04DraftController,
@@ -220,4 +237,5 @@ module.exports = {
     requestMoreInfoForDefenseReviewController,
     decideDefenseReviewController,
     runSweepJobsController,
+    listDefenseReviewsController,
 };

@@ -229,6 +229,142 @@ const evaluationService = {
         }
     },
 
+    // ==========================================
+    // BM03 Workflows (Task 5 & Task 7)
+    // ==========================================
+    getBM03Record: async (registrationId) => {
+        try {
+            return await api.get(`/bm03/${registrationId}`);
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi tải phiếu BM03');
+        }
+    },
+
+    createMeetingEntry: async (registrationId, data) => {
+        try {
+            return await api.post(`/bm03/${registrationId}/meetings`, data);
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi tạo nhật ký buổi gặp');
+        }
+    },
+
+    signMeetingEntry: async (meetingId, data = {}) => {
+        try {
+            return await api.post(`/bm03/meetings/${meetingId}/sign`, data, idempotencyConfig(data.idempotencyKey));
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi ký khóa buổi gặp');
+        }
+    },
+
+    submitStageEvaluation: async (registrationId, data = {}) => {
+        try {
+            const endpoint = data.stage === 'MIDTERM' ? 'midterm-evaluation' : 'final-evaluation';
+            return await api.post(`/bm03/${registrationId}/${endpoint}`, data, idempotencyConfig(data.idempotencyKey));
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi gửi đánh giá giai đoạn');
+        }
+    },
+
+    advisorSignWholeBM03: async (bm03RecordId, data = {}) => {
+        try {
+            return await api.post(`/bm03/${bm03RecordId}/advisor-sign`, data, idempotencyConfig(data.idempotencyKey));
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi GVHD ký toàn phiếu BM03');
+        }
+    },
+
+    studentAcknowledgeBM03: async (bm03RecordId, data = {}) => {
+        try {
+            const endpoint = data.action === 'DECLINED_TO_ACKNOWLEDGE' ? 'student-decline' : 'student-acknowledge';
+            return await api.post(`/bm03/${bm03RecordId}/${endpoint}`, data, idempotencyConfig(data.idempotencyKey));
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi sinh viên xác nhận BM03');
+        }
+    },
+
+    requestMoreInfoForStopReview: async (stopReviewId, data = {}) => {
+        try {
+            return await api.post(`/bm03/stop-reviews/${stopReviewId}/request-more-info`, data, idempotencyConfig(data.idempotencyKey));
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi yêu cầu bổ sung thông tin');
+        }
+    },
+
+    decideStopReview: async (stopReviewId, data = {}) => {
+        try {
+            return await api.post(`/bm03/stop-reviews/${stopReviewId}/decision`, data, idempotencyConfig(data.idempotencyKey));
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi thẩm định đề nghị dừng BM03');
+        }
+    },
+
+    listStopReviews: async (params = {}) => {
+        try {
+            return await api.get('/bm03/stop-reviews', { params });
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi tải danh sách đề nghị dừng BM03');
+        }
+    },
+
+    // ==========================================
+    // BM04 Workflows (Task 6 & Task 7)
+    // ==========================================
+    getBM04Record: async (registrationId) => {
+        try {
+            return await api.get(`/bm04/${registrationId}`);
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi tải phiếu BM04');
+        }
+    },
+
+    saveBM04Draft: async (registrationId, data = {}) => {
+        try {
+            return await api.post(`/bm04/${registrationId}/save-draft`, data);
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi lưu nháp phiếu BM04');
+        }
+    },
+
+    signAndSubmitBM04: async (registrationId, data = {}) => {
+        try {
+            return await api.post(`/bm04/${registrationId}/sign-submit`, data, idempotencyConfig(data.idempotencyKey));
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi ký và nộp phiếu BM04');
+        }
+    },
+
+    requestMoreInfoForDefenseReview: async (reviewId, data = {}) => {
+        try {
+            return await api.post(`/bm04/defense-reviews/${reviewId}/request-more-info`, data, idempotencyConfig(data.idempotencyKey));
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi yêu cầu bổ sung thông tin BM04');
+        }
+    },
+
+    decideDefenseReview: async (reviewId, data = {}) => {
+        try {
+            return await api.post(`/bm04/defense-reviews/${reviewId}/decision`, data, idempotencyConfig(data.idempotencyKey));
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi thẩm định đề nghị không cho bảo vệ BM04');
+        }
+    },
+
+    listDefenseReviews: async (params = {}) => {
+        try {
+            return await api.get('/bm04/defense-reviews', { params });
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi tải danh sách thẩm định BM04');
+        }
+    },
+
+    runBm02ToBm04SweepJobs: async (data = {}) => {
+        try {
+            return await api.post('/bm04/sweep-overdue', data);
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi chạy quét quá hạn');
+        }
+    },
+
     getMyCouncilDefenses: async (params = {}) => {
         try {
             return await api.get('/councils', { params });

@@ -44,6 +44,13 @@ router.post(
 );
 
 // 6. Institute request more info for stop review
+router.get(
+    '/bm03/stop-reviews',
+    authenticate,
+    authorizePermission(PERMISSIONS.BM03_STOP_REVIEW, PERMISSIONS.VIEW_CHECKPOINTS),
+    bm03Controller.listStopReviewsController,
+);
+
 router.post(
     '/bm03/stop-reviews/:id/request-more-info',
     authenticate,

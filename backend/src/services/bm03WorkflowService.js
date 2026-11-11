@@ -974,6 +974,35 @@ async function studentAcknowledgeBM03(input, options = {}) {
     return prisma.$transaction(execute);
 }
 
+/**
+ * List institute stop reviews.
+ */
+async function listStopReviews(query = {}) {
+    const where = {};
+    if (query.status && query.status !== 'ALL') {
+        where.status = query.status;
+    }
+    return prisma.instituteStopReview.findMany({
+        where,
+        include: {
+            registration: {
+                include: {
+                    student: true,
+                    topic: {
+                        include: {
+                            mentor: true,
+                        },
+                    },
+                },
+            },
+            stageEvaluation: true,
+            moreInfoRequestedBy: true,
+            reviewedBy: true,
+        },
+        orderBy: { stopProposalSubmittedAt: 'desc' },
+    });
+}
+
 module.exports = {
     BM03WorkflowError,
     getBM03Record,
@@ -985,4 +1014,5 @@ module.exports = {
     decideStopReview,
     advisorSignWholeBM03,
     studentAcknowledgeBM03,
+    listStopReviews,
 };

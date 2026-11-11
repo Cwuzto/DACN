@@ -24,6 +24,7 @@ import {
 import {
     CheckCircleOutlined,
     ClockCircleOutlined,
+    CloseCircleOutlined,
     CloudUploadOutlined,
     ExclamationCircleOutlined,
     FileDoneOutlined,
@@ -172,6 +173,227 @@ function ProjectOversightPage() {
         }
     };
 
+    // Hàng đợi Thẩm định Viện: BM03 Dừng đề tài & BM04 Từ chối bảo vệ
+    const [bm03StopReviews, setBm03StopReviews] = useState([]);
+    const [bm03StopLoading, setBm03StopLoading] = useState(false);
+    const [bm04DefenseReviews, setBm04DefenseReviews] = useState([]);
+    const [bm04DefenseLoading, setBm04DefenseLoading] = useState(false);
+
+    // Modal states cho BM03 Dừng đề tài
+    const [isBm03MoreInfoModalOpen, setIsBm03MoreInfoModalOpen] = useState(false);
+    const [selectedBm03StopReview, setSelectedBm03StopReview] = useState(null);
+    const [bm03MoreInfoNote, setBm03MoreInfoNote] = useState('');
+
+    const [isBm03DecisionModalOpen, setIsBm03DecisionModalOpen] = useState(false);
+    const [bm03DecisionType, setBm03DecisionType] = useState('APPROVE_STOP');
+    const [bm03DecisionReason, setBm03DecisionReason] = useState('');
+
+    // Modal states cho BM04 Không cho bảo vệ
+    const [isBm04MoreInfoModalOpen, setIsBm04MoreInfoModalOpen] = useState(false);
+    const [selectedBm04DefenseReview, setSelectedBm04DefenseReview] = useState(null);
+    const [bm04MoreInfoNote, setBm04MoreInfoNote] = useState('');
+
+    const [isBm04DecisionModalOpen, setIsBm04DecisionModalOpen] = useState(false);
+    const [bm04DecisionType, setBm04DecisionType] = useState('CONFIRM_NOT_ALLOWED');
+    const [bm04DecisionReason, setBm04DecisionReason] = useState('');
+
+    const renderSlaCountdown = (deadlineAt) => {
+        if (!deadlineAt) return <Tag>Chưa có SLA</Tag>;
+        const now = dayjs();
+        const deadline = dayjs(deadlineAt);
+        const hoursLeft = deadline.diff(now, 'hour');
+
+        if (hoursLeft <= 0) {
+            return (
+                <Tag color="error" icon={<ClockCircleOutlined />}>
+                    Quá hạn SLA 168h
+                </Tag>
+            );
+        }
+        if (hoursLeft <= 24) {
+            return (
+                <Tag color="warning" icon={<ClockCircleOutlined />}>
+                    SLA 168h: Còn {hoursLeft}h
+                </Tag>
+            );
+        }
+        return (
+            <Tag color="processing" icon={<ClockCircleOutlined />}>
+                SLA 168h: Còn {hoursLeft}h
+            </Tag>
+        );
+    };
+
+    const fetchBm03StopReviews = async () => {
+        try {
+            setBm03StopLoading(true);
+            const res = await evaluationService.listStopReviews?.();
+            if (res?.success && Array.isArray(res.data)) {
+                setBm03StopReviews(res.data);
+            } else {
+                const derived = (registrations || [])
+                    .filter((r) => r.status === 'STOP_REVIEW_PENDING')
+                    .map((r) => ({
+                        id: r.id,
+                        registrationId: r.id,
+                        stage: 'MIDTERM',
+                        status: 'STOP_REVIEW_PENDING',
+                        stopProposalSubmittedAt: r.updatedAt || r.createdAt,
+                        stopReviewDeadline: r.updatedAt ? dayjs(r.updatedAt).add(168, 'hour').toISOString() : dayjs().add(168, 'hour').toISOString(),
+                        extensionCount: 0,
+                        registration: r,
+                        stageEvaluation: {
+                            stopProposalReason: 'Đề nghị dừng từ Giảng viên hướng dẫn',
+                        },
+                    }));
+                setBm03StopReviews(derived);
+            }
+        } catch {
+            const derived = (registrations || [])
+                .filter((r) => r.status === 'STOP_REVIEW_PENDING')
+                .map((r) => ({
+                    id: r.id,
+                    registrationId: r.id,
+                    stage: 'MIDTERM',
+                    status: 'STOP_REVIEW_PENDING',
+                    stopProposalSubmittedAt: r.updatedAt || r.createdAt,
+                    stopReviewDeadline: r.updatedAt ? dayjs(r.updatedAt).add(168, 'hour').toISOString() : dayjs().add(168, 'hour').toISOString(),
+                    extensionCount: 0,
+                    registration: r,
+                    stageEvaluation: {
+                        stopProposalReason: 'Đề nghị dừng từ Giảng viên hướng dẫn',
+                    },
+                }));
+            setBm03StopReviews(derived);
+        } finally {
+            setBm03StopLoading(false);
+        }
+    };
+
+    const fetchBm04DefenseReviews = async () => {
+        try {
+            setBm04DefenseLoading(true);
+            const res = await evaluationService.listDefenseReviews?.();
+            if (res?.success && Array.isArray(res.data)) {
+                setBm04DefenseReviews(res.data);
+            } else {
+                const derived = (registrations || [])
+                    .filter(
+                        (r) =>
+                            r.status === 'PENDING_INSTITUTE_REVIEW' ||
+                            r.status === 'BM04_REVIEW' ||
+                            r.bm04Evaluation?.defenseRecommendation === 'NOT_APPROVE_FOR_DEFENSE'
+                    )
+                    .map((r) => ({
+                        id: r.bm04Evaluation?.id || r.id,
+                        registrationId: r.id,
+                        status: 'PENDING_INSTITUTE_REVIEW',
+                        submittedAt: r.bm04Evaluation?.updatedAt || r.updatedAt || r.createdAt,
+                        reviewDeadlineAt: r.updatedAt ? dayjs(r.updatedAt).add(168, 'hour').toISOString() : dayjs().add(168, 'hour').toISOString(),
+                        extensionCount: 0,
+                        registration: r,
+                        bm04Evaluation: r.bm04Evaluation,
+                    }));
+                setBm04DefenseReviews(derived);
+            }
+        } catch {
+            const derived = (registrations || [])
+                .filter(
+                    (r) =>
+                        r.status === 'PENDING_INSTITUTE_REVIEW' ||
+                        r.status === 'BM04_REVIEW' ||
+                        r.bm04Evaluation?.defenseRecommendation === 'NOT_APPROVE_FOR_DEFENSE'
+                )
+                .map((r) => ({
+                    id: r.bm04Evaluation?.id || r.id,
+                    registrationId: r.id,
+                    status: 'PENDING_INSTITUTE_REVIEW',
+                    submittedAt: r.bm04Evaluation?.updatedAt || r.updatedAt || r.createdAt,
+                    reviewDeadlineAt: r.updatedAt ? dayjs(r.updatedAt).add(168, 'hour').toISOString() : dayjs().add(168, 'hour').toISOString(),
+                    extensionCount: 0,
+                    registration: r,
+                    bm04Evaluation: r.bm04Evaluation,
+                }));
+            setBm04DefenseReviews(derived);
+        } finally {
+            setBm04DefenseLoading(false);
+        }
+    };
+
+    const handleRequestMoreInfoBM03 = async () => {
+        if (!selectedBm03StopReview) return;
+        try {
+            await evaluationService.requestMoreInfoForStopReview(selectedBm03StopReview.id, {
+                note: bm03MoreInfoNote,
+            });
+            message.success('Đã gửi yêu cầu bổ sung thông tin (+72h SLA)');
+            setIsBm03MoreInfoModalOpen(false);
+            setBm03MoreInfoNote('');
+            fetchBm03StopReviews();
+            fetchData();
+        } catch (error) {
+            message.error(error?.message || 'Không thể gửi yêu cầu bổ sung');
+        }
+    };
+
+    const handleDecideBM03Stop = async () => {
+        if (!selectedBm03StopReview) return;
+        try {
+            await evaluationService.decideStopReview(selectedBm03StopReview.id, {
+                decision: bm03DecisionType,
+                reason: bm03DecisionReason,
+            });
+            message.success(
+                bm03DecisionType === 'APPROVE_STOP'
+                    ? 'Chấp thuận dừng: Đã cập nhật kết luận dừng đề tài'
+                    : 'Bác bỏ đề xuất: Đã cho phép tiếp tục thực hiện đề tài'
+            );
+            setIsBm03DecisionModalOpen(false);
+            setBm03DecisionReason('');
+            fetchBm03StopReviews();
+            fetchData();
+        } catch (error) {
+            message.error(error?.message || 'Không thể cập nhật thẩm định dừng đề tài');
+        }
+    };
+
+    const handleRequestMoreInfoBM04 = async () => {
+        if (!selectedBm04DefenseReview) return;
+        try {
+            await evaluationService.requestMoreInfoForDefenseReview(selectedBm04DefenseReview.id, {
+                note: bm04MoreInfoNote,
+            });
+            message.success('Đã gửi yêu cầu bổ sung thông tin (+72h SLA)');
+            setIsBm04MoreInfoModalOpen(false);
+            setBm04MoreInfoNote('');
+            fetchBm04DefenseReviews();
+            fetchData();
+        } catch (error) {
+            message.error(error?.message || 'Không thể gửi yêu cầu bổ sung');
+        }
+    };
+
+    const handleDecideBM04Defense = async () => {
+        if (!selectedBm04DefenseReview) return;
+        try {
+            await evaluationService.decideDefenseReview(selectedBm04DefenseReview.id, {
+                decision: bm04DecisionType,
+                reason: bm04DecisionReason,
+            });
+            message.success(
+                bm04DecisionType === 'CONFIRM_NOT_ALLOWED'
+                    ? 'Đồng ý không cho bảo vệ: Đã chốt kết quả không đủ điều kiện'
+                    : 'Cho phép ra bảo vệ: Đã chuyển trạng thái sẵn sàng bảo vệ'
+            );
+            setIsBm04DecisionModalOpen(false);
+            setBm04DecisionReason('');
+            fetchBm04DefenseReviews();
+            fetchData();
+        } catch (error) {
+            message.error(error?.message || 'Không thể cập nhật thẩm định BM04');
+        }
+    };
+
     const fetchHealthRadar = async (semId) => {
         if (!canReviewArchive) {
             setHealthRadarStats(null);
@@ -251,6 +473,8 @@ function ProjectOversightPage() {
             fetchArchives(semesterFilter, archiveStatusFilter);
             fetchManualReviewCases(manualReviewStatusFilter, semesterFilter);
             fetchCheckpointAppeals(appealStatusFilter, semesterFilter);
+            fetchBm03StopReviews();
+            fetchBm04DefenseReviews();
         } catch (error) {
             message.error(error?.message || 'Không thể tải dữ liệu giám sát');
         } finally {
@@ -1214,6 +1438,262 @@ function ProjectOversightPage() {
         },
     ];
 
+    const bm03StopReviewColumns = [
+        {
+            title: 'Sinh viên',
+            key: 'student',
+            width: 180,
+            render: (_, record) => (
+                <div>
+                    <div className="font-semibold text-slate-800">
+                        {record.registration?.student?.fullName || record.student?.fullName || '—'}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                        {record.registration?.student?.code || record.student?.code || '—'}
+                    </div>
+                </div>
+            ),
+        },
+        {
+            title: 'Đề tài',
+            key: 'topic',
+            ellipsis: true,
+            render: (_, record) => (
+                <div>
+                    <div className="font-medium text-slate-800">
+                        {record.registration?.topic?.title || record.topic?.title || '—'}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                        GVHD: {record.registration?.topic?.mentor?.fullName || record.mentor?.fullName || '—'}
+                    </div>
+                </div>
+            ),
+        },
+        {
+            title: 'Giai đoạn',
+            key: 'stage',
+            width: 110,
+            render: (_, record) => (
+                <Tag color={record.stage === 'MIDTERM' ? 'blue' : 'purple'}>
+                    {record.stage === 'MIDTERM' ? 'Giữa kỳ' : 'Cuối kỳ'}
+                </Tag>
+            ),
+        },
+        {
+            title: 'Lý do đề xuất dừng',
+            key: 'reason',
+            ellipsis: true,
+            render: (_, record) => {
+                const reasonText = record.stageEvaluation?.stopProposalReason || record.reviewReason || 'Đề nghị dừng từ GVHD';
+                return (
+                    <Tooltip title={reasonText}>
+                        <span className="text-rose-600 font-medium">{reasonText}</span>
+                    </Tooltip>
+                );
+            },
+        },
+        {
+            title: 'Thời hạn SLA (168h)',
+            key: 'sla',
+            width: 180,
+            render: (_, record) => renderSlaCountdown(record.stopReviewDeadline),
+        },
+        {
+            title: 'Gia hạn (+72h)',
+            key: 'extension',
+            width: 130,
+            render: (_, record) =>
+                record.extensionCount > 0 ? (
+                    <Tag color="purple">Đã gia hạn (+72h)</Tag>
+                ) : (
+                    <Tag color="default">Chưa gia hạn</Tag>
+                ),
+        },
+        {
+            title: 'Thao tác',
+            key: 'actions',
+            width: 320,
+            align: 'right',
+            render: (_, record) => (
+                <Space size="small">
+                    <Button
+                        size="small"
+                        icon={<ClockCircleOutlined />}
+                        disabled={record.extensionCount > 0}
+                        onClick={() => {
+                            setSelectedBm03StopReview(record);
+                            setBm03MoreInfoNote('');
+                            setIsBm03MoreInfoModalOpen(true);
+                        }}
+                    >
+                        Yêu cầu bổ sung
+                    </Button>
+                    <Button
+                        size="small"
+                        danger
+                        icon={<StopOutlined />}
+                        onClick={() => {
+                            setSelectedBm03StopReview(record);
+                            setBm03DecisionType('APPROVE_STOP');
+                            setBm03DecisionReason('');
+                            setIsBm03DecisionModalOpen(true);
+                        }}
+                    >
+                        Chấp thuận dừng
+                    </Button>
+                    <Button
+                        size="small"
+                        type="primary"
+                        icon={<CheckCircleOutlined />}
+                        onClick={() => {
+                            setSelectedBm03StopReview(record);
+                            setBm03DecisionType('REJECT_STOP');
+                            setBm03DecisionReason('');
+                            setIsBm03DecisionModalOpen(true);
+                        }}
+                    >
+                        Bác bỏ đề xuất
+                    </Button>
+                </Space>
+            ),
+        },
+    ];
+
+    const bm04DefenseReviewColumns = [
+        {
+            title: 'Sinh viên',
+            key: 'student',
+            width: 180,
+            render: (_, record) => (
+                <div>
+                    <div className="font-semibold text-slate-800">
+                        {record.registration?.student?.fullName || record.student?.fullName || '—'}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                        {record.registration?.student?.code || record.student?.code || '—'}
+                    </div>
+                </div>
+            ),
+        },
+        {
+            title: 'Đề tài',
+            key: 'topic',
+            ellipsis: true,
+            render: (_, record) => (
+                <div>
+                    <div className="font-medium text-slate-800">
+                        {record.registration?.topic?.title || record.topic?.title || '—'}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                        GVHD: {record.registration?.topic?.mentor?.fullName || record.mentor?.fullName || '—'}
+                    </div>
+                </div>
+            ),
+        },
+        {
+            title: 'Chuẩn đầu ra & Điểm',
+            key: 'outcomes',
+            width: 200,
+            render: (_, record) => {
+                const evalData = record.bm04Evaluation;
+                return (
+                    <div className="text-xs space-y-1">
+                        <div>
+                            {evalData?.programOutcome === 'MEETS_PROGRAM_OUTCOMES' ? (
+                                <Tag color="green">Đạt chuẩn đầu ra</Tag>
+                            ) : (
+                                <Tag color="red">Không đạt chuẩn</Tag>
+                            )}
+                        </div>
+                        {evalData && (
+                            <div className="text-slate-500">
+                                Hình thức: {evalData.thesisFormatScore ?? '—'} | Nội dung: {evalData.researchContentScore ?? '—'}
+                            </div>
+                        )}
+                    </div>
+                );
+            },
+        },
+        {
+            title: 'Lý do từ chối bảo vệ',
+            key: 'reason',
+            ellipsis: true,
+            render: (_, record) => {
+                const reasonText = record.bm04Evaluation?.mismatchReason || record.reviewReason || 'Không cho bảo vệ';
+                return (
+                    <Tooltip title={reasonText}>
+                        <span className="text-rose-600 font-medium">{reasonText}</span>
+                    </Tooltip>
+                );
+            },
+        },
+        {
+            title: 'Thời hạn SLA (168h)',
+            key: 'sla',
+            width: 180,
+            render: (_, record) => renderSlaCountdown(record.reviewDeadlineAt),
+        },
+        {
+            title: 'Gia hạn (+72h)',
+            key: 'extension',
+            width: 130,
+            render: (_, record) =>
+                record.extensionCount > 0 ? (
+                    <Tag color="purple">Đã gia hạn (+72h)</Tag>
+                ) : (
+                    <Tag color="default">Chưa gia hạn</Tag>
+                ),
+        },
+        {
+            title: 'Thao tác',
+            key: 'actions',
+            width: 340,
+            align: 'right',
+            render: (_, record) => (
+                <Space size="small">
+                    <Button
+                        size="small"
+                        icon={<ClockCircleOutlined />}
+                        disabled={record.extensionCount > 0}
+                        onClick={() => {
+                            setSelectedBm04DefenseReview(record);
+                            setBm04MoreInfoNote('');
+                            setIsBm04MoreInfoModalOpen(true);
+                        }}
+                    >
+                        Yêu cầu bổ sung
+                    </Button>
+                    <Button
+                        size="small"
+                        danger
+                        icon={<StopOutlined />}
+                        onClick={() => {
+                            setSelectedBm04DefenseReview(record);
+                            setBm04DecisionType('CONFIRM_NOT_ALLOWED');
+                            setBm04DecisionReason('');
+                            setIsBm04DecisionModalOpen(true);
+                        }}
+                    >
+                        Đồng ý không cho bảo vệ
+                    </Button>
+                    <Button
+                        size="small"
+                        type="primary"
+                        icon={<CheckCircleOutlined />}
+                        onClick={() => {
+                            setSelectedBm04DefenseReview(record);
+                            setBm04DecisionType('ALLOW_DEFENSE');
+                            setBm04DecisionReason('');
+                            setIsBm04DecisionModalOpen(true);
+                        }}
+                    >
+                        Cho phép ra bảo vệ
+                    </Button>
+                </Space>
+            ),
+        },
+    ];
+
     const lecturerOptions = lecturers.map((lecturer) => ({
         value: lecturer.id,
         label: `${lecturer.fullName} (${lecturer.code})`,
@@ -1608,7 +2088,7 @@ function ProjectOversightPage() {
                         label: (
                             <span className="flex items-center gap-2 font-semibold text-sm">
                                 <SafetyCertificateOutlined />
-                                Hàng Đợi Thẩm Định ({manualReviewTotal + checkpointSignatureAppeals.length})
+                                Hàng Đợi Thẩm Định ({manualReviewTotal + checkpointSignatureAppeals.length + bm03StopReviews.length + bm04DefenseReviews.length})
                             </span>
                         ),
                         children: (
@@ -1659,6 +2139,80 @@ function ProjectOversightPage() {
                                                             columns={checkpointAppealColumns}
                                                             scroll={{ x: 1100 }}
                                                             pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (t) => `Tổng cộng ${t} đơn khiếu nại` }}
+                                                            size="middle"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            ),
+                                        },
+                                        {
+                                            key: 'BM03_STOP_REVIEW_QUEUE',
+                                            label: (
+                                                <span className="font-semibold text-sm">
+                                                    Đề nghị dừng BM03 ({bm03StopReviews.length})
+                                                </span>
+                                            ),
+                                            children: (
+                                                <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-4 lg:p-6 space-y-4">
+                                                    <div className="flex flex-wrap items-center justify-between gap-3">
+                                                        <div className="flex items-center gap-3">
+                                                            <Button
+                                                                icon={<ReloadOutlined />}
+                                                                onClick={() => fetchBm03StopReviews()}
+                                                            >
+                                                                Làm mới
+                                                            </Button>
+                                                        </div>
+                                                        <div className="text-xs text-slate-500">
+                                                            Danh sách đề xuất dừng đề tài BM03 chờ Viện thẩm định (SLA 168h, gia hạn tối đa 1 lần +72h).
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+                                                        <Table
+                                                            loading={bm03StopLoading}
+                                                            dataSource={bm03StopReviews}
+                                                            rowKey="id"
+                                                            columns={bm03StopReviewColumns}
+                                                            scroll={{ x: 1200 }}
+                                                            pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (t) => `Tổng cộng ${t} hồ sơ đề nghị dừng BM03` }}
+                                                            size="middle"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            ),
+                                        },
+                                        {
+                                            key: 'BM04_DEFENSE_REVIEW_QUEUE',
+                                            label: (
+                                                <span className="font-semibold text-sm">
+                                                    Đề nghị không cho bảo vệ BM04 ({bm04DefenseReviews.length})
+                                                </span>
+                                            ),
+                                            children: (
+                                                <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm p-4 lg:p-6 space-y-4">
+                                                    <div className="flex flex-wrap items-center justify-between gap-3">
+                                                        <div className="flex items-center gap-3">
+                                                            <Button
+                                                                icon={<ReloadOutlined />}
+                                                                onClick={() => fetchBm04DefenseReviews()}
+                                                            >
+                                                                Làm mới
+                                                            </Button>
+                                                        </div>
+                                                        <div className="text-xs text-slate-500">
+                                                            Danh sách đề xuất không cho bảo vệ BM04 chờ Viện thẩm định (SLA 168h, gia hạn tối đa 1 lần +72h).
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+                                                        <Table
+                                                            loading={bm04DefenseLoading}
+                                                            dataSource={bm04DefenseReviews}
+                                                            rowKey="id"
+                                                            columns={bm04DefenseReviewColumns}
+                                                            scroll={{ x: 1250 }}
+                                                            pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (t) => `Tổng cộng ${t} hồ sơ từ chối bảo vệ BM04` }}
                                                             size="middle"
                                                         />
                                                     </div>
@@ -2028,6 +2582,236 @@ function ProjectOversightPage() {
                 }}
                 onSuccess={() => fetchManualReviewCases(manualReviewStatusFilter, semesterFilter)}
             />
+
+            {/* BM03 Stop Review: Yêu cầu bổ sung (+72h) Modal */}
+            <Modal
+                title={
+                    <div className="flex items-center gap-2 text-base font-bold text-slate-900">
+                        <ClockCircleOutlined className="text-amber-500" />
+                        Yêu cầu bổ sung thông tin đề nghị dừng BM03
+                    </div>
+                }
+                open={isBm03MoreInfoModalOpen}
+                onCancel={() => {
+                    setIsBm03MoreInfoModalOpen(false);
+                    setBm03MoreInfoNote('');
+                }}
+                footer={[
+                    <Button
+                        key="cancel"
+                        icon={<CloseCircleOutlined />}
+                        onClick={() => {
+                            setIsBm03MoreInfoModalOpen(false);
+                            setBm03MoreInfoNote('');
+                        }}
+                    >
+                        Hủy
+                    </Button>,
+                    <Button
+                        key="submit"
+                        type="primary"
+                        icon={<CheckCircleOutlined />}
+                        onClick={handleRequestMoreInfoBM03}
+                    >
+                        Gửi yêu cầu bổ sung
+                    </Button>,
+                ]}
+                width={560}
+                centered
+            >
+                <div className="space-y-4 pt-2">
+                    <p className="text-xs text-slate-500">
+                        Gia hạn thời gian thẩm định thêm 72 giờ và yêu cầu Giảng viên hướng dẫn giải trình hoặc cung cấp thêm thông tin minh chứng.
+                    </p>
+                    <div>
+                        <div className="text-xs font-semibold text-slate-700 mb-1">Nội dung yêu cầu bổ sung:</div>
+                        <Input.TextArea
+                            rows={4}
+                            value={bm03MoreInfoNote}
+                            onChange={(e) => setBm03MoreInfoNote(e.target.value)}
+                            placeholder="Nhập nội dung cần giảng viên làm rõ hoặc bổ sung..."
+                        />
+                    </div>
+                </div>
+            </Modal>
+
+            {/* BM03 Stop Review: Thẩm định dừng Modal */}
+            <Modal
+                title={
+                    <div className="flex items-center gap-2 text-base font-bold text-slate-900">
+                        {bm03DecisionType === 'APPROVE_STOP' ? (
+                            <StopOutlined className="text-rose-500" />
+                        ) : (
+                            <CheckCircleOutlined className="text-emerald-500" />
+                        )}
+                        Thẩm định dừng BM03: {bm03DecisionType === 'APPROVE_STOP' ? 'Chấp thuận dừng' : 'Bác bỏ đề xuất'}
+                    </div>
+                }
+                open={isBm03DecisionModalOpen}
+                onCancel={() => {
+                    setIsBm03DecisionModalOpen(false);
+                    setBm03DecisionReason('');
+                }}
+                footer={[
+                    <Button
+                        key="cancel"
+                        icon={<CloseCircleOutlined />}
+                        onClick={() => {
+                            setIsBm03DecisionModalOpen(false);
+                            setBm03DecisionReason('');
+                        }}
+                    >
+                        Hủy
+                    </Button>,
+                    <Button
+                        key="submit"
+                        type="primary"
+                        danger={bm03DecisionType === 'APPROVE_STOP'}
+                        icon={<CheckCircleOutlined />}
+                        onClick={handleDecideBM03Stop}
+                    >
+                        {bm03DecisionType === 'APPROVE_STOP' ? 'Chấp thuận dừng' : 'Bác bỏ đề xuất'}
+                    </Button>,
+                ]}
+                width={560}
+                centered
+            >
+                <div className="space-y-4 pt-2">
+                    <Alert
+                        type={bm03DecisionType === 'APPROVE_STOP' ? 'error' : 'info'}
+                        showIcon
+                        message={
+                            bm03DecisionType === 'APPROVE_STOP'
+                                ? 'Học vụ sẽ chốt dừng đề tài và sinh viên không thể tiếp tục đồ án kỳ này.'
+                                : 'Học vụ bác bỏ đề xuất dừng và sinh viên tiếp tục thực hiện đề tài bình thường.'
+                        }
+                    />
+                    <div>
+                        <div className="text-xs font-semibold text-slate-700 mb-1">Lý do thẩm định / Kết luận Viện:</div>
+                        <Input.TextArea
+                            rows={4}
+                            value={bm03DecisionReason}
+                            onChange={(e) => setBm03DecisionReason(e.target.value)}
+                            placeholder="Nhập căn cứ, lý do hoặc kết luận thẩm định..."
+                        />
+                    </div>
+                </div>
+            </Modal>
+
+            {/* BM04 Defense Review: Yêu cầu bổ sung (+72h) Modal */}
+            <Modal
+                title={
+                    <div className="flex items-center gap-2 text-base font-bold text-slate-900">
+                        <ClockCircleOutlined className="text-amber-500" />
+                        Yêu cầu bổ sung thông tin thẩm định BM04
+                    </div>
+                }
+                open={isBm04MoreInfoModalOpen}
+                onCancel={() => {
+                    setIsBm04MoreInfoModalOpen(false);
+                    setBm04MoreInfoNote('');
+                }}
+                footer={[
+                    <Button
+                        key="cancel"
+                        icon={<CloseCircleOutlined />}
+                        onClick={() => {
+                            setIsBm04MoreInfoModalOpen(false);
+                            setBm04MoreInfoNote('');
+                        }}
+                    >
+                        Hủy
+                    </Button>,
+                    <Button
+                        key="submit"
+                        type="primary"
+                        icon={<CheckCircleOutlined />}
+                        onClick={handleRequestMoreInfoBM04}
+                    >
+                        Gửi yêu cầu bổ sung
+                    </Button>,
+                ]}
+                width={560}
+                centered
+            >
+                <div className="space-y-4 pt-2">
+                    <p className="text-xs text-slate-500">
+                        Gia hạn thời gian thẩm định thêm 72 giờ và yêu cầu Giảng viên hướng dẫn bổ sung minh chứng về việc từ chối bảo vệ.
+                    </p>
+                    <div>
+                        <div className="text-xs font-semibold text-slate-700 mb-1">Nội dung yêu cầu bổ sung:</div>
+                        <Input.TextArea
+                            rows={4}
+                            value={bm04MoreInfoNote}
+                            onChange={(e) => setBm04MoreInfoNote(e.target.value)}
+                            placeholder="Nhập nội dung cần giảng viên làm rõ hoặc bổ sung minh chứng..."
+                        />
+                    </div>
+                </div>
+            </Modal>
+
+            {/* BM04 Defense Review: Thẩm định không cho bảo vệ Modal */}
+            <Modal
+                title={
+                    <div className="flex items-center gap-2 text-base font-bold text-slate-900">
+                        {bm04DecisionType === 'CONFIRM_NOT_ALLOWED' ? (
+                            <StopOutlined className="text-rose-500" />
+                        ) : (
+                            <CheckCircleOutlined className="text-emerald-500" />
+                        )}
+                        Thẩm định không cho bảo vệ BM04: {bm04DecisionType === 'CONFIRM_NOT_ALLOWED' ? 'Đồng ý không cho bảo vệ' : 'Cho phép ra bảo vệ'}
+                    </div>
+                }
+                open={isBm04DecisionModalOpen}
+                onCancel={() => {
+                    setIsBm04DecisionModalOpen(false);
+                    setBm04DecisionReason('');
+                }}
+                footer={[
+                    <Button
+                        key="cancel"
+                        icon={<CloseCircleOutlined />}
+                        onClick={() => {
+                            setIsBm04DecisionModalOpen(false);
+                            setBm04DecisionReason('');
+                        }}
+                    >
+                        Hủy
+                    </Button>,
+                    <Button
+                        key="submit"
+                        type="primary"
+                        danger={bm04DecisionType === 'CONFIRM_NOT_ALLOWED'}
+                        icon={<CheckCircleOutlined />}
+                        onClick={handleDecideBM04Defense}
+                    >
+                        {bm04DecisionType === 'CONFIRM_NOT_ALLOWED' ? 'Đồng ý không cho bảo vệ' : 'Cho phép ra bảo vệ'}
+                    </Button>,
+                ]}
+                width={560}
+                centered
+            >
+                <div className="space-y-4 pt-2">
+                    <Alert
+                        type={bm04DecisionType === 'CONFIRM_NOT_ALLOWED' ? 'error' : 'success'}
+                        showIcon
+                        message={
+                            bm04DecisionType === 'CONFIRM_NOT_ALLOWED'
+                                ? 'Đồng ý không cho bảo vệ: Sinh viên không đủ điều kiện ra bảo vệ trước hội đồng.'
+                                : 'Cho phép ra bảo vệ: Sinh viên đủ điều kiện ra bảo vệ và phân công hội đồng.'
+                        }
+                    />
+                    <div>
+                        <div className="text-xs font-semibold text-slate-700 mb-1">Căn cứ / Kết luận thẩm định:</div>
+                        <Input.TextArea
+                            rows={4}
+                            value={bm04DecisionReason}
+                            onChange={(e) => setBm04DecisionReason(e.target.value)}
+                            placeholder="Nhập căn cứ, lý do hoặc kết luận thẩm định..."
+                        />
+                    </div>
+                </div>
+            </Modal>
 
         </div>
     );

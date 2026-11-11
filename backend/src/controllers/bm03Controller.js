@@ -8,6 +8,7 @@ const {
     decideStopReview,
     advisorSignWholeBM03,
     studentAcknowledgeBM03,
+    listStopReviews,
     BM03WorkflowError,
 } = require('../services/bm03WorkflowService');
 
@@ -306,6 +307,22 @@ const studentDeclineBM03Controller = async (req, res, next) => {
     }
 };
 
+/**
+ * GET /api/bm03/stop-reviews
+ */
+const listStopReviewsController = async (req, res, next) => {
+    try {
+        const { status } = req.query;
+        const result = await listStopReviews({ status });
+        return res.status(200).json({
+            success: true,
+            data: result,
+        });
+    } catch (error) {
+        return handleWorkflowError(res, error, next);
+    }
+};
+
 module.exports = {
     getBM03RecordController,
     createBM03MeetingController,
@@ -317,4 +334,5 @@ module.exports = {
     advisorSignWholeBM03Controller,
     studentAcknowledgeBM03Controller,
     studentDeclineBM03Controller,
+    listStopReviewsController,
 };

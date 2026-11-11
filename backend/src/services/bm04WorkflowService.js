@@ -908,6 +908,35 @@ async function submitBM04(firstArg, secondArg, thirdArg, fourthArg) {
     });
 }
 
+/**
+ * List institute defense reviews.
+ */
+async function listDefenseReviews(query = {}) {
+    const where = {};
+    if (query.status && query.status !== 'ALL') {
+        where.status = query.status;
+    }
+    return db.instituteDefenseReview.findMany({
+        where,
+        include: {
+            registration: {
+                include: {
+                    student: true,
+                    topic: {
+                        include: {
+                            mentor: true,
+                        },
+                    },
+                },
+            },
+            bm04Evaluation: true,
+            moreInfoRequestedBy: true,
+            reviewedBy: true,
+        },
+        orderBy: { submittedAt: 'desc' },
+    });
+}
+
 module.exports = {
     BM04_SUBMIT_SCOPE,
     BM04WorkflowError,
@@ -917,4 +946,5 @@ module.exports = {
     requestMoreInfoForDefenseReview,
     decideDefenseReview,
     submitBM04,
+    listDefenseReviews,
 };

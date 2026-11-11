@@ -134,7 +134,7 @@ function StudentProgressDetailPanel({
                                     onClick={() => openMeetingModal(selectedRegistration)}
                                     className="font-medium text-xs border-slate-200 text-slate-700 hover:text-[#0F766E]"
                                 >
-                                    + Ghi nhận buổi gặp
+                                    Ghi nhận buổi gặp
                                 </Button>
                             )}
                             {openBM04Modal && (

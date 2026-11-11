@@ -35,6 +35,13 @@ router.post(
 );
 
 // 4. Institute request more info on defense review
+router.get(
+    '/bm04/defense-reviews',
+    authenticate,
+    authorizePermission(PERMISSIONS.BM04_REJECTION_REVIEW, PERMISSIONS.BM04_REVIEW),
+    bm04Controller.listDefenseReviewsController,
+);
+
 router.post(
     '/bm04/defense-reviews/:id/request-more-info',
     authenticate,
