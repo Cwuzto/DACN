@@ -158,4 +158,87 @@ router.get(
     archiveController.getClearanceCertificate,
 );
 
+// 7. Upload phien ban tai lieu bao ve / luu chieu (1 trong 4 loai)
+const fileUploadGuards = [
+    authorizePermission(
+        PERMISSIONS.VIEW_MY_ARCHIVE,
+        PERMISSIONS.SUBMIT_PRE_DEFENSE_ARCHIVE,
+        PERMISSIONS.SUBMIT_FINAL_ARCHIVE,
+        PERMISSIONS.FINAL_DOCUMENT_REVIEW,
+    ),
+    [
+        param('registrationId').isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
+        body('documentType').isString().notEmpty().withMessage('documentType không được để trống.'),
+        body('fileUrl').isString().notEmpty().withMessage('fileUrl không được để trống.'),
+        body('fileName').optional({ nullable: true }).isString(),
+        body('fileSizeBytes').optional({ nullable: true }).isInt(),
+        body('checksum').optional({ nullable: true }).isString(),
+        validateRequest,
+    ],
+];
+
+router.post(
+    ['/registration/:registrationId/files', '/registrations/:registrationId/files'],
+    fileUploadGuards,
+    archiveController.uploadDocumentVersion,
+);
+
+// 8. Lay ho so 6 tai lieu bao ve & cua so thoi gian
+const dossierGuards = [
+    authorizePermission(
+        PERMISSIONS.VIEW_MY_ARCHIVE,
+        PERMISSIONS.FINAL_DOCUMENT_REVIEW,
+        PERMISSIONS.VIEW_PROJECT_OVERSIGHT,
+        PERMISSIONS.DEFENSE_COUNCIL_MANAGE,
+    ),
+    [
+        param('registrationId').isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
+        validateRequest,
+    ],
+];
+
+router.get(
+    ['/registration/:registrationId/dossier', '/registrations/:registrationId/dossier'],
+    dossierGuards,
+    archiveController.getDefenseDossier,
+);
+
+// 9. Chup snapshot bat bien 00:00 ngay bao ve
+const zeroHourSnapshotGuards = [
+    authorizePermission(
+        PERMISSIONS.DEFENSE_COUNCIL_MANAGE,
+        PERMISSIONS.FINAL_DOCUMENT_REVIEW,
+    ),
+    [
+        param('registrationId').isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
+        body('capturedAt').optional({ nullable: true }).isISO8601(),
+        validateRequest,
+    ],
+];
+
+router.post(
+    ['/registration/:registrationId/snapshots/defense-zero-hour', '/registrations/:registrationId/snapshots/defense-zero-hour'],
+    zeroHourSnapshotGuards,
+    archiveController.captureDefenseZeroHourSnapshot,
+);
+
+// 10. Dong cong nop luu chieu ngay thu 15
+const closeWindowGuards = [
+    authorizePermission(
+        PERMISSIONS.DEFENSE_COUNCIL_MANAGE,
+        PERMISSIONS.FINAL_DOCUMENT_REVIEW,
+    ),
+    [
+        param('registrationId').isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
+        body('closedAt').optional({ nullable: true }).isISO8601(),
+        validateRequest,
+    ],
+];
+
+router.post(
+    ['/registration/:registrationId/close-window', '/registrations/:registrationId/close-window'],
+    closeWindowGuards,
+    archiveController.closeArchiveWindow,
+);
+
 module.exports = router;

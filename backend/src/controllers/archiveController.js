@@ -2,6 +2,8 @@ const prisma = require('../config/database');
 const { PERMISSIONS } = require('../constants/permissions');
 const { auditLog } = require('../services/auditLogService');
 const { safeNotify } = require('../services/notificationService');
+const defenseDossierService = require('../services/defenseDossierService');
+const { WorkflowTransitionError } = require('../services/registrationTransitionService');
 
 const parsePositiveInt = (value) => {
     const parsed = parseInt(value, 10);
@@ -836,6 +838,160 @@ const submitPreDefenseArchive = async (req, res, next) => {
     }
 };
 
+// 7. Tải lên 1 trong 4 loại tài liệu theo phiên bản (Multi-version upload)
+const uploadDocumentVersion = async (req, res, next) => {
+    try {
+        const registrationId = parsePositiveInt(req.params.registrationId) || parsePositiveInt(req.body.registrationId);
+        if (!registrationId) {
+            return res.status(400).json({ success: false, code: 'INVALID_REGISTRATION_ID', message: 'registrationId không hợp lệ.' });
+        }
+
+        const { documentType, fileUrl, fileName, fileSizeBytes, checksum, now } = req.body;
+        const actorId = req.user.id;
+
+        const result = await defenseDossierService.uploadDefenseDocumentVersion({
+            registrationId,
+            documentType,
+            fileUrl,
+            fileName,
+            fileSizeBytes,
+            checksum,
+            actorId,
+            now: now ? new Date(now) : new Date(),
+        });
+
+        await auditLog(
+            actorId,
+            'UPLOAD_DEFENSE_DOCUMENT_VERSION',
+            'DEFENSE_DOCUMENT_VERSION',
+            result.version.id,
+            {
+                registrationId,
+                documentType,
+                versionNumber: result.version.versionNumber,
+                isLatePreDefense: result.version.isLatePreDefense,
+            },
+            req.ip,
+        );
+
+        res.json({
+            success: true,
+            message: 'Tải lên phiên bản tài liệu thành công.',
+            data: result,
+        });
+    } catch (error) {
+        if (error instanceof WorkflowTransitionError || error.code || error.status) {
+            return res.status(error.status || 400).json({
+                success: false,
+                code: error.code || 'UPLOAD_ERROR',
+                message: error.message,
+            });
+        }
+        next(error);
+    }
+};
+
+// 8. Lấy hồ sơ 6 tài liệu bảo vệ & lưu chiểu
+const getDefenseDossier = async (req, res, next) => {
+    try {
+        const registrationId = parsePositiveInt(req.params.registrationId) || parsePositiveInt(req.query.registrationId);
+        if (!registrationId) {
+            return res.status(400).json({ success: false, code: 'INVALID_REGISTRATION_ID', message: 'registrationId không hợp lệ.' });
+        }
+
+        const now = req.query.now ? new Date(req.query.now) : new Date();
+        const dossier = await defenseDossierService.getDefenseDossier(registrationId, { now });
+
+        res.json({
+            success: true,
+            data: dossier,
+        });
+    } catch (error) {
+        if (error instanceof WorkflowTransitionError || error.code || error.status) {
+            return res.status(error.status || 400).json({
+                success: false,
+                code: error.code || 'DOSSIER_ERROR',
+                message: error.message,
+            });
+        }
+        next(error);
+    }
+};
+
+// 9. Chụp snapshot bất biến lúc 00:00 ngày bảo vệ
+const captureDefenseZeroHourSnapshot = async (req, res, next) => {
+    try {
+        const registrationId = parsePositiveInt(req.params.registrationId) || parsePositiveInt(req.body.registrationId);
+        if (!registrationId) {
+            return res.status(400).json({ success: false, code: 'INVALID_REGISTRATION_ID', message: 'registrationId không hợp lệ.' });
+        }
+
+        const capturedAt = req.body.capturedAt ? new Date(req.body.capturedAt) : undefined;
+        const snapshot = await defenseDossierService.captureDefenseZeroHourSnapshot(registrationId, { capturedAt });
+
+        await auditLog(
+            req.user.id,
+            'CAPTURE_DEFENSE_ZERO_HOUR_SNAPSHOT',
+            'DEFENSE_DOCUMENT_SNAPSHOT',
+            snapshot.id,
+            { registrationId, snapshotType: snapshot.snapshotType },
+            req.ip,
+        );
+
+        res.json({
+            success: true,
+            message: 'Đã lưu snapshot bất biến lúc 00:00 ngày bảo vệ.',
+            data: snapshot,
+        });
+    } catch (error) {
+        if (error instanceof WorkflowTransitionError || error.code || error.status) {
+            return res.status(error.status || 400).json({
+                success: false,
+                code: error.code || 'SNAPSHOT_ERROR',
+                message: error.message,
+            });
+        }
+        next(error);
+    }
+};
+
+// 10. Đóng cửa sổ nộp lưu chiểu lúc 00:00 ngày thứ 15
+const closeArchiveWindow = async (req, res, next) => {
+    try {
+        const registrationId = parsePositiveInt(req.params.registrationId) || parsePositiveInt(req.body.registrationId);
+        if (!registrationId) {
+            return res.status(400).json({ success: false, code: 'INVALID_REGISTRATION_ID', message: 'registrationId không hợp lệ.' });
+        }
+
+        const closedAt = req.body.closedAt ? new Date(req.body.closedAt) : undefined;
+        const result = await defenseDossierService.closeArchiveWindowAtDay15(registrationId, { closedAt });
+
+        await auditLog(
+            req.user.id,
+            'CLOSE_ARCHIVE_WINDOW_DAY_15',
+            'DEFENSE_DOCUMENT_SNAPSHOT',
+            result.snapshot?.id,
+            { registrationId, transitionedStatus: result.transitionedStatus },
+            req.ip,
+        );
+
+        res.json({
+            success: true,
+            message: 'Đã đóng cửa sổ lưu chiểu lúc 00:00 ngày thứ 15 sau bảo vệ.',
+            data: result,
+        });
+    } catch (error) {
+        if (error instanceof WorkflowTransitionError || error.code || error.status) {
+            return res.status(error.status || 400).json({
+                success: false,
+                code: error.code || 'CLOSE_WINDOW_ERROR',
+                message: error.message,
+            });
+        }
+        next(error);
+    }
+};
+
 module.exports = {
     getArchiveByRegistration,
     getRegistrationArchive: getArchiveByRegistration,
@@ -845,4 +1001,8 @@ module.exports = {
     getAllArchives,
     getClearanceCertificate,
     getHealthRadarStats,
+    uploadDocumentVersion,
+    getDefenseDossier,
+    captureDefenseZeroHourSnapshot,
+    closeArchiveWindow,
 };

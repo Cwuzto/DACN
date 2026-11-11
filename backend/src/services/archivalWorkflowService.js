@@ -1,6 +1,12 @@
 const crypto = require('crypto');
 const prisma = require('../config/database');
 const { transitionRegistration, WorkflowTransitionError } = require('./registrationTransitionService');
+const {
+    uploadDefenseDocumentVersion,
+    getDefenseDossier,
+    captureDefenseZeroHourSnapshot,
+    closeArchiveWindowAtDay15,
+} = require('./defenseDossierService');
 
 // Only an approved defense outcome can enter the post-defense archive flow.
 // DEFENDED remains as a read-only legacy compatibility status; score alone is
@@ -383,4 +389,8 @@ module.exports = {
     submitArchivePostDefense,
     reviewArchivePostDefense,
     getClearanceCertificateData,
+    uploadDefenseDocumentVersion,
+    getDefenseDossier,
+    captureDefenseZeroHourSnapshot,
+    closeArchiveWindowAtDay15,
 };
