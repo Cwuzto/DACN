@@ -189,12 +189,49 @@ test('Task 7: Strict Button standards (Rule 2.6 in AGENTS.md) in all modified fi
         'frontend/src/pages/admin/ProjectOversightPage.jsx',
     ];
 
+    function extractButtonTexts(content) {
+        const results = [];
+        const openTagRegex = /<(?:Button|button)\b/g;
+        let match;
+        while ((match = openTagRegex.exec(content)) !== null) {
+            let i = match.index + match[0].length;
+            let inCurly = 0;
+            let inQuote = null;
+            let openTagEnd = -1;
+
+            while (i < content.length) {
+                const ch = content[i];
+                if (inQuote) {
+                    if (ch === inQuote && content[i - 1] !== '\\') inQuote = null;
+                } else if (ch === '"' || ch === "'") {
+                    inQuote = ch;
+                } else if (ch === '{') {
+                    inCurly++;
+                } else if (ch === '}') {
+                    if (inCurly > 0) inCurly--;
+                } else if (ch === '>' && inCurly === 0) {
+                    openTagEnd = i;
+                    break;
+                }
+                i++;
+            }
+
+            if (openTagEnd !== -1) {
+                const rest = content.slice(openTagEnd + 1);
+                const closeMatch = rest.match(/<\/(?:Button|button)>/);
+                if (closeMatch) {
+                    results.push(rest.slice(0, closeMatch.index));
+                }
+            }
+        }
+        return results;
+    }
+
     for (const file of files) {
         const content = read(file);
-        const buttonRegex = /<(?:Button|button)\b[\s\S]*?>([\s\S]*?)<\/(?:Button|button)>/g;
-        let match;
-        while ((match = buttonRegex.exec(content)) !== null) {
-            const textOnly = match[1].replace(/<[^>]+>/g, '').trim();
+        const buttonBodies = extractButtonTexts(content);
+        for (const body of buttonBodies) {
+            const textOnly = body.replace(/<[^>]+>/g, '').trim();
             if (textOnly) {
                 assert.ok(
                     !/[←→🤖📋✓✏️👥🗑️🔓▾▴↗✕]/.test(textOnly) && !/^\s*\+\s*/.test(textOnly),

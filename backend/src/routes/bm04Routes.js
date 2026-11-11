@@ -4,6 +4,14 @@ const bm04Controller = require('../controllers/bm04Controller');
 const { authenticate, authorizePermission } = require('../middlewares/auth');
 const { PERMISSIONS } = require('../constants/permissions');
 
+// 0. List institute defense reviews (must precede /bm04/:registrationId to avoid route shadowing)
+router.get(
+    '/bm04/defense-reviews',
+    authenticate,
+    authorizePermission(PERMISSIONS.BM04_REJECTION_REVIEW, PERMISSIONS.BM04_REVIEW),
+    bm04Controller.listDefenseReviewsController,
+);
+
 // 1. Get BM04 record (read-only)
 router.get(
     '/bm04/:registrationId',
@@ -35,13 +43,6 @@ router.post(
 );
 
 // 4. Institute request more info on defense review
-router.get(
-    '/bm04/defense-reviews',
-    authenticate,
-    authorizePermission(PERMISSIONS.BM04_REJECTION_REVIEW, PERMISSIONS.BM04_REVIEW),
-    bm04Controller.listDefenseReviewsController,
-);
-
 router.post(
     '/bm04/defense-reviews/:id/request-more-info',
     authenticate,

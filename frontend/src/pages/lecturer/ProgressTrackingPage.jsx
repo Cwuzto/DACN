@@ -140,18 +140,22 @@ export default function ProgressTrackingPage() {
 
             if (bm03Res?.success && bm03Res.data) {
                 setBm03Record(bm03Res.data);
-                if (Array.isArray(bm03Res.data.meetingEntries) && bm03Res.data.meetingEntries.length > 0) {
-                    setMeetingLogs(bm03Res.data.meetingEntries);
+                const meetings = bm03Res.data?.meetings || bm03Res.data?.meetingEntries || [];
+                if (meetings.length > 0) {
+                    setMeetingLogs(meetings);
                 } else if (logRes.success) {
                     setMeetingLogs(logRes.data || []);
                 }
-                if (bm03Res.data.midtermStageEvaluation) {
-                    setMidtermDecision(bm03Res.data.midtermStageEvaluation.decision || 'CONTINUE');
-                    setMidtermComments(bm03Res.data.midtermStageEvaluation.comments || '');
+                const stageEvals = bm03Res.data?.stageEvaluations || [];
+                const midterm = bm03Res.data.midtermStageEvaluation || stageEvals.find((e) => e.stage === 'MIDTERM');
+                if (midterm) {
+                    setMidtermDecision(midterm.decision || 'CONTINUE');
+                    setMidtermComments(midterm.comments || '');
                 }
-                if (bm03Res.data.finalStageEvaluation) {
-                    setFinalDecision(bm03Res.data.finalStageEvaluation.decision || 'CONTINUE_TO_BM04');
-                    setFinalComments(bm03Res.data.finalStageEvaluation.comments || '');
+                const final = bm03Res.data.finalStageEvaluation || stageEvals.find((e) => e.stage === 'FINAL');
+                if (final) {
+                    setFinalDecision(final.decision || 'CONTINUE_TO_BM04');
+                    setFinalComments(final.comments || '');
                 }
             } else if (logRes.success) {
                 setMeetingLogs(logRes.data || []);
@@ -495,13 +499,13 @@ export default function ProgressTrackingPage() {
                                     <strong>Cảnh báo học vụ:</strong> Sinh viên này có nguy cơ chậm tiến độ. Hãy lên lịch hẹn gặp trao đổi ngay!
                                 </span>
                             </div>
-                            <button
-                                type="button"
-                                className="btn btn-danger btn-sm"
+                            <Button
+                                danger
+                                icon={<PlusOutlined />}
                                 onClick={() => setMeetingModalOpen(true)}
                             >
-                                + Ghi nhận Buổi gặp Hướng dẫn Mới
-                            </button>
+                                Ghi nhận buổi hướng dẫn mới
+                            </Button>
                         </div>
                     )}
 
@@ -707,8 +711,9 @@ export default function ProgressTrackingPage() {
 
                         {/* TAB 3: CHECKPOINTS & BM03 STAGE EVALUATIONS */}
                         {activeTab === 'checkpoints' && (() => {
-                            const midtermEval = bm03Record?.midtermStageEvaluation;
-                            const finalEval = bm03Record?.finalStageEvaluation;
+                            const stageEvals = bm03Record?.stageEvaluations || [];
+                            const midtermEval = bm03Record?.midtermStageEvaluation || stageEvals.find((e) => e.stage === 'MIDTERM');
+                            const finalEval = bm03Record?.finalStageEvaluation || stageEvals.find((e) => e.stage === 'FINAL');
 
                             return (
                                 <div id="tab-checkpoints" className="tab-pane-content">

@@ -194,7 +194,7 @@ function ProjectOversightPage() {
     const [bm04MoreInfoNote, setBm04MoreInfoNote] = useState('');
 
     const [isBm04DecisionModalOpen, setIsBm04DecisionModalOpen] = useState(false);
-    const [bm04DecisionType, setBm04DecisionType] = useState('CONFIRM_NOT_ALLOWED');
+    const [bm04DecisionType, setBm04DecisionType] = useState('APPROVE_NOT_ELIGIBLE');
     const [bm04DecisionReason, setBm04DecisionReason] = useState('');
 
     const renderSlaCountdown = (deadlineAt) => {
@@ -381,7 +381,7 @@ function ProjectOversightPage() {
                 reason: bm04DecisionReason,
             });
             message.success(
-                bm04DecisionType === 'CONFIRM_NOT_ALLOWED'
+                bm04DecisionType === 'APPROVE_NOT_ELIGIBLE'
                     ? 'Đồng ý không cho bảo vệ: Đã chốt kết quả không đủ điều kiện'
                     : 'Cho phép ra bảo vệ: Đã chuyển trạng thái sẵn sàng bảo vệ'
             );
@@ -1669,7 +1669,7 @@ function ProjectOversightPage() {
                         icon={<StopOutlined />}
                         onClick={() => {
                             setSelectedBm04DefenseReview(record);
-                            setBm04DecisionType('CONFIRM_NOT_ALLOWED');
+                            setBm04DecisionType('APPROVE_NOT_ELIGIBLE');
                             setBm04DecisionReason('');
                             setIsBm04DecisionModalOpen(true);
                         }}
@@ -1682,7 +1682,7 @@ function ProjectOversightPage() {
                         icon={<CheckCircleOutlined />}
                         onClick={() => {
                             setSelectedBm04DefenseReview(record);
-                            setBm04DecisionType('ALLOW_DEFENSE');
+                            setBm04DecisionType('OVERRIDE_ELIGIBLE');
                             setBm04DecisionReason('');
                             setIsBm04DecisionModalOpen(true);
                         }}
@@ -2754,12 +2754,12 @@ function ProjectOversightPage() {
             <Modal
                 title={
                     <div className="flex items-center gap-2 text-base font-bold text-slate-900">
-                        {bm04DecisionType === 'CONFIRM_NOT_ALLOWED' ? (
+                        {bm04DecisionType === 'APPROVE_NOT_ELIGIBLE' ? (
                             <StopOutlined className="text-rose-500" />
                         ) : (
                             <CheckCircleOutlined className="text-emerald-500" />
                         )}
-                        Thẩm định không cho bảo vệ BM04: {bm04DecisionType === 'CONFIRM_NOT_ALLOWED' ? 'Đồng ý không cho bảo vệ' : 'Cho phép ra bảo vệ'}
+                        Thẩm định không cho bảo vệ BM04: {bm04DecisionType === 'APPROVE_NOT_ELIGIBLE' ? 'Đồng ý không cho bảo vệ' : 'Cho phép ra bảo vệ'}
                     </div>
                 }
                 open={isBm04DecisionModalOpen}
@@ -2781,11 +2781,11 @@ function ProjectOversightPage() {
                     <Button
                         key="submit"
                         type="primary"
-                        danger={bm04DecisionType === 'CONFIRM_NOT_ALLOWED'}
+                        danger={bm04DecisionType === 'APPROVE_NOT_ELIGIBLE'}
                         icon={<CheckCircleOutlined />}
                         onClick={handleDecideBM04Defense}
                     >
-                        {bm04DecisionType === 'CONFIRM_NOT_ALLOWED' ? 'Đồng ý không cho bảo vệ' : 'Cho phép ra bảo vệ'}
+                        {bm04DecisionType === 'APPROVE_NOT_ELIGIBLE' ? 'Đồng ý không cho bảo vệ' : 'Cho phép ra bảo vệ'}
                     </Button>,
                 ]}
                 width={560}
@@ -2793,10 +2793,10 @@ function ProjectOversightPage() {
             >
                 <div className="space-y-4 pt-2">
                     <Alert
-                        type={bm04DecisionType === 'CONFIRM_NOT_ALLOWED' ? 'error' : 'success'}
+                        type={bm04DecisionType === 'APPROVE_NOT_ELIGIBLE' ? 'error' : 'success'}
                         showIcon
                         message={
-                            bm04DecisionType === 'CONFIRM_NOT_ALLOWED'
+                            bm04DecisionType === 'APPROVE_NOT_ELIGIBLE'
                                 ? 'Đồng ý không cho bảo vệ: Sinh viên không đủ điều kiện ra bảo vệ trước hội đồng.'
                                 : 'Cho phép ra bảo vệ: Sinh viên đủ điều kiện ra bảo vệ và phân công hội đồng.'
                         }

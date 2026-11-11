@@ -916,7 +916,7 @@ async function listDefenseReviews(query = {}) {
     if (query.status && query.status !== 'ALL') {
         where.status = query.status;
     }
-    return db.instituteDefenseReview.findMany({
+    return prisma.instituteDefenseReview.findMany({
         where,
         include: {
             registration: {

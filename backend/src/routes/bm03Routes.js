@@ -4,6 +4,14 @@ const bm03Controller = require('../controllers/bm03Controller');
 const { authenticate, authorizePermission } = require('../middlewares/auth');
 const { PERMISSIONS } = require('../constants/permissions');
 
+// 0. List institute stop reviews (must precede /bm03/:registrationId to avoid route shadowing)
+router.get(
+    '/bm03/stop-reviews',
+    authenticate,
+    authorizePermission(PERMISSIONS.BM03_STOP_REVIEW, PERMISSIONS.VIEW_CHECKPOINTS),
+    bm03Controller.listStopReviewsController,
+);
+
 // 1. Get or create BM03 progress record
 router.get(
     '/bm03/:registrationId',
@@ -44,13 +52,6 @@ router.post(
 );
 
 // 6. Institute request more info for stop review
-router.get(
-    '/bm03/stop-reviews',
-    authenticate,
-    authorizePermission(PERMISSIONS.BM03_STOP_REVIEW, PERMISSIONS.VIEW_CHECKPOINTS),
-    bm03Controller.listStopReviewsController,
-);
-
 router.post(
     '/bm03/stop-reviews/:id/request-more-info',
     authenticate,
