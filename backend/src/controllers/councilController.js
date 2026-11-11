@@ -104,7 +104,13 @@ const validateCouncilMembersAgainstAssignedStudents = async (tx, councilId, lect
     }
 
     const registrations = await tx.topicRegistration.findMany({
-        where: { councilId },
+        where: {
+            OR: [
+                { councilId },
+                { outlineCouncilId: councilId },
+                { defenseCouncilId: councilId },
+            ],
+        },
         include: {
             student: { select: { fullName: true, code: true } },
             topic: { select: { mentorId: true, title: true } },
@@ -258,6 +264,20 @@ const getCouncilById = async (req, res, next) => {
             : (council.defenseRegistrations?.length > 0 ? council.defenseRegistrations : council.registrations);
 
         const myMember = council.members?.find((m) => m.lecturerId === req.user.id);
+        const userPerms = req.user?.permissions || [];
+        const hasBroadAccess = req.user?.role === 'ADMIN'
+            || userPerms.includes('VIEW_COUNCIL_ASSIGNMENTS')
+            || userPerms.includes('NOTIFICATION_MANAGE')
+            || userPerms.includes('PROJECT_OVERSIGHT_MANAGE')
+            || (council.councilType === 'OUTLINE_REVIEW' && userPerms.includes('OUTLINE_COUNCIL_MANAGE'))
+            || (council.councilType === 'DEFENSE_COUNCIL' && userPerms.includes('DEFENSE_COUNCIL_MANAGE'));
+
+        if (!hasBroadAccess && !myMember) {
+            return res.status(403).json({
+                success: false,
+                message: 'Bạn không phải thành viên của hội đồng này nên không có quyền truy cập.',
+            });
+        }
 
         res.json({
             success: true,
@@ -647,7 +667,7 @@ const assignRegistrationsToCouncil = async (req, res, next) => {
             if (council.councilType === 'OUTLINE_REVIEW') {
                 alreadyAssigned = registrations.find((registration) => Boolean(registration.outlineCouncilId));
             } else {
-                alreadyAssigned = registrations.find((registration) => Boolean(registration.defenseCouncilId));
+                alreadyAssigned = registrations.find((registration) => Boolean(registration.defenseCouncilId || registration.councilId));
             }
 
             if (alreadyAssigned) {
@@ -674,7 +694,12 @@ const assignRegistrationsToCouncil = async (req, res, next) => {
                         || allowedStatuses.includes(reg.bm04Evaluation?.status);
                     const isEligible = isStatusAllowed
                         && (
-                            (reg.bm04Evaluation?.conclusion === 'AGREED_FOR_DEFENSE' && reg.bm04Evaluation?.isLocked === true)
+                            (
+                                (reg.bm04Evaluation?.conclusion === 'AGREED_FOR_DEFENSE'
+                                    || reg.bm04Evaluation?.defenseRecommendation === 'APPROVE_FOR_DEFENSE'
+                                    || reg.bm04Evaluation?.status === 'SIGNED_APPROVED')
+                                && reg.bm04Evaluation?.isLocked === true
+                            )
                             || reg.bm04Evaluation?.status === 'ELIGIBLE_BY_INSTITUTE'
                             || reg.status === 'ELIGIBLE_BY_INSTITUTE'
                             || reg.status === 'DEFENSE_ELIGIBLE'
@@ -849,21 +874,33 @@ const deleteCouncil = async (req, res, next) => {
 
         const existing = await prisma.council.findUnique({
             where: { id: parsedId },
-            include: { _count: { select: { registrations: true } } },
+            include: {
+                _count: {
+                    select: {
+                        registrations: true,
+                        outlineRegistrations: true,
+                        defenseRegistrations: true,
+                    },
+                },
+            },
         });
 
         if (!existing) {
             return res.status(404).json({ success: false, message: 'Không tìm thấy hội đồng.' });
         }
 
-        if (existing._count.registrations > 0) {
+        const totalAssignedStudents = (existing._count?.registrations || 0)
+            + (existing._count?.outlineRegistrations || 0)
+            + (existing._count?.defenseRegistrations || 0);
+
+        if (totalAssignedStudents > 0) {
             return res.status(400).json({
                 success: false,
                 message: 'Không thể xóa hội đồng đã có sinh viên được phân công.',
             });
         }
 
-        const result = await prisma.$transaction(async (tx) => {
+        await prisma.$transaction(async (tx) => {
             await tx.councilMember.deleteMany({ where: { councilId: parsedId } });
             await tx.council.delete({ where: { id: parsedId } });
         });
@@ -873,7 +910,7 @@ const deleteCouncil = async (req, res, next) => {
             'DELETE_COUNCIL',
             'Council',
             parsedId,
-            { hadRegistrations: existing._count.registrations },
+            { hadRegistrations: totalAssignedStudents },
             getRequestIp(req),
         );
 
