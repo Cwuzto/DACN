@@ -130,6 +130,20 @@ model User {
   reviewedStopReviews             InstituteStopReview[]         @relation("StopReviewer")
   requestedMoreInfoDefenseReviews InstituteDefenseReview[]      @relation("DefenseReviewMoreInfoRequester")
   reviewedDefenseReviews          InstituteDefenseReview[]      @relation("DefenseReviewer")
+  publishedDefenseEligibleSemesters Semester[]                  @relation("SemesterDefenseEligiblePublisher")
+  lockedRubrics                   RubricVersion[]               @relation("RubricLocker")
+  confirmedCouncilSchedules       Council[]                     @relation("CouncilScheduleConfirmer")
+  publishedCouncilSchedules       Council[]                     @relation("CouncilSchedulePublisher")
+  lockedCouncilScoreBooks         Council[]                     @relation("CouncilScoreBookLocker")
+  assignedCouncilMembers          CouncilMember[]               @relation("CouncilMemberAssigner")
+  confirmedDefenseAbsents         DefenseResult[]               @relation("DefenseAbsentConfirmer")
+  reopenedDefenseMemberScores     DefenseMemberScore[]          @relation("DefenseMemberScoreReopener")
+  reviewedArchiveMentors          ProjectArchive[]              @relation("ArchiveMentorReviewer")
+  reviewedArchiveAcademicAffairs  ProjectArchive[]              @relation("ArchiveAcademicAffairsReviewer")
+  signedArchiveCertificates       ProjectArchive[]              @relation("ArchiveCertificateSigner")
+  adjustedDefenseSchedules        DefenseScheduleAdjustmentLog[] @relation("DefenseScheduleAdjuster")
+  uploadedDefenseDocuments        DefenseDocumentVersion[]      @relation("DefenseDocUploader")
+  returnedDefenseScoreBooks       DefenseScoreBookReturnLog[]   @relation("DefenseScoreBookReturner")
 
   @@map("users")
 }
@@ -172,6 +186,12 @@ model Semester {
   outlineMaxFileSizeBytes     Int                           @default(20971520) @map("outline_max_file_size_bytes")
   lockedPolicyVersionId       Int?                          @map("locked_policy_version_id")
   lockedPolicyVersion         PeriodWorkflowPolicyVersion?  @relation("SemesterLockedPolicy", fields: [lockedPolicyVersionId], references: [id], onDelete: Restrict)
+  lockedDefenseRubricVersionId  Int?                          @map("locked_defense_rubric_version_id")
+  defenseEligibleListPublishedAt DateTime?                    @map("defense_eligible_list_published_at")
+  defenseEligibleListPublishedById Int?                       @map("defense_eligible_list_published_by_id")
+  lockedDefenseRubricVersion    RubricVersion?                @relation("SemesterDefenseRubric", fields: [lockedDefenseRubricVersionId], references: [id], onDelete: Restrict)
+  defenseEligibleListPublishedBy User?                        @relation("SemesterDefenseEligiblePublisher", fields: [defenseEligibleListPublishedById], references: [id], onDelete: Restrict)
+  rubricVersions                RubricVersion[]               @relation("SemesterRubrics")
   createdAt              DateTime                      @default(now()) @map("created_at")
   updatedAt              DateTime                      @updatedAt @map("updated_at")
   councils               Council[]
@@ -249,6 +269,10 @@ model TopicRegistration {
   decisionPublishedAt        DateTime?                    @map("decision_published_at")
   bm01ApprovedTitleSnapshot  String?                      @map("bm01_approved_title_snapshot")
   adjustedTitle              String?                      @map("adjusted_title")
+  defenseSessionShift        DefenseSessionShift?         @map("defense_session_shift")
+  defenseOrderInShift        Int?                         @map("defense_order_in_shift")
+  defenseSequenceNo          Int?                         @map("defense_sequence_no")
+  defenseSchedulePublishedAt DateTime?                    @map("defense_schedule_published_at")
   assignmentStatus           MentorAssignmentStatus       @default(ACTIVE) @map("assignment_status")
   effectiveAt                DateTime                     @default(now()) @map("effective_at")
   cancelledAt                DateTime?                    @map("cancelled_at")
@@ -292,6 +316,10 @@ model TopicRegistration {
   bm03StageEvaluations       BM03StageEvaluation[]
   instituteStopReviews       InstituteStopReview[]
   instituteDefenseReviews    InstituteDefenseReview[]
+  documentVersions           DefenseDocumentVersion[]
+  documentSnapshots          DefenseDocumentSnapshot[]
+  defenseScheduleAdjustmentLogs DefenseScheduleAdjustmentLog[]
+  defenseScoreBookReturnLogs DefenseScoreBookReturnLog[]
 
   @@unique([studentId, semesterId])
   @@index([semesterId, periodPolicyVersionId])
@@ -532,6 +560,29 @@ model ProjectArchive {
   registrationId Int           @unique @map("registration_id")
   reportFileUrl  String?       @map("report_file_url")
   reportFileName String?       @map("report_file_name")
+  reportWordFileUrl              String?                   @map("report_word_file_url")
+  reportWordFileName             String?                   @map("report_word_file_name")
+  reportPdfFileUrl               String?                   @map("report_pdf_file_url")
+  reportPdfFileName              String?                   @map("report_pdf_file_name")
+  softPreparationDeadlineAt      DateTime?                 @map("soft_preparation_deadline_at")
+  defenseSnapshotAt              DateTime?                 @map("defense_snapshot_at")
+  windowClosesAt                 DateTime?                 @map("window_closes_at")
+  windowClosedAt                 DateTime?                 @map("window_closed_at")
+  mentorReviewStatus             ArchiveReviewStageStatus  @default(PENDING) @map("mentor_review_status")
+  mentorReviewedById             Int?                      @map("mentor_reviewed_by_id")
+  mentorReviewedAt               DateTime?                 @map("mentor_reviewed_at")
+  mentorReviewNotes              String?                   @map("mentor_review_notes") @db.Text
+  academicAffairsReviewStatus    ArchiveReviewStageStatus  @default(PENDING) @map("academic_affairs_review_status")
+  academicAffairsReviewedById    Int?                      @map("academic_affairs_reviewed_by_id")
+  academicAffairsReviewedAt      DateTime?                 @map("academic_affairs_reviewed_at")
+  academicAffairsReviewNotes     String?                   @map("academic_affairs_review_notes") @db.Text
+  certificateNumber              String?                   @unique @map("certificate_number")
+  certificateSignedById          Int?                      @map("certificate_signed_by_id")
+  certificateSignedAt            DateTime?                 @map("certificate_signed_at")
+  certificatePdfUrl              String?                   @map("certificate_pdf_url")
+  certificatePayloadHash         String?                   @map("certificate_payload_hash")
+  certificateSignatureEventId    Int?                      @map("certificate_signature_event_id")
+  certificateSnapshot            Json?                     @map("certificate_snapshot")
   slideFileUrl   String?       @map("slide_file_url")
   slideFileName  String?       @map("slide_file_name")
   sourceCodeUrl  String?       @map("source_code_url")
@@ -550,6 +601,10 @@ model ProjectArchive {
 
   registration TopicRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
   reviewer     User?             @relation(fields: [reviewedBy], references: [id])
+  mentorReviewedBy            User?                     @relation("ArchiveMentorReviewer", fields: [mentorReviewedById], references: [id])
+  academicAffairsReviewedBy   User?                     @relation("ArchiveAcademicAffairsReviewer", fields: [academicAffairsReviewedById], references: [id])
+  certificateSignedBy         User?                     @relation("ArchiveCertificateSigner", fields: [certificateSignedById], references: [id])
+  documentVersions            DefenseDocumentVersion[]
 
   @@index([registrationId, phase])
   @@map("project_archives")
@@ -604,6 +659,15 @@ model Council {
   meetingMode                CouncilMeetingMode?  @default(IN_PERSON) @map("meeting_mode")
   meetingUrl                 String?              @map("meeting_url")
   schedulePublishedAt        DateTime?            @map("schedule_published_at")
+  schedulePublishedById      Int?                 @map("schedule_published_by_id")
+  scheduleConfirmedAt        DateTime?            @map("schedule_confirmed_at")
+  scheduleConfirmedById      Int?                 @map("schedule_confirmed_by_id")
+  rubricVersionId            Int?                 @map("rubric_version_id")
+  allowFourthScoringMember   Boolean              @default(false) @map("allow_fourth_scoring_member")
+  scoreBookLocked            Boolean              @default(false) @map("score_book_locked")
+  scoreBookLockedAt          DateTime?            @map("score_book_locked_at")
+  scoreBookLockedById        Int?                 @map("score_book_locked_by_id")
+  currentScoreBookVersion    Int                  @default(1) @map("current_score_book_version")
   revisionSubmissionDeadline DateTime?            @map("revision_submission_deadline")
   isActive                   Boolean              @default(true) @map("is_active")
   deletedAt                  DateTime?            @map("deleted_at")
@@ -612,11 +676,17 @@ model Council {
   updatedAt                  DateTime             @updatedAt @map("updated_at")
   members                    CouncilMember[]
   semester                   Semester             @relation(fields: [semesterId], references: [id])
+  rubricVersion              RubricVersion?       @relation("CouncilRubric", fields: [rubricVersionId], references: [id])
+  scheduleConfirmedBy        User?                @relation("CouncilScheduleConfirmer", fields: [scheduleConfirmedById], references: [id])
+  schedulePublishedBy        User?                @relation("CouncilSchedulePublisher", fields: [schedulePublishedById], references: [id])
+  scoreBookLockedBy          User?                @relation("CouncilScoreBookLocker", fields: [scoreBookLockedById], references: [id])
   registrations              TopicRegistration[]  @relation("CouncilLegacy")
   outlineRegistrations       TopicRegistration[]  @relation("OutlineCouncil")
   defenseRegistrations       TopicRegistration[]  @relation("DefenseCouncil")
   resultBatches              CouncilResultBatch[]
   bm01Evaluations            BM01Evaluation[]
+  scheduleAdjustmentLogs     DefenseScheduleAdjustmentLog[]
+  scoreBookReturnLogs        DefenseScoreBookReturnLog[]
 
   @@map("councils")
 }
@@ -652,59 +722,89 @@ model CouncilResultBatch {
 }
 
 model CouncilMember {
-  id            Int         @id @default(autoincrement())
-  councilId     Int         @map("council_id")
-  lecturerId    Int         @map("lecturer_id")
-  roleInCouncil CouncilRole @map("role_in_council")
-  council       Council     @relation(fields: [councilId], references: [id])
-  lecturer      User        @relation(fields: [lecturerId], references: [id])
+  id                 Int            @id @default(autoincrement())
+  councilId          Int            @map("council_id")
+  lecturerId         Int            @map("lecturer_id")
+  roleInCouncil      CouncilRole    @map("role_in_council")
+  isScoringMember    Boolean        @default(true) @map("is_scoring_member")
+  isActive           Boolean        @default(true) @map("is_active")
+  effectiveFrom      DateTime       @default(now()) @map("effective_from")
+  replacedAt         DateTime?      @map("replaced_at")
+  replacedByMemberId Int?           @map("replaced_by_member_id")
+  replacementReason  String?        @map("replacement_reason")
+  assignedById       Int?           @map("assigned_by_id")
+  council            Council        @relation(fields: [councilId], references: [id])
+  lecturer           User           @relation(fields: [lecturerId], references: [id])
+  replacedByMember   CouncilMember? @relation("MemberReplacement", fields: [replacedByMemberId], references: [id])
+  replacingMembers   CouncilMember[] @relation("MemberReplacement")
+  assignedBy         User?          @relation("CouncilMemberAssigner", fields: [assignedById], references: [id])
 
-  @@unique([councilId, lecturerId])
+  @@index([councilId, lecturerId])
   @@map("council_members")
 }
 
 model DefenseResult {
-  id                 Int                     @id @default(autoincrement())
-  registrationId     Int                     @unique @map("registration_id")
-  finalScore         Float?                  @map("final_score")
-  comments           String?
-  scoresheetUrl      String?                 @map("scoresheet_url")
-  scoreRubricVersion String                  @default("v1") @map("score_rubric_version")
-  scoreLocked        Boolean                 @default(false) @map("score_locked")
-  lockedAt           DateTime?               @map("locked_at")
-  lockedBy           Int?                    @map("locked_by")
-  pdfUrl             String?                 @map("pdf_url")
-  pdfGeneratedAt     DateTime?               @map("pdf_generated_at")
-  evaluatorId        Int                     @map("evaluator_id")
-  createdAt          DateTime                @default(now()) @map("created_at")
-  updatedAt          DateTime                @updatedAt @map("updated_at")
-  registration       TopicRegistration       @relation(fields: [registrationId], references: [id])
-  evaluator          User                    @relation("DefenseEvaluator", fields: [evaluatorId], references: [id])
-  lockedByUser       User?                   @relation("DefenseScoreLocker", fields: [lockedBy], references: [id])
-  criterionScores    DefenseCriterionScore[]
-  approvals          DefenseResultApproval[]
+  id                       Int                     @id @default(autoincrement())
+  registrationId           Int                     @unique @map("registration_id")
+  finalScore               Float?                  @map("final_score")
+  rawAverageScore          Float?                  @map("raw_average_score")
+  roundedFinalScore        Float?                  @map("rounded_final_score")
+  attendanceStatus         AttendanceStatus        @default(PRESENT) @map("attendance_status")
+  absentMinutesText        String?                 @map("absent_minutes_text") @db.Text
+  absentConfirmedByChairId Int?                    @map("absent_confirmed_by_chair_id")
+  absentConfirmedAt        DateTime?               @map("absent_confirmed_at")
+  absentMinutesPdfUrl      String?                 @map("absent_minutes_pdf_url")
+  rubricSnapshot           Json?                   @map("rubric_snapshot")
+  activeScorerCount        Int                     @default(3) @map("active_scorer_count")
+  ledgerVersion            Int                     @default(1) @map("ledger_version")
+  comments                 String?
+  scoresheetUrl            String?                 @map("scoresheet_url")
+  scoreRubricVersion       String                  @default("v1") @map("score_rubric_version")
+  scoreLocked              Boolean                 @default(false) @map("score_locked")
+  lockedAt                 DateTime?               @map("locked_at")
+  lockedBy                 Int?                    @map("locked_by")
+  pdfUrl                   String?                 @map("pdf_url")
+  pdfGeneratedAt           DateTime?               @map("pdf_generated_at")
+  evaluatorId              Int                     @map("evaluator_id")
+  createdAt                DateTime                @default(now()) @map("created_at")
+  updatedAt                DateTime                @updatedAt @map("updated_at")
+  registration             TopicRegistration       @relation(fields: [registrationId], references: [id])
+  evaluator                User                    @relation("DefenseEvaluator", fields: [evaluatorId], references: [id])
+  lockedByUser             User?                   @relation("DefenseScoreLocker", fields: [lockedBy], references: [id])
+  absentConfirmedByChair   User?                   @relation("DefenseAbsentConfirmer", fields: [absentConfirmedByChairId], references: [id])
+  criterionScores          DefenseCriterionScore[]
+  approvals                DefenseResultApproval[]
 
   @@map("defense_results")
 }
 
 model DefenseMemberScore {
-  id                 Int                           @id @default(autoincrement())
-  registrationId     Int                           @map("registration_id")
-  evaluatorId        Int                           @map("evaluator_id")
-  finalScore         Float?                        @map("final_score")
-  comments           String?
-  scoreRubricVersion String                        @default("v1") @map("score_rubric_version")
-  scoreLocked        Boolean                       @default(false) @map("score_locked")
-  lockedAt           DateTime?                     @map("locked_at")
-  lockedBy           Int?                          @map("locked_by")
-  pdfUrl             String?                       @map("pdf_url")
-  pdfGeneratedAt     DateTime?                     @map("pdf_generated_at")
-  createdAt          DateTime                      @default(now()) @map("created_at")
-  updatedAt          DateTime                      @updatedAt @map("updated_at")
-  registration       TopicRegistration             @relation(fields: [registrationId], references: [id], onDelete: Cascade)
-  evaluator          User                          @relation("DefenseMemberScoreEvaluator", fields: [evaluatorId], references: [id])
-  lockedByUser       User?                         @relation("DefenseMemberScoreLocker", fields: [lockedBy], references: [id])
-  criterionScores    DefenseMemberCriterionScore[]
+  id                    Int                           @id @default(autoincrement())
+  registrationId        Int                           @map("registration_id")
+  evaluatorId           Int                           @map("evaluator_id")
+  roleInCouncilSnapshot CouncilRole?                  @map("role_in_council_snapshot")
+  rubricSnapshot        Json?                         @map("rubric_snapshot")
+  isEffective           Boolean                       @default(true) @map("is_effective")
+  supersededReason      String?                       @map("superseded_reason")
+  versionNumber         Int                           @default(1) @map("version_number")
+  finalScore            Float?                        @map("final_score")
+  comments              String?
+  scoreRubricVersion    String                        @default("v1") @map("score_rubric_version")
+  scoreLocked           Boolean                       @default(false) @map("score_locked")
+  lockedAt              DateTime?                     @map("locked_at")
+  lockedBy              Int?                          @map("locked_by")
+  reopenedAt            DateTime?                     @map("reopened_at")
+  reopenedById          Int?                          @map("reopened_by_id")
+  reopenReason          String?                       @map("reopen_reason")
+  pdfUrl                String?                       @map("pdf_url")
+  pdfGeneratedAt        DateTime?                     @map("pdf_generated_at")
+  createdAt             DateTime                      @default(now()) @map("created_at")
+  updatedAt             DateTime                      @updatedAt @map("updated_at")
+  registration          TopicRegistration             @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  evaluator             User                          @relation("DefenseMemberScoreEvaluator", fields: [evaluatorId], references: [id])
+  lockedByUser          User?                         @relation("DefenseMemberScoreLocker", fields: [lockedBy], references: [id])
+  reopenedByUser        User?                         @relation("DefenseMemberScoreReopener", fields: [reopenedById], references: [id])
+  criterionScores       DefenseMemberCriterionScore[]
 
   @@unique([registrationId, evaluatorId])
   @@map("defense_member_scores")
@@ -820,18 +920,26 @@ model ResultPublicationItem {
 }
 
 model RubricVersion {
-  id            Int              @id @default(autoincrement())
-  version       String           @unique
-  title         String
-  description   String?          @db.Text
-  totalMaxScore Float            @default(10.0) @map("total_max_score")
-  status        RubricStatus     @default(DRAFT)
-  isActive      Boolean          @default(false) @map("is_active")
-  createdById   Int?             @map("created_by_id")
-  createdAt     DateTime         @default(now()) @map("created_at")
-  updatedAt     DateTime         @updatedAt @map("updated_at")
-  createdByUser User?            @relation("RubricCreator", fields: [createdById], references: [id])
-  categories    RubricCategory[]
+  id                Int              @id @default(autoincrement())
+  version           String           @unique
+  title             String
+  description       String?          @db.Text
+  totalMaxScore     Float            @default(10.0) @map("total_max_score")
+  status            RubricStatus     @default(DRAFT)
+  isActive          Boolean          @default(false) @map("is_active")
+  semesterId        Int?             @map("semester_id")
+  lockedAt          DateTime?        @map("locked_at")
+  lockedById        Int?             @map("locked_by_id")
+  publishedAt       DateTime?        @map("published_at")
+  createdById       Int?             @map("created_by_id")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+  createdByUser     User?            @relation("RubricCreator", fields: [createdById], references: [id])
+  lockedByUser      User?            @relation("RubricLocker", fields: [lockedById], references: [id])
+  semester          Semester?        @relation("SemesterRubrics", fields: [semesterId], references: [id])
+  semesterLockedFor Semester[]       @relation("SemesterDefenseRubric")
+  councils          Council[]        @relation("CouncilRubric")
+  categories        RubricCategory[]
 
   @@map("rubric_versions")
 }
@@ -855,16 +963,21 @@ model RubricCategory {
 }
 
 model RubricCriterion {
-  id          Int            @id @default(autoincrement())
-  categoryId  Int            @map("category_id")
-  code        String         @map("code")
-  label       String         @map("label")
-  description String?        @db.Text
-  maxScore    Float          @map("max_score")
-  orderIndex  Int            @default(0) @map("order_index")
-  createdAt   DateTime       @default(now()) @map("created_at")
-  updatedAt   DateTime       @updatedAt @map("updated_at")
-  category    RubricCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  id               Int            @id @default(autoincrement())
+  categoryId       Int            @map("category_id")
+  code             String         @map("code")
+  label            String         @map("label")
+  description      String?        @db.Text
+  cloCode          String?        @map("clo_code")
+  levelGoodDesc    String?        @map("level_good_desc") @db.Text
+  levelFairDesc    String?        @map("level_fair_desc") @db.Text
+  levelAverageDesc String?        @map("level_average_desc") @db.Text
+  levelPoorDesc    String?        @map("level_poor_desc") @db.Text
+  maxScore         Float          @map("max_score")
+  orderIndex       Int            @default(0) @map("order_index")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+  category         RubricCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   @@index([categoryId, orderIndex])
   @@map("rubric_criteria")
@@ -1106,6 +1219,9 @@ enum RegistrationStatus {
   AWAITING_FINAL_APPROVAL
   DEFENSE_PASSED
   DEFENSE_FAILED
+  PENDING_INSTITUTE_SIGNATURE
+  ARCHIVE_INCOMPLETE
+  ARCHIVE_REJECTED
   SUBMITTED
   DEFENDED
   COMPLETED
@@ -1395,6 +1511,36 @@ enum ArchiveStatus {
   SUBMITTED
   APPROVED
   REVISION_REQUIRED
+  MENTOR_APPROVED
+  ACADEMIC_AFFAIRS_APPROVED
+  PENDING_INSTITUTE_SIGNATURE
+  COMPLETED
+  ARCHIVE_INCOMPLETE
+  ARCHIVE_REJECTED
+}
+
+enum DefenseSessionShift {
+  MORNING
+  AFTERNOON
+}
+
+enum DefenseDocumentType {
+  REPORT_WORD
+  REPORT_PDF
+  DEMO_VIDEO
+  SLIDE_PPTX
+}
+
+enum DefenseSnapshotType {
+  DEFENSE_SNAPSHOT
+  ARCHIVE_FINAL_SNAPSHOT
+}
+
+enum ArchiveReviewStageStatus {
+  PENDING
+  APPROVED
+  REVISION_REQUIRED
+  REJECTED
 }
 
 enum RubricStatus {
@@ -1825,6 +1971,96 @@ enum BM04ReviewStatus {
   NOT_ELIGIBLE_FOR_DEFENSE
   ELIGIBLE_BY_INSTITUTE
   AUTO_NOT_ELIGIBLE
+}
+
+model DefenseScheduleAdjustmentLog {
+  id               Int                  @id @default(autoincrement())
+  registrationId   Int                  @map("registration_id")
+  councilId        Int                  @map("council_id")
+  oldShift         DefenseSessionShift? @map("old_shift")
+  newShift         DefenseSessionShift  @map("new_shift")
+  oldOrderInShift  Int?                 @map("old_order_in_shift")
+  newOrderInShift  Int                  @map("new_order_in_shift")
+  reason           String               @db.Text
+  adjustedById     Int                  @map("adjusted_by_id")
+  createdAt        DateTime             @default(now()) @map("created_at")
+
+  registration     TopicRegistration    @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  council          Council              @relation(fields: [councilId], references: [id], onDelete: Cascade)
+  adjustedBy       User                 @relation("DefenseScheduleAdjuster", fields: [adjustedById], references: [id])
+
+  @@index([councilId, registrationId])
+  @@map("defense_schedule_adjustment_logs")
+}
+
+model DefenseDocumentVersion {
+  id                      Int                 @id @default(autoincrement())
+  registrationId          Int                 @map("registration_id")
+  archiveId               Int?                @map("archive_id")
+  documentType            DefenseDocumentType @map("document_type")
+  versionNumber           Int                 @default(1) @map("version_number")
+  phase                   ArchivePhase        @default(POST_DEFENSE) @map("phase")
+  fileUrl                 String              @map("file_url")
+  fileName                String              @map("file_name")
+  fileSizeBytes           Int?                @map("file_size_bytes")
+  checksum                String?             @map("checksum")
+  isLatePreDefense        Boolean             @default(false) @map("is_late_pre_defense")
+  uploadedById            Int                 @map("uploaded_by_id")
+  uploadedAt              DateTime            @default(now()) @map("uploaded_at")
+  mentorFeedback          String?             @map("mentor_feedback") @db.Text
+  academicAffairsFeedback String?             @map("academic_affairs_feedback") @db.Text
+
+  registration            TopicRegistration   @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  archive                 ProjectArchive?     @relation(fields: [archiveId], references: [id], onDelete: Cascade)
+  uploadedBy              User                @relation("DefenseDocUploader", fields: [uploadedById], references: [id])
+
+  @@unique([registrationId, documentType, versionNumber])
+  @@index([registrationId, documentType])
+  @@map("defense_document_versions")
+}
+
+model DefenseDocumentSnapshot {
+  id                    Int                 @id @default(autoincrement())
+  registrationId        Int                 @map("registration_id")
+  snapshotType          DefenseSnapshotType @map("snapshot_type")
+  capturedAt            DateTime            @default(now()) @map("captured_at")
+  reportWordVersionId   Int?                @map("report_word_version_id")
+  reportPdfVersionId    Int?                @map("report_pdf_version_id")
+  demoVideoVersionId    Int?                @map("demo_video_version_id")
+  slidePptxVersionId    Int?                @map("slide_pptx_version_id")
+  bm03RecordId          Int?                @map("bm03_record_id")
+  bm03PdfUrl            String?             @map("bm03_pdf_url")
+  bm04EvaluationId      Int?                @map("bm04_evaluation_id")
+  bm04PdfUrl            String?             @map("bm04_pdf_url")
+  missingDocumentTypes  Json                @default("[]") @map("missing_document_types")
+  payloadHash           String?             @map("payload_hash")
+  createdAt             DateTime            @default(now()) @map("created_at")
+
+  registration          TopicRegistration   @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+
+  @@unique([registrationId, snapshotType])
+  @@index([registrationId, snapshotType])
+  @@map("defense_document_snapshots")
+}
+
+model DefenseScoreBookReturnLog {
+  id                     Int                 @id @default(autoincrement())
+  councilId              Int                 @map("council_id")
+  registrationId         Int                 @map("registration_id")
+  fromLedgerVersion      Int                 @map("from_ledger_version")
+  toLedgerVersion        Int                 @map("to_ledger_version")
+  returnedByAdminId      Int                 @map("returned_by_admin_id")
+  returnedAt             DateTime            @default(now()) @map("returned_at")
+  reason                 String              @db.Text
+  reopenedMemberScoreIds Json                @default("[]") @map("reopened_member_score_ids")
+  previousStateSnapshot  Json?               @map("previous_state_snapshot")
+
+  council                Council             @relation(fields: [councilId], references: [id], onDelete: Cascade)
+  registration           TopicRegistration   @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  returnedByAdmin        User                @relation("DefenseScoreBookReturner", fields: [returnedByAdminId], references: [id])
+
+  @@index([councilId, registrationId])
+  @@map("defense_score_book_return_logs")
 }
 
 

@@ -51,9 +51,16 @@ const PERMISSION_CATALOG = [
   { code: 'RESULT_PUBLISH', label: 'Công bố bảng điểm & kết quả bảo vệ', module: 'DEFENSE' },
   { code: 'RESULT_PUBLICATION_PUBLISH', label: 'Ban hành công bố kết quả bảo vệ', module: 'DEFENSE' },
   { code: 'RUBRIC_MANAGE', label: 'Quản trị tiêu chí chấm điểm (Rubric)', module: 'DEFENSE' },
+  { code: 'RUBRIC_LOCK', label: 'Khóa bất biến bảng tiêu chí Rubric đợt bảo vệ', module: 'DEFENSE' },
+  { code: 'DEFENSE_SCHEDULE_PUBLISH', label: 'Công bố lịch bảo vệ đồ án hội đồng', module: 'DEFENSE' },
+  { code: 'DEFENSE_MEMBER_REPLACE', label: 'Thay thế thành viên chấm điểm hội đồng', module: 'DEFENSE' },
+  { code: 'DEFENSE_SCOREBOOK_RETURN', label: 'Trả sổ điểm hội đồng trước công bố', module: 'DEFENSE' },
 
   // LƯU CHIỂU SỐ
   { code: 'FINAL_DOCUMENT_REVIEW', label: 'Thẩm định & xác nhận lưu chiểu', module: 'REVISION' },
+  { code: 'ARCHIVE_MENTOR_REVIEW', label: 'Duyệt nội dung chuyên môn hồ sơ lưu chiểu (GVHD)', module: 'REVISION' },
+  { code: 'ARCHIVE_ACADEMIC_AFFAIRS_REVIEW', label: 'Duyệt thủ tục hồ sơ lưu chiểu (Giáo vụ)', module: 'REVISION' },
+  { code: 'CLEARANCE_CERTIFICATE_SIGN', label: 'Ký số Giấy xác nhận hoàn thành đồ án (Viện trưởng)', module: 'REVISION' },
 
   // BÁO CÁO & THỐNG KÊ
   { code: 'REPORT_VIEW', label: 'Xem báo cáo & thống kê học vụ', module: 'REPORT' },
@@ -167,7 +174,7 @@ const TECHNICAL_PERMISSIONS = Object.freeze([
   'VIEW_RUBRIC_CONFIG',
 ]);
 
-const ACADEMIC_PROTECTED_PERMISSIONS = Object.freeze([
+const academicProtectedPermissions = [
   // Đề tài & Xét duyệt
   'TOPIC_CREATE',
   'TOPIC_UPDATE_OWN',
@@ -219,6 +226,10 @@ const ACADEMIC_PROTECTED_PERMISSIONS = Object.freeze([
   'DEFENSE_RESULT_APPROVE',
   'RESULT_PUBLISH',
   'RESULT_PUBLICATION_PUBLISH',
+  'RUBRIC_LOCK',
+  'DEFENSE_SCHEDULE_PUBLISH',
+  'DEFENSE_MEMBER_REPLACE',
+  'DEFENSE_SCOREBOOK_RETURN',
   'VIEW_DEFENSE_ASSIGNMENTS',
   'VIEW_COUNCIL_ASSIGNMENTS',
   'VIEW_DEFENSE_GRADING',
@@ -229,10 +240,19 @@ const ACADEMIC_PROTECTED_PERMISSIONS = Object.freeze([
   'VIEW_RESULT_PUBLICATIONS',
   // Lưu chiểu số & Ủy quyền
   'FINAL_DOCUMENT_REVIEW',
+  'ARCHIVE_MENTOR_REVIEW',
+  'ARCHIVE_ACADEMIC_AFFAIRS_REVIEW',
+  'CLEARANCE_CERTIFICATE_SIGN',
   'VIEW_CLEARANCE_CERTIFICATES',
   'PERMISSION_ASSIGN_ACADEMIC',
   'VIEW_ACADEMIC_DELEGATIONS',
-]);
+];
+
+academicProtectedPermissions.has = function(code) {
+  return this.includes(code);
+};
+
+const ACADEMIC_PROTECTED_PERMISSIONS = Object.freeze(academicProtectedPermissions);
 
 const DEFAULT_GROUPS = [
   {
@@ -280,6 +300,7 @@ const DEFAULT_GROUPS = [
       'DEFENSE_SCORE_SUBMIT',
       'DEFENSE_SCORE_VIEW',
       'FINAL_DOCUMENT_REVIEW',
+      'ARCHIVE_MENTOR_REVIEW',
       'REPORT_VIEW',
       'VIEW_MY_TOPICS',
       'VIEW_MENTOR_STUDENTS',
@@ -313,6 +334,7 @@ const DEFAULT_GROUPS = [
       'DEFENSE_SCORE_SUBMIT',
       'DEFENSE_SCORE_VIEW',
       'FINAL_DOCUMENT_REVIEW',
+      'ARCHIVE_MENTOR_REVIEW',
       'REPORT_VIEW',
       'VIEW_MY_TOPICS',
       'VIEW_MENTOR_STUDENTS',
@@ -342,6 +364,12 @@ const DEFAULT_GROUPS = [
       'RESULT_PUBLISH',
       'RESULT_PUBLICATION_PUBLISH',
       'RUBRIC_MANAGE',
+      'RUBRIC_LOCK',
+      'DEFENSE_SCHEDULE_PUBLISH',
+      'DEFENSE_MEMBER_REPLACE',
+      'DEFENSE_SCOREBOOK_RETURN',
+      'ARCHIVE_ACADEMIC_AFFAIRS_REVIEW',
+      'CLEARANCE_CERTIFICATE_SIGN',
       'SIGNATURE_APPEAL_REVIEW',
       'PUBLIC_ANNOUNCEMENT_MANAGE',
       'PERMISSION_ASSIGN_ACADEMIC',
@@ -386,6 +414,11 @@ const DEFAULT_GROUPS = [
       'ENROLLMENT_MANAGE',
       'VIEW_PROJECT_ENROLLMENTS',
       'RUBRIC_MANAGE',
+      'RUBRIC_LOCK',
+      'DEFENSE_SCHEDULE_PUBLISH',
+      'DEFENSE_MEMBER_REPLACE',
+      'DEFENSE_SCOREBOOK_RETURN',
+      'ARCHIVE_ACADEMIC_AFFAIRS_REVIEW',
       'VIEW_RUBRIC_CONFIG',
       'NOTIFICATION_MANAGE',
       'VIEW_NOTIFICATIONS',

@@ -14,6 +14,7 @@ const APPLICATION_TABLES = Object.freeze([
   'bm02a_adjustment_requests', 'bm02a_form_versions', 'title_adjustment_appendices',
   'title_adjustment_appendix_items', 'bm03_progress_records', 'bm03_meeting_entries',
   'bm03_stage_evaluations', 'institute_stop_reviews', 'institute_defense_reviews',
+  'defense_schedule_adjustment_logs', 'defense_document_versions', 'defense_document_snapshots', 'defense_score_book_return_logs',
 ]);
 
 const RESET_CONFIRMATION = 'RESET_DACN_DEMO';
