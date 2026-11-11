@@ -3,6 +3,8 @@ const { PERMISSIONS } = require('../constants/permissions');
 const { auditLog } = require('../services/auditLogService');
 const { safeNotify } = require('../services/notificationService');
 const defenseDossierService = require('../services/defenseDossierService');
+const archivalWorkflowService = require('../services/archivalWorkflowService');
+const defenseAndArchivalSweepService = require('../services/defenseAndArchivalSweepService');
 const { WorkflowTransitionError } = require('../services/registrationTransitionService');
 
 const parsePositiveInt = (value) => {
@@ -992,6 +994,165 @@ const closeArchiveWindow = async (req, res, next) => {
     }
 };
 
+// 11. GVHD duyệt chuyên môn/nội dung lưu chiểu (Tầng 1)
+const mentorReviewArchive = async (req, res, next) => {
+    try {
+        const archiveId = parsePositiveInt(req.params.id) || parsePositiveInt(req.params.archiveId) || parsePositiveInt(req.params.registrationId) || parsePositiveInt(req.body.archiveId) || parsePositiveInt(req.body.registrationId);
+        if (!archiveId) {
+            return res.status(400).json({ success: false, code: 'INVALID_ARCHIVE_ID', message: 'archiveId không hợp lệ.' });
+        }
+
+        const { status, notes, versionFeedbacks, idempotencyKey } = req.body;
+        const result = await archivalWorkflowService.reviewArchiveByMentor({
+            archiveId,
+            mentorId: req.user.id,
+            status,
+            notes,
+            versionFeedbacks,
+            idempotencyKey,
+        });
+
+        await auditLog(
+            req.user.id,
+            'ARCHIVE_MENTOR_REVIEW',
+            'PROJECT_ARCHIVE',
+            result.id,
+            { status, mentorReviewStatus: result.mentorReviewStatus, archiveStatus: result.status },
+            req.ip,
+        );
+
+        res.json({
+            success: true,
+            message: 'Đánh giá chuyên môn lưu chiểu thành công.',
+            data: result,
+        });
+    } catch (error) {
+        if (error instanceof WorkflowTransitionError || error.code || error.status) {
+            return res.status(error.status || 400).json({
+                success: false,
+                code: error.code || 'REVIEW_ERROR',
+                message: error.message,
+            });
+        }
+        next(error);
+    }
+};
+
+// 12. Giáo vụ duyệt thủ tục/thành phần hồ sơ lưu chiểu (Tầng 2)
+const academicAffairsReviewArchive = async (req, res, next) => {
+    try {
+        const archiveId = parsePositiveInt(req.params.id) || parsePositiveInt(req.params.archiveId) || parsePositiveInt(req.params.registrationId) || parsePositiveInt(req.body.archiveId) || parsePositiveInt(req.body.registrationId);
+        if (!archiveId) {
+            return res.status(400).json({ success: false, code: 'INVALID_ARCHIVE_ID', message: 'archiveId không hợp lệ.' });
+        }
+
+        const { status, notes, versionFeedbacks, idempotencyKey } = req.body;
+        const result = await archivalWorkflowService.reviewArchiveByAcademicAffairs({
+            archiveId,
+            reviewerId: req.user.id,
+            status,
+            notes,
+            versionFeedbacks,
+            idempotencyKey,
+        });
+
+        await auditLog(
+            req.user.id,
+            'ARCHIVE_ACADEMIC_AFFAIRS_REVIEW',
+            'PROJECT_ARCHIVE',
+            result.id,
+            { status, academicAffairsReviewStatus: result.academicAffairsReviewStatus, archiveStatus: result.status },
+            req.ip,
+        );
+
+        res.json({
+            success: true,
+            message: 'Đánh giá thủ tục lưu chiểu thành công.',
+            data: result,
+        });
+    } catch (error) {
+        if (error instanceof WorkflowTransitionError || error.code || error.status) {
+            return res.status(error.status || 400).json({
+                success: false,
+                code: error.code || 'REVIEW_ERROR',
+                message: error.message,
+            });
+        }
+        next(error);
+    }
+};
+
+// 13. Viện trưởng ký Giấy xác nhận hoàn thành đồ án
+const signClearanceCertificate = async (req, res, next) => {
+    try {
+        const archiveId = parsePositiveInt(req.params.id) || parsePositiveInt(req.params.archiveId) || parsePositiveInt(req.params.registrationId) || parsePositiveInt(req.body.archiveId) || parsePositiveInt(req.body.registrationId);
+        if (!archiveId) {
+            return res.status(400).json({ success: false, code: 'INVALID_ARCHIVE_ID', message: 'archiveId không hợp lệ.' });
+        }
+
+        const { expectedPayloadHash, idempotencyKey } = req.body;
+        const result = await archivalWorkflowService.signClearanceCertificateByInstituteDirector({
+            archiveId,
+            directorUser: req.user,
+            expectedPayloadHash,
+            idempotencyKey,
+        });
+
+        await auditLog(
+            req.user.id,
+            'SIGN_CLEARANCE_CERTIFICATE',
+            'PROJECT_ARCHIVE',
+            result.archive.id,
+            {
+                certificateNumber: result.archive.certificateNumber,
+                registrationId: result.registration.id,
+                signatureEventId: result.signatureEvent?.id,
+            },
+            req.ip,
+        );
+
+        res.json({
+            success: true,
+            message: 'Viện trưởng ký số Giấy xác nhận hoàn thành đồ án thành công.',
+            data: result,
+        });
+    } catch (error) {
+        if (error instanceof WorkflowTransitionError || error.code || error.status) {
+            return res.status(error.status || 400).json({
+                success: false,
+                code: error.code || 'SIGN_CERTIFICATE_ERROR',
+                message: error.message,
+            });
+        }
+        next(error);
+    }
+};
+
+// 14. Trigger sweep job an toan
+const runSweepJob = async (req, res, next) => {
+    try {
+        const now = req.body.now ? new Date(req.body.now) : new Date();
+        const result = await defenseAndArchivalSweepService.runDefenseAndArchivalSweep({ now });
+
+        await auditLog(
+            req.user.id,
+            'RUN_DEFENSE_AND_ARCHIVAL_SWEEP',
+            'SYSTEM_JOB',
+            'defense-archival-sweep',
+            result,
+            req.ip,
+        );
+
+        res.json({
+            success: true,
+            message: 'Chạy quét tự động lịch bảo vệ và lưu chiểu thành công.',
+            data: result,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     getArchiveByRegistration,
     getRegistrationArchive: getArchiveByRegistration,
@@ -1005,4 +1166,8 @@ module.exports = {
     getDefenseDossier,
     captureDefenseZeroHourSnapshot,
     closeArchiveWindow,
+    mentorReviewArchive,
+    academicAffairsReviewArchive,
+    signClearanceCertificate,
+    runSweepJob,
 };

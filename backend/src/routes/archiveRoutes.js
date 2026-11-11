@@ -241,4 +241,74 @@ router.post(
     archiveController.closeArchiveWindow,
 );
 
+// 11. GVHD duyệt chuyên môn/nội dung lưu chiểu (Tầng 1)
+const mentorReviewGuards = [
+    authorizePermission(PERMISSIONS.ARCHIVE_MENTOR_REVIEW),
+    [
+        param('id').optional().isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
+        param('registrationId').optional().isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
+        body('status').isIn(['APPROVED', 'REVISION_REQUIRED', 'REJECTED']).withMessage('status phải là APPROVED, REVISION_REQUIRED hoặc REJECTED.'),
+        body('notes').optional({ nullable: true }).isString(),
+        body('versionFeedbacks').optional().isArray(),
+        validateRequest,
+    ],
+];
+
+router.post(
+    ['/:id/mentor-review', '/registrations/:registrationId/mentor-review'],
+    mentorReviewGuards,
+    archiveController.mentorReviewArchive,
+);
+
+// 12. Giáo vụ duyệt thủ tục/thành phần hồ sơ lưu chiểu (Tầng 2)
+const academicAffairsReviewGuards = [
+    authorizePermission(PERMISSIONS.ARCHIVE_ACADEMIC_AFFAIRS_REVIEW),
+    [
+        param('id').optional().isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
+        param('registrationId').optional().isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
+        body('status').isIn(['APPROVED', 'REVISION_REQUIRED', 'REJECTED']).withMessage('status phải là APPROVED, REVISION_REQUIRED hoặc REJECTED.'),
+        body('notes').optional({ nullable: true }).isString(),
+        body('versionFeedbacks').optional().isArray(),
+        validateRequest,
+    ],
+];
+
+router.post(
+    ['/:id/academic-affairs-review', '/registrations/:registrationId/academic-affairs-review'],
+    academicAffairsReviewGuards,
+    archiveController.academicAffairsReviewArchive,
+);
+
+// 13. Viện trưởng ký Giấy xác nhận hoàn thành đồ án
+const signCertificateGuards = [
+    authorizePermission(PERMISSIONS.CLEARANCE_CERTIFICATE_SIGN),
+    [
+        param('id').optional().isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
+        param('registrationId').optional().isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
+        body('expectedPayloadHash').optional({ nullable: true }).isString(),
+        validateRequest,
+    ],
+];
+
+router.post(
+    ['/:id/sign-certificate', '/registrations/:registrationId/sign-certificate'],
+    signCertificateGuards,
+    archiveController.signClearanceCertificate,
+);
+
+// 14. Trigger sweep job an toan
+const sweepGuards = [
+    authorizePermission(PERMISSIONS.DEFENSE_COUNCIL_MANAGE),
+    [
+        body('now').optional({ nullable: true }).isISO8601(),
+        validateRequest,
+    ],
+];
+
+router.post(
+    '/sweep',
+    sweepGuards,
+    archiveController.runSweepJob,
+);
+
 module.exports = router;

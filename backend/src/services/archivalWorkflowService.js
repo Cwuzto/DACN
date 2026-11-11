@@ -7,6 +7,9 @@ const {
     captureDefenseZeroHourSnapshot,
     closeArchiveWindowAtDay15,
 } = require('./defenseDossierService');
+const { resolveEffectiveTopicTitle } = require('./topicTitleResolverService');
+const { recordSignatureEvent, computeCanonicalPayloadHash } = require('./electronicSignatureService');
+const { generateImmutableAcademicPdf } = require('./academicPdfService');
 
 // Only an approved defense outcome can enter the post-defense archive flow.
 // DEFENDED remains as a read-only legacy compatibility status; score alone is
@@ -381,6 +384,540 @@ async function getClearanceCertificateData(registrationId, options = {}) {
     };
 }
 
+/**
+ * Đánh giá chuyên môn hồ sơ lưu chiểu số bởi Giảng viên hướng dẫn (Tầng 1)
+ */
+async function reviewArchiveByMentor(input, options = {}) {
+    const db = options.db || options.tx || prisma;
+    const {
+        archiveId,
+        mentorId,
+        status,
+        notes,
+        versionFeedbacks,
+        idempotencyKey,
+    } = input;
+
+    const parsedId = parseInt(archiveId, 10);
+    if (!Number.isInteger(parsedId) || parsedId <= 0) {
+        throw new WorkflowTransitionError('INVALID_ARCHIVE_ID', 400, 'archiveId không hợp lệ.');
+    }
+
+    if (!['APPROVED', 'REVISION_REQUIRED', 'REJECTED'].includes(status)) {
+        throw new WorkflowTransitionError('INVALID_STATUS', 400, 'Trạng thái đánh giá phải là APPROVED, REVISION_REQUIRED hoặc REJECTED.');
+    }
+
+    const execute = async (tx) => {
+        let archive = await tx.projectArchive.findUnique({
+            where: { id: parsedId },
+            include: {
+                registration: {
+                    include: {
+                        topic: true,
+                        student: true,
+                        defenseResult: true,
+                    },
+                },
+            },
+        });
+
+        if (!archive) {
+            archive = await tx.projectArchive.findUnique({
+                where: { registrationId: parsedId },
+                include: {
+                    registration: {
+                        include: {
+                            topic: true,
+                            student: true,
+                            defenseResult: true,
+                        },
+                    },
+                },
+            });
+        }
+
+        if (!archive || !archive.registration) {
+            throw new WorkflowTransitionError('ARCHIVE_NOT_FOUND', 404, 'Không tìm thấy hồ sơ lưu chiểu.');
+        }
+
+        const registration = archive.registration;
+        const topicMentorId = registration.topic?.mentorId;
+        if (topicMentorId !== mentorId) {
+            throw new WorkflowTransitionError('FORBIDDEN', 403, 'Chỉ GVHD phụ trách đề tài mới có quyền đánh giá chuyên môn lưu chiểu.');
+        }
+
+        // Cập nhật feedback chi tiết cho từng version nếu có
+        if (Array.isArray(versionFeedbacks) && versionFeedbacks.length > 0) {
+            for (const item of versionFeedbacks) {
+                if (item.versionId && item.feedback) {
+                    await tx.defenseDocumentVersion.updateMany({
+                        where: {
+                            id: Number(item.versionId),
+                            registrationId: registration.id,
+                        },
+                        data: {
+                            mentorFeedback: String(item.feedback),
+                        },
+                    });
+                }
+            }
+        }
+
+        let nextArchiveStatus = archive.status;
+
+        if (status === 'REJECTED') {
+            nextArchiveStatus = 'ARCHIVE_REJECTED';
+            if (registration.status === 'DEFENSE_PASSED' || registration.status === 'PENDING_INSTITUTE_SIGNATURE') {
+                await transitionRegistration({
+                    registrationId: registration.id,
+                    expectedStatus: registration.status,
+                    expectedStateVersion: registration.stateVersion || 0,
+                    targetStatus: 'ARCHIVE_REJECTED',
+                    actorId: mentorId,
+                    reason: notes || 'GVHD từ chối hồ sơ lưu chiểu chuyên môn',
+                    idempotencyKey: idempotencyKey || `archive-mentor-reject-${registration.id}-${registration.stateVersion || 0}`,
+                }, { tx });
+            }
+        } else if (status === 'REVISION_REQUIRED') {
+            nextArchiveStatus = 'REVISION_REQUIRED';
+        } else if (status === 'APPROVED') {
+            // Kiểm tra đủ 4 loại tài liệu
+            const versions = await tx.defenseDocumentVersion.findMany({
+                where: { registrationId: registration.id },
+                select: { documentType: true },
+            });
+            const uploadedTypes = new Set(versions.map((v) => v.documentType));
+            const hasAll4Files = ['REPORT_WORD', 'REPORT_PDF', 'DEMO_VIDEO', 'SLIDE_PPTX'].every((t) => uploadedTypes.has(t));
+
+            const isAcademicAffairsApproved = archive.academicAffairsReviewStatus === 'APPROVED';
+
+            if (hasAll4Files && isAcademicAffairsApproved && registration.status === 'DEFENSE_PASSED') {
+                await transitionRegistration({
+                    registrationId: registration.id,
+                    expectedStatus: 'DEFENSE_PASSED',
+                    expectedStateVersion: registration.stateVersion || 0,
+                    targetStatus: 'PENDING_INSTITUTE_SIGNATURE',
+                    actorId: mentorId,
+                    reason: 'Hồ sơ đủ 4 loại tài liệu và được cả GVHD lẫn Giáo vụ phê duyệt lưu chiểu',
+                    idempotencyKey: idempotencyKey || `archive-pending-sig-${registration.id}-${registration.stateVersion || 0}`,
+                }, { tx });
+                nextArchiveStatus = 'PENDING_INSTITUTE_SIGNATURE';
+            } else {
+                nextArchiveStatus = 'MENTOR_APPROVED';
+            }
+        }
+
+        const updatedArchive = await tx.projectArchive.update({
+            where: { id: archive.id },
+            data: {
+                mentorReviewStatus: status,
+                mentorReviewedById: mentorId,
+                mentorReviewedAt: new Date(),
+                mentorReviewNotes: notes || null,
+                status: nextArchiveStatus,
+            },
+            include: {
+                mentorReviewedBy: { select: { id: true, fullName: true, role: true } },
+                academicAffairsReviewedBy: { select: { id: true, fullName: true, role: true } },
+                registration: {
+                    include: {
+                        topic: true,
+                        student: true,
+                        defenseResult: true,
+                    },
+                },
+            },
+        });
+
+        return updatedArchive;
+    };
+
+    if (options.tx) {
+        return execute(options.tx);
+    }
+    return db.$transaction(execute);
+}
+
+/**
+ * Đánh giá thủ tục/thành phần hồ sơ lưu chiểu số bởi Giáo vụ Viện (Tầng 2)
+ */
+async function reviewArchiveByAcademicAffairs(input, options = {}) {
+    const db = options.db || options.tx || prisma;
+    const {
+        archiveId,
+        reviewerId,
+        status,
+        notes,
+        versionFeedbacks,
+        idempotencyKey,
+    } = input;
+
+    const parsedId = parseInt(archiveId, 10);
+    if (!Number.isInteger(parsedId) || parsedId <= 0) {
+        throw new WorkflowTransitionError('INVALID_ARCHIVE_ID', 400, 'archiveId không hợp lệ.');
+    }
+
+    if (!['APPROVED', 'REVISION_REQUIRED', 'REJECTED'].includes(status)) {
+        throw new WorkflowTransitionError('INVALID_STATUS', 400, 'Trạng thái đánh giá phải là APPROVED, REVISION_REQUIRED hoặc REJECTED.');
+    }
+
+    const execute = async (tx) => {
+        let archive = await tx.projectArchive.findUnique({
+            where: { id: parsedId },
+            include: {
+                registration: {
+                    include: {
+                        topic: true,
+                        student: true,
+                        defenseResult: true,
+                    },
+                },
+            },
+        });
+
+        if (!archive) {
+            archive = await tx.projectArchive.findUnique({
+                where: { registrationId: parsedId },
+                include: {
+                    registration: {
+                        include: {
+                            topic: true,
+                            student: true,
+                            defenseResult: true,
+                        },
+                    },
+                },
+            });
+        }
+
+        if (!archive || !archive.registration) {
+            throw new WorkflowTransitionError('ARCHIVE_NOT_FOUND', 404, 'Không tìm thấy hồ sơ lưu chiểu.');
+        }
+
+        const registration = archive.registration;
+
+        // Cập nhật feedback chi tiết cho từng version nếu có
+        if (Array.isArray(versionFeedbacks) && versionFeedbacks.length > 0) {
+            for (const item of versionFeedbacks) {
+                if (item.versionId && item.feedback) {
+                    await tx.defenseDocumentVersion.updateMany({
+                        where: {
+                            id: Number(item.versionId),
+                            registrationId: registration.id,
+                        },
+                        data: {
+                            academicAffairsFeedback: String(item.feedback),
+                        },
+                    });
+                }
+            }
+        }
+
+        let nextArchiveStatus = archive.status;
+
+        if (status === 'REJECTED') {
+            nextArchiveStatus = 'ARCHIVE_REJECTED';
+            if (registration.status === 'DEFENSE_PASSED' || registration.status === 'PENDING_INSTITUTE_SIGNATURE') {
+                await transitionRegistration({
+                    registrationId: registration.id,
+                    expectedStatus: registration.status,
+                    expectedStateVersion: registration.stateVersion || 0,
+                    targetStatus: 'ARCHIVE_REJECTED',
+                    actorId: reviewerId,
+                    reason: notes || 'Giáo vụ từ chối thủ tục hồ sơ lưu chiểu',
+                    idempotencyKey: idempotencyKey || `archive-aa-reject-${registration.id}-${registration.stateVersion || 0}`,
+                }, { tx });
+            }
+        } else if (status === 'REVISION_REQUIRED') {
+            nextArchiveStatus = 'REVISION_REQUIRED';
+        } else if (status === 'APPROVED') {
+            // Kiểm tra đủ 4 loại tài liệu
+            const versions = await tx.defenseDocumentVersion.findMany({
+                where: { registrationId: registration.id },
+                select: { documentType: true },
+            });
+            const uploadedTypes = new Set(versions.map((v) => v.documentType));
+            const hasAll4Files = ['REPORT_WORD', 'REPORT_PDF', 'DEMO_VIDEO', 'SLIDE_PPTX'].every((t) => uploadedTypes.has(t));
+
+            const isMentorApproved = archive.mentorReviewStatus === 'APPROVED';
+
+            if (hasAll4Files && isMentorApproved && registration.status === 'DEFENSE_PASSED') {
+                await transitionRegistration({
+                    registrationId: registration.id,
+                    expectedStatus: 'DEFENSE_PASSED',
+                    expectedStateVersion: registration.stateVersion || 0,
+                    targetStatus: 'PENDING_INSTITUTE_SIGNATURE',
+                    actorId: reviewerId,
+                    reason: 'Hồ sơ đủ 4 loại tài liệu và được cả GVHD lẫn Giáo vụ phê duyệt lưu chiểu',
+                    idempotencyKey: idempotencyKey || `archive-pending-sig-${registration.id}-${registration.stateVersion || 0}`,
+                }, { tx });
+                nextArchiveStatus = 'PENDING_INSTITUTE_SIGNATURE';
+            } else {
+                nextArchiveStatus = 'ACADEMIC_AFFAIRS_APPROVED';
+            }
+        }
+
+        const updatedArchive = await tx.projectArchive.update({
+            where: { id: archive.id },
+            data: {
+                academicAffairsReviewStatus: status,
+                academicAffairsReviewedById: reviewerId,
+                academicAffairsReviewedAt: new Date(),
+                academicAffairsReviewNotes: notes || null,
+                status: nextArchiveStatus,
+            },
+            include: {
+                mentorReviewedBy: { select: { id: true, fullName: true, role: true } },
+                academicAffairsReviewedBy: { select: { id: true, fullName: true, role: true } },
+                registration: {
+                    include: {
+                        topic: true,
+                        student: true,
+                        defenseResult: true,
+                    },
+                },
+            },
+        });
+
+        return updatedArchive;
+    };
+
+    if (options.tx) {
+        return execute(options.tx);
+    }
+    return db.$transaction(execute);
+}
+
+/**
+ * Viện trưởng ký Giấy xác nhận hoàn thành đồ án tốt nghiệp (Clearance Certificate)
+ */
+async function signClearanceCertificateByInstituteDirector(input, options = {}) {
+    const db = options.db || options.tx || prisma;
+    const {
+        archiveId,
+        directorUser,
+        expectedPayloadHash,
+        idempotencyKey,
+    } = input;
+
+    const parsedId = parseInt(archiveId, 10);
+    if (!Number.isInteger(parsedId) || parsedId <= 0) {
+        throw new WorkflowTransitionError('INVALID_ARCHIVE_ID', 400, 'archiveId không hợp lệ.');
+    }
+
+    if (!directorUser || typeof directorUser !== 'object') {
+        throw new WorkflowTransitionError('DIRECTOR_USER_REQUIRED', 400, 'Thông tin người ký không hợp lệ.');
+    }
+
+    const permissions = directorUser.permissions || [];
+    const hasDirectorSignPerm = permissions.includes('CLEARANCE_CERTIFICATE_SIGN');
+    if (!hasDirectorSignPerm) {
+        throw new WorkflowTransitionError(
+            'FORBIDDEN',
+            403,
+            'Người ký bắt buộc phải sở hữu quyền học thuật CLEARANCE_CERTIFICATE_SIGN (chức danh Viện trưởng). Tài khoản Admin kỹ thuật không có quyền này.',
+        );
+    }
+
+    const execute = async (tx) => {
+        let archive = await tx.projectArchive.findUnique({
+            where: { id: parsedId },
+            include: {
+                registration: {
+                    include: {
+                        topic: {
+                            include: {
+                                mentor: true,
+                                semester: true,
+                                projectCatalog: true,
+                            },
+                        },
+                        student: true,
+                        defenseResult: true,
+                        defenseCouncil: true,
+                    },
+                },
+            },
+        });
+
+        if (!archive) {
+            archive = await tx.projectArchive.findUnique({
+                where: { registrationId: parsedId },
+                include: {
+                    registration: {
+                        include: {
+                            topic: {
+                                include: {
+                                    mentor: true,
+                                    semester: true,
+                                    projectCatalog: true,
+                                },
+                            },
+                            student: true,
+                            defenseResult: true,
+                            defenseCouncil: true,
+                        },
+                    },
+                },
+            });
+        }
+
+        if (!archive || !archive.registration) {
+            throw new WorkflowTransitionError('ARCHIVE_NOT_FOUND', 404, 'Không tìm thấy hồ sơ lưu chiểu.');
+        }
+
+        const registration = archive.registration;
+
+        // Idempotency check: if already completed with certificate issued
+        if (registration.status === 'COMPLETED' && archive.certificateNumber) {
+            return {
+                archive,
+                registration,
+                signatureEvent: { id: archive.certificateSignatureEventId, signedAt: archive.certificateSignedAt },
+                certificatePdf: { fileUrl: archive.certificatePdfUrl },
+            };
+        }
+
+        if (registration.status !== 'PENDING_INSTITUTE_SIGNATURE') {
+            throw new WorkflowTransitionError(
+                'REGISTRATION_NOT_READY_FOR_SIGNATURE',
+                409,
+                'Hồ sơ chưa ở trạng thái PENDING_INSTITUTE_SIGNATURE để ký giấy xác nhận.',
+            );
+        }
+
+        // Resolve effective topic title
+        let effectiveTitle = registration.adjustedTitle || registration.bm01ApprovedTitleSnapshot || registration.topic?.title || 'Chưa xác định';
+        try {
+            const titleRes = await resolveEffectiveTopicTitle(registration.id, new Date(), { tx });
+            if (titleRes?.title) {
+                effectiveTitle = titleRes.title;
+            }
+        } catch (_) {}
+
+        const now = new Date();
+        const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+        const certificateNumber = archive.certificateNumber || `XNHT-${dateStr}-${registration.id}`;
+
+        const certPayload = {
+            certificateNumber,
+            studentCode: registration.student?.code,
+            studentName: registration.student?.fullName,
+            topicTitle: effectiveTitle,
+            finalScore: registration.defenseResult?.finalScore != null ? Number(registration.defenseResult.finalScore) : null,
+            signerId: directorUser.id,
+            signerName: directorUser.fullName,
+            signedAt: now.toISOString(),
+        };
+
+        const payloadHash = computeCanonicalPayloadHash(certPayload);
+
+        if (expectedPayloadHash && payloadHash !== expectedPayloadHash) {
+            throw new WorkflowTransitionError(
+                'PAYLOAD_HASH_MISMATCH',
+                409,
+                'Dữ liệu giấy xác nhận đã bị thay đổi trước khi ký.',
+            );
+        }
+
+        // Record electronic signature event
+        const sigEvent = await recordSignatureEvent({
+            registrationId: registration.id,
+            entityType: 'CLEARANCE_CERTIFICATE',
+            entityId: archive.id,
+            versionNumber: 1,
+            signerId: directorUser.id,
+            signerRole: 'VIEN_TRUONG',
+            action: 'SIGN_CLEARANCE_CERTIFICATE',
+            actualPayload: certPayload,
+            expectedPayloadHash: payloadHash,
+        }, { tx });
+
+        // Generate immutable academic PDF
+        const pdfResult = await generateImmutableAcademicPdf({
+            docType: 'CLEARANCE_CERTIFICATE',
+            registrationId: registration.id,
+            entityId: archive.id,
+            title: 'GIẤY XÁC NHẬN HOÀN THÀNH ĐỒ ÁN TỐT NGHIỆP',
+            sections: [
+                {
+                    heading: 'THÔNG TIN SINH VIÊN & ĐỀ TÀI',
+                    lines: [
+                        `Số giấy xác nhận: ${certificateNumber}`,
+                        `Họ và tên sinh viên: ${registration.student?.fullName || ''} - MSSV: ${registration.student?.code || ''}`,
+                        `Tên đề tài tốt nghiệp: ${effectiveTitle}`,
+                        `GVHD: ${registration.topic?.mentor?.fullName || 'N/A'}`,
+                        `Điểm bảo vệ chính thức: ${registration.defenseResult?.finalScore != null ? Number(registration.defenseResult.finalScore).toFixed(1) : 'N/A'}`,
+                    ],
+                },
+                {
+                    heading: 'KẾT LUẬN LƯU CHIỂU',
+                    lines: [
+                        'Sinh viên đã hoàn tất đầy đủ 4 hạng mục lưu chiểu số theo đúng quy định.',
+                        'Hồ sơ đã được GVHD phê duyệt chuyên môn và Giáo vụ Viện nghiệm thu thủ tục.',
+                        'Đủ điều kiện công nhận hoàn thành khóa luận tốt nghiệp.',
+                    ],
+                },
+            ],
+            signatures: [
+                {
+                    roleLabel: 'Viện trưởng',
+                    signerName: directorUser.fullName,
+                    signedAt: now,
+                    payloadHash,
+                    systemNote: `Chữ ký số điện tử xác thực - Event ID: ${sigEvent.id}`,
+                },
+            ],
+        }, { tx });
+
+        // Update ProjectArchive
+        const updatedArchive = await tx.projectArchive.update({
+            where: { id: archive.id },
+            data: {
+                certificateNumber,
+                certificateSignedById: directorUser.id,
+                certificateSignedAt: now,
+                certificatePdfUrl: pdfResult.fileUrl,
+                certificatePayloadHash: payloadHash,
+                certificateSignatureEventId: sigEvent.id,
+                certificateSnapshot: certPayload,
+                status: 'COMPLETED',
+            },
+            include: {
+                certificateSignedBy: { select: { id: true, fullName: true, role: true } },
+                mentorReviewedBy: { select: { id: true, fullName: true, role: true } },
+                academicAffairsReviewedBy: { select: { id: true, fullName: true, role: true } },
+                registration: {
+                    include: { student: true, topic: true, defenseResult: true },
+                },
+            },
+        });
+
+        // Transition registration to COMPLETED
+        const updatedRegistration = await transitionRegistration({
+            registrationId: registration.id,
+            expectedStatus: 'PENDING_INSTITUTE_SIGNATURE',
+            expectedStateVersion: registration.stateVersion || 0,
+            targetStatus: 'COMPLETED',
+            actorId: directorUser.id,
+            reason: 'Viện trưởng ký số Giấy xác nhận hoàn thành đồ án tốt nghiệp',
+            idempotencyKey: idempotencyKey || `archive-cert-sign-${registration.id}-${registration.stateVersion || 0}`,
+        }, { tx });
+
+        return {
+            archive: updatedArchive,
+            registration: updatedRegistration,
+            signatureEvent: sigEvent,
+            certificatePdf: pdfResult,
+        };
+    };
+
+    if (options.tx) {
+        return execute(options.tx);
+    }
+    return db.$transaction(execute);
+}
+
 module.exports = {
     ARCHIVE_WORKFLOW_SCOPE,
     getLetterGrade,
@@ -393,4 +930,7 @@ module.exports = {
     getDefenseDossier,
     captureDefenseZeroHourSnapshot,
     closeArchiveWindowAtDay15,
+    reviewArchiveByMentor,
+    reviewArchiveByAcademicAffairs,
+    signClearanceCertificateByInstituteDirector,
 };

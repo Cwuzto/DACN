@@ -80,6 +80,14 @@ async function uploadDefenseDocumentVersion(params) {
         const warnings = [];
         let phase = 'POST_DEFENSE';
 
+        if (registration.archive?.windowClosedAt) {
+            throw new WorkflowTransitionError(
+                'ARCHIVE_WINDOW_CLOSED',
+                409,
+                'Cổng nộp tài liệu lưu chiểu đã đóng lúc 00:00 ngày thứ 15 sau ngày bảo vệ.',
+            );
+        }
+
         if (registration.defenseCouncil?.defenseDate) {
             windows = computeDefenseTimeWindows(registration.defenseCouncil.defenseDate);
 
@@ -238,12 +246,12 @@ async function getDefenseDossier(registrationId, options = {}) {
         // Cửa sổ thời gian
         let windows = null;
         let isSoftDeadlinePast = false;
-        let isWindowClosed = false;
+        let isWindowClosed = !!registration.archive?.windowClosedAt;
 
         if (registration.defenseCouncil?.defenseDate) {
             windows = computeDefenseTimeWindows(registration.defenseCouncil.defenseDate);
             isSoftDeadlinePast = currentTime >= windows.softPreparationDeadlineAt;
-            isWindowClosed = currentTime >= windows.windowClosesAt;
+            isWindowClosed = isWindowClosed || currentTime >= windows.windowClosesAt;
         }
 
         // Lấy lịch sử phiên bản
