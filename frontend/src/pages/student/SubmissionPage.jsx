@@ -24,6 +24,8 @@ import {
     LockOutlined,
     ReloadOutlined,
     AuditOutlined,
+    CalendarOutlined,
+    CloudUploadOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import taskService from '../../services/taskService';
@@ -36,6 +38,7 @@ import HybridBMFormModal from '../../components/forms/HybridBMFormModal';
 import BMSubmissionViewer from '../../components/forms/BMSubmissionViewer';
 import CheckpointSignModal from '../../components/student/CheckpointSignModal';
 import TitleAdjustmentModal from '../../components/student/TitleAdjustmentModal';
+import ArchiveSubmissionModal from '../../components/forms/ArchiveSubmissionModal';
 import useAuthStore from '../../stores/authStore';
 
 const formatTaskTitle = (title) => {
@@ -78,6 +81,7 @@ export default function SubmissionPage() {
 
     // Pre-defense archive state
     const [preDefenseArchive, setPreDefenseArchive] = useState(null);
+    const [archiveModalOpen, setArchiveModalOpen] = useState(false);
     const [preDefenseSubmitting, setPreDefenseSubmitting] = useState(false);
     const [reportFileUrl, setReportFileUrl] = useState('');
     const [reportFileName, setReportFileName] = useState('');
@@ -847,6 +851,119 @@ export default function SubmissionPage() {
                 </div>
             )}
 
+            {/* Defense Schedule & Shift Card */}
+            {(registration?.council || registration?.defenseCouncil || registration?.defenseShift) && (
+                <div
+                    className="card"
+                    style={{
+                        marginBottom: 24,
+                        padding: '18px 24px',
+                        background: '#EFF6FF',
+                        borderColor: '#93C5FD',
+                        borderLeftWidth: 6,
+                    }}
+                >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                        <div>
+                            <div style={{ fontSize: 16, fontWeight: 700, color: '#1E40AF', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <CalendarOutlined />
+                                <span>LỊCH & ĐỊA ĐIỂM BẢO VỆ ĐỒ ÁN TỐT NGHIỆP</span>
+                            </div>
+                            <div style={{ fontSize: 13, marginTop: 4, color: '#1E3A8A' }}>
+                                Hội đồng: <strong>{registration?.council?.name || registration?.defenseCouncil?.name || 'Hội đồng Bảo vệ'}</strong>
+                            </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                            <Tag color={registration?.defenseShift === 'MORNING' ? 'orange' : 'blue'} style={{ fontSize: 13, padding: '4px 10px', fontWeight: 700 }}>
+                                {registration?.defenseShift === 'MORNING' ? 'Ca Sáng (07:00 – 11:00)' : (registration?.defenseShift === 'AFTERNOON' ? 'Ca Chiều (13:00 – 17:00)' : 'Chưa xếp ca')}
+                            </Tag>
+                            {registration?.defenseOrder && (
+                                <Tag color="purple" style={{ fontSize: 13, padding: '4px 10px', fontWeight: 700 }}>
+                                    Số thứ tự trong ca: #{registration.defenseOrder}
+                                </Tag>
+                            )}
+                        </div>
+                    </div>
+                    <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, background: '#FFFFFF', padding: 12, borderRadius: 6, border: '1px solid #DBEAFE', fontSize: 12.5 }}>
+                        <div>
+                            <span style={{ color: 'var(--muted)' }}>Ngày bảo vệ: </span>
+                            <strong>
+                                {registration?.council?.defenseDate
+                                    ? dayjs(registration.council.defenseDate).format('DD/MM/YYYY')
+                                    : (registration?.defenseCouncil?.defenseDate ? dayjs(registration.defenseCouncil.defenseDate).format('DD/MM/YYYY') : 'Chờ công bố')}
+                            </strong>
+                        </div>
+                        <div>
+                            <span style={{ color: 'var(--muted)' }}>Địa điểm / Phòng họp: </span>
+                            <strong>{registration?.council?.location || registration?.defenseCouncil?.location || 'Phòng chuyên đề Viện VCS'}</strong>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Post-Defense 4-Slot Digital Archive Dossier Section */}
+            {['DEFENSE_PASSED', 'DEFENDED', 'COMPLETED', 'ARCHIVE_INCOMPLETE', 'ARCHIVE_REJECTED', 'PENDING_INSTITUTE_SIGNATURE'].includes(registration?.status) && (
+                <div
+                    className="card"
+                    style={{
+                        marginBottom: 24,
+                        padding: '20px 24px',
+                        background: '#FAF5FF',
+                        borderColor: '#D8B4FE',
+                        borderLeftWidth: 6,
+                    }}
+                >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                        <div>
+                            <div style={{ fontSize: 16, fontWeight: 700, color: '#6B21A8', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <FolderOpenOutlined />
+                                <span>HỒ SƠ LƯU CHIỂU SỐ SAU BẢO VỆ (4 TÀI LIỆU CHÍNH THỨC)</span>
+                                <Tag color={preDefenseArchive?.status === 'COMPLETED' ? 'green' : 'purple'}>
+                                    {preDefenseArchive?.status === 'COMPLETED' ? 'ĐÃ NGHIỆM THU LƯU CHIỂU' : 'CẦN HOÀN THIỆN LƯU CHIỂU'}
+                                </Tag>
+                            </div>
+                            <div style={{ fontSize: 13, marginTop: 6, color: '#581C87' }}>
+                                Quy chế: Nộp đủ 4 file gồm Báo cáo Word (<code>REPORT_WORD</code>), Báo cáo PDF (<code>REPORT_PDF</code>), Video demo (<code>DEMO_VIDEO</code>) và Slide PPTX (<code>SLIDE_PPTX</code>). Biểu mẫu BM03 và BM04 được hệ thống tự động liên kết trích xuất từ dữ liệu ký số của GVHD.
+                            </div>
+                        </div>
+                        <Button
+                            type="primary"
+                            icon={<CloudUploadOutlined />}
+                            onClick={() => setArchiveModalOpen(true)}
+                        >
+                            Quản lý hồ sơ lưu chiểu 4 tài liệu
+                        </Button>
+                    </div>
+
+                    <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+                        <div style={{ background: '#FFFFFF', padding: 12, borderRadius: 6, border: '1px solid #E9D5FF' }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: '#7E22CE' }}>1. Báo cáo Word (REPORT_WORD)</div>
+                            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+                                {preDefenseArchive?.dossierFiles?.find(f => f.docType === 'REPORT_WORD') ? 'Đã tải lên' : 'Chưa có tệp'}
+                            </div>
+                        </div>
+                        <div style={{ background: '#FFFFFF', padding: 12, borderRadius: 6, border: '1px solid #E9D5FF' }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: '#7E22CE' }}>2. Báo cáo PDF (REPORT_PDF)</div>
+                            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+                                {preDefenseArchive?.dossierFiles?.find(f => f.docType === 'REPORT_PDF') ? 'Đã tải lên' : 'Chưa có tệp'}
+                            </div>
+                        </div>
+                        <div style={{ background: '#FFFFFF', padding: 12, borderRadius: 6, border: '1px solid #E9D5FF' }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: '#7E22CE' }}>3. Video demo (DEMO_VIDEO)</div>
+                            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+                                {preDefenseArchive?.dossierFiles?.find(f => f.docType === 'DEMO_VIDEO') ? 'Đã tải lên' : 'Chưa có tệp'}
+                            </div>
+                        </div>
+                        <div style={{ background: '#FFFFFF', padding: 12, borderRadius: 6, border: '1px solid #E9D5FF' }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: '#7E22CE' }}>4. Slide PPTX (SLIDE_PPTX)</div>
+                            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+                                {preDefenseArchive?.dossierFiles?.find(f => f.docType === 'SLIDE_PPTX') ? 'Đã tải lên' : 'Chưa có tệp'}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Submission Roadmap */}
             <div className="submission-roadmap">
                 {studentTasks.map((task, idx) => {
@@ -1263,6 +1380,16 @@ export default function SubmissionPage() {
                     }}
                 />
             )}
+
+            {/* Post-Defense Archive Submission Modal */}
+            <ArchiveSubmissionModal
+                open={archiveModalOpen}
+                onClose={() => setArchiveModalOpen(false)}
+                registration={registration}
+                registrationId={registration?.id}
+                initialData={preDefenseArchive}
+                onSuccess={fetchData}
+            />
         </div>
     );
 }

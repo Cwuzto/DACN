@@ -1,9 +1,18 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { message } from 'antd';
+import { Button, Input, Modal, Tag, Tooltip, message } from 'antd';
+import {
+    CheckCircleOutlined,
+    CloseCircleOutlined,
+    EyeOutlined,
+    FilePdfOutlined,
+    LockOutlined,
+} from '@ant-design/icons';
 import dayjs from 'dayjs';
 
 import evaluationService from '../../services/evaluationService';
+import archiveService from '../../services/archiveService';
+import useAuthStore from '../../stores/authStore';
 import PageLoader from '../../components/common/PageLoader';
 import OutlineCouncilGradingCard from './components/OutlineCouncilGradingCard';
 
@@ -19,6 +28,80 @@ export default function GradingPage() {
     const [loading, setLoading] = useState(true);
     const [councils, setCouncils] = useState([]);
     const [activeStage, setActiveStage] = useState('defense'); // 'defense' | 'outline'
+    const currentUser = useAuthStore((s) => s.user);
+
+    // Absent state
+    const [absentModalVisible, setAbsentModalVisible] = useState(false);
+    const [absentingReg, setAbsentingReg] = useState(null);
+    const [absentMinutesText, setAbsentMinutesText] = useState('');
+    const [submittingAbsent, setSubmittingAbsent] = useState(false);
+
+    // Snapshot dossier state
+    const [snapshotModalVisible, setSnapshotModalVisible] = useState(false);
+    const [viewingDossier, setViewingDossier] = useState(null);
+    const [dossierLoading, setDossierLoading] = useState(false);
+
+    const handleOpenAbsentModal = (cand) => {
+        setAbsentingReg(cand);
+        setAbsentMinutesText(`Hội đồng xác nhận sinh viên ${cand.student?.fullName || cand.studentName} (MSSV: ${cand.student?.code || cand.studentCode}) vắng mặt không lý do vào thời điểm tổ chức bảo vệ.`);
+        setAbsentModalVisible(true);
+    };
+
+    const handleConfirmMarkAbsent = async () => {
+        if (!absentMinutesText.trim()) {
+            message.warning('Bắt buộc nhập biên bản xác nhận vắng mặt.');
+            return;
+        }
+        try {
+            setSubmittingAbsent(true);
+            const res = await evaluationService.markStudentAbsent(absentingReg.id, {
+                absentMinutesText: absentMinutesText.trim(),
+            });
+            if (res.success) {
+                message.success('Đã lập biên bản vắng mặt thành công!');
+                setAbsentModalVisible(false);
+                setAbsentingReg(null);
+                fetchDefenseData();
+            } else {
+                message.error(res.message || 'Không thể lập biên bản vắng mặt.');
+            }
+        } catch (err) {
+            message.error(err.message || 'Lỗi khi lập biên bản vắng mặt');
+        } finally {
+            setSubmittingAbsent(false);
+        }
+    };
+
+    const handleLockScoreBook = async (cand) => {
+        try {
+            const res = await evaluationService.lockScoreBookByChairman(cand.id);
+            if (res.success) {
+                message.success('Đã khóa sổ điểm Hội đồng thành công!');
+                fetchDefenseData();
+            } else {
+                message.error(res.message || 'Không thể khóa sổ điểm.');
+            }
+        } catch (err) {
+            message.error(err.message || 'Lỗi khi khóa sổ điểm Hội đồng');
+        }
+    };
+
+    const handleViewDossier = async (cand) => {
+        try {
+            setDossierLoading(true);
+            setSnapshotModalVisible(true);
+            const res = await archiveService.getDefenseDossier(cand.id);
+            if (res.success) {
+                setViewingDossier(res.data);
+            } else {
+                message.error(res.message || 'Không thể tải bộ tài liệu bảo vệ');
+            }
+        } catch (err) {
+            message.error(err.message || 'Lỗi khi tải bộ tài liệu bảo vệ');
+        } finally {
+            setDossierLoading(false);
+        }
+    };
 
     const fetchDefenseData = useCallback(async () => {
         try {
@@ -164,18 +247,33 @@ export default function GradingPage() {
                                                     const score = cand.defenseResult?.finalScore ?? cand.finalScore ?? null;
                                                     const hasScore = score !== null && score !== undefined;
                                                     const mentorName = cand.topic?.mentor?.fullName || cand.mentorName || 'GVHD';
+                                                    const isChairman = council.myRole === 'CHAIRMAN' || council.members?.find((m) => m.lecturerId === currentUser?.id)?.roleInCouncil === 'CHAIRMAN';
+                                                    const isAbsent = cand.attendanceStatus === 'ABSENT';
+                                                    const isLocked = cand.isScoreBookLocked || cand.defenseResult?.isLocked;
+                                                    const lockedCount = cand.lockedScoreCount ?? (cand.memberScores?.filter((m) => m.isLocked)?.length || 0);
+                                                    const totalScorers = cand.totalScorers ?? (council.members?.filter((m) => m.isScoringMember !== false)?.length || 3);
 
-                                                    const sessionTimes = [
-                                                        '08:00 - 08:45',
-                                                        '08:45 - 09:30',
-                                                        '09:45 - 10:30',
-                                                        '10:30 - 11:15',
-                                                    ];
+                                                    const shiftLabel = cand.defenseShift === 'MORNING'
+                                                        ? 'Ca Sáng (07:00–11:00)'
+                                                        : cand.defenseShift === 'AFTERNOON'
+                                                        ? 'Ca Chiều (13:00–17:00)'
+                                                        : 'Chưa xếp ca';
+                                                    const orderLabel = cand.orderInShift ? `#${cand.orderInShift}` : `#${cIdx + 1}`;
 
                                                     return (
                                                         <tr key={cand.id || cIdx}>
                                                             <td className="mono" style={{ fontSize: 12 }}>
-                                                                {sessionTimes[cIdx % 4]}
+                                                                <div className="font-bold text-slate-800">{shiftLabel}</div>
+                                                                <div className="text-xs text-slate-500 font-semibold">{orderLabel}</div>
+                                                                <Button
+                                                                    size="small"
+                                                                    type="link"
+                                                                    icon={<EyeOutlined />}
+                                                                    onClick={() => handleViewDossier(cand)}
+                                                                    className="p-0 text-xs text-teal-700 mt-1"
+                                                                >
+                                                                    Tài liệu 00:00
+                                                                </Button>
                                                             </td>
                                                             <td>
                                                                 <strong>{sName}</strong>
@@ -193,29 +291,66 @@ export default function GradingPage() {
                                                             </td>
                                                             <td>{mentorName}</td>
                                                             <td>
-                                                                {hasScore ? (
+                                                                {isAbsent ? (
+                                                                    <Tag color="error" className="font-bold">
+                                                                        VẮNG MẶT
+                                                                    </Tag>
+                                                                ) : hasScore ? (
                                                                     <strong className="mono" style={{ color: 'var(--primary)', fontSize: 14 }}>
-                                                                        {Number(score).toFixed(2)} / 10
+                                                                        {Number(score).toFixed(1)} / 10
                                                                     </strong>
                                                                 ) : (
                                                                     <strong className="mono" style={{ color: 'var(--warning)', fontSize: 13 }}>
                                                                         Đang chấm
                                                                     </strong>
                                                                 )}
+                                                                <div className="text-[11px] text-slate-500 mt-1">
+                                                                    Đã khóa: <strong>{lockedCount} / {totalScorers}</strong> phiếu
+                                                                </div>
                                                             </td>
                                                             <td>
-                                                                <span className={`tag ${hasScore ? 'green' : 'yellow'}`}>
-                                                                    {hasScore ? 'Đã chốt sổ điểm' : 'Chờ nhập điểm'}
-                                                                </span>
+                                                                {isAbsent ? (
+                                                                    <Tag color="error">Đã xác nhận vắng</Tag>
+                                                                ) : (
+                                                                    <span className={`tag ${isLocked ? 'green' : 'yellow'}`}>
+                                                                        {isLocked ? 'Đã khóa sổ điểm' : 'Chờ hoàn tất phiếu'}
+                                                                    </span>
+                                                                )}
                                                             </td>
                                                             <td style={{ textAlign: 'right' }}>
-                                                                <button
-                                                                    type="button"
-                                                                    className={`btn ${hasScore ? 'btn-secondary' : 'btn-primary'} btn-sm`}
-                                                                    onClick={() => navigate(`/lecturer/grading/${cand.id}`)}
-                                                                >
-                                                                    {hasScore ? 'Xem phiếu chấm' : 'Vào chấm điểm →'}
-                                                                </button>
+                                                                <div className="flex flex-col items-end gap-1">
+                                                                    {!isAbsent && (
+                                                                        <Button
+                                                                            size="small"
+                                                                            type={hasScore ? 'default' : 'primary'}
+                                                                            onClick={() => navigate(`/lecturer/grading/${cand.id}`)}
+                                                                        >
+                                                                            {hasScore ? 'Xem phiếu chấm' : 'Vào chấm điểm'}
+                                                                        </Button>
+                                                                    )}
+                                                                    {isChairman && !isAbsent && !isLocked && (
+                                                                        <Button
+                                                                            size="small"
+                                                                            danger
+                                                                            icon={<CloseCircleOutlined />}
+                                                                            onClick={() => handleOpenAbsentModal(cand)}
+                                                                        >
+                                                                            Biên bản vắng mặt
+                                                                        </Button>
+                                                                    )}
+                                                                    {isChairman && !isLocked && (
+                                                                        <Button
+                                                                            size="small"
+                                                                            type="primary"
+                                                                            icon={<LockOutlined />}
+                                                                            onClick={() => handleLockScoreBook(cand)}
+                                                                            disabled={isAbsent ? !cand.absentMinutesText : lockedCount < totalScorers}
+                                                                            className="bg-amber-600 hover:bg-amber-700"
+                                                                        >
+                                                                            Khóa sổ điểm
+                                                                        </Button>
+                                                                    )}
+                                                                </div>
                                                             </td>
                                                         </tr>
                                                     );
@@ -229,6 +364,94 @@ export default function GradingPage() {
                     })
                 )}
             </div>
+
+            {/* Modal Lập Biên Bản Vắng Mặt */}
+            <Modal
+                title={`Lập Biên bản Xác nhận Vắng mặt cho SV ${absentingReg?.student?.fullName || absentingReg?.studentName || ''}`}
+                open={absentModalVisible}
+                onOk={handleConfirmMarkAbsent}
+                onCancel={() => {
+                    setAbsentModalVisible(false);
+                    setAbsentingReg(null);
+                }}
+                confirmLoading={submittingAbsent}
+                okText="Xác nhận vắng mặt"
+                okButtonProps={{ danger: true }}
+                destroyOnClose
+            >
+                <div className="space-y-4 py-2">
+                    <p className="text-xs text-slate-600">
+                        Xác nhận sinh viên vắng mặt trong buổi bảo vệ. Hệ thống sẽ ghi nhận trạng thái ABSENT, hủy các phiếu chấm nháp và cho phép Chủ tịch khóa sổ điểm không cần phiếu của các thành viên.
+                    </p>
+                    <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                            Nội dung biên bản xác nhận <span className="text-rose-500">*</span>
+                        </label>
+                        <Input.TextArea
+                            rows={4}
+                            value={absentMinutesText}
+                            onChange={(e) => setAbsentMinutesText(e.target.value)}
+                            placeholder="Nhập nội dung biên bản vắng mặt..."
+                        />
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Modal Xem Bộ Tài Liệu Bảo Vệ Snapshot 00:00 */}
+            <Modal
+                title="Hồ sơ Tài liệu Bảo vệ (Snapshot lúc 00:00)"
+                open={snapshotModalVisible}
+                onCancel={() => {
+                    setSnapshotModalVisible(false);
+                    setViewingDossier(null);
+                }}
+                footer={[
+                    <Button key="close" onClick={() => setSnapshotModalVisible(false)}>
+                        Đóng
+                    </Button>,
+                ]}
+                width={700}
+                destroyOnClose
+            >
+                {dossierLoading ? (
+                    <div className="p-8 text-center">Đang tải hồ sơ...</div>
+                ) : viewingDossier ? (
+                    <div className="space-y-4 py-2 text-xs">
+                        <div className="p-3 bg-teal-50 border border-teal-200 rounded-lg">
+                            <div className="font-bold text-teal-900 text-sm">
+                                {viewingDossier.topic?.title || 'Đề tài tốt nghiệp'}
+                            </div>
+                            <div className="text-teal-700 mt-1">
+                                Sinh viên: <strong>{viewingDossier.student?.fullName}</strong> ({viewingDossier.student?.code})
+                            </div>
+                        </div>
+
+                        <div className="font-bold text-slate-800 text-sm">Các tài liệu đính kèm:</div>
+                        <div className="space-y-2">
+                            {viewingDossier.documents?.map((doc, idx) => (
+                                <div key={idx} className="flex items-center justify-between p-2 bg-slate-50 border border-slate-200 rounded">
+                                    <div>
+                                        <span className="font-bold text-slate-800">{doc.documentType}: </span>
+                                        <span className="text-slate-600">{doc.fileName || doc.fileUrl}</span>
+                                    </div>
+                                    {doc.fileUrl && (
+                                        <Button
+                                            size="small"
+                                            type="link"
+                                            icon={<FilePdfOutlined />}
+                                            onClick={() => window.open(doc.fileUrl, '_blank')}
+                                        >
+                                            Xem tài liệu
+                                        </Button>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="p-4 text-center text-slate-500">Chưa có tài liệu snapshot.</div>
+                )}
+            </Modal>
         </section>
     );
 }

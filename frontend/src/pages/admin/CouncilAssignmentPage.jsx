@@ -55,9 +55,9 @@ import useAuthStore from '../../stores/authStore';
 const getConflictingMentors = (council) => {
     const memberIds = new Set((council?.members || []).map((m) => m.lecturerId));
     const conflicts = new Set();
-    const regs = council?.registrations || council?.outlineRegistrations || [];
+    const regs = council?.registrations || council?.outlineRegistrations || council?.defenseRegistrations || [];
     regs.forEach((reg) => {
-        const mentorId = reg.topic?.mentorId;
+        const mentorId = reg.mentorId || reg.topic?.mentorId;
         if (mentorId && memberIds.has(mentorId)) {
             const member = council.members?.find((m) => m.lecturerId === mentorId);
             const name = member?.lecturer?.fullName || reg.topic?.mentor?.fullName || reg.topic?.lecturer?.fullName || `GV #${mentorId}`;
@@ -451,6 +451,28 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
         }
     };
 
+    const handlePublishEligibleDefenseList = async () => {
+        if (!selectedSemester) {
+            message.warning('Vui lòng chọn học kỳ.');
+            return;
+        }
+        try {
+            setSubmitLoading(true);
+            const res = await councilService.publishEligibleDefenseList(selectedSemester);
+            if (res.success) {
+                message.success(res.message || 'Đã công bố danh sách sinh viên đủ điều kiện bảo vệ!');
+                fetchCouncils();
+                fetchAllRegistrations();
+            } else {
+                message.error(res.message || 'Không thể công bố danh sách.');
+            }
+        } catch (err) {
+            message.error(err.message || 'Lỗi khi công bố danh sách đủ điều kiện bảo vệ (cần khóa rubric trước)');
+        } finally {
+            setSubmitLoading(false);
+        }
+    };
+
     const showAssignModal = async (council) => {
         setAssigningCouncil(council);
         setSelectedRegistrationsToAssign([]);
@@ -732,14 +754,16 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
             align: 'center',
             width: 130,
             render: (_, record) => {
-                const count = record._count?.registrations || 0;
+                const count = record._count?.registrations || record.registrations?.length || record.defenseRegistrations?.length || 0;
+                const isDefense = record.councilType === 'DEFENSE_COUNCIL';
+                const maxCap = isDefense ? 22 : 10;
                 return (
                     <div className="space-y-1">
-                        <span className="font-bold text-slate-900 text-sm">{count} / 10 SV</span>
+                        <span className="font-bold text-slate-900 text-sm">{count} / {maxCap} SV</span>
                         <div className="w-16 mx-auto bg-slate-100 rounded-full h-1.5">
                             <div
                                 className="bg-[#0F766E] h-1.5 rounded-full"
-                                style={{ width: `${Math.min(100, (count / 10) * 100)}%` }}
+                                style={{ width: `${Math.min(100, (count / maxCap) * 100)}%` }}
                             />
                         </div>
                     </div>
@@ -849,14 +873,24 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                             )
                         ) : (
                             canManageDefense && (
-                                <Button
-                                    onClick={handleAutoAssign}
-                                    loading={submitLoading}
-                                    disabled={!selectedSemester}
-                                    icon={<RobotOutlined />}
-                                >
-                                    Tự động phân công
-                                </Button>
+                                <>
+                                    <Button
+                                        icon={<CheckCircleOutlined />}
+                                        onClick={handlePublishEligibleDefenseList}
+                                        loading={submitLoading}
+                                        disabled={!selectedSemester}
+                                    >
+                                        Công bố DS đủ điều kiện bảo vệ
+                                    </Button>
+                                    <Button
+                                        onClick={handleAutoAssign}
+                                        loading={submitLoading}
+                                        disabled={!selectedSemester}
+                                        icon={<RobotOutlined />}
+                                    >
+                                        Tự động phân công
+                                    </Button>
+                                </>
                             )
                         )}
                         <Button
@@ -1178,8 +1212,9 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                 </div>
                             ) : (
                                 filteredCouncils.map((council) => {
-                                    const assignedCount = council._count?.registrations || council.registrations?.length || 0;
-                                    const maxSlots = 10;
+                                    const isDefense = council.councilType === 'DEFENSE_COUNCIL';
+                                    const assignedCount = council._count?.registrations || council.registrations?.length || council.defenseRegistrations?.length || 0;
+                                    const maxSlots = isDefense ? 22 : 10;
                                     const percent = Math.min(100, Math.round((assignedCount / maxSlots) * 100));
                                     const isComplete = (council.members?.length || 0) === 3;
                                     const chairman = council.members?.find((m) => m.roleInCouncil === 'CHAIRMAN')?.lecturer?.fullName;

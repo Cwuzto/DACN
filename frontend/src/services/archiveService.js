@@ -77,6 +77,69 @@ const archiveService = {
             throw wrapServiceError(error, 'Không thể tải dữ liệu cảnh báo tiến độ');
         }
     },
+
+    // 7. Ho so 6 tai lieu bao ve & cua so thoi gian
+    getDefenseDossier: async (registrationId) => {
+        try {
+            return await api.get(`/archives/registrations/${registrationId}/dossier`);
+        } catch (error) {
+            throw wrapServiceError(error, 'Không thể tải hồ sơ tài liệu bảo vệ');
+        }
+    },
+
+    // 8. Upload tai lieu bao ve / luu chieu (1 trong 4 loai file)
+    uploadDefenseDocument: async (registrationId, payload) => {
+        try {
+            return await api.post(`/archives/registrations/${registrationId}/files`, payload);
+        } catch (error) {
+            throw wrapServiceError(error, 'Không thể tải lên tài liệu bảo vệ');
+        }
+    },
+
+    // 9. GVHD duyet chuyen mon ho so luu chieu (Tang 1)
+    reviewArchiveByMentor: async (archiveId, payload) => {
+        try {
+            return await api.post(`/archives/${archiveId}/mentor-review`, payload);
+        } catch (error) {
+            throw wrapServiceError(error, 'Không thể duyệt chuyên môn hồ sơ lưu chiểu');
+        }
+    },
+
+    // 10. Giao vu duyet thu tuc ho so luu chieu (Tang 2)
+    reviewArchiveByAcademicAffairs: async (archiveId, payload) => {
+        try {
+            return await api.post(`/archives/${archiveId}/academic-affairs-review`, payload);
+        } catch (error) {
+            throw wrapServiceError(error, 'Không thể duyệt thủ tục hồ sơ lưu chiểu');
+        }
+    },
+
+    // 11. Vien truong ky Giay xac nhan hoan thanh
+    signClearanceCertificate: async (archiveId, payload = {}) => {
+        try {
+            return await api.post(`/archives/${archiveId}/sign-certificate`, payload);
+        } catch (error) {
+            throw wrapServiceError(error, 'Không thể ký Giấy xác nhận hoàn thành');
+        }
+    },
+
+    // 12. Chup snapshot bat bien 00:00 ngay bao ve
+    captureZeroHourSnapshot: async (registrationId, data = {}) => {
+        try {
+            return await api.post(`/archives/registrations/${registrationId}/snapshots/defense-zero-hour`, data);
+        } catch (error) {
+            throw wrapServiceError(error, 'Không thể chụp snapshot ngày bảo vệ');
+        }
+    },
+
+    // 13. Dong cong nop luu chieu ngay 15
+    closeArchiveWindow: async (registrationId, data = {}) => {
+        try {
+            return await api.post(`/archives/registrations/${registrationId}/close-window`, data);
+        } catch (error) {
+            throw wrapServiceError(error, 'Không thể đóng cổng nộp lưu chiểu');
+        }
+    },
 };
 
 export default archiveService;

@@ -180,6 +180,39 @@ const councilService = {
             throw wrapServiceError(error, 'Lỗi khi chốt danh sách quá hạn');
         }
     },
+
+    // Defense Council & Schedule Methods
+    publishEligibleDefenseList: async (semesterId) => {
+        try {
+            return await api.post(`/councils/semesters/${semesterId}/publish-eligible-defense-list`);
+        } catch (error) {
+            throw wrapServiceError(error, 'Lỗi khi công bố danh sách đủ điều kiện bảo vệ');
+        }
+    },
+
+    confirmAndPublishDefenseSchedule: async (councilId, data = {}) => {
+        try {
+            return await api.post(`/councils/${councilId}/confirm-and-publish-schedule`, data);
+        } catch (error) {
+            throw wrapServiceError(error, 'Lỗi khi công bố lịch bảo vệ chia ca');
+        }
+    },
+
+    adjustStudentSchedule: async (councilId, registrationId, data) => {
+        try {
+            return await api.patch(`/councils/${councilId}/registrations/${registrationId}/schedule`, data);
+        } catch (error) {
+            throw wrapServiceError(error, 'Lỗi khi điều chỉnh ca hoặc thứ tự bảo vệ');
+        }
+    },
+
+    replaceCouncilMember: async (councilId, data) => {
+        try {
+            return await api.post(`/councils/${councilId}/members/replace`, data);
+        } catch (error) {
+            throw wrapServiceError(error, 'Lỗi khi thay thế thành viên chấm');
+        }
+    },
 };
 
 export default councilService;

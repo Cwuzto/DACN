@@ -22,26 +22,39 @@ export default function ClearanceCertificateModal({
     visible,
     open: openProp,
     onClose,
+    onCancel,
     certificateData,
     certificate,
 }) {
     const printRef = useRef(null);
     const isOpen = openProp !== undefined ? openProp : visible;
+    const handleClose = onClose || onCancel;
     const effectiveData = certificate || certificateData;
 
     if (!effectiveData) return null;
 
     const {
-        certificateNumber,
-        verificationHash,
-        issueDate,
+        certificateNumber = 'XN-2026-001',
+        verificationHash = '',
+        issueDate = new Date(),
+        pdfUrl = '',
+        effectiveTopicTitle = '',
         student = {},
         topic = {},
         mentor = {},
         council = {},
         evaluation = {},
         archive = {},
+        instituteDirectorName = 'Viện trưởng Viện Công nghệ số',
+        instituteSignedAt = null,
     } = effectiveData;
+
+    const finalTopicTitle = effectiveTopicTitle || topic.effectiveTopicTitle || topic.title || 'Đề tài tốt nghiệp';
+    const displayFinalScore = evaluation.roundedFinalScore !== null && evaluation.roundedFinalScore !== undefined
+        ? Number(evaluation.roundedFinalScore).toFixed(1)
+        : evaluation.finalScore !== null && evaluation.finalScore !== undefined
+        ? Number(evaluation.finalScore).toFixed(1)
+        : '--';
 
     const handlePrint = () => {
         window.print();
@@ -50,7 +63,7 @@ export default function ClearanceCertificateModal({
     return (
         <Modal
             open={isOpen}
-            onCancel={onClose}
+            onCancel={handleClose}
             width={780}
             title={(
                 <Flex align="center" gap={8}>
@@ -59,12 +72,20 @@ export default function ClearanceCertificateModal({
                 </Flex>
             )}
             footer={(
-                <Flex justify="space-between" align="center">
+                <Flex justify="space-between" align="center" wrap="wrap" gap={8}>
                     <span className="text-xs text-slate-600 font-medium">
                         Mã xác thực: <b className="text-slate-900">{certificateNumber}</b>
                     </span>
                     <Space>
-                        <Button onClick={onClose}>Đóng</Button>
+                        <Button onClick={handleClose}>Đóng</Button>
+                        {pdfUrl && (
+                            <Button
+                                icon={<DownloadOutlined />}
+                                onClick={() => window.open(pdfUrl, '_blank')}
+                            >
+                                Tải Giấy xác nhận PDF
+                            </Button>
+                        )}
                         <Button
                             type="primary"
                             icon={<PrinterOutlined />}
@@ -89,7 +110,7 @@ export default function ClearanceCertificateModal({
                     <div className="text-center w-5/12">
                         <div className="text-xs font-bold uppercase tracking-wider text-slate-700">ỦY BAN NHÂN DÂN TỈNH BÌNH DƯƠNG</div>
                         <div className="text-sm font-black uppercase text-blue-900 mt-0.5">TRƯỜNG ĐẠI HỌC THỦ DẦU MỘT</div>
-                        <div className="text-[11px] font-semibold text-slate-600 mt-0.5">KHOA CÔNG NGHỆ THÔNG TIN</div>
+                        <div className="text-[11px] font-semibold text-slate-600 mt-0.5">VIỆN CÔNG NGHỆ SỐ</div>
                     </div>
                     <div className="text-center w-6/12">
                         <div className="text-xs font-bold uppercase text-slate-800">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
@@ -116,7 +137,7 @@ export default function ClearanceCertificateModal({
                 {/* Body Content */}
                 <div className="space-y-4 text-sm leading-relaxed text-slate-800">
                     <p className="text-justify indent-6">
-                        Khoa Công nghệ Thông tin – Trường Đại học Thủ Dầu Một chứng nhận sinh viên có tên sau đây đã hoàn tất toàn bộ quy trình thực hiện, bảo vệ và nộp hồ sơ lưu chiểu đồ án tốt nghiệp theo đúng quy chế đào tạo đại học hiện hành:
+                        Viện Công nghệ Số – Trường Đại học Thủ Dầu Một chứng nhận sinh viên có tên sau đây đã hoàn tất toàn bộ quy trình thực hiện, bảo vệ và nộp hồ sơ lưu chiểu đồ án tốt nghiệp theo đúng quy chế đào tạo đại học hiện hành:
                     </p>
 
                     <div className="bg-slate-50/80 p-4 rounded-lg border border-slate-200 text-xs space-y-2">
@@ -125,11 +146,11 @@ export default function ClearanceCertificateModal({
                             <div>Mã số sinh viên: <b className="text-sm text-blue-900">{student.code}</b></div>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
-                            <div>Đơn vị / Khoa: <b>{student.department || 'Khoa Công Nghệ Thông Tin'}</b></div>
+                            <div>Đơn vị / Khoa: <b>{student.department || 'Viện Công Nghệ Số'}</b></div>
                             <div>Học phần: <b>{topic.courseName || 'Khóa luận tốt nghiệp'}</b> ({topic.academicYear || '2025 - 2026'})</div>
                         </div>
                         <div>
-                            Tên đề tài: <b className="text-slate-950">{topic.title}</b>
+                            Tên đề tài: <b className="text-slate-950">{finalTopicTitle}</b>
                         </div>
                         <div>
                             Giảng viên hướng dẫn: <b>{mentor.fullName}</b> {mentor.academicTitle ? `— ${mentor.academicTitle}` : ''}
@@ -150,13 +171,13 @@ export default function ClearanceCertificateModal({
                             <div>
                                 <span className="text-slate-500">Điểm tổng kết:</span>
                                 <div className="font-black text-base text-emerald-700">
-                                    {evaluation.finalScore ? Number(evaluation.finalScore).toFixed(2) : '--'} / 10
+                                    {displayFinalScore} / 10
                                 </div>
                             </div>
                             <div>
                                 <span className="text-slate-500">Xếp loại học vụ:</span>
                                 <div className="font-bold text-blue-800">
-                                    Thang điểm chữ {evaluation.letterGrade}{evaluation.rankingText ? ` — ${evaluation.rankingText}` : ''}
+                                    Thang điểm chữ {evaluation.letterGrade || '--'}{evaluation.rankingText ? ` — ${evaluation.rankingText}` : ''}
                                 </div>
                             </div>
                         </div>
@@ -175,11 +196,19 @@ export default function ClearanceCertificateModal({
                         <div className="font-bold text-slate-900 text-sm">{archive.reviewerName || mentor.fullName}</div>
                     </div>
                     <div>
-                        <div className="font-bold uppercase text-slate-800">TRƯỞNG KHOA / BAN QUẢN TRỊ</div>
-                        <div className="text-[11px] text-slate-500 italic mb-14 font-medium">(Xác nhận điện tử qua hệ thống)</div>
-                        <div className="inline-block px-3 py-1 rounded border border-emerald-300 bg-emerald-50 text-emerald-700 font-bold text-[11px]">
-                            ✓ ĐÃ NGHIỆM THU ĐIỆN TỬ
+                        <div className="font-bold uppercase text-slate-800">VIỆN TRƯỞNG VIỆN CÔNG NGHỆ SỐ</div>
+                        <div className="text-[11px] text-slate-500 italic mb-6 font-medium">(Đã ký số điện tử)</div>
+                        <div className="inline-block px-3 py-1 rounded border border-emerald-300 bg-emerald-50 text-emerald-700 font-bold text-[11px] mb-2">
+                            ĐÃ KÝ SỐ XÁC NHẬN
                         </div>
+                        <div className="font-bold text-slate-900 text-sm">
+                            {effectiveData.directorName || effectiveData.instituteSignerName || instituteDirectorName}
+                        </div>
+                        {instituteSignedAt && (
+                            <div className="text-[10px] text-slate-500">
+                                Ký ngày: {new Date(instituteSignedAt).toLocaleDateString('vi-VN')}
+                            </div>
+                        )}
                     </div>
                 </div>
 

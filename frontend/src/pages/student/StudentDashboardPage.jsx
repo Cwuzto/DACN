@@ -39,6 +39,11 @@ const ACTIVE_FLOW_STATUSES = [
     'BM03_PASSED',
     'BM04_REVIEW',
     'DEFENSE_READY',
+    'DEFENSE_PASSED',
+    'DEFENSE_FAILED',
+    'PENDING_INSTITUTE_SIGNATURE',
+    'ARCHIVE_INCOMPLETE',
+    'ARCHIVE_REJECTED',
     'DEFENDED',
     'COMPLETED',
     'TERMINATED_FAILED_PROGRESS',
@@ -223,6 +228,11 @@ export default function StudentDashboardPage() {
         } finally {
             setWithdrawing(false);
         }
+    };
+
+    const handleDownloadDecision = () => {
+        message.success(`Đang chuẩn bị văn bản in quyết định số ${currentRegistration?.decisionNumber || '458/QĐ-VCS'}`);
+        setBm02ModalOpen(false);
     };
 
     return (
@@ -845,10 +855,7 @@ export default function StudentDashboardPage() {
                         key="print"
                         type="primary"
                         icon={<DownloadOutlined />}
-                        onClick={() => {
-                            message.success('Đang chuẩn bị văn bản in quyết định số ' + (currentRegistration?.decisionNumber || '458/QĐ-VCS'));
-                            setBm02ModalOpen(false);
-                        }}
+                        onClick={handleDownloadDecision}
                     >
                         Tải bản ký quyết định
                     </Button>,

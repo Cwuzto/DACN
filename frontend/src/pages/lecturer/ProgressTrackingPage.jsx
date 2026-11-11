@@ -54,6 +54,8 @@ export default function ProgressTrackingPage() {
     const [meetingLogs, setMeetingLogs] = useState([]);
     const [checkpoints, setCheckpoints] = useState([]);
     const [archiveData, setArchiveData] = useState(null);
+    const [mentorReviewNotes, setMentorReviewNotes] = useState('');
+    const [mentorReviewing, setMentorReviewing] = useState(false);
 
     // Modals
     const [newTaskModalOpen, setNewTaskModalOpen] = useState(false);
@@ -341,6 +343,30 @@ export default function ProgressTrackingPage() {
             message.error(error?.message || 'Lỗi khi ký toàn phiếu BM03');
         } finally {
             setSigningWholeBm03(false);
+        }
+    };
+
+    const handleMentorReview = async (reviewStatus) => {
+        if (!archiveData?.id) {
+            message.warning('Sinh viên chưa nộp hồ sơ lưu chiểu.');
+            return;
+        }
+        try {
+            setMentorReviewing(true);
+            const res = await archiveService.reviewArchiveByMentor(archiveData.id, {
+                status: reviewStatus,
+                notes: mentorReviewNotes.trim() || undefined,
+            });
+            if (res.success) {
+                message.success('Đã cập nhật đánh giá hồ sơ lưu chiểu thành công!');
+                loadStudentDetails();
+            } else {
+                message.error(res.message || 'Thao tác không thành công.');
+            }
+        } catch (err) {
+            message.error(err?.message || 'Lỗi khi thẩm định hồ sơ lưu chiểu.');
+        } finally {
+            setMentorReviewing(false);
         }
     };
 
@@ -974,89 +1000,145 @@ export default function ProgressTrackingPage() {
                                     <div className="card" style={{ marginBottom: 0 }}>
                                         <div className="card-head flex-wrap gap-2">
                                             <div>
-                                                <div className="card-title">Nghiệm Thu Hồ Sơ Lưu Chiểu Sau Bảo Vệ</div>
+                                                <div className="card-title">Hàng Đợi Duyệt Hồ Sơ Lưu Chiểu 4 Tài Liệu (GVHD)</div>
                                                 <div className="card-subtitle">
-                                                    Kiểm tra đủ 4 thành phần bắt buộc để cấp Giấy xác nhận hoàn thành khóa luận
+                                                    Thẩm định tính đầy đủ và quy chuẩn chuyên môn của 4 tệp nộp trong thời hạn 14 ngày
                                                 </div>
                                             </div>
-                                            <button
-                                                type="button"
-                                                className="btn btn-secondary btn-sm"
-                                                onClick={() => setCertModalOpen(true)}
-                                            >
-                                                Xem Giấy Xác Nhận
-                                            </button>
+                                            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                                {archiveData?.mentorReviewStatus ? (
+                                                    <Tag color={archiveData.mentorReviewStatus === 'APPROVED' ? 'green' : (archiveData.mentorReviewStatus === 'REVISION_REQUIRED' ? 'orange' : (archiveData.mentorReviewStatus === 'REJECTED' ? 'red' : 'blue'))}>
+                                                        {archiveData.mentorReviewStatus === 'APPROVED' ? 'ĐÃ DUYỆT CHUYÊN MÔN' : (archiveData.mentorReviewStatus === 'REVISION_REQUIRED' ? 'YÊU CẦU NỘP LẠI' : (archiveData.mentorReviewStatus === 'REJECTED' ? 'TỪ CHỐI HỒ SƠ' : 'CHỜ DUYỆT'))}
+                                                    </Tag>
+                                                ) : (
+                                                    <Tag color="default">CHƯA DUYỆT</Tag>
+                                                )}
+                                                <Button
+                                                    icon={<SafetyCertificateOutlined />}
+                                                    onClick={() => setCertModalOpen(true)}
+                                                >
+                                                    Xem Giấy Xác Nhận
+                                                </Button>
+                                            </div>
                                         </div>
 
                                         <div className="table-wrap">
                                             <table>
                                                 <thead>
                                                     <tr>
-                                                        <th>Thành phần hồ sơ</th>
-                                                        <th>Định dạng & Dung lượng</th>
-                                                        <th>Thời điểm nộp</th>
+                                                        <th>Thành phần hồ sơ (4 tệp)</th>
+                                                        <th>Tên tệp & Mã kiểm tra SHA-256</th>
+                                                        <th>Phiên bản / Ngày nộp</th>
                                                         <th style={{ textAlign: 'right' }}>Thao tác</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    <tr>
-                                                        <td><strong>1. Luận văn toàn văn</strong></td>
-                                                        <td>PDF · 4.2 MB</td>
-                                                        <td className="mono">Hoàn tất</td>
-                                                        <td style={{ textAlign: 'right' }}>
-                                                            <button
-                                                                type="button"
-                                                                className="btn btn-secondary btn-sm"
-                                                                onClick={() => message.info('Mở xem file PDF luận văn lưu chiểu')}
-                                                            >
-                                                                Xem
-                                                            </button>
-                                                        </td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td><strong>2. Slide thuyết trình</strong></td>
-                                                        <td>PPTX · 18.5 MB</td>
-                                                        <td className="mono">Hoàn tất</td>
-                                                        <td style={{ textAlign: 'right' }}>
-                                                            <button
-                                                                type="button"
-                                                                className="btn btn-secondary btn-sm"
-                                                                onClick={() => message.info('Tải slide thuyết trình bảo vệ')}
-                                                            >
-                                                                Tải
-                                                            </button>
-                                                        </td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td><strong>3. Video Demo hệ thống</strong></td>
-                                                        <td>YouTube Link (3 phút)</td>
-                                                        <td className="mono">Đã nộp</td>
-                                                        <td style={{ textAlign: 'right' }}>
-                                                            <button
-                                                                type="button"
-                                                                className="btn btn-secondary btn-sm"
-                                                                onClick={() => message.info('Mở liên kết Video Demo')}
-                                                            >
-                                                                Xem video
-                                                            </button>
-                                                        </td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td><strong>4. Mã nguồn Codebase</strong></td>
-                                                        <td>Kho lưu trữ mã nguồn công khai</td>
-                                                        <td className="mono">Đã liên kết</td>
-                                                        <td style={{ textAlign: 'right' }}>
-                                                            <button
-                                                                type="button"
-                                                                className="btn btn-secondary btn-sm"
-                                                                onClick={() => message.info('Mở kho lưu trữ GitHub Repository')}
-                                                            >
-                                                                Mở mã nguồn
-                                                            </button>
-                                                        </td>
-                                                    </tr>
+                                                    {[
+                                                        { key: 'REPORT_WORD', label: '1. Báo cáo Word', ext: '.docx' },
+                                                        { key: 'REPORT_PDF', label: '2. Báo cáo đóng cuốn PDF', ext: '.pdf' },
+                                                        { key: 'DEMO_VIDEO', label: '3. Video demo sản phẩm', ext: '.mp4 / url' },
+                                                        { key: 'SLIDE_PPTX', label: '4. Slide thuyết trình PPTX', ext: '.pptx' },
+                                                    ].map((item) => {
+                                                        const doc = archiveData?.dossierFiles?.find(f => f.docType === item.key);
+                                                        return (
+                                                            <tr key={item.key}>
+                                                                <td>
+                                                                    <strong>{item.label}</strong>
+                                                                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>Loại chuẩn: <code>{item.key}</code></div>
+                                                                </td>
+                                                                <td>
+                                                                    {doc ? (
+                                                                        <div>
+                                                                            <span style={{ fontSize: 12.5, fontWeight: 600 }}>{doc.fileName || 'Tệp đính kèm'}</span>
+                                                                            {doc.checksumSha256 && (
+                                                                                <div style={{ fontSize: 10.5, fontFamily: 'monospace', color: 'var(--muted)' }}>
+                                                                                    SHA-256: {doc.checksumSha256.substring(0, 16)}...
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    ) : (
+                                                                        <span style={{ color: 'var(--muted)', fontSize: 12 }}>Chưa có tệp</span>
+                                                                    )}
+                                                                </td>
+                                                                <td>
+                                                                    {doc ? (
+                                                                        <div>
+                                                                            <Tag color="cyan">v{doc.version || 1}</Tag>
+                                                                            <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>
+                                                                                {doc.uploadedAt ? dayjs(doc.uploadedAt).format('DD/MM/YYYY HH:mm') : '—'}
+                                                                            </span>
+                                                                        </div>
+                                                                    ) : '—'}
+                                                                </td>
+                                                                <td style={{ textAlign: 'right' }}>
+                                                                    {doc?.fileUrl ? (
+                                                                        <Button
+                                                                            size="small"
+                                                                            icon={<FilePdfOutlined />}
+                                                                            href={doc.fileUrl}
+                                                                            target="_blank"
+                                                                        >
+                                                                            Xem tệp
+                                                                        </Button>
+                                                                    ) : (
+                                                                        <span style={{ color: 'var(--muted)', fontSize: 12 }}>Trống</span>
+                                                                    )}
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
                                                 </tbody>
                                             </table>
+                                        </div>
+
+                                        {/* Auto-linked BM03 & BM04 Info */}
+                                        <div style={{ padding: '12px 16px', background: '#F8FAFC', borderTop: '1px solid var(--border)', display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                <FileDoneOutlined style={{ color: '#0F766E' }} />
+                                                <span>BM03 Nhật ký: <strong>Tự động trích xuất liên kết</strong></span>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                <FileDoneOutlined style={{ color: '#0F766E' }} />
+                                                <span>BM04 Phiếu nhận xét: <strong>Tự động trích xuất liên kết</strong></span>
+                                            </div>
+                                        </div>
+
+                                        {/* Mentor Review Action Panel */}
+                                        <div style={{ padding: 16, borderTop: '1px solid var(--border)', background: '#FFFFFF' }}>
+                                            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                                                Nhận xét & Đánh giá chuyên môn hồ sơ lưu chiểu (GVHD):
+                                            </label>
+                                            <Input.TextArea
+                                                rows={2}
+                                                placeholder="Ghi nhận xét về báo cáo chỉnh sửa, tài liệu minh chứng, hoặc chỉ rõ các điểm sinh viên cần nộp lại..."
+                                                value={mentorReviewNotes}
+                                                onChange={(e) => setMentorReviewNotes(e.target.value)}
+                                            />
+                                            <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                                                <Button
+                                                    danger
+                                                    icon={<CloseCircleOutlined />}
+                                                    loading={mentorReviewing}
+                                                    onClick={() => handleMentorReview('REJECTED')}
+                                                >
+                                                    Không duyệt hồ sơ
+                                                </Button>
+                                                <Button
+                                                    icon={<ExclamationCircleOutlined />}
+                                                    loading={mentorReviewing}
+                                                    onClick={() => handleMentorReview('REVISION_REQUIRED')}
+                                                >
+                                                    Yêu cầu nộp lại
+                                                </Button>
+                                                <Button
+                                                    type="primary"
+                                                    icon={<CheckCircleOutlined />}
+                                                    loading={mentorReviewing}
+                                                    onClick={() => handleMentorReview('APPROVED')}
+                                                >
+                                                    Phê duyệt chuyên môn
+                                                </Button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

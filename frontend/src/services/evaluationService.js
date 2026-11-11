@@ -372,6 +372,33 @@ const evaluationService = {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi tải danh sách hội đồng');
         }
     },
+
+    // ==========================================
+    // Defense Scorebook & Absenteeism Methods
+    // ==========================================
+    markStudentAbsent: async (registrationId, data = {}) => {
+        try {
+            return await api.post(`/evaluations/${registrationId}/mark-absent`, data);
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi lập biên bản vắng mặt');
+        }
+    },
+
+    lockScoreBookByChairman: async (registrationId, data = {}) => {
+        try {
+            return await api.post(`/evaluations/${registrationId}/lock-scorebook`, data);
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi khóa sổ điểm Hội đồng');
+        }
+    },
+
+    returnScoreBook: async (registrationId, data = {}) => {
+        try {
+            return await api.post(`/evaluations/${registrationId}/return-scorebook`, data);
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi trả sổ điểm về Hội đồng');
+        }
+    },
 };
 
 export default evaluationService;

@@ -70,6 +70,22 @@ const rubricService = {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi kiểm tra trạng thái chỉnh sửa');
         }
     },
+
+    lockRubric: async (id) => {
+        try {
+            return await api.post(`/rubrics/${id}/lock`);
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi khóa phiên bản Rubric');
+        }
+    },
+
+    restoreDefault: async (id) => {
+        try {
+            return await api.post(`/rubrics/${id}/restore-default`);
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi khôi phục barem mẫu chuẩn');
+        }
+    },
 };
 
 export default rubricService;

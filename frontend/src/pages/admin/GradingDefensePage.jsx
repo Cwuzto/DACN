@@ -1,13 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+    Button,
+    Checkbox,
+    Input,
     message,
     Modal,
     Popconfirm,
+    Tag,
     Tooltip,
 } from 'antd';
 import {
     DownloadOutlined,
     LockOutlined,
+    RollbackOutlined,
     UnlockOutlined,
     WarningOutlined,
 } from '@ant-design/icons';
@@ -19,7 +24,6 @@ import { PROJECT_NAME } from '../../utils/semesterDisplay';
 import useAuthStore from '../../stores/authStore';
 import DefenseResultPublicationModal from '../../components/admin/DefenseResultPublicationModal';
 import PublicationHistoryModal from '../../components/admin/PublicationHistoryModal';
-import CorrectDefenseResultModal from '../../components/admin/CorrectDefenseResultModal';
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
@@ -69,8 +73,11 @@ export default function GradingDefensePage() {
     const [exportingId, setExportingId] = useState(null);
     const [publishModalOpen, setPublishModalOpen] = useState(false);
     const [historyModalOpen, setHistoryModalOpen] = useState(false);
-    const [correctModalOpen, setCorrectModalOpen] = useState(false);
-    const [selectedRegistrationForCorrection, setSelectedRegistrationForCorrection] = useState(null);
+    const [returnModalOpen, setReturnModalOpen] = useState(false);
+    const [selectedRegForReturn, setSelectedRegForReturn] = useState(null);
+    const [reopenMemberIds, setReopenMemberIds] = useState([]);
+    const [returnReason, setReturnReason] = useState('');
+    const [returnLoading, setReturnLoading] = useState(false);
 
     const [semesters, setSemesters] = useState([]);
     const [councils, setCouncils] = useState([]);
@@ -263,25 +270,6 @@ export default function GradingDefensePage() {
         });
     };
 
-    // Export Excel
-    const handleExportExcel = async () => {
-        try {
-            message.loading({ content: 'Đang chuẩn bị file Excel tổng hợp sổ điểm...', key: 'exportExcel' });
-            const params = {};
-            if (selectedSemesterId) params.semesterId = selectedSemesterId;
-            if (selectedCouncilId) params.councilId = selectedCouncilId;
-            const res = await evaluationService.exportDefenseGrading(params);
-            if (res.success && res.data?.downloadUrl) {
-                window.open(res.data.downloadUrl, '_blank');
-                message.success({ content: 'Đã xuất file Excel thành công!', key: 'exportExcel' });
-            } else {
-                message.success({ content: 'Đã xuất Bảng điểm tổng hợp toàn viện dạng Excel!', key: 'exportExcel' });
-            }
-        } catch {
-            message.success({ content: 'Đã xuất Bảng điểm tổng hợp toàn viện dạng Excel!', key: 'exportExcel' });
-        }
-    };
-
     const handlePublishResults = () => {
         if (!selectedSemesterId) {
             message.warning('Vui lòng chọn học kỳ trước khi công bố kết quả.');
@@ -298,9 +286,42 @@ export default function GradingDefensePage() {
         setHistoryModalOpen(true);
     };
 
-    const handleOpenCorrectModal = (registration) => {
-        setSelectedRegistrationForCorrection(registration);
-        setCorrectModalOpen(true);
+    const handleOpenReturnModal = (registration) => {
+        setSelectedRegForReturn(registration);
+        setReopenMemberIds((registration.memberScores || []).map((m) => m.id));
+        setReturnReason('');
+        setReturnModalOpen(true);
+    };
+
+    const handleConfirmReturnScoreBook = async () => {
+        if (!selectedRegForReturn) return;
+        if (!returnReason.trim()) {
+            message.warning('Bắt buộc nhập lý do trả sổ điểm.');
+            return;
+        }
+        if (!reopenMemberIds.length) {
+            message.warning('Vui lòng chọn ít nhất 1 phiếu thành viên cần mở lại.');
+            return;
+        }
+        try {
+            setReturnLoading(true);
+            const res = await evaluationService.returnScoreBook(selectedRegForReturn.id, {
+                reason: returnReason.trim(),
+                reopenMemberScoreIds: reopenMemberIds,
+            });
+            if (res.success) {
+                message.success('Đã trả sổ điểm về Hội đồng thành công!');
+                setReturnModalOpen(false);
+                setSelectedRegForReturn(null);
+                fetchData();
+            } else {
+                message.error(res.message || 'Không thể trả sổ điểm.');
+            }
+        } catch (err) {
+            message.error(err.message || 'Lỗi khi trả sổ điểm');
+        } finally {
+            setReturnLoading(false);
+        }
     };
 
     // Load score sheet into drawer
@@ -329,20 +350,8 @@ export default function GradingDefensePage() {
                 };
             });
 
-            // If empty rubric returned from backend, supply standard 4 criteria
-            const finalRows = rows.length ? rows : [
-                { id: 1, criterionCode: 'CRI_1', criterionLabel: '1. Tính Khoa học, Tính Mới & Độ phức tạp Đề tài', description: 'Đánh giá phương pháp luận, khối lượng nghiên cứu và tính ứng dụng thực tiễn', maxScore: 2.5, score: 2.2 },
-                { id: 2, criterionCode: 'CRI_2', criterionLabel: '2. Sản phẩm Thực nghiệm, Demo Ứng dụng & Codebase', description: 'Chất lượng kiến trúc phần mềm, khả năng vận hành ổn định, test coverage', maxScore: 3.5, score: 3.1 },
-                { id: 3, criterionCode: 'CRI_3', criterionLabel: '3. Kỹ năng Thuyết trình & Trả lời Câu hỏi Phản biện', description: 'Slide trực quan, phong thái tự tin, trả lời đúng trọng tâm câu hỏi của HĐ', maxScore: 2.5, score: 2.1 },
-                { id: 4, criterionCode: 'CRI_4', criterionLabel: '4. Quy cách Báo cáo & Tính Liêm chính Học thuật', description: 'Định dạng chuẩn Viện, trích dẫn chuẩn IEEE, tỷ lệ kiểm tra Turnitin < 15%', maxScore: 1.5, score: 1.2 },
-            ];
-
-            const members = payload.memberScores || [
-                { evaluatorId: 'm1', evaluatorName: 'PGS.TS. Trần Nam', role: 'Chủ tịch HĐ', finalScore: 8.6 },
-                { evaluatorId: 'm2', evaluatorName: 'TS. Lê Thị Mai', role: 'Thư ký HĐ', finalScore: 8.8 },
-                { evaluatorId: 'm3', evaluatorName: 'TS. Nguyễn Sơn', role: 'UV Phản biện', finalScore: 7.0 },
-                { evaluatorId: 'm4', evaluatorName: 'ThS. Đỗ Nam', role: 'Ủy viên 1', finalScore: 8.4 },
-            ];
+            const finalRows = rows;
+            const members = payload.memberScores || [];
 
             setScoreSheetRegistration(payload.registration || null);
             setScoreSheetRows(finalRows);
@@ -637,10 +646,9 @@ export default function GradingDefensePage() {
                             <th>Mã & Tên Đề tài</th>
                             <th>Sinh viên</th>
                             <th>Hội đồng</th>
-                            <th style={{ textAlign: 'center' }}>Điểm GVHD</th>
-                            <th style={{ textAlign: 'center' }}>UV Phản biện</th>
                             <th style={{ textAlign: 'center' }}>Chi tiết Điểm Giám khảo</th>
-                            <th style={{ textAlign: 'center' }}>Điểm Khóa Luận trung bình</th>
+                            <th style={{ textAlign: 'center' }}>Điểm TB (Chưa làm tròn)</th>
+                            <th style={{ textAlign: 'center' }}>Điểm Khóa Luận (Làm tròn 1 số lẻ)</th>
                             <th style={{ textAlign: 'center' }}>Xếp loại</th>
                             <th>Trạng thái</th>
                             <th style={{ textAlign: 'right' }}>Thao tác</th>
@@ -728,18 +736,6 @@ export default function GradingDefensePage() {
                                             )}
                                         </td>
                                         <td style={{ textAlign: 'center' }}>
-                                            <span className="num" style={{ fontWeight: 700, color: 'var(--accent)', fontSize: 14 }}>
-                                                {r.mentorScore !== null && r.mentorScore !== undefined ? Number(r.mentorScore).toFixed(1) : '9.0'}
-                                            </span>
-                                            <div style={{ fontSize: 10.5, color: 'var(--muted)' }}>20%</div>
-                                        </td>
-                                        <td style={{ textAlign: 'center' }}>
-                                            <span className="num" style={{ fontWeight: 700, color: 'var(--accent)', fontSize: 14 }}>
-                                                {r.reviewerScore !== null && r.reviewerScore !== undefined ? Number(r.reviewerScore).toFixed(1) : '8.5'}
-                                            </span>
-                                            <div style={{ fontSize: 10.5, color: 'var(--muted)' }}>20%</div>
-                                        </td>
-                                        <td style={{ textAlign: 'center' }}>
                                             <div style={{ display: 'flex', gap: 4, justifyContent: 'center', flexWrap: 'wrap', alignItems: 'center' }}>
                                                 {memberScores.length > 0 ? (
                                                     memberScores.map((m, idx) => (
@@ -801,10 +797,36 @@ export default function GradingDefensePage() {
                                             )}
                                         </td>
                                         <td style={{ textAlign: 'center' }}>
-                                            <div className="num" style={{ fontSize: 16, fontWeight: 900, color: 'var(--institutional)' }}>
-                                                {r.finalScore !== null && r.finalScore !== undefined ? Number(r.finalScore).toFixed(2) : '—'}
-                                            </div>
-                                            <div style={{ fontSize: 10, color: 'var(--muted)' }}>Thang 10</div>
+                                            {r.attendanceStatus === 'ABSENT' ? (
+                                                <Tag color="error">VẮNG MẶT</Tag>
+                                            ) : (
+                                                <>
+                                                    <div className="num" style={{ fontSize: 13, fontWeight: 700, color: 'var(--muted)' }}>
+                                                        {r.rawAverageScore !== null && r.rawAverageScore !== undefined
+                                                            ? Number(r.rawAverageScore).toFixed(2)
+                                                            : r.finalScore !== null && r.finalScore !== undefined
+                                                            ? Number(r.finalScore).toFixed(2)
+                                                            : '—'}
+                                                    </div>
+                                                    <div style={{ fontSize: 10, color: 'var(--muted)' }}>rawAverage</div>
+                                                </>
+                                            )}
+                                        </td>
+                                        <td style={{ textAlign: 'center' }}>
+                                            {r.attendanceStatus === 'ABSENT' ? (
+                                                <Tag color="error" className="font-bold">ABSENT</Tag>
+                                            ) : (
+                                                <>
+                                                    <div className="num" style={{ fontSize: 16, fontWeight: 900, color: 'var(--institutional)' }}>
+                                                        {r.roundedFinalScore !== null && r.roundedFinalScore !== undefined
+                                                            ? Number(r.roundedFinalScore).toFixed(1)
+                                                            : r.finalScore !== null && r.finalScore !== undefined
+                                                            ? Number(r.finalScore).toFixed(1)
+                                                            : '—'}
+                                                    </div>
+                                                    <div style={{ fontSize: 10, color: 'var(--muted)' }}>roundedScore (1 số lẻ)</div>
+                                                </>
+                                            )}
                                         </td>
                                         <td style={{ textAlign: 'center' }}>
                                             <span className={grade.cls}>{grade.label}</span>
@@ -821,7 +843,7 @@ export default function GradingDefensePage() {
                                             )}
                                         </td>
                                         <td style={{ textAlign: 'right' }}>
-                                            <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                                            <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                                                 <button
                                                     className="btn btn-secondary btn-sm"
                                                     onClick={() => openRubricDrawer(r)}
@@ -866,15 +888,15 @@ export default function GradingDefensePage() {
                                                         </button>
                                                     </>
                                                 )}
-                                                {canApproveResult && (r.status === 'DEFENSE_PASSED' || r.status === 'DEFENSE_FAILED') && (
-                                                    <button
-                                                        className="btn btn-secondary btn-sm"
-                                                        onClick={() => handleOpenCorrectModal(r)}
-                                                        style={{ color: '#D97706', padding: '4px 8px', borderColor: '#FDE68A' }}
-                                                        title="Điều chỉnh kết quả bảo vệ theo quyết định phúc khảo"
+                                                {canLockResult && !r.isPublished && !r.isResultPublished && r.status !== 'COMPLETED' && (
+                                                    <Button
+                                                        size="small"
+                                                        icon={<RollbackOutlined />}
+                                                        onClick={() => handleOpenReturnModal(r)}
+                                                        style={{ color: '#D97706', borderColor: '#FDE68A' }}
                                                     >
-                                                        Điều chỉnh
-                                                    </button>
+                                                        Trả sổ về Hội đồng
+                                                    </Button>
                                                 )}
                                             </div>
                                         </td>
@@ -898,14 +920,6 @@ export default function GradingDefensePage() {
                             <polyline points="20 6 9 17 4 12" />
                         </svg>
                         <span>Nhắc Chấm Điểm HĐ</span>
-                    </button>
-                    <button className="btn-batch" onClick={handleExportExcel}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                            <polyline points="7 10 12 15 17 10" />
-                            <line x1="12" y1="15" x2="12" y2="3" />
-                        </svg>
-                        <span>Xuất Excel</span>
                     </button>
                     <div className="batch-divider" />
                     <button className="btn-batch" onClick={() => setSelectedRowKeys([])} style={{ opacity: 0.8 }}>
@@ -947,9 +961,8 @@ export default function GradingDefensePage() {
                             {scoreSheetRegistration?.topic?.title || 'Hệ thống Quản lý Khóa luận Tốt nghiệp dựa trên Microservices và Ant Design'}
                         </p>
                         <div style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: 12, color: 'var(--muted)', flexWrap: 'wrap' }}>
-                            <span>GVHD: <strong style={{ color: 'var(--fg)' }}>{scoreSheetRegistration?.mentor?.fullName || 'TS. Hoàng Minh Trí'}</strong></span>
-                            <span>Điểm GVHD: <strong className="num" style={{ color: 'var(--accent)' }}>9.0</strong> (20%)</span>
-                            <span>Điểm Phản biện: <strong className="num" style={{ color: 'var(--accent)' }}>8.5</strong> (20%)</span>
+                            <span>GVHD: <strong style={{ color: 'var(--fg)' }}>{scoreSheetRegistration?.mentor?.fullName || scoreSheetRegistration?.topic?.mentor?.fullName || 'Chưa phân công'}</strong></span>
+                            <span>Hội đồng: <strong style={{ color: 'var(--fg)' }}>{scoreSheetRegistration?.council?.name || '---'}</strong></span>
                         </div>
                     </div>
 
@@ -1208,18 +1221,71 @@ export default function GradingDefensePage() {
                 semesterName={semesters.find((s) => s.id === selectedSemesterId)?.name}
             />
 
-            {/* Modal Điều Chỉnh Kết Quả Bảo Vệ */}
-            <CorrectDefenseResultModal
-                open={correctModalOpen}
-                registration={selectedRegistrationForCorrection}
-                onClose={() => {
-                    setCorrectModalOpen(false);
-                    setSelectedRegistrationForCorrection(null);
+            {/* Modal Trả Sổ Điểm Về Hội Đồng (Trước Công Bố) */}
+            <Modal
+                title={`Trả Sổ Điểm Về Hội Đồng: ${selectedRegForReturn?.student?.fullName || ''}`}
+                open={returnModalOpen}
+                onOk={handleConfirmReturnScoreBook}
+                onCancel={() => {
+                    setReturnModalOpen(false);
+                    setSelectedRegForReturn(null);
                 }}
-                onSuccess={() => {
-                    fetchData();
-                }}
-            />
+                confirmLoading={returnLoading}
+                okText="Xác nhận trả sổ điểm"
+                okButtonProps={{ danger: true }}
+                destroyOnClose
+            >
+                <div className="space-y-4 py-2">
+                    <p className="text-xs text-slate-600">
+                        Thao tác này chỉ khả dụng <strong>trước khi công bố kết quả</strong>. Hệ thống sẽ mở lại các phiếu chấm đã chọn để giám khảo chấm lại và yêu cầu Chủ tịch khóa lại sổ điểm sau khi hoàn tất.
+                    </p>
+
+                    <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                            Lý do trả sổ điểm <span className="text-rose-500">*</span>
+                        </label>
+                        <Input.TextArea
+                            rows={3}
+                            placeholder="Nhập lý do trả sổ điểm về hội đồng..."
+                            value={returnReason}
+                            onChange={(e) => setReturnReason(e.target.value)}
+                            maxLength={500}
+                            showCount
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                            Chọn các phiếu giám khảo cần mở khóa lại: <span className="text-rose-500">*</span>
+                        </label>
+                        <div className="space-y-1 mt-1 border border-slate-200 p-2.5 rounded bg-slate-50">
+                            {(selectedRegForReturn?.memberScores || []).map((m) => (
+                                <div key={m.id} className="flex items-center gap-2 text-xs">
+                                    <Checkbox
+                                        checked={reopenMemberIds.includes(m.id)}
+                                        onChange={(e) => {
+                                            if (e.target.checked) {
+                                                setReopenMemberIds([...reopenMemberIds, m.id]);
+                                            } else {
+                                                setReopenMemberIds(reopenMemberIds.filter((id) => id !== m.id));
+                                            }
+                                        }}
+                                    >
+                                        <span className="font-semibold text-slate-800">
+                                            {m.evaluator?.fullName || m.evaluatorName || `Giám khảo #${m.id}`} ({m.memberRole || 'Thành viên HĐ'})
+                                        </span>
+                                        {m.finalScore !== null && m.finalScore !== undefined && (
+                                            <span className="ml-1 text-slate-500">
+                                                - Điểm hiện tại: <strong>{Number(m.finalScore).toFixed(1)}</strong>
+                                            </span>
+                                        )}
+                                    </Checkbox>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
 }

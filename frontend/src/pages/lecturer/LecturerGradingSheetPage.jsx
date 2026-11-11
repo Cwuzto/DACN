@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { message, Popconfirm } from 'antd';
+import { Button, Tag, message, Popconfirm } from 'antd';
+import { ArrowLeftOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import evaluationService from '../../services/evaluationService';
 import PageLoader from '../../components/common/PageLoader';
@@ -217,13 +218,12 @@ export default function LecturerGradingSheetPage() {
         <section id="view-grading-sheet" className="view-pane active">
             {/* Top Back Bar */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-                <button
-                    className="btn btn-secondary btn-sm"
+                <Button
+                    icon={<ArrowLeftOutlined />}
                     onClick={() => navigate('/lecturer/grading')}
-                    type="button"
                 >
-                    ← Quay lại danh sách Hội đồng
-                </button>
+                    Quay lại danh sách Hội đồng
+                </Button>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <button
                         className="btn btn-secondary btn-sm"
@@ -391,12 +391,23 @@ export default function LecturerGradingSheetPage() {
                                             const currentVal = scoresMap[c.code];
                                             const max = Number(c.maxScore) || 1.0;
                                             return (
-                                                <div className="rubric-row" key={c.code} style={{ alignItems: 'center' }}>
+                                                <div className="rubric-row" key={c.code} style={{ alignItems: 'start' }}>
                                                     <div>
-                                                        <div className="rubric-name">{c.name}</div>
-                                                        <div className="rubric-desc">{c.description || 'Tiêu chí đánh giá chất lượng khóa luận'}</div>
+                                                        <div className="rubric-name">{c.name || c.label}</div>
+                                                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                                            {c.cloCode && <Tag color="blue" className="font-mono text-[10px]">{c.cloCode}</Tag>}
+                                                            <span className="rubric-desc text-xs text-slate-500">{c.description || 'Tiêu chí đánh giá chất lượng khóa luận'}</span>
+                                                        </div>
+                                                        {(c.descGood || c.descFair || c.descAverage || c.descPoor) && (
+                                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, marginTop: 6, fontSize: '11px', background: '#f8fafc', padding: 6, borderRadius: 4 }}>
+                                                                <div style={{ color: '#16a34a' }}><strong>Tốt:</strong> {c.descGood || '---'}</div>
+                                                                <div style={{ color: '#0284c7' }}><strong>Khá:</strong> {c.descFair || '---'}</div>
+                                                                <div style={{ color: '#d97706' }}><strong>TB:</strong> {c.descAverage || '---'}</div>
+                                                                <div style={{ color: '#dc2626' }}><strong>Kém:</strong> {c.descPoor || '---'}</div>
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                    <div className="rubric-max-badge">
+                                                    <div className="rubric-max-badge" style={{ marginTop: 4 }}>
                                                         Tối đa: <span className="mono">{max.toFixed(2)}</span>đ
                                                     </div>
                                                     <input

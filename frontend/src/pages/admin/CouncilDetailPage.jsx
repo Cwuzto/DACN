@@ -32,6 +32,7 @@ import {
     ExclamationCircleOutlined,
     SearchOutlined,
     HistoryOutlined,
+    SwapOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import CouncilAuditLogModal from '../../components/admin/CouncilAuditLogModal';
@@ -75,6 +76,20 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
     const [reopenLoading, setReopenLoading] = useState(false);
     const [reopenBlockingList, setReopenBlockingList] = useState(null);
     const [reopenError, setReopenError] = useState(null);
+
+    // Adjust schedule modal state
+    const [isAdjustModalVisible, setIsAdjustModalVisible] = useState(false);
+    const [adjustingReg, setAdjustingReg] = useState(null);
+    const [newShift, setNewShift] = useState('MORNING');
+    const [newOrderInShift, setNewOrderInShift] = useState(1);
+    const [adjustReason, setAdjustReason] = useState('');
+
+    // Replace member modal state
+    const [isReplaceMemberModalVisible, setIsReplaceMemberModalVisible] = useState(false);
+    const [replacingMember, setReplacingMember] = useState(null);
+    const [newLecturerId, setNewLecturerId] = useState(null);
+    const [replaceReason, setReplaceReason] = useState('');
+    const [confirmLockedSheetOverride, setConfirmLockedSheetOverride] = useState(false);
 
     const fetchCouncilDetail = useCallback(async () => {
         try {
@@ -126,7 +141,7 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
         const memberIds = new Set((council.members || []).map((m) => m.lecturerId));
         const conflicts = new Set();
         effectiveRegistrations.forEach((reg) => {
-            const mentorId = reg.topic?.mentorId;
+            const mentorId = reg.mentorId || reg.topic?.mentorId;
             if (mentorId && memberIds.has(mentorId)) {
                 const m = council.members?.find((mem) => mem.lecturerId === mentorId);
                 conflicts.add(m?.lecturer?.fullName || reg.topic?.mentor?.fullName || reg.topic?.lecturer?.fullName || `GV #${mentorId}`);
@@ -335,6 +350,107 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
         }
     };
 
+    // Confirm & Publish Defense Schedule
+    const handleConfirmAndPublishDefenseSchedule = async () => {
+        try {
+            setSubmitLoading(true);
+            const res = await councilService.confirmAndPublishDefenseSchedule(council.id);
+            if (res.success) {
+                message.success(res.message || 'Đã công bố lịch bảo vệ chia ca Sáng / Chiều thành công!');
+                await fetchCouncilDetail();
+            } else {
+                message.error(res.message || 'Không thể công bố lịch bảo vệ');
+            }
+        } catch (err) {
+            message.error(err.message || 'Lỗi khi công bố lịch bảo vệ chia ca');
+        } finally {
+            setSubmitLoading(false);
+        }
+    };
+
+    // Adjust Student Defense Schedule Handlers
+    const openAdjustModal = (reg) => {
+        setAdjustingReg(reg);
+        setNewShift(reg.defenseShift || 'MORNING');
+        setNewOrderInShift(reg.orderInShift || 1);
+        setAdjustReason('');
+        setIsAdjustModalVisible(true);
+    };
+
+    const handleAdjustStudentSchedule = async () => {
+        if (!adjustingReg) return;
+        if (!adjustReason.trim()) {
+            message.warning('Bắt buộc nhập lý do điều chỉnh lịch bảo vệ.');
+            return;
+        }
+        try {
+            setSubmitLoading(true);
+            const res = await councilService.adjustStudentSchedule(council.id, adjustingReg.id, {
+                newShift,
+                newOrderInShift: Number(newOrderInShift),
+                reason: adjustReason.trim(),
+            });
+            if (res.success) {
+                message.success('Đã điều chỉnh ca và thứ tự bảo vệ thành công!');
+                setIsAdjustModalVisible(false);
+                setAdjustingReg(null);
+                setAdjustReason('');
+                await fetchCouncilDetail();
+            } else {
+                message.error(res.message || 'Không thể điều chỉnh lịch bảo vệ.');
+            }
+        } catch (err) {
+            message.error(err.message || 'Lỗi khi điều chỉnh lịch bảo vệ');
+        } finally {
+            setSubmitLoading(false);
+        }
+    };
+
+    // Replace Council Member Handlers
+    const openReplaceMemberModal = (member) => {
+        setReplacingMember(member);
+        setNewLecturerId(null);
+        setReplaceReason('');
+        setConfirmLockedSheetOverride(false);
+        setIsReplaceMemberModalVisible(true);
+    };
+
+    const handleReplaceCouncilMember = async () => {
+        if (!replacingMember) return;
+        if (!newLecturerId) {
+            message.warning('Vui lòng chọn giảng viên thay thế.');
+            return;
+        }
+        if (!replaceReason.trim()) {
+            message.warning('Bắt buộc nhập lý do thay thế thành viên.');
+            return;
+        }
+        try {
+            setSubmitLoading(true);
+            const res = await councilService.replaceCouncilMember(council.id, {
+                oldMemberId: replacingMember.id,
+                newLecturerId: Number(newLecturerId),
+                reason: replaceReason.trim(),
+                confirmLockedSheetOverride,
+            });
+            if (res.success) {
+                message.success('Đã thay thế thành viên hội đồng thành công!');
+                setIsReplaceMemberModalVisible(false);
+                setReplacingMember(null);
+                setNewLecturerId(null);
+                setReplaceReason('');
+                setConfirmLockedSheetOverride(false);
+                await fetchCouncilDetail();
+            } else {
+                message.error(res.message || 'Không thể thay thế thành viên.');
+            }
+        } catch (err) {
+            message.error(err.message || 'Lỗi khi thay thế thành viên');
+        } finally {
+            setSubmitLoading(false);
+        }
+    };
+
     // Reopen Results Handlers (Outline Review)
     const openReopenModal = () => {
         setReopenReason('');
@@ -457,6 +573,45 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
             render: (status) => renderStatusTag(status),
         },
         {
+            title: 'Ca & Thứ tự bảo vệ',
+            key: 'shift',
+            width: 170,
+            render: (_text, reg) => {
+                const isMorning = reg.defenseShift === 'MORNING';
+                const isAfternoon = reg.defenseShift === 'AFTERNOON';
+                return (
+                    <div className="space-y-1">
+                        {isMorning && (
+                            <Tag color="cyan" className="font-bold">
+                                Ca Sáng (07:00–11:00) #{reg.orderInShift || '--'}
+                            </Tag>
+                        )}
+                        {isAfternoon && (
+                            <Tag color="orange" className="font-bold">
+                                Ca Chiều (13:00–17:00) #{reg.orderInShift || '--'}
+                            </Tag>
+                        )}
+                        {!isMorning && !isAfternoon && (
+                            <span className="text-xs text-slate-400 italic">Chưa xếp ca</span>
+                        )}
+                        {effectiveCouncilType === 'DEFENSE_COUNCIL' && (
+                            <div>
+                                <Button
+                                    size="small"
+                                    type="link"
+                                    icon={<EditOutlined />}
+                                    onClick={() => openAdjustModal(reg)}
+                                    className="p-0 text-xs text-teal-700"
+                                >
+                                    Đổi ca/STT
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+                );
+            },
+        },
+        {
             title: 'Thao tác',
             key: 'actions',
             width: 90,
@@ -537,6 +692,17 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
 
                     {/* Action buttons */}
                     <div className="flex items-center gap-2 flex-wrap">
+                        {effectiveCouncilType === 'DEFENSE_COUNCIL' && (
+                            <Button
+                                type="primary"
+                                icon={<CalendarOutlined />}
+                                onClick={handleConfirmAndPublishDefenseSchedule}
+                                loading={submitLoading}
+                                className="bg-emerald-700 hover:bg-emerald-800 font-semibold"
+                            >
+                                Công bố lịch bảo vệ chia ca
+                            </Button>
+                        )}
                         <Button icon={<HistoryOutlined />} onClick={openLogModal}>
                             Lịch sử thao tác
                         </Button>
@@ -606,13 +772,13 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                             <div className="flex justify-between items-center mb-1">
                                 <span className="text-xs text-slate-600 font-semibold">Quy mô sinh viên</span>
                                 <span className="text-xs font-black text-slate-900">
-                                    {effectiveRegistrations.length} / 10 SV
+                                    {effectiveRegistrations.length} / {effectiveCouncilType === 'DEFENSE_COUNCIL' ? 22 : 10} SV
                                 </span>
                             </div>
                             <Progress
-                                percent={Math.min(100, (effectiveRegistrations.length / 10) * 100)}
+                                percent={Math.min(100, (effectiveRegistrations.length / (effectiveCouncilType === 'DEFENSE_COUNCIL' ? 22 : 10)) * 100)}
                                 showInfo={false}
-                                strokeColor={effectiveRegistrations.length > 10 ? '#ef4444' : '#0f766e'}
+                                strokeColor={effectiveRegistrations.length > (effectiveCouncilType === 'DEFENSE_COUNCIL' ? 22 : 10) ? '#ef4444' : '#0f766e'}
                                 size="small"
                             />
                         </div>
@@ -656,6 +822,17 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                                             <div className="text-xs text-teal-800 font-medium truncate" title={chairman.lecturer?.email}>
                                                 {chairman.lecturer?.email || '---'}
                                             </div>
+                                            {effectiveCouncilType === 'DEFENSE_COUNCIL' && (
+                                                <Button
+                                                    size="small"
+                                                    type="link"
+                                                    icon={<SwapOutlined />}
+                                                    onClick={() => openReplaceMemberModal(chairman)}
+                                                    className="p-0 text-xs text-teal-700 mt-1"
+                                                >
+                                                    Thay thế
+                                                </Button>
+                                            )}
                                         </div>
                                     </div>
                                 ) : (
@@ -685,6 +862,17 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                                             <div className="text-xs text-blue-800 font-medium truncate" title={secretary.lecturer?.email}>
                                                 {secretary.lecturer?.email || '---'}
                                             </div>
+                                            {effectiveCouncilType === 'DEFENSE_COUNCIL' && (
+                                                <Button
+                                                    size="small"
+                                                    type="link"
+                                                    icon={<SwapOutlined />}
+                                                    onClick={() => openReplaceMemberModal(secretary)}
+                                                    className="p-0 text-xs text-blue-700 mt-1"
+                                                >
+                                                    Thay thế
+                                                </Button>
+                                            )}
                                         </div>
                                     </div>
                                 ) : (
@@ -714,6 +902,17 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                                             <div className="text-xs text-purple-800 font-medium truncate" title={reviewer.lecturer?.email}>
                                                 {reviewer.lecturer?.email || '---'}
                                             </div>
+                                            {effectiveCouncilType === 'DEFENSE_COUNCIL' && (
+                                                <Button
+                                                    size="small"
+                                                    type="link"
+                                                    icon={<SwapOutlined />}
+                                                    onClick={() => openReplaceMemberModal(reviewer)}
+                                                    className="p-0 text-xs text-purple-700 mt-1"
+                                                >
+                                                    Thay thế
+                                                </Button>
+                                            )}
                                         </div>
                                     </div>
                                 ) : (
@@ -950,6 +1149,120 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                 council={council}
                 logs={councilLogs}
             />
+
+            {/* Modal Điều chỉnh Ca & Thứ tự bảo vệ */}
+            <Modal
+                title={`Điều chỉnh Lịch bảo vệ cho SV ${adjustingReg?.student?.fullName || ''}`}
+                open={isAdjustModalVisible}
+                onOk={handleAdjustStudentSchedule}
+                onCancel={() => {
+                    setIsAdjustModalVisible(false);
+                    setAdjustingReg(null);
+                }}
+                confirmLoading={submitLoading}
+                destroyOnClose
+            >
+                <div className="space-y-4 py-2">
+                    <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                            Ca bảo vệ <span className="text-rose-500">*</span>
+                        </label>
+                        <Select
+                            value={newShift}
+                            onChange={setNewShift}
+                            className="w-full"
+                            options={[
+                                { label: 'Ca Sáng (07:00 – 11:00)', value: 'MORNING' },
+                                { label: 'Ca Chiều (13:00 – 17:00)', value: 'AFTERNOON' },
+                            ]}
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                            Số thứ tự trong ca <span className="text-rose-500">*</span>
+                        </label>
+                        <Input
+                            type="number"
+                            min={1}
+                            max={30}
+                            value={newOrderInShift}
+                            onChange={(e) => setNewOrderInShift(e.target.value)}
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                            Lý do điều chỉnh <span className="text-rose-500">*</span>
+                        </label>
+                        <Input.TextArea
+                            rows={3}
+                            placeholder="Nhập lý do điều chỉnh ca/thứ tự bảo vệ (bắt buộc)..."
+                            value={adjustReason}
+                            onChange={(e) => setAdjustReason(e.target.value)}
+                            maxLength={500}
+                            showCount
+                        />
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Modal Thay thế Thành viên Chấm */}
+            <Modal
+                title={`Thay thế Thành viên "${replacingMember?.lecturer?.fullName || ''}"`}
+                open={isReplaceMemberModalVisible}
+                onOk={handleReplaceCouncilMember}
+                onCancel={() => {
+                    setIsReplaceMemberModalVisible(false);
+                    setReplacingMember(null);
+                }}
+                confirmLoading={submitLoading}
+                destroyOnClose
+            >
+                <div className="space-y-4 py-2">
+                    <Alert
+                        type="info"
+                        message="Thay thế thành viên chấm điểm"
+                        description="Thành viên mới sẽ tiếp quản chấm điểm cho các sinh viên trong hội đồng này."
+                        showIcon
+                    />
+                    <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                            Giảng viên thay thế <span className="text-rose-500">*</span>
+                        </label>
+                        <Select
+                            showSearch
+                            placeholder="Chọn giảng viên thay thế"
+                            optionFilterProp="label"
+                            options={lecturerOptions}
+                            value={newLecturerId}
+                            onChange={setNewLecturerId}
+                            className="w-full"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                            Lý do thay thế <span className="text-rose-500">*</span>
+                        </label>
+                        <Input.TextArea
+                            rows={3}
+                            placeholder="Nhập lý do thay thế thành viên (bắt buộc)..."
+                            value={replaceReason}
+                            onChange={(e) => setReplaceReason(e.target.value)}
+                            maxLength={500}
+                            showCount
+                        />
+                    </div>
+                    <div className="pt-2">
+                        <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-700">
+                            <input
+                                type="checkbox"
+                                checked={confirmLockedSheetOverride}
+                                onChange={(e) => setConfirmLockedSheetOverride(e.target.checked)}
+                            />
+                            <span>Xác nhận ghi đè / mở lại phiếu nếu thành viên cũ đã từng chấm điểm</span>
+                        </label>
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
 }

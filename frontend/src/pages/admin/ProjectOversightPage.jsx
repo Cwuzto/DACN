@@ -513,6 +513,39 @@ function ProjectOversightPage() {
         }
     };
 
+    const handleAcademicAffairsReview = async (archiveId, status, notes = '') => {
+        try {
+            const res = await archiveService.reviewArchiveByAcademicAffairs(archiveId, {
+                status,
+                notes: notes || undefined,
+            });
+            if (res.success) {
+                message.success('Đã hoàn tất thẩm định thủ tục lưu chiểu (Giáo vụ)!');
+                fetchArchives(semesterFilter, archiveStatusFilter);
+                fetchData();
+            } else {
+                message.error(res.message || 'Không thể thẩm định lưu chiểu Giáo vụ');
+            }
+        } catch (error) {
+            message.error(error?.message || 'Lỗi khi thẩm định lưu chiểu Giáo vụ');
+        }
+    };
+
+    const handleSignClearanceCertificate = async (archiveId) => {
+        try {
+            const res = await archiveService.signClearanceCertificate(archiveId);
+            if (res.success) {
+                message.success('Viện trưởng đã ký số Giấy xác nhận hoàn thành thành công!');
+                fetchArchives(semesterFilter, archiveStatusFilter);
+                fetchData();
+            } else {
+                message.error(res.message || 'Không thể ký số Giấy xác nhận');
+            }
+        } catch (error) {
+            message.error(error?.message || 'Lỗi khi ký số Giấy xác nhận');
+        }
+    };
+
     useEffect(() => {
         fetchData();
     }, []);
@@ -1181,34 +1214,57 @@ function ProjectOversightPage() {
             {
                 title: 'Thao tác',
                 key: 'actions',
-                width: 160,
+                width: 220,
                 align: 'right',
                 render: (_, record) => {
-                    const isApproved = record.status === 'APPROVED';
+                    const isApproved = record.status === 'APPROVED' || record.status === 'COMPLETED';
+                    const canSign = record.status === 'PENDING_INSTITUTE_SIGNATURE' || record.academicReviewStatus === 'APPROVED';
                     return (
-                        <Space size="small">
-                            {!isApproved && canReviewArchive && (
+                        <Space size="small" wrap>
+                            {canReviewArchive && !isApproved && (
+                                <>
+                                    <Button
+                                        size="small"
+                                        type="primary"
+                                        icon={<CheckCircleOutlined />}
+                                        onClick={() => handleAcademicAffairsReview(record.id, 'APPROVED')}
+                                    >
+                                        Duyệt thủ tục
+                                    </Button>
+                                    <Button
+                                        size="small"
+                                        danger
+                                        icon={<CloseCircleOutlined />}
+                                        onClick={() => handleAcademicAffairsReview(record.id, 'REVISION_REQUIRED')}
+                                    >
+                                        Yêu cầu nộp lại
+                                    </Button>
+                                </>
+                            )}
+                            {canSign && (
                                 <Popconfirm
-                                    title="Xác nhận nghiệm thu"
-                                    description="Hồ sơ sẽ được duyệt và chuyển đề tài sang hoàn tất tốt nghiệp. Bạn chắc chắn chứ?"
-                                    onConfirm={() => handleQuickApproveArchive(record.registrationId)}
-                                    okText="Nghiệm thu"
+                                    title="Ký số Giấy xác nhận"
+                                    description="Viện trưởng ký số cấp Giấy xác nhận hoàn thành khóa luận cho sinh viên."
+                                    onConfirm={() => handleSignClearanceCertificate(record.id)}
+                                    okText="Ký số"
                                     cancelText="Hủy"
                                 >
-                                    <Button size="small" type="primary" className="bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold">
-                                        Nghiệm thu
+                                    <Button
+                                        size="small"
+                                        type="primary"
+                                        icon={<SafetyCertificateOutlined />}
+                                    >
+                                        Viện trưởng ký
                                     </Button>
                                 </Popconfirm>
                             )}
                             {isApproved && (
                                 <Button
                                     size="small"
-                                    type="primary"
                                     icon={<SafetyCertificateOutlined />}
-                                    className="bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold"
                                     onClick={() => handleOpenCertificate(record.registrationId)}
                                 >
-                                    Giấy CN
+                                    Xem Giấy xác nhận
                                 </Button>
                             )}
                         </Space>
@@ -1939,8 +1995,13 @@ function ProjectOversightPage() {
                                                 allowClear
                                                 value={statusFilter}
                                                 onChange={(value) => setStatusFilter(value || null)}
-                                                options={['APPROVED', 'PENDING', 'REJECTED', 'DRAFT'].map((key) => ({
-                                                    label: STATUS_MAP[key]?.label || key,
+                                                options={[
+                                                    'APPROVED', 'PENDING', 'REJECTED', 'DRAFT',
+                                                    'DEFENSE_PASSED', 'DEFENSE_FAILED',
+                                                    'ARCHIVE_INCOMPLETE', 'ARCHIVE_REJECTED',
+                                                    'PENDING_INSTITUTE_SIGNATURE', 'COMPLETED',
+                                                ].map((key) => ({
+                                                    label: STATUS_MAP[key]?.label || STATUS_MAP[key]?.text || key,
                                                     value: key,
                                                 }))}
                                             />
@@ -2035,6 +2096,12 @@ function ProjectOversightPage() {
                                                     { value: 'SUBMITTED', label: 'Chờ nghiệm thu' },
                                                     { value: 'APPROVED', label: 'Đã nghiệm thu' },
                                                     { value: 'REVISION_REQUIRED', label: 'Cần chỉnh sửa' },
+                                                    { value: 'DEFENSE_PASSED', label: 'Đã bảo vệ đạt' },
+                                                    { value: 'DEFENSE_FAILED', label: 'Bảo vệ không đạt' },
+                                                    { value: 'ARCHIVE_INCOMPLETE', label: 'Chưa hoàn tất lưu chiểu' },
+                                                    { value: 'ARCHIVE_REJECTED', label: 'Lưu chiểu bị từ chối' },
+                                                    { value: 'PENDING_INSTITUTE_SIGNATURE', label: 'Chờ Viện trưởng ký' },
+                                                    { value: 'COMPLETED', label: 'Hoàn thành chương trình' },
                                                 ]}
                                             />
                                         </div>

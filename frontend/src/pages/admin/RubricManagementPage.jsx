@@ -1,10 +1,21 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+    Button,
+    Collapse,
     message,
     Modal,
     Popconfirm,
+    Tag,
     Tooltip,
 } from 'antd';
+import {
+    CheckCircleOutlined,
+    DeleteOutlined,
+    LockOutlined,
+    PlusOutlined,
+    ReloadOutlined,
+    SaveOutlined,
+} from '@ant-design/icons';
 import rubricService from '../../services/rubricService';
 
 const round2 = (num) => Math.round((Number(num) || 0) * 100) / 100;
@@ -304,12 +315,59 @@ export default function RubricManagementPage() {
                             code: `${cat.code || 'CAT'}_CRI_${nextCriIdx}`,
                             label: `Tiêu chí ${nextCriIdx}`,
                             description: '',
+                            cloCode: 'CLO1',
+                            descGood: 'Thể hiện xuất sắc, vượt yêu cầu chuẩn đầu ra.',
+                            descFair: 'Đáp ứng tốt các yêu cầu chuẩn đầu ra.',
+                            descAverage: 'Đáp ứng mức cơ bản chuẩn đầu ra.',
+                            descPoor: 'Chưa đạt yêu cầu chuẩn đầu ra.',
                             maxScore: 0.5,
                         },
                     ],
                 };
             })
         );
+    };
+
+    const handleLockRubric = async (id) => {
+        const targetId = id || activeRubricId;
+        if (!targetId) {
+            message.warning('Vui lòng chọn một phiên bản Rubric để khóa.');
+            return;
+        }
+        try {
+            setLoading(true);
+            const res = await rubricService.lockRubric(targetId);
+            if (res.success) {
+                message.success('Đã khóa phiên bản Rubric cho đợt bảo vệ!');
+                fetchRubrics();
+                loadRubricDetails(targetId);
+            }
+        } catch (error) {
+            message.error(error.message || 'Không thể khóa phiên bản Rubric');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleRestoreDefaultRubric = async (id) => {
+        const targetId = id || activeRubricId;
+        if (!targetId) {
+            message.warning('Vui lòng chọn một phiên bản Rubric để khôi phục.');
+            return;
+        }
+        try {
+            setLoading(true);
+            const res = await rubricService.restoreDefault(targetId);
+            if (res.success) {
+                message.success('Đã khôi phục barem mẫu chuẩn 4 nhóm 14 mục (10.0đ)!');
+                fetchRubrics();
+                loadRubricDetails(targetId);
+            }
+        } catch (error) {
+            message.error(error.message || 'Không thể khôi phục barem mẫu chuẩn');
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleDeleteCriterion = (catIndex, criIndex) => {
@@ -372,6 +430,11 @@ export default function RubricManagementPage() {
                         code: cri.code.trim().toUpperCase(),
                         label: cri.label.trim(),
                         description: cri.description ? cri.description.trim() : null,
+                        cloCode: cri.cloCode ? cri.cloCode.trim() : null,
+                        descGood: cri.descGood || null,
+                        descFair: cri.descFair || null,
+                        descAverage: cri.descAverage || null,
+                        descPoor: cri.descPoor || null,
                         maxScore: Number(cri.maxScore),
                         orderIndex: criIdx + 1,
                     })),
@@ -889,22 +952,27 @@ export default function RubricManagementPage() {
                                 </p>
                             </div>
                         </div>
-                        <div style={{ display: 'flex', gap: 8 }}>
-                            <button
-                                className="btn btn-primary btn-sm"
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            <Button
+                                type="primary"
+                                icon={<SaveOutlined />}
                                 onClick={handleSaveRubric}
-                                disabled={saving}
+                                loading={saving}
                             >
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-                                    <polyline points="17 21 17 13 7 13 7 21" />
-                                    <polyline points="7 3 7 8 15 8" />
-                                </svg>
-                                <span>{saving ? 'Đang lưu...' : 'Lưu Cấu Hình Rubric'}</span>
-                            </button>
-                            <button className="btn btn-secondary btn-sm" onClick={handleResetToDefault}>
-                                <span>Khôi Phục Mặc Định</span>
-                            </button>
+                                {saving ? 'Đang lưu...' : 'Lưu Cấu Hình Rubric'}
+                            </Button>
+                            <Button
+                                icon={<ReloadOutlined />}
+                                onClick={() => handleRestoreDefaultRubric(activeRubricId)}
+                            >
+                                Khôi phục mẫu chuẩn
+                            </Button>
+                            <Button
+                                icon={<LockOutlined />}
+                                onClick={() => handleLockRubric(activeRubricId)}
+                            >
+                                Khóa Rubric đợt bảo vệ
+                            </Button>
                         </div>
                     </div>
 
@@ -1083,7 +1151,9 @@ export default function RubricManagementPage() {
                                                     display: 'grid',
                                                     gridTemplateColumns: '140px 1fr 140px 40px',
                                                     gap: 12,
-                                                    alignItems: 'center',
+                                                    alignItems: 'start',
+                                                    padding: '12px 0',
+                                                    borderBottom: '1px solid var(--border-light, #f1f5f9)',
                                                 }}
                                             >
                                                 <div>
@@ -1093,7 +1163,15 @@ export default function RubricManagementPage() {
                                                         value={cri.code || ''}
                                                         onChange={(e) => handleUpdateCriterion(catIdx, criIdx, 'code', e.target.value)}
                                                         placeholder="Mã tiêu chí"
-                                                        style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}
+                                                        style={{ fontFamily: 'var(--font-mono)', fontSize: 12, width: '100%' }}
+                                                    />
+                                                    <input
+                                                        type="text"
+                                                        className="input-field"
+                                                        value={cri.cloCode || ''}
+                                                        onChange={(e) => handleUpdateCriterion(catIdx, criIdx, 'cloCode', e.target.value)}
+                                                        placeholder="Mã CLO (VD: CLO1)"
+                                                        style={{ fontFamily: 'var(--font-mono)', fontSize: 11, marginTop: 4, width: '100%' }}
                                                     />
                                                 </div>
                                                 <div>
@@ -1111,10 +1189,56 @@ export default function RubricManagementPage() {
                                                         value={cri.description || ''}
                                                         onChange={(e) => handleUpdateCriterion(catIdx, criIdx, 'description', e.target.value)}
                                                         placeholder="Hướng dẫn chấm điểm cho giám khảo..."
-                                                        style={{ fontSize: 12, color: 'var(--muted)', width: '100%' }}
+                                                        style={{ fontSize: 12, color: 'var(--muted)', width: '100%', marginBottom: 6 }}
                                                     />
+                                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+                                                        <div>
+                                                            <span style={{ fontSize: 10, fontWeight: 700, color: '#16a34a', display: 'block' }}>Tốt (85-100%):</span>
+                                                            <input
+                                                                type="text"
+                                                                className="input-field"
+                                                                value={cri.descGood || ''}
+                                                                onChange={(e) => handleUpdateCriterion(catIdx, criIdx, 'descGood', e.target.value)}
+                                                                placeholder="Mức Tốt"
+                                                                style={{ fontSize: 11, width: '100%' }}
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <span style={{ fontSize: 10, fontWeight: 700, color: '#0284c7', display: 'block' }}>Khá (70-84%):</span>
+                                                            <input
+                                                                type="text"
+                                                                className="input-field"
+                                                                value={cri.descFair || ''}
+                                                                onChange={(e) => handleUpdateCriterion(catIdx, criIdx, 'descFair', e.target.value)}
+                                                                placeholder="Mức Khá"
+                                                                style={{ fontSize: 11, width: '100%' }}
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <span style={{ fontSize: 10, fontWeight: 700, color: '#d97706', display: 'block' }}>Trung bình (50-69%):</span>
+                                                            <input
+                                                                type="text"
+                                                                className="input-field"
+                                                                value={cri.descAverage || ''}
+                                                                onChange={(e) => handleUpdateCriterion(catIdx, criIdx, 'descAverage', e.target.value)}
+                                                                placeholder="Mức TB"
+                                                                style={{ fontSize: 11, width: '100%' }}
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <span style={{ fontSize: 10, fontWeight: 700, color: '#dc2626', display: 'block' }}>Kém (&lt;50%):</span>
+                                                            <input
+                                                                type="text"
+                                                                className="input-field"
+                                                                value={cri.descPoor || ''}
+                                                                onChange={(e) => handleUpdateCriterion(catIdx, criIdx, 'descPoor', e.target.value)}
+                                                                placeholder="Mức Kém"
+                                                                style={{ fontSize: 11, width: '100%' }}
+                                                            />
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end', paddingTop: 4 }}>
                                                     <span style={{ fontSize: 12, color: 'var(--muted)' }}>Tối đa:</span>
                                                     <input
                                                         type="number"
@@ -1128,14 +1252,16 @@ export default function RubricManagementPage() {
                                                     />
                                                     <span style={{ fontSize: 12, fontWeight: 600 }}>đ</span>
                                                 </div>
-                                                <button
-                                                    className="btn-icon-only"
-                                                    onClick={() => handleDeleteCriterion(catIdx, criIdx)}
-                                                    style={{ color: 'var(--danger)', fontSize: 14 }}
-                                                    title="Xóa tiêu chí"
-                                                >
-                                                    ✕
-                                                </button>
+                                                <div style={{ paddingTop: 4 }}>
+                                                    <button
+                                                        className="btn-icon-only"
+                                                        onClick={() => handleDeleteCriterion(catIdx, criIdx)}
+                                                        style={{ color: 'var(--danger)', fontSize: 14 }}
+                                                        title="Xóa tiêu chí"
+                                                    >
+                                                        ✕
+                                                    </button>
+                                                </div>
                                             </div>
                                         ))}
                                     </div>
