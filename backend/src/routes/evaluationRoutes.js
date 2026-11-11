@@ -161,6 +161,43 @@ router.post(
     evaluationController.setDefenseScoreLock,
 );
 
+// Chairman mark student absent
+router.post(
+    ['/:registrationId/mark-absent', '/registrations/:registrationId/mark-absent'],
+    authorizePermission(PERMISSIONS.DEFENSE_SCORE_SUBMIT, PERMISSIONS.RESULT_LOCK),
+    [
+        param('registrationId').isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
+        body('absentMinutesText').isString().trim().notEmpty().withMessage('Biên bản xác nhận sinh viên vắng mặt là bắt buộc.'),
+        validateRequest,
+    ],
+    evaluationController.markStudentAbsentAction,
+);
+
+// Chairman lock scorebook
+router.post(
+    ['/:registrationId/lock-scorebook', '/registrations/:registrationId/lock-scorebook'],
+    authorizePermission(PERMISSIONS.DEFENSE_SCORE_SUBMIT, PERMISSIONS.RESULT_LOCK),
+    [
+        param('registrationId').isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
+        validateRequest,
+    ],
+    evaluationController.lockDefenseScoreBookAction,
+);
+
+// Admin return scorebook before publication
+router.post(
+    ['/:registrationId/return-scorebook', '/registrations/:registrationId/return-scorebook'],
+    authorizePermission(PERMISSIONS.DEFENSE_SCOREBOOK_RETURN, PERMISSIONS.RESULT_LOCK),
+    [
+        param('registrationId').isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
+        body('reason').isString().trim().notEmpty().withMessage('Lý do trả sổ điểm là bắt buộc.'),
+        body('reopenMemberScoreIds').isArray({ min: 1 }).withMessage('reopenMemberScoreIds phải là mảng chứa ít nhất 1 ID.'),
+        body('reopenMemberScoreIds.*').isInt({ min: 1 }).withMessage('Mỗi ID trong reopenMemberScoreIds phải là số nguyên dương.'),
+        validateRequest,
+    ],
+    evaluationController.returnScoreBookAction,
+);
+
 router.get(
     '/admin-defense-center/:id/result-approval',
     authorizePermission(PERMISSIONS.DEFENSE_SCORE_VIEW, PERMISSIONS.VIEW_DEFENSE_RESULT_APPROVALS, PERMISSIONS.VIEW_DEFENSE_RESULTS_APPROVAL),

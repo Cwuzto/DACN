@@ -14,7 +14,13 @@ const {
     reviewSignatureAppeal,
 } = require('../services/checkpointWorkflowService');
 const { WorkflowTransitionError } = require('../services/registrationTransitionService');
-const { lockDefenseScores, lockMemberScoreSheet } = require('../services/defenseScoringService');
+const {
+    lockDefenseScores,
+    lockMemberScoreSheet,
+    markStudentAbsentByChairman,
+    lockDefenseScoreBookByChairman,
+    returnScoreBookBeforePublication,
+} = require('../services/defenseScoringService');
 const { approveDefenseResult, createResultPublication, getEligibleApprovals, listResultPublications, getDefenseResultApproval, getStudentPublishedResult } = require('../services/defenseResultPublicationService');
 
 const getRequestIp = (req) => req.ip || req.headers['x-forwarded-for'] || null;
@@ -26,7 +32,20 @@ const sendWorkflowError = (res, error) => {
     return false;
 };
 const DEFENSE_CENTER_TABS = ['PENDING_ASSIGNMENT', 'ASSIGNED_COUNCIL', 'AWAITING_GRADING', 'COMPLETED'];
-const DEFENSE_ELIGIBLE_STATUSES = ['DEFENSE_READY', 'SUBMITTED', 'DEFENDED', 'COMPLETED'];
+const DEFENSE_ELIGIBLE_STATUSES = [
+    'DEFENSE_READY',
+    'ELIGIBLE_BY_INSTITUTE',
+    'AWAITING_SCORES',
+    'AWAITING_FINAL_APPROVAL',
+    'DEFENSE_PASSED',
+    'DEFENSE_FAILED',
+    'PENDING_INSTITUTE_SIGNATURE',
+    'ARCHIVE_INCOMPLETE',
+    'ARCHIVE_REJECTED',
+    'COMPLETED',
+    'DEFENDED',
+    'SUBMITTED',
+];
 
 const RUBRIC_V1 = {
     version: 'v1',
@@ -362,7 +381,7 @@ const getGradingStudents = async (req, res, next) => {
         const { semesterId, projectCatalogId, councilId } = req.query;
 
         const where = {
-            status: { in: ['DEFENDED', 'COMPLETED', 'SUBMITTED'] },
+            status: { in: DEFENSE_ELIGIBLE_STATUSES },
         };
 
         if (role === 'LECTURER') {
@@ -1073,6 +1092,108 @@ const remindDefenseGrading = async (req, res, next) => {
             data: { sent, skipped },
         });
     } catch (error) {
+        next(error);
+    }
+};
+
+const markStudentAbsentAction = async (req, res, next) => {
+    try {
+        const registrationId = parsePositiveInt(req.params.registrationId || req.params.id);
+        if (!registrationId) {
+            return res.status(400).json({ success: false, message: 'registrationId không hợp lệ.' });
+        }
+        const { absentMinutesText } = req.body;
+        const result = await markStudentAbsentByChairman({
+            registrationId,
+            chairmanId: req.user.id,
+            absentMinutesText,
+            idempotencyKey: getIdempotencyKey(req),
+        });
+
+        await auditLog(
+            req.user.id,
+            'MARK_STUDENT_ABSENT',
+            'DefenseResult',
+            result.id,
+            { registrationId, absentMinutesText },
+            getRequestIp(req),
+        );
+
+        return res.status(200).json({
+            success: true,
+            message: 'Đã xác nhận sinh viên vắng mặt bảo vệ.',
+            data: result,
+        });
+    } catch (error) {
+        if (sendWorkflowError(res, error)) return;
+        next(error);
+    }
+};
+
+const lockDefenseScoreBookAction = async (req, res, next) => {
+    try {
+        const registrationId = parsePositiveInt(req.params.registrationId || req.params.id);
+        if (!registrationId) {
+            return res.status(400).json({ success: false, message: 'registrationId không hợp lệ.' });
+        }
+
+        const result = await lockDefenseScoreBookByChairman({
+            registrationId,
+            actorId: req.user.id,
+            idempotencyKey: getIdempotencyKey(req),
+        });
+
+        await auditLog(
+            req.user.id,
+            'LOCK_DEFENSE_SCOREBOOK',
+            'TopicRegistration',
+            registrationId,
+            { finalScore: result.finalScore, status: result.status },
+            getRequestIp(req),
+        );
+
+        return res.status(200).json({
+            success: true,
+            message: 'Chủ tịch Hội đồng đã khóa sổ điểm thành công.',
+            data: result,
+        });
+    } catch (error) {
+        if (sendWorkflowError(res, error)) return;
+        next(error);
+    }
+};
+
+const returnScoreBookAction = async (req, res, next) => {
+    try {
+        const registrationId = parsePositiveInt(req.params.registrationId || req.params.id);
+        if (!registrationId) {
+            return res.status(400).json({ success: false, message: 'registrationId không hợp lệ.' });
+        }
+        const { reason, reopenMemberScoreIds } = req.body;
+        const result = await returnScoreBookBeforePublication({
+            registrationId,
+            adminId: req.user.id,
+            reason,
+            reopenMemberScoreIds,
+            idempotencyKey: getIdempotencyKey(req),
+        });
+
+        await auditLog(
+            req.user.id,
+            'RETURN_DEFENSE_SCOREBOOK',
+            'DefenseScoreBookReturnLog',
+            result.returnLog?.id,
+            { registrationId, reason, reopenMemberScoreIds },
+            getRequestIp(req),
+        );
+
+        return res.status(200).json({
+            success: true,
+            message: 'Admin đã trả sổ điểm về hội đồng thành công.',
+            data: result,
+        });
+    } catch (error) {
+        if (sendWorkflowError(res, error)) return;
         next(error);
     }
 };
@@ -1884,6 +2005,9 @@ module.exports = {
     lockMemberScore,
     remindDefenseGrading,
     setDefenseScoreLock,
+    markStudentAbsentAction,
+    lockDefenseScoreBookAction,
+    returnScoreBookAction,
     getDefenseResultApprovalAction,
     approveDefenseResultAction,
     correctDefenseResultAction,
