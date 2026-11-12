@@ -417,8 +417,162 @@ async function crossCheckArchive(req, res, next) {
   }
 }
 
+/**
+ * 4. Generate Academic Feedback (BM01, BM03, BM04, DEFENSE)
+ * POST /api/ai/generate-feedback
+ * Body: { contextType, topicTitle, studentName, scores, notes }
+ */
+async function generateFeedback(req, res, next) {
+  try {
+    const { contextType, topicTitle, studentName, scores, notes } = req.body || {};
+
+    const cacheKeyPayload = {
+      contextType: contextType || 'BM01',
+      topicTitle: (topicTitle || '').trim(),
+      studentName: (studentName || '').trim(),
+      scores: scores || {},
+      notes: (notes || '').trim(),
+    };
+
+    const cachedResult = aiCache.get('generate_feedback', cacheKeyPayload);
+    if (cachedResult) {
+      return res.json({
+        success: true,
+        data: cachedResult,
+        fromCache: true,
+      });
+    }
+
+    const result = await aiProviderService.generateFeedback({
+      contextType,
+      topicTitle,
+      studentName,
+      scores,
+      notes,
+    });
+
+    aiCache.set('generate_feedback', cacheKeyPayload, result);
+
+    return res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * 5. Generate 3-Tiered Defense Questions
+ * POST /api/ai/generate-defense-questions
+ * Body: { topicTitle: string, description?: string, technologies?: string, major?: string }
+ */
+async function generateDefenseQuestions(req, res, next) {
+  try {
+    const { topicTitle, description, technologies, major } = req.body || {};
+
+    if (!topicTitle || typeof topicTitle !== 'string' || !topicTitle.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'BAD_REQUEST',
+        message: 'Tiêu đề đề tài (topicTitle) là bắt buộc.',
+      });
+    }
+
+    const cleanTitle = topicTitle.trim();
+    const cleanDesc = (description || '').trim();
+    const cleanTech = (technologies || '').trim();
+    const cleanMajor = (major || '').trim();
+
+    const cacheKeyPayload = {
+      topicTitle: cleanTitle,
+      description: cleanDesc,
+      technologies: cleanTech,
+      major: cleanMajor,
+    };
+
+    const cachedResult = aiCache.get('generate_defense_questions', cacheKeyPayload);
+    if (cachedResult) {
+      return res.json({
+        success: true,
+        data: cachedResult,
+        fromCache: true,
+      });
+    }
+
+    const result = await aiProviderService.generateDefenseQuestions({
+      topicTitle: cleanTitle,
+      description: cleanDesc,
+      technologies: cleanTech,
+      major: cleanMajor,
+    });
+
+    aiCache.set('generate_defense_questions', cacheKeyPayload, result);
+
+    return res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * 6. Academic Regulation Chatbot Q&A
+ * POST /api/ai/regulation-chat
+ * Body: { message: string, history?: Array<object> }
+ */
+async function regulationChat(req, res, next) {
+  try {
+    const { message, history } = req.body || {};
+
+    if (!message || typeof message !== 'string' || !message.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'BAD_REQUEST',
+        message: 'Nội dung tin nhắn (message) là bắt buộc.',
+      });
+    }
+
+    const cleanMessage = message.trim();
+    const historyList = Array.isArray(history) ? history : [];
+
+    const cacheKeyPayload = {
+      message: cleanMessage,
+      history: historyList,
+    };
+
+    const cachedResult = aiCache.get('regulation_chat', cacheKeyPayload);
+    if (cachedResult) {
+      return res.json({
+        success: true,
+        data: cachedResult,
+        fromCache: true,
+      });
+    }
+
+    const result = await aiProviderService.answerRegulationChat({
+      message: cleanMessage,
+      history: historyList,
+    });
+
+    aiCache.set('regulation_chat', cacheKeyPayload, result);
+
+    return res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   bm01Copilot,
   topicSimilarity,
   crossCheckArchive,
+  generateFeedback,
+  generateDefenseQuestions,
+  regulationChat,
 };
