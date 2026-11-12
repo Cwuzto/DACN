@@ -52,3 +52,4 @@ test('Archival Cross-Check: ArchiveSubmissionModal integrates ArchivalCrossCheck
     const rawEmojiRegex = /<Button[^>]*>[^<]*[🤖←→+📋✓✏️👥🗑️🔓▾▴↗][^<]*<\/Button>/;
     assert.ok(!rawEmojiRegex.test(src), 'ArchiveSubmissionModal must not have raw emojis in Button labels');
 });
+

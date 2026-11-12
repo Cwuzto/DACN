@@ -50,3 +50,4 @@ test('BM01 Copilot: SubmissionPage provides AI Copilot trigger for BM01 outline 
     assert.match(src, /RobotOutlined/, 'SubmissionPage must import RobotOutlined');
     assert.match(src, /<BM01CopilotDrawer/, 'SubmissionPage must render BM01CopilotDrawer');
 });
+
