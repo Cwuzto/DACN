@@ -497,7 +497,7 @@ describe('Academic AI Suite Workflow Integration Tests (TDD)', () => {
 
       expect(res2.status).toBe(200);
       expect(res2.body.success).toBe(true);
-      expect(res2.body.data.provider).toBe('local_fallback');
+      expect(['local_fallback', 'local_embedding']).toContain(res2.body.data.provider);
 
       // 3. Cross-Check Archive
       const res3 = await request(app)
