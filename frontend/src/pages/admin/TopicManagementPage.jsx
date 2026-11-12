@@ -7,13 +7,16 @@ import {
     SearchOutlined, EyeOutlined, EditOutlined, DeleteOutlined,
     CheckCircleOutlined, CloseCircleOutlined, SendOutlined, PlusOutlined,
     UserOutlined, BookOutlined, ReloadOutlined, CheckOutlined, CloseOutlined,
+    AuditOutlined,
 } from '@ant-design/icons';
 import { topicService } from '../../services/topicService';
 import { semesterService } from '../../services/semesterService';
 import userService from '../../services/userService';
+import aiService from '../../services/aiService';
 import StatusBadge from '../../components/common/StatusBadge';
 import { PROJECT_NAME, formatSemesterLabel } from '../../utils/semesterDisplay';
 import MentorTransferModal from '../../components/admin/MentorTransferModal';
+import TopicSimilarityModal from '../../components/topics/TopicSimilarityModal';
 
 const { TextArea } = Input;
 
@@ -50,6 +53,44 @@ function TopicManagementPage() {
 
     const [submitting, setSubmitting] = useState(false);
     const [selectedRowKeys, setSelectedRowKeys] = useState([]);
+
+    // AI Similarity Checker state
+    const [similarityModalOpen, setSimilarityModalOpen] = useState(false);
+    const [similarityLoading, setSimilarityLoading] = useState(false);
+    const [similarityData, setSimilarityData] = useState(null);
+
+    const handleCheckSimilarity = async () => {
+        const titleVal = form.getFieldValue('title') || drawerTopic?.title || '';
+        const descVal = form.getFieldValue('description') || drawerTopic?.description || '';
+        if (!titleVal.trim()) {
+            message.warning('Vui lòng nhập tên đề tài trước khi kiểm tra tính mới với AI.');
+            return;
+        }
+        setSimilarityModalOpen(true);
+        setSimilarityLoading(true);
+        try {
+            const res = await aiService.checkTopicSimilarity({
+                title: titleVal.trim(),
+                summary: descVal.trim(),
+                semesterId: form.getFieldValue('semesterId') || (semesterFilter !== 'all' ? semesterFilter : null),
+            });
+            if (res.success) {
+                setSimilarityData(res.data);
+            } else {
+                message.error(res.message || 'Không thể kiểm tra tính mới đề tài');
+            }
+        } catch (err) {
+            message.error(err?.message || 'Lỗi khi gọi AI kiểm tra tính mới');
+        } finally {
+            setSimilarityLoading(false);
+        }
+    };
+
+    const handleSelectSuggestedTitle = (newTitle) => {
+        form.setFieldsValue({ title: newTitle });
+        setSimilarityModalOpen(false);
+        message.success('Đã áp dụng tên đề tài gợi ý!');
+    };
 
     const [form] = Form.useForm();
 
@@ -531,8 +572,20 @@ function TopicManagementPage() {
                         {/* Thẩm định & Quyết định Admin */}
                         {drawerTopic.status === 'PENDING' && (
                             <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-xl space-y-3 pt-3">
-                                <div className="font-bold text-amber-900 text-xs flex items-center gap-1.5">
-                                    <CheckCircleOutlined /> Thẩm định chuyên môn đề tài:
+                                <div className="flex items-center justify-between">
+                                    <div className="font-bold text-amber-900 text-xs flex items-center gap-1.5">
+                                        <CheckCircleOutlined /> Thẩm định chuyên môn đề tài:
+                                    </div>
+                                    <Button
+                                        size="small"
+                                        type="dashed"
+                                        icon={<AuditOutlined />}
+                                        onClick={handleCheckSimilarity}
+                                        loading={similarityLoading}
+                                        className="text-teal-700 border-teal-500 hover:border-teal-700 text-xs"
+                                    >
+                                        Kiểm tra tính mới AI
+                                    </Button>
                                 </div>
                                 <div>
                                     <label className="text-[11px] font-semibold text-slate-700 block mb-1">
@@ -601,7 +654,25 @@ function TopicManagementPage() {
                 destroyOnClose
             >
                 <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-                    <Form.Item name="title" label="Tên đề tài tiếng Việt" rules={[{ required: true, message: 'Vui lòng nhập tên đề tài' }]}>
+                    <Form.Item
+                        name="title"
+                        label={(
+                            <div className="flex items-center justify-between w-full">
+                                <span>Tên đề tài tiếng Việt</span>
+                                <Button
+                                    size="small"
+                                    type="dashed"
+                                    icon={<AuditOutlined />}
+                                    onClick={handleCheckSimilarity}
+                                    loading={similarityLoading}
+                                    className="text-teal-700 border-teal-500 hover:border-teal-700"
+                                >
+                                    Kiểm tra tính mới AI
+                                </Button>
+                            </div>
+                        )}
+                        rules={[{ required: true, message: 'Vui lòng nhập tên đề tài' }]}
+                    >
                         <Input placeholder="Nhập tên đề tài đầy đủ..." />
                     </Form.Item>
                     <Form.Item name="description" label="Mô tả mục tiêu nghiên cứu & phạm vi công nghệ">
@@ -631,6 +702,14 @@ function TopicManagementPage() {
                     }}
                 />
             )}
+            {/* AI Topic Similarity Modal */}
+            <TopicSimilarityModal
+                open={similarityModalOpen}
+                onClose={() => setSimilarityModalOpen(false)}
+                data={similarityData}
+                loading={similarityLoading}
+                onSelectTitle={handleSelectSuggestedTitle}
+            />
         </div>
     );
 }

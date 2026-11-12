@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Empty, message, Modal, Table } from 'antd';
-import { CopyOutlined, PlusOutlined } from '@ant-design/icons';
+import { CopyOutlined, PlusOutlined, AuditOutlined } from '@ant-design/icons';
 import { topicService } from '../../services/topicService';
 import { semesterService } from '../../services/semesterService';
+import aiService from '../../services/aiService';
+import TopicSimilarityModal from '../../components/topics/TopicSimilarityModal';
 import useAuthStore from '../../stores/authStore';
 import PageLoader from '../../components/common/PageLoader';
 
@@ -36,6 +38,42 @@ export default function TopicManagementPage() {
     const [selectedPendingTopic, setSelectedPendingTopic] = useState(null);
     const [reviewRejectReason, setReviewRejectReason] = useState('');
     const [reviewSubmitting, setReviewSubmitting] = useState(false);
+
+    // AI Similarity Checker state
+    const [similarityModalOpen, setSimilarityModalOpen] = useState(false);
+    const [similarityLoading, setSimilarityLoading] = useState(false);
+    const [similarityData, setSimilarityData] = useState(null);
+
+    const handleCheckSimilarity = async () => {
+        if (!title.trim()) {
+            message.warning('Vui lòng nhập tên đề tài trước khi kiểm tra tính mới với AI.');
+            return;
+        }
+        setSimilarityModalOpen(true);
+        setSimilarityLoading(true);
+        try {
+            const res = await aiService.checkTopicSimilarity({
+                title: title.trim(),
+                summary: description.trim(),
+                semesterId: selectedSemesterId || null,
+            });
+            if (res.success) {
+                setSimilarityData(res.data);
+            } else {
+                message.error(res.message || 'Không thể kiểm tra tính mới đề tài');
+            }
+        } catch (err) {
+            message.error(err?.message || 'Lỗi khi gọi AI kiểm tra tính mới');
+        } finally {
+            setSimilarityLoading(false);
+        }
+    };
+
+    const handleSelectSuggestedTitle = (newTitle) => {
+        setTitle(newTitle);
+        setSimilarityModalOpen(false);
+        message.success('Đã áp dụng tên đề tài gợi ý!');
+    };
 
     // Semesters State
     const [semesters, setSemesters] = useState([]);
@@ -517,9 +555,21 @@ export default function TopicManagementPage() {
                                 </select>
                             </div>
                             <div>
-                                <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>
-                                    Tên đề tài tiếng Việt (*):
-                                </label>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                                    <label style={{ fontWeight: 600, fontSize: 13, margin: 0 }}>
+                                        Tên đề tài tiếng Việt (*):
+                                    </label>
+                                    <Button
+                                        size="small"
+                                        type="dashed"
+                                        icon={<AuditOutlined />}
+                                        onClick={handleCheckSimilarity}
+                                        loading={similarityLoading}
+                                        className="text-teal-700 border-teal-500 hover:border-teal-700"
+                                    >
+                                        Kiểm tra tính mới AI
+                                    </Button>
+                                </div>
                                 <input
                                     type="text"
                                     className="input-field"
@@ -751,6 +801,14 @@ export default function TopicManagementPage() {
                     </div>
                 </div>
             )}
+            {/* AI Topic Similarity Modal */}
+            <TopicSimilarityModal
+                open={similarityModalOpen}
+                onClose={() => setSimilarityModalOpen(false)}
+                data={similarityData}
+                loading={similarityLoading}
+                onSelectTitle={handleSelectSuggestedTitle}
+            />
         </section>
     );
 }
