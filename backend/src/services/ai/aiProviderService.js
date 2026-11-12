@@ -8,6 +8,7 @@
 const geminiProvider = require('./geminiProvider');
 const localFallbackProvider = require('./localFallbackProvider');
 const localEmbeddingService = require('./localEmbeddingService');
+const { buildAcademicSystemInstruction } = require('./academicPromptBuilder');
 
 const DEFAULT_TIMEOUT_MS = 8000;
 
@@ -217,13 +218,182 @@ async function generateDefenseQuestions(payload, options = {}) {
 }
 
 /**
- * Academic regulation chatbot Q&A assistant
+ * Normalize a single history message item to { role: 'user' | 'model', text: string }
+ * Supports:
+ * - { role: 'user' | 'model' | 'assistant', text | content | message }
+ * - { sender: 'user' | 'bot' | 'model', text | content | message }
+ * - raw string
+ */
+function normalizeHistoryItem(item) {
+  if (!item) return { role: 'user', text: '' };
+  if (typeof item === 'string') {
+    return { role: 'user', text: item };
+  }
+  let role = 'user';
+  if (item.role === 'model' || item.role === 'assistant' || item.role === 'bot') {
+    role = 'model';
+  } else if (item.sender === 'bot' || item.sender === 'model' || item.sender === 'assistant') {
+    role = 'model';
+  }
+  const text =
+    item.text !== undefined
+      ? item.text
+      : item.content !== undefined
+      ? item.content
+      : item.message !== undefined
+      ? item.message
+      : '';
+  return { role, text: String(text || '') };
+}
+
+/**
+ * Fallback quick questions according to user's knowledge tier
+ */
+function getSuggestedQuickQuestionsForUser(user) {
+  const isSuperOrAcademic =
+    user?.role === 'ADMIN' ||
+    (Array.isArray(user?.permissionGroups) &&
+      (user.permissionGroups.includes('GIAO_VU') || user.permissionGroups.includes('PROJECT_OVERSIGHT_MANAGE')));
+
+  if (isSuperOrAcademic) {
+    return [
+      'Quy trình ban hành quyết định giao đề tài?',
+      'Xử lý hồ sơ quá hạn SLA 168 giờ và gia hạn 72 giờ thế nào?',
+      'Cơ chế hoạt động của 5 Sweep Jobs tự động hóa?',
+      'Quy trình thẩm định phụ lục điều chỉnh tên đề tài (TitleAdjustmentAppendix)?',
+    ];
+  }
+
+  if (user?.role === 'LECTURER') {
+    return [
+      'Tiêu chí chấm 4 nhóm chuẩn đầu ra BM04?',
+      'Quy trình thẩm định đề xuất dừng đề tài BM03?',
+      'Cơ cấu điểm Hội đồng bảo vệ và nguyên tắc độc lập?',
+      'Gợi ý bộ câu hỏi phản biện 3 cấp độ cho đồ án?',
+    ];
+  }
+
+  return [
+    'Hạn nộp BM01 khi nào?',
+    'Điều kiện để được ra bảo vệ đồ án?',
+    'Khi nào bị dừng đề tài?',
+    'Quy định đổi tên đề tài (BM02-A)?',
+  ];
+}
+
+/**
+ * Fallback regulations according to user's knowledge tier
+ */
+function getSuggestedRegulationsForUser(user) {
+  const isSuperOrAcademic =
+    user?.role === 'ADMIN' ||
+    (Array.isArray(user?.permissionGroups) &&
+      (user.permissionGroups.includes('GIAO_VU') || user.permissionGroups.includes('PROJECT_OVERSIGHT_MANAGE')));
+
+  if (isSuperOrAcademic) {
+    return [
+      'Quy chuẩn ban hành Quyết định giao đề tài và Phụ lục',
+      'Cơ chế 5 Sweep Jobs tự động hóa (bm02ToBm04SweepService)',
+      'Quy chế giải quyết khiếu nại học vụ và SLA quá hạn (168h + 72h)',
+    ];
+  }
+
+  if (user?.role === 'LECTURER') {
+    return [
+      'Quy chế chấm điểm bảo vệ 3 thành viên độc lập',
+      'Thang điểm 4 nhóm chuẩn đầu ra BM04',
+      'Quy trình thẩm định đề xuất dừng đề tài BM03 (PROPOSE_STOP)',
+      'Bộ câu hỏi phản biện 3 cấp độ (FOUNDATION, TECHNICAL, FUTURE)',
+    ];
+  }
+
+  return [
+    'BM01: Đề cương chi tiết đồ án tốt nghiệp & quy tắc nộp lại v2',
+    'BM03: Phiếu đánh giá tiến độ thực hiện định kỳ (4-6 buổi)',
+    'BM04: Điều kiện điểm tối thiểu (>= 5.0) để được bảo vệ',
+    'Giai đoạn 6: Nộp hồ sơ lưu chiểu trong 14 ngày làm việc sau bảo vệ',
+  ];
+}
+
+/**
+ * Answer academic questions with role-based knowledge isolation using Gemini 3.8 Flash
+ * @param {object} payload
+ * @param {string} payload.message
+ * @param {Array<object>} [payload.history]
+ * @param {object} [payload.user]
+ * @param {object} [options]
+ * @returns {Promise<object>}
+ */
+async function answerAcademicChat({ message = '', history = [], user = null } = {}, options = {}) {
+  const cleanMessage = String(message || '').trim();
+  const safeRole = user?.role || 'STUDENT';
+  const defaultModel = process.env.GEMINI_MODEL || geminiProvider.DEFAULT_MODEL || 'gemini-3.8-flash';
+
+  const { systemInstruction } = buildAcademicSystemInstruction(user);
+
+  const formattedHistory = (Array.isArray(history) ? history : [])
+    .map(normalizeHistoryItem)
+    .filter((h) => h.text.trim().length > 0);
+
+  const messages = [
+    ...formattedHistory,
+    { role: 'user', text: cleanMessage },
+  ];
+
+  if (isGeminiConfigured() || options.forceGemini) {
+    try {
+      const result = await geminiProvider.chatWithGemini({
+        messages,
+        systemInstruction,
+        model: defaultModel,
+        ...options,
+      });
+
+      return {
+        reply: result.reply || result.text || '',
+        role: safeRole,
+        provider: result.provider || defaultModel,
+        relatedRegulations:
+          Array.isArray(result.relatedRegulations) && result.relatedRegulations.length > 0
+            ? result.relatedRegulations
+            : getSuggestedRegulationsForUser(user),
+        suggestedQuickQuestions:
+          Array.isArray(result.suggestedQuickQuestions) && result.suggestedQuickQuestions.length > 0
+            ? result.suggestedQuickQuestions
+            : getSuggestedQuickQuestionsForUser(user),
+      };
+    } catch (err) {
+      console.warn(
+        `[AIProviderService] Gemini academic chat failed (${err.message}). Engaging Zero-Crash Local Fallback.`
+      );
+    }
+  }
+
+  // Graceful fallback to local heuristic provider
+  const fallback = localFallbackProvider.answerRegulationChat({ message: cleanMessage, history });
+  return {
+    ...fallback,
+    role: safeRole,
+    provider: fallback.provider || 'local_fallback',
+    relatedRegulations:
+      Array.isArray(fallback.relatedRegulations) && fallback.relatedRegulations.length > 0
+        ? fallback.relatedRegulations
+        : getSuggestedRegulationsForUser(user),
+    suggestedQuickQuestions:
+      Array.isArray(fallback.suggestedQuickQuestions) && fallback.suggestedQuickQuestions.length > 0
+        ? fallback.suggestedQuickQuestions
+        : getSuggestedQuickQuestionsForUser(user),
+  };
+}
+
+/**
+ * Academic regulation chatbot Q&A assistant (facade delegating to role-based answerAcademicChat)
  * @param {object} payload
  * @param {object} options
  * @returns {Promise<object>}
  */
-async function answerRegulationChat(payload, options = {}) {
-  return executeWithFallback('answerRegulationChat', [payload], options);
+async function answerRegulationChat(payload = {}, options = {}) {
+  return answerAcademicChat(payload, options);
 }
 
 /**
@@ -255,6 +425,7 @@ module.exports = {
   crossCheckArchivalDossier,
   generateFeedback,
   generateDefenseQuestions,
+  answerAcademicChat,
   answerRegulationChat,
   chatWithGemini,
 };

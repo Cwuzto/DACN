@@ -538,9 +538,17 @@ async function regulationChat(req, res, next) {
     const cleanMessage = message.trim();
     const historyList = Array.isArray(history) ? history : [];
 
+    const isSuperOrAcademic =
+      req.user?.role === 'ADMIN' ||
+      (Array.isArray(req.user?.permissionGroups) &&
+        (req.user.permissionGroups.includes('GIAO_VU') || req.user.permissionGroups.includes('PROJECT_OVERSIGHT_MANAGE')));
+
+    // Role-Isolated Cache Key: prevent cross-role data leaks between STUDENT and LECTURER/ADMIN
     const cacheKeyPayload = {
       message: cleanMessage,
       history: historyList,
+      role: req.user?.role || 'STUDENT',
+      isSuperOrAcademic: Boolean(isSuperOrAcademic),
     };
 
     const cachedResult = aiCache.get('regulation_chat', cacheKeyPayload);
@@ -552,9 +560,10 @@ async function regulationChat(req, res, next) {
       });
     }
 
-    const result = await aiProviderService.answerRegulationChat({
+    const result = await aiProviderService.answerAcademicChat({
       message: cleanMessage,
       history: historyList,
+      user: req.user,
     });
 
     aiCache.set('regulation_chat', cacheKeyPayload, result);
