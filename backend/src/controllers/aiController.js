@@ -543,11 +543,12 @@ async function regulationChat(req, res, next) {
       (Array.isArray(req.user?.permissionGroups) &&
         (req.user.permissionGroups.includes('GIAO_VU') || req.user.permissionGroups.includes('PROJECT_OVERSIGHT_MANAGE')));
 
-    // Role-Isolated Cache Key: prevent cross-role data leaks between STUDENT and LECTURER/ADMIN
+    // User-Isolated Cache Key: prevent cross-user and cross-role data leaks between users
     const cacheKeyPayload = {
       message: cleanMessage,
       history: historyList,
       role: req.user?.role || 'STUDENT',
+      userId: req.user?.id || 'anonymous',
       isSuperOrAcademic: Boolean(isSuperOrAcademic),
     };
 

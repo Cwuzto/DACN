@@ -111,26 +111,26 @@
   - `aiProviderService.answerAcademicChat({ message, history, user })`: Fetches live context via `liveContextService`, builds prompt via `academicPromptBuilder`, wraps user message, and sends to `geminiProvider.chatWithGemini`.
   - `aiController.regulationChat`: Hashes `req.user.id` into cache key to isolate responses per user.
 
-- [ ] **Step 1: Write integration tests in `backend/tests/integration/liveContextAndChitChatWorkflow.test.js`**
+- [x] **Step 1: Write integration tests in `backend/tests/integration/liveContextAndChitChatWorkflow.test.js`**
   - Test 1: Student asking about their own topic receives personalized response with advisor name.
   - Test 2: Student asking about active semester dates or dean receives real data from database.
   - Test 3: Cache isolation: Student A and Student B asking the exact same question have distinct cache keys.
   - Test 4: Casual greeting (*"Chào bạn"*) receives polite academic welcome response.
   - Test 5: Prompt injection attempt is safely neutralized and rejected.
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
   - Command: `npm --prefix backend test -- backend/tests/integration/liveContextAndChitChatWorkflow.test.js`
   - Expected: FAIL.
 
-- [ ] **Step 3: Update `aiProviderService.js` and `aiController.js`**
+- [x] **Step 3: Update `aiProviderService.js` and `aiController.js`**
   - In `aiProviderService.js`: Wire `liveContextService.getLiveContext(user)`, pass live context to `buildAcademicSystemInstruction`, wrap message with `wrapUserMessage`.
   - In `aiController.js`: Include `req.user.id` in `cacheKeyPayload` for authenticated requests.
 
-- [ ] **Step 4: Run test to verify pass**
+- [x] **Step 4: Run test to verify pass**
   - Command: `npm --prefix backend test -- backend/tests/integration/liveContextAndChitChatWorkflow.test.js`
   - Expected: PASS (100%).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
   - Command: `git add backend/src/services/ai/aiProviderService.js backend/src/controllers/aiController.js backend/tests/integration/liveContextAndChitChatWorkflow.test.js && git commit -m "feat(ai): integrate live context answering and user-isolated cache in regulation chat"`
 
 ---

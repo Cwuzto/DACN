@@ -8,7 +8,8 @@
 const geminiProvider = require('./geminiProvider');
 const localFallbackProvider = require('./localFallbackProvider');
 const localEmbeddingService = require('./localEmbeddingService');
-const { buildAcademicSystemInstruction } = require('./academicPromptBuilder');
+const { buildAcademicSystemInstruction, wrapUserMessage } = require('./academicPromptBuilder');
+const liveContextService = require('./liveContextService');
 
 const DEFAULT_TIMEOUT_MS = 8000;
 
@@ -329,15 +330,28 @@ async function answerAcademicChat({ message = '', history = [], user = null } = 
   const safeRole = user?.role || 'STUDENT';
   const defaultModel = process.env.GEMINI_MODEL || geminiProvider.DEFAULT_MODEL || 'gemini-3.8-flash';
 
-  const { systemInstruction } = buildAcademicSystemInstruction(user);
+  let liveContextText = '';
+  try {
+    const liveContext = await liveContextService.getLiveContext(user);
+    liveContextText = liveContext?.formattedText || '';
+  } catch (err) {
+    console.warn(
+      `[AIProviderService] Failed to load live database context (${err.message}). Proceeding with standard static regulations.`
+    );
+    liveContextText = '';
+  }
+
+  const { systemInstruction } = buildAcademicSystemInstruction({ user, liveContextText });
 
   const formattedHistory = (Array.isArray(history) ? history : [])
     .map(normalizeHistoryItem)
     .filter((h) => h.text.trim().length > 0);
 
+  const wrappedUserMessage = wrapUserMessage(cleanMessage);
+
   const messages = [
     ...formattedHistory,
-    { role: 'user', text: cleanMessage },
+    { role: 'user', text: wrappedUserMessage },
   ];
 
   if (isGeminiConfigured() || options.forceGemini) {

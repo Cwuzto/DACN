@@ -19,9 +19,11 @@ const jwt = require('jsonwebtoken');
 
 const mockDatabase = {
   $transaction: jest.fn(),
-  user: { findUnique: jest.fn(), findMany: jest.fn() },
+  semester: { findFirst: jest.fn(), findMany: jest.fn() },
+  userPermissionGroup: { findFirst: jest.fn() },
+  user: { findUnique: jest.fn(), findFirst: jest.fn(), findMany: jest.fn() },
   topic: { findUnique: jest.fn(), findMany: jest.fn() },
-  topicRegistration: { findUnique: jest.fn(), findMany: jest.fn() },
+  topicRegistration: { findUnique: jest.fn(), findFirst: jest.fn(), findMany: jest.fn() },
   academicDelegation: { findMany: jest.fn() },
 };
 
@@ -186,8 +188,9 @@ describe('Role-Based Regulation Chat Workflow Integration Tests (Task 3)', () =>
       expect(callArgs.messages).toEqual([
         { role: 'user', text: 'Xin chào' },
         { role: 'model', text: 'Chào bạn!' },
-        { role: 'user', text: 'Em có được nộp lại đề cương BM01 nhiều lần không?' },
+        { role: 'user', text: expect.stringContaining('Em có được nộp lại đề cương BM01 nhiều lần không?') },
       ]);
+      expect(callArgs.messages[2].text).toContain('<user_query>');
     });
   });
 
