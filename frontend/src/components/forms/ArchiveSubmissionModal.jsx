@@ -28,9 +28,12 @@ import {
     ExclamationCircleOutlined,
     DownloadOutlined,
     ReloadOutlined,
+    ScanOutlined,
 } from '@ant-design/icons';
 import uploadService from '../../services/uploadService';
 import archiveService from '../../services/archiveService';
+import aiService from '../../services/aiService';
+import ArchivalCrossCheckModal from '../admin/ArchivalCrossCheckModal';
 
 const { Text, Title, Paragraph } = Typography;
 
@@ -86,6 +89,32 @@ export default function ArchiveSubmissionModal({
     const [loading, setLoading] = useState(false);
     const [dossier, setDossier] = useState(null);
     const [uploadingType, setUploadingType] = useState(null);
+
+    // AI Archival Cross-Check state
+    const [crossCheckModalOpen, setCrossCheckModalOpen] = useState(false);
+    const [crossCheckLoading, setCrossCheckLoading] = useState(false);
+    const [crossCheckData, setCrossCheckData] = useState(null);
+
+    const handleRunCrossCheck = async () => {
+        if (!regId) {
+            message.warning('Không tìm thấy thông tin đăng ký để đối soát.');
+            return;
+        }
+        setCrossCheckModalOpen(true);
+        setCrossCheckLoading(true);
+        try {
+            const res = await aiService.crossCheckArchive(regId);
+            if (res.success) {
+                setCrossCheckData(res.data);
+            } else {
+                message.error(res.message || 'Không thể đối soát hồ sơ lưu chiểu với AI');
+            }
+        } catch (err) {
+            message.error(err?.message || 'Lỗi khi gọi AI đối soát hồ sơ lưu chiểu');
+        } finally {
+            setCrossCheckLoading(false);
+        }
+    };
 
     const fetchDossier = useCallback(async () => {
         if (!regId) return;
@@ -162,6 +191,15 @@ export default function ArchiveSubmissionModal({
                 </Flex>
             )}
             footer={[
+                <Button
+                    key="crosscheck"
+                    icon={<ScanOutlined />}
+                    onClick={handleRunCrossCheck}
+                    loading={crossCheckLoading}
+                    className="border-teal-500 text-teal-700 hover:text-teal-800 hover:border-teal-600 font-medium"
+                >
+                    AI Đối soát hồ sơ
+                </Button>,
                 <Button key="close" onClick={handleClose}>
                     Đóng
                 </Button>,
@@ -335,6 +373,14 @@ export default function ArchiveSubmissionModal({
                     </div>
                 </div>
             </div>
+
+            {/* AI Archival Cross-Check Modal */}
+            <ArchivalCrossCheckModal
+                open={crossCheckModalOpen}
+                onClose={() => setCrossCheckModalOpen(false)}
+                data={crossCheckData}
+                loading={crossCheckLoading}
+            />
         </Modal>
     );
 }

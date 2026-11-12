@@ -41,6 +41,7 @@ import {
     TeamOutlined,
     WarningOutlined,
     YoutubeOutlined,
+    ScanOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
@@ -50,11 +51,13 @@ import { semesterService } from '../../services/semesterService';
 import userService from '../../services/userService';
 import taskService from '../../services/taskService';
 import archiveService from '../../services/archiveService';
+import aiService from '../../services/aiService';
 import manualReviewService from '../../services/manualReviewService';
 import useAuthStore from '../../stores/authStore';
 import { formatSemesterLabel } from '../../utils/semesterDisplay';
 import ClearanceCertificateModal from '../../components/forms/ClearanceCertificateModal';
 import ManualReviewModal from '../../components/admin/ManualReviewModal';
+import ArchivalCrossCheckModal from '../../components/admin/ArchivalCrossCheckModal';
 import CheckpointAppealReviewModal from '../../components/admin/CheckpointAppealReviewModal';
 import evaluationService from '../../services/evaluationService';
 import PageHeader from '../../components/common/PageHeader';
@@ -137,6 +140,32 @@ function ProjectOversightPage() {
     const [certModalOpen, setCertModalOpen] = useState(false);
     const [certificateData, setCertificateData] = useState(null);
     const [, setCertLoading] = useState(false);
+
+    // AI Archival Cross-Check state
+    const [crossCheckModalOpen, setCrossCheckModalOpen] = useState(false);
+    const [crossCheckLoading, setCrossCheckLoading] = useState(false);
+    const [crossCheckData, setCrossCheckData] = useState(null);
+
+    const handleOpenCrossCheck = async (regId) => {
+        if (!regId) {
+            message.warning('Không tìm thấy thông tin đăng ký để đối soát.');
+            return;
+        }
+        setCrossCheckModalOpen(true);
+        setCrossCheckLoading(true);
+        try {
+            const res = await aiService.crossCheckArchive(regId);
+            if (res.success) {
+                setCrossCheckData(res.data);
+            } else {
+                message.error(res.message || 'Không thể đối soát hồ sơ lưu chiểu');
+            }
+        } catch (err) {
+            message.error(err?.message || 'Lỗi khi gọi AI đối soát hồ sơ lưu chiểu');
+        } finally {
+            setCrossCheckLoading(false);
+        }
+    };
 
     // Gói 3: Manual Review Queue states
     const [manualReviewCases, setManualReviewCases] = useState([]);
@@ -1230,6 +1259,14 @@ function ProjectOversightPage() {
                     const canSign = record.status === 'PENDING_INSTITUTE_SIGNATURE' || record.academicReviewStatus === 'APPROVED';
                     return (
                         <Space size="small" wrap>
+                            <Button
+                                size="small"
+                                icon={<ScanOutlined />}
+                                onClick={() => handleOpenCrossCheck(record.registrationId)}
+                                className="text-teal-700 border-teal-500 hover:border-teal-700"
+                            >
+                                AI Đối soát
+                            </Button>
                             {canReviewArchive && !isApproved && (
                                 <>
                                     <Button
@@ -2889,6 +2926,13 @@ function ProjectOversightPage() {
                 </div>
             </Modal>
 
+            {/* AI Archival Cross-Check Modal */}
+            <ArchivalCrossCheckModal
+                open={crossCheckModalOpen}
+                onClose={() => setCrossCheckModalOpen(false)}
+                data={crossCheckData}
+                loading={crossCheckLoading}
+            />
         </div>
     );
 }
