@@ -70,6 +70,69 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 
 ## 6. Cập Nhật Phiên Làm Việc (Session Update)
 
+### Phiên 12-13/11/2026 (Bộ Tứ Tiện Ích Trí Tuệ Nhân Tạo Học Vụ Toàn Diện - Academic AI Assistant Suite & Mini AI Local Embeddings)
+
+#### 1. Những phần đã hoàn thành
+1. **Tài liệu Đặc tả & Kế hoạch Triển khai (Spec & Plan)**:
+   - Soạn thảo và phê duyệt tài liệu thiết kế kiến trúc [docs/superpowers/specs/2026-11-12-academic-ai-assistant-suite-design.md](file:///d:/DACN/docs/superpowers/specs/2026-11-12-academic-ai-assistant-suite-design.md).
+   - Lập kế hoạch 5 task chi tiết [docs/superpowers/plans/2026-11-12-academic-ai-assistant-suite-plan.md](file:///d:/DACN/docs/superpowers/plans/2026-11-12-academic-ai-assistant-suite-plan.md).
+2. **Task 1: Mở rộng Adapter AI Backend, Mini AI Local Embeddings & Provider Fallback (Commit `3da211a`)**:
+   - Tạo `backend/src/services/ai/localEmbeddingService.js` tích hợp `@xenova/transformers` (`Xenova/all-MiniLM-L6-v2`) chạy on-device qua WASM/dynamic import với bộ giải thuật heuristic cosine similarity fallback chống crash.
+   - Cập nhật `backend/src/services/ai/geminiProvider.js` bổ sung 3 hàm sinh nhận xét (`generateAcademicFeedback`), sinh câu hỏi phản biện (`generateDefenseQuestions`), và trả lời quy chế (`answerRegulationChat`).
+   - Cập nhật `backend/src/services/ai/localFallbackProvider.js` tích hợp kho tri thức quy chế 6 giai đoạn đồ án và heuristic generator offline.
+   - Hoàn thiện `backend/src/services/ai/aiProviderService.js` điều phối Facade theo kiến trúc Hybrid Adapter Zero-Crash, gắn timeout 8s và in-memory cache SHA-256 (TTL 5 phút).
+   - Bộ unit test `backend/tests/unit/aiAssistantSuiteAdapter.test.js` đạt **17/17 tests PASS**.
+3. **Task 2: Xây dựng Endpoints & Controller AI Backend (Commit `4e2509f`)**:
+   - Triển khai 3 handler mới trong `backend/src/controllers/aiController.js`: `generateFeedback`, `generateDefenseQuestions`, `regulationChat`.
+   - Đăng ký 3 route POST bảo vệ bởi `authenticateToken` trong `backend/src/routes/aiRoutes.js`:
+     * `POST /api/ai/generate-feedback`
+     * `POST /api/ai/generate-defense-questions`
+     * `POST /api/ai/regulation-chat`
+   - Bộ integration test `backend/tests/integration/aiAssistantSuiteWorkflow.test.js` đạt **17/17 tests PASS**.
+4. **Task 3: Client Service & Widget Chatbot Học Vụ Nổi Toàn Cục (Commit `ff7e88c`)**:
+   - Mở rộng `frontend/src/services/aiService.js` với các hàm `generateFeedback`, `generateDefenseQuestions`, `chatRegulation`.
+   - Xây dựng `frontend/src/components/common/AcademicChatWidget.jsx`: Widget nổi góc dưới phải (`fixed bottom-6 right-6 z-50`), hỗ trợ đóng/mở mượt mà, gợi ý câu hỏi nhanh (chip tags), cuộn hội thoại tự động, xóa lịch sử chat, tuân thủ nghiêm ngặt Quy tắc 2.6 (không có emoji thô trong text nút).
+   - Gắn widget toàn cục vào layout chính `frontend/src/components/layout/AppLayout.jsx`.
+   - Bộ frontend test `frontend/src/pages/__tests__/academicChatWidgetUi.test.js` đạt **3/3 tests PASS**.
+5. **Task 4: Tích Hợp AI Nhận Xét & Câu Hỏi Phản Biện Vào Giao Diện GVHD & Hội Đồng (Commit `e47039d`)**:
+   - Tích hợp nút `AI Gợi ý nhận xét` (`icon={<BulbOutlined />}`) trong `frontend/src/components/lecturer/OutlineReviewModal.jsx` (xét duyệt đề cương BM01).
+   - Tích hợp nút `AI Gợi ý nhận xét` (`icon={<BulbOutlined />}`) và Card `Gợi ý câu hỏi phản biện AI` với 3 cấp độ (`FOUNDATION`, `TECHNICAL_CHALLENGE`, `FUTURE_EXPANSION`) kèm nút sao chép nhanh (`icon={<CopyOutlined />}`) trong `frontend/src/pages/lecturer/LecturerGradingSheetPage.jsx` (phiếu chấm điểm Hội đồng BM04 / Bảo vệ).
+   - Bộ frontend test `frontend/src/pages/__tests__/aiFeedbackAndDefenseQuestionsUi.test.js` đạt **2/2 tests PASS**.
+6. **Task 5: Hồi quy Toàn Diện, Kiểm Thử Build & Xác Nhận Chuẩn Mã Hóa (Commit `9b120e9`)**:
+   - Toàn bộ 98 test suites backend đạt **975/975 tests PASS (100%)**.
+   - Toàn bộ frontend test suite đạt **182/182 tests PASS (100%)**.
+   - Chạy thành công production build `npm --prefix frontend run build` (0 lỗi, hoàn thành trong 19.78s).
+   - Xác nhận 100% file tạo mới và sửa đổi đạt chuẩn **UTF-8 (no BOM)**.
+
+#### 2. Trạng thái cập nhật của từng phần
+- **Database (Supabase PostgreSQL & Prisma)**: Ổn định, không phát sinh migration cấu trúc mới, tương thích 100% mô hình `TopicRegistration`.
+- **Backend AI Engine**: Hoạt động bền bỉ, hỗ trợ Hybrid song song: Gemini 2.0 Flash API (khi có mạng + có key) và Mini AI Local (`@xenova/transformers` Sentence-Transformers `all-MiniLM-L6-v2` / Fallback heuristic) đảm bảo **Zero Crash (100% trả về 200 OK hợp lệ)**.
+- **Frontend SPA**: Tích hợp hoàn chỉnh chatbot quy chế nổi, nút gợi ý nhận xét và câu hỏi phản biện; tuân thủ 100% Rule 2.6 (Ant Design icons); build production vượt qua kiểm tra tĩnh và bundle.
+- **Test Coverage**: Backend đạt 98/98 suites (975 tests PASS); Frontend đạt 182/182 tests PASS.
+- **Git**: Các chặng triển khai đã được tách nhỏ thành các commit độc lập trên nhánh `develop`.
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+1. **Kiểm thử Trải nghiệm Thực tế (Manual UI Walkthrough)**:
+   - Đăng nhập tài khoản Sinh viên kiểm tra hỏi đáp quy chế qua `AcademicChatWidget` nổi.
+   - Đăng nhập tài khoản GVHD mở Modal duyệt đề cương BM01 bấm `AI Gợi ý nhận xét`.
+   - Đăng nhập tài khoản Giảng viên / Hội đồng mở Phiếu chấm điểm bảo vệ bấm `AI Gợi ý nhận xét` và bấm `Tạo câu hỏi phản biện` rồi sao chép câu hỏi.
+2. **Cấu hình Biến Môi trường Gemini Thực tế (Optional)**:
+   - Bổ sung biến môi trường `GEMINI_API_KEY` vào file `backend/.env` để kích hoạt Cloud Gemini 2.0 Flash bên cạnh chế độ Mini AI Local mặc định.
+3. **Tiếp tục hoàn thiện Giai đoạn 5 & 6**:
+   - Rà soát biên bản tổng hợp điểm bảo vệ và luồng nộp quyển/source code lưu chiểu sau bảo vệ.
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+1. **Kiến trúc Hybrid Adapter Zero-Crash**:
+   - Dù hệ thống có cấu hình `GEMINI_API_KEY` hay không, dù mất mạng Internet hay Gemini API bị rate limit/timeout (8s), hệ thống không bao giờ trả về lỗi 500 cho người dùng mà tự động fallback về Mini AI Local Embeddings / Heuristic Fallback Provider với `provider: 'local_fallback'` hoặc `local_embedding`.
+2. **Mini AI Local Embeddings On-Device (`@xenova/transformers`)**:
+   - Sử dụng mô hình chuẩn học thuật nhẹ `Xenova/all-MiniLM-L6-v2` nhúng thẳng trên Node.js để tính vector ngữ nghĩa và Cosine Similarity, giúp kiểm tra tính mới đề tài siêu tốc (5-10ms) mà không tốn chi phí API hay để lọt dữ liệu đề tài ra ngoài mạng công cộng.
+3. **Quy tắc Nút bấm Giao diện (Rule 2.6)**:
+   - Tất cả các nút bấm liên quan đến AI đều sử dụng Icon component chính quy từ `@ant-design/icons` (`<BulbOutlined />`, `<MessageOutlined />`, `<CopyOutlined />`, `<DeleteOutlined />`, `<SendOutlined />`), nhãn text tiếng Việt trang trọng, tuyệt đối không chèn emoji thô vào chuỗi string.
+4. **Bộ nhớ đệm thông minh In-memory Cache (TTL 5 phút)**:
+   - Các yêu cầu AI cùng nội dung đầu vào được băm SHA-256 làm key cache để tránh gọi lặp lại mô hình AI, tiết kiệm tài nguyên và tăng tốc độ phản hồi cho người dùng tức thì.
+
+---
+
 ### Phiên 11/11/2026 (Hoàn Tất Chuỗi Quy Trình Học Vụ BM02 – BM04, 5 Sweep Jobs, 2 Bộ Seed Độc Lập & Củng Cố Hội Đồng)
 
 #### 1. Những phần đã hoàn thành
