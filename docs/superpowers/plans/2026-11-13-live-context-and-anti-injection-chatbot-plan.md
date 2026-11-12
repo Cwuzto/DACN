@@ -76,25 +76,25 @@
   - `academicPromptBuilder.buildAcademicSystemInstruction({ user, liveContextText })`: Produces comprehensive system instruction combining tiered regulations, live context, XML boundary rules, chit-chat guidance, and strict anti-injection guardrails.
   - `academicPromptBuilder.wrapUserMessage(message)`: Wraps message in `<user_query>\n${sanitized}\n</user_query>`.
 
-- [ ] **Step 1: Write unit tests in `backend/tests/unit/liveContextPromptBuilder.test.js`**
+- [x] **Step 1: Write unit tests in `backend/tests/unit/liveContextPromptBuilder.test.js`**
   - Test 1: Injects `liveContextText` into system instruction.
   - Test 2: Includes explicit `<user_query>` data boundary rules.
   - Test 3: Includes graceful chit-chat guidance for greetings and off-topic redirecting.
   - Test 4: `wrapUserMessage` properly encloses message in XML tags and sanitizes nested tags.
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
   - Command: `npm --prefix backend test -- backend/tests/unit/liveContextPromptBuilder.test.js`
   - Expected: FAIL.
 
-- [ ] **Step 3: Implement prompt builder enhancements**
+- [x] **Step 3: Implement prompt builder enhancements**
   - Update `buildAcademicSystemInstruction` in `backend/src/services/ai/academicPromptBuilder.js`.
   - Add `wrapUserMessage` helper function.
 
-- [ ] **Step 4: Run test to verify pass**
+- [x] **Step 4: Run test to verify pass**
   - Command: `npm --prefix backend test -- backend/tests/unit/liveContextPromptBuilder.test.js`
   - Expected: PASS (100%).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
   - Command: `git add backend/src/services/ai/academicPromptBuilder.js backend/tests/unit/liveContextPromptBuilder.test.js && git commit -m "feat(ai): integrate live context and XML boundaries into academicPromptBuilder"`
 
 ---
