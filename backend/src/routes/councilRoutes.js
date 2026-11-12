@@ -371,6 +371,15 @@ router.patch(
     councilController.adjustStudentDefenseSchedule
 );
 
+router.get(
+    '/:id/schedule-adjustments',
+    [
+        param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
+        validateRequest,
+    ],
+    councilController.getScheduleAdjustments
+);
+
 router.post(
     '/:id/members/replace',
     [

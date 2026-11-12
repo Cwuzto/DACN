@@ -296,6 +296,15 @@ router.post(
 );
 
 router.get(
+    '/:id/history',
+    [
+        param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
+        validateRequest,
+    ],
+    registrationController.getRegistrationHistory,
+);
+
+router.get(
     '/:id/allowed-actions',
     [
         authorizePermission(

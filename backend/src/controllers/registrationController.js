@@ -1686,6 +1686,8 @@ const getAllowedActions = async (req, res, next) => {
     }
 };
 
+const { getRegistrationHistory } = require('./topicController');
+
 module.exports = {
     registerTopic,
     getMyRegistration,
@@ -1705,4 +1707,5 @@ module.exports = {
     getPendingTitleAdjustments,
     transferTopicMentor,
     getAllowedActions,
+    getRegistrationHistory,
 };

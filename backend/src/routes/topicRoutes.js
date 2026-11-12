@@ -1,6 +1,8 @@
 const router = require('express').Router();
+const { param } = require('express-validator');
 const { authenticate, authorizePermission } = require('../middlewares/auth');
 const { PERMISSIONS } = require('../constants/permissions');
+const { validateRequest } = require('../middlewares/validate');
 const {
     getAllTopics,
     getTopicById,
@@ -10,9 +12,19 @@ const {
     changeTopicStatus,
     getMentorCapacity,
     getAvailableMentors,
+    getRegistrationHistory,
 } = require('../controllers/topicController');
 
 router.use(authenticate);
+
+router.get(
+    '/registrations/:id/history',
+    [
+        param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
+        validateRequest,
+    ],
+    getRegistrationHistory
+);
 
 router.get('/mentors', getAvailableMentors);
 

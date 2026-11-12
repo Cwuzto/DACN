@@ -1711,6 +1711,75 @@ const replaceDefenseCouncilMember = async (req, res, next) => {
     }
 };
 
+/**
+ * GET /api/councils/:id/schedule-adjustments
+ * Lấy danh sách lịch sử điều chỉnh ca/thứ tự bảo vệ của hội đồng
+ */
+const getScheduleAdjustments = async (req, res, next) => {
+    try {
+        const councilId = Number(req.params.id);
+        if (!Number.isInteger(councilId) || councilId <= 0) {
+            return res.status(400).json({ success: false, message: 'councilId không hợp lệ.' });
+        }
+
+        const council = await prisma.council.findUnique({
+            where: { id: councilId },
+            include: {
+                members: { select: { lecturerId: true } },
+            },
+        });
+
+        if (!council) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy hội đồng.' });
+        }
+
+        const userId = req.user?.userId || req.user?.id;
+        const isMember = council.members?.some((m) => m.lecturerId === userId);
+        const userPerms = req.user?.permissions || [];
+        const hasPermission = req.user?.role === 'ADMIN'
+            || isMember
+            || userPerms.includes('VIEW_COUNCIL_ASSIGNMENTS')
+            || userPerms.includes('VIEW_DEFENSE_ASSIGNMENTS')
+            || userPerms.includes('DEFENSE_COUNCIL_MANAGE');
+
+        if (!hasPermission) {
+            return res.status(403).json({
+                success: false,
+                message: 'Bạn không có quyền xem nhật ký điều chỉnh lịch của hội đồng này.',
+            });
+        }
+
+        const adjustments = await prisma.defenseScheduleAdjustmentLog.findMany({
+            where: { councilId },
+            orderBy: { createdAt: 'desc' },
+            include: {
+                adjustedBy: { select: { id: true, fullName: true, role: true } },
+                registration: {
+                    include: {
+                        student: { select: { id: true, fullName: true, code: true } },
+                        topic: { select: { title: true } },
+                    },
+                },
+            },
+        });
+
+        const formattedAdjustments = adjustments.map((adj) => ({
+            ...adj,
+            registration: adj.registration ? {
+                ...adj.registration,
+                student: adj.registration.student ? {
+                    ...adj.registration.student,
+                    studentCode: adj.registration.student.studentCode || adj.registration.student.code,
+                } : null,
+            } : null,
+        }));
+
+        return res.json({ success: true, data: formattedAdjustments });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     splitConfirmedStudentsIntoShifts,
     getAllCouncils,
@@ -1737,5 +1806,6 @@ module.exports = {
     confirmAndPublishDefenseSchedule,
     adjustStudentDefenseSchedule,
     replaceDefenseCouncilMember,
+    getScheduleAdjustments,
 };
 

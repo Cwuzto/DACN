@@ -669,6 +669,93 @@ const getAvailableMentors = async (req, res, next) => {
     }
 };
 
+/**
+ * GET /api/topics/registrations/:id/history hoặc /api/registrations/:id/history
+ * Lấy danh sách lịch sử chuyển đổi trạng thái của hồ sơ đề tài
+ */
+const getRegistrationHistory = async (req, res, next) => {
+    try {
+        const registrationId = parseInt(req.params.id, 10);
+        if (!Number.isInteger(registrationId) || registrationId <= 0) {
+            return res.status(400).json({ success: false, message: 'registrationId không hợp lệ.' });
+        }
+
+        const registration = await prisma.topicRegistration.findUnique({
+            where: { id: registrationId },
+            include: {
+                topic: true,
+                student: {
+                    select: {
+                        id: true,
+                        fullName: true,
+                        code: true,
+                    },
+                },
+            },
+        });
+
+        if (!registration) {
+            return res.status(404).json({
+                success: false,
+                message: 'Không tìm thấy hồ sơ đăng ký đề tài.',
+            });
+        }
+
+        const currentUserId = req.user?.userId || req.user?.id;
+        const role = req.user?.role;
+        const permissions = req.user?.permissions || [];
+
+        // Ownership Guard
+        if (role === 'STUDENT') {
+            if (registration.studentId !== currentUserId) {
+                return res.status(403).json({
+                    success: false,
+                    code: 'FORBIDDEN',
+                    message: 'Bạn không có quyền xem lịch sử đăng ký đề tài này.',
+                });
+            }
+        } else if (role === 'LECTURER') {
+            const isMentor = registration.topic?.mentorId === currentUserId;
+            const hasOversight = permissions.includes('VIEW_PROJECT_OVERSIGHT')
+                || permissions.includes('PROJECT_OVERSIGHT_MANAGE');
+            if (!isMentor && !hasOversight) {
+                return res.status(403).json({
+                    success: false,
+                    code: 'FORBIDDEN',
+                    message: 'Bạn không có quyền xem lịch sử đăng ký đề tài này.',
+                });
+            }
+        } else if (
+            role === 'ADMIN' ||
+            permissions.includes('VIEW_TOPICS') ||
+            permissions.includes('TOPIC_APPROVE') ||
+            permissions.includes('PROJECT_OVERSIGHT_MANAGE')
+        ) {
+            // Quản trị viên/Giáo vụ được phép truy cập
+        } else {
+            return res.status(403).json({
+                success: false,
+                code: 'FORBIDDEN',
+                message: 'Bạn không có quyền xem lịch sử đăng ký đề tài này.',
+            });
+        }
+
+        const history = await prisma.registrationStateHistory.findMany({
+            where: { registrationId },
+            orderBy: { createdAt: 'asc' },
+            include: {
+                actor: {
+                    select: { id: true, fullName: true, email: true, role: true },
+                },
+            },
+        });
+
+        return res.json({ success: true, data: history });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     getAllTopics,
     getTopicById,
@@ -678,4 +765,5 @@ module.exports = {
     changeTopicStatus,
     getMentorCapacity,
     getAvailableMentors,
+    getRegistrationHistory,
 };

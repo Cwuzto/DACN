@@ -2012,6 +2012,76 @@ const getCheckpointEvaluations = async (req, res, next) => {
     }
 };
 
+/**
+ * GET /api/evaluations/councils/:id/return-logs
+ * Lấy danh sách lịch sử hoàn trả sổ điểm của hội đồng (DefenseScoreBookReturnLog)
+ */
+const getScoreBookReturnLogs = async (req, res, next) => {
+    try {
+        const councilId = Number(req.params.id);
+        if (!Number.isInteger(councilId) || councilId <= 0) {
+            return res.status(400).json({ success: false, message: 'councilId không hợp lệ.' });
+        }
+
+        const council = await prisma.council.findUnique({
+            where: { id: councilId },
+            include: {
+                members: { select: { lecturerId: true } },
+            },
+        });
+
+        if (!council) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy hội đồng.' });
+        }
+
+        const userId = req.user?.userId || req.user?.id;
+        const isMember = council.members?.some((m) => m.lecturerId === userId);
+        const userPerms = req.user?.permissions || [];
+        const hasPermission = req.user?.role === 'ADMIN'
+            || isMember
+            || userPerms.includes('VIEW_DEFENSE_ASSIGNMENTS')
+            || userPerms.includes('DEFENSE_COUNCIL_MANAGE');
+
+        if (!hasPermission) {
+            return res.status(403).json({
+                success: false,
+                message: 'Bạn không có quyền xem nhật ký hoàn trả sổ điểm của hội đồng này.',
+            });
+        }
+
+        const returnLogs = await prisma.defenseScoreBookReturnLog.findMany({
+            where: { councilId },
+            orderBy: { returnedAt: 'desc' },
+            include: {
+                returnedByAdmin: {
+                    select: { id: true, fullName: true, email: true },
+                },
+                registration: {
+                    include: {
+                        student: { select: { fullName: true, code: true } },
+                        topic: { select: { title: true } },
+                    },
+                },
+            },
+        });
+
+        const formattedReturnLogs = returnLogs.map((log) => ({
+            ...log,
+            registration: log.registration ? {
+                ...log.registration,
+                student: log.registration.student ? {
+                    ...log.registration.student,
+                    studentCode: log.registration.student.studentCode || log.registration.student.code,
+                } : null,
+            } : null,
+        }));
+
+        return res.json({ success: true, data: formattedReturnLogs });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     getMyGrades,
     getGradingStudents,
@@ -2044,6 +2114,7 @@ module.exports = {
     reviewCheckpointAppeal,
     getCheckpointEvaluations,
     getCheckpointAppeals,
+    getScoreBookReturnLogs,
 };
 
 

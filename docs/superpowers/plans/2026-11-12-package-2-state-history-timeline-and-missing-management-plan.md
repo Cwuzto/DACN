@@ -45,7 +45,7 @@
   - `GET /api/councils/:id/schedule-adjustments`: Returns `DefenseScheduleAdjustmentLog[]` with `adjustedBy` and `registration: { student, topic }`. Guarded: Council member or `VIEW_COUNCIL_ASSIGNMENTS` / `DEFENSE_COUNCIL_MANAGE`.
   - `GET /api/evaluations/councils/:id/return-logs`: Returns `DefenseScoreBookReturnLog[]` with `returnedByAdmin` and `registration: { student }`. Guarded: Council member or `VIEW_DEFENSE_ASSIGNMENTS` / `DEFENSE_COUNCIL_MANAGE`.
 
-- [ ] **Step 1: Write failing integration tests in `backend/tests/integration/package2ReadLogApis.test.js`**
+- [x] **Step 1: Write failing integration tests in `backend/tests/integration/package2ReadLogApis.test.js`**
 
 Cover:
 1. `GET /api/topics/registrations/:id/history` allows student to view their own history.
@@ -54,12 +54,12 @@ Cover:
 4. `GET /api/councils/:id/schedule-adjustments` returns adjustments with student info.
 5. `GET /api/evaluations/councils/:id/return-logs` returns return logs with admin info and reason.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npm --prefix backend test -- backend/tests/integration/package2ReadLogApis.test.js`
 Expected: FAIL
 
-- [ ] **Step 3: Implement controller methods and routes**
+- [x] **Step 3: Implement controller methods and routes**
 
 Implement:
 1. `getRegistrationHistory` in `topicController.js` and mount in `topicRoutes.js`.
@@ -67,12 +67,12 @@ Implement:
 3. `getScoreBookReturnLogs` in `defenseScoringController.js` and mount in `defenseScoringRoutes.js`.
 4. Register route exemptions in `authorizationExemptions.js`.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `npm --prefix backend test -- backend/tests/integration/package2ReadLogApis.test.js`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/src/controllers/topicController.js backend/src/routes/topicRoutes.js backend/src/controllers/councilController.js backend/src/routes/councilRoutes.js backend/src/controllers/defenseScoringController.js backend/src/routes/defenseScoringRoutes.js backend/src/security/authorizationExemptions.js backend/src/constants/authorizationExemptions.js backend/tests/integration/package2ReadLogApis.test.js
@@ -343,3 +343,4 @@ Expected: 100% test pass rate across all suites, 0 build errors.
 git add backend/tests/integration/package2FullRegression.test.js
 git commit -m "test(regression): add full Package 2 state history and management regression suite"
 ```
+

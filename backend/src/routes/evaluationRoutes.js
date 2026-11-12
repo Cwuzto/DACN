@@ -71,6 +71,15 @@ router.get(
     evaluationController.getScoreSheet,
 );
 
+router.get(
+    '/councils/:id/return-logs',
+    [
+        param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
+        validateRequest,
+    ],
+    evaluationController.getScoreBookReturnLogs,
+);
+
 const saveScoreSheetGuards = [
     authorizePermission(PERMISSIONS.DEFENSE_SCORE_SUBMIT),
     (req, res, next) => {
