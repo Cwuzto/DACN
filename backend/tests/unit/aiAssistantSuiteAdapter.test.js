@@ -135,7 +135,7 @@ describe('Academic AI Assistant Suite - Adapter Core & Local Embeddings (Task 1)
       expect(response.feedback).toBe(mockResult.feedback);
       expect(response.strengths).toEqual(mockResult.strengths);
       expect(response.improvements).toEqual(mockResult.improvements);
-      expect(response.provider).toBe('gemini-2.0-flash');
+      expect(response.provider).toBe(geminiProvider.DEFAULT_MODEL);
     });
 
     it('should format defense questions prompt and parse 3-tier response', async () => {
@@ -190,7 +190,7 @@ describe('Academic AI Assistant Suite - Adapter Core & Local Embeddings (Task 1)
       expect(response.questions[0].level).toBe('FOUNDATION');
       expect(response.questions[1].level).toBe('TECHNICAL_CHALLENGE');
       expect(response.questions[2].level).toBe('FUTURE_EXPANSION');
-      expect(response.provider).toBe('gemini-2.0-flash');
+      expect(response.provider).toBe(geminiProvider.DEFAULT_MODEL);
     });
 
     it('should format regulation chat prompt and parse reply with quick questions', async () => {
@@ -223,7 +223,7 @@ describe('Academic AI Assistant Suite - Adapter Core & Local Embeddings (Task 1)
       expect(response.reply).toContain('nộp lại v2');
       expect(response.relatedRegulations.length).toBe(2);
       expect(response.suggestedQuickQuestions.length).toBe(2);
-      expect(response.provider).toBe('gemini-2.0-flash');
+      expect(response.provider).toBe(geminiProvider.DEFAULT_MODEL);
     });
   });
 

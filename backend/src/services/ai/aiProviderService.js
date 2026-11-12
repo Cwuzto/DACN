@@ -22,10 +22,10 @@ function isGeminiConfigured() {
 
 /**
  * Get the current operating provider mode.
- * @returns {'gemini-2.0-flash' | 'local_fallback'}
+ * @returns {string}
  */
 function getProviderMode() {
-  return isGeminiConfigured() ? 'gemini-2.0-flash' : 'local_fallback';
+  return isGeminiConfigured() ? (process.env.GEMINI_MODEL || geminiProvider.DEFAULT_MODEL || 'gemini-3.8-flash') : 'local_fallback';
 }
 
 /**
@@ -226,13 +226,35 @@ async function answerRegulationChat(payload, options = {}) {
   return executeWithFallback('answerRegulationChat', [payload], options);
 }
 
+/**
+ * Compute semantic similarity between two texts using pure JS token/n-gram heuristics.
+ * @param {string} textA
+ * @param {string} textB
+ * @param {object} options
+ * @returns {Promise<number>}
+ */
+async function computeTopicSimilarity(textA, textB, options = {}) {
+  return localEmbeddingService.computeSimilarity(textA, textB, options);
+}
+
+/**
+ * Multi-turn chat with Gemini 3.8 Flash
+ * @param {object} options
+ * @returns {Promise<object>}
+ */
+async function chatWithGemini(options = {}) {
+  return geminiProvider.chatWithGemini(options);
+}
+
 module.exports = {
   isGeminiConfigured,
   getProviderMode,
   analyzeBM01Outline,
   checkTopicSimilarity,
+  computeTopicSimilarity,
   crossCheckArchivalDossier,
   generateFeedback,
   generateDefenseQuestions,
   answerRegulationChat,
+  chatWithGemini,
 };

@@ -1,11 +1,11 @@
 /**
  * Gemini AI Provider
- * Communicates with Google Generative Language REST API (Gemini 2.0 Flash)
+ * Communicates with Google Generative Language REST API (Gemini 3.8 Flash)
  * using native fetch with zero external npm dependencies.
  */
 
 const GEMINI_API_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
-const DEFAULT_MODEL = 'gemini-2.0-flash';
+const DEFAULT_MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
 const DEFAULT_TIMEOUT_MS = 8000;
 
 /**
@@ -279,6 +279,131 @@ async function callGeminiApi(prompt, options = {}) {
 }
 
 /**
+ * Chat with Gemini model using multi-turn contents and system instructions.
+ * Communicates with Google Generative Language REST API.
+ * @param {object} params
+ * @param {Array<{role: string, text?: string, content?: string}>} params.messages
+ * @param {string} [params.systemInstruction]
+ * @param {string} [params.model]
+ * @param {string} [params.apiKey]
+ * @param {number} [params.temperature=0.2]
+ * @param {number} [params.timeoutMs=8000]
+ * @param {Function} [params.fetchFn]
+ * @param {AbortSignal} [params.signal]
+ * @returns {Promise<object>}
+ */
+async function chatWithGemini({
+  messages = [],
+  systemInstruction = '',
+  model,
+  apiKey,
+  temperature = 0.2,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+  fetchFn,
+  signal: externalSignal,
+} = {}) {
+  const activeApiKey = apiKey || process.env.GEMINI_API_KEY;
+  if (!activeApiKey) {
+    throw new Error('GEMINI_API_KEY is not configured');
+  }
+
+  const activeModel = model || process.env.GEMINI_MODEL || DEFAULT_MODEL;
+  const activeFetch = fetchFn || globalThis.fetch;
+  const url = `${GEMINI_API_BASE_URL}/${activeModel}:generateContent?key=${activeApiKey}`;
+
+  // Format messages: [{ role: 'user' | 'model', parts: [{ text }] }]
+  const contents = (Array.isArray(messages) ? messages : []).map((m) => {
+    let role = m.role === 'assistant' || m.role === 'model' ? 'model' : 'user';
+    let text = '';
+    if (typeof m === 'string') {
+      text = m;
+      role = 'user';
+    } else if (m && typeof m === 'object') {
+      text = m.text !== undefined ? m.text : (m.content !== undefined ? m.content : '');
+    }
+    return {
+      role,
+      parts: [{ text: String(text) }],
+    };
+  });
+
+  if (contents.length === 0) {
+    contents.push({ role: 'user', parts: [{ text: '' }] });
+  }
+
+  const requestBody = {
+    contents,
+    generationConfig: {
+      temperature,
+      maxOutputTokens: 2048,
+    },
+  };
+
+  if (systemInstruction && typeof systemInstruction === 'string' && systemInstruction.trim()) {
+    requestBody.system_instruction = {
+      parts: [{ text: systemInstruction.trim() }],
+    };
+  }
+
+  let timeoutId;
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const signal = externalSignal || (controller ? controller.signal : undefined);
+
+  if (controller && !externalSignal) {
+    timeoutId = setTimeout(() => {
+      controller.abort(new Error(`Gemini chat timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  }
+
+  try {
+    const response = await activeFetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+      signal,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      throw new Error(
+        `Gemini API call failed with status ${response.status} ${response.statusText}: ${errorText}`
+      );
+    }
+
+    const data = await response.json();
+    const candidateText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (candidateText === undefined || candidateText === null || candidateText === '') {
+      throw new Error('Empty response content received from Gemini API');
+    }
+
+    try {
+      const parsed = parseJsonResponse(candidateText);
+      return {
+        reply: parsed.reply || candidateText,
+        ...parsed,
+        text: candidateText,
+        rawText: candidateText,
+        provider: activeModel,
+      };
+    } catch {
+      return {
+        reply: candidateText,
+        text: candidateText,
+        rawText: candidateText,
+        provider: activeModel,
+      };
+    }
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+}
+
+/**
  * Analyze BM01 outline using Gemini
  */
 async function analyzeBM01Outline(outlineContent, options = {}) {
@@ -491,6 +616,7 @@ async function crossCheckArchivalDossier(registrationData, dossierFiles = [], op
 }
 
 module.exports = {
+  DEFAULT_MODEL,
   parseJsonResponse,
   formatBM01Prompt,
   formatSimilarityPrompt,
@@ -499,6 +625,7 @@ module.exports = {
   formatDefenseQuestionsPrompt,
   formatRegulationChatPrompt,
   callGeminiApi,
+  chatWithGemini,
   analyzeBM01Outline,
   checkTopicSimilarity,
   crossCheckArchivalDossier,

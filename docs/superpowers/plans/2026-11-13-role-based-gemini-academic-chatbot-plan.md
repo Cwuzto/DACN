@@ -43,26 +43,26 @@
   - `geminiProvider.chatWithGemini({ messages, systemInstruction, model?, apiKey? })`: Sends multi-turn messages to Gemini v1beta REST API with model `gemini-3.8-flash`.
   - `aiProviderService.computeTopicSimilarity(textA, textB)`: Computes similarity via lightweight token-cosine heuristic or Gemini embedding without `@xenova/transformers`.
 
-- [ ] **Step 1: Write unit tests in `backend/tests/unit/gemini38Provider.test.js`**
+- [x] **Step 1: Write unit tests in `backend/tests/unit/gemini38Provider.test.js`**
   - Verify `geminiProvider.chatWithGemini` formats `contents` array with `role` and `parts`.
   - Verify `geminiProvider` defaults to `gemini-3.8-flash` or reads `process.env.GEMINI_MODEL`.
   - Verify error handling when API key is missing or network times out.
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
   - Command: `npm --prefix backend test -- backend/tests/unit/gemini38Provider.test.js`
   - Expected: FAIL (`chatWithGemini` not implemented).
 
-- [ ] **Step 3: Implement `chatWithGemini` and clean up `@xenova/transformers`**
+- [x] **Step 3: Implement `chatWithGemini` and clean up `@xenova/transformers`**
   - Uninstall `@xenova/transformers` from `backend/package.json`.
   - In `backend/src/services/ai/geminiProvider.js`: Add `chatWithGemini` using `process.env.GEMINI_MODEL || 'gemini-3.8-flash'`.
   - In `backend/src/services/ai/localEmbeddingService.js`: Remove `@xenova/transformers` import, provide deterministic n-gram/Jaccard cosine similarity for fast fallback.
   - In `backend/src/services/ai/aiProviderService.js`: Update similarity calculation to use the refactored service.
 
-- [ ] **Step 4: Run test to verify pass**
+- [x] **Step 4: Run test to verify pass**
   - Command: `npm --prefix backend test -- backend/tests/unit/gemini38Provider.test.js`
   - Expected: PASS (100%).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
   - Command: `git add backend/package.json backend/src/services/ai/ backend/tests/unit/gemini38Provider.test.js && git commit -m "feat(ai): remove @xenova/transformers and implement chatWithGemini for gemini-3.8-flash"`
 
 ---
@@ -202,3 +202,4 @@
 
 - [ ] **Step 5: Record Session Update in `CLAUDE.md` and commit**
   - Command: `git add CLAUDE.md docs/superpowers/plans/2026-11-13-role-based-gemini-academic-chatbot-plan.md && git commit -m "docs(claude): record Session Update for Role-Based Academic Chatbot with Gemini 3.8 Flash"`
+
