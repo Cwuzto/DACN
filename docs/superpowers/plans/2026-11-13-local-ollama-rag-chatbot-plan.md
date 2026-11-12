@@ -114,26 +114,26 @@ backend/
   - `ragService.retrieveRelevantChunks({ query, userRole, topK, minScore })`: Generates query vector via `ollamaProvider.generateEmbedding`, filters by user role, ranks by cosine similarity, returns top-K relevant chunks.
   - `ragService.formatRagContext(chunks)`: Assembles chunks into clean markdown for prompt injection.
 
-- [ ] **Step 1: Write unit tests in `backend/tests/unit/ragService.test.js`**
+- [x] **Step 1: Write unit tests in `backend/tests/unit/ragService.test.js`**
   - Test 1: Chunking splits knowledge into structured chunks with valid `roleScope`.
   - Test 2: Role filtering: `STUDENT` never receives `LECTURER` or `ADMIN` chunks.
   - Test 3: Cosine similarity calculation is mathematically accurate.
   - Test 4: `retrieveRelevantChunks` correctly ranks and retrieves top matching chunks.
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
   - Command: `npm --prefix backend test -- backend/tests/unit/ragService.test.js`
   - Expected: FAIL.
 
-- [ ] **Step 3: Implement `ragService.js` and `seedRagVectors.js`**
+- [x] **Step 3: Implement `ragService.js` and `seedRagVectors.js`**
   - Implement chunking, vector indexing and retrieval.
   - Add npm script: `"seed:rag": "node src/scripts/seedRagVectors.js"` in `backend/package.json`.
 
-- [ ] **Step 4: Run test to verify pass**
+- [x] **Step 4: Run test to verify pass**
   - Command: `npm --prefix backend test -- backend/tests/unit/ragService.test.js`
   - Expected: PASS (100%).
 
-- [ ] **Step 5: Commit**
-  - Command: `git add backend/src/services/ai/ragService.js backend/src/scripts/seedRagVectors.js backend/tests/unit/ragService.test.js backend/package.json && git commit -m "feat(ai): build ragService with document chunking, RBAC isolation and vector retrieval"`
+- [x] **Step 5: Commit**
+  - Command: `git add backend/src/services/ai/ragService.js backend/src/scripts/seedRagVectors.js backend/tests/unit/ragService.test.js backend/package.json docs/superpowers/plans/2026-11-13-local-ollama-rag-chatbot-plan.md && git commit -m "feat(ai): build ragService with document chunking, RBAC isolation and vector retrieval"`
 
 ---
 

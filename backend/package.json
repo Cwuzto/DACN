@@ -15,6 +15,7 @@
     "db:seed:reset": "node prisma/seed.js",
     "db:studio": "npx prisma studio",
     "db:reset": "npx prisma migrate reset",
+    "seed:rag": "node src/scripts/seedRagVectors.js",
     "test": "jest --runInBand --forceExit",
     "test:watch": "jest --watch"
   },
