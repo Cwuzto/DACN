@@ -756,6 +756,173 @@ const getRegistrationHistory = async (req, res, next) => {
     }
 };
 
+const getCloneableTopics = async (req, res, next) => {
+    try {
+        const role = req.user?.role;
+        const currentUserId = req.user?.id || req.user?.userId;
+
+        if (role === 'STUDENT') {
+            return res.status(403).json({
+                success: false,
+                code: 'FORBIDDEN',
+                message: 'Bạn không có quyền xem danh sách đề tài có thể sao chép.',
+            });
+        }
+
+        if (role !== 'LECTURER' && role !== 'ADMIN') {
+            return res.status(403).json({
+                success: false,
+                code: 'FORBIDDEN',
+                message: 'Bạn không có quyền xem danh sách đề tài có thể sao chép.',
+            });
+        }
+
+        const activeSemester = await prisma.semester.findFirst({
+            where: { status: 'ACTIVE' },
+        });
+
+        const where = {
+            status: { in: ['APPROVED', 'COMPLETED', 'DEFENDED'] },
+        };
+
+        if (activeSemester?.id) {
+            where.semesterId = { not: activeSemester.id };
+        }
+
+        if (role === 'LECTURER') {
+            where.mentorId = currentUserId;
+        } else if (role === 'ADMIN' && req.query.mentorId) {
+            const parsedMentorId = parseInt(req.query.mentorId, 10);
+            if (!Number.isNaN(parsedMentorId)) {
+                where.mentorId = parsedMentorId;
+            }
+        }
+
+        const topics = await prisma.topic.findMany({
+            where,
+            include: {
+                semester: {
+                    select: { id: true, name: true, academicYear: true },
+                },
+                projectCatalog: {
+                    select: { id: true, name: true },
+                },
+            },
+            orderBy: { id: 'desc' },
+        });
+
+        return res.json({
+            success: true,
+            data: topics,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+const cloneTopics = async (req, res, next) => {
+    try {
+        const role = req.user?.role;
+        const currentUserId = req.user?.id || req.user?.userId;
+
+        if (role === 'STUDENT' || (role !== 'LECTURER' && role !== 'ADMIN')) {
+            return res.status(403).json({
+                success: false,
+                code: 'FORBIDDEN',
+                message: 'Bạn không có quyền sao chép đề tài.',
+            });
+        }
+
+        const { topicIds } = req.body || {};
+        if (
+            !Array.isArray(topicIds) ||
+            topicIds.length === 0 ||
+            !topicIds.every((id) => Number.isInteger(id) && id > 0)
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: 'Danh sách topicIds phải là mảng không rỗng các số nguyên dương.',
+            });
+        }
+
+        const activeSemester = await prisma.semester.findFirst({
+            where: { status: 'ACTIVE' },
+        });
+
+        if (!activeSemester) {
+            return res.status(400).json({
+                success: false,
+                message: 'Không tìm thấy học kỳ đang kích hoạt.',
+            });
+        }
+
+        const uniqueTopicIds = [...new Set(topicIds)];
+        const topics = await prisma.topic.findMany({
+            where: {
+                id: { in: uniqueTopicIds },
+            },
+        });
+
+        if (!topics || topics.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Không tìm thấy đề tài hợp lệ để sao chép.',
+            });
+        }
+
+        if (role === 'LECTURER') {
+            const unauthorizedTopics = topics.filter((t) => t.mentorId !== currentUserId);
+            if (unauthorizedTopics.length > 0) {
+                return res.status(403).json({
+                    success: false,
+                    code: 'FORBIDDEN',
+                    message: 'Bạn không có quyền sao chép đề tài của giảng viên khác.',
+                });
+            }
+        }
+
+        const created = await prisma.$transaction(async (tx) => {
+            const cloned = [];
+            for (const topic of topics) {
+                const newTopic = await tx.topic.create({
+                    data: {
+                        title: topic.title,
+                        description: topic.description,
+                        projectCatalogId: topic.projectCatalogId,
+                        semesterId: activeSemester.id,
+                        mentorId: topic.mentorId,
+                        proposedById: currentUserId,
+                        maxStudents: 1,
+                        status: 'DRAFT',
+                    },
+                });
+                cloned.push(newTopic);
+            }
+            return cloned;
+        });
+
+        for (const newTopic of created) {
+            await auditLog({
+                userId: currentUserId,
+                action: 'TOPIC_CLONE',
+                entity: 'Topic',
+                entityId: newTopic.id,
+                newData: newTopic,
+                req,
+            }).catch(() => {});
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: `Đã sao chép thành công ${created.length} đề tài sang học kỳ mới với trạng thái DRAFT.`,
+            count: created.length,
+            data: created,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     getAllTopics,
     getTopicById,
@@ -766,4 +933,6 @@ module.exports = {
     getMentorCapacity,
     getAvailableMentors,
     getRegistrationHistory,
+    getCloneableTopics,
+    cloneTopics,
 };

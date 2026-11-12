@@ -13,6 +13,8 @@ const {
     getMentorCapacity,
     getAvailableMentors,
     getRegistrationHistory,
+    getCloneableTopics,
+    cloneTopics,
 } = require('../controllers/topicController');
 
 router.use(authenticate);
@@ -27,6 +29,8 @@ router.get(
 );
 
 router.get('/mentors', getAvailableMentors);
+router.get('/cloneable', getCloneableTopics);
+router.post('/clone', cloneTopics);
 
 // GET /api/topics - Lấy danh sách đề tài
 router.get('/', getAllTopics);
