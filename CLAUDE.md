@@ -1565,13 +1565,72 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 - **Frontend UI**: `CLEAN CONTRACTS & BUILD PASS (100%)`; Không còn bất kỳ điểm dữ liệu giả (mock/fake) hay `setTimeout` giả lập nào trên toàn bộ các dashboard (Student, Lecturer, Admin, Home).
 - **Tuân thủ quy chuẩn**: 100% đạt chuẩn AGENTS.md (Rule 1 TopicRegistration, Rule 2.4 UTF-8 no BOM, Rule 2.6 UI Button Standards, Rule 3 Subagent Isolation).
 
+---
+
+### Cập Nhật Phiên Làm Việc (Session Update - Gói 2: Timeline Trực Quan, Mở Truy Cập Logs CSDL, Sao Chép Đề Tài Thật & Triệt Tiêu Vi Phạm Rule 2.6)
+
+#### 1. Những phần đã hoàn thành
+
+1. **Triển Khai Các API Đọc Lịch Sử Trạng Thái CSDL & Nhật Ký Học Vụ (Backend - Task 1)**:
+   - Endpoint `GET /api/topics/registrations/:id/history` (và alias `GET /api/registrations/:id/history`): Truy vấn `RegistrationStateHistory` theo quyền sở hữu chặt chẽ (`OWNERSHIP_GUARDED`). Sinh viên chỉ xem của mình (chặn 403 khi xem của SV khác), GVHD chỉ xem sinh viên mình hướng dẫn (chặn 403 với GV khác), Admin xem toàn bộ; sắp xếp tăng dần theo `createdAt`.
+   - Endpoint `GET /api/councils/:id/schedule-adjustments`: Truy vấn `DefenseScheduleAdjustmentLog` của hội đồng bảo vệ, trả về chi tiết ca cũ $\rightarrow$ ca mới, sinh viên, đề tài, người điều chỉnh; sắp xếp giảm dần theo thời gian.
+   - Endpoint `GET /api/evaluations/councils/:id/return-logs`: Truy vấn `DefenseScoreBookReturnLog` của hội đồng bảo vệ, trả về lý do hoàn trả sổ điểm của Trưởng Viện/Giáo vụ và snapshot phiên bản sổ; sắp xếp giảm dần theo thời gian.
+
+2. **Triển Khai Bộ API Sao Chép Đề Tài Thực Tế Cho Giảng Viên (Backend - Task 2)**:
+   - Endpoint `GET /api/topics/cloneable`: Lấy danh sách đề tài đã duyệt ở các học kỳ trước của chính giảng viên đang đăng nhập (hoặc toàn bộ cho Admin), loại trừ học kỳ đang kích hoạt.
+   - Endpoint `POST /api/topics/clone`: Sao chép danh sách đề tài được chọn sang học kỳ active hiện tại với trạng thái `DRAFT`, `maxStudents = 1`, `currentEnrollmentCount = 0`, gán `mentorId` của giảng viên và ghi `auditLog`; chặn giảng viên sao chép đề tài của người khác với mã 403 `FORBIDDEN`.
+
+3. **Xây Dựng Component Dùng Chung `RegistrationTimelineDrawer.jsx` (Frontend - Task 3)**:
+   - Tạo mới `RegistrationTimelineDrawer.jsx` sử dụng Ant Design `<Timeline>` và `<Drawer>` (width 520), mã màu trực quan (xanh lá: Đạt/Hoàn thành; xanh dương: Đang làm; đỏ: Dừng/Hủy; xám: Khác), hiển thị mốc thời gian, tên người thực hiện, lý do chuyển đổi; hỗ trợ `<Skeleton>` và `<Empty>`.
+   - Tích hợp nút `<Button icon={<HistoryOutlined />}>Lịch sử tiến trình</Button>` vào:
+     * `StudentDashboardPage.jsx` cho sinh viên tra cứu đề tài của mình.
+     * `ProgressTrackingPage.jsx` cho giảng viên tra cứu trên từng sinh viên hướng dẫn.
+     * `TopicApprovalPage.jsx` cho giảng viên thẩm định đề cương và giáo vụ duyệt đề tài.
+
+4. **Tích Hợp Hiển Thị Nhật Ký Đổi Ca & Lịch Sử Trả Sổ Điểm Hội Đồng (Frontend - Task 4)**:
+   - Bổ sung `councilService.getScheduleAdjustments` và `evaluationService.getScoreBookReturnLogs`.
+   - `CouncilDetailPage.jsx`: Bổ sung nút `<Button icon={<HistoryOutlined />}>Nhật ký đổi ca</Button>` và Modal hiển thị bảng lịch sử hoán đổi ca thi của sinh viên.
+   - `GradingDefensePage.jsx`: Hiển thị Ant Design `<Alert>` cảnh báo khi hội đồng có bản ghi bị trả sổ điểm, kèm nút `<Button icon={<HistoryOutlined />}>Xem lịch sử trả</Button>` mở Modal chi tiết lý do và thời gian trả sổ.
+
+5. **Kết Nối Sao Chép Đề Tài Thật & Tải Biểu Mẫu Từ Supabase Storage (Frontend - Task 5)**:
+   - `TopicManagementPage.jsx`: Xóa bỏ hoàn toàn 2 checkbox giả lập (`DT-2025-042`, `DT-2025-055`) và toast giả lập; tích hợp Modal chọn đề tài thật từ `topicService.getCloneableTopics()` với `<Table>` chọn nhiều đề tài và gọi `topicService.cloneTopics`.
+   - `RubricManagementPage.jsx`: Tích hợp `portalContentService.getPublicContent()` lấy danh sách biểu mẫu thật từ CSDL, tải file thật từ Supabase Storage qua `window.open(fileUrl, '_blank')`, hiển thị nút vô hiệu kèm Tooltip khi file chưa được phát hành, xóa sạch toast giả.
+
+6. **Triệt Tiêu 100% Vi Phạm Rule 2.6 UI Button Standards Còn Sót (Frontend - Task 6)**:
+   - `OutlineReviewModal.jsx`: Xóa bỏ ký tự thô `✓` và `⚠`, dùng prop `icon={<CheckOutlined />}` và `icon={<ExclamationCircleOutlined />}` với nhãn text tiếng Việt thuần túy.
+   - `TopicManagementPage.jsx`: Xóa dấu `+` bị lặp trong nút bấm có `icon={<PlusOutlined />}` và tiêu đề modal.
+   - `RubricManagementPage.jsx`: Thay ký tự thô `⚙` bằng component `<SettingOutlined />`.
+   - `GradingDefensePage.jsx`: Chuẩn hóa toàn bộ các nút bấm sang Ant Design Button chuẩn.
+
+7. **Kiểm Thử Hồi Quy Toàn Tuyến & Kiểm Tra Build Sản Xuất (Hệ thống - Task 7)**:
+   - Xây dựng bộ test tích hợp toàn diện [`package2FullRegression.test.js`](file:///d:/DACN/backend/tests/integration/package2FullRegression.test.js) (18/18 tests PASS).
+   - Backend test suite: **92/92 test suites, 892/892 tests PASS (100%)**.
+   - Frontend test suite: **150/150 tests PASS (100%)**.
+   - Production Build: `npm run build` thành công xuất sắc (**0 lỗi**, 11.87s).
+   - Mã hóa: 100% tệp lưu ở định dạng **UTF-8 (no BOM)**.
+
+#### 2. Trạng thái cập nhật của từng phần
+
+- **Database/Prisma**: `UP TO DATE & FULLY ACCESSIBLE`; Các bảng `RegistrationStateHistory`, `DefenseScheduleAdjustmentLog`, `DefenseScoreBookReturnLog` đã có API đọc đầy đủ và an toàn.
+- **Backend API**: `PRODUCTION READY`; Bổ sung các API đọc lịch sử, kiểm soát quyền sở hữu đa tầng, cùng bộ API sao chép đề tài cho giảng viên.
+- **Frontend UI**: `RICH & CLEAN`; Tích hợp Timeline Drawer trực quan, xem log ca thi, xem lý do trả sổ điểm, sao chép đề tài thật và chuẩn hóa 100% Rule 2.6.
+- **Tuân thủ quy chuẩn**: 100% tuân thủ AGENTS.md (Rule 1 TopicRegistration, Rule 2.4 UTF-8 no BOM, Rule 2.6 UI Button Standards, Rule 3 Subagent Isolation).
+
 #### 3. Bước tiếp theo cần làm (Next Session Plan)
 
-1. Tiếp tục triển khai **Gói 2: Bổ sung tính năng quản lý còn thiếu (Missing Administrative Hubs & Workflows)**:
-   - Quản lý Khiếu nại điểm bảo vệ chính thức (Appeal Workflow & Resolution).
-   - Quản lý Hội đồng Cấp Viện & Phê duyệt Danh sách bảo vệ độc lập.
-   - Nâng cấp Trình quản lý mẫu biểu & Thông báo đợt tốt nghiệp.
-2. Sẵn sàng tiếp nhận chỉ đạo tiếp theo từ người dùng.
+1. Người dùng trải nghiệm thực tế trên giao diện:
+   - **Sinh viên** (`/student/dashboard`): Bấm nút **"Lịch sử tiến trình"** để xem Timeline các mốc học vụ của đề tài.
+   - **Giảng viên** (`/lecturer/topics`): Mở Modal **"Sao chép từ kỳ trước"** để chọn và nhân bản đề tài thực tế sang học kỳ mới.
+   - **Giảng viên** (`/lecturer/progress`): Chọn sinh viên và bấm **"Lịch sử tiến trình"** để kiểm tra lịch sử đề tài của học viên.
+   - **Quản trị viên** (`/admin/defense-councils/:id`): Bấm **"Nhật ký đổi ca"** để xem lịch sử điều phối ca thi.
+   - **Quản trị viên / Hội đồng** (`/admin/grading`): Xem cảnh báo và **"Lịch sử trả sổ điểm"** khi hội đồng có ghi nhận bị hoàn trả.
+2. Sẵn sàng tiếp nhận các yêu cầu phát triển tiếp theo từ người dùng.
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+
+1. **Phân Quyền Lịch Sử Đề Tài Theo Mô Hình Ownership Đa Tầng**: Sinh viên chỉ xem lịch sử đề tài của chính mình, Giảng viên chỉ xem học viên mình hướng dẫn, và Giáo vụ xem toàn bộ. Chống triệt để việc rò rỉ tiến trình học vụ giữa các sinh viên hoặc giữa các nhóm nghiên cứu khác nhau.
+2. **Component `RegistrationTimelineDrawer` Tái Sử Dụng**: Đưa toàn bộ logic trực quan hóa dòng thời gian vào một component duy nhất, giúp giao diện đồng bộ, dễ bảo trì và tải dữ liệu On-Demand chỉ khi người dùng bấm xem.
+3. **Sao Chép Đề Tài Với Trạng Thái `DRAFT`**: Khi giảng viên nhân bản đề tài từ kỳ trước, hệ thống tự động gán trạng thái `DRAFT` và `currentEnrollmentCount = 0`, đảm bảo giảng viên có cơ hội rà soát, tinh chỉnh yêu cầu đề tài trước khi chính thức gửi duyệt hoặc công bố cho sinh viên đăng ký.
 
 #### 4. Quyết định quan trọng (Decisions & Rationale)
 
