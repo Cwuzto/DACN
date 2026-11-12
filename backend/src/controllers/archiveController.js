@@ -1090,7 +1090,7 @@ const signClearanceCertificate = async (req, res, next) => {
             return res.status(400).json({ success: false, code: 'INVALID_ARCHIVE_ID', message: 'archiveId không hợp lệ.' });
         }
 
-        const { expectedPayloadHash, idempotencyKey } = req.body;
+        const { expectedPayloadHash, idempotencyKey } = req.body || {};
         const result = await archivalWorkflowService.signClearanceCertificateByInstituteDirector({
             archiveId,
             directorUser: req.user,

@@ -26,6 +26,8 @@ jest.mock('../../src/services/notificationService', () => ({
 jest.mock('../../src/services/academicDocumentService', () => ({
     issueAssignmentDecision: jest.fn().mockResolvedValue({ id: 501, decisionNumber: 'QD-TEST-001' }),
     createDecisionAmendment: jest.fn(),
+    createTopicDecision: jest.fn().mockResolvedValue({ id: 501, decisionNumber: 'QD-TEST-001' }),
+    publishTopicDecision: jest.fn().mockResolvedValue({ id: 501 }),
 }));
 
 jest.mock('jsonwebtoken', () => ({
@@ -33,7 +35,7 @@ jest.mock('jsonwebtoken', () => ({
 }));
 
 const prisma = require('../../src/config/database');
-const { issueAssignmentDecision } = require('../../src/services/academicDocumentService');
+const { issueAssignmentDecision, createTopicDecision } = require('../../src/services/academicDocumentService');
 const app = require('../../src/app');
 
 describe('Block gradeSubmission Bypass & Task Status Lock (C01)', () => {
@@ -326,7 +328,7 @@ describe('Block gradeSubmission Bypass & Task Status Lock (C01)', () => {
         expect(res1.status).toBe(200);
         expect(res1.body.success).toBe(true);
         expect(res1.body.data.studentCount).toBe(2);
-        expect(issueAssignmentDecision).toHaveBeenCalledTimes(2);
+        expect(createTopicDecision).toHaveBeenCalledTimes(1);
 
         // Second call: With same key, should replay cached response without querying eligible or calling issueAssignmentDecision again
         prisma.topicRegistration.findMany.mockResolvedValueOnce([]); // no more eligible registrations
@@ -342,6 +344,6 @@ describe('Block gradeSubmission Bypass & Task Status Lock (C01)', () => {
         expect(res2.body.data.studentCount).toBe(2);
         expect(res2.body.data.decisionNumber).toBe(res1.body.data.decisionNumber);
         // issueAssignmentDecision should NOT have been called again (still 2 times total from first call)
-        expect(issueAssignmentDecision).toHaveBeenCalledTimes(2);
+        expect(createTopicDecision).toHaveBeenCalledTimes(1);
     });
 });

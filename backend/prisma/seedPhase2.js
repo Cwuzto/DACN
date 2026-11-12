@@ -1,5 +1,9 @@
 require('dotenv').config();
 
+if (process.env.DIRECT_URL) {
+  process.env.DATABASE_URL = process.env.DIRECT_URL;
+}
+
 const bcrypt = require('bcryptjs');
 const prisma = require('../src/config/database');
 const { seedPermissionCatalog } = require('../src/services/permissionService');
@@ -109,14 +113,17 @@ async function runPhase2Seed() {
     { Kịch_bản: '2.4. HK1 - BM03 đang mở cửa sổ 48h chờ SV xác nhận (sv069..sv074)', Email: 'sv069@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'Còn 36h để SV bấm Đồng ý / Đề nghị kiểm tra lại' },
     { Kịch_bản: '2.5A. HK1 - BM03 hoàn tất STUDENT_CONFIRMED (sv075..sv076)', Email: 'sv075@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'BM03_COMPLETED (SV đã xác nhận)' },
     { Kịch_bản: '2.5B. HK1 - BM03 hoàn tất AUTO_CLOSED_AFTER_48H (sv077..sv078)', Email: 'sv077@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'BM03_COMPLETED (Tự động đóng sau 48h)' },
-    { Kịch_bản: '3.1. HK1 - BM04 bản nháp DRAFT, chờ GVHD chấm & ký (sv079..sv086)', Email: 'sv079@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'sv079-sv080 có Phụ lục tên mới (GVHD: lecturer01)' },
-    { Kịch_bản: '3.2. HK1 - GVHD kết luận Không cho bảo vệ, chờ Viện thẩm định (sv087..sv090)', Email: 'sv087@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'DEFENSE_REVIEW_PENDING (hạn +120h)' },
-    { Kịch_bản: '3.3. HK1 - Đủ điều kiện bảo vệ, chờ xếp Hội đồng (sv091..sv096)', Email: 'sv091@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'DEFENSE_ELIGIBLE (BM04 ELIGIBLE_FOR_DEFENSE)' },
-    { Kịch_bản: '4.1. HK1 - HĐ Bảo vệ 1 đang chấm điểm (sv097..sv104)', Email: 'sv097@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'DEFENSE_SCHEDULED (Chủ tịch HĐ1: lecturer04)' },
-    { Kịch_bản: '4.2. HK1 - HĐ Bảo vệ 2 đã chấm xong, chờ khóa & công bố (sv105..sv110)', Email: 'sv105@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'DEFENSE_COMPLETED (Chủ tịch HĐ2: lecturer01)' },
-    { Kịch_bản: '4.3. HK1 - HĐ Bảo vệ 3 đã công bố, trong hạn phúc khảo (sv111..sv115)', Email: 'sv111@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'PUBLISHED (còn hạn phúc khảo)' },
-    { Kịch_bản: '4.4A. HK1 - Hoàn thành đồ án & Lưu chiểu số (sv116..sv119)', Email: 'sv116@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'COMPLETED (Có ClearanceCertificate)' },
-    { Kịch_bản: '4.4B. HK1 - Không đạt bảo vệ (sv120)', Email: 'sv120@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'DEFENSE_FAILED (Điểm < 5.0)' },
+    { Kịch_bản: '3.1. HK1 - BM04 bản nháp DRAFT, chờ GVHD chấm & ký (sv079..sv084)', Email: 'sv079@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'sv079-sv080 có Phụ lục tên mới (GVHD: lecturer01)' },
+    { Kịch_bản: '3.2. HK1 - GVHD kết luận Không cho bảo vệ, chờ Viện thẩm định (sv085..sv090)', Email: 'sv085@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'DEFENSE_REVIEW_PENDING (hạn +120h)' },
+    { Kịch_bản: '3.3. HK1 - Đủ điều kiện bảo vệ, chờ xếp Hội đồng (sv091..sv094)', Email: 'sv091@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'DEFENSE_READY (sv091-sv092 BM04 đạt, sv093-sv094 Viện duyệt ELIGIBLE_BY_INSTITUTE)' },
+    { Kịch_bản: '4.1. HK1 - HĐ Bảo vệ xếp ca Sáng/Chiều & đang chấm (sv095..sv098)', Email: 'sv095@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'AWAITING_SCORES (sv095: 1 người khóa, sv096: 3 người khóa, sv097: ABSENT, sv098: ca Chiều)' },
+    { Kịch_bản: '4.2. HK1 - Chủ tịch khóa sổ điểm, chờ công bố (sv099..sv100)', Email: 'sv099@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'AWAITING_FINAL_APPROVAL (Chủ tịch khóa sổ điểm)' },
+    { Kịch_bản: '4.3. HK1 - Đã công bố DEFENSE_PASSED, nộp lưu chiểu 14 ngày (sv101..sv104)', Email: 'sv101@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'DEFENSE_PASSED (sv101 nộp 4 file, sv102 thiếu file)' },
+    { Kịch_bản: '4.4. HK1 - Đã duyệt 2 tầng lưu chiểu, chờ Viện trưởng ký (sv105..sv106)', Email: 'sv105@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'PENDING_INSTITUTE_SIGNATURE (GVHD + Giáo vụ APPROVED)' },
+    { Kịch_bản: '4.5A. HK1 - Lưu chiểu bị từ chối ARCHIVE_REJECTED (sv107..sv108)', Email: 'sv107@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'ARCHIVE_REJECTED (Điểm bảo vệ giữ nguyên)' },
+    { Kịch_bản: '4.5B. HK1 - Quá hạn 15 ngày thiếu file ARCHIVE_INCOMPLETE (sv109..sv110)', Email: 'sv109@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'ARCHIVE_INCOMPLETE (Cổng đóng cứng 00:00 ngày +15)' },
+    { Kịch_bản: '4.6. HK1 - Không đạt bảo vệ DEFENSE_FAILED (sv111..sv114)', Email: 'sv111@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'sv111-sv112 (Điểm < 5.0), sv113-sv114 (ABSENT vắng mặt không điểm giả)' },
+    { Kịch_bản: '4.7. HK1 - Hoàn thành toàn khóa COMPLETED (sv115..sv120)', Email: 'sv115@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'COMPLETED (Có Giấy xác nhận hoàn thành & Chữ ký số Viện trưởng)' },
   ]);
 
   return { academic, publications, summary };

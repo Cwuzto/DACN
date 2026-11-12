@@ -49,6 +49,12 @@ const pool = new Pool({
     ssl: dbUseSsl
         ? { rejectUnauthorized: dbSslRejectUnauthorized }
         : false,
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10000,
+});
+
+pool.on('error', (err) => {
+    console.error('Postgres pool background client error:', err.message);
 });
 
 const adapter = new PrismaPg(pool);

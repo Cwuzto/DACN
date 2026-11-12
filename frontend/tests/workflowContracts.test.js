@@ -36,7 +36,7 @@ test('defense council candidate UI is restricted to DEFENSE_READY', () => {
     assert.match(source, /councilTypeFilter === 'DEFENSE_COUNCIL'\) return r\.status === 'DEFENSE_READY'/);
 });
 
-test('defense grading ledger connects publication, history, and correction modals', () => {
+test('defense grading ledger connects publication and history modals, forbidding post-publication correction', () => {
     const page = read('src/pages/admin/GradingDefensePage.jsx');
     const pubModal = read('src/components/admin/DefenseResultPublicationModal.jsx');
     const correctModal = read('src/components/admin/CorrectDefenseResultModal.jsx');
@@ -44,14 +44,13 @@ test('defense grading ledger connects publication, history, and correction modal
 
     assert.match(page, /<DefenseResultPublicationModal[\s\S]*?open=\{publishModalOpen\}/);
     assert.match(page, /<PublicationHistoryModal[\s\S]*?open=\{historyModalOpen\}/);
-    assert.match(page, /<CorrectDefenseResultModal[\s\S]*?open=\{correctModalOpen\}/);
+    assert.doesNotMatch(page, /<CorrectDefenseResultModal/);
 
     assert.match(pubModal, /INITIAL/);
     assert.match(pubModal, /SUPPLEMENTARY/);
     assert.match(pubModal, /CORRECTION/);
     assert.match(pubModal, /publishDefenseResults/);
     assert.match(pubModal, /type !== 'INITIAL' \? values\.previousPublicationId : undefined/);
-    assert.match(pubModal, /correctionEligible/);
     assert.match(pubModal, /publicationRequestKey\.current \|\|=/);
     assert.match(service, /publishDefenseResults:\s*async \(semesterId, data, idempotencyKey\)/);
 
@@ -61,7 +60,7 @@ test('defense grading ledger connects publication, history, and correction modal
 
 test('student grade view only derives official totals from published snapshots', () => {
     const page = read('src/pages/student/GradeViewPage.jsx');
-    assert.match(page, /const compositeScore = hasScore \? Number\(finalScore\)\.toFixed\(2\) : '—';/);
+    assert.match(page, /const compositeScore = hasScore \? Number\(finalScore\)\.toFixed\(1\) : '—';/);
     assert.match(page, /Không công bố riêng lẻ/);
     assert.doesNotMatch(page, /validScores\.reduce/);
 });

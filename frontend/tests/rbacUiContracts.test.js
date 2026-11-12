@@ -109,7 +109,7 @@ test('defense and archive UI separates view, submit, lock, publish, and review c
     assert.match(gradingSource, /canSubmitScore && <button/);
     assert.match(gradingSource, /canLockResult && \(r\.scoreLocked/);
     assert.match(gradingSource, /canPublishResult && <button/);
-    assert.match(oversightSource, /!isApproved && canReviewArchive/);
+    assert.match(oversightSource, /(?:!isApproved && canReviewArchive|canReviewArchive && !isApproved)/);
 });
 
 test('ProjectPeriodPage embeds academic delegations tab for VIEW_ACADEMIC_DELEGATIONS or PERMISSION_ASSIGN_ACADEMIC with idempotency', () => {

@@ -1,10 +1,11 @@
 const { DEFAULT_POLICY, checksum } = require('../../src/services/workflowPolicyService');
 const { computeCanonicalPayloadHash } = require('../../src/services/electronicSignatureService');
 const { hashScoreEvidence } = require('../../src/services/defenseResultPublicationService');
+const { DEFAULT_REFERENCE_RUBRIC_4_GROUPS_14_ITEMS } = require('../../src/services/rubricService');
 const { buildAccounts, getSemesterDefinitions, allocateCouncilForRegistration } = require('./demoFixtures');
 const { buildStudentProfileData, buildTopicTitleForStudent } = require('./phase1Fixtures');
 
-const RUBRIC_VERSION = 'RUBRIC-DATN-2026';
+const RUBRIC_VERSION = DEFAULT_REFERENCE_RUBRIC_4_GROUPS_14_ITEMS.version;
 const HOUR_MS = 3600 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 const addHours = (base, hours) => new Date(base.getTime() + hours * HOUR_MS);
@@ -50,11 +51,15 @@ const PHASE2_COHORTS = Object.freeze({
   // Chặng 3 — BM04 Đánh giá 4 tiêu chí + 2 kết luận, Viện thẩm định không bảo vệ & Hội đồng bảo vệ (HK1: sv079 – sv120)
   HK1_BM04_DRAFT_OPEN: createRange(79, 84),
   HK1_BM04_REJECT_PENDING_INSTITUTE: createRange(85, 90),
-  HK1_DEFENSE_READY_UNASSIGNED: createRange(91, 100),
-  HK1_DEFENSE_AWAITING_SCORES: createRange(101, 105),
-  HK1_DEFENSE_AWAITING_APPROVAL: createRange(106, 110),
-  HK1_DEFENSE_PASSED: createRange(111, 115),
-  HK1_DEFENSE_FAILED: createRange(116, 120),
+  HK1_DEFENSE_READY: createRange(91, 94), // 91-92 BM04 passed, 93-94 ELIGIBLE_BY_INSTITUTE
+  HK1_DEFENSE_SCHEDULED_SHIFT: createRange(95, 98), // 95: 1 member locked, 96: 3 members locked, 97: ABSENT, 98: afternoon shift
+  HK1_DEFENSE_AWAITING_APPROVAL: createRange(99, 100), // Chairman locked scorebook, awaiting publication
+  HK1_DEFENSE_PASSED_ARCHIVING: createRange(101, 104), // Published DEFENSE_PASSED, 14-day archival window
+  HK1_DEFENSE_PASSED_PENDING_DIRECTOR: createRange(105, 106), // PENDING_INSTITUTE_SIGNATURE
+  HK1_ARCHIVE_REJECTED: createRange(107, 108), // ARCHIVE_REJECTED
+  HK1_ARCHIVE_INCOMPLETE: createRange(109, 110), // ARCHIVE_INCOMPLETE (+15d closed with missing files)
+  HK1_DEFENSE_FAILED: createRange(111, 114), // sv111-112 score < 5.0, sv113-114 ABSENT
+  HK1_COMPLETED: createRange(115, 120), // COMPLETED with Director signed certificate & immutable PDF
 });
 
 function resolveHK1MentorIndex(studentNumber) {
@@ -83,7 +88,7 @@ function buildBM02AVersionPayload({ registrationId, versionNumber, registeredTit
   };
 }
 
-async function createDefenseCouncils(prisma, semesterId, lecturers, defenseDate) {
+async function createDefenseCouncils(prisma, semesterId, lecturers, defenseDate, rubricVersionId) {
   const councils = [];
   for (let index = 0; index < 4; index += 1) {
     const members = lecturers.slice(index * 3, index * 3 + 3);
@@ -96,6 +101,8 @@ async function createDefenseCouncils(prisma, semesterId, lecturers, defenseDate)
         defenseDate,
         meetingMode: 'IN_PERSON',
         schedulePublishedAt: addDays(defenseDate, -5),
+        rubricVersionId: rubricVersionId || null,
+        scoreBookLocked: false,
       },
     });
     await prisma.councilMember.createMany({
@@ -103,6 +110,8 @@ async function createDefenseCouncils(prisma, semesterId, lecturers, defenseDate)
         councilId: council.id,
         lecturerId: lecturer.id,
         roleInCouncil: ['CHAIRMAN', 'SECRETARY', 'REVIEWER'][memberIndex],
+        isScoringMember: true,
+        isActive: true,
       })),
     });
     councils.push({
@@ -166,15 +175,6 @@ async function seedPhase2AcademicFixtures({ prisma, accountsByEmail, baseDate = 
     },
   });
 
-  await prisma.semester.update({
-    where: { id: semesterHK1Record.id },
-    data: { lockedPolicyVersionId: policyHK1.id },
-  });
-  await prisma.semester.update({
-    where: { id: semesterHK2Record.id },
-    data: { lockedPolicyVersionId: policyHK2.id },
-  });
-
   // 3. Project Catalog
   const catalog = await prisma.projectCatalog.create({
     data: {
@@ -184,56 +184,55 @@ async function seedPhase2AcademicFixtures({ prisma, accountsByEmail, baseDate = 
     },
   });
 
-  // 4. Standardized Rubric (3 categories, 6 criteria)
+  // 4. Standardized Rubric (4 groups, 14 criteria, 10.0 maxScore, CLO and 4 levels)
   const rubric = await prisma.rubricVersion.create({
     data: {
-      version: RUBRIC_VERSION,
-      title: 'Rubric đánh giá đồ án tốt nghiệp chuẩn',
+      version: DEFAULT_REFERENCE_RUBRIC_4_GROUPS_14_ITEMS.version,
+      title: DEFAULT_REFERENCE_RUBRIC_4_GROUPS_14_ITEMS.title,
+      description: DEFAULT_REFERENCE_RUBRIC_4_GROUPS_14_ITEMS.description,
       totalMaxScore: 10.0,
       isActive: true,
       status: 'ACTIVE',
+      lockedAt: addDays(now, -10),
+      lockedById: admin.id,
       createdById: admin.id,
       categories: {
-        create: [
-          {
-            code: 'HINH_THUC',
-            name: 'Hình thức và cấu trúc báo cáo',
-            maxScore: 2.0,
-            orderIndex: 1,
-            criteria: {
-              create: [
-                { code: 'DINH_DANG', label: 'Định dạng và quy chuẩn trình bày', maxScore: 1.0, orderIndex: 1 },
-                { code: 'TAI_LIEU', label: 'Cấu trúc và tài liệu tham khảo', maxScore: 1.0, orderIndex: 2 },
-              ],
-            },
+        create: DEFAULT_REFERENCE_RUBRIC_4_GROUPS_14_ITEMS.categories.map((cat, cIdx) => ({
+          code: cat.code,
+          name: cat.name,
+          description: cat.description,
+          maxScore: cat.maxScore,
+          orderIndex: cat.orderIndex || cIdx + 1,
+          criteria: {
+            create: cat.criteria.map((crit, crIdx) => ({
+              code: crit.code,
+              label: crit.label,
+              description: crit.description,
+              maxScore: crit.maxScore,
+              orderIndex: crit.orderIndex || crIdx + 1,
+              cloCode: crit.cloCode,
+              levelGoodDesc: crit.levelGoodDesc,
+              levelFairDesc: crit.levelFairDesc,
+              levelAverageDesc: crit.levelAverageDesc,
+              levelPoorDesc: crit.levelPoorDesc,
+            })),
           },
-          {
-            code: 'NOI_DUNG',
-            name: 'Nội dung nghiên cứu và sản phẩm thực nghiệm',
-            maxScore: 5.0,
-            orderIndex: 2,
-            criteria: {
-              create: [
-                { code: 'GIAI_PHAP', label: 'Phương pháp và giải pháp kỹ thuật', maxScore: 2.5, orderIndex: 1 },
-                { code: 'SAN_PHAM', label: 'Mức độ hoàn thiện sản phẩm', maxScore: 2.5, orderIndex: 2 },
-              ],
-            },
-          },
-          {
-            code: 'BAO_VE',
-            name: 'Kỹ năng thuyết trình và phản biện',
-            maxScore: 3.0,
-            orderIndex: 3,
-            criteria: {
-              create: [
-                { code: 'THUYET_TRINH', label: 'Kỹ năng thuyết trình và báo cáo', maxScore: 1.5, orderIndex: 1 },
-                { code: 'PHAN_BIEN', label: 'Khả năng phản biện và trả lời câu hỏi', maxScore: 1.5, orderIndex: 2 },
-              ],
-            },
-          },
-        ],
+        })),
       },
     },
+  });
+
+  await prisma.semester.update({
+    where: { id: semesterHK1Record.id },
+    data: {
+      lockedPolicyVersionId: policyHK1.id,
+      lockedDefenseRubricVersionId: rubric.id,
+      defenseEligibleListPublishedAt: addDays(now, -5),
+    },
+  });
+  await prisma.semester.update({
+    where: { id: semesterHK2Record.id },
+    data: { lockedPolicyVersionId: policyHK2.id },
   });
 
   // 5. Academic Delegations for lecturer02 (Phụ trách bộ môn) & expired delegation for lecturer03
@@ -362,8 +361,8 @@ async function seedPhase2AcademicFixtures({ prisma, accountsByEmail, baseDate = 
   }
   await prisma.studentProfile.createMany({ data: profileRows });
 
-  // 9. Defense Councils in HK1 (for sv101 - sv120)
-  const defenseCouncils = await createDefenseCouncils(prisma, semesterHK1Record.id, lecturers, now);
+  // 9. Defense Councils in HK1 (for sv095 - sv120)
+  const defenseCouncils = await createDefenseCouncils(prisma, semesterHK1Record.id, lecturers, now, rubric.id);
   const councilLoadMap = new Map(defenseCouncils.map((c) => [c.id, 0]));
 
   const registrations = new Map();
@@ -926,28 +925,72 @@ async function seedPhase2AcademicFixtures({ prisma, accountsByEmail, baseDate = 
     const padStr = String(number).padStart(3, '0');
     const studentSnap = studentSnapshots.get(number);
     const initialTitle = buildTopicTitleForStudent(number);
+    if (number % 15 === 0 || number >= 90) {
+      console.log(`[seed:phase2] Seeding student ${number}/120`);
+    }
 
     // Determine target status & council for sv025..sv120
     let status = 'DECISION_ISSUED';
     let defenseCouncil = null;
+    let defenseSessionShift = null;
+    let defenseOrderInShift = null;
+    let defenseSequenceNo = null;
+
     if (number >= 49 && number <= 56) status = 'IN_PROGRESS';
     else if (number >= 57 && number <= 62) status = 'STOP_REVIEW_PENDING';
     else if (number >= 63 && number <= 74) status = 'IN_PROGRESS';
     else if (number >= 75 && number <= 84) status = 'BM03_PASSED';
     else if (number >= 85 && number <= 90) status = 'BM04_REVIEW';
-    else if (number >= 91 && number <= 100) status = 'DEFENSE_READY';
-    else if (number >= 101 && number <= 105) {
+    else if (number >= 91 && number <= 94) {
+      status = 'DEFENSE_READY'; // 91-92 BM04 passed, 93-94 ELIGIBLE_BY_INSTITUTE
+    } else if (number >= 95 && number <= 98) {
       status = 'AWAITING_SCORES';
       defenseCouncil = allocateCouncilForRegistration({ mentorId: mentor.id, councils: defenseCouncils, councilLoadMap });
-    } else if (number >= 106 && number <= 110) {
+      defenseSessionShift = number === 98 ? 'AFTERNOON' : 'MORNING';
+      defenseOrderInShift = number === 98 ? 1 : (number - 94);
+      defenseSequenceNo = number - 94;
+    } else if (number >= 99 && number <= 100) {
       status = 'AWAITING_FINAL_APPROVAL';
       defenseCouncil = allocateCouncilForRegistration({ mentorId: mentor.id, councils: defenseCouncils, councilLoadMap });
-    } else if (number >= 111 && number <= 115) {
+      defenseSessionShift = 'MORNING';
+      defenseOrderInShift = number - 98;
+      defenseSequenceNo = number - 94;
+    } else if (number >= 101 && number <= 104) {
       status = 'DEFENSE_PASSED';
       defenseCouncil = allocateCouncilForRegistration({ mentorId: mentor.id, councils: defenseCouncils, councilLoadMap });
-    } else if (number >= 116 && number <= 120) {
+      defenseSessionShift = 'MORNING';
+      defenseOrderInShift = number - 100;
+      defenseSequenceNo = number - 94;
+    } else if (number >= 105 && number <= 106) {
+      status = 'PENDING_INSTITUTE_SIGNATURE';
+      defenseCouncil = allocateCouncilForRegistration({ mentorId: mentor.id, councils: defenseCouncils, councilLoadMap });
+      defenseSessionShift = 'AFTERNOON';
+      defenseOrderInShift = number - 104;
+      defenseSequenceNo = number - 94;
+    } else if (number >= 107 && number <= 108) {
+      status = 'ARCHIVE_REJECTED';
+      defenseCouncil = allocateCouncilForRegistration({ mentorId: mentor.id, councils: defenseCouncils, councilLoadMap });
+      defenseSessionShift = 'AFTERNOON';
+      defenseOrderInShift = number - 104;
+      defenseSequenceNo = number - 94;
+    } else if (number >= 109 && number <= 110) {
+      status = 'ARCHIVE_INCOMPLETE';
+      defenseCouncil = allocateCouncilForRegistration({ mentorId: mentor.id, councils: defenseCouncils, councilLoadMap });
+      defenseSessionShift = 'AFTERNOON';
+      defenseOrderInShift = number - 104;
+      defenseSequenceNo = number - 94;
+    } else if (number >= 111 && number <= 114) {
       status = 'DEFENSE_FAILED';
       defenseCouncil = allocateCouncilForRegistration({ mentorId: mentor.id, councils: defenseCouncils, councilLoadMap });
+      defenseSessionShift = 'AFTERNOON';
+      defenseOrderInShift = number - 110;
+      defenseSequenceNo = number - 94;
+    } else if (number >= 115 && number <= 120) {
+      status = 'COMPLETED';
+      defenseCouncil = allocateCouncilForRegistration({ mentorId: mentor.id, councils: defenseCouncils, councilLoadMap });
+      defenseSessionShift = (number % 2 === 0) ? 'AFTERNOON' : 'MORNING';
+      defenseOrderInShift = number - 114;
+      defenseSequenceNo = number - 94;
     }
 
     const [, topic] = await Promise.all([
@@ -987,6 +1030,9 @@ async function seedPhase2AcademicFixtures({ prisma, accountsByEmail, baseDate = 
         decisionDate: hk1Decision.decisionDate,
         decisionPublishedAt: hk1Decision.decisionPublishedAt,
         defenseCouncilId: defenseCouncil ? defenseCouncil.id : null,
+        defenseSessionShift,
+        defenseOrderInShift,
+        defenseSequenceNo,
         stateVersion: 2,
       },
     });
@@ -1890,8 +1936,8 @@ async function seedPhase2AcademicFixtures({ prisma, accountsByEmail, baseDate = 
           },
         });
       } else {
-        // sv091 - sv120: Đủ điều kiện bảo vệ (sv091-sv097 & sv101-sv120 do GVHD đồng ý; sv098-sv100 do Viện ghi đè ELIGIBLE_BY_INSTITUTE)
-        const isInstituteOverride = number >= 98 && number <= 100;
+        // sv091 - sv120: Đủ điều kiện bảo vệ (sv091-sv092 & sv095-sv120 do GVHD đồng ý; sv093-sv094 do Viện thẩm định ghi đè ELIGIBLE_BY_INSTITUTE)
+        const isInstituteOverride = number === 93 || number === 94;
         const defenseRec = isInstituteOverride ? 'NOT_APPROVE_FOR_DEFENSE' : 'APPROVE_FOR_DEFENSE';
         const bm04Status = isInstituteOverride ? 'ELIGIBLE_BY_INSTITUTE' : 'SIGNED_APPROVED';
         const mismatchReason = isInstituteOverride
@@ -2027,6 +2073,7 @@ async function seedPhase2AcademicFixtures({ prisma, accountsByEmail, baseDate = 
     catalog,
     rubric,
     admin,
+    director: lecturer01,
     hk1Decision,
     appendix1Issued,
     councils: defenseCouncils,
@@ -2038,167 +2085,404 @@ async function seedPhase2AcademicFixtures({ prisma, accountsByEmail, baseDate = 
 
 async function seedPhase2DefenseEvidenceAndPublications({ prisma, context, fixtures }) {
   const adminId = context.admin.id;
+  const director = context.director;
   const targetSemester = context.semesters.semesterHK1;
+  const baseDate = new Date();
 
-  // 101..105: AWAITING_SCORES (scores entered/unlocked)
-  for (let num = 101; num <= 105; num += 1) {
-    const fixture = fixtures.get(num);
-    if (!fixture || !fixture.council) continue;
+  // Helper to create locked or unlocked member scores
+  const createMemberScores = async (fixture, scores, locked = true, lockedAt = addHours(baseDate, -4)) => {
     const memberScores = fixture.council.memberIds.map((evaluatorId, idx) => ({
       registrationId: fixture.id,
       evaluatorId,
-      finalScore: [7.8, 8.2, 8.0][idx],
-      comments: 'Đang chấm điểm bảo vệ trước hội đồng',
+      finalScore: scores[idx] !== undefined ? scores[idx] : null,
+      comments: locked ? 'Điểm đánh giá bảo vệ chính thức của thành viên hội đồng' : 'Điểm dự thảo đang chấm',
       scoreRubricVersion: RUBRIC_VERSION,
-      scoreLocked: false,
-      lockedAt: null,
-      lockedBy: null,
+      scoreLocked: locked && scores[idx] !== null,
+      lockedAt: locked && scores[idx] !== null ? lockedAt : null,
+      lockedBy: locked && scores[idx] !== null ? evaluatorId : null,
+      isEffective: true,
     }));
     await prisma.defenseMemberScore.createMany({ data: memberScores });
-    await prisma.defenseResult.create({
+    return memberScores;
+  };
+
+  // Helper to create archive dossier with versions & zero-hour snapshot
+  const createArchiveDossier = async ({
+    fixture,
+    status = 'SUBMITTED',
+    fileTypes = ['REPORT_WORD', 'REPORT_PDF', 'DEMO_VIDEO', 'SLIDE_PPTX'],
+    mentorReviewStatus = 'PENDING',
+    mentorReviewNotes = null,
+    academicAffairsReviewStatus = 'PENDING',
+    academicAffairsReviewNotes = null,
+    certificateNumber = null,
+    certificatePdfUrl = null,
+    isCompleted = false,
+    isClosed = false,
+  }) => {
+    const defenseSnapshotAt = addDays(baseDate, -5);
+    const softDeadlineAt = addDays(baseDate, -8);
+    const windowClosesAt = addDays(baseDate, isClosed ? -1 : 10);
+    const windowClosedAt = isClosed ? addDays(baseDate, -1) : null;
+
+    const archiveData = {
+      status,
+      phase: 'POST_DEFENSE',
+      softPreparationDeadlineAt: softDeadlineAt,
+      defenseSnapshotAt,
+      windowClosesAt,
+      windowClosedAt,
+      reportWordFileUrl: fileTypes.includes('REPORT_WORD') ? `/uploads/archive/reg${fixture.id}_report.docx` : null,
+      reportWordFileName: fileTypes.includes('REPORT_WORD') ? `Bao_cao_reg${fixture.id}.docx` : null,
+      reportPdfFileUrl: fileTypes.includes('REPORT_PDF') ? `/uploads/archive/reg${fixture.id}_report.pdf` : null,
+      reportPdfFileName: fileTypes.includes('REPORT_PDF') ? `Bao_cao_reg${fixture.id}.pdf` : null,
+      slideFileUrl: fileTypes.includes('SLIDE_PPTX') ? `/uploads/archive/reg${fixture.id}_slide.pptx` : null,
+      slideFileName: fileTypes.includes('SLIDE_PPTX') ? `Slide_reg${fixture.id}.pptx` : null,
+      demoVideoUrl: fileTypes.includes('DEMO_VIDEO') ? `/uploads/archive/reg${fixture.id}_demo.mp4` : null,
+      mentorReviewStatus,
+      mentorReviewedById: mentorReviewStatus !== 'PENDING' ? fixture.mentor.id : null,
+      mentorReviewedAt: mentorReviewStatus !== 'PENDING' ? addDays(baseDate, -2) : null,
+      mentorReviewNotes,
+      academicAffairsReviewStatus,
+      academicAffairsReviewedById: academicAffairsReviewStatus !== 'PENDING' ? adminId : null,
+      academicAffairsReviewedAt: academicAffairsReviewStatus !== 'PENDING' ? addDays(baseDate, -2) : null,
+      academicAffairsReviewNotes,
+      certificateNumber,
+      certificateSignedById: isCompleted ? director.id : null,
+      certificateSignedAt: isCompleted ? addDays(baseDate, -1) : null,
+      certificatePdfUrl,
+      certificatePayloadHash: isCompleted ? checksum({ certificateNumber, registrationId: fixture.id }) : null,
+    };
+
+    const archive = await prisma.projectArchive.upsert({
+      where: { registrationId: fixture.id },
+      create: {
+        registrationId: fixture.id,
+        ...archiveData,
+      },
+      update: archiveData,
+    });
+
+    const docVersionIds = {};
+    for (const docType of fileTypes) {
+      const ext = docType === 'REPORT_WORD' ? 'docx' : docType === 'REPORT_PDF' ? 'pdf' : docType === 'DEMO_VIDEO' ? 'mp4' : 'pptx';
+      const version = await prisma.defenseDocumentVersion.create({
+        data: {
+          registrationId: fixture.id,
+          archiveId: archive.id,
+          documentType: docType,
+          versionNumber: 1,
+          phase: 'POST_DEFENSE',
+          fileUrl: `/uploads/archive/reg${fixture.id}_${docType.toLowerCase()}.${ext}`,
+          fileName: `${docType}_reg${fixture.id}.${ext}`,
+          checksum: checksum(`${fixture.id}:${docType}:v1`),
+          isLatePreDefense: false,
+          uploadedById: fixture.student.id,
+          uploadedAt: addDays(baseDate, -4),
+        },
+      });
+      docVersionIds[docType] = version.id;
+    }
+
+    // Capture defense zero-hour snapshot
+    await prisma.defenseDocumentSnapshot.create({
       data: {
         registrationId: fixture.id,
-        finalScore: 8.0,
-        comments: 'Kết quả đang tổng hợp, chờ khóa sổ điểm',
-        evaluatorId: fixture.council.memberIds[0],
+        snapshotType: 'DEFENSE_SNAPSHOT',
+        capturedAt: defenseSnapshotAt,
+        reportWordVersionId: docVersionIds['REPORT_WORD'] || null,
+        reportPdfVersionId: docVersionIds['REPORT_PDF'] || null,
+        demoVideoVersionId: docVersionIds['DEMO_VIDEO'] || null,
+        slidePptxVersionId: docVersionIds['SLIDE_PPTX'] || null,
+        missingDocumentTypes: ['REPORT_WORD', 'REPORT_PDF', 'DEMO_VIDEO', 'SLIDE_PPTX'].filter((t) => !fileTypes.includes(t)),
+      },
+    });
+
+    if (isCompleted) {
+      await prisma.electronicSignatureEvent.create({
+        data: {
+          registrationId: fixture.id,
+          entityType: 'CLEARANCE_CERTIFICATE',
+          entityId: archive.id,
+          versionNumber: 1,
+          signerId: director.id,
+          signerRole: 'VIEN_TRUONG',
+          action: 'SIGN_CLEARANCE_CERTIFICATE',
+          signedAt: addDays(baseDate, -1),
+          payloadHash: checksum({ certificateNumber, registrationId: fixture.id }),
+        },
+      });
+    }
+
+    return archive;
+  };
+
+  // 1. sv095..sv098: DEFENSE_SCHEDULED_SHIFT (scoring in progress, shifts Morning/Afternoon)
+  // sv095: 1 member locked
+  const f95 = fixtures.get(95);
+  if (f95 && f95.council) {
+    await prisma.defenseMemberScore.createMany({
+      data: [
+        { registrationId: f95.id, evaluatorId: f95.council.memberIds[0], finalScore: 8.5, scoreRubricVersion: RUBRIC_VERSION, scoreLocked: true, lockedAt: addHours(baseDate, -1), lockedBy: f95.council.memberIds[0], isEffective: true },
+        { registrationId: f95.id, evaluatorId: f95.council.memberIds[1], finalScore: 8.0, scoreRubricVersion: RUBRIC_VERSION, scoreLocked: false, isEffective: true },
+        { registrationId: f95.id, evaluatorId: f95.council.memberIds[2], finalScore: null, scoreRubricVersion: RUBRIC_VERSION, scoreLocked: false, isEffective: true },
+      ],
+    });
+  }
+
+  // sv096: 3 members locked, Chairman not yet locked scorebook
+  const f96 = fixtures.get(96);
+  if (f96 && f96.council) {
+    await prisma.defenseMemberScore.createMany({
+      data: [
+        { registrationId: f96.id, evaluatorId: f96.council.memberIds[0], finalScore: 8.0, scoreRubricVersion: RUBRIC_VERSION, scoreLocked: true, lockedAt: addHours(baseDate, -1), lockedBy: f96.council.memberIds[0], isEffective: true },
+        { registrationId: f96.id, evaluatorId: f96.council.memberIds[1], finalScore: 8.5, scoreRubricVersion: RUBRIC_VERSION, scoreLocked: true, lockedAt: addHours(baseDate, -1), lockedBy: f96.council.memberIds[1], isEffective: true },
+        { registrationId: f96.id, evaluatorId: f96.council.memberIds[2], finalScore: 8.4, scoreRubricVersion: RUBRIC_VERSION, scoreLocked: true, lockedAt: addHours(baseDate, -1), lockedBy: f96.council.memberIds[2], isEffective: true },
+      ],
+    });
+  }
+
+  // sv097: ABSENT (Chairman confirmed absent minutes, 0 member score sheets)
+  const f97 = fixtures.get(97);
+  if (f97) {
+    await prisma.defenseResult.create({
+      data: {
+        registrationId: f97.id,
+        attendanceStatus: 'ABSENT',
+        absentMinutesText: 'Sinh viên vắng mặt không lý do tại buổi bảo vệ Hội đồng.',
+        absentConfirmedByChairId: f97.council ? f97.council.memberIds[0] : null,
+        absentConfirmedAt: addHours(baseDate, -2),
         scoreRubricVersion: RUBRIC_VERSION,
-        scoreLocked: false,
-        lockedAt: null,
-        lockedBy: null,
+        finalScore: null,
+        rawAverageScore: null,
+        roundedFinalScore: null,
+        scoreLocked: true,
+        lockedAt: addHours(baseDate, -2),
+        lockedBy: f97.council ? f97.council.memberIds[0] : null,
+        evaluatorId: f97.council ? f97.council.memberIds[0] : adminId,
       },
     });
   }
 
-  // 106..110: AWAITING_FINAL_APPROVAL (scores locked, waiting for final approval)
-  for (let num = 106; num <= 110; num += 1) {
+  // sv098: Afternoon shift, order 1 (scoring not started)
+
+  // 2. sv099..sv100: DEFENSE_AWAITING_APPROVAL (Chairman locked scorebook, awaiting publication)
+  for (let num = 99; num <= 100; num += 1) {
     const fixture = fixtures.get(num);
     if (!fixture || !fixture.council) continue;
-    const memberScores = fixture.council.memberIds.map((evaluatorId, idx) => ({
-      registrationId: fixture.id,
-      evaluatorId,
-      finalScore: [8.0, 8.5, 8.4][idx],
-      comments: 'Điểm thành viên hội đồng đã khóa',
-      scoreRubricVersion: RUBRIC_VERSION,
-      scoreLocked: true,
-      lockedAt: new Date('2026-12-15T08:00:00.000Z'),
-      lockedBy: evaluatorId,
-    }));
-    await prisma.defenseMemberScore.createMany({ data: memberScores });
+    const scores = [8.0, 8.5, 8.4];
+    await createMemberScores(fixture, scores, true, addHours(baseDate, -5));
     await prisma.defenseResult.create({
       data: {
         registrationId: fixture.id,
         finalScore: 8.3,
-        comments: 'Kết quả tổng hợp đã khóa sổ, chờ Viện trưởng phê duyệt',
-        evaluatorId: adminId,
+        rawAverageScore: 8.3,
+        roundedFinalScore: 8.3,
+        attendanceStatus: 'PRESENT',
+        comments: 'Kết quả tổng hợp đã khóa sổ, chờ công bố kết quả bảo vệ',
+        evaluatorId: fixture.council.memberIds[0],
         scoreRubricVersion: RUBRIC_VERSION,
         scoreLocked: true,
-        lockedAt: new Date('2026-12-15T09:00:00.000Z'),
-        lockedBy: adminId,
+        lockedAt: addHours(baseDate, -4),
+        lockedBy: fixture.council.memberIds[0],
       },
+    });
+    await prisma.topicRegistration.update({
+      where: { id: fixture.id },
+      data: { status: 'AWAITING_FINAL_APPROVAL' },
     });
   }
 
-  const createLockedEvidence = async (fixture, finalScore, comments, outcome) => {
-    const scoreDiff = outcome === 'PASSED' ? [finalScore - 0.3, finalScore, finalScore + 0.3] : [3.5, 4.0, 3.9];
-    const memberScores = fixture.council.memberIds.map((evaluatorId, idx) => ({
-      registrationId: fixture.id,
-      evaluatorId,
-      finalScore: scoreDiff[idx],
-      comments: 'Điểm thành viên hội đồng chính thức',
-      scoreRubricVersion: RUBRIC_VERSION,
-      scoreLocked: true,
-      lockedAt: new Date('2026-12-15T08:00:00.000Z'),
-      lockedBy: evaluatorId,
-    }));
-    await prisma.defenseMemberScore.createMany({ data: memberScores });
-    const result = await prisma.defenseResult.create({
-      data: {
-        registrationId: fixture.id,
-        finalScore,
-        comments,
-        evaluatorId: adminId,
-        scoreRubricVersion: RUBRIC_VERSION,
-        scoreLocked: true,
-        lockedAt: new Date('2026-12-15T09:00:00.000Z'),
-        lockedBy: adminId,
-      },
-    });
-    const fingerprint = hashScoreEvidence({
-      defenseCouncilId: fixture.council.id,
-      councilId: null,
-      periodPolicyVersionId: fixture.periodPolicyVersionId,
-      defenseResult: result,
-      memberScores,
-    });
-    return { result, fingerprint };
-  };
-
-  const createApproval = (fixture, evidence, outcome, score) =>
-    prisma.defenseResultApproval.create({
-      data: {
-        registrationId: fixture.id,
-        defenseResultId: evidence.result.id,
-        outcome,
-        finalScoreSnapshot: score,
-        scoreFingerprint: evidence.fingerprint,
-        rubricVersionSnapshot: RUBRIC_VERSION,
-        defenseCouncilId: fixture.council.id,
-        policyVersionId: fixture.periodPolicyVersionId,
-        approvedById: adminId,
-        reason: 'Phê duyệt kết quả bảo vệ chính thức',
-        isEffective: true,
-      },
-    });
-
-  // 111..115: DEFENSE_PASSED (with published scores)
+  // 3. Official Result Publication for sv101 - sv120
   const publication = await prisma.resultPublication.create({
     data: {
       semesterId: targetSemester.id,
       type: 'INITIAL',
       publishedById: adminId,
-      publishedAt: new Date('2026-12-16T08:00:00.000Z'),
-      idempotencyKey: 'phase2-publication-initial-v1',
+      publishedAt: addDays(baseDate, -3),
+      idempotencyKey: 'phase2-publication-defense-results-v1',
     },
   });
 
-  for (let num = 111; num <= 115; num += 1) {
-    const fixture = fixtures.get(num);
-    if (!fixture || !fixture.council) continue;
-    const score = 8.6;
-    const evidence = await createLockedEvidence(fixture, score, 'Bảo vệ đồ án xuất sắc, đạt chuẩn đầu ra.', 'PASSED');
-    const approval = await createApproval(fixture, evidence, 'PASSED', score);
+  const recordPublishedEvidence = async (fixture, finalScore, roundedFinalScore, outcome, comments) => {
+    let memberScores = [];
+    if (finalScore !== null && fixture.council) {
+      const diff = outcome === 'PASSED' ? [finalScore - 0.2, finalScore, finalScore + 0.2] : [4.8, 5.0, 4.9];
+      memberScores = await createMemberScores(fixture, diff, true, addDays(baseDate, -4));
+    }
+    const result = await prisma.defenseResult.create({
+      data: {
+        registrationId: fixture.id,
+        finalScore,
+        rawAverageScore: finalScore,
+        roundedFinalScore,
+        attendanceStatus: finalScore === null ? 'ABSENT' : 'PRESENT',
+        absentMinutesText: finalScore === null ? 'Sinh viên vắng mặt không lý do tại buổi bảo vệ.' : null,
+        comments,
+        evaluatorId: fixture.council ? fixture.council.memberIds[0] : adminId,
+        scoreRubricVersion: RUBRIC_VERSION,
+        scoreLocked: true,
+        lockedAt: addDays(baseDate, -4),
+        lockedBy: fixture.council ? fixture.council.memberIds[0] : adminId,
+      },
+    });
+    const fingerprint = hashScoreEvidence({
+      defenseCouncilId: fixture.council ? fixture.council.id : null,
+      councilId: null,
+      periodPolicyVersionId: fixture.periodPolicyVersionId,
+      defenseResult: result,
+      memberScores,
+    });
+    const approval = await prisma.defenseResultApproval.create({
+      data: {
+        registrationId: fixture.id,
+        defenseResultId: result.id,
+        outcome,
+        finalScoreSnapshot: roundedFinalScore,
+        scoreFingerprint: fingerprint,
+        rubricVersionSnapshot: RUBRIC_VERSION,
+        defenseCouncilId: fixture.council ? fixture.council.id : null,
+        policyVersionId: fixture.periodPolicyVersionId,
+        approvedById: adminId,
+        reason: 'Phê duyệt kết quả bảo vệ chính thức của Viện',
+        isEffective: true,
+      },
+    });
     await prisma.resultPublicationItem.create({
       data: {
         publicationId: publication.id,
         registrationId: fixture.id,
         sourceApprovalId: approval.id,
-        outcomeSnapshot: 'PASSED',
-        finalScoreSnapshot: score,
+        outcomeSnapshot: outcome,
+        finalScoreSnapshot: roundedFinalScore,
         studentCodeSnapshot: fixture.student.code,
         studentNameSnapshot: fixture.student.fullName,
         topicTitleSnapshot: fixture.topic.title,
       },
     });
+    return { result, approval };
+  };
+
+  // 101..104: DEFENSE_PASSED in 14-day archival window
+  for (let num = 101; num <= 104; num += 1) {
+    const fixture = fixtures.get(num);
+    if (!fixture) continue;
+    await recordPublishedEvidence(fixture, 8.5, 8.5, 'PASSED', 'Bảo vệ thành công, đạt chuẩn đầu ra.');
+    const files = num === 101 ? ['REPORT_WORD', 'REPORT_PDF', 'DEMO_VIDEO', 'SLIDE_PPTX']
+      : num === 102 ? ['REPORT_PDF', 'SLIDE_PPTX']
+      : num === 103 ? ['REPORT_WORD', 'REPORT_PDF', 'DEMO_VIDEO']
+      : ['REPORT_WORD', 'REPORT_PDF', 'DEMO_VIDEO', 'SLIDE_PPTX'];
+    await createArchiveDossier({
+      fixture,
+      status: 'SUBMITTED',
+      fileTypes: files,
+    });
+    await prisma.topicRegistration.update({
+      where: { id: fixture.id },
+      data: { status: 'DEFENSE_PASSED' },
+    });
   }
 
-  // 116..120: DEFENSE_FAILED (with published scores)
-  for (let num = 116; num <= 120; num += 1) {
+  // 105..106: PENDING_INSTITUTE_SIGNATURE (both Mentor and Academic Affairs approved)
+  for (let num = 105; num <= 106; num += 1) {
     const fixture = fixtures.get(num);
-    if (!fixture || !fixture.council) continue;
-    const score = 3.8;
-    const evidence = await createLockedEvidence(fixture, score, 'Kết quả bảo vệ chưa đạt yêu cầu chuẩn đầu ra.', 'FAILED');
-    const approval = await createApproval(fixture, evidence, 'FAILED', score);
-    await prisma.resultPublicationItem.create({
-      data: {
-        publicationId: publication.id,
-        registrationId: fixture.id,
-        sourceApprovalId: approval.id,
-        outcomeSnapshot: 'FAILED',
-        finalScoreSnapshot: score,
-        studentCodeSnapshot: fixture.student.code,
-        studentNameSnapshot: fixture.student.fullName,
-        topicTitleSnapshot: fixture.topic.title,
-      },
+    if (!fixture) continue;
+    await recordPublishedEvidence(fixture, 9.0, 9.0, 'PASSED', 'Bảo vệ đồ án xuất sắc, hoàn thành đầy đủ yêu cầu.');
+    await createArchiveDossier({
+      fixture,
+      status: 'PENDING_INSTITUTE_SIGNATURE',
+      fileTypes: ['REPORT_WORD', 'REPORT_PDF', 'DEMO_VIDEO', 'SLIDE_PPTX'],
+      mentorReviewStatus: 'APPROVED',
+      mentorReviewNotes: 'Đề tài đạt chuẩn học thuật và hoàn thiện tốt.',
+      academicAffairsReviewStatus: 'APPROVED',
+      academicAffairsReviewNotes: 'Đầy đủ 4 tài liệu theo quy định lưu chiểu.',
+    });
+    await prisma.topicRegistration.update({
+      where: { id: fixture.id },
+      data: { status: 'PENDING_INSTITUTE_SIGNATURE' },
+    });
+  }
+
+  // 107..108: ARCHIVE_REJECTED (defense score preserved, cannot issue certificate)
+  for (let num = 107; num <= 108; num += 1) {
+    const fixture = fixtures.get(num);
+    if (!fixture) continue;
+    await recordPublishedEvidence(fixture, 7.8, 7.8, 'PASSED', 'Điểm bảo vệ đạt nhưng hồ sơ lưu chiểu bị từ chối chuyên môn.');
+    await createArchiveDossier({
+      fixture,
+      status: 'ARCHIVE_REJECTED',
+      fileTypes: ['REPORT_WORD', 'REPORT_PDF', 'DEMO_VIDEO', 'SLIDE_PPTX'],
+      mentorReviewStatus: 'REJECTED',
+      mentorReviewNotes: 'Nội dung khóa luận vi phạm quy chế trích dẫn và sao chép mã nguồn.',
+      isClosed: true,
+    });
+    await prisma.topicRegistration.update({
+      where: { id: fixture.id },
+      data: { status: 'ARCHIVE_REJECTED' },
+    });
+  }
+
+  // 109..110: ARCHIVE_INCOMPLETE (closed window at day 15 missing files)
+  for (let num = 109; num <= 110; num += 1) {
+    const fixture = fixtures.get(num);
+    if (!fixture) continue;
+    await recordPublishedEvidence(fixture, 8.2, 8.2, 'PASSED', 'Điểm bảo vệ đạt nhưng quá hạn nộp hồ sơ lưu chiểu.');
+    await createArchiveDossier({
+      fixture,
+      status: 'ARCHIVE_INCOMPLETE',
+      fileTypes: ['REPORT_PDF'], // missing Word, Video, Slide
+      isClosed: true,
+    });
+    await prisma.topicRegistration.update({
+      where: { id: fixture.id },
+      data: { status: 'ARCHIVE_INCOMPLETE' },
+    });
+  }
+
+  // 111..112: DEFENSE_FAILED (score < 5.0: raw 4.9 -> rounded 4.9)
+  for (let num = 111; num <= 112; num += 1) {
+    const fixture = fixtures.get(num);
+    if (!fixture) continue;
+    await recordPublishedEvidence(fixture, 4.9, 4.9, 'FAILED', 'Kết quả bảo vệ chưa đạt chuẩn đầu ra (điểm < 5.0).');
+    await prisma.topicRegistration.update({
+      where: { id: fixture.id },
+      data: { status: 'DEFENSE_FAILED' },
+    });
+  }
+
+  // 113..114: DEFENSE_FAILED (ABSENT, no member scores, finalScore = null)
+  for (let num = 113; num <= 114; num += 1) {
+    const fixture = fixtures.get(num);
+    if (!fixture) continue;
+    await recordPublishedEvidence(fixture, null, null, 'FAILED', 'Sinh viên vắng mặt không lý do tại buổi bảo vệ (biên bản ABSENT).');
+    await prisma.topicRegistration.update({
+      where: { id: fixture.id },
+      data: { status: 'DEFENSE_FAILED' },
+    });
+  }
+
+  // 115..120: COMPLETED (Director signed certificate with immutable PDF)
+  for (let num = 115; num <= 120; num += 1) {
+    const fixture = fixtures.get(num);
+    if (!fixture) continue;
+    const finalScore = 9.2;
+    await recordPublishedEvidence(fixture, finalScore, finalScore, 'PASSED', 'Đạt chuẩn tốt nghiệp xuất sắc.');
+    await createArchiveDossier({
+      fixture,
+      status: 'COMPLETED',
+      fileTypes: ['REPORT_WORD', 'REPORT_PDF', 'DEMO_VIDEO', 'SLIDE_PPTX'],
+      mentorReviewStatus: 'APPROVED',
+      mentorReviewNotes: 'Đồ án xuất sắc, chất lượng cao.',
+      academicAffairsReviewStatus: 'APPROVED',
+      academicAffairsReviewNotes: 'Hồ sơ lưu chiểu đầy đủ và hợp lệ.',
+      certificateNumber: `XNHT-20261120-${fixture.id}`,
+      certificatePdfUrl: `/uploads/certificates/XNHT_${fixture.student.code}.pdf`,
+      isCompleted: true,
+      isClosed: true,
+    });
+    await prisma.topicRegistration.update({
+      where: { id: fixture.id },
+      data: { status: 'COMPLETED' },
     });
   }
 

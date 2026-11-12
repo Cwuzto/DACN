@@ -93,6 +93,8 @@ jest.mock('../../src/controllers/rubricController', () => {
         updateRubric: ok,
         activateRubric: ok,
         deleteRubric: ok,
+        lockRubric: ok,
+        restoreDefaultRubric: ok,
     };
 });
 jest.mock('../../src/controllers/manualReviewController', () => {

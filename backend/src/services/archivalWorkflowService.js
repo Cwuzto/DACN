@@ -786,6 +786,22 @@ async function signClearanceCertificateByInstituteDirector(input, options = {}) 
             );
         }
 
+        if (archive.mentorReviewStatus !== 'APPROVED') {
+            throw new WorkflowTransitionError(
+                'MENTOR_REVIEW_NOT_APPROVED',
+                409,
+                'GVHD chưa phê duyệt chuyên môn hồ sơ lưu chiểu.',
+            );
+        }
+
+        if (archive.academicAffairsReviewStatus !== 'APPROVED') {
+            throw new WorkflowTransitionError(
+                'ACADEMIC_AFFAIRS_REVIEW_NOT_APPROVED',
+                409,
+                'Giáo vụ Viện chưa duyệt thủ tục hồ sơ lưu chiểu.',
+            );
+        }
+
         // Resolve effective topic title
         let effectiveTitle = registration.adjustedTitle || registration.bm01ApprovedTitleSnapshot || registration.topic?.title || 'Chưa xác định';
         try {
