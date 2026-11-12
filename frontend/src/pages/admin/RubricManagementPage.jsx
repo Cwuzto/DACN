@@ -17,6 +17,7 @@ import {
     PlusOutlined,
     ReloadOutlined,
     SaveOutlined,
+    SettingOutlined,
 } from '@ant-design/icons';
 import rubricService from '../../services/rubricService';
 import portalContentService from '../../services/portalContentService';
@@ -1008,7 +1009,7 @@ export default function RubricManagementPage() {
                                     fontWeight: 700,
                                 }}
                             >
-                                ⚙
+                                <SettingOutlined style={{ color: '#0F766E', fontSize: 18 }} />
                             </div>
                             <div>
                                 <div style={{ fontWeight: 700, color: '#0F766E', fontSize: 14 }}>

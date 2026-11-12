@@ -352,7 +352,7 @@ function TopicManagementPage() {
                         onClick={() => openFormModal()}
                         className="font-semibold text-xs !bg-[#0F766E] hover:!bg-[#115E59]"
                     >
-                        + Thêm đề tài mới
+                        Thêm đề tài mới
                     </Button>
                 </div>
             </div>
@@ -578,7 +578,7 @@ function TopicManagementPage() {
 
             {/* Form Modal Thêm / Sửa đề tài */}
             <Modal
-                title={editingTopic ? 'Chỉnh sửa đề tài' : '+ Thêm đề tài mới'}
+                title={editingTopic ? 'Chỉnh sửa đề tài' : 'Thêm đề tài mới'}
                 open={formModalOpen}
                 onCancel={() => setFormModalOpen(false)}
                 footer={

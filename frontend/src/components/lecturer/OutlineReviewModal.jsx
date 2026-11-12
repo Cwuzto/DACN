@@ -3,6 +3,7 @@ import { Modal, Form, Input, Radio, Alert, Popconfirm, message, Tag, Button, Div
 import {
     FileTextOutlined,
     CheckCircleOutlined,
+    CheckOutlined,
     ExclamationCircleOutlined,
     DownloadOutlined,
     UserOutlined,
@@ -253,13 +254,14 @@ export default function OutlineReviewModal({
                             <Button
                                 type="primary"
                                 loading={submitting}
+                                icon={selectedDecision === 'PASSED' ? <CheckOutlined /> : <ExclamationCircleOutlined />}
                                 className={
                                     selectedDecision === 'PASSED'
                                         ? '!bg-emerald-600 hover:!bg-emerald-500'
                                         : '!bg-amber-600 hover:!bg-amber-500'
                                 }
                             >
-                                {selectedDecision === 'PASSED' ? '✓ Xác Nhận Duyệt ĐẠT' : '⚠ Gửi Yêu Cầu Chỉnh Sửa'}
+                                {selectedDecision === 'PASSED' ? 'Xác nhận duyệt Đạt' : 'Gửi yêu cầu chỉnh sửa'}
                             </Button>
                         </Popconfirm>
                     </div>
