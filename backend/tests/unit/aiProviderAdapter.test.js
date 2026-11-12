@@ -139,9 +139,10 @@ describe('Academic AI Suite - Provider Adapter Core & Local Fallback', () => {
         { apiKey: 'fake-gemini-key', fetchFn: mockFetch }
       );
 
+      const expectedModel = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
       expect(mockFetch).toHaveBeenCalledTimes(1);
       const [calledUrl, calledOpts] = mockFetch.mock.calls[0];
-      expect(calledUrl).toContain('gemini-2.0-flash:generateContent?key=fake-gemini-key');
+      expect(calledUrl).toContain(`${expectedModel}:generateContent?key=fake-gemini-key`);
       expect(calledOpts.method).toBe('POST');
       expect(calledOpts.headers['Content-Type']).toBe('application/json');
 
@@ -150,7 +151,7 @@ describe('Academic AI Suite - Provider Adapter Core & Local Fallback', () => {
       expect(body.generationConfig.temperature).toBe(0.2);
 
       expect(result.overallScore).toBe(8.8);
-      expect(result.provider).toBe('gemini-2.0-flash');
+      expect(result.provider).toBe(expectedModel);
     });
 
     it('should throw an informative error when Gemini REST API returns non-200 status', async () => {
@@ -486,7 +487,7 @@ describe('Academic AI Suite - Provider Adapter Core & Local Fallback', () => {
 
       process.env.GEMINI_API_KEY = 'test-key';
       expect(aiProviderService.isGeminiConfigured()).toBe(true);
-      expect(aiProviderService.getProviderMode()).toBe('gemini-2.0-flash');
+      expect(aiProviderService.getProviderMode()).toBe(process.env.GEMINI_MODEL || 'gemini-3.8-flash');
     });
   });
 });
