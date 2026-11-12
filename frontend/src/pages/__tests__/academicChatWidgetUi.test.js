@@ -50,10 +50,10 @@ test('AcademicChatWidget: Adheres strictly to Rule 2.6 (No raw emojis or symbols
         assert.ok(!forbiddenSymbols.test(label), `Button label "${label}" must not contain raw symbols or emojis`);
     }
 
-    // Explicit check for known buttons
-    assert.ok(buttonLabels.includes('Làm mới'), 'Must contain "Làm mới" button');
-    assert.ok(buttonLabels.includes('Đóng'), 'Must contain "Đóng" button');
+    // Explicit check for known buttons and accessible action buttons
     assert.ok(buttonLabels.includes('Gửi'), 'Must contain "Gửi" button');
+    assert.match(src, /aria-label=["']Làm mới["']/, 'Must provide aria-label="Làm mới" for clear button');
+    assert.match(src, /aria-label=["']Đóng["']/, 'Must provide aria-label="Đóng" for close button');
 
     // Icons from Ant Design
     assert.match(src, /MessageOutlined/, 'Must import MessageOutlined');

@@ -208,29 +208,29 @@ export default function AcademicChatWidget() {
                     }}
                 >
                     {/* Header */}
-                    <div className="bg-gradient-to-r from-teal-800 via-teal-700 to-slate-900 text-white px-4 py-3.5 flex items-center justify-between border-b border-teal-600/30 shadow-sm relative overflow-hidden">
+                    <div className="bg-gradient-to-r from-teal-800 via-teal-700 to-slate-900 text-white px-3.5 py-3 flex items-center justify-between border-b border-teal-600/30 shadow-sm relative overflow-hidden gap-2">
                         {/* Decorative background aura */}
                         <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/5 rounded-full blur-2xl pointer-events-none" />
 
-                        <div className="flex items-center space-x-3 z-10">
-                            <div className="relative">
-                                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-white/20 to-white/10 ring-1 ring-white/30 backdrop-blur-sm flex items-center justify-center text-white shadow-inner">
-                                    <RobotOutlined className="text-lg" />
+                        {/* Left Identity Section: Avatar + Title + Badges */}
+                        <div className="flex items-center space-x-2.5 min-w-0 flex-1 z-10">
+                            <div className="relative shrink-0">
+                                <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-white/20 to-white/10 ring-1 ring-white/30 backdrop-blur-sm flex items-center justify-center text-white shadow-inner">
+                                    <RobotOutlined className="text-base" />
                                 </div>
                                 {/* Online beacon */}
-                                <span className="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5">
+                                <span className="absolute -bottom-0.5 -right-0.5 flex h-2 w-2">
                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400 border border-teal-900" />
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400 border border-teal-900" />
                                 </span>
                             </div>
 
-                            <div>
-                                <div className="font-semibold text-sm leading-tight tracking-wide text-white flex items-center gap-1.5">
+                            <div className="min-w-0 flex-1">
+                                <div className="font-semibold text-xs sm:text-sm leading-tight tracking-wide text-white truncate flex items-center gap-1.5">
                                     <span>Trợ Lý Quy Chế Học Vụ</span>
-                                    <span className="text-[10px] font-normal text-teal-200/90 hidden sm:inline">(AI)</span>
                                 </div>
 
-                                <div className="flex items-center space-x-1.5 mt-1">
+                                <div className="flex items-center gap-1 mt-1 flex-nowrap overflow-hidden">
                                     {user?.role === 'LECTURER' ? (
                                         <Tag color="green">Giảng viên / HĐ</Tag>
                                     ) : user?.role === 'ADMIN' ? (
@@ -241,7 +241,7 @@ export default function AcademicChatWidget() {
 
                                     <Tag
                                         color="cyan"
-                                        className="!text-[10px] !leading-4 !py-0 !px-1.5 !border-none !bg-white/15 !text-teal-100 font-medium tracking-tight rounded-sm"
+                                        className="!text-[10px] !leading-3.5 !py-0 !px-1.5 !border-none !bg-white/15 !text-teal-100 font-medium tracking-tight rounded-sm shrink-0"
                                     >
                                         Gemini 3.8 Flash
                                     </Tag>
@@ -249,42 +249,42 @@ export default function AcademicChatWidget() {
                             </div>
                         </div>
 
-                        {/* Top Action Buttons (Strictly Rule 2.6: no raw emoji) */}
-                        <div className="flex items-center space-x-1 z-10">
+                        {/* Top Action Buttons (Icon-only with Tooltips & aria-label, completely overflow-proof) */}
+                        <div className="flex items-center space-x-1 shrink-0 z-10">
                             <Tooltip title={isExpanded ? 'Thu nhỏ giao diện' : 'Mở rộng giao diện'}>
                                 <Button
                                     type="text"
                                     size="small"
-                                    icon={isExpanded ? <ShrinkOutlined /> : <ArrowsAltOutlined />}
+                                    shape="circle"
+                                    aria-label={isExpanded ? 'Thu nhỏ' : 'Mở rộng'}
+                                    icon={isExpanded ? <ShrinkOutlined className="text-sm" /> : <ArrowsAltOutlined className="text-sm" />}
                                     onClick={() => setIsExpanded(!isExpanded)}
-                                    className="!text-teal-100 hover:!text-white hover:!bg-white/15 !px-2 !rounded-md"
-                                >
-                                    {isExpanded ? 'Thu nhỏ' : 'Mở rộng'}
-                                </Button>
+                                    className="!w-7 !h-7 !text-teal-100 hover:!text-white hover:!bg-white/20 flex items-center justify-center !border-none"
+                                />
                             </Tooltip>
 
-                            <Tooltip title="Xóa lịch sử và làm mới phiên">
+                            <Tooltip title="Làm mới phiên hội thoại">
                                 <Button
                                     type="text"
                                     size="small"
-                                    icon={<ClearOutlined />}
+                                    shape="circle"
+                                    aria-label="Làm mới"
+                                    icon={<ClearOutlined className="text-sm" />}
                                     onClick={handleReset}
-                                    className="!text-teal-100 hover:!text-white hover:!bg-white/15 !px-2 !rounded-md"
-                                >
-                                    Làm mới
-                                </Button>
+                                    className="!w-7 !h-7 !text-teal-100 hover:!text-white hover:!bg-white/20 flex items-center justify-center !border-none"
+                                />
                             </Tooltip>
 
                             <Tooltip title="Đóng cửa sổ">
                                 <Button
                                     type="text"
                                     size="small"
-                                    icon={<CloseOutlined />}
+                                    shape="circle"
+                                    aria-label="Đóng"
+                                    icon={<CloseOutlined className="text-sm" />}
                                     onClick={() => setIsOpen(false)}
-                                    className="!text-teal-100 hover:!text-white hover:!bg-white/15 !px-2 !rounded-md"
-                                >
-                                    Đóng
-                                </Button>
+                                    className="!w-7 !h-7 !text-teal-100 hover:!text-white hover:!bg-white/20 flex items-center justify-center !border-none"
+                                />
                             </Tooltip>
                         </div>
                     </div>
