@@ -15,6 +15,7 @@ const PLATFORM_ROUTERS = {
     manualReviewRoutes: require('../../src/routes/manualReviewRoutes'),
     permissionRoutes: require('../../src/routes/permissionRoutes'),
     portalContentRoutes: require('../../src/routes/portalContentRoutes'),
+    reportRoutes: require('../../src/routes/reportRoutes'),
 };
 
 const ACADEMIC_ROUTERS = {

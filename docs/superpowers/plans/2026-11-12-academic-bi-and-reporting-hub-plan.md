@@ -40,7 +40,7 @@
   - `GET /api/reports/lecturer-workload`: Returns lecturer mentorship counts, completion rates, BM04 scores, council scores, and score variance.
   - `GET /api/reports/export-excel`: Returns binary buffer of `.xlsx` summary file with `Content-Disposition` header.
 
-- [ ] **Step 1: Write failing integration tests in `backend/tests/integration/academicReports.test.js`**
+- [x] **Step 1: Write failing integration tests in `backend/tests/integration/academicReports.test.js`**
 
 Cover:
 1. `GET /api/reports/overview` returns aggregated KPIs, 5-band grade distribution, and funnel stats.
@@ -48,14 +48,14 @@ Cover:
 3. `GET /api/reports/export-excel` returns binary buffer with `.xlsx` attachment headers.
 4. Unauthenticated users are rejected with `401`, students without reporting permissions are rejected with `403`.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npm --prefix backend test -- backend/tests/integration/academicReports.test.js`
 Expected: FAIL
 
-- [ ] **Step 3: Implement `reportController.js`, `reportRoutes.js`, and mount in `routes/index.js`**
+- [x] **Step 3: Implement `reportController.js`, `reportRoutes.js`, and mount in `routes/index.js`**
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `npm --prefix backend test -- backend/tests/integration/academicReports.test.js`
 Expected: PASS
@@ -187,3 +187,4 @@ Expected: Vite build succeeds with 0 errors.
 ```bash
 git commit -m "docs(claude): record Session Update for Academic BI & Reporting Hub"
 ```
+
