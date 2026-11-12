@@ -486,10 +486,310 @@ function crossCheckArchivalDossier(registrationData = {}, dossierFiles = []) {
   };
 }
 
+/**
+ * 4. Generate Academic Feedback (Local Heuristic Fallback)
+ * @param {object} payload
+ * @returns {object}
+ */
+function generateAcademicFeedback(payload = {}) {
+  const contextType = (payload.contextType || 'DEFENSE').toUpperCase();
+  const topicTitle = (payload.topicTitle || 'Đề tài tốt nghiệp').trim();
+  const studentName = (payload.studentName || 'Sinh viên').trim();
+  const scores = payload.scores && typeof payload.scores === 'object' ? payload.scores : {};
+  const notes = (payload.notes || '').trim();
+
+  // Extract score values
+  const scoreValues = Object.values(scores)
+    .map((v) => Number(v))
+    .filter((v) => !Number.isNaN(v) && v >= 0);
+
+  const avgScore = scoreValues.length > 0
+    ? scoreValues.reduce((a, b) => a + b, 0) / scoreValues.length
+    : 8.0; // default benchmark if no scores provided
+
+  const isExcellent = avgScore >= 8.5;
+  const isGood = avgScore >= 7.0 && avgScore < 8.5;
+  const isAverageOrLow = avgScore < 7.0;
+
+  const strengths = [];
+  const improvements = [];
+  let feedback = '';
+
+  if (contextType === 'BM01') {
+    if (isExcellent) {
+      feedback = `${studentName} đã xây dựng đề cương đề tài "${topicTitle}" rất tốt. Bố cục đề cương đầy đủ, mục tiêu nghiên cứu và phương pháp triển khai rõ ràng, khả thi.`;
+      strengths.push('Mục tiêu nghiên cứu bám sát định hướng và phạm vi rõ ràng');
+      strengths.push('Phương pháp và công nghệ đề xuất hiện đại, có tính khả thi cao');
+      improvements.push('Chi tiết hóa thêm kế hoạch phân bổ thời gian thực hiện từng tuần');
+    } else if (isGood) {
+      feedback = `${studentName} hoàn thành đề cương đồ án cơ bản đạt yêu cầu. Định hướng nghiên cứu phù hợp, tuy nhiên cần bổ sung cụ thể các chỉ số đo lường thực nghiệm.`;
+      strengths.push('Xác định được vấn đề nghiên cứu cần giải quyết');
+      strengths.push('Bố cục đề cương cơ bản đầy đủ theo mẫu BM01');
+      improvements.push('Cần làm rõ phương pháp đánh giá kết quả thực nghiệm và tập dữ liệu kiểm thử');
+      improvements.push('Hoàn thiện danh mục tài liệu tham khảo học thuật chính thống');
+    } else {
+      feedback = `Đề cương đồ án còn sơ sài, mục tiêu nghiên cứu chưa tương xứng với phạm vi đồ án tốt nghiệp. Cần chỉnh sửa bổ sung gấp trước khi duyệt chính thức.`;
+      strengths.push('Ý tưởng đề tài có tiềm năng ứng dụng');
+      improvements.push('Cần xác định lại mục tiêu cụ thể và phương pháp thực hiện');
+      improvements.push('Bổ sung chi tiết các sản phẩm bàn giao cuối cùng');
+    }
+  } else if (contextType === 'BM03') {
+    if (isExcellent) {
+      feedback = `${studentName} duy trì tiến độ thực hiện đề tài "${topicTitle}" rất nghiêm túc. Tích cực trao đổi với GVHD, giải quyết tốt các bài toán kỹ thuật theo đúng kế hoạch.`;
+      strengths.push('Tiến độ thực hiện đạt và vượt khối lượng công việc đề ra');
+      strengths.push('Tinh thần chủ động cao và ghi chép nhật ký hướng dẫn đầy đủ');
+      improvements.push('Tiến hành sớm giai đoạn kiểm thử tích hợp và đo lường hiệu năng');
+    } else if (isGood) {
+      feedback = `${studentName} đảm bảo tiến độ ở mức khá, hoàn thành các mốc công việc cơ bản. Cần đẩy nhanh việc hoàn thiện mã nguồn và bắt đầu viết quyển báo cáo.`;
+      strengths.push('Nắm được tiến trình kỹ thuật của đồ án');
+      strengths.push('Có tinh thần tiếp thu góp ý của Giảng viên hướng dẫn');
+      improvements.push('Đẩy nhanh tốc độ hoàn thiện các module còn dang dở');
+      improvements.push('Soạn thảo dần các chương lý thuyết của quyển báo cáo tốt nghiệp');
+    } else {
+      feedback = `Tiến độ thực hiện còn chậm so với yêu cầu mốc BM03. Cần tập trung cao độ và tăng cường trao đổi với GVHD để bù lại khối lượng còn thiếu.`;
+      strengths.push('Đã nắm được cấu trúc bài toán');
+      improvements.push('Tập trung giải quyết dứt điểm các vướng mắc kỹ thuật cốt lõi');
+      improvements.push('Báo cáo tiến độ thường xuyên theo lịch hẹn với GVHD');
+    }
+  } else if (contextType === 'BM04') {
+    if (isExcellent) {
+      feedback = `${studentName} đã hoàn thành xuất sắc đồ án tốt nghiệp với chất lượng cao. Quyển báo cáo được trình bày khoa học, sản phẩm phần mềm vận hành ổn định và đáp ứng đầy đủ mục tiêu đã đăng ký. Đủ điều kiện ra Hội đồng bảo vệ.`;
+      strengths.push('Sản phẩm hoàn thiện, giao diện và tính năng hoạt động mượt mà');
+      strengths.push('Báo cáo trình bày đúng quy chuẩn học thuật của Viện');
+      improvements.push('Chuẩn bị slide bảo vệ súc tích và kịch bản demo trực quan trước Hội đồng');
+    } else if (isGood) {
+      feedback = `${studentName} hoàn thành đầy đủ khối lượng đồ án tốt nghiệp, đáp ứng các tiêu chuẩn để ra Hội đồng bảo vệ. Cần rà soát lại một số lỗi chính tả và định dạng trong quyển báo cáo.`;
+      strengths.push('Hoàn thành cơ bản các yêu cầu chức năng của hệ thống');
+      strengths.push('Khối lượng công việc tương xứng với đồ án tốt nghiệp');
+      improvements.push('Chỉnh sửa lỗi định dạng hình vẽ, bảng biểu trong báo cáo');
+      improvements.push('Luyện tập phần thuyết trình để kiểm soát thời gian bảo vệ');
+    } else {
+      feedback = `Khối lượng đồ án đạt mức tối thiểu. Sản phẩm còn tồn tại lỗi và báo cáo cần được hoàn thiện kỹ hơn trước ngày bảo vệ.`;
+      strengths.push('Đã nỗ lực hoàn thành sản phẩm mức cơ bản');
+      improvements.push('Sửa các lỗi ngoại lệ trong quá trình thực thi demo');
+      improvements.push('Bổ sung đầy đủ phần kết luận và hướng phát triển');
+    }
+  } else {
+    // DEFENSE
+    if (isExcellent) {
+      feedback = `Sinh viên ${studentName} bảo vệ đề tài "${topicTitle}" rất thành công. Trình bày tự tin, mạch lạc, trả lời xuất sắc và thấu đáo các câu hỏi phản biện của Hội đồng.`;
+      strengths.push('Nắm vững kiến thức nền tảng và bản chất công nghệ sử dụng');
+      strengths.push('Phong thái trình bày tự tin, trả lời phản biện thuyết phục');
+      improvements.push('Hoàn thiện các góp ý nhỏ của Hội đồng trong thời hạn lưu chiểu 14 ngày');
+    } else if (isGood) {
+      feedback = `Sinh viên ${studentName} hoàn thành tốt buổi bảo vệ đồ án tốt nghiệp. Trình bày rõ ràng các kết quả đạt được, trả lời thỏa đáng phần lớn câu hỏi của Hội đồng.`;
+      strengths.push('Trình bày rõ ràng cấu trúc và kết quả thực nghiệm');
+      strengths.push('Có tinh thần cầu thị và ghi nhận các nhận xét phản biện');
+      improvements.push('Bổ sung giải trình chi tiết theo góp ý của Hội đồng vào bản nộp lưu chiểu');
+      improvements.push('Hoàn thiện chỉnh sửa báo cáo trước hạn 14 ngày làm việc');
+    } else {
+      feedback = `Sinh viên đạt kết quả bảo vệ mức trung bình. Cần nắm vững hơn kiến thức nền tảng và giải thích rõ hơn về mặt kỹ thuật khi được Hội đồng chất vấn.`;
+      strengths.push('Hoàn thành phiên bảo vệ theo đúng quy định');
+      improvements.push('Nghiêm túc chỉnh sửa toàn diện báo cáo theo biên bản bảo vệ');
+      improvements.push('Kiểm tra kỹ lưỡng hồ sơ lưu chiểu trước khi nộp');
+    }
+  }
+
+  // Integrate custom notes if available
+  if (notes) {
+    feedback += ` Ghi chú bổ sung: ${notes}.`;
+    if (notes.toLowerCase().includes('tốt') || notes.toLowerCase().includes('khá')) {
+      strengths.push(notes);
+    } else {
+      improvements.push(notes);
+    }
+  }
+
+  return {
+    feedback,
+    strengths: Array.from(new Set(strengths)),
+    improvements: Array.from(new Set(improvements)),
+    provider: 'local_fallback',
+  };
+}
+
+/**
+ * 5. Generate Defense Questions (Local Heuristic Fallback)
+ * @param {object} payload
+ * @returns {object}
+ */
+function generateDefenseQuestions(payload = {}) {
+  const topicTitle = (payload.topicTitle || 'Hệ thống ứng dụng công nghệ').trim();
+  const description = (payload.description || '').trim();
+  const technologies = (payload.technologies || '').trim();
+  const major = (payload.major || 'Công nghệ Thông tin').trim();
+
+  // Identify core tech keyword
+  const techKeywords = technologies.split(/[,\s/]+/).filter((t) => t.length > 2);
+  const primaryTech = techKeywords[0] || 'công nghệ chính';
+  const secondaryTech = techKeywords[1] || 'kiến trúc hệ thống';
+
+  const q1 = `Em hãy phân tích nguyên lý hoạt động của giải pháp và giải thích lý do lựa chọn ${primaryTech} cho đề tài "${topicTitle}" thay vì các giải pháp truyền thống khác?`;
+  const p1 = `Đánh giá mức độ nắm vững kiến thức nền tảng chuyên ngành ${major} và sự thấu hiểu về công nghệ cốt lõi của sinh viên.`;
+
+  const q2 = `Trong quá trình triển khai thực tế với ${secondaryTech || primaryTech}, em đã gặp những khó khăn gì về mặt hiệu năng hoặc xử lý ngoại lệ dữ liệu, và em đã giải quyết bài toán đó như thế nào?`;
+  const p2 = 'Kiểm tra năng lực giải quyết vấn đề kỹ thuật thực tế và tư duy tối ưu hóa của sinh viên.';
+
+  const q3 = `Nếu hệ thống của đề tài "${topicTitle}" được đưa vào triển khai thực tế trên diện rộng với số lượng người dùng đồng thời lớn, em sẽ đề xuất giải pháp mở rộng (scalability) và bảo mật như thế nào?`;
+  const p3 = 'Đánh giá tầm nhìn ứng dụng thực tiễn, khả năng mở rộng sản phẩm và định hướng nghiên cứu tiếp theo.';
+
+  return {
+    questions: [
+      {
+        level: 'FOUNDATION',
+        levelLabel: 'Kiến thức nền tảng',
+        question: q1,
+        purpose: p1,
+      },
+      {
+        level: 'TECHNICAL_CHALLENGE',
+        levelLabel: 'Thách thức kỹ thuật',
+        question: q2,
+        purpose: p2,
+      },
+      {
+        level: 'FUTURE_EXPANSION',
+        levelLabel: 'Hướng phát triển & Ứng dụng',
+        question: q3,
+        purpose: p3,
+      },
+    ],
+    provider: 'local_fallback',
+  };
+}
+
+/**
+ * 6. Academic Regulation Chatbot (Local Heuristic Fallback)
+ * @param {object} payload
+ * @returns {object}
+ */
+function answerRegulationChat(payload = {}) {
+  const message = (payload.message || '').trim();
+  const lowerMsg = message.toLowerCase();
+
+  let reply = '';
+  let relatedRegulations = [];
+  let suggestedQuickQuestions = [];
+
+  if (
+    lowerMsg.includes('bm01') ||
+    lowerMsg.includes('đề cương') ||
+    lowerMsg.includes('nộp lại') ||
+    lowerMsg.includes('chỉnh sửa') ||
+    lowerMsg.includes('v2')
+  ) {
+    reply =
+      'Theo Quy chế Đồ án tốt nghiệp của Viện Công nghệ Số: Nếu đề cương BM01 (v1) bị Hội đồng thẩm định đánh giá "Cần chỉnh sửa", sinh viên chỉ được phép nộp lại duy nhất 01 lần (bản v2) trong thời hạn quy định. Bản nộp lại là căn cứ cuối cùng để Chủ tịch Hội đồng phê duyệt ĐẠT hoặc DỪNG ĐỀ TÀI trong học kỳ hiện tại.';
+    relatedRegulations = [
+      'BM01: Đề cương chi tiết đồ án tốt nghiệp',
+      'Quy chế nộp lại v2 duy nhất (1 lần)',
+      'Nguyên tắc 1 Sinh viên / 1 Đề tài (maxStudents = 1)',
+    ];
+    suggestedQuickQuestions = [
+      'Thời hạn nộp lại đề cương v2 là bao lâu?',
+      'Nếu bị dừng đề tài ở bước BM01 thì xử lý thế nào?',
+      'Khi nào sinh viên được làm đơn BM02 điều chỉnh đề tài?',
+    ];
+  } else if (
+    lowerMsg.includes('lưu chiểu') ||
+    lowerMsg.includes('14 ngày') ||
+    lowerMsg.includes('sau bảo vệ') ||
+    lowerMsg.includes('thư viện') ||
+    lowerMsg.includes('bìa')
+  ) {
+    reply =
+      'Theo Quy chuẩn Giai đoạn 6 của Viện: Sinh viên sau khi bảo vệ thành công có đúng 14 ngày làm việc để hoàn thiện chỉnh sửa báo cáo theo kết luận của Hội đồng và nộp hồ sơ lưu chiểu. Lưu ý quan trọng: Tên đề tài trên bìa báo cáo lưu chiểu phải trùng khớp 100% với Tên đề tài chính thức có hiệu lực trên Quyết định phê duyệt hoặc Phụ lục BM02-A.';
+    relatedRegulations = [
+      'Quy chế Nộp lưu chiểu 14 ngày làm việc sau bảo vệ',
+      'Quy chuẩn đối soát bìa báo cáo và tính pháp lý',
+      'Giai đoạn 6: Hoàn tất thủ tục tốt nghiệp',
+    ];
+    suggestedQuickQuestions = [
+      'Hồ sơ nộp lưu chiểu bao gồm những tệp gì?',
+      'Nếu tên đề tài trên bìa lệch với quyết định thì xử lý thế nào?',
+      'Quy trình ký xác nhận của Chủ tịch Hội đồng sau khi sửa báo cáo',
+    ];
+  } else if (
+    lowerMsg.includes('bm03') ||
+    lowerMsg.includes('tiến độ') ||
+    lowerMsg.includes('gặp gvhd') ||
+    lowerMsg.includes('hướng dẫn')
+  ) {
+    reply =
+      'Theo Quy chế Giai đoạn 2: Sinh viên phải tham gia tối thiểu 4-6 buổi làm việc định kỳ với GVHD và hoàn thành nộp Báo cáo tiến độ BM03. Sinh viên có tiến độ dưới 50% hoặc vắng mặt không lý do sẽ bị cảnh báo hoặc đình chỉ bảo vệ.';
+    relatedRegulations = [
+      'BM03: Phiếu đánh giá tiến độ thực hiện định kỳ',
+      'Quy định số buổi làm việc tối thiểu với GVHD',
+      'Giai đoạn 2: Theo dõi tiến độ đề tài',
+    ];
+    suggestedQuickQuestions = [
+      'Bao nhiêu buổi không gặp GVHD thì bị dừng đề tài?',
+      'Tiêu chí đánh giá tiến độ của Giảng viên hướng dẫn',
+      'Cách nộp báo cáo tiến độ BM03 trên hệ thống',
+    ];
+  } else if (
+    lowerMsg.includes('bm04') ||
+    lowerMsg.includes('phản biện') ||
+    lowerMsg.includes('điều kiện bảo vệ') ||
+    lowerMsg.includes('điểm tối thiểu')
+  ) {
+    reply =
+      'Theo Quy chế Giai đoạn 3: Trước khi ra Hội đồng bảo vệ, đồ án phải được GVHD và Giảng viên phản biện đánh giá độc lập trên biểu mẫu BM04. Cả điểm của GVHD và điểm của Giảng viên phản biện đều phải đạt từ 5.0/10 trở lên thì sinh viên mới đủ điều kiện ra bảo vệ trước Hội đồng.';
+    relatedRegulations = [
+      'BM04: Phiếu nhận xét đồ án của GVHD và Phản biện',
+      'Điều kiện điểm tối thiểu (>= 5.0) để được bảo vệ',
+      'Giai đoạn 3: Đánh giá trước bảo vệ',
+    ];
+    suggestedQuickQuestions = [
+      'Nếu điểm phản biện dưới 5.0 thì có được phúc khảo không?',
+      'Hội đồng bảo vệ gồm những thành viên nào?',
+      'Thời gian nhận phiếu nhận xét BM04 trước ngày bảo vệ',
+    ];
+  } else if (
+    lowerMsg.includes('dừng') ||
+    lowerMsg.includes('hủy') ||
+    lowerMsg.includes('đình chỉ')
+  ) {
+    reply =
+      'Sinh viên sẽ bị Dừng đề tài hoặc đình chỉ bảo vệ trong các trường hợp: (1) Bản nộp lại BM01 v2 không đạt yêu cầu; (2) Tiến độ BM03 dưới 50% hoặc không tham gia hướng dẫn; (3) Điểm đánh giá BM04 của GVHD hoặc Phản biện dưới 5.0; (4) Vi phạm nghiêm trọng về tính chính trực học thuật (đạo văn, sao chép).';
+    relatedRegulations = [
+      'Quy định các trường hợp dừng đề tài và đình chỉ tốt nghiệp',
+      'Quy chế liêm chính học thuật và kiểm tra trùng lặp',
+    ];
+    suggestedQuickQuestions = [
+      'Nếu bị dừng đề tài thì học kỳ sau đăng ký lại thế nào?',
+      'Thủ tục xin hoãn bảo vệ đồ án tốt nghiệp',
+      'Quy định kiểm tra đạo văn và mức % trùng lặp cho phép',
+    ];
+  } else {
+    reply =
+      'Xin chào bạn! Tôi là Trợ lý Học vụ AI của Viện Công nghệ Số. Quy trình Đồ án tốt nghiệp vận hành qua 6 giai đoạn chuẩn: (1) Đăng ký & Duyệt đề cương BM01, (2) Báo cáo tiến độ BM03, (3) Đánh giá GVHD & Phản biện BM04, (4) Thành lập Hội đồng & Lịch bảo vệ, (5) Chấm điểm bảo vệ, và (6) Nộp lưu chiểu hoàn tất trong 14 ngày làm việc. Bạn đang cần thông tin cụ thể về giai đoạn nào?';
+    relatedRegulations = [
+      'Quy chế Đồ án tốt nghiệp 6 giai đoạn chuẩn',
+      'Sổ tay hướng dẫn học vụ Viện Công nghệ Số',
+    ];
+    suggestedQuickQuestions = [
+      'Quy định nộp lại đề cương BM01 v2',
+      'Thời hạn nộp lưu chiểu 14 ngày sau bảo vệ',
+      'Điều kiện điểm số BM04 để được ra hội đồng',
+    ];
+  }
+
+  return {
+    reply,
+    relatedRegulations,
+    suggestedQuickQuestions,
+    provider: 'local_fallback',
+  };
+}
+
 module.exports = {
   tokenize,
   calculateJaccardSimilarity,
   analyzeBM01Outline,
   checkTopicSimilarity,
   crossCheckArchivalDossier,
+  generateAcademicFeedback,
+  generateDefenseQuestions,
+  answerRegulationChat,
 };

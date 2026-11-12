@@ -287,6 +287,194 @@ async function analyzeBM01Outline(outlineContent, options = {}) {
 }
 
 /**
+ * Format prompt for Academic Feedback generation (BM01, BM03, BM04, DEFENSE).
+ * @param {object} payload
+ * @returns {string}
+ */
+function formatFeedbackPrompt(payload = {}) {
+  const {
+    contextType = 'DEFENSE',
+    topicTitle = '',
+    studentName = '',
+    scores = {},
+    notes = '',
+  } = payload;
+
+  const scoreDetails = Object.entries(scores || {})
+    .filter(([_, val]) => val !== undefined && val !== null && val !== '')
+    .map(([key, val]) => `- ${key}: ${val}`)
+    .join('\n');
+
+  return `Bạn là Chuyên gia Học vụ và Thành viên Hội đồng Đánh giá Đồ án tốt nghiệp tại Viện Công nghệ Số.
+Nhiệm vụ của bạn là soạn thảo đoạn văn nhận xét học thuật chuẩn mực, mang tính sư phạm và xây dựng cao dựa trên dữ liệu đánh giá:
+
+THÔNG TIN ĐÁNH GIÁ:
+- Cột mốc đánh giá (contextType): ${contextType} (BM01: Đề cương, BM03: Tiến độ, BM04: Phiếu nhận xét GVHD/Phản biện, DEFENSE: Bảo vệ Hội đồng)
+- Tên đề tài: ${topicTitle}
+- Họ tên sinh viên: ${studentName || 'Sinh viên'}
+- Điểm số chi tiết:
+${scoreDetails || '(Chưa có điểm chi tiết cụ thể)'}
+- Ghi chú nhanh của Giảng viên/Hội đồng: ${notes || '(Không có ghi chú thêm)'}
+
+YÊU CẦU ĐẦU RA:
+- Đoạn nhận xét (feedback): Viết bằng tiếng Việt trang trọng, chuẩn mực học thuật, phân tích thỏa đáng các tiêu chí đánh giá phù hợp với cột mốc ${contextType}.
+- Danh sách ưu điểm nổi bật (strengths): Mảng các chuỗi ngắn gọn.
+- Danh sách điểm cần hoàn thiện/khắc phục (improvements): Mảng các chuỗi mang tính hành động cụ thể.
+
+Định dạng JSON thuần túy bắt buộc:
+{
+  "feedback": "Nhận xét tổng quan và chi tiết...",
+  "strengths": ["Ưu điểm 1", "Ưu điểm 2"],
+  "improvements": ["Điểm cần hoàn thiện 1", "Điểm cần hoàn thiện 2"]
+}`;
+}
+
+/**
+ * Format prompt for Defense Questions generation (3-tiered).
+ * @param {object} payload
+ * @returns {string}
+ */
+function formatDefenseQuestionsPrompt(payload = {}) {
+  const {
+    topicTitle = '',
+    description = '',
+    technologies = '',
+    major = '',
+  } = payload;
+
+  return `Bạn là Thành viên Hội đồng Thẩm định & Bảo vệ Đồ án tốt nghiệp tại Viện Công nghệ Số.
+Hãy tạo đúng 3 câu hỏi phản biện chuyên sâu và xác đáng cho sinh viên bảo vệ đồ án tốt nghiệp, phân theo 3 cấp độ:
+1. FOUNDATION (Kiến thức nền tảng): Kiểm tra mức độ nắm bắt bản chất lý thuyết, cơ sở lựa chọn thuật toán/mô hình/kiến trúc.
+2. TECHNICAL_CHALLENGE (Thách thức kỹ thuật): Kiểm tra khả năng giải quyết vấn đề khó, xử lý dữ liệu ngoại lệ, tối ưu hóa hiệu năng, độ trễ hoặc bài toán nghẽn cổ chai.
+3. FUTURE_EXPANSION (Hướng phát triển & Ứng dụng): Kiểm tra tầm nhìn mở rộng hệ thống, khả năng triển khai thực tế trên diện rộng hoặc tích hợp liên thông.
+
+THÔNG TIN ĐỀ TÀI:
+- Tên đề tài: ${topicTitle}
+- Tóm tắt nội dung: ${description || '(Chưa có mô tả)'}
+- Công nghệ & Kỹ thuật sử dụng: ${technologies || '(Chưa có thông tin công nghệ)'}
+- Chuyên ngành: ${major || 'Công nghệ Thông tin'}
+
+Định dạng JSON thuần túy bắt buộc:
+{
+  "questions": [
+    {
+      "level": "FOUNDATION",
+      "levelLabel": "Kiến thức nền tảng",
+      "question": "Nội dung câu hỏi...",
+      "purpose": "Mục đích đánh giá của câu hỏi..."
+    },
+    {
+      "level": "TECHNICAL_CHALLENGE",
+      "levelLabel": "Thách thức kỹ thuật",
+      "question": "Nội dung câu hỏi...",
+      "purpose": "Mục đích đánh giá của câu hỏi..."
+    },
+    {
+      "level": "FUTURE_EXPANSION",
+      "levelLabel": "Hướng phát triển & Ứng dụng",
+      "question": "Nội dung câu hỏi...",
+      "purpose": "Mục đích đánh giá của câu hỏi..."
+    }
+  ]
+}`;
+}
+
+/**
+ * Format prompt for Academic Regulation Chatbot.
+ * @param {object} payload
+ * @returns {string}
+ */
+function formatRegulationChatPrompt(payload = {}) {
+  const { message = '', history = [] } = payload;
+
+  const historyStr = (history || [])
+    .slice(-6)
+    .map((h) => `${h.role === 'user' ? 'Sinh viên' : 'Trợ lý'}: ${h.content}`)
+    .join('\n');
+
+  return `Bạn là Trợ lý Học vụ AI thông minh của Viện Công nghệ Số.
+Nhiệm vụ của bạn là giải đáp chính xác, súc tích và thân thiện các thắc mắc về Quy chế Đồ án / Khóa luận Tốt nghiệp dựa trên 6 giai đoạn chuẩn của Viện:
+
+KIẾN THỨC QUY CHẾ HỌC VỤ (Quy chế học vụ 6 giai đoạn chuẩn của Viện):
+1. Giai đoạn 1 (Đăng ký & Phê duyệt đề tài):
+   - Mô hình: 1 Sinh viên / 1 Đề tài (maxStudents = 1), 1 Giảng viên hướng dẫn tối đa 10 sinh viên.
+   - Biểu mẫu BM01 (Đề cương chi tiết đồ án).
+   - Quy tắc nộp lại v2 duy nhất: Nếu đề cương v1 bị Hội đồng đánh giá 'Cần chỉnh sửa', sinh viên chỉ được phép nộp lại duy nhất 01 lần (bản v2) trong thời hạn quy định. Nếu bản v2 vẫn không đạt yêu cầu, sinh viên sẽ bị DỪNG ĐỀ TÀI trong học kỳ đó.
+2. Giai đoạn 2 (Báo cáo tiến độ BM03):
+   - Sinh viên phải tham gia tối thiểu 4-6 buổi gặp gỡ và hướng dẫn với GVHD.
+   - Báo cáo tiến độ định kỳ BM03 ghi nhận khối lượng công việc hoàn thành. Sinh viên không nộp báo cáo hoặc tiến độ dưới 50% sẽ bị cảnh báo hoặc đình chỉ bảo vệ.
+3. Giai đoạn 3 (Đánh giá GVHD & Phản biện BM04):
+   - Điểm đánh giá của GVHD và Điểm đánh giá của Giảng viên Phản biện phải độc lập và đều đạt từ 5.0/10 trở lên mới đủ điều kiện được đưa ra Hội đồng bảo vệ.
+4. Giai đoạn 4 (Thành lập Hội đồng & Lịch bảo vệ):
+   - Hội đồng gồm 3 đến 5 thành viên (Chủ tịch, Thư ký, Phản biện và các Ủy viên).
+   - Sinh viên hoàn thiện quyển báo cáo theo định dạng quy chuẩn của Viện và nộp trước ngày bảo vệ.
+5. Giai đoạn 5 (Chấm điểm bảo vệ đồ án):
+   - Hội đồng chấm điểm theo thang điểm 10, tính điểm trung bình công khai của các thành viên.
+   - Biên bản chấm bảo vệ được lập và ký xác nhận ngay sau phiên bảo vệ.
+6. Giai đoạn 6 (Nộp lưu chiểu & Hoàn tất tốt nghiệp):
+   - Thời hạn nộp lưu chiểu bắt buộc: Trong vòng đúng 14 ngày làm việc kể từ ngày bảo vệ thành công.
+   - Hồ sơ lưu chiểu gồm: File PDF báo cáo toàn văn đã chỉnh sửa theo góp ý của Hội đồng, mã nguồn/sản phẩm phần mềm, và phụ lục giải trình.
+   - Đối soát pháp lý: Tên đề tài trên bìa báo cáo lưu chiểu phải trùng khớp 100% với Tên đề tài chính thức có hiệu lực trên Quyết định giao đề tài hoặc Phụ lục BM02-A đã được phê duyệt.
+
+LỊCH SỬ HỘI THOẠI TRƯỚC ĐÓ:
+${historyStr || '(Chưa có hội thoại trước)'}
+
+CÂU HỎI HIỆN TẠI CỦA SINH VIÊN:
+"${message}"
+
+YÊU CẦU ĐẦU RA:
+- Trả lời đúng trọng tâm quy chế, dễ hiểu, dẫn chiếu biểu mẫu hoặc giai đoạn liên quan.
+- Đề xuất 2-3 câu hỏi nhanh kế tiếp mà sinh viên thường quan tâm để người dùng có thể bấm hỏi ngay.
+
+Định dạng JSON thuần túy bắt buộc:
+{
+  "reply": "Câu trả lời chi tiết và súc tích bằng tiếng Việt...",
+  "relatedRegulations": ["Tên quy chế / biểu mẫu liên quan 1", "Quy chế 2"],
+  "suggestedQuickQuestions": ["Câu hỏi gợi ý 1", "Câu hỏi gợi ý 2", "Câu hỏi gợi ý 3"]
+}`;
+}
+
+/**
+ * Generate academic feedback using Gemini
+ */
+async function generateAcademicFeedback(payload, options = {}) {
+  const prompt = formatFeedbackPrompt(payload);
+  const result = await callGeminiApi(prompt, options);
+  return {
+    feedback: result.feedback || '',
+    strengths: Array.isArray(result.strengths) ? result.strengths : [],
+    improvements: Array.isArray(result.improvements) ? result.improvements : [],
+    provider: result.provider || DEFAULT_MODEL,
+  };
+}
+
+/**
+ * Generate 3-tiered defense questions using Gemini
+ */
+async function generateDefenseQuestions(payload, options = {}) {
+  const prompt = formatDefenseQuestionsPrompt(payload);
+  const result = await callGeminiApi(prompt, options);
+  return {
+    questions: Array.isArray(result.questions) ? result.questions : [],
+    provider: result.provider || DEFAULT_MODEL,
+  };
+}
+
+/**
+ * Answer academic regulation chat using Gemini
+ */
+async function answerRegulationChat(payload, options = {}) {
+  const prompt = formatRegulationChatPrompt(payload);
+  const result = await callGeminiApi(prompt, options);
+  return {
+    reply: result.reply || '',
+    relatedRegulations: Array.isArray(result.relatedRegulations) ? result.relatedRegulations : [],
+    suggestedQuickQuestions: Array.isArray(result.suggestedQuickQuestions) ? result.suggestedQuickQuestions : [],
+    provider: result.provider || DEFAULT_MODEL,
+  };
+}
+
+/**
  * Check semantic topic similarity using Gemini
  */
 async function checkTopicSimilarity(newTopic, existingTopics = [], options = {}) {
@@ -307,8 +495,14 @@ module.exports = {
   formatBM01Prompt,
   formatSimilarityPrompt,
   formatCrossCheckPrompt,
+  formatFeedbackPrompt,
+  formatDefenseQuestionsPrompt,
+  formatRegulationChatPrompt,
   callGeminiApi,
   analyzeBM01Outline,
   checkTopicSimilarity,
   crossCheckArchivalDossier,
+  generateAcademicFeedback,
+  generateDefenseQuestions,
+  answerRegulationChat,
 };
