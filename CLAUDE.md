@@ -2123,33 +2123,40 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
    - `ProjectPeriodPage.jsx`: Tự động nhận diện `?tab=decisions` $\rightarrow$ kích hoạt danh sách quyết định giao đề tài.
 
 5. **Tinh gọn & phân tầng thanh điều hướng Giảng viên (`navigationRegistry.js`)**:
-   - Giảng viên thông thường (regular GVHD) với 5 quyền core chỉ hiển thị chính xác **5 mục cốt lõi** thuộc 3 nhóm nghiệp vụ:
+   - Lược bỏ mục trùng lặp **"Phiếu nhận xét hướng dẫn"** (`bm04-evaluations`), chỉ giữ lại duy nhất **"Theo dõi tiến độ"** (`/lecturer/progress`) bao hàm trọn vẹn cả 4 khâu nghiệp vụ (Tasks, Meeting logs, Checkpoint BM03, Nghiệm thu BM04). Giảng viên thông thường (regular GVHD) giờ đây có đúng **4 mục cốt lõi**:
      * `/lecturer/topics` ("Đề tài phụ trách" - Hồ sơ của tôi)
      * `/lecturer/approvals` ("Sinh viên hướng dẫn" - Hướng dẫn & tiến độ)
      * `/lecturer/progress` ("Theo dõi tiến độ" - Hướng dẫn & tiến độ)
-     * `/lecturer/progress?tab=bm04` ("Phiếu nhận xét hướng dẫn" - Hướng dẫn & tiến độ)
      * `/lecturer/grading` ("Phiếu chấm bảo vệ" - Hội đồng & bảo vệ)
-   - Giảng viên kiêm nhiệm Ban điều hành Viện / Hội đồng (như Viện trưởng `lecturer01`) được phân tầng hiển thị tách bạch các khối quản trị ("Thẩm định & quyết định", "Hội đồng & bảo vệ", "Kết quả & công bố", "Quản trị học vụ") mà không gây quá tải nhận thức hay làm xáo trộn không gian làm việc của GVHD thông thường.
-   - Rà soát toàn bộ 29 mục menu trong registry đảm bảo không chứa emoji hoặc ký tự thô trong nhãn, tuân thủ 100% chuẩn Rule 2.6.
+   - Hợp nhất 3 mục quản trị bị lỗi (`bm02-reviews`, `assignment-decisions`, `academic-delegations`) thành **DUY NHẤT 1 mục trung tâm điều hành học vụ**:
+     * `institute-management` ("Điều hành đợt & Quyết định" - `/lecturer/institute`), bảo vệ bởi `requiredAnyPermissions: ['VIEW_ASSIGNMENT_DECISIONS', 'VIEW_BM02_REVIEWS', 'VIEW_ACADEMIC_DELEGATIONS', 'VIEW_PROJECT_PERIODS']`.
+     * Giảm số lượng mục trong `NAVIGATION_REGISTRY` từ 29 xuống còn đúng 26 mục chuẩn, xóa sổ hoàn toàn hiện tượng phân mảnh và trùng lặp route.
+   - Nâng cấp `ProjectPeriodPage.jsx` giải quyết triệt để lỗi khi người dùng truy cập:
+     * Dùng `Promise.allSettled` trong `fetchSemesters` giúp trang không bị sập hay báo lỗi đỏ khi `registrationService` hoặc API con gặp sự cố/403.
+     * Dùng `useSearchParams` từ `react-router-dom` đồng bộ 2 chiều mượt mà giữa các tab `periods`, `bm02Queue`, `delegations` với URL và menu layout.
+     * Chuẩn hóa nhãn tab BM02 thành "Hàng đợi Thẩm định Đơn đăng ký (BM02)" và nút "Thẩm định đơn BM02".
+     * Khởi tạo `fetchDelegations` an toàn (graceful), không bắn toast đỏ khi mới vào trang.
 
-6. **Xây dựng 5 bộ kiểm thử TDD mới & bảo đảm chất lượng**:
+6. **Xây dựng bộ kiểm thử TDD & bảo đảm chất lượng**:
    - `frontend/src/pages/lecturer/__tests__/progressTrackingTdz.test.js`: Xác minh thứ tự khai báo `sPassed` trước `sProgress`.
    - `frontend/src/pages/__tests__/errorBoundaryUi.test.js`: Xác minh component Error Boundary, method xử lý lỗi, icons Ant Design và bọc route/layout.
    - `frontend/src/pages/lecturer/__tests__/gradingPageRouteAlignment.test.js`: Xác minh đường dẫn route `/lecturer/grading/sheet/:registrationId`.
    - `frontend/src/pages/__tests__/tabDeepLinking.test.js`: Xác minh đọc query parameters trong các trang giảng viên/học vụ.
-   - `frontend/src/pages/__tests__/lecturerNavigationStructure.test.js`: Xác minh 5 mục cốt lõi GVHD, phân tầng quản trị viện và tuân thủ Rule 2.6.
+   - `frontend/src/pages/__tests__/projectPeriodGraceful.test.js`: Xác minh nạp dữ liệu an toàn `Promise.allSettled`, `useSearchParams` và nhãn chuẩn BM02.
+   - `frontend/src/pages/__tests__/lecturerNavigationStructure.test.js`: Xác minh 4 mục cốt lõi GVHD, hợp nhất `institute-management` và tuân thủ Rule 2.6.
+   - `frontend/tests/navigationRegistry.test.js`: Cập nhật cấu trúc 26 mục toàn diện.
 
 #### 2. Trạng thái cập nhật của từng phần
 
 - **Database/Prisma**: `STABLE & FULLY COMPATIBLE`; Không thay đổi schema hay migrations. Tuân thủ 100% mô hình `TopicRegistration`.
 - **Backend API**: `STABLE (100% PASS)`; Toàn bộ 108 test suites, 1081 tests backend PASS.
-- **Frontend SPA**: `RESILIENT & STREAMLINED`;
+- **Frontend SPA**: `RESILIENT & STREAMLINED (100% PASS)`;
   * Đã loại bỏ hoàn toàn lỗi trắng trang khi click menu.
-  * Tích hợp Error Boundary 2 tầng bảo vệ runtime.
-  * Tab Deep-Linking hoạt động mượt mà theo URL query params.
-  * Toàn bộ 200/200 frontend tests PASS (100%).
+  * Tinh gọn GVHD thường còn đúng 4 mục cốt lõi, xóa bỏ mục thừa BM04 khỏi sidebar.
+  * Gom 3 nút học vụ cấp viện bị lỗi thành 1 trang "Điều hành đợt & Quyết định" vững chắc, nạp dữ liệu `Promise.allSettled`.
+  * Toàn bộ 205/205 frontend tests PASS (100%).
 - **Production Build**: Vite build hoàn tất thành công trong 12.94s (**0 lỗi bundle**, 3236 modules transformed).
-- **Mã hóa & Chuẩn tệp**: 14/14 tệp tin tạo mới và sửa đổi đều đạt chuẩn **UTF-8 (no BOM)** theo Quy tắc 2.4.
+- **Mã hóa & Chuẩn tệp**: Tất cả các tệp tin tạo mới và sửa đổi đều đạt chuẩn **UTF-8 (no BOM)** theo Quy tắc 2.4.
 - **Quy chuẩn UI/UX**: Tuân thủ tuyệt đối Quy tắc 2.6 trong `AGENTS.md` (chỉ dùng `@ant-design/icons` qua prop `icon`, không emoji trong text nhãn).
 - **Quy chuẩn Subagent**: Tuân thủ nghiêm ngặt Quy tắc 3 trong `AGENTS.md` (ủy thác subagent theo từng task độc lập, kiểm tra chéo trước khi đóng phiên).
 
@@ -2157,22 +2164,19 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 
 1. Trải nghiệm thực tế toàn bộ phân hệ Giảng viên trên trình duyệt:
    - Đăng nhập tài khoản Giảng viên hướng dẫn thường (ví dụ: `lecturer02`):
-     * Xác nhận menu trái hiển thị đúng 5 mục cốt lõi gọn gàng.
-     * Bấm vào từng mục menu, đặc biệt là "Theo dõi tiến độ" và "Phiếu nhận xét hướng dẫn", kiểm tra không còn hiện tượng trắng trang.
-     * Chuyển đổi giữa các tabs (Công việc, Nhật ký họp, Checkpoints, Lưu chiểu & BM04) kiểm tra mượt mà.
+     * Xác nhận menu trái chỉ có đúng **4 mục cốt lõi** tinh gọn: *Đề tài phụ trách*, *Sinh viên hướng dẫn*, *Theo dõi tiến độ*, *Phiếu chấm bảo vệ*.
+     * Vào "Theo dõi tiến độ" $\rightarrow$ kiểm tra 4 tabs: Công việc tuần, Nhật ký họp, Checkpoints (BM03), Nghiệm thu & Phiếu BM04 hoạt động mượt mà.
    - Đăng nhập tài khoản Viện trưởng (`lecturer01`):
-     * Xác nhận phân tầng rõ ràng giữa khối Hướng dẫn đồ án và khối Điều hành học vụ & Hội đồng.
-     * Bấm "Thẩm định đề cương" (`/lecturer/approvals?tab=bm01`) $\rightarrow$ kiểm tra tự động kích hoạt tab Hội đồng thẩm định đề cương BM01.
-   - Thử nghiệm chức năng chấm điểm hội đồng (`/lecturer/grading`):
-     * Bấm "Vào chấm điểm" $\rightarrow$ xác nhận vào thẳng phiếu chấm `/lecturer/grading/sheet/:registrationId` mà không bị đá về Dashboard.
+     * Xác nhận nhóm "Thẩm định & quyết định" chỉ còn 2 mục sắc sảo: *Thẩm định đề cương* và *Điều hành đợt & Quyết định*.
+     * Bấm "Điều hành đợt & Quyết định" $\rightarrow$ chuyển đổi qua lại giữa 3 tabs (Đợt đồ án & Ban hành QĐ, Hàng đợi thẩm định đơn BM02, Ủy quyền chuyên môn) kiểm tra không còn lỗi đỏ, URL đồng bộ mượt mà.
 2. Tiếp tục theo dõi và tối ưu hóa UI/UX các màn hình khác theo phản hồi của người dùng.
 
 #### 4. Quyết định quan trọng (Decisions & Rationale)
 
-1. **Lựa chọn Phương án 3 (Giải pháp toàn diện thay vì chắp vá)**: Giải quyết đồng thời 3 nguyên nhân cốt lõi: (1) Sửa lỗi code TDZ gây crash, (2) Bổ sung Error Boundary phòng thủ từ xa tránh trắng trang trong tương lai, (3) Nối query param tab deep-linking và tinh gọn phân tầng menu theo tiêu chuẩn UI/UX Pro Max, đem lại trải nghiệm học vụ chuyên nghiệp và mượt mà.
-2. **Thiết kế Error Boundary 2 Tầng (Layout & Root)**: Bọc Error Boundary quanh `<Outlet />` trong `AppLayout` giúp khi một trang con ném lỗi render, khung sườn sidebar, header và navigation vẫn hoạt động bình thường, người dùng có thể chủ động bấm "Tải lại trang" hoặc "Về trang chủ" mà không bị sập toàn bộ ứng dụng SPA.
-3. **Đồng bộ hóa Trạng thái Tab qua Query Parameter (`useSearchParams`)**: URL phản ánh chính xác trạng thái view bên trong trang (`?tab=bm01`, `?tab=bm04`, `?tab=decisions`), cho phép các mục menu điều hướng thẳng vào chức năng mong muốn, đồng thời hỗ trợ người dùng bookmark hoặc chia sẻ link trực tiếp.
-4. **Bảo tồn Tuyệt đối 29 Mục Menu Cố Định & 7 Khối Nghiệp Vụ Chuẩn**: Tinh gọn giao diện hiển thị cho từng đối tượng bằng cách tận dụng ma trận năng lực RBAC (Capability Matrix) mà không thay đổi cấu trúc registry hay phá vỡ các bộ kiểm thử tự động của hệ thống.
+1. **Lược bỏ "Phiếu nhận xét hướng dẫn" khỏi Sidebar (Cách 1)**: Đưa menu của GVHD về đúng 4 không gian làm việc chính. Đánh giá BM04 là một giai đoạn nghiệm thu cuối kỳ nằm trong trang Theo dõi tiến độ, không cần thiết phải tạo một nút shortcut riêng biệt gây thừa mứa.
+2. **Hợp nhất 3 nút quản trị cấp viện (`bm02`, `decisions`, `delegations`) thành 1**: Chấm dứt việc phân mảnh 1 trang thành nhiều nút URL query param trên sidebar. Thay vào đó, tập trung toàn bộ năng lực điều hành học vụ vào một màn hình duy nhất có hệ thống tab con rõ ràng.
+3. **Nạp dữ liệu phòng vệ (Graceful Loading với `Promise.allSettled`)**: Đảm bảo lỗi ở một API không làm sụp đổ toàn bộ giao diện của trang, giúp ứng dụng duy trì tính liên tục và cung cấp trải nghiệm ổn định cao nhất cho người dùng.
+4. **Hỗ trợ `requiredAnyPermissions` linh hoạt trong `navigationRegistry`**: Cho phép một mục menu hiển thị khi người dùng sở hữu bất kỳ quyền hợp lệ nào trong nhóm, giúp tinh giảm số lượng mục menu mà vẫn đảm bảo tính phân quyền chặt chẽ.
 
 
 
