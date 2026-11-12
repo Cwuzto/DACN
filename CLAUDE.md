@@ -99,10 +99,14 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
    - `backend/src/services/ai/ollamaProvider.js`: Đưa hàm `stripThinking` ra module level và xuất qua `module.exports` chính quy.
 5. **Phân Tích & Xác Thực Deprecation Warning `pg@9.0`**:
    - Xác định rõ cảnh báo `Calling client.query() when the client is already executing a query is deprecated` xuất phát từ thư viện `pg` khi `@prisma/adapter-pg` thực thi các câu lệnh song song trên cùng một client kết nối; cảnh báo này không gây crash server và hệ thống vẫn chạy ổn định 100%.
-6. **Hồi Quy Toàn Bộ Hệ Thống & Kiểm Thử Tự Động (Subagent)**:
-   - Toàn bộ backend test suite: **108/108 test suites PASS, 1.081/1.081 tests PASS (100%)** (+10 tests cho `knowledgeParser`).
-   - Toàn bộ frontend test suite: **187/187 tests PASS (100%)**.
-   - Production build Vite: **PASS (0 lỗi, hoàn thành trong 17.08s)**.
+6. **Tái Thiết Kế Giao Diện Chatbot (/ui-ux-pro-max: Định Danh Trợ Lý Học Vụ VCN, Ngăn Gợi Ý Thu Gọn & Triệt Tiêu Thuật Ngữ Model)**:
+   - **Định danh chính thức**: Đặt tên bot là **`Trợ lý Học vụ VCN`** (Viện Công nghệ Số). Toàn bộ tin nhắn, tiêu đề và chỉ báo suy nghĩ chuyển sang sử dụng cụm danh từ tự nhiên: *"Trợ lý Học vụ"*, *"Trợ lý đang tra cứu quy chế học vụ..."*, *"Phản hồi học vụ"*.
+   - **Triệt tiêu toàn bộ thuật ngữ mô hình kỹ thuật**: Loại bỏ hoàn toàn các cụm từ như `Gemini 3.8 Flash`, `Qwen`, `Ollama`, `local_fallback` khỏi giao diện người dùng và system prompt. Thay thế bằng các thẻ học thuật tinh tế: `<Tag color="cyan">Trực tuyến 24/7</Tag>`, `<Tag color="cyan">Phản hồi học vụ</Tag>`.
+   - **Ngăn câu hỏi gợi ý thu hẹp / ẩn xuống linh hoạt (Collapsible Drawer)**: Thêm nút và thanh điều khiển thu gọn / mở rộng danh sách câu hỏi nhanh (`isQuestionsCollapsed`) bằng icon `@ant-design/icons` `<UpOutlined />` và `<DownOutlined />` tuân thủ nghiêm ngặt Rule 2.6 trong `AGENTS.md`. Người dùng có thể click thu hẹp để mở rộng không gian đọc phản hồi.
+7. **Hồi Quy Toàn Bộ Hệ Thống & Kiểm Thử Tự Động (Subagent)**:
+   - Toàn bộ backend test suite: **108/108 test suites PASS, 1.081/1.081 tests PASS (100%)**.
+   - Toàn bộ frontend test suite: **188/188 tests PASS (100%)** (+1 test case cho giao diện Chatbot VCN).
+   - Production build Vite: **PASS (0 lỗi, hoàn tất thành công)**.
    - Đảm bảo 100% tệp tin đạt chuẩn **UTF-8 (no BOM)**.
 
 #### 2. Trạng thái cập nhật của từng phần
