@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { message } from 'antd';
+import { Button, Empty, message, Modal, Table } from 'antd';
+import { CopyOutlined, PlusOutlined } from '@ant-design/icons';
 import { topicService } from '../../services/topicService';
 import { semesterService } from '../../services/semesterService';
 import useAuthStore from '../../stores/authStore';
@@ -26,6 +27,10 @@ export default function TopicManagementPage() {
     // Modals
     const [newTopicModalOpen, setNewTopicModalOpen] = useState(false);
     const [cloneModalOpen, setCloneModalOpen] = useState(false);
+    const [cloneableTopics, setCloneableTopics] = useState([]);
+    const [loadingCloneable, setLoadingCloneable] = useState(false);
+    const [selectedTopicIds, setSelectedTopicIds] = useState([]);
+    const [cloning, setCloning] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [reviewModalOpen, setReviewModalOpen] = useState(false);
     const [selectedPendingTopic, setSelectedPendingTopic] = useState(null);
@@ -202,6 +207,94 @@ export default function TopicManagementPage() {
         }
     };
 
+    // Auto-fetch cloneable topics from previous semesters upon modal open
+    useEffect(() => {
+        if (cloneModalOpen) {
+            setSelectedTopicIds([]);
+            setLoadingCloneable(true);
+            topicService
+                .getCloneableTopics()
+                .then((res) => {
+                    if (res?.success && Array.isArray(res.data)) {
+                        setCloneableTopics(res.data);
+                    } else if (Array.isArray(res?.data)) {
+                        setCloneableTopics(res.data);
+                    } else if (Array.isArray(res)) {
+                        setCloneableTopics(res);
+                    } else {
+                        setCloneableTopics([]);
+                    }
+                })
+                .catch((err) => {
+                    message.error(err?.message || 'Không thể tải danh sách đề tài từ các học kỳ trước.');
+                    setCloneableTopics([]);
+                })
+                .finally(() => {
+                    setLoadingCloneable(false);
+                });
+        }
+    }, [cloneModalOpen]);
+
+    const handleCloneTopics = async () => {
+        if (!selectedTopicIds.length) {
+            message.warning('Vui lòng chọn ít nhất một đề tài để sao chép.');
+            return;
+        }
+        try {
+            setCloning(true);
+            const res = await topicService.cloneTopics({ topicIds: selectedTopicIds });
+            if (res?.success) {
+                message.success(res.message || 'Đã sao chép đề tài thành công!');
+                setCloneModalOpen(false);
+                setSelectedTopicIds([]);
+                fetchTopics();
+            } else {
+                message.error(res?.message || 'Sao chép đề tài thất bại.');
+            }
+        } catch (error) {
+            message.error(error?.message || 'Không thể sao chép đề tài.');
+        } finally {
+            setCloning(false);
+        }
+    };
+
+    const cloneColumns = [
+        {
+            title: 'Mã / Tên Đề tài',
+            dataIndex: 'title',
+            key: 'title',
+            render: (text, record) => (
+                <div>
+                    <div style={{ fontWeight: 600, color: '#0F172A' }}>{text}</div>
+                    {record.code && (
+                        <div style={{ fontSize: 12, color: '#64748B' }}>Mã: {record.code}</div>
+                    )}
+                </div>
+            ),
+        },
+        {
+            title: 'Học kỳ cũ',
+            dataIndex: 'semester',
+            key: 'semester',
+            width: 140,
+            render: (sem) => sem?.name || 'Học kỳ trước',
+        },
+        {
+            title: 'Mô tả',
+            dataIndex: 'description',
+            key: 'description',
+            ellipsis: true,
+            render: (desc) => desc || '—',
+        },
+    ];
+
+    const cloneRowSelection = {
+        selectedRowKeys: selectedTopicIds,
+        onChange: (selectedRowKeys) => {
+            setSelectedTopicIds(selectedRowKeys);
+        },
+    };
+
     if (loading) {
         return <PageLoader />;
     }
@@ -219,28 +312,19 @@ export default function TopicManagementPage() {
                     </p>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }} className="flex-wrap">
-                    <button
-                        type="button"
-                        className="btn btn-secondary btn-sm"
+                    <Button
+                        icon={<CopyOutlined />}
                         onClick={() => setCloneModalOpen(true)}
                     >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                        </svg>
                         Sao chép từ kỳ trước
-                    </button>
-                    <button
-                        type="button"
-                        className="btn btn-primary btn-sm"
+                    </Button>
+                    <Button
+                        type="primary"
+                        icon={<PlusOutlined />}
                         onClick={() => setNewTopicModalOpen(true)}
                     >
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <line x1="12" y1="5" x2="12" y2="19" />
-                            <line x1="5" y1="12" x2="19" y2="12" />
-                        </svg>
-                    Đề xuất Đề tài mới
-                    </button>
+                        Đề xuất Đề tài mới
+                    </Button>
                 </div>
             </div>
 
@@ -523,45 +607,55 @@ export default function TopicManagementPage() {
             )}
 
             {/* MODAL 2: SAO CHÉP TỪ KỲ TRƯỚC */}
-            {cloneModalOpen && (
-                <div className="modal-overlay open" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <div className="modal-box" style={{ maxWidth: 540 }}>
-                        <div className="modal-head">
-                            <div className="modal-title">Sao Chép Đề Tài Từ Học Kỳ Trước</div>
-                            <button type="button" className="modal-close" onClick={() => setCloneModalOpen(false)}>×</button>
-                        </div>
-                        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                            <div style={{ fontSize: 13, color: 'var(--muted)' }}>
-                                Chọn các đề tài đã thực hiện tốt trong học kỳ trước để sao chép sang đợt mới. Hệ thống sẽ tự động gán trạng thái <strong>Bản nháp</strong> để bạn chỉnh sửa trước khi gửi duyệt.
-                            </div>
-                            <div style={{ background: '#F8FAFC', padding: 12, borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', marginBottom: 8 }}>
-                                    <input type="checkbox" defaultChecked />
-                                    <span>DT-2025-042: Kiến trúc Microservices cho Hệ thống Tài chính Phân tán</span>
-                                </label>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
-                                    <input type="checkbox" defaultChecked />
-                                    <span>DT-2025-055: Phát hiện Bất thường Dữ liệu IoT Bằng Học Sâu</span>
-                                </label>
-                            </div>
-                        </div>
-                        <div className="modal-foot">
-                            <button type="button" className="btn btn-secondary" onClick={() => setCloneModalOpen(false)}>Hủy</button>
-                            <button
-                                type="button"
-                                className="btn btn-primary"
-                                onClick={() => {
-                                    message.success('Đã sao chép 2 đề tài thành công!');
-                                    setCloneModalOpen(false);
-                                    fetchTopics();
-                                }}
-                            >
-                                Sao Chép Sang Kỳ Này
-                            </button>
-                        </div>
+            <Modal
+                open={cloneModalOpen}
+                onCancel={() => {
+                    setCloneModalOpen(false);
+                    setSelectedTopicIds([]);
+                }}
+                title="Sao Chép Đề Tài Từ Học Kỳ Trước"
+                width={720}
+                footer={[
+                    <Button
+                        key="cancel"
+                        onClick={() => {
+                            setCloneModalOpen(false);
+                            setSelectedTopicIds([]);
+                        }}
+                    >
+                        Hủy
+                    </Button>,
+                    <Button
+                        key="submit"
+                        type="primary"
+                        icon={<CopyOutlined />}
+                        loading={cloning}
+                        disabled={selectedTopicIds.length === 0}
+                        onClick={handleCloneTopics}
+                    >
+                        Sao chép sang kỳ này
+                    </Button>,
+                ]}
+            >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14, paddingTop: 8 }}>
+                    <div style={{ fontSize: 13, color: 'var(--muted)' }}>
+                        Chọn các đề tài đã thực hiện tốt trong học kỳ trước để sao chép sang đợt mới. Hệ thống sẽ tự động gán trạng thái <strong>Bản nháp</strong> (DRAFT) với chỉ tiêu 1 SV / đề tài để bạn chỉnh sửa trước khi gửi duyệt.
                     </div>
+                    {cloneableTopics.length === 0 && !loadingCloneable ? (
+                        <Empty description="Không có đề tài từ các học kỳ trước để sao chép" />
+                    ) : (
+                        <Table
+                            rowKey="id"
+                            rowSelection={cloneRowSelection}
+                            columns={cloneColumns}
+                            dataSource={cloneableTopics}
+                            loading={loadingCloneable}
+                            pagination={{ pageSize: 5 }}
+                            size="small"
+                        />
+                    )}
                 </div>
-            )}
+            </Modal>
 
             {/* MODAL 3: XEM XÉT ĐỀ XUẤT ĐỀ TÀI CỦA SINH VIÊN */}
             {reviewModalOpen && selectedPendingTopic && (

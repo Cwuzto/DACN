@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     Button,
     Collapse,
@@ -11,12 +11,15 @@ import {
 import {
     CheckCircleOutlined,
     DeleteOutlined,
+    DownloadOutlined,
+    EyeOutlined,
     LockOutlined,
     PlusOutlined,
     ReloadOutlined,
     SaveOutlined,
 } from '@ant-design/icons';
 import rubricService from '../../services/rubricService';
+import portalContentService from '../../services/portalContentService';
 
 const round2 = (num) => Math.round((Number(num) || 0) * 100) / 100;
 
@@ -168,9 +171,60 @@ export default function RubricManagementPage() {
     const [activeTab, setActiveTab] = useState('catalog');
 
     // Forms Catalog search & filter state
+    const [forms, setForms] = useState(DEFAULT_FORMS);
     const [formsSearch, setFormsSearch] = useState('');
     const [formsRoleFilter, setFormsRoleFilter] = useState('all');
     const [previewForm, setPreviewForm] = useState(null);
+
+    // Fetch published portal templates from backend
+    const fetchPortalTemplates = useCallback(async () => {
+        try {
+            const res = await portalContentService.getPublicContent();
+            if (res?.success && res.data?.templates) {
+                const dbTemplates = res.data.templates;
+                if (Array.isArray(dbTemplates) && dbTemplates.length > 0) {
+                    const merged = DEFAULT_FORMS.map((def) => {
+                        const matched = dbTemplates.find((t) => t.code === def.code || t.title === def.title);
+                        return matched ? { ...def, ...matched } : def;
+                    });
+                    dbTemplates.forEach((t) => {
+                        if (!merged.some((m) => m.code === t.code || m.id === t.id)) {
+                            merged.push({
+                                code: t.code || 'BM',
+                                title: t.title || 'Biểu mẫu',
+                                sub: t.description || '',
+                                role: t.role || 'Chung',
+                                roleCategory: t.roleCategory || 'student',
+                                period: t.period || 'Trong kỳ',
+                                version: t.version ? `v${t.version}` : 'v1.0',
+                                fileName: t.fileName || `${t.code || 'Bieu_mau'}.docx`,
+                                fileSize: t.fileSize || '',
+                                fileUrl: t.fileUrl,
+                                reviewCouncil: t.reviewCouncil || 'Giáo vụ',
+                                fields: Array.isArray(t.fields) ? t.fields : [],
+                                ...t,
+                            });
+                        }
+                    });
+                    setForms(merged);
+                } else {
+                    setForms(DEFAULT_FORMS);
+                }
+            }
+        } catch {
+            // Keep default forms on error
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchPortalTemplates();
+    }, [fetchPortalTemplates]);
+
+    useEffect(() => {
+        if (activeTab === 'catalog') {
+            fetchPortalTemplates();
+        }
+    }, [activeTab, fetchPortalTemplates]);
 
     // Active Rubric Editing state (Tab 2)
     const [activeRubricId, setActiveRubricId] = useState(null);
@@ -244,16 +298,16 @@ export default function RubricManagementPage() {
 
     // Filtered Forms
     const filteredForms = useMemo(() => {
-        return DEFAULT_FORMS.filter((f) => {
+        return forms.filter((f) => {
             const matchSearch =
                 !formsSearch ||
-                f.code.toLowerCase().includes(formsSearch.toLowerCase()) ||
-                f.title.toLowerCase().includes(formsSearch.toLowerCase()) ||
-                f.sub.toLowerCase().includes(formsSearch.toLowerCase());
+                f.code?.toLowerCase().includes(formsSearch.toLowerCase()) ||
+                f.title?.toLowerCase().includes(formsSearch.toLowerCase()) ||
+                f.sub?.toLowerCase().includes(formsSearch.toLowerCase());
             const matchRole = formsRoleFilter === 'all' || f.roleCategory === formsRoleFilter;
             return matchSearch && matchRole;
         });
-    }, [formsSearch, formsRoleFilter]);
+    }, [forms, formsSearch, formsRoleFilter]);
 
     // Real-time calculation of total score
     const totalScore = useMemo(() => {
@@ -823,19 +877,17 @@ export default function RubricManagementPage() {
                             </select>
                         </div>
                         <div style={{ display: 'flex', gap: 8 }}>
-                            <button
-                                className="btn btn-secondary btn-sm"
+                            <Button
+                                size="small"
+                                icon={<ReloadOutlined />}
                                 onClick={() => {
                                     setFormsSearch('');
                                     setFormsRoleFilter('all');
+                                    fetchPortalTemplates();
                                 }}
                             >
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <polyline points="1 4 1 10 7 10" />
-                                    <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
-                                </svg>
-                                <span>Làm mới</span>
-                            </button>
+                                Làm mới
+                            </Button>
                         </div>
                     </div>
 
@@ -864,15 +916,15 @@ export default function RubricManagementPage() {
 
                                     <div style={{ background: 'var(--bg)', borderRadius: 6, padding: '10px 12px', marginBottom: 16 }}>
                                         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>
-                                            Các trường thông tin bắt buộc ({form.fields.length}):
+                                            Các trường thông tin bắt buộc ({form.fields?.length || 0}):
                                         </div>
                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                                            {form.fields.slice(0, 4).map((fld, idx) => (
+                                            {(form.fields || []).slice(0, 4).map((fld, idx) => (
                                                 <span key={idx} style={{ fontSize: 11, background: '#fff', border: '1px solid var(--border)', borderRadius: 4, padding: '2px 6px', color: '#334155' }}>
-                                                    {fld.name.length > 28 ? fld.name.slice(0, 28) + '...' : fld.name}
+                                                    {fld.name?.length > 28 ? fld.name.slice(0, 28) + '...' : fld.name}
                                                 </span>
                                             ))}
-                                            {form.fields.length > 4 && (
+                                            {(form.fields?.length || 0) > 4 && (
                                                 <span style={{ fontSize: 11, color: 'var(--primary)', fontWeight: 600, padding: '2px 4px' }}>
                                                     +{form.fields.length - 4} trường khác
                                                 </span>
@@ -883,24 +935,39 @@ export default function RubricManagementPage() {
 
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-light)', paddingTop: 14 }}>
                                     <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>
-                                        <span>{form.fileName}</span>
-                                        <span style={{ marginLeft: 6, opacity: 0.8 }}>({form.fileSize})</span>
+                                        <span>{form.fileName || `${form.code || 'Bieu_mau'}.docx`}</span>
+                                        <span style={{ marginLeft: 6, opacity: 0.8 }}>({form.fileSize || 'Đang cập nhật'})</span>
                                     </div>
                                     <div style={{ display: 'flex', gap: 8 }}>
-                                        <button
-                                            className="btn btn-secondary btn-sm"
+                                        <Button
+                                            size="small"
                                             onClick={() => setPreviewForm(form)}
                                             style={{ padding: '4px 10px', fontSize: 12 }}
                                         >
                                             Xem Mẫu
-                                        </button>
-                                        <button
-                                            className="btn btn-primary btn-sm"
-                                            onClick={() => message.success(`Đang tải mẫu chuẩn: ${form.fileName}`)}
-                                            style={{ padding: '4px 10px', fontSize: 12 }}
-                                        >
-                                            Tải .docx
-                                        </button>
+                                        </Button>
+                                        {form.fileUrl ? (
+                                            <Button
+                                                type="primary"
+                                                size="small"
+                                                icon={<DownloadOutlined />}
+                                                onClick={() => window.open(form.fileUrl, '_blank')}
+                                                style={{ padding: '4px 10px', fontSize: 12 }}
+                                            >
+                                                Tải .docx
+                                            </Button>
+                                        ) : (
+                                            <Tooltip title="Biểu mẫu chưa được tải lên hệ thống">
+                                                <Button
+                                                    disabled
+                                                    size="small"
+                                                    icon={<DownloadOutlined />}
+                                                    style={{ padding: '4px 10px', fontSize: 12 }}
+                                                >
+                                                    Chưa có file
+                                                </Button>
+                                            </Tooltip>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -1024,9 +1091,13 @@ export default function RubricManagementPage() {
                                         : `⚠ Chênh lệch: ${(totalScore - 10).toFixed(2)}đ so với thang chuẩn 10.0đ`}
                                 </div>
                             </div>
-                            <button className="btn btn-secondary btn-sm" onClick={handleAddCategory}>
-                                + Thêm Nhóm Tiêu Chí
-                            </button>
+                            <Button
+                                size="small"
+                                icon={<PlusOutlined />}
+                                onClick={handleAddCategory}
+                            >
+                                Thêm nhóm tiêu chí
+                            </Button>
                         </div>
                     </div>
 
@@ -1118,25 +1189,25 @@ export default function RubricManagementPage() {
                                             >
                                                 {catBalanced ? 'Khớp tổng' : `Lệch: ${catSum}đ / ${cat.maxScore}đ`}
                                             </span>
-                                            <button
-                                                className="btn btn-secondary btn-sm"
+                                            <Button
+                                                size="small"
+                                                icon={<PlusOutlined />}
                                                 onClick={() => handleAddCriterion(catIdx)}
-                                                style={{ padding: '4px 8px', fontSize: 11.5 }}
+                                                style={{ fontSize: 11.5 }}
                                             >
-                                                + Tiêu chí
-                                            </button>
+                                                Thêm tiêu chí
+                                            </Button>
                                             <Popconfirm
                                                 title="Xóa nhóm tiêu chí này?"
                                                 onConfirm={() => handleDeleteCategory(catIdx)}
                                                 okText="Xóa"
                                                 cancelText="Hủy"
                                             >
-                                                <button
-                                                    className="btn btn-secondary btn-sm"
-                                                    style={{ color: 'var(--danger)', padding: '4px 8px' }}
-                                                >
-                                                    ✕
-                                                </button>
+                                                <Button
+                                                    size="small"
+                                                    danger
+                                                    icon={<DeleteOutlined />}
+                                                />
                                             </Popconfirm>
                                         </div>
                                     </div>
@@ -1253,14 +1324,14 @@ export default function RubricManagementPage() {
                                                     <span style={{ fontSize: 12, fontWeight: 600 }}>đ</span>
                                                 </div>
                                                 <div style={{ paddingTop: 4 }}>
-                                                    <button
-                                                        className="btn-icon-only"
+                                                    <Button
+                                                        size="small"
+                                                        type="text"
+                                                        danger
+                                                        icon={<DeleteOutlined />}
                                                         onClick={() => handleDeleteCriterion(catIdx, criIdx)}
-                                                        style={{ color: 'var(--danger)', fontSize: 14 }}
                                                         title="Xóa tiêu chí"
-                                                    >
-                                                        ✕
-                                                    </button>
+                                                    />
                                                 </div>
                                             </div>
                                         ))}
@@ -1387,19 +1458,28 @@ export default function RubricManagementPage() {
                 onCancel={() => setPreviewForm(null)}
                 width={760}
                 footer={[
-                    <button key="close" className="btn btn-secondary" onClick={() => setPreviewForm(null)}>
+                    <Button key="close" onClick={() => setPreviewForm(null)}>
                         Đóng
-                    </button>,
-                    <button
-                        key="download"
-                        className="btn btn-primary"
-                        onClick={() => {
-                            message.success(`Đang tải mẫu chuẩn: ${previewForm?.fileName}`);
-                            setPreviewForm(null);
-                        }}
-                    >
-                        Tải Mẫu Chuẩn (.docx)
-                    </button>,
+                    </Button>,
+                    previewForm?.fileUrl ? (
+                        <Button
+                            key="download"
+                            type="primary"
+                            icon={<DownloadOutlined />}
+                            onClick={() => {
+                                window.open(previewForm.fileUrl, '_blank');
+                                setPreviewForm(null);
+                            }}
+                        >
+                            Tải Mẫu Chuẩn (.docx)
+                        </Button>
+                    ) : (
+                        <Tooltip key="download" title="Biểu mẫu chưa được tải lên hệ thống">
+                            <Button disabled icon={<DownloadOutlined />}>
+                                Chưa có file
+                            </Button>
+                        </Tooltip>
+                    ),
                 ]}
             >
                 {previewForm && (

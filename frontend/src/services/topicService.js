@@ -77,4 +77,24 @@ export const topicService = {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi tải lịch sử tiến trình');
         }
     },
+
+    getCloneableTopics: async (params = {}) => {
+        try {
+            return await api.get('/topics/cloneable', { params });
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi tải danh sách đề tài có thể sao chép');
+        }
+    },
+
+    cloneTopics: async (payload) => {
+        try {
+            return await api.post('/topics/clone', payload);
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi sao chép đề tài');
+        }
+    },
 };
+
+export const getCloneableTopics = topicService.getCloneableTopics;
+export const cloneTopics = topicService.cloneTopics;
+export default topicService;
