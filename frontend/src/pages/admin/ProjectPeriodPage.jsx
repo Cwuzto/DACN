@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import {
     Alert,
     Badge,
@@ -29,6 +29,7 @@ import {
     AuditOutlined,
     CalendarOutlined,
     CheckCircleOutlined,
+    CloseOutlined,
     CopyOutlined,
     DeleteOutlined,
     EditOutlined,
@@ -264,7 +265,7 @@ function PeriodCard({ period, onEdit, onDelete, onClone, onIssueDecision, onView
 
 function ProjectPeriodPage() {
     const { user } = useAuthStore();
-    const location = useLocation();
+    const [searchParams, setSearchParams] = useSearchParams();
     const isAdmin = user?.role === 'ADMIN';
 
     const userPermissions = useMemo(() => user?.permissions || [], [user?.permissions]);
@@ -314,17 +315,16 @@ function ProjectPeriodPage() {
     // Navigation Tabs state
     const [activeTab, setActiveTab] = useState(() => {
         try {
-            const params = new URLSearchParams(window?.location?.search || '');
-            if (params.get('tab') === 'delegations') return 'delegations';
-            if (params.get('tab') === 'bm02') return 'bm02Queue';
-            if (params.get('tab') === 'decisions') return 'periods';
+            const tabParam = searchParams.get('tab');
+            if (tabParam === 'delegations') return 'delegations';
+            if (tabParam === 'bm02') return 'bm02Queue';
+            if (tabParam === 'decisions') return 'periods';
         } catch {}
         return 'periods';
     });
 
     useEffect(() => {
-        const params = new URLSearchParams(location.search);
-        const tabParam = params.get('tab');
+        const tabParam = searchParams.get('tab');
         if (tabParam === 'delegations') {
             setActiveTab('delegations');
         } else if (tabParam === 'bm02') {
@@ -338,8 +338,10 @@ function ProjectPeriodPage() {
                     handleOpenDecisionList(active);
                 }
             }
+        } else {
+            setActiveTab('periods');
         }
-    }, [location.search, periods, handleOpenDecisionList]);
+    }, [searchParams, periods, handleOpenDecisionList]);
 
     // Academic Delegation state
     const [delegations, setDelegations] = useState([]);
@@ -349,16 +351,24 @@ function ProjectPeriodPage() {
     const [departmentLecturers, setDepartmentLecturers] = useState([]);
     const [delegationForm] = Form.useForm();
 
-    const fetchDelegations = useCallback(async () => {
+    const fetchDelegations = useCallback(async (showError = false) => {
         if (!canViewDelegations) return;
         setDelegationsLoading(true);
         try {
             const res = await delegationService.getDelegations();
             if (res?.success && Array.isArray(res.data)) {
                 setDelegations(res.data);
+            } else {
+                setDelegations([]);
+                if (showError && res?.message) {
+                    message.error(res.message);
+                }
             }
         } catch (err) {
-            message.error(err?.message || 'Không thể tải danh sách ủy quyền chuyên môn');
+            setDelegations([]);
+            if (showError) {
+                message.error(err?.message || 'Không thể tải danh sách ủy quyền chuyên môn');
+            }
         } finally {
             setDelegationsLoading(false);
         }
@@ -386,18 +396,13 @@ function ProjectPeriodPage() {
 
     const handleTabChange = (key) => {
         setActiveTab(key);
-        try {
-            const params = new URLSearchParams(window?.location?.search || '');
-            if (key === 'delegations') {
-                params.set('tab', 'delegations');
-            } else if (key === 'bm02Queue') {
-                params.set('tab', 'bm02');
-            } else {
-                params.delete('tab');
-            }
-            const newSearch = params.toString();
-            window.history.replaceState(null, '', `${window.location.pathname}${newSearch ? `?${newSearch}` : ''}`);
-        } catch {}
+        if (key === 'delegations') {
+            setSearchParams({ tab: 'delegations' });
+        } else if (key === 'bm02Queue') {
+            setSearchParams({ tab: 'bm02' });
+        } else {
+            setSearchParams({});
+        }
     };
 
     const handleSubmitCreateDelegation = async (values) => {
@@ -705,27 +710,41 @@ function ProjectPeriodPage() {
     const fetchSemesters = useCallback(async () => {
         try {
             setLoading(true);
-            const [semesterRes, topicRes, registrationRes] = await Promise.all([
+            const [semesterResult, topicResult, registrationResult] = await Promise.allSettled([
                 semesterService.getAll(),
                 topicService.getAll(),
                 registrationService.getAllRegistrations({ asInstituteDirector: 'true' }),
             ]);
 
-            if (!semesterRes.success) return;
+            if (semesterResult.status !== 'fulfilled' || !semesterResult.value?.success) {
+                const errMsg = semesterResult.status === 'rejected'
+                    ? semesterResult.reason?.message
+                    : semesterResult.value?.message;
+                message.error(errMsg || 'Lỗi tải danh sách đợt đồ án');
+                return;
+            }
 
-            setAllRegistrations(registrationRes?.data || []);
+            const semesterRes = semesterResult.value;
+            const topicData = (topicResult.status === 'fulfilled' && topicResult.value?.success && Array.isArray(topicResult.value?.data))
+                ? topicResult.value.data
+                : [];
+            const registrationData = (registrationResult.status === 'fulfilled' && registrationResult.value?.success && Array.isArray(registrationResult.value?.data))
+                ? registrationResult.value.data
+                : [];
 
-            const topicsBySemester = (topicRes?.data || []).reduce((acc, topic) => {
+            setAllRegistrations(registrationData);
+
+            const topicsBySemester = topicData.reduce((acc, topic) => {
                 acc[topic.semesterId] = (acc[topic.semesterId] || 0) + 1;
                 return acc;
             }, {});
 
-            const studentsBySemester = (registrationRes?.data || []).reduce((acc, registration) => {
+            const studentsBySemester = registrationData.reduce((acc, registration) => {
                 acc[registration.semesterId] = (acc[registration.semesterId] || 0) + 1;
                 return acc;
             }, {});
 
-            const mapped = semesterRes.data.map((semester) => ({
+            const mapped = (semesterRes.data || []).map((semester) => ({
                 ...extractSemesterMeta(semester),
                 key: semester.id.toString(),
                 id: semester.id,
@@ -997,7 +1016,7 @@ function ProjectPeriodPage() {
                     <p className="h2 num" style={{ marginTop: 2, color: 'var(--accent)' }}>{activeCount}</p>
                     <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--accent)' }}>Đang mở ĐK hoặc thực hiện</div>
                 </div>
-                <div className="card" style={{ padding: '14px 18px', cursor: 'pointer' }} onClick={() => setActiveTab('bm02Queue')}>
+                <div className="card" style={{ padding: '14px 18px', cursor: 'pointer' }} onClick={() => handleTabChange('bm02Queue')}>
                     <span className="meta">Đơn BM02 chờ thẩm định</span>
                     <p className="h2 num" style={{ marginTop: 2, color: pendingBm02List.length > 0 ? '#E11D48' : '#0F766E' }}>
                         {pendingBm02List.length}
@@ -1134,7 +1153,7 @@ function ProjectPeriodPage() {
                         label: (
                             <span className="flex items-center gap-2 font-medium px-1">
                                 <CheckCircleOutlined />
-                                <span>Hàng đợi Thẩm định Đề cương</span>
+                                <span>Hàng đợi Thẩm định Đơn đăng ký (BM02)</span>
                                 {pendingBm02List.length > 0 && (
                                     <Badge count={pendingBm02List.length} overflowCount={99} />
                                 )}
@@ -1145,10 +1164,10 @@ function ProjectPeriodPage() {
                                 <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
                                     <div>
                                         <h3 className="text-base font-bold text-slate-900">
-                                            Hàng Đợi Thẩm Định Đề Cương Đề Tài
+                                            Hàng đợi Thẩm định Đơn đăng ký (BM02)
                                         </h3>
                                         <p className="text-xs text-slate-500 mt-0.5">
-                                            Thẩm định đề cương đề tài của sinh viên theo quy chuẩn Viện. Hồ sơ được phê duyệt sẽ đủ điều kiện ban hành Quyết định giao đề tài.
+                                            Thẩm định đơn đăng ký đề tài (BM02) của sinh viên theo quy chuẩn Viện. Hồ sơ được phê duyệt sẽ đủ điều kiện ban hành Quyết định giao đề tài.
                                         </p>
                                     </div>
                                     <Space wrap>
@@ -1167,9 +1186,9 @@ function ProjectPeriodPage() {
                                             style={{ width: 220 }}
                                             options={[
                                                 { value: 'PENDING', label: 'Chờ thẩm định (Lần 1 & 2)' },
-                                                { value: 'ALL', label: 'Tất cả trạng thái đề cương' },
+                                                { value: 'ALL', label: 'Tất cả trạng thái đơn BM02' },
                                                 { value: 'REVISION', label: 'Cần chỉnh sửa bổ sung' },
-                                                { value: 'APPROVED', label: 'Đã duyệt đề cương / Cấp QĐ' },
+                                                { value: 'APPROVED', label: 'Đã duyệt đơn BM02 / Cấp QĐ' },
                                             ]}
                                         />
                                     </Space>
@@ -1256,7 +1275,7 @@ function ProjectPeriodPage() {
                                                     BM02_SUBMITTED: { label: 'Chờ duyệt lần 1', color: 'blue' },
                                                     BM02_RESUBMITTED: { label: 'Chờ duyệt nộp lại', color: 'purple' },
                                                     BM02_NEEDS_REVISION: { label: 'Yêu cầu chỉnh sửa', color: 'orange' },
-                                                    APPROVED: { label: 'Đã duyệt đề cương', color: 'green' },
+                                                    APPROVED: { label: 'Đã duyệt đơn BM02', color: 'green' },
                                                     DECISION_ISSUED: { label: 'Đã ban hành QĐ', color: 'cyan' },
                                                 };
                                                 const item = statusMap[statusValue] || { label: String(statusValue || 'N/A'), color: 'default' };
@@ -1264,7 +1283,7 @@ function ProjectPeriodPage() {
                                             },
                                         },
                                         {
-                                            title: 'Tệp đề cương',
+                                            title: 'Tệp đơn BM02',
                                             key: 'file',
                                             width: 110,
                                             align: 'center',
@@ -1272,7 +1291,7 @@ function ProjectPeriodPage() {
                                                 const fileUrl = record.currentBM02Submission?.fileUrl;
                                                 if (!fileUrl) return <span className="text-slate-400 text-xs">—</span>;
                                                 return (
-                                                    <Tooltip title="Xem tệp đề cương">
+                                                    <Tooltip title="Xem tệp đơn BM02">
                                                         <a
                                                             href={fileUrl}
                                                             target="_blank"
@@ -1299,7 +1318,7 @@ function ProjectPeriodPage() {
                                                     className="!bg-teal-600 hover:!bg-teal-700 font-medium text-xs"
                                                     onClick={() => handleOpenBm02Review(record)}
                                                 >
-                                                    Thẩm định đề cương
+                                                    Thẩm định đơn BM02
                                                 </Button>
                                             ),
                                         },
@@ -1335,7 +1354,7 @@ function ProjectPeriodPage() {
                                             <Space wrap>
                                                 <Button
                                                     icon={<ReloadOutlined />}
-                                                    onClick={fetchDelegations}
+                                                    onClick={() => fetchDelegations(true)}
                                                     loading={delegationsLoading}
                                                 >
                                                     Làm mới
