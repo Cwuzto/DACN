@@ -36,7 +36,7 @@
 - Consumes: `s.status`, `s.progressPercent` từ danh sách `filteredStudents`.
 - Produces: `sPassed`, `sProgress` khai báo theo đúng trật tự từ vựng.
 
-- [ ] **Step 1: Viết test kiểm tra không còn lỗi TDZ trong `ProgressTrackingPage.jsx`**
+- [x] **Step 1: Viết test kiểm tra không còn lỗi TDZ trong `ProgressTrackingPage.jsx`**
 
 ```javascript
 // frontend/src/pages/lecturer/__tests__/progressTrackingTdz.test.js
@@ -63,12 +63,12 @@ test('ProgressTrackingPage: sPassed is declared BEFORE sProgress to eliminate TD
 });
 ```
 
-- [ ] **Step 2: Chạy test để xác nhận test thất bại**
+- [x] **Step 2: Chạy test để xác nhận test thất bại**
 
 Run: `node --test frontend/src/pages/lecturer/__tests__/progressTrackingTdz.test.js`
 Expected: FAIL với assertion error `sPassed must be declared BEFORE sProgress`.
 
-- [ ] **Step 3: Đảo thứ tự khai báo trong `ProgressTrackingPage.jsx`**
+- [x] **Step 3: Đảo thứ tự khai báo trong `ProgressTrackingPage.jsx`**
 
 Trong `frontend/src/pages/lecturer/ProgressTrackingPage.jsx`, đảo dòng khai báo `sPassed` lên trước `sProgress`:
 ```javascript
@@ -78,12 +78,12 @@ const sProgress = s.progressPercent ?? (sPassed ? 100 : 0);
 const sRisk = sProgress < 50;
 ```
 
-- [ ] **Step 4: Chạy test xác nhận test đã PASS**
+- [x] **Step 4: Chạy test xác nhận test đã PASS**
 
 Run: `node --test frontend/src/pages/lecturer/__tests__/progressTrackingTdz.test.js`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/pages/lecturer/ProgressTrackingPage.jsx frontend/src/pages/lecturer/__tests__/progressTrackingTdz.test.js
@@ -104,7 +104,7 @@ git commit -m "fix(lecturer): fix TDZ ReferenceError in ProgressTrackingPage stu
 - Produces: `<ErrorBoundary fallbackComponent={...}>{children}</ErrorBoundary>`
 - Consumes: React standard `componentDidCatch(error, errorInfo)` & `static getDerivedStateFromError(error)`.
 
-- [ ] **Step 1: Viết test cho `ErrorBoundary.jsx`**
+- [x] **Step 1: Viết test cho `ErrorBoundary.jsx`**
 
 ```javascript
 // frontend/src/pages/__tests__/errorBoundaryUi.test.js
@@ -134,23 +134,23 @@ test('AppLayout & App: Integrates ErrorBoundary around routes and outlets', () =
 });
 ```
 
-- [ ] **Step 2: Chạy test để xác nhận test thất bại**
+- [x] **Step 2: Chạy test để xác nhận test thất bại**
 
 Run: `node --test frontend/src/pages/__tests__/errorBoundaryUi.test.js`
 Expected: FAIL (file does not exist).
 
-- [ ] **Step 3: Triển khai `ErrorBoundary.jsx` & tích hợp vào `App.jsx` và `AppLayout.jsx`**
+- [x] **Step 3: Triển khai `ErrorBoundary.jsx` & tích hợp vào `App.jsx` và `AppLayout.jsx`**
 
 Tạo `frontend/src/components/common/ErrorBoundary.jsx`:
 - Hiển thị card lỗi học thuật chuẩn màu Pine Teal (`#0F766E`), nút "Tải lại trang" (`icon={<ReloadOutlined />}`) và nút "Về trang chủ" (`icon={<HomeOutlined />}`).
 - Bọc quanh `<Outlet />` trong `AppLayout.jsx` và bọc quanh các `<Routes>` trong `App.jsx`.
 
-- [ ] **Step 4: Chạy test xác nhận test đã PASS**
+- [x] **Step 4: Chạy test xác nhận test đã PASS**
 
 Run: `node --test frontend/src/pages/__tests__/errorBoundaryUi.test.js`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/components/common/ErrorBoundary.jsx frontend/src/App.jsx frontend/src/components/layout/AppLayout.jsx frontend/src/pages/__tests__/errorBoundaryUi.test.js
@@ -169,7 +169,7 @@ git commit -m "feat(ui): add global ErrorBoundary to prevent blank white screens
 - Consumes: `cand.id` từ danh sách sinh viên bảo vệ.
 - Produces: Đường dẫn `/lecturer/grading/sheet/:registrationId` khớp 100% với route `App.jsx`.
 
-- [ ] **Step 1: Viết test kiểm tra route chấm điểm trong `GradingPage.jsx`**
+- [x] **Step 1: Viết test kiểm tra route chấm điểm trong `GradingPage.jsx`**
 
 ```javascript
 // frontend/src/pages/lecturer/__tests__/gradingPageRouteAlignment.test.js
@@ -196,21 +196,21 @@ test('GradingPage: Navigates to exact route /lecturer/grading/sheet/:id', () => 
 });
 ```
 
-- [ ] **Step 2: Chạy test để xác nhận test thất bại**
+- [x] **Step 2: Chạy test để xác nhận test thất bại**
 
 Run: `node --test frontend/src/pages/lecturer/__tests__/gradingPageRouteAlignment.test.js`
 Expected: FAIL.
 
-- [ ] **Step 3: Sửa đường dẫn trong `GradingPage.jsx`**
+- [x] **Step 3: Sửa đường dẫn trong `GradingPage.jsx`**
 
 Thay `navigate(`/lecturer/grading/${cand.id}`)` bằng `navigate(`/lecturer/grading/sheet/${cand.id}`)`.
 
-- [ ] **Step 4: Chạy test xác nhận test đã PASS**
+- [x] **Step 4: Chạy test xác nhận test đã PASS**
 
 Run: `node --test frontend/src/pages/lecturer/__tests__/gradingPageRouteAlignment.test.js`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/pages/lecturer/GradingPage.jsx frontend/src/pages/lecturer/__tests__/gradingPageRouteAlignment.test.js
@@ -231,7 +231,7 @@ git commit -m "fix(lecturer): align grading sheet route in GradingPage to preven
 - Consumes: `useSearchParams()` từ `react-router-dom`.
 - Produces: Tự động chuyển `activeTab` khi URL có `?tab=bm01`, `?tab=bm04`, `?tab=decisions`, `?tab=bm02a`.
 
-- [ ] **Step 1: Viết test cho Tab Deep-linking**
+- [x] **Step 1: Viết test cho Tab Deep-linking**
 
 ```javascript
 // frontend/src/pages/__tests__/tabDeepLinking.test.js
@@ -261,23 +261,23 @@ test('ProjectPeriodPage: Handles tab=decisions query param gracefully', () => {
 });
 ```
 
-- [ ] **Step 2: Chạy test để xác nhận test thất bại**
+- [x] **Step 2: Chạy test để xác nhận test thất bại**
 
 Run: `node --test frontend/src/pages/__tests__/tabDeepLinking.test.js`
 Expected: FAIL.
 
-- [ ] **Step 3: Triển khai đồng bộ Tab theo Query Params**
+- [x] **Step 3: Triển khai đồng bộ Tab theo Query Params**
 
 - Trong `TopicApprovalPage.jsx`: Thêm `useSearchParams()`, `useEffect` lắng nghe `searchParams.get('tab')`: nếu là `'bm01'`, set `activeTab('outline')`; nếu là `'bm02a'`, set `activeTab('bm02a')`; nếu là `'mentor'`, set `activeTab('mentor')`.
 - Trong `ProgressTrackingPage.jsx`: Lắng nghe `searchParams.get('tab')`: nếu là `'bm04'`, set `activeTab('archive')` và cuộn hoặc mở vùng BM04; hỗ trợ thêm các giá trị `'tasks'`, `'meeting-logs'`, `'checkpoints'`.
 - Trong `ProjectPeriodPage.jsx`: Lắng nghe `tab === 'decisions'`, tự động mở modal danh sách quyết định hoặc highlight đợt hiện tại.
 
-- [ ] **Step 4: Chạy test xác nhận test đã PASS**
+- [x] **Step 4: Chạy test xác nhận test đã PASS**
 
 Run: `node --test frontend/src/pages/__tests__/tabDeepLinking.test.js`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/pages/lecturer/TopicApprovalPage.jsx frontend/src/pages/lecturer/ProgressTrackingPage.jsx frontend/src/pages/admin/ProjectPeriodPage.jsx frontend/src/pages/__tests__/tabDeepLinking.test.js
@@ -296,7 +296,7 @@ git commit -m "feat(navigation): enable query-param tab deep-linking across lect
 - Consumes: `permissionSet` của Giảng viên.
 - Produces: Danh sách menu tinh gọn (5 mục cốt lõi GVHD + nhóm Quản trị rõ ràng).
 
-- [ ] **Step 1: Viết test cho cấu trúc menu tinh gọn của Giảng viên**
+- [x] **Step 1: Viết test cho cấu trúc menu tinh gọn của Giảng viên**
 
 ```javascript
 // frontend/src/pages/__tests__/lecturerNavigationStructure.test.js
@@ -324,23 +324,23 @@ test('Lecturer navigation: Regular GVHD sees exactly the 5 core teaching items',
 });
 ```
 
-- [ ] **Step 2: Chạy test để xác minh trạng thái**
+- [x] **Step 2: Chạy test để xác minh trạng thái**
 
 Run: `node --test frontend/src/pages/__tests__/lecturerNavigationStructure.test.js`
 
-- [ ] **Step 3: Cập nhật `navigationRegistry.js` chuẩn hóa nhãn & gom nhóm**
+- [x] **Step 3: Cập nhật `navigationRegistry.js` chuẩn hóa nhãn & gom nhóm**
 
 Chuẩn hóa tiêu đề nhóm:
 - "HƯỚNG DẪN ĐỒ ÁN" cho các chức năng GVHD.
 - "ĐIỀU HÀNH HỌC VỤ & HỘI ĐỒNG" cho các quyền quản lý cấp Viện / Chủ tịch HĐ.
 - Đảm bảo tính tương thích ngược 100%.
 
-- [ ] **Step 4: Chạy test xác nhận test đã PASS**
+- [x] **Step 4: Chạy test xác nhận test đã PASS**
 
 Run: `node --test frontend/src/pages/__tests__/lecturerNavigationStructure.test.js`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/config/navigationRegistry.js frontend/src/pages/__tests__/lecturerNavigationStructure.test.js
@@ -354,23 +354,24 @@ git commit -m "feat(nav): streamline lecturer navigation structure and group sep
 **Files:**
 - Test toàn bộ: `frontend/` & `backend/`
 
-- [ ] **Step 1: Chạy toàn bộ frontend test suite**
+- [x] **Step 1: Chạy toàn bộ frontend test suite**
 
 Run: `npm --prefix frontend test`
 Expected: Tất cả các test suites PASS (188+ tests).
 
-- [ ] **Step 2: Chạy toàn bộ backend test suite**
+- [x] **Step 2: Chạy toàn bộ backend test suite**
 
 Run: `npm --prefix backend test`
 Expected: Tất cả 108 test suites PASS (1.081 tests).
 
-- [ ] **Step 3: Chạy production build frontend**
+- [x] **Step 3: Chạy production build frontend**
 
 Run: `npm --prefix frontend run build`
 Expected: PASS (0 lỗi bundle).
 
-- [ ] **Step 4: Xác nhận không có BOM (UTF-8 no BOM)**
+- [x] **Step 4: Xác nhận không có BOM (UTF-8 no BOM)**
 
 Run node script kiểm tra tất cả các file sửa đổi và tạo mới không chứa ký tự `\uFEFF`.
 
-- [ ] **Step 5: Cập nhật CLAUDE.md và hoàn tất commit**
+- [x] **Step 5: Cập nhật CLAUDE.md và hoàn tất commit**
+

@@ -2098,6 +2098,83 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 3. **Phễu Tiến Độ Học Vụ 6 Mốc Tuần Tự (Funnel Analytics)**: Theo dõi chặt chẽ tỷ lệ chuyển đổi từ lúc ghi danh đề tài cho đến khi hoàn thành lưu chiểu thư viện, chỉ ra chính xác giai đoạn nào có tỷ lệ sinh viên dừng đồ án cao nhất để nhà trường có biện pháp can thiệp sớm.
 4. **Tận Dụng Thư Viện SheetJS (`xlsx`) Có Sẵn Ở Backend**: Sử dụng trực tiếp `xlsx` và helper nhị phân mà không bổ sung thư viện bên ngoài nặng nề, đảm bảo file Excel xuất ra có đầy đủ 11 cột, định dạng độ rộng cột tối ưu và dung lượng gọn nhẹ.
 
+---
+
+### Phiên 13/11/2026 — Sửa Lỗi Trắng Trang & Tối Ưu Hóa Trải Nghiệm Phân Hệ Giảng Viên (Lecturer Workspace & UI/UX Pro Max)
+
+#### 1. Những phần đã hoàn thành
+
+1. **Sửa lỗi Temporal Dead Zone (TDZ) ReferenceError trong `ProgressTrackingPage.jsx`**:
+   - Khắc phục triệt để lỗi biến `sPassed` được sử dụng trước khi khai báo `const` ở dòng 437-438.
+   - Đảo trật tự khai báo `sPassed` lên trước `sProgress`, loại bỏ hoàn toàn lỗi crash JavaScript `ReferenceError: Cannot access 'sPassed' before initialization` khi danh sách sinh viên chưa có `progressPercent`.
+   - Giúp hai mục menu **"Theo dõi tiến độ"** (`/lecturer/progress`) và **"Phiếu nhận xét hướng dẫn"** (`/lecturer/progress?tab=bm04`) hoạt động ổn định 100%.
+
+2. **Xây dựng `ErrorBoundary.jsx` toàn cục ngăn ngừa trắng màn hình**:
+   - Tạo mới `frontend/src/components/common/ErrorBoundary.jsx`: Bắt mọi ngoại lệ render runtime ở component con, hiển thị giao diện báo lỗi học thuật chuyên nghiệp với tông màu Pine Teal (`#0F766E`), nút "Tải lại trang" (`<ReloadOutlined />`) và nút "Về trang chủ" (`<HomeOutlined />`), tuân thủ nghiêm ngặt Quy tắc 2.6 trong `AGENTS.md`.
+   - Tích hợp Error Boundary bọc quanh `<Outlet />` trong `AppLayout.jsx` và bao bọc toàn bộ `<Routes>` trong `App.jsx`, thiết lập hệ thống phòng thủ 2 lớp ngăn chặn triệt để tình trạng ứng dụng bị trắng băng (unmount crash).
+
+3. **Sửa lỗi lệch tuyến đường chấm điểm trong `GradingPage.jsx`**:
+   - Cập nhật lệnh chuyển hướng trong `GradingPage.jsx`: thay đổi `navigate('/lecturer/grading/' + cand.id)` $\rightarrow$ `navigate('/lecturer/grading/sheet/' + cand.id)`.
+   - Khớp 100% với route đăng ký chính quy trong `App.jsx`, chấm dứt việc `RouteFallbackHandler` tự động đá người dùng về Dashboard khi bấm "Vào chấm điểm" hoặc "Xem phiếu chấm".
+
+4. **Kích hoạt Tab Deep-Linking qua `useSearchParams`**:
+   - `TopicApprovalPage.jsx`: Tự động nhận diện query param `?tab=bm01` $\rightarrow$ mở tab "Hội Đồng Thẩm Định Đề Cương", `?tab=bm02a` $\rightarrow$ mở tab "Duyệt phiếu đổi tên BM02-A", `?tab=mentor` $\rightarrow$ mở tab "Tiếp nhận nguyện vọng".
+   - `ProgressTrackingPage.jsx`: Tự động nhận diện `?tab=bm04` $\rightarrow$ mở tab "Lưu chiểu & BM04" (nghiệm thu đồ án); đồng thời hỗ trợ các tabs `'tasks'`, `'meeting-logs'`, `'checkpoints'`.
+   - `ProjectPeriodPage.jsx`: Tự động nhận diện `?tab=decisions` $\rightarrow$ kích hoạt danh sách quyết định giao đề tài.
+
+5. **Tinh gọn & phân tầng thanh điều hướng Giảng viên (`navigationRegistry.js`)**:
+   - Giảng viên thông thường (regular GVHD) với 5 quyền core chỉ hiển thị chính xác **5 mục cốt lõi** thuộc 3 nhóm nghiệp vụ:
+     * `/lecturer/topics` ("Đề tài phụ trách" - Hồ sơ của tôi)
+     * `/lecturer/approvals` ("Sinh viên hướng dẫn" - Hướng dẫn & tiến độ)
+     * `/lecturer/progress` ("Theo dõi tiến độ" - Hướng dẫn & tiến độ)
+     * `/lecturer/progress?tab=bm04` ("Phiếu nhận xét hướng dẫn" - Hướng dẫn & tiến độ)
+     * `/lecturer/grading` ("Phiếu chấm bảo vệ" - Hội đồng & bảo vệ)
+   - Giảng viên kiêm nhiệm Ban điều hành Viện / Hội đồng (như Viện trưởng `lecturer01`) được phân tầng hiển thị tách bạch các khối quản trị ("Thẩm định & quyết định", "Hội đồng & bảo vệ", "Kết quả & công bố", "Quản trị học vụ") mà không gây quá tải nhận thức hay làm xáo trộn không gian làm việc của GVHD thông thường.
+   - Rà soát toàn bộ 29 mục menu trong registry đảm bảo không chứa emoji hoặc ký tự thô trong nhãn, tuân thủ 100% chuẩn Rule 2.6.
+
+6. **Xây dựng 5 bộ kiểm thử TDD mới & bảo đảm chất lượng**:
+   - `frontend/src/pages/lecturer/__tests__/progressTrackingTdz.test.js`: Xác minh thứ tự khai báo `sPassed` trước `sProgress`.
+   - `frontend/src/pages/__tests__/errorBoundaryUi.test.js`: Xác minh component Error Boundary, method xử lý lỗi, icons Ant Design và bọc route/layout.
+   - `frontend/src/pages/lecturer/__tests__/gradingPageRouteAlignment.test.js`: Xác minh đường dẫn route `/lecturer/grading/sheet/:registrationId`.
+   - `frontend/src/pages/__tests__/tabDeepLinking.test.js`: Xác minh đọc query parameters trong các trang giảng viên/học vụ.
+   - `frontend/src/pages/__tests__/lecturerNavigationStructure.test.js`: Xác minh 5 mục cốt lõi GVHD, phân tầng quản trị viện và tuân thủ Rule 2.6.
+
+#### 2. Trạng thái cập nhật của từng phần
+
+- **Database/Prisma**: `STABLE & FULLY COMPATIBLE`; Không thay đổi schema hay migrations. Tuân thủ 100% mô hình `TopicRegistration`.
+- **Backend API**: `STABLE (100% PASS)`; Toàn bộ 108 test suites, 1081 tests backend PASS.
+- **Frontend SPA**: `RESILIENT & STREAMLINED`;
+  * Đã loại bỏ hoàn toàn lỗi trắng trang khi click menu.
+  * Tích hợp Error Boundary 2 tầng bảo vệ runtime.
+  * Tab Deep-Linking hoạt động mượt mà theo URL query params.
+  * Toàn bộ 200/200 frontend tests PASS (100%).
+- **Production Build**: Vite build hoàn tất thành công trong 12.94s (**0 lỗi bundle**, 3236 modules transformed).
+- **Mã hóa & Chuẩn tệp**: 14/14 tệp tin tạo mới và sửa đổi đều đạt chuẩn **UTF-8 (no BOM)** theo Quy tắc 2.4.
+- **Quy chuẩn UI/UX**: Tuân thủ tuyệt đối Quy tắc 2.6 trong `AGENTS.md` (chỉ dùng `@ant-design/icons` qua prop `icon`, không emoji trong text nhãn).
+- **Quy chuẩn Subagent**: Tuân thủ nghiêm ngặt Quy tắc 3 trong `AGENTS.md` (ủy thác subagent theo từng task độc lập, kiểm tra chéo trước khi đóng phiên).
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+
+1. Trải nghiệm thực tế toàn bộ phân hệ Giảng viên trên trình duyệt:
+   - Đăng nhập tài khoản Giảng viên hướng dẫn thường (ví dụ: `lecturer02`):
+     * Xác nhận menu trái hiển thị đúng 5 mục cốt lõi gọn gàng.
+     * Bấm vào từng mục menu, đặc biệt là "Theo dõi tiến độ" và "Phiếu nhận xét hướng dẫn", kiểm tra không còn hiện tượng trắng trang.
+     * Chuyển đổi giữa các tabs (Công việc, Nhật ký họp, Checkpoints, Lưu chiểu & BM04) kiểm tra mượt mà.
+   - Đăng nhập tài khoản Viện trưởng (`lecturer01`):
+     * Xác nhận phân tầng rõ ràng giữa khối Hướng dẫn đồ án và khối Điều hành học vụ & Hội đồng.
+     * Bấm "Thẩm định đề cương" (`/lecturer/approvals?tab=bm01`) $\rightarrow$ kiểm tra tự động kích hoạt tab Hội đồng thẩm định đề cương BM01.
+   - Thử nghiệm chức năng chấm điểm hội đồng (`/lecturer/grading`):
+     * Bấm "Vào chấm điểm" $\rightarrow$ xác nhận vào thẳng phiếu chấm `/lecturer/grading/sheet/:registrationId` mà không bị đá về Dashboard.
+2. Tiếp tục theo dõi và tối ưu hóa UI/UX các màn hình khác theo phản hồi của người dùng.
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+
+1. **Lựa chọn Phương án 3 (Giải pháp toàn diện thay vì chắp vá)**: Giải quyết đồng thời 3 nguyên nhân cốt lõi: (1) Sửa lỗi code TDZ gây crash, (2) Bổ sung Error Boundary phòng thủ từ xa tránh trắng trang trong tương lai, (3) Nối query param tab deep-linking và tinh gọn phân tầng menu theo tiêu chuẩn UI/UX Pro Max, đem lại trải nghiệm học vụ chuyên nghiệp và mượt mà.
+2. **Thiết kế Error Boundary 2 Tầng (Layout & Root)**: Bọc Error Boundary quanh `<Outlet />` trong `AppLayout` giúp khi một trang con ném lỗi render, khung sườn sidebar, header và navigation vẫn hoạt động bình thường, người dùng có thể chủ động bấm "Tải lại trang" hoặc "Về trang chủ" mà không bị sập toàn bộ ứng dụng SPA.
+3. **Đồng bộ hóa Trạng thái Tab qua Query Parameter (`useSearchParams`)**: URL phản ánh chính xác trạng thái view bên trong trang (`?tab=bm01`, `?tab=bm04`, `?tab=decisions`), cho phép các mục menu điều hướng thẳng vào chức năng mong muốn, đồng thời hỗ trợ người dùng bookmark hoặc chia sẻ link trực tiếp.
+4. **Bảo tồn Tuyệt đối 29 Mục Menu Cố Định & 7 Khối Nghiệp Vụ Chuẩn**: Tinh gọn giao diện hiển thị cho từng đối tượng bằng cách tận dụng ma trận năng lực RBAC (Capability Matrix) mà không thay đổi cấu trúc registry hay phá vỡ các bộ kiểm thử tự động của hệ thống.
+
+
 
 
 

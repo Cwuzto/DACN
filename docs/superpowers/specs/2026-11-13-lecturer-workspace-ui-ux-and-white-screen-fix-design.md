@@ -2,7 +2,7 @@
 
 - **Mã thiết kế**: SPEC-2026-11-13-LECTURER-UI-UX-FIX
 - **Ngày lập**: 13/11/2026
-- **Trạng thái**: Chờ phê duyệt (Pending Approval)
+- **Trạng thái**: Đã phê duyệt & Hoàn thành (Approved & Completed)
 - **Tác giả**: AI Agent & Người dùng
 - **Phạm vi**: Frontend SPA (`frontend/src/pages/lecturer/`, `frontend/src/config/navigationRegistry.js`, `frontend/src/components/layout/AppLayout.jsx`, `frontend/src/components/common/ErrorBoundary.jsx`)
 
@@ -131,3 +131,4 @@ Quy hoạch lại các nhóm menu cho Giảng viên:
    - Chạy `npm --prefix backend test` (108 suites).
    - Build production `npm --prefix frontend run build` không lỗi.
 3. **Zero-BOM Check**: Xác nhận 100% tệp tin đạt chuẩn UTF-8 no BOM.
+
