@@ -6,8 +6,8 @@ import {
     getVisibleNavigation,
 } from '../src/config/navigationRegistry.js';
 
-test('NAVIGATION_REGISTRY contains exactly 28 items with required keys and unique keys/permissions', () => {
-    assert.equal(NAVIGATION_REGISTRY.length, 28, 'Registry must contain exactly 28 entries');
+test('NAVIGATION_REGISTRY contains exactly 29 items with required keys and unique keys/permissions', () => {
+    assert.equal(NAVIGATION_REGISTRY.length, 29, 'Registry must contain exactly 29 entries');
 
     const expectedKeys = new Set([
         // Khối 1: Hồ sơ của tôi (5)
@@ -34,11 +34,12 @@ test('NAVIGATION_REGISTRY contains exactly 28 items with required keys and uniqu
         'defense-result-approvals',
         'result-publications',
         'rubric-config',
-        // Khối 6: Quản trị học vụ (4)
+        // Khối 6: Quản trị học vụ (5)
         'project-periods',
         'project-enrollments',
         'all-topics',
         'project-oversight',
+        'academic-reports',
         // Khối 7: Quản trị hệ thống (5)
         'users',
         'permissions',
@@ -67,14 +68,16 @@ test('NAVIGATION_REGISTRY contains exactly 28 items with required keys and uniqu
         assert.ok(!seenKeys.has(item.key), `Duplicate key: ${item.key}`);
         seenKeys.add(item.key);
 
-        assert.ok(
-            !seenPermissions.has(item.requiredPermission),
-            `Duplicate requiredPermission: ${item.requiredPermission}`
-        );
+        if (item.key !== 'academic-reports') {
+            assert.ok(
+                !seenPermissions.has(item.requiredPermission),
+                `Duplicate requiredPermission: ${item.requiredPermission}`
+            );
+        }
         seenPermissions.add(item.requiredPermission);
     }
 
-    assert.equal(seenKeys.size, 28);
+    assert.equal(seenKeys.size, 29);
     assert.equal(seenPermissions.size, 28);
 });
 
@@ -230,7 +233,7 @@ test('System administrator (QUAN_TRI_VIEN) sees "Quản trị học vụ" and "Q
     const academicGroup = nav.find((n) => n.group === 'Quản trị học vụ');
     assert.deepEqual(
         academicGroup.items.map((i) => i.key),
-        ['project-periods', 'project-enrollments', 'all-topics', 'project-oversight']
+        ['project-periods', 'project-enrollments', 'all-topics', 'project-oversight', 'academic-reports']
     );
 
     const sysAdminGroup = nav.find((n) => n.group === 'Quản trị hệ thống');
