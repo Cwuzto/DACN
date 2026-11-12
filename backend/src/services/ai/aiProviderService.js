@@ -11,7 +11,7 @@ const localEmbeddingService = require('./localEmbeddingService');
 const { buildAcademicSystemInstruction, wrapUserMessage } = require('./academicPromptBuilder');
 const liveContextService = require('./liveContextService');
 
-const DEFAULT_TIMEOUT_MS = 8000;
+const DEFAULT_TIMEOUT_MS = parseInt(process.env.GEMINI_TIMEOUT_MS, 10) || 15000;
 
 /**
  * Check whether Gemini API is configured with an active key.

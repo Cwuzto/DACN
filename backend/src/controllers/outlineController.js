@@ -93,7 +93,7 @@ const getMyOutline = async (req, res, next) => {
                     },
                 },
                 submissions: {
-                    orderBy: { createdAt: 'desc' },
+                    orderBy: { submittedAt: 'desc' },
                 },
             },
             orderBy: { createdAt: 'desc' },

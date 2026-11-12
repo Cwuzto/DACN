@@ -32,7 +32,7 @@ describe('Task 1: liveContextService Unit Tests', () => {
   });
 
   describe('1. Semester Query & Fallback', () => {
-    test('returns active semester when status = ACTIVE exists', async () => {
+    test('returns active semester when ongoing/active semester exists', async () => {
       const activeSem = {
         id: 10,
         code: 'HK1_2026_2027',
@@ -41,7 +41,7 @@ describe('Task 1: liveContextService Unit Tests', () => {
         endDate: new Date('2027-01-15'),
         outlineSubmissionDeadline: new Date('2026-09-25'),
         defenseDate: new Date('2027-01-10'),
-        status: 'ACTIVE',
+        status: 'ONGOING',
       };
 
       mockPrisma.semester.findFirst.mockResolvedValueOnce(activeSem);
@@ -53,12 +53,12 @@ describe('Task 1: liveContextService Unit Tests', () => {
 
       expect(mockPrisma.semester.findFirst).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { status: 'ACTIVE' },
+          where: { status: { in: ['ONGOING', 'REGISTRATION', 'DEFENSE'] } },
         })
       );
       expect(result.activeSemester).toBeDefined();
       expect(result.activeSemester.code).toBe('HK1_2026_2027');
-      expect(result.activeSemester.status).toBe('ACTIVE');
+      expect(result.activeSemester.status).toBe('ONGOING');
     });
 
     test('falls back to latest semester when no semester has status = ACTIVE', async () => {

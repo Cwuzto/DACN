@@ -122,7 +122,9 @@ function clearInstitutionalCache() {
 async function fetchActiveSemester() {
   try {
     const active = await prisma.semester.findFirst({
-      where: { status: 'ACTIVE' },
+      where: {
+        status: { in: ['ONGOING', 'REGISTRATION', 'DEFENSE'] },
+      },
       orderBy: { startDate: 'desc' },
     });
     if (active) {
@@ -138,27 +140,33 @@ async function fetchActiveSemester() {
       };
     }
   } catch (err) {
-    // If enum constraint fails on 'ACTIVE', try ONGOING
-    try {
-      const ongoing = await prisma.semester.findFirst({
-        where: { status: 'ONGOING' },
-        orderBy: { startDate: 'desc' },
-      });
-      if (ongoing) {
-        return {
-          id: ongoing.id,
-          code: ongoing.code,
-          name: ongoing.name,
-          startDate: ongoing.startDate,
-          endDate: ongoing.endDate,
-          outlineSubmissionDeadline: ongoing.outlineSubmissionDeadline,
-          defenseDate: ongoing.defenseDate,
-          status: ongoing.status,
-        };
-      }
-    } catch (_) {
-      // ignore
+    // If status filter fails, continue to date-based or latest fallback
+  }
+
+  // Try date-based active semester (current date between start and end)
+  try {
+    const now = new Date();
+    const dateActive = await prisma.semester.findFirst({
+      where: {
+        startDate: { lte: now },
+        endDate: { gte: now },
+      },
+      orderBy: { startDate: 'desc' },
+    });
+    if (dateActive) {
+      return {
+        id: dateActive.id,
+        code: dateActive.code,
+        name: dateActive.name,
+        startDate: dateActive.startDate,
+        endDate: dateActive.endDate,
+        outlineSubmissionDeadline: dateActive.outlineSubmissionDeadline,
+        defenseDate: dateActive.defenseDate,
+        status: dateActive.status,
+      };
     }
+  } catch (_) {
+    // ignore
   }
 
   // Fallback to latest semester
