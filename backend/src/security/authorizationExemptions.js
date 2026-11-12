@@ -11,6 +11,7 @@ const PLATFORM_AUTHORIZATION_EXEMPTIONS = [
   { routeFile: 'notificationRoutes', method: 'PATCH', path: '/:id/read', type: 'OWNERSHIP_GUARDED', reason: 'Đánh dấu thông báo của chính user.' },
   { routeFile: 'notificationRoutes', method: 'PATCH', path: '/read-all', type: 'OWNERSHIP_GUARDED', reason: 'Đánh dấu toàn bộ thông báo của chính user.' },
   { routeFile: 'notificationRoutes', method: 'DELETE', path: '/:id', type: 'OWNERSHIP_GUARDED', reason: 'Xóa thông báo của chính user.' },
+  { routeFile: 'notificationRoutes', method: 'POST', path: '/lecturer-broadcast', type: 'OWNERSHIP_GUARDED', reason: 'Giảng viên gửi thông báo đến các sinh viên mình đang hướng dẫn.' },
   { routeFile: 'rubricRoutes', method: 'GET', path: '/active', type: 'SELF_SERVICE', reason: 'Rubric active cho user đã đăng nhập.' },
   { routeFile: 'portalContentRoutes', method: 'GET', path: '/public', type: 'PUBLIC', reason: 'Nội dung Portal đã công bố.' },
 ];

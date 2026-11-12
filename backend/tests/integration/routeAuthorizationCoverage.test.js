@@ -1,0 +1,1 @@
+require('../security/routeAuthorizationCoverage.test');

@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const { body, param, query } = require('express-validator');
 const notificationController = require('../controllers/notificationController');
-const { authenticate, authorizePermission } = require('../middlewares/auth');
+const { authenticate, authenticateToken, authorizePermission } = require('../middlewares/auth');
 const { PERMISSIONS } = require('../constants/permissions');
 const { validateRequest } = require('../middlewares/validate');
 
@@ -35,6 +35,12 @@ router.delete(
         validateRequest,
     ],
     notificationController.deleteMyNotification
+);
+
+router.post(
+    '/lecturer-broadcast',
+    authenticateToken,
+    notificationController.sendLecturerBroadcast
 );
 
 router.get('/history', authorizePermission(PERMISSIONS.VIEW_NOTIFICATIONS, PERMISSIONS.NOTIFICATION_MANAGE), notificationController.getNotificationHistory);

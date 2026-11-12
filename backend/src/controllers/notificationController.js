@@ -305,6 +305,100 @@ const updateNotificationTemplate = async (req, res, next) => {
     }
 };
 
+const sendLecturerBroadcast = async (req, res, next) => {
+    try {
+        const { subject, content } = req.body || {};
+
+        if (!content || typeof content !== 'string' || !content.trim()) {
+            return res.status(400).json({
+                success: false,
+                message: 'Nội dung thông báo không được để trống',
+            });
+        }
+
+        let activeSemester = null;
+        try {
+            const now = new Date();
+            activeSemester = await prisma.semester.findFirst({
+                where: {
+                    OR: [
+                        { status: { in: ['ONGOING', 'REGISTRATION', 'DEFENSE', 'ACTIVE'] } },
+                        {
+                            startDate: { lte: now },
+                            endDate: { gte: now },
+                        },
+                    ],
+                },
+                orderBy: { startDate: 'desc' },
+            });
+        } catch (_) {
+            try {
+                activeSemester = await prisma.semester.findFirst({
+                    where: {
+                        status: { in: ['ONGOING', 'REGISTRATION', 'DEFENSE'] },
+                    },
+                    orderBy: { startDate: 'desc' },
+                });
+            } catch (_) {}
+        }
+
+        if (!activeSemester) {
+            try {
+                activeSemester = await prisma.semester.findFirst({
+                    orderBy: { id: 'desc' },
+                });
+            } catch (_) {}
+        }
+
+        const activeRegistrations = await prisma.topicRegistration.findMany({
+            where: {
+                topic: { mentorId: req.user.id },
+                ...(activeSemester ? { semesterId: activeSemester.id } : {}),
+                status: { notIn: ['DROPPED', 'WITHDRAWN', 'REJECTED'] },
+            },
+            select: { studentId: true, student: { select: { fullName: true } } },
+        });
+
+        const studentIds = [...new Set(activeRegistrations.map((r) => r.studentId).filter(Boolean))];
+
+        if (studentIds.length === 0) {
+            return res.status(400).json({
+                success: false,
+                error: 'NO_ACTIVE_STUDENTS',
+                code: 'NO_ACTIVE_STUDENTS',
+                message: 'Bạn hiện không có sinh viên nào đang hướng dẫn trong học kỳ này',
+            });
+        }
+
+        const title = (subject || '').trim() || 'Thông báo từ Giảng viên hướng dẫn';
+        const trimmedContent = content.trim();
+
+        const notifications = studentIds.map((studentId) => ({
+            userId: studentId,
+            title,
+            content: trimmedContent,
+            type: 'SYSTEM',
+            isRead: false,
+        }));
+
+        await prisma.notification.createMany({
+            data: notifications,
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: `Đã gửi thông báo đến ${studentIds.length} sinh viên đang hướng dẫn!`,
+            sentCount: studentIds.length,
+            data: {
+                sentCount: studentIds.length,
+                recipientStudentIds: studentIds,
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     getMyNotifications,
     markNotificationRead,
@@ -312,6 +406,7 @@ module.exports = {
     deleteMyNotification,
     getNotificationHistory,
     sendBroadcastNotification,
+    sendLecturerBroadcast,
     getNotificationTemplates,
     updateNotificationTemplate,
 };
