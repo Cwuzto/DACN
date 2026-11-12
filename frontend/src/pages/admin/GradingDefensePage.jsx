@@ -10,9 +10,13 @@ import {
     Tooltip,
 } from 'antd';
 import {
+    CheckOutlined,
     DownloadOutlined,
     LockOutlined,
+    PrinterOutlined,
+    ReloadOutlined,
     RollbackOutlined,
+    SettingOutlined,
     UnlockOutlined,
     WarningOutlined,
 } from '@ant-design/icons';
@@ -86,6 +90,7 @@ export default function GradingDefensePage() {
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [drawerLoading, setDrawerLoading] = useState(false);
     const [scoreSaving, setScoreSaving] = useState(false);
+    const [isExportingPdf, setIsExportingPdf] = useState(false);
     const [scoreSheetRegistration, setScoreSheetRegistration] = useState(null);
     const [scoreSheetRows, setScoreSheetRows] = useState([]);
     const [generalComment, setGeneralComment] = useState('');
@@ -447,6 +452,28 @@ export default function GradingDefensePage() {
             message.error(err?.message || 'Không thể lưu bảng điểm');
         } finally {
             setScoreSaving(false);
+        }
+    };
+
+    const handleExportBM05Pdf = async () => {
+        if (!scoreSheetRegistration) return;
+        const regId = scoreSheetRegistration.registrationId || scoreSheetRegistration.id;
+        try {
+            setIsExportingPdf(true);
+            const res = await evaluationService.exportScoreSheetPdf(regId, {
+                evaluatorId: selectedEvaluatorId,
+            });
+            const fileUrl = res?.data?.pdfUrl || res?.data?.fileUrl || res?.pdfUrl || res?.fileUrl;
+            if (fileUrl) {
+                window.open(fileUrl, '_blank');
+                message.success('Đã xuất Biên bản bảo vệ BM05 PDF thành công!');
+            } else {
+                message.error(res?.message || 'Không tìm thấy đường dẫn file PDF xuất ra');
+            }
+        } catch (err) {
+            message.error(err?.message || 'Không thể xuất Biên bản bảo vệ BM05 PDF');
+        } finally {
+            setIsExportingPdf(false);
         }
     };
 
@@ -1047,13 +1074,14 @@ export default function GradingDefensePage() {
                                 <span className="meta">
                                     Tổng tối đa: <strong className="num">10.0 điểm</strong>
                                 </span>
-                                {canSubmitScore && <button
-                                    className="btn btn-secondary btn-sm"
+                                {canSubmitScore && <Button
+                                    size="small"
+                                    icon={<SettingOutlined />}
                                     onClick={() => setAdminEditRubric(!adminEditRubric)}
-                                    style={{ padding: '2px 8px', fontSize: 11.5 }}
+                                    style={{ fontSize: 11.5 }}
                                 >
-                                    ⚙ {adminEditRubric ? 'Đóng chế độ sửa' : 'Sửa Tiêu chí & Điểm'}
-                                </button>}
+                                    {adminEditRubric ? 'Đóng chế độ sửa' : 'Sửa Tiêu chí & Điểm'}
+                                </Button>}
                             </div>
                         </div>
 
@@ -1072,10 +1100,16 @@ export default function GradingDefensePage() {
                                     alignItems: 'center',
                                 }}
                             >
-                                <span>⚙ <strong>Chế độ Sửa Rubric:</strong> Cho phép đổi tên tiêu chí và điểm tối đa của từng mục.</span>
-                                <button className="btn btn-primary btn-sm" onClick={() => setAdminEditRubric(false)} style={{ padding: '2px 8px', fontSize: 11 }}>
-                                    ✓ Xong
-                                </button>
+                                <span><strong>Chế độ Sửa Rubric:</strong> Cho phép đổi tên tiêu chí và điểm tối đa của từng mục.</span>
+                                <Button
+                                    size="small"
+                                    type="primary"
+                                    icon={<CheckOutlined />}
+                                    onClick={() => setAdminEditRubric(false)}
+                                    style={{ fontSize: 11 }}
+                                >
+                                    Hoàn tất
+                                </Button>
                             </div>
                         )}
 
@@ -1162,15 +1196,18 @@ export default function GradingDefensePage() {
                                 Quy chế Viện: Trung bình cộng điểm các thành viên Hội đồng bảo vệ (Chủ tịch, Thư ký, Phản biện)
                             </p>
                         </div>
-                        <button
-                            className="btn btn-secondary"
-                            onClick={() => message.info('Đã cập nhật lại công thức tổng hợp điểm.')}
+                        <Button
+                            icon={<ReloadOutlined />}
+                            onClick={() => {
+                                const regId = scoreSheetRegistration?.registrationId || scoreSheetRegistration?.id;
+                                if (regId) {
+                                    loadScoreSheet(regId, selectedEvaluatorId);
+                                }
+                                message.info('Đã cập nhật lại công thức tổng hợp điểm.');
+                            }}
                         >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
-                            </svg>
-                            <span>Tính Lại</span>
-                        </button>
+                            Tính Lại
+                        </Button>
                     </div>
                 </div>
 
@@ -1179,16 +1216,13 @@ export default function GradingDefensePage() {
                         Đóng
                     </button>
                     <div style={{ display: 'flex', gap: 10 }}>
-                        <button
-                            className="btn btn-secondary"
-                            onClick={() => message.success('Đang tạo Biên bản bảo vệ BM05 kèm chữ ký số...')}
+                        <Button
+                            icon={<PrinterOutlined />}
+                            onClick={handleExportBM05Pdf}
+                            loading={isExportingPdf}
                         >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
-                                <rect width="12" height="8" x="6" y="14" />
-                            </svg>
-                            <span>In Biên Bản BM05</span>
-                        </button>
+                            In Biên Bản BM05
+                        </Button>
                         {canSubmitScore && <button
                             className="btn btn-primary"
                             onClick={handleSaveScoreSheet}

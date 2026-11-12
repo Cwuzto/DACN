@@ -69,6 +69,14 @@ const notificationService = {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi gửi thông báo');
         }
     },
+
+    sendLecturerBroadcast: async (data) => {
+        try {
+            return await api.post('/notifications/lecturer-broadcast', data);
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi gửi thông báo cho sinh viên hướng dẫn');
+        }
+    },
 };
 
 export default notificationService;

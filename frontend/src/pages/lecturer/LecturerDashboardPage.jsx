@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { message } from 'antd';
+import { ArrowRightOutlined, CloseOutlined, PlusOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
 import registrationService from '../../services/registrationService';
 import evaluationService from '../../services/evaluationService';
 import meetingLogService from '../../services/meetingLogService';
+import notificationService from '../../services/notificationService';
 import PageLoader from '../../components/common/PageLoader';
 import useAuthStore from '../../stores/authStore';
 import { isInstituteDirector } from '../../utils/authRedirect';
@@ -159,19 +161,30 @@ export default function LecturerDashboardPage() {
         }
     };
 
-    const handleSendBroadcast = () => {
+    const handleSendBroadcast = async () => {
         if (!broadcastContent.trim()) {
             message.warning('Vui lòng nhập nội dung thông báo');
             return;
         }
-        setBroadcastSubmitting(true);
-        setTimeout(() => {
-            message.success(`Đã gửi thông báo đến ${studentCount} sinh viên đang hướng dẫn!`);
+        try {
+            setBroadcastSubmitting(true);
+            const res = await notificationService.sendLecturerBroadcast({
+                subject: broadcastSubject.trim() || undefined,
+                content: broadcastContent.trim(),
+            });
+            if (res.success) {
+                message.success(res.message || `Đã gửi thông báo đến ${studentCount} sinh viên đang hướng dẫn!`);
+                setBroadcastModalOpen(false);
+                setBroadcastSubject('');
+                setBroadcastContent('');
+            } else {
+                message.error(res.message || 'Không thể gửi thông báo');
+            }
+        } catch (err) {
+            message.error(err?.message || 'Đã xảy ra lỗi khi gửi thông báo');
+        } finally {
             setBroadcastSubmitting(false);
-            setBroadcastModalOpen(false);
-            setBroadcastSubject('');
-            setBroadcastContent('');
-        }, 500);
+        }
     };
 
     if (loading) {
@@ -258,8 +271,10 @@ export default function LecturerDashboardPage() {
                         type="button"
                         className="btn btn-primary btn-sm"
                         onClick={() => setMeetingModalOpen(true)}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
                     >
-                        + Ghi nhận Buổi Gặp Hướng Dẫn Mới
+                        <PlusOutlined />
+                        <span>Ghi nhận Buổi Gặp Hướng Dẫn Mới</span>
                     </button>
                 </div>
             </div>
@@ -355,8 +370,10 @@ export default function LecturerDashboardPage() {
                                     type="button"
                                     className="btn btn-primary btn-sm"
                                     onClick={() => navigate('/lecturer/institute?tab=decisions')}
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
                                 >
-                                    Quản lý quyết định →
+                                    <span>Quản lý quyết định</span>
+                                    <ArrowRightOutlined />
                                 </button>
                             </div>
                         </div>
@@ -365,7 +382,7 @@ export default function LecturerDashboardPage() {
                         <div style={{ padding: '14px 16px', background: 'white', border: '1px solid #CCFBF1', borderRadius: 'var(--radius-sm)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                             <div>
                                 <div style={{ fontWeight: 700, color: '#0F766E', fontSize: '14px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                                    <span>✅ Thẩm định đơn đăng ký đề tài</span>
+                                    <span>📜 Thẩm định đơn đăng ký đề tài</span>
                                 </div>
                                 <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
                                     Thẩm định đơn đăng ký đề tài chính thức của sinh viên đã nộp để làm căn cứ ra quyết định giao đề tài.
@@ -376,8 +393,10 @@ export default function LecturerDashboardPage() {
                                     type="button"
                                     className="btn btn-secondary btn-sm"
                                     onClick={() => navigate('/lecturer/institute?tab=bm02')}
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
                                 >
-                                    Mở hàng đợi thẩm định →
+                                    <span>Mở hàng đợi thẩm định</span>
+                                    <ArrowRightOutlined />
                                 </button>
                             </div>
                         </div>
@@ -397,8 +416,10 @@ export default function LecturerDashboardPage() {
                                     type="button"
                                     className="btn btn-secondary btn-sm"
                                     onClick={() => navigate('/admin/councils')}
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
                                 >
-                                    Điều phối hội đồng →
+                                    <span>Điều phối hội đồng</span>
+                                    <ArrowRightOutlined />
                                 </button>
                             </div>
                         </div>
@@ -418,8 +439,10 @@ export default function LecturerDashboardPage() {
                                     type="button"
                                     className="btn btn-secondary btn-sm"
                                     onClick={() => navigate('/admin/grading')}
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
                                 >
-                                    Trung tâm chấm →
+                                    <span>Trung tâm chấm</span>
+                                    <ArrowRightOutlined />
                                 </button>
                             </div>
                         </div>
@@ -439,8 +462,10 @@ export default function LecturerDashboardPage() {
                                     type="button"
                                     className="btn btn-secondary btn-sm"
                                     onClick={() => navigate('/lecturer/institute?tab=delegations')}
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
                                 >
-                                    Quản lý ủy quyền →
+                                    <span>Quản lý ủy quyền</span>
+                                    <ArrowRightOutlined />
                                 </button>
                             </div>
                         </div>
@@ -512,8 +537,10 @@ export default function LecturerDashboardPage() {
                             type="button"
                             className="btn btn-primary btn-sm"
                             onClick={() => navigate('/lecturer/approvals')}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
                         >
-                            Xử lý ngay →
+                            <span>Xử lý ngay</span>
+                            <ArrowRightOutlined />
                         </button>
                     </div>
 
@@ -539,8 +566,10 @@ export default function LecturerDashboardPage() {
                                 type="button"
                                 className="btn btn-danger btn-sm"
                                 onClick={() => setMeetingModalOpen(true)}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
                             >
-                                + Ghi nhận Buổi Gặp Hướng Dẫn Mới
+                                <PlusOutlined />
+                                <span>Ghi nhận Buổi Gặp Hướng Dẫn Mới</span>
                             </button>
                         </div>
                     </div>
@@ -559,8 +588,10 @@ export default function LecturerDashboardPage() {
                             type="button"
                             className="btn btn-secondary btn-sm"
                             onClick={() => navigate('/lecturer/grading')}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
                         >
-                            Xem Lịch thi & Tiêu chí chấm →
+                            <span>Xem Lịch thi & Tiêu chí chấm</span>
+                            <ArrowRightOutlined />
                         </button>
                     </div>
                 </div>
@@ -656,8 +687,10 @@ export default function LecturerDashboardPage() {
                         type="button"
                         className="btn btn-secondary btn-sm"
                         onClick={() => navigate('/lecturer/progress')}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
                     >
-                        Mở Sổ Theo Dõi Chi Tiết →
+                        <span>Mở Sổ Theo Dõi Chi Tiết</span>
+                        <ArrowRightOutlined />
                     </button>
                 </div>
 
@@ -748,8 +781,8 @@ export default function LecturerDashboardPage() {
                 <div className="modal-overlay open" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <div className="modal-box" style={{ maxWidth: 540 }}>
                         <div className="modal-head">
-                            <div className="modal-title">+ Ghi Nhận Buổi Gặp Hướng Dẫn Mới</div>
-                            <button type="button" className="modal-close" onClick={() => setMeetingModalOpen(false)}>×</button>
+                            <div className="modal-title">Ghi Nhận Buổi Gặp Hướng Dẫn Mới</div>
+                            <button type="button" className="modal-close" onClick={() => setMeetingModalOpen(false)} aria-label="Đóng"><CloseOutlined /></button>
                         </div>
                         <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                             <div style={{ padding: '10px 12px', background: '#F0FDFA', borderRadius: 'var(--radius-sm)', border: '1px solid #CCFBF1', fontSize: 13 }}>
@@ -836,7 +869,7 @@ export default function LecturerDashboardPage() {
                     <div className="modal-box" style={{ maxWidth: 540 }}>
                         <div className="modal-head">
                             <div className="modal-title">Gửi Thông Báo Cho Nhóm Sinh Viên Hướng Dẫn</div>
-                            <button type="button" className="modal-close" onClick={() => setBroadcastModalOpen(false)}>×</button>
+                            <button type="button" className="modal-close" onClick={() => setBroadcastModalOpen(false)} aria-label="Đóng"><CloseOutlined /></button>
                         </div>
                         <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                             <div>
@@ -886,7 +919,7 @@ export default function LecturerDashboardPage() {
                     <div className="modal-box" style={{ maxWidth: 540 }}>
                         <div className="modal-head">
                             <div className="modal-title">Kê Khai Giờ Chuẩn Hướng Dẫn & Hội Đồng</div>
-                            <button type="button" className="modal-close" onClick={() => setWorkloadModalOpen(false)}>×</button>
+                            <button type="button" className="modal-close" onClick={() => setWorkloadModalOpen(false)} aria-label="Đóng"><CloseOutlined /></button>
                         </div>
                         <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                             <div style={{ padding: '12px 16px', background: '#F8FAFC', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
