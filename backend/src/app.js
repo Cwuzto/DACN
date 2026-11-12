@@ -9,6 +9,7 @@ const bm02WorkflowRoutes = require('./routes/bm02WorkflowRoutes');
 const bm02aRoutes = require('./routes/bm02aRoutes');
 const bm03Routes = require('./routes/bm03Routes');
 const bm04Routes = require('./routes/bm04Routes');
+const aiRoutes = require('./routes/aiRoutes');
 const errorHandler = require('./middlewares/errorHandler');
 const { startScheduledJobs } = require('./jobs');
 
@@ -53,6 +54,7 @@ app.use('/api', bm02WorkflowRoutes);
 app.use('/api', bm02aRoutes);
 app.use('/api', bm03Routes);
 app.use('/api', bm04Routes);
+app.use('/api/ai', aiRoutes);
 app.use('/api', routes);
 
 // Root route
