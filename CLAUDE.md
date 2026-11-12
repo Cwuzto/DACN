@@ -1511,11 +1511,74 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
    - Nhấp vào **tên một Hội đồng**: Trải nghiệm **Trang Chi tiết Hội đồng riêng**, kiểm tra thông tin, 3 giảng viên, cảnh báo xung đột và thao tác gán/gỡ sinh viên.
 2. Sẵn sàng tiếp nhận các yêu cầu tiếp theo từ người dùng.
 
+---
+
+### Cập Nhật Phiên Làm Việc (Session Update - Gói 1: Khắc Phục Lỗ Hổng Bảo Mật RBAC & Dọn Dẹp Dữ Liệu Giả Toàn Diện)
+
+#### 1. Những phần đã hoàn thành
+
+1. **Chuẩn Hóa Phân Quyền Kỹ Thuật & Chống Leo Thang Đặc Quyền (Backend - Task 1)**:
+   - Sửa [`backend/src/constants/permissions.js`](file:///d:/DACN/backend/src/constants/permissions.js): Chuyển các quyền điều phối hội đồng (`OUTLINE_COUNCIL_MANAGE`, `DEFENSE_COUNCIL_MANAGE`, `DEFENSE_SCHEDULE_PUBLISH`, `DEFENSE_MEMBER_REPLACE`, `VIEW_COUNCIL_ASSIGNMENTS`, `VIEW_DEFENSE_ASSIGNMENTS`) từ `ACADEMIC_PROTECTED_PERMISSIONS` sang `TECHNICAL_PERMISSIONS`. Loại bỏ các quyền học vụ đặc thù (`RUBRIC_LOCK`, `DEFENSE_SCOREBOOK_RETURN`, `ARCHIVE_ACADEMIC_AFFAIRS_REVIEW`) khỏi nhóm `DEFAULT_GROUPS.QUAN_TRI_VIEN`, bảo toàn chúng trong `DEFAULT_GROUPS.GIAO_VU` và `DEFAULT_GROUPS.VIEN_TRUONG`. Giải quyết triệt để lỗi deadlock 403 khi Quản trị viên kỹ thuật gán nhóm `QUAN_TRI_VIEN`.
+   - Nâng cấp [`backend/src/controllers/userController.js`](file:///d:/DACN/backend/src/controllers/userController.js) (`updateUser`):
+     * Chặn người dùng tự nâng role của chính mình (trả về `403 CANNOT_CHANGE_OWN_ROLE`).
+     * Chặn quản trị viên không có quyền `PERMISSION_ASSIGN_ACADEMIC` nâng người khác lên role `ADMIN` (trả về `403 CANNOT_ASSIGN_ADMIN_ROLE`).
+     * Chặn thay đổi role của sinh viên đang có `TopicRegistration` kích hoạt hoặc giảng viên đang hướng dẫn/chấm hội đồng (trả về `400 CANNOT_CHANGE_ROLE_WITH_ACTIVE_ACADEMIC_WORKLOAD`).
+     * Đồng bộ hóa nguyên tử nhóm quyền chức vụ mặc định và ghi nhật ký `UPDATE_USER_ROLE` vào `AuditLog`.
+
+2. **Xây Dựng Endpoint Phát Thông Báo Giảng Viên Thực Tế (Backend - Task 2)**:
+   - Viết mới `sendLecturerBroadcast` trong [`backend/src/controllers/notificationController.js`](file:///d:/DACN/backend/src/controllers/notificationController.js): Quét toàn bộ sinh viên đang được giảng viên hướng dẫn trong học kỳ kích hoạt (loại trừ các đề tài đã hủy hoặc rút), tạo bản ghi `Notification` hàng loạt vào CSDL.
+   - Đăng ký route `POST /api/notifications/lecturer-broadcast` trong [`backend/src/routes/notificationRoutes.js`](file:///d:/DACN/backend/src/routes/notificationRoutes.js) kèm xác thực và phân quyền, đăng ký miễn trừ bảo vệ `OWNERSHIP_GUARDED` trong [`backend/src/security/authorizationExemptions.js`](file:///d:/DACN/backend/src/security/authorizationExemptions.js).
+
+3. **Làm Giàu Hợp Đồng Dữ Liệu Dashboard Sinh Viên & Sửa Query Triage Hội Đồng (Backend - Task 3)**:
+   - Nâng cấp `getStudentDashboard` trong [`backend/src/controllers/dashboardController.js`](file:///d:/DACN/backend/src/controllers/dashboardController.js): Trả về mảng `tasks` nhiệm vụ thực tế từ CSDL, `meetingLogsCount` thực tế từ các buổi trao đổi BM03, `mentorScore` thực tế từ `BM04Evaluation`, và `mentorFullName`.
+   - Viết lại câu truy vấn `unassignedRegistrations` trong `getGeneralStats` và `getSemesterOverview`: Sử dụng mệnh đề `OR` tách biệt Stage 1 (`councilId: null` với các trạng thái đề cương) và Stage 2 (`defenseCouncilId: null` với `DEFENSE_READY` / `ELIGIBLE_BY_INSTITUTE`). Đảm bảo trả về đúng số lượng thực tế (trả về 0 khi không có sinh viên cần triage, xóa bỏ hoàn toàn số giả fallback 14, 4, 2).
+
+4. **Kết Nối Xuất PDF BM05 Thật & Modal Phát Thông Báo Thật (Frontend - Task 4)**:
+   - Thêm phương thức `sendLecturerBroadcast` trong [`frontend/src/services/notificationService.js`](file:///d:/DACN/frontend/src/services/notificationService.js).
+   - Nâng cấp [`frontend/src/pages/admin/GradingDefensePage.jsx`](file:///d:/DACN/frontend/src/pages/admin/GradingDefensePage.jsx): Kết nối nút "In Biên Bản BM05" với `evaluationService.exportScoreSheetPdf(regId)`, mở file PDF trong tab mới, xóa bỏ hoàn toàn mock toast và `setTimeout`.
+   - Nâng cấp [`frontend/src/pages/lecturer/LecturerDashboardPage.jsx`](file:///d:/DACN/frontend/src/pages/lecturer/LecturerDashboardPage.jsx): Kết nối Modal phát thông báo trực tiếp với API `notificationService.sendLecturerBroadcast`, xóa bỏ `setTimeout` giả lập.
+
+5. **Dọn Dẹp Dữ Liệu Giả, Số Liệu Bịa Đặt & Kết Nối Nhiệm Vụ Thật (Frontend - Task 5)**:
+   - [`frontend/src/pages/student/StudentDashboardPage.jsx`](file:///d:/DACN/frontend/src/pages/student/StudentDashboardPage.jsx):
+     * Kết nối danh sách nhiệm vụ thực từ `dashboardData.tasks`, hiển thị Ant Design `<Empty />` khi chưa có nhiệm vụ; xóa sạch 3 khối HTML nhiệm vụ bịa đặt.
+     * Xóa chuỗi hardcoded `'18 / 20h'`, hiển thị `{dashboardData?.meetingLogsCount ?? 0} buổi`.
+     * Xóa fallback `'8.8 / 10'`, hiển thị `{dashboardData?.mentorScore != null ? ... : 'Chưa đánh giá'}`.
+     * Xóa sạch 3 vị trí fallback `'PGS.TS Lê Quang Dũng'`, lấy tên GVHD thực tế hoặc `'Chưa phân công'`.
+     * Xóa tiến độ bịa đặt `65%`, tính tiến độ chuẩn xác dựa trên `RegistrationStatus`.
+     * Thay 3 nút tải toast giả bằng `<Button disabled icon={<DownloadOutlined />}>Tải về</Button>` bọc `<Tooltip title="Biểu mẫu chuẩn sẽ được công bố theo thông báo của Nhà trường">`.
+   - [`frontend/src/pages/lecturer/ProgressTrackingPage.jsx`](file:///d:/DACN/frontend/src/pages/lecturer/ProgressTrackingPage.jsx): Xóa bỏ số giả `?? 75` và `(sPassed ? 8 : 4)`, hiển thị số lượng thực tế hoặc 0.
+   - [`frontend/src/pages/admin/DashboardPage.jsx`](file:///d:/DACN/frontend/src/pages/admin/DashboardPage.jsx): Xóa mảng phân bổ điểm giả 4 mức khi CSDL rỗng; xóa sạch các số triage giả `14`, `4`, `2`.
+   - [`frontend/src/pages/common/HomePage.jsx`](file:///d:/DACN/frontend/src/pages/common/HomePage.jsx): Xóa fallback `?? 4` đề tài hướng dẫn; xóa 3 đề tài tiếng Anh giả `'Event-Driven Architecture', 'Distributed Tracing', 'Fintech Core Engine'`.
+   - Tuân thủ nghiêm ngặt **Quy chuẩn Rule 2.6 UI/UX Button Standards** trên toàn bộ các trang giao diện.
+
+6. **Kiểm Thử Hồi Quy Toàn Diện & Xác Thực Bản Build Sản Xuất (Task 6)**:
+   - Xây dựng bộ test tích hợp toàn diện [`backend/tests/integration/package1FullRegression.test.js`](file:///d:/DACN/backend/tests/integration/package1FullRegression.test.js) (19/19 tests PASS).
+   - Backend test suite: **89/89 test suites, 851/851 tests PASS (100%)**.
+   - Frontend test suite: **133/133 tests PASS (100%)**.
+   - Production Build: `npm run build` thành công xuất sắc (0 lỗi, 11.83s).
+   - Mã hóa: 100% tệp lưu định dạng **UTF-8 (no BOM)**.
+
+#### 2. Trạng thái cập nhật của từng phần
+
+- **Database/Prisma**: `UP TO DATE & ENFORCED`; Ràng buộc toàn vẹn dữ liệu, các bảng hồ sơ và snapshots được bảo toàn nghiêm ngặt.
+- **Backend API**: `PRODUCTION READY`; Đã thắt chặt anti-escalation cho `PUT /users/:id`, bổ sung API broadcast và truy vấn triage hội đồng chuẩn 2 giai đoạn.
+- **Frontend UI**: `CLEAN CONTRACTS & BUILD PASS (100%)`; Không còn bất kỳ điểm dữ liệu giả (mock/fake) hay `setTimeout` giả lập nào trên toàn bộ các dashboard (Student, Lecturer, Admin, Home).
+- **Tuân thủ quy chuẩn**: 100% đạt chuẩn AGENTS.md (Rule 1 TopicRegistration, Rule 2.4 UTF-8 no BOM, Rule 2.6 UI Button Standards, Rule 3 Subagent Isolation).
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+
+1. Tiếp tục triển khai **Gói 2: Bổ sung tính năng quản lý còn thiếu (Missing Administrative Hubs & Workflows)**:
+   - Quản lý Khiếu nại điểm bảo vệ chính thức (Appeal Workflow & Resolution).
+   - Quản lý Hội đồng Cấp Viện & Phê duyệt Danh sách bảo vệ độc lập.
+   - Nâng cấp Trình quản lý mẫu biểu & Thông báo đợt tốt nghiệp.
+2. Sẵn sàng tiếp nhận chỉ đạo tiếp theo từ người dùng.
+
 #### 4. Quyết định quan trọng (Decisions & Rationale)
 
-1. **Tách API `Preview` và `Confirm` ở Backend**: Giữ nguyên tắc tính toán logic nghiệp vụ tập trung ở tầng Service, giúp Frontend mượt mà, đồng thời Cronjob tự động vẫn tái sử dụng được 100% logic này mà không bị phụ thuộc vào UI.
-2. **Ẩn Hoàn Toàn Dòng Cảnh Báo Khi An Toàn**: Tránh gây nhiễu thị giác; chỉ cảnh báo đỏ/cam khi phát hiện thực tế có thành viên hội đồng là GVHD của sinh viên trong hội đồng đó.
-3. **Mở Trang Chi Tiết Bằng Tên Hội Đồng**: Thay vì tạo quá nhiều nút bấm làm chật chội thẻ hội đồng, biến tên hội đồng thành liên kết bấm được giúp giao diện tối giản, hiện đại và chuẩn mực UX.
+1. **Tách Biệt Quyền Kỹ Thuật (`QUAN_TRI_VIEN`) và Quyền Học Vụ (`GIAO_VU`)**: Giải quyết triệt để lỗi 403 deadlock khi phân quyền cho admin kỹ thuật mà vẫn đảm bảo an toàn tuyệt đối cho các quyền học vụ tối cao (`RUBRIC_LOCK`, `DEFENSE_SCOREBOOK_RETURN`).
+2. **Khóa Đổi Role Khi Đang Có Workload Hoạt Động**: Chặn triệt để nguy cơ phá vỡ tính toàn vẹn dữ liệu học vụ khi một sinh viên đang làm đồ án hoặc một giảng viên đang hướng dẫn/chấm thi bị đổi role bất ngờ.
+3. **Truy Vấn Triage Tách Biệt Bằng Mệnh Đề `OR`**: Đảm bảo sinh viên ở vòng bảo vệ (`DEFENSE_READY`) chưa có `defenseCouncilId` vẫn được đếm chính xác dù đã từng có `councilId` từ vòng đề cương BM01.
+4. **Triệt Tiêu Hoàn Toàn Dữ Liệu Giả (Zero Mock Data Policy)**: Mọi biểu đồ, thẻ thống kê, danh sách nhiệm vụ và nút tải file đều phản ánh 100% trạng thái thực của hệ thống, không tạo cảm giác hoàn thành ảo cho người dùng.
 
 
 
