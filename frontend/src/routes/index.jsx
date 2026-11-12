@@ -4,6 +4,7 @@
 export const ROUTES = {
     PROJECT_ENROLLMENTS: '/admin/project-enrollments',
     PROJECT_ROUND_COORDINATION: '/admin/project-rounds/:roundId/coordination',
+    ACADEMIC_REPORTS: '/admin/reports',
 };
 
 /**

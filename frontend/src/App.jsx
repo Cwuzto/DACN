@@ -102,6 +102,7 @@ const AdminTopicManagementPage = lazy(() => import('./pages/admin/TopicManagemen
 const CouncilAssignmentPage = lazy(() => import('./pages/admin/CouncilAssignmentPage'));
 const CouncilDetailPage = lazy(() => import('./pages/admin/CouncilDetailPage'));
 const ProjectOversightPage = lazy(() => import('./pages/admin/ProjectOversightPage'));
+const AcademicReportsPage = lazy(() => import('./pages/admin/AcademicReportsPage'));
 const GradingDefensePage = lazy(() => import('./pages/admin/GradingDefensePage'));
 const NotificationCenterPage = lazy(() => import('./pages/admin/NotificationCenterPage'));
 const ProjectEnrollmentPage = lazy(() => import('./pages/admin/ProjectEnrollmentPage'));
@@ -164,6 +165,9 @@ function App() {
                                 </Route>
                                 <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_PROJECT_OVERSIGHT', 'REPORT_VIEW', 'PROJECT_OVERSIGHT_MANAGE']} />}>
                                     <Route path="oversight" element={<ProjectOversightPage />} />
+                                </Route>
+                                <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_PROJECT_OVERSIGHT', 'REPORT_VIEW', 'PROJECT_OVERSIGHT_MANAGE']} />}>
+                                    <Route path="reports" element={<AcademicReportsPage />} />
                                 </Route>
                                 <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_DEFENSE_LOCK_LEDGER', 'DEFENSE_SCORE_VIEW', 'RESULT_LOCK']} />}>
                                     <Route path="grading" element={<GradingDefensePage />} />

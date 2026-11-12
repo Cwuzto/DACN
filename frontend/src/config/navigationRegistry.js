@@ -179,7 +179,7 @@ export const NAVIGATION_REGISTRY = [
         route: '/admin/rubric-management',
     },
 
-    // KHỐI 6: QUẢN TRỊ HỌC VỤ (4 mục)
+    // KHỐI 6: QUẢN TRỊ HỌC VỤ (5 mục)
     {
         key: 'project-periods',
         label: 'Đợt đồ án & Học kỳ',
@@ -211,6 +211,14 @@ export const NAVIGATION_REGISTRY = [
         group: 'Quản trị học vụ',
         requiredPermission: 'VIEW_PROJECT_OVERSIGHT',
         route: '/admin/oversight',
+    },
+    {
+        key: 'academic-reports',
+        label: 'Báo cáo & Thống kê',
+        icon: 'bar_chart',
+        group: 'Quản trị học vụ',
+        requiredPermission: 'VIEW_PROJECT_OVERSIGHT',
+        route: '/admin/reports',
     },
 
     // KHỐI 7: QUẢN TRỊ HỆ THỐNG (5 mục)
