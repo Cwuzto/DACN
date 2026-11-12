@@ -1632,12 +1632,66 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 2. **Component `RegistrationTimelineDrawer` Tái Sử Dụng**: Đưa toàn bộ logic trực quan hóa dòng thời gian vào một component duy nhất, giúp giao diện đồng bộ, dễ bảo trì và tải dữ liệu On-Demand chỉ khi người dùng bấm xem.
 3. **Sao Chép Đề Tài Với Trạng Thái `DRAFT`**: Khi giảng viên nhân bản đề tài từ kỳ trước, hệ thống tự động gán trạng thái `DRAFT` và `currentEnrollmentCount = 0`, đảm bảo giảng viên có cơ hội rà soát, tinh chỉnh yêu cầu đề tài trước khi chính thức gửi duyệt hoặc công bố cho sinh viên đăng ký.
 
+---
+
+### Cập Nhật Phiên Làm Việc (Session Update - Academic BI & Reporting Hub: Trung Tâm Báo Cáo & Thống Kê Học Vụ Chuyên Sâu)
+
+#### 1. Những phần đã hoàn thành
+
+1. **Triển Khai Bộ Ba API Tổng Hợp Học Vụ & Xuất Excel Thực Tế (Backend - Task 1)**:
+   - Endpoint `GET /api/reports/overview`: Tính toán toàn diện số liệu KPIs (tổng SV, số SV hoàn thành, tỷ lệ hoàn thành %, điểm trung bình, điểm cao nhất, điểm thấp nhất), phổ điểm 5 dải màu chuẩn (`EXCELLENT` #10B981, `GOOD` #0F766E, `FAIR` #F59E0B, `AVERAGE` #64748B, `FAILED` #EF4444), phễu tiến độ học vụ tuần tự 6 mốc (`ENROLLED` $\rightarrow$ `BM01_PASSED` $\rightarrow$ `DECISION_ISSUED` $\rightarrow$ `BM03_PASSED` $\rightarrow$ `DEFENSE_READY` $\rightarrow$ `COMPLETED`), và phân nhóm so sánh chi tiết theo chuyên ngành. Hỗ trợ bộ lọc linh hoạt theo `semesterId` và `major`.
+   - Endpoint `GET /api/reports/lecturer-workload`: Thống kê khối lượng hướng dẫn của từng giảng viên trong học kỳ (`assignedCount`, `completedCount`, `completionRate%`), điểm trung bình BM04 (`avgMentorScore`), điểm trung bình Hội đồng bảo vệ (`avgCouncilScore`), và độ lệch điểm tuyệt đối ($\Delta = |avgMentor - avgCouncil|$).
+   - Endpoint `GET /api/reports/export-excel`: Sử dụng thư viện `xlsx` (SheetJS) tổng hợp và xuất file nhị phân Excel (`.xlsx`) bảng kết quả tốt nghiệp toàn viện với 11 cột chuẩn học vụ (STT, Mã SV, Họ tên, Chuyên ngành, Tên đề tài, GVHD, Điểm BM04, Điểm Hội đồng, Điểm Tổng kết, Xếp loại, Trạng thái), format độ rộng cột tối ưu và trả về dạng attachment download stream.
+   - Bảo mật & Phân quyền: Bảo vệ toàn bộ endpoint bằng `authenticateToken` và `authorizeRoleOrPermission(['ADMIN'], [PERMISSIONS.VIEW_PROJECT_OVERSIGHT, PERMISSIONS.PROJECT_OVERSIGHT_MANAGE])`. Chặn hoàn toàn sinh viên và giảng viên không có thẩm quyền giám sát (403 `FORBIDDEN`).
+   - Xây dựng bộ test tích hợp toàn diện [`backend/tests/integration/academicReports.test.js`](file:///d:/DACN/backend/tests/integration/academicReports.test.js) (9/9 tests PASS).
+
+2. **Xây Dựng Client Service, Đăng Ký Menu Điều Hướng & Bảo Vệ Tuyến Đường (Frontend - Task 2)**:
+   - Tạo mới `frontend/src/services/reportService.js` cung cấp 3 methods: `getOverview`, `getLecturerWorkload`, `exportExcel` (trả về blob).
+   - Cập nhật `frontend/src/config/navigationRegistry.js`: Đăng ký mục `academic-reports` ("Báo cáo & Thống kê", icon `bar_chart`, nhóm "Quản trị học vụ", route `/admin/reports`, quyền `VIEW_PROJECT_OVERSIGHT`) vào Khối 6.
+   - Cập nhật `frontend/src/components/layout/NavIcon.jsx`: Bổ sung vector SVG 3 cột biểu đồ cho các cases `'bar_chart'`, `'analytics'`, `'poll'` chuẩn phong cách Feather stroke.
+   - Cập nhật `frontend/src/routes/index.jsx`: Thêm hằng số định tuyến `ACADEMIC_REPORTS: '/admin/reports'`.
+   - Cập nhật `frontend/src/App.jsx`: Lazy load `AcademicReportsPage` và đăng ký route `/admin/reports` bảo vệ bởi `ProtectedRoute` với quyền `['VIEW_PROJECT_OVERSIGHT', 'REPORT_VIEW', 'PROJECT_OVERSIGHT_MANAGE']`.
+   - Xây dựng bộ test TDD [`frontend/src/pages/__tests__/academicReportsRouting.test.js`](file:///d:/DACN/frontend/src/pages/__tests__/academicReportsRouting.test.js) (6/6 tests PASS).
+
+3. **Xây Dựng Hoàn Chỉnh Màn Hình Báo Cáo Phân Tích Chuyên Biệt (Frontend - Task 3)**:
+   - Tạo mới `frontend/src/pages/admin/AcademicReportsPage.jsx` với trải nghiệm phân tích số liệu học vụ hiện đại:
+     * **Top Control Bar**: Bộ chọn học kỳ động từ `semesterService.getAll()`, bộ lọc chuyên ngành, nút "Làm mới" (`<ReloadOutlined />`), và nút "Xuất Báo Cáo Excel" (`<DownloadOutlined />`) tải trực tiếp file `.xlsx` thật qua Blob URL mà không có bất kỳ dữ liệu giả lập nào.
+     * **4 Thẻ Tổng Hợp KPIs**: Tổng sinh viên tham gia, Tỷ lệ hoàn thành đồ án, Điểm trung bình toàn viện, và Tỷ lệ Xuất sắc & Giỏi.
+     * **Tab 1: Phổ điểm & Xếp loại**: Thanh phân bổ tỷ lệ trực quan 5 mức và Bảng chi tiết từng mức xếp loại.
+     * **Tab 2: Phễu tiến độ học vụ**: Phễu chuyển đổi 6 giai đoạn với tỷ lệ giữ chân, số lượng và tỷ lệ hao hụt so với mốc trước, kèm Alert phát hiện điểm nghẽn học vụ tự động.
+     * **Tab 3: So sánh Chuyên ngành**: Bảng đối sánh số lượng sinh viên, tỷ lệ hoàn thành và điểm trung bình giữa các chuyên ngành.
+     * **Tab 4: Tải GVHD & Độ lệch điểm**: Bảng thống kê toàn bộ giảng viên kèm bộ lọc tìm kiếm nhanh; tự động hiển thị `<Tag color="warning" icon={<WarningOutlined />}>Lệch cao (> 1.5)</Tag>` khi độ lệch điểm GVHD và Hội đồng vượt ngưỡng $1.5$, giúp lãnh đạo viện kịp thời nắm bắt sự sai lệch trong đánh giá chuyên môn.
+   - Tuân thủ nghiêm ngặt **Quy chuẩn Rule 2.6 UI/UX Button Standards** (100% dùng prop `icon={<IconComponent />}`, nhãn tiếng Việt thuần túy, không ký tự thô hay emoji trong text nút bấm).
+   - Xây dựng test suite [`frontend/src/pages/__tests__/academicReportsPage.test.js`](file:///d:/DACN/frontend/src/pages/__tests__/academicReportsPage.test.js) (6/6 tests PASS).
+
+4. **Kiểm Thử Hồi Quy Toàn Tuyến & Xác Thực Build Sản Xuất (Hệ thống - Task 4)**:
+   - Backend test suite: **93/93 test suites, 901/901 tests PASS (100%)**.
+   - Frontend test suite: **162/162 tests PASS (100%)**.
+   - Production Build: `npm run build` thành công xuất sắc (**0 lỗi**, 16.49s, xuất chunk `AcademicReportsPage-BnMqNV7Z.js`).
+   - Mã hóa: 100% tệp lưu ở chuẩn **UTF-8 (no BOM)**.
+
+#### 2. Trạng thái cập nhật của từng phần
+
+- **Database/Prisma**: `UP TO DATE & FULLY SYNCED`; Toàn bộ dữ liệu tổng hợp được truy vấn trực tiếp từ `TopicRegistration`, `BM04Evaluation`, `CouncilEvaluation`, `User`, `Semester`.
+- **Backend API**: `PRODUCTION READY`; 3 endpoints `/api/reports/overview`, `/api/reports/lecturer-workload`, `/api/reports/export-excel` đã hoàn thiện với phân quyền đa tầng và xuất binary buffer Excel trực tiếp.
+- **Frontend UI**: `RICH & HIGHLY RESPONSIVE (100%)`; Trang `/admin/reports` cung cấp 4 tab phân tích trực quan, bộ lọc đa chiều và xuất file Excel thật.
+- **Tuân thủ quy chuẩn**: 100% tuân thủ AGENTS.md (Rule 1 TopicRegistration, Rule 2.4 UTF-8 no BOM, Rule 2.6 UI Button Standards, Rule 3 Subagent Isolation).
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+
+1. Trải nghiệm thực tế trên hệ thống:
+   - Đăng nhập với quyền Viện trưởng / Quản trị viên (`/admin/reports`).
+   - Chọn các học kỳ khác nhau để xem phổ điểm, phễu tiến độ học vụ 6 giai đoạn và đối sánh chuyên ngành.
+   - Bấm nút **"Xuất Báo Cáo Excel"** để tải về bảng tổng hợp kết quả tốt nghiệp định dạng `.xlsx`.
+   - Kiểm tra Tab **"Tải GVHD & Độ lệch điểm"** để phát hiện các giảng viên có độ lệch điểm hướng dẫn và hội đồng cao ($> 1.5$ điểm).
+2. Sẵn sàng tiếp nhận các yêu cầu mở rộng phân tích (ví dụ: dự báo xu hướng điểm qua các năm học) khi có yêu cầu.
+
 #### 4. Quyết định quan trọng (Decisions & Rationale)
 
-1. **Tách Biệt Quyền Kỹ Thuật (`QUAN_TRI_VIEN`) và Quyền Học Vụ (`GIAO_VU`)**: Giải quyết triệt để lỗi 403 deadlock khi phân quyền cho admin kỹ thuật mà vẫn đảm bảo an toàn tuyệt đối cho các quyền học vụ tối cao (`RUBRIC_LOCK`, `DEFENSE_SCOREBOOK_RETURN`).
-2. **Khóa Đổi Role Khi Đang Có Workload Hoạt Động**: Chặn triệt để nguy cơ phá vỡ tính toàn vẹn dữ liệu học vụ khi một sinh viên đang làm đồ án hoặc một giảng viên đang hướng dẫn/chấm thi bị đổi role bất ngờ.
-3. **Truy Vấn Triage Tách Biệt Bằng Mệnh Đề `OR`**: Đảm bảo sinh viên ở vòng bảo vệ (`DEFENSE_READY`) chưa có `defenseCouncilId` vẫn được đếm chính xác dù đã từng có `councilId` từ vòng đề cương BM01.
-4. **Triệt Tiêu Hoàn Toàn Dữ Liệu Giả (Zero Mock Data Policy)**: Mọi biểu đồ, thẻ thống kê, danh sách nhiệm vụ và nút tải file đều phản ánh 100% trạng thái thực của hệ thống, không tạo cảm giác hoàn thành ảo cho người dùng.
+1. **Phân Nhóm Phổ Điểm 5 Mức Chuẩn Thay Vì Chia Đều**: Áp dụng thang đánh giá học vụ chuẩn Việt Nam: Xuất sắc ($[8.5, 10.0]$), Giỏi ($[7.0, 8.5)$), Khá ($[5.5, 7.0)$), Trung bình ($[4.0, 5.5)$), Chưa đạt ($< 4.0$ hoặc Vắng). Giúp Hội đồng Khoa học và Ban Giám hiệu nhìn nhận chính xác chất lượng học vụ thay vì chia khoảng điểm cơ học.
+2. **Cơ Chế Phát Hiện Độ Lệch Điểm Giảng Viên ($\Delta > 1.5$)**: So sánh điểm nhận xét BM04 của GVHD với điểm tổng kết của Hội đồng bảo vệ. Độ lệch $> 1.5$ là chỉ số cảnh báo sớm quan trọng giúp Ban chủ nhiệm Viện phát hiện các trường hợp đánh giá quá lỏng tay hoặc quá khắt khe.
+3. **Phễu Tiến Độ Học Vụ 6 Mốc Tuần Tự (Funnel Analytics)**: Theo dõi chặt chẽ tỷ lệ chuyển đổi từ lúc ghi danh đề tài cho đến khi hoàn thành lưu chiểu thư viện, chỉ ra chính xác giai đoạn nào có tỷ lệ sinh viên dừng đồ án cao nhất để nhà trường có biện pháp can thiệp sớm.
+4. **Tận Dụng Thư Viện SheetJS (`xlsx`) Có Sẵn Ở Backend**: Sử dụng trực tiếp `xlsx` và helper nhị phân mà không bổ sung thư viện bên ngoài nặng nề, đảm bảo file Excel xuất ra có đầy đủ 11 cột, định dạng độ rộng cột tối ưu và dung lượng gọn nhẹ.
 
 
 

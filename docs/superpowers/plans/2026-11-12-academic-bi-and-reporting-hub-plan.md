@@ -85,26 +85,26 @@ git commit -m "feat(report): implement academic BI aggregation and Excel export 
   - Navigation: Adds "Báo Cáo & Thống Kê" to Admin / Institute Leadership sidebar with icon `<BarChartOutlined />`.
   - Route: Guards `/admin/reports` with `PROJECT_OVERSIGHT_MANAGE` / `VIEW_PROJECT_OVERSIGHT` / `ADMIN`.
 
-- [ ] **Step 1: Write failing test in `frontend/src/pages/__tests__/academicReportsRouting.test.js`**
+- [x] **Step 1: Write failing test in `frontend/src/pages/__tests__/academicReportsRouting.test.js`**
 
 Cover:
 1. `reportService.js` exports `getOverview`, `getLecturerWorkload`, and `exportExcel`.
 2. Navigation menu contains `/admin/reports` with pure Vietnamese text and icon.
 3. Route `/admin/reports` is registered and guarded.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node --test frontend/src/pages/__tests__/academicReportsRouting.test.js`
 Expected: FAIL
 
-- [ ] **Step 3: Implement `reportService.js`, register route in `routes/index.jsx`, and update navigation**
+- [x] **Step 3: Implement `reportService.js`, register route in `routes/index.jsx`, and update navigation**
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `node --test frontend/src/pages/__tests__/academicReportsRouting.test.js`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/services/reportService.js frontend/src/routes/index.jsx frontend/src/components/layout/AppLayout.jsx frontend/src/pages/__tests__/academicReportsRouting.test.js
@@ -131,7 +131,7 @@ git commit -m "feat(ui): add reportService and register academic reports navigat
     * Tab 4: Tải GVHD & Độ lệch điểm (Faculty table with assigned, completed, BM04 score, council score, variance badge).
   - Strict Rule 2.6 Button compliance.
 
-- [ ] **Step 1: Write failing test in `frontend/src/pages/__tests__/academicReportsPage.test.js`**
+- [x] **Step 1: Write failing test in `frontend/src/pages/__tests__/academicReportsPage.test.js`**
 
 Cover:
 1. `AcademicReportsPage.jsx` renders toolbar with semester select and export button.
@@ -139,19 +139,19 @@ Cover:
 3. Rule 2.6 compliance (no raw emoji or symbols in button labels).
 4. Handles Excel download triggering blob link click.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node --test frontend/src/pages/__tests__/academicReportsPage.test.js`
 Expected: FAIL
 
-- [ ] **Step 3: Implement `frontend/src/pages/admin/AcademicReportsPage.jsx`**
+- [x] **Step 3: Implement `frontend/src/pages/admin/AcademicReportsPage.jsx`**
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `node --test frontend/src/pages/__tests__/academicReportsPage.test.js`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/pages/admin/AcademicReportsPage.jsx frontend/src/pages/__tests__/academicReportsPage.test.js
@@ -167,22 +167,22 @@ git commit -m "feat(ui): implement AcademicReportsPage with 4 BI tabs and Excel 
 - Validate: Full frontend test suite
 - Validate: Frontend production build
 
-- [ ] **Step 1: Run full backend test suite**
+- [x] **Step 1: Run full backend test suite**
 
 Run: `npm --prefix backend test`
 Expected: 100% test suites pass.
 
-- [ ] **Step 2: Run full frontend test suite**
+- [x] **Step 2: Run full frontend test suite**
 
 Run: `npm --prefix frontend test`
 Expected: 100% tests pass.
 
-- [ ] **Step 3: Run production frontend build**
+- [x] **Step 3: Run production frontend build**
 
 Run: `npm --prefix frontend run build`
 Expected: Vite build succeeds with 0 errors.
 
-- [ ] **Step 4: Update `CLAUDE.md` and commit**
+- [x] **Step 4: Update `CLAUDE.md` and commit**
 
 ```bash
 git commit -m "docs(claude): record Session Update for Academic BI & Reporting Hub"
