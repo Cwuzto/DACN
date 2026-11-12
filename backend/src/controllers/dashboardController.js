@@ -24,27 +24,59 @@ const getDeadlineColor = (dueDate) => {
  */
 const getGeneralStats = async (req, res, next) => {
     try {
-        const [totalStudents, ongoingTopics, unassignedRegistrations, upcomingDefenses] = await Promise.all([
-            prisma.user.count({ where: { role: 'STUDENT', isActive: true } }),
-            prisma.topic.count({ where: { status: 'APPROVED' } }),
-            prisma.topicRegistration.count({
-                where: {
-                    status: { in: ACTIVE_REGISTRATION_STATUSES },
+        const semesterIdQuery = req.query?.semesterId ? parseInt(req.query.semesterId, 10) : null;
+        let activeSemester = null;
+
+        if (semesterIdQuery && Number.isInteger(semesterIdQuery)) {
+            activeSemester = await prisma.semester.findUnique({
+                where: { id: semesterIdQuery },
+            });
+        } else {
+            activeSemester = await getDefaultSemester({ id: true });
+        }
+
+        const unassignedWhere = {
+            ...(activeSemester?.id ? { semesterId: activeSemester.id } : {}),
+            OR: [
+                // Giai đoạn 1: Sinh viên đã duyệt đề tài / nộp đề cương nhưng chưa có Hội đồng Đề cương
+                {
+                    status: { in: ['APPROVED', 'BM01_PASSED', 'BM01_SUBMITTED', 'BM01_RESUBMITTED'] },
                     councilId: null,
                 },
+                // Giai đoạn 2: Sinh viên đã hoàn thành BM04 đủ điều kiện bảo vệ nhưng chưa có Hội đồng Bảo vệ
+                {
+                    status: { in: ['DEFENSE_READY', 'ELIGIBLE_BY_INSTITUTE'] },
+                    defenseCouncilId: null,
+                },
+            ],
+        };
+
+        const [totalStudents, ongoingTopics, unassignedRegistrations, upcomingDefenses] = await Promise.all([
+            prisma.user.count({ where: { role: 'STUDENT', isActive: true } }),
+            prisma.topic.count({
+                where: {
+                    status: 'APPROVED',
+                    ...(activeSemester?.id ? { semesterId: activeSemester.id } : {}),
+                },
+            }),
+            prisma.topicRegistration.count({
+                where: unassignedWhere,
             }),
             prisma.council.count({
-                where: { defenseDate: { gte: new Date() } },
+                where: {
+                    defenseDate: { gte: new Date() },
+                    ...(activeSemester?.id ? { semesterId: activeSemester.id } : {}),
+                },
             }),
         ]);
 
         res.json({
             success: true,
             data: {
-                totalStudents,
-                ongoingTopics,
-                unassignedRegistrations,
-                upcomingDefenses,
+                totalStudents: totalStudents ?? 0,
+                ongoingTopics: ongoingTopics ?? 0,
+                unassignedRegistrations: unassignedRegistrations ?? 0,
+                upcomingDefenses: upcomingDefenses ?? 0,
             },
         });
     } catch (error) {
@@ -96,6 +128,7 @@ const getSemesterOverview = async (req, res, next) => {
             completedRegistrations,
             defenseResults,
             stalePendingRegistrations,
+            unassignedRegistrations,
         ] = await Promise.all([
             prisma.topic.count({ where: { semesterId: targetSemester.id } }),
             prisma.topic.count({ where: { semesterId: targetSemester.id, status: 'APPROVED' } }),
@@ -115,6 +148,23 @@ const getSemesterOverview = async (req, res, next) => {
                     semesterId: targetSemester.id,
                     status: 'PENDING',
                     createdAt: { lte: getPendingCutoffDate() },
+                },
+            }),
+            prisma.topicRegistration.count({
+                where: {
+                    semesterId: targetSemester.id,
+                    OR: [
+                        // Giai đoạn 1: Sinh viên đã duyệt đề tài / nộp đề cương nhưng chưa có Hội đồng Đề cương
+                        {
+                            status: { in: ['APPROVED', 'BM01_PASSED', 'BM01_SUBMITTED', 'BM01_RESUBMITTED'] },
+                            councilId: null,
+                        },
+                        // Giai đoạn 2: Sinh viên đã hoàn thành BM04 đủ điều kiện bảo vệ nhưng chưa có Hội đồng Bảo vệ
+                        {
+                            status: { in: ['DEFENSE_READY', 'ELIGIBLE_BY_INSTITUTE'] },
+                            defenseCouncilId: null,
+                        },
+                    ],
                 },
             }),
         ]);
@@ -140,21 +190,28 @@ const getSemesterOverview = async (req, res, next) => {
                     registrationOpen: targetSemester.registrationOpen,
                 },
                 topics: {
-                    total: totalTopics,
-                    approved: approvedTopics,
+                    total: totalTopics ?? 0,
+                    approved: approvedTopics ?? 0,
                 },
                 registrations: {
-                    total: totalRegistrations,
-                    pending: pendingRegistrations,
-                    approved: approvedRegistrations,
-                    rejected: rejectedRegistrations,
-                    inProgress: inProgressRegistrations,
-                    completed: completedRegistrations,
-                    approvalRate,
-                    completionRate,
-                    stalePendingRegistrations,
+                    total: totalRegistrations ?? 0,
+                    pending: pendingRegistrations ?? 0,
+                    approved: approvedRegistrations ?? 0,
+                    rejected: rejectedRegistrations ?? 0,
+                    inProgress: inProgressRegistrations ?? 0,
+                    completed: completedRegistrations ?? 0,
+                    approvalRate: approvalRate ?? 0,
+                    completionRate: completionRate ?? 0,
+                    stalePendingRegistrations: stalePendingRegistrations ?? 0,
+                    unassignedRegistrations: unassignedRegistrations ?? 0,
+                    unassigned: unassignedRegistrations ?? 0,
                 },
-                defenseResults,
+                triage: {
+                    unassignedRegistrations: unassignedRegistrations ?? 0,
+                    pendingRegistrations: pendingRegistrations ?? 0,
+                    stalePendingRegistrations: stalePendingRegistrations ?? 0,
+                },
+                defenseResults: defenseResults ?? 0,
             },
         });
     } catch (error) {
@@ -527,11 +584,39 @@ const getStudentDashboard = async (req, res, next) => {
                     hasRegistration: false,
                     activeSemester: null,
                     registrationDetails: null,
+                    registration: null,
+                    topic: null,
+                    tasks: [],
+                    meetingLogsCount: 0,
+                    mentorScore: null,
+                    mentorFullName: null,
                     taskStatus: null,
                     upcomingDeadlines: [],
                 },
             });
         }
+
+        const registrationInclude = {
+            student: { select: { id: true, fullName: true, code: true } },
+            topic: {
+                include: {
+                    mentor: { select: { fullName: true } },
+                },
+            },
+            tasks: {
+                include: {
+                    submissions: {
+                        where: { submittedBy: studentId },
+                    },
+                },
+                orderBy: { dueDate: 'asc' },
+            },
+            meetingLogs: {
+                select: { id: true },
+            },
+            bm04Evaluation: true,
+            defenseResult: true,
+        };
 
         let registration = await prisma.topicRegistration.findFirst({
             where: {
@@ -539,23 +624,7 @@ const getStudentDashboard = async (req, res, next) => {
                 semesterId: activeSemester.id,
                 status: { not: 'REJECTED' },
             },
-            include: {
-                student: { select: { id: true, fullName: true, code: true } },
-                topic: {
-                    include: {
-                        mentor: { select: { fullName: true } },
-                    },
-                },
-                tasks: {
-                    include: {
-                        submissions: {
-                            where: { submittedBy: studentId },
-                        },
-                    },
-                    orderBy: { dueDate: 'asc' },
-                },
-                defenseResult: true,
-            },
+            include: registrationInclude,
             orderBy: { createdAt: 'desc' },
         });
 
@@ -567,13 +636,7 @@ const getStudentDashboard = async (req, res, next) => {
                     status: { not: 'REJECTED' },
                 },
                 include: {
-                    student: { select: { id: true, fullName: true, code: true } },
-                    topic: { include: { mentor: { select: { fullName: true } } } },
-                    tasks: {
-                        include: { submissions: { where: { submittedBy: studentId } } },
-                        orderBy: { dueDate: 'asc' },
-                    },
-                    defenseResult: true,
+                    ...registrationInclude,
                     semester: true,
                 },
                 orderBy: { createdAt: 'desc' },
@@ -591,13 +654,98 @@ const getStudentDashboard = async (req, res, next) => {
                     hasRegistration: false,
                     activeSemester,
                     registrationDetails: null,
+                    registration: null,
+                    topic: null,
+                    tasks: [],
+                    meetingLogsCount: 0,
+                    mentorScore: null,
+                    mentorFullName: null,
                     taskStatus: null,
                     upcomingDeadlines: [],
                 },
             });
         }
 
-        const tasks = registration.tasks || [];
+        // 1. tasks: Danh sách các nhiệm vụ thật
+        let rawTasks = registration.tasks;
+        if (!rawTasks && prisma.task?.findMany) {
+            rawTasks = await prisma.task.findMany({
+                where: { registrationId: registration.id },
+                include: {
+                    submissions: {
+                        where: { submittedBy: studentId },
+                    },
+                },
+                orderBy: { dueDate: 'asc' },
+            });
+        }
+        rawTasks = rawTasks || [];
+
+        const formattedTasks = rawTasks.map((task) => ({
+            ...task,
+            id: task.id,
+            title: task.title,
+            description: task.content || task.description || '',
+            content: task.content || task.description || '',
+            deadline: task.dueDate || task.deadline || null,
+            dueDate: task.dueDate || task.deadline || null,
+            status: task.status,
+            taskType: task.taskType || 'GENERIC',
+            submissions: task.submissions || [],
+        }));
+
+        // 2. meetingLogsCount: Đếm số buổi gặp thực tế (MeetingLog hoặc BM03MeetingEntry)
+        let meetingLogsCount = 0;
+        if (Array.isArray(registration.meetingLogs)) {
+            meetingLogsCount = registration.meetingLogs.length;
+        } else if (typeof prisma.meetingLog?.count === 'function') {
+            const count = await prisma.meetingLog.count({
+                where: { registrationId: registration.id },
+            });
+            if (typeof count === 'number') {
+                meetingLogsCount = count;
+            }
+        }
+        if (meetingLogsCount === 0) {
+            if (Array.isArray(registration.bm03MeetingEntries)) {
+                meetingLogsCount = registration.bm03MeetingEntries.length;
+            } else if (!Array.isArray(registration.meetingLogs) && typeof prisma.bM03MeetingEntry?.count === 'function') {
+                const count = await prisma.bM03MeetingEntry.count({
+                    where: { registrationId: registration.id },
+                });
+                if (typeof count === 'number') {
+                    meetingLogsCount = count;
+                }
+            }
+        }
+
+        // 3. mentorScore: Lấy điểm đánh giá của GVHD từ BM04Evaluation
+        let mentorScore = null;
+        const bm04 = registration.bm04Evaluation || (
+            prisma.bM04Evaluation?.findUnique
+                ? await prisma.bM04Evaluation.findUnique({ where: { registrationId: registration.id } })
+                : null
+        );
+        if (bm04) {
+            if (typeof bm04.score === 'number') {
+                mentorScore = bm04.score;
+            } else if (typeof bm04.finalScore === 'number') {
+                mentorScore = bm04.finalScore;
+            } else if (bm04.score !== undefined && bm04.score !== null && !isNaN(Number(bm04.score))) {
+                mentorScore = Number(bm04.score);
+            } else if (bm04.finalScore !== undefined && bm04.finalScore !== null && !isNaN(Number(bm04.finalScore))) {
+                mentorScore = Number(bm04.finalScore);
+            } else if (bm04.programOutcome !== undefined && bm04.programOutcome !== null) {
+                mentorScore = bm04.programOutcome;
+            } else if (bm04.conclusion) {
+                mentorScore = bm04.conclusion;
+            }
+        }
+
+        // 4. mentorFullName
+        const mentorFullName = registration.topic?.mentor?.fullName || null;
+
+        const tasks = formattedTasks;
         const now = new Date();
         const totalTasks = tasks.length;
         const submittedTasksCount = tasks.filter(
@@ -606,29 +754,29 @@ const getStudentDashboard = async (req, res, next) => {
         const completedTasksCount = tasks.filter((task) => task.status === 'COMPLETED').length;
         const overdueTasksCount = tasks.filter(
             (task) =>
-                task.dueDate &&
-                new Date(task.dueDate) < now &&
+                (task.dueDate || task.deadline) &&
+                new Date(task.dueDate || task.deadline) < now &&
                 !['SUBMITTED', 'COMPLETED'].includes(task.status)
         ).length;
         const upcomingTasksCount = tasks.filter(
             (task) =>
-                task.dueDate &&
-                new Date(task.dueDate) >= now &&
+                (task.dueDate || task.deadline) &&
+                new Date(task.dueDate || task.deadline) >= now &&
                 !['SUBMITTED', 'COMPLETED'].includes(task.status)
         ).length;
         const remainingTasks = totalTasks - submittedTasksCount;
         const progressPercent = totalTasks > 0 ? Math.round((submittedTasksCount / totalTasks) * 100) : 0;
 
         const upcomingDeadlines = tasks
-            .filter((task) => task.dueDate && new Date(task.dueDate) > now)
-            .sort((firstTask, secondTask) => new Date(firstTask.dueDate) - new Date(secondTask.dueDate))
+            .filter((task) => (task.dueDate || task.deadline) && new Date(task.dueDate || task.deadline) > now)
+            .sort((firstTask, secondTask) => new Date(firstTask.dueDate || firstTask.deadline) - new Date(secondTask.dueDate || secondTask.deadline))
             .slice(0, 3)
             .map((task) => ({
                 id: task.id,
                 title: `Nộp phần việc: ${task.title}`,
-                color: getDeadlineColor(task.dueDate),
-                date: task.dueDate,
-                desc: task.content || 'Hoàn thành công việc được giao trên hệ thống',
+                color: getDeadlineColor(task.dueDate || task.deadline),
+                date: task.dueDate || task.deadline,
+                desc: task.content || task.description || 'Hoàn thành công việc được giao trên hệ thống',
             }));
 
         res.json({
@@ -642,11 +790,15 @@ const getStudentDashboard = async (req, res, next) => {
                     decisionNumber: registration.decisionNumber,
                     decisionDate: registration.decisionDate,
                     adjustedTitle: registration.adjustedTitle,
+                    mentorScore,
+                    mentorFullName,
+                    meetingLogsCount,
+                    tasks: formattedTasks,
                     topic: registration.topic
                         ? {
                             title: registration.adjustedTitle || registration.topic.title,
                             originalTitle: registration.topic.title,
-                            mentorName: registration.topic.mentor?.fullName || 'Chưa rõ',
+                            mentorName: mentorFullName || 'Chưa rõ',
                             topicCode: `DT-${String(registration.topic.id).padStart(3, '0')}`,
                         }
                         : null,
@@ -669,6 +821,12 @@ const getStudentDashboard = async (req, res, next) => {
                     progressPercent,
                 },
                 upcomingDeadlines,
+                registration,
+                topic: registration.topic || null,
+                tasks: formattedTasks,
+                meetingLogsCount,
+                mentorScore,
+                mentorFullName,
             },
         });
     } catch (error) {
