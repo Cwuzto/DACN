@@ -84,6 +84,7 @@ export const NAVIGATION_REGISTRY = [
         icon: 'rate_review',
         group: 'Thẩm định & quyết định',
         requiredPermission: 'VIEW_OUTLINE_REVIEWS',
+        requiresOutlineCouncil: true,
         route: '/lecturer/approvals?tab=bm01',
     },
     {
@@ -123,6 +124,7 @@ export const NAVIGATION_REGISTRY = [
         icon: 'edit_note',
         group: 'Hội đồng & bảo vệ',
         requiredPermission: 'VIEW_DEFENSE_GRADING',
+        requiresDefenseCouncil: true,
         route: '/lecturer/grading',
     },
     {
@@ -246,27 +248,60 @@ export const NAVIGATION_REGISTRY = [
 ];
 
 /**
- * Lọc danh sách menu khả dụng dựa trên tập quyền (permissions) của người dùng.
+ * Lọc danh sách menu khả dụng dựa trên tập quyền (permissions) và ngữ cảnh người dùng (userContext).
  * Gom các mục thỏa mãn quyền xem theo thứ tự NAVIGATION_GROUPS và loại trừ nhóm rỗng.
  *
- * @param {Array<string> | Set<string> | { permissions: Array<string> | Set<string> }} permissionsInput
+ * @param {Array<string> | Set<string> | { permissions?: Array<string> | Set<string>, role?: string, hasDefenseCouncilAssignment?: boolean, hasOutlineCouncilAssignment?: boolean }} permissionsInput
+ * @param {object} [context]
  * @returns {Array<{ group: string, title: string, items: Array<object> }>}
  */
-export function getVisibleNavigation(permissionsInput) {
+export function getVisibleNavigation(permissionsInput, context = {}) {
     let permSet;
-    if (permissionsInput instanceof Set) {
-        permSet = permissionsInput;
-    } else if (Array.isArray(permissionsInput)) {
-        permSet = new Set(permissionsInput);
-    } else if (permissionsInput && Array.isArray(permissionsInput.permissions)) {
-        permSet = new Set(permissionsInput.permissions);
-    } else if (permissionsInput && permissionsInput.permissions instanceof Set) {
-        permSet = permissionsInput.permissions;
+    let userContext = {};
+
+    if (permissionsInput && typeof permissionsInput === 'object' && !(permissionsInput instanceof Set) && !Array.isArray(permissionsInput)) {
+        userContext = { ...permissionsInput };
+        if (Array.isArray(permissionsInput.permissions)) {
+            permSet = new Set(permissionsInput.permissions);
+        } else if (permissionsInput.permissions instanceof Set) {
+            permSet = permissionsInput.permissions;
+        } else {
+            permSet = new Set();
+        }
     } else {
-        permSet = new Set();
+        if (permissionsInput instanceof Set) {
+            permSet = permissionsInput;
+        } else if (Array.isArray(permissionsInput)) {
+            permSet = new Set(permissionsInput);
+        } else {
+            permSet = new Set();
+        }
     }
 
+    if (context && typeof context === 'object') {
+        const extraContext = context.user || context;
+        userContext = { ...userContext, ...extraContext };
+    }
+
+    const isAdmin = userContext?.role === 'ADMIN';
+    const hasDefenseCouncil = Boolean(
+        userContext?.hasDefenseCouncilAssignment ||
+        isAdmin ||
+        permSet.has('DEFENSE_COUNCIL_MANAGE')
+    );
+    const hasOutlineCouncil = Boolean(
+        userContext?.hasOutlineCouncilAssignment ||
+        isAdmin ||
+        permSet.has('OUTLINE_COUNCIL_MANAGE')
+    );
+
     const visibleItems = NAVIGATION_REGISTRY.filter((item) => {
+        if (item.requiresDefenseCouncil && !hasDefenseCouncil) {
+            return false;
+        }
+        if (item.requiresOutlineCouncil && !hasOutlineCouncil) {
+            return false;
+        }
         if (Array.isArray(item.requiredAnyPermissions) && item.requiredAnyPermissions.length > 0) {
             return item.requiredAnyPermissions.some((p) => permSet.has(p));
         }

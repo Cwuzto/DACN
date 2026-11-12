@@ -133,7 +133,7 @@ test('Student with SYSTEM_STUDENT_BASE sees only "Hồ sơ của tôi" (4 studen
     assert.ok(!groupNames.includes('Quản trị hệ thống'));
 });
 
-test('Lecturer with GVHD sees "Hồ sơ của tôi" (my-topics), "Hướng dẫn & tiến độ", and "Hội đồng & bảo vệ" (defense-grading)', () => {
+test('Lecturer with GVHD: without defense council assignment sees 3 items across 2 groups; with defense council assignment sees defense-grading (4 items across 3 groups)', () => {
     const gvhdPermissions = [
         'TOPIC_CREATE',
         'TOPIC_UPDATE_OWN',
@@ -145,24 +145,38 @@ test('Lecturer with GVHD sees "Hồ sơ của tôi" (my-topics), "Hướng dẫn
         'VIEW_DEFENSE_GRADING',
     ];
 
-    const nav = getVisibleNavigation(gvhdPermissions);
+    // 1. Without defense council assignment -> defense-grading is hidden, only 3 items in 2 groups
+    const navWithoutCouncil = getVisibleNavigation(gvhdPermissions);
 
-    assert.equal(nav.length, 3);
+    assert.equal(navWithoutCouncil.length, 2);
     assert.deepEqual(
-        nav.map((n) => n.group),
-        ['Hồ sơ của tôi', 'Hướng dẫn & tiến độ', 'Hội đồng & bảo vệ']
+        navWithoutCouncil.map((n) => n.group),
+        ['Hồ sơ của tôi', 'Hướng dẫn & tiến độ']
     );
 
     assert.deepEqual(
-        nav[0].items.map((i) => i.key),
+        navWithoutCouncil[0].items.map((i) => i.key),
         ['my-topics']
     );
     assert.deepEqual(
-        nav[1].items.map((i) => i.key),
+        navWithoutCouncil[1].items.map((i) => i.key),
         ['mentored-students', 'progress-checkpoints']
     );
+
+    // 2. With defense council assignment (hasDefenseCouncilAssignment: true) -> sees defense-grading
+    const navWithCouncil = getVisibleNavigation({
+        role: 'LECTURER',
+        permissions: gvhdPermissions,
+        hasDefenseCouncilAssignment: true,
+    });
+
+    assert.equal(navWithCouncil.length, 3);
     assert.deepEqual(
-        nav[2].items.map((i) => i.key),
+        navWithCouncil.map((n) => n.group),
+        ['Hồ sơ của tôi', 'Hướng dẫn & tiến độ', 'Hội đồng & bảo vệ']
+    );
+    assert.deepEqual(
+        navWithCouncil[2].items.map((i) => i.key),
         ['defense-grading']
     );
 });
@@ -187,7 +201,14 @@ test('Institute leader (VIEN_TRUONG) sees "Thẩm định & quyết định", "H
         'VIEW_PROJECT_PERIODS',
     ];
 
-    const nav = getVisibleNavigation(vienTruongPermissions);
+    const vienTruongUser = {
+        role: 'LECTURER',
+        permissions: vienTruongPermissions,
+        hasDefenseCouncilAssignment: true,
+        hasOutlineCouncilAssignment: true,
+    };
+
+    const nav = getVisibleNavigation(vienTruongUser);
     const groups = nav.map((n) => n.group);
 
     assert.ok(groups.includes('Thẩm định & quyết định'));

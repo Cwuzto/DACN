@@ -26,7 +26,7 @@ test('UTF-8 without BOM verification for navigation files (Rule 2.4)', () => {
     }
 });
 
-test('Regular GVHD with 5 core permissions sees only the 4 core lecturer menu items across 3 groups', () => {
+test('Regular GVHD without council assignment sees only 3 core items across 2 groups', () => {
     const regularGvhdPermissions = [
         'VIEW_MY_TOPICS',
         'VIEW_MENTORED_STUDENTS',
@@ -35,21 +35,28 @@ test('Regular GVHD with 5 core permissions sees only the 4 core lecturer menu it
         'VIEW_DEFENSE_GRADING',
     ];
 
-    const visibleGroups = getVisibleNavigation(regularGvhdPermissions);
+    const userWithoutCouncil = {
+        role: 'LECTURER',
+        permissions: regularGvhdPermissions,
+        hasDefenseCouncilAssignment: false,
+        hasOutlineCouncilAssignment: false,
+    };
 
-    // Only 3 groups should have visible items
-    assert.equal(visibleGroups.length, 3, 'Regular GVHD should see exactly 3 non-empty groups');
+    const visibleGroups = getVisibleNavigation(userWithoutCouncil);
+
+    // Only 2 groups should have visible items ('Hội đồng & bảo vệ' is hidden because defense-grading requires council)
+    assert.equal(visibleGroups.length, 2, 'Regular GVHD without council assignment should see exactly 2 non-empty groups');
     assert.deepEqual(
         visibleGroups.map((g) => g.group),
-        ['Hồ sơ của tôi', 'Hướng dẫn & tiến độ', 'Hội đồng & bảo vệ'],
+        ['Hồ sơ của tôi', 'Hướng dẫn & tiến độ'],
         'Groups must follow canonical order and exclude empty groups'
     );
 
-    // Flat list of visible items
+    // Flat list of visible items: exactly 3 items
     const allVisibleItems = visibleGroups.flatMap((g) => g.items);
-    assert.equal(allVisibleItems.length, 4, 'Regular GVHD must see exactly 4 core menu items');
+    assert.equal(allVisibleItems.length, 3, 'Regular GVHD must see exactly 3 core menu items');
 
-    // Verify the exact 4 core routes and labels
+    // Verify the exact 3 core routes and labels
     const expectedLecturerItems = [
         {
             key: 'my-topics',
@@ -72,13 +79,6 @@ test('Regular GVHD with 5 core permissions sees only the 4 core lecturer menu it
             group: 'Hướng dẫn & tiến độ',
             permission: 'VIEW_CHECKPOINTS',
         },
-        {
-            key: 'defense-grading',
-            label: 'Phiếu chấm bảo vệ',
-            route: '/lecturer/grading',
-            group: 'Hội đồng & bảo vệ',
-            permission: 'VIEW_DEFENSE_GRADING',
-        },
     ];
 
     for (let i = 0; i < expectedLecturerItems.length; i++) {
@@ -91,12 +91,95 @@ test('Regular GVHD with 5 core permissions sees only the 4 core lecturer menu it
         assert.equal(actual.requiredPermission, expected.permission, `Item ${i} permission mismatch`);
     }
 
-    // Verify administrative/student/system groups are excluded
+    // Verify council/administrative/student/system groups are excluded
     const groupNames = visibleGroups.map((g) => g.group);
     assert.ok(!groupNames.includes('Thẩm định & quyết định'), 'Must not see Thẩm định & quyết định');
+    assert.ok(!groupNames.includes('Hội đồng & bảo vệ'), 'Must not see Hội đồng & bảo vệ');
     assert.ok(!groupNames.includes('Kết quả & công bố'), 'Must not see Kết quả & công bố');
     assert.ok(!groupNames.includes('Quản trị học vụ'), 'Must not see Quản trị học vụ');
     assert.ok(!groupNames.includes('Quản trị hệ thống'), 'Must not see Quản trị hệ thống');
+});
+
+test('GVHD with hasDefenseCouncilAssignment: true sees 4 items across 3 groups (including defense-grading)', () => {
+    const regularGvhdPermissions = [
+        'VIEW_MY_TOPICS',
+        'VIEW_MENTORED_STUDENTS',
+        'VIEW_CHECKPOINTS',
+        'VIEW_BM04_EVALUATIONS',
+        'VIEW_DEFENSE_GRADING',
+    ];
+
+    const userWithDefenseCouncil = {
+        role: 'LECTURER',
+        permissions: regularGvhdPermissions,
+        hasDefenseCouncilAssignment: true,
+    };
+
+    const visibleGroups = getVisibleNavigation(userWithDefenseCouncil);
+
+    assert.equal(visibleGroups.length, 3, 'GVHD with defense council should see 3 non-empty groups');
+    assert.deepEqual(
+        visibleGroups.map((g) => g.group),
+        ['Hồ sơ của tôi', 'Hướng dẫn & tiến độ', 'Hội đồng & bảo vệ']
+    );
+
+    const allVisibleItems = visibleGroups.flatMap((g) => g.items);
+    assert.equal(allVisibleItems.length, 4, 'GVHD with defense council sees exactly 4 items');
+    assert.ok(allVisibleItems.some((i) => i.key === 'defense-grading'), 'Must include defense-grading');
+});
+
+test('GVHD with hasOutlineCouncilAssignment: true sees outline-reviews in "Thẩm định & quyết định"', () => {
+    const gvhdWithOutlineReviewPerm = [
+        'VIEW_MY_TOPICS',
+        'VIEW_MENTORED_STUDENTS',
+        'VIEW_CHECKPOINTS',
+        'VIEW_OUTLINE_REVIEWS',
+    ];
+
+    // Case 1: Without assignment -> outline-reviews is hidden
+    const withoutOutline = getVisibleNavigation({
+        role: 'LECTURER',
+        permissions: gvhdWithOutlineReviewPerm,
+        hasOutlineCouncilAssignment: false,
+    });
+    const itemsWithoutOutline = withoutOutline.flatMap((g) => g.items);
+    assert.ok(!itemsWithoutOutline.some((i) => i.key === 'outline-reviews'), 'outline-reviews must be hidden without outline council assignment');
+
+    // Case 2: With assignment -> outline-reviews is visible
+    const withOutline = getVisibleNavigation({
+        role: 'LECTURER',
+        permissions: gvhdWithOutlineReviewPerm,
+        hasOutlineCouncilAssignment: true,
+    });
+    const itemsWithOutline = withOutline.flatMap((g) => g.items);
+    assert.ok(itemsWithOutline.some((i) => i.key === 'outline-reviews'), 'outline-reviews must be visible with outline council assignment');
+    assert.ok(withOutline.some((g) => g.group === 'Thẩm định & quyết định'), 'Must include group Thẩm định & quyết định');
+});
+
+test('Admin or user with council management capabilities sees council items', () => {
+    // 1. Admin role sees both without assignment flags
+    const adminUser = {
+        role: 'ADMIN',
+        permissions: [
+            'VIEW_DEFENSE_GRADING',
+            'VIEW_OUTLINE_REVIEWS',
+        ],
+    };
+    const adminNav = getVisibleNavigation(adminUser);
+    const adminItems = adminNav.flatMap((g) => g.items);
+    assert.ok(adminItems.some((i) => i.key === 'defense-grading'), 'Admin must see defense-grading');
+    assert.ok(adminItems.some((i) => i.key === 'outline-reviews'), 'Admin must see outline-reviews');
+
+    // 2. User with council manage permissions
+    const managerNav = getVisibleNavigation([
+        'OUTLINE_COUNCIL_MANAGE',
+        'DEFENSE_COUNCIL_MANAGE',
+        'VIEW_DEFENSE_GRADING',
+        'VIEW_OUTLINE_REVIEWS',
+    ]);
+    const managerItems = managerNav.flatMap((g) => g.items);
+    assert.ok(managerItems.some((i) => i.key === 'defense-grading'), 'Council manager must see defense-grading');
+    assert.ok(managerItems.some((i) => i.key === 'outline-reviews'), 'Council manager must see outline-reviews');
 });
 
 test('Lecturer with management/Viện trưởng capabilities sees tiered governance groups and items', () => {

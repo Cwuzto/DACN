@@ -224,8 +224,8 @@ function AppLayout({ role }) {
 
     // Dynamic visible navigation groups derived from capability matrix
     const visibleGroups = useMemo(() => {
-        return getVisibleNavigation(permissionSet);
-    }, [permissionSet]);
+        return getVisibleNavigation(user);
+    }, [user]);
 
     const handleLogout = () => {
         logout();
