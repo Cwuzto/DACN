@@ -77,25 +77,25 @@ backend/
   - `ollamaProvider.chatWithOllama({ messages, systemInstruction, model, temperature, timeoutMs })`: Sends chat request to `/api/chat` and returns `{ reply, provider, model }`.
   - `ollamaProvider.generateEmbedding({ text, model, timeoutMs })`: Sends text to `/api/embed` or `/api/embeddings` and returns `Array<number>`.
 
-- [ ] **Step 1: Write unit tests in `backend/tests/unit/ollamaProvider.test.js`**
+- [x] **Step 1: Write unit tests in `backend/tests/unit/ollamaProvider.test.js`**
   - Test 1: `isOllamaAvailable` returns true when endpoint responds with 200, false on connection failure.
   - Test 2: `chatWithOllama` formats messages with system instruction and parses JSON response.
   - Test 3: `generateEmbedding` returns embedding float array.
   - Test 4: Handles timeouts and non-200 responses gracefully without throwing unhandled exceptions.
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
   - Command: `npm --prefix backend test -- backend/tests/unit/ollamaProvider.test.js`
   - Expected: FAIL.
 
-- [ ] **Step 3: Implement `ollamaProvider.js`**
+- [x] **Step 3: Implement `ollamaProvider.js`**
   - Write pure JS native `fetch` client (Zero external npm dependencies).
   - Ensure UTF-8 (no BOM).
 
-- [ ] **Step 4: Run test to verify pass**
+- [x] **Step 4: Run test to verify pass**
   - Command: `npm --prefix backend test -- backend/tests/unit/ollamaProvider.test.js`
   - Expected: PASS (100%).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
   - Command: `git add backend/src/services/ai/ollamaProvider.js backend/tests/unit/ollamaProvider.test.js && git commit -m "feat(ai): implement ollamaProvider for local chat and embeddings"`
 
 ---
@@ -186,3 +186,4 @@ backend/
 
 - [ ] **Step 5: Record Session Update in `CLAUDE.md` and commit**
   - Command: `git commit -m "docs(claude): record Session Update for Local Ollama RAG Chatbot"`
+
