@@ -1,4 +1,4 @@
-﻿const { getSupabaseClient } = require('../config/supabase');
+const { getSupabaseClient } = require('../config/supabase');
 
 const DEFAULT_BUCKET = process.env.SUPABASE_STORAGE_BUCKET || 'dacn';
 

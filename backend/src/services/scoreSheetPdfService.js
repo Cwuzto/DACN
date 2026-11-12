@@ -1,4 +1,4 @@
-﻿const fs = require('fs');
+const fs = require('fs');
 const path = require('path');
 
 const TEMPLATE_PATH = path.resolve(__dirname, '../../../frontend/src/pages/lecturer/phieu_cham.html');
