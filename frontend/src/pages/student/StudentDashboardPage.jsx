@@ -13,6 +13,7 @@ import {
     CheckCircleOutlined,
     CloseCircleOutlined,
     FileTextOutlined,
+    HistoryOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import useAuthStore from '../../stores/authStore';
@@ -21,6 +22,7 @@ import registrationService from '../../services/registrationService';
 import outlineService from '../../services/outlineService';
 import evaluationService from '../../services/evaluationService';
 import TitleAdjustmentModal from '../../components/student/TitleAdjustmentModal';
+import RegistrationTimelineDrawer from '../../components/common/RegistrationTimelineDrawer';
 
 const ACTIVE_FLOW_STATUSES = [
     'APPROVED',
@@ -101,6 +103,7 @@ export default function StudentDashboardPage() {
     const [bm03AckAction, setBm03AckAction] = useState('ACKNOWLEDGED');
     const [bm03AckComment, setBm03AckComment] = useState('');
     const [ackSubmitting, setAckSubmitting] = useState(false);
+    const [timelineOpen, setTimelineOpen] = useState(false);
 
     const handleStudentAckBM03 = async (actionToSubmit) => {
         const action = actionToSubmit || bm03AckAction;
@@ -315,6 +318,12 @@ export default function StudentDashboardPage() {
                             </p>
                         </div>
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center' }}>
+                            <Button
+                                icon={<HistoryOutlined />}
+                                onClick={() => setTimelineOpen(true)}
+                            >
+                                Lịch sử tiến trình
+                            </Button>
                             {bm03Record?.finalPdfFileUrl && (
                                 <Button
                                     size="small"
@@ -1079,6 +1088,15 @@ export default function StudentDashboardPage() {
                     </div>
                 </div>
             </Modal>
+
+            <RegistrationTimelineDrawer
+                open={timelineOpen}
+                onClose={() => setTimelineOpen(false)}
+                registrationId={currentRegistration?.registrationId || currentRegistration?.id}
+                topicTitle={currentRegistration?.adjustedTitle || currentRegistration?.topic?.title}
+                studentName={user?.fullName}
+                studentCode={user?.studentCode || user?.code || user?.username}
+            />
         </div>
     );
 }

@@ -13,6 +13,7 @@ import {
     NotificationOutlined,
     ExclamationCircleOutlined,
     TeamOutlined,
+    HistoryOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
@@ -24,6 +25,7 @@ import PageLoader from '../../components/common/PageLoader';
 import BM04EvaluationModal from '../../components/lecturer/BM04EvaluationModal';
 import CheckpointIssueModal from '../../components/lecturer/CheckpointIssueModal';
 import ClearanceCertificateModal from '../../components/forms/ClearanceCertificateModal';
+import RegistrationTimelineDrawer from '../../components/common/RegistrationTimelineDrawer';
 import evaluationService from '../../services/evaluationService';
 import useAuthStore from '../../stores/authStore';
 
@@ -64,6 +66,7 @@ export default function ProgressTrackingPage() {
     const [selectedCheckpointNo, setSelectedCheckpointNo] = useState(1);
     const [bm04ModalOpen, setBm04ModalOpen] = useState(false);
     const [certModalOpen, setCertModalOpen] = useState(false);
+    const [timelineOpen, setTimelineOpen] = useState(false);
 
     // New Task Form
     const [taskWeek, setTaskWeek] = useState('11');
@@ -483,6 +486,12 @@ export default function ProgressTrackingPage() {
                             </div>
                         </div>
                         <div style={{ display: 'flex', gap: 8 }}>
+                            <Button
+                                icon={<HistoryOutlined />}
+                                onClick={() => setTimelineOpen(true)}
+                            >
+                                Lịch sử tiến trình
+                            </Button>
                             <button
                                 type="button"
                                 className="btn btn-secondary btn-sm"
@@ -1388,6 +1397,15 @@ export default function ProgressTrackingPage() {
                     }}
                 />
             )}
+
+            <RegistrationTimelineDrawer
+                open={timelineOpen}
+                onClose={() => setTimelineOpen(false)}
+                registrationId={reg?.id}
+                topicTitle={reg?.topic?.title}
+                studentName={reg?.student?.fullName}
+                studentCode={reg?.student?.code || reg?.student?.studentCode}
+            />
         </section>
     );
 }

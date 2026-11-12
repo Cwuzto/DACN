@@ -69,4 +69,12 @@ export const topicService = {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi cập nhật trạng thái đề tài');
         }
     },
+
+    getRegistrationHistory: async (id) => {
+        try {
+            return await api.get(`/registrations/${id}/history`);
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi tải lịch sử tiến trình');
+        }
+    },
 };

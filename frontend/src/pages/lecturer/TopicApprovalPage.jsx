@@ -9,11 +9,13 @@ import {
     SearchOutlined,
     AuditOutlined,
     ClockCircleOutlined,
+    HistoryOutlined,
 } from '@ant-design/icons';
 import registrationService from '../../services/registrationService';
 import bm02aService from '../../services/bm02aService';
 import PageLoader from '../../components/common/PageLoader';
 import OutlineReviewModal from '../../components/lecturer/OutlineReviewModal';
+import RegistrationTimelineDrawer from '../../components/common/RegistrationTimelineDrawer';
 import useAuthStore from '../../stores/authStore';
 
 const { TextArea } = Input;
@@ -48,6 +50,10 @@ export default function TopicApprovalPage() {
     const [returningRole, setReturningRole] = useState('ADVISOR');
     const [returnReason, setReturnReason] = useState('');
     const [submittingBm02a, setSubmittingBm02a] = useState(false);
+
+    // Registration Timeline Drawer State
+    const [timelineOpen, setTimelineOpen] = useState(false);
+    const [timelineRegistration, setTimelineRegistration] = useState(null);
 
     const fetchData = async () => {
         try {
@@ -330,6 +336,15 @@ export default function TopicApprovalPage() {
                                         <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }} className="flex-wrap gap-3">
                                             <Space>
                                                 <Button
+                                                    icon={<HistoryOutlined />}
+                                                    onClick={() => {
+                                                        setTimelineRegistration(record);
+                                                        setTimelineOpen(true);
+                                                    }}
+                                                >
+                                                    Lịch sử tiến trình
+                                                </Button>
+                                                <Button
                                                     danger
                                                     icon={<CloseOutlined />}
                                                     disabled={submitting}
@@ -412,7 +427,16 @@ export default function TopicApprovalPage() {
                                             </div>
                                         </div>
 
-                                        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginTop: 12 }}>
+                                        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginTop: 12, gap: 8 }}>
+                                            <Button
+                                                icon={<HistoryOutlined />}
+                                                onClick={() => {
+                                                    setTimelineRegistration(record);
+                                                    setTimelineOpen(true);
+                                                }}
+                                            >
+                                                Lịch sử tiến trình
+                                            </Button>
                                             <Button
                                                 type={isPendingReview ? 'primary' : 'default'}
                                                 icon={isPendingReview ? <EditOutlined /> : <SearchOutlined />}
@@ -663,6 +687,18 @@ export default function TopicApprovalPage() {
                     fetchData();
                 }}
                 registration={selectedOutlineRecord}
+            />
+
+            <RegistrationTimelineDrawer
+                open={timelineOpen}
+                onClose={() => {
+                    setTimelineOpen(false);
+                    setTimelineRegistration(null);
+                }}
+                registrationId={timelineRegistration?.id}
+                topicTitle={timelineRegistration?.topic?.title}
+                studentName={timelineRegistration?.student?.fullName}
+                studentCode={timelineRegistration?.student?.code}
             />
         </section>
     );

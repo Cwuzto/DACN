@@ -225,6 +225,14 @@ const registrationService = {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi kiểm tra quyền thao tác');
         }
     },
+
+    getRegistrationHistory: async (id) => {
+        try {
+            return await api.get(`/registrations/${id}/history`);
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi tải lịch sử tiến trình');
+        }
+    },
 };
 
 export const {
@@ -254,6 +262,7 @@ export const {
     getPendingTitleAdjustments,
     transferTopicMentor,
     getAllowedActions,
+    getRegistrationHistory,
 } = registrationService;
 
 export default registrationService;
