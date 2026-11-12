@@ -40,27 +40,27 @@
   - `liveContextService.getLiveContext(user)`: Returns `{ activeSemester, dean, lecturers, personalContext, formattedText }`.
   - Cached helper `getCachedInstitutionalContext()` with 5-minute TTL.
 
-- [ ] **Step 1: Write unit tests in `backend/tests/unit/liveContextService.test.js`**
+- [x] **Step 1: Write unit tests in `backend/tests/unit/liveContextService.test.js`**
   - Test 1: Queries active semester or falls back to latest semester with status label.
   - Test 2: Identifies dean from `UserPermissionGroup` with `group.code === 'VIEN_TRUONG'`.
   - Test 3: Queries list of active faculties (max 20) with name, degree, and department.
   - Test 4: For `user.role === 'STUDENT'`, queries their own `TopicRegistration` (title, advisor name, status).
   - Test 5: For `user.role === 'LECTURER'`, queries their advised students in the active semester.
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
   - Command: `npm --prefix backend test -- backend/tests/unit/liveContextService.test.js`
   - Expected: FAIL (`liveContextService` not found).
 
-- [ ] **Step 3: Implement `liveContextService.js`**
+- [x] **Step 3: Implement `liveContextService.js`**
   - Implement Prisma queries for active semester, dean, faculties, and personalized student/lecturer context.
   - Implement in-memory TTL caching (5 minutes) for shared institutional data.
   - Implement `formatLiveContextString` producing clear text sections.
 
-- [ ] **Step 4: Run test to verify pass**
+- [x] **Step 4: Run test to verify pass**
   - Command: `npm --prefix backend test -- backend/tests/unit/liveContextService.test.js`
   - Expected: PASS (100%).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
   - Command: `git add backend/src/services/ai/liveContextService.js backend/tests/unit/liveContextService.test.js && git commit -m "feat(ai): implement liveContextService for dynamic semester and personal context"`
 
 ---
@@ -159,3 +159,4 @@
 
 - [ ] **Step 5: Record Session Update in `CLAUDE.md` and commit**
   - Command: `git add CLAUDE.md docs/superpowers/plans/2026-11-13-live-context-and-anti-injection-chatbot-plan.md && git commit -m "docs(claude): record Session Update for Live Context, Chit-chat and Anti-Injection Chatbot"`
+
