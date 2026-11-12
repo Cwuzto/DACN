@@ -434,8 +434,8 @@ export default function ProgressTrackingPage() {
                         ) : (
                             filteredStudents.map((s) => {
                                 const isSel = s.id === reg?.id;
-                                const sProgress = s.progressPercent ?? (sPassed ? 100 : 0);
                                 const sPassed = s.status === 'COMPLETED' || s.status === 'DEFENDED' || s.status === 'DEFENSE_READY';
+                                const sProgress = s.progressPercent ?? (sPassed ? 100 : 0);
                                 const sRisk = sProgress < 50;
                                 const logCount = s._count?.meetingLogs ?? s.meetingLogs?.length ?? 0;
 
