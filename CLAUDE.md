@@ -103,31 +103,39 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
    - **Định danh chính thức**: Đặt tên bot là **`Trợ lý Học vụ VCN`** (Viện Công nghệ Số). Toàn bộ tin nhắn, tiêu đề và chỉ báo suy nghĩ chuyển sang sử dụng cụm danh từ tự nhiên: *"Trợ lý Học vụ"*, *"Trợ lý đang tra cứu quy chế học vụ..."*, *"Phản hồi học vụ"*.
    - **Triệt tiêu toàn bộ thuật ngữ mô hình kỹ thuật**: Loại bỏ hoàn toàn các cụm từ như `Gemini 3.8 Flash`, `Qwen`, `Ollama`, `local_fallback` khỏi giao diện người dùng và system prompt. Thay thế bằng các thẻ học thuật tinh tế: `<Tag color="cyan">Trực tuyến 24/7</Tag>`, `<Tag color="cyan">Phản hồi học vụ</Tag>`.
    - **Ngăn câu hỏi gợi ý thu hẹp / ẩn xuống linh hoạt (Collapsible Drawer)**: Thêm nút và thanh điều khiển thu gọn / mở rộng danh sách câu hỏi nhanh (`isQuestionsCollapsed`) bằng icon `@ant-design/icons` `<UpOutlined />` và `<DownOutlined />` tuân thủ nghiêm ngặt Rule 2.6 trong `AGENTS.md`. Người dùng có thể click thu hẹp để mở rộng không gian đọc phản hồi.
-7. **Hồi Quy Toàn Bộ Hệ Thống & Kiểm Thử Tự Động (Subagent)**:
+7. **Cung Cấp Tiện Ích Khởi Động Ollama Thuận Tiện Cho Lần Mở Máy Sau**:
+   - Tạo tệp lệnh tự động [start-ollama.bat](file:///d:/DACN/start-ollama.bat) tại thư mục gốc `d:\DACN\` cho phép người dùng chỉ cần nhấp đúp chuột để khởi động daemon Ollama tại cổng 11434 với đường dẫn models tại `D:\ollama\models`.
+   - Bổ sung lệnh npm `npm run ollama:start` trong `backend/package.json`.
+8. **Hồi Quy Toàn Bộ Hệ Thống & Kiểm Thử Tự Động (Subagent)**:
    - Toàn bộ backend test suite: **108/108 test suites PASS, 1.081/1.081 tests PASS (100%)**.
    - Toàn bộ frontend test suite: **188/188 tests PASS (100%)** (+1 test case cho giao diện Chatbot VCN).
    - Production build Vite: **PASS (0 lỗi, hoàn tất thành công)**.
    - Đảm bảo 100% tệp tin đạt chuẩn **UTF-8 (no BOM)**.
 
 #### 2. Trạng thái cập nhật của từng phần
-- **Local AI Engine**: Đang chạy ngầm daemon Ollama tại `127.0.0.1:11434`. Đã có đầy đủ 3 models: `qwen2.5:3b`, `qwen3:4b`, và `embeddinggemma-2:270m` lưu tại `D:\ollama\models`.
-- **Backend API**: Phản hồi RAG câu hỏi quy chế học vụ chính xác 100% từ vector index và ngữ cảnh học kỳ/đề tài cá nhân, thời gian phản hồi ~13s.
-- **Frontend SPA**: Cấu hình timeout 120s, giao diện chat hoạt động mượt mà và không còn hiện tượng timeout ngắt kết nối.
+- **Local AI Engine**: Đang chạy ngầm daemon Ollama tại `127.0.0.1:11434`. Đã có đầy đủ 3 models: `qwen2.5:3b`, `qwen3:4b`, và `embeddinggemma-2:270m` lưu tại `D:\ollama\models`. Tích hợp sẵn `start-ollama.bat` để mở lại server sau khi reboot máy.
+- **Backend API**: Phản hồi RAG câu hỏi quy chế học vụ chính xác 100% từ vector index và ngữ cảnh học kỳ/đề tài cá nhân, thời gian phản hồi ~13s. Sạch sẽ mã nguồn, chuyển sang Markdown Single Source of Truth.
+- **Frontend SPA**: Cấu hình timeout 120s, giao diện Chatbot mang tên `Trợ lý Học vụ VCN`, hỗ trợ thu gọn/mở rộng gợi ý câu hỏi linh hoạt, triệt tiêu 100% tên mô hình kỹ thuật.
 - **Database / Prisma**: Ổn định, không có lỗi validation type mapping.
 
 #### 3. Bước tiếp theo cần làm (Next Session Plan)
 1. **Khởi Động Lại Server Backend Để Nhận Cấu Hình Mới**:
    - Khởi động lại backend dev server (`npm --prefix backend run dev`) để nhận biến môi trường `OLLAMA_CHAT_MODEL=qwen2.5:3b` và `OLLAMA_TIMEOUT_MS=120000`.
-2. **Trải Nghiệm Hỏi Đáp Trực Tiếp Trên Trình Duyệt**:
+2. **Trải Nghiệm Hỏi Đáp Trực Tiếp Trên Trình Duyệt Với Trợ Lý Học Vụ VCN**:
    - Đăng nhập tài khoản sinh viên/giảng viên bất kỳ và đặt các câu hỏi quy chế học vụ (BM01, BM02, BM03, BM04, thời hạn bảo vệ, đề tài của em).
+   - Thử nghiệm thao tác thu gọn và mở rộng thanh câu hỏi gợi ý trên giao diện chat.
 3. **Tiếp Tục Hoàn Thiện Giai Đoạn 5 & 6 (Bảo Vệ Đồ Án & Nộp Lưu Chiểu)**:
    - Rà soát các biểu mẫu chấm điểm hội đồng và xuất biên bản tổng hợp điểm bảo vệ.
 
 #### 4. Quyết định quan trọng (Decisions & Rationale)
 1. **Sử Dụng `qwen2.5:3b` Làm Chat Model Mặc Định Cho GTX 1650 4GB VRAM**:
    - Model `qwen2.5:3b` (1.9 GB) vừa vặn 100% trong VRAM của GPU GTX 1650 mà không cần offload CPU/RAM, đồng thời không có vòng lặp suy nghĩ ẩn (reasoning tokens), giúp tốc độ sinh từ đạt xấp xỉ 60 tokens/s, giảm thời gian chờ đợi từ >120s xuống dưới 15s.
-2. **Mô Hình Fallback Đa Tầng Không Gián Đoạn**:
+2. **Quy Hoạch Bộ Tri Thức Chuẩn Hóa Markdown (Single Source of Truth)**:
+   - Thay vì nhồi chuỗi văn bản dài trong code JS và mảng chunks cứng trong `ragService.js`, chuyển toàn bộ sang các tệp `.md` trong `regulations/`. Giúp tách rời hoàn toàn dữ liệu nghiệp vụ và mã nguồn, dễ bảo trì, biên tập như văn bản thông thường.
+3. **Mô Hình Fallback Đa Tầng Không Gián Đoạn**:
    - Nếu Ollama tắt hoặc model quá tải, hệ thống vẫn duy trì khả năng tự động chuyển tiếp sang Gemini Flash Lite hoặc bộ heuristic quy chế học vụ nội bộ.
+4. **Chuẩn Hóa Nhận Diện Thương Hiệu Chatbot Học Vụ (User-Facing Persona)**:
+   - Người dùng cuối (Sinh viên / Giảng viên) không quan tâm hay cần biết mô hình backend là Gemini, Qwen hay Ollama. Việc ẩn các từ khóa kỹ thuật và định danh nhất quán thành `Trợ lý Học vụ VCN` mang lại cảm giác chuyên nghiệp, tin cậy và chuẩn mực giáo dục.
 
 ---
 
