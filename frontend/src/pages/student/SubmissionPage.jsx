@@ -26,6 +26,7 @@ import {
     AuditOutlined,
     CalendarOutlined,
     CloudUploadOutlined,
+    RobotOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import taskService from '../../services/taskService';
@@ -34,8 +35,10 @@ import evaluationService from '../../services/evaluationService';
 import archiveService from '../../services/archiveService';
 import meetingLogService from '../../services/meetingLogService';
 import outlineService from '../../services/outlineService';
+import aiService from '../../services/aiService';
 import HybridBMFormModal from '../../components/forms/HybridBMFormModal';
 import BMSubmissionViewer from '../../components/forms/BMSubmissionViewer';
+import BM01CopilotDrawer from '../../components/student/BM01CopilotDrawer';
 import CheckpointSignModal from '../../components/student/CheckpointSignModal';
 import TitleAdjustmentModal from '../../components/student/TitleAdjustmentModal';
 import ArchiveSubmissionModal from '../../components/forms/ArchiveSubmissionModal';
@@ -95,6 +98,52 @@ export default function SubmissionPage() {
     const [checkpointSignModalOpen, setCheckpointSignModalOpen] = useState(false);
     const [selectedCheckpoint, setSelectedCheckpoint] = useState(null);
     const currentUser = useAuthStore((s) => s.user);
+
+    // BM01 Copilot AI state
+    const [copilotOpen, setCopilotOpen] = useState(false);
+    const [copilotLoading, setCopilotLoading] = useState(false);
+    const [copilotData, setCopilotData] = useState(null);
+
+    const handleOpenCopilot = async (task) => {
+        setCopilotOpen(true);
+        setCopilotLoading(true);
+        try {
+            let draftContent = {};
+            const lastSub = task?.submissions?.[0];
+            if (lastSub?.content) {
+                try {
+                    const parsed = JSON.parse(lastSub.content);
+                    if (parsed && typeof parsed === 'object') {
+                        draftContent = parsed.fields || parsed;
+                    }
+                } catch {
+                    draftContent = { summary: lastSub.content };
+                }
+            }
+
+            const payload = {
+                registrationId: registration?.id || null,
+                outlineContent: {
+                    topicTitle: draftContent.topicTitle || registration?.topic?.title || registration?.customTopicTitle || '',
+                    objectives: draftContent.objectives || registration?.topic?.description || '',
+                    technologies: draftContent.technologies || '',
+                    deliverables: draftContent.deliverables || '',
+                    revisionSummary: draftContent.revisionSummary || '',
+                },
+            };
+
+            const res = await aiService.analyzeBM01(payload);
+            if (res?.success) {
+                setCopilotData(res.data);
+            } else {
+                message.error(res?.message || 'Không thể đánh giá đề cương với AI');
+            }
+        } catch (err) {
+            message.error(err?.message || 'Lỗi khi gọi AI đánh giá đề cương');
+        } finally {
+            setCopilotLoading(false);
+        }
+    };
 
     const handleViewBM04 = async () => {
         try {
@@ -578,19 +627,33 @@ export default function SubmissionPage() {
                             </div>
                         </div>
 
-                        <button
-                            type="button"
-                            className="btn btn-primary"
-                            onClick={() => {
-                                const resubTask = tasks.find((t) => t.taskType === 'BM01_RESUBMISSION') ||
-                                    tasks.find((t) => t.taskType === 'BM01' || t.taskType === 'BM01_INITIAL_SUBMISSION') ||
-                                    { id: 'bm01-resubmit', taskType: 'BM01_RESUBMISSION', title: 'Nộp lại đề cương đồ án tốt nghiệp (BM01)' };
-                                handleOpenSubmitModal(resubTask);
-                            }}
-                        >
-                            <UploadOutlined style={{ marginRight: 6 }} />
-                            <span>Nộp lại đề cương v2 (Duy nhất 1 lần)</span>
-                        </button>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                            <Button
+                                icon={<RobotOutlined />}
+                                onClick={() => {
+                                    const resubTask = tasks.find((t) => t.taskType === 'BM01_RESUBMISSION') ||
+                                        tasks.find((t) => t.taskType === 'BM01' || t.taskType === 'BM01_INITIAL_SUBMISSION') ||
+                                        { id: 'bm01-resubmit', taskType: 'BM01_RESUBMISSION', title: 'Nộp lại đề cương đồ án tốt nghiệp (BM01)' };
+                                    handleOpenCopilot(resubTask);
+                                }}
+                                className="border-amber-500 text-amber-800 bg-amber-50 hover:bg-amber-100"
+                            >
+                                AI Hướng dẫn hoàn thiện
+                            </Button>
+                            <button
+                                type="button"
+                                className="btn btn-primary"
+                                onClick={() => {
+                                    const resubTask = tasks.find((t) => t.taskType === 'BM01_RESUBMISSION') ||
+                                        tasks.find((t) => t.taskType === 'BM01' || t.taskType === 'BM01_INITIAL_SUBMISSION') ||
+                                        { id: 'bm01-resubmit', taskType: 'BM01_RESUBMISSION', title: 'Nộp lại đề cương đồ án tốt nghiệp (BM01)' };
+                                    handleOpenSubmitModal(resubTask);
+                                }}
+                            >
+                                <UploadOutlined style={{ marginRight: 6 }} />
+                                <span>Nộp lại đề cương v2 (Duy nhất 1 lần)</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
@@ -1056,6 +1119,16 @@ export default function SubmissionPage() {
                             </div>
 
                             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                                {(isBM01Initial || isBM01Resub) && (
+                                    <Button
+                                        size="small"
+                                        icon={<RobotOutlined />}
+                                        onClick={() => handleOpenCopilot(task)}
+                                        className="text-teal-700 border-teal-400 hover:border-teal-600"
+                                    >
+                                        AI Chấm đề cương
+                                    </Button>
+                                )}
                                 {lastSubmission && (
                                     <button
                                         className="btn btn-secondary btn-sm"
@@ -1389,6 +1462,14 @@ export default function SubmissionPage() {
                 registrationId={registration?.id}
                 initialData={preDefenseArchive}
                 onSuccess={fetchData}
+            />
+
+            {/* BM01 Copilot Drawer */}
+            <BM01CopilotDrawer
+                open={copilotOpen}
+                onClose={() => setCopilotOpen(false)}
+                data={copilotData}
+                loading={copilotLoading}
             />
         </div>
     );

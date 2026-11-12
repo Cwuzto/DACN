@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Form, Input, InputNumber, Radio, Upload, Button, message, Alert, Typography, Divider, Space } from 'antd';
-import { UploadOutlined, FilePdfOutlined, CheckCircleOutlined, InfoCircleOutlined, DeleteOutlined } from '@ant-design/icons';
+import { UploadOutlined, FilePdfOutlined, CheckCircleOutlined, InfoCircleOutlined, DeleteOutlined, RobotOutlined } from '@ant-design/icons';
 import uploadService from '../../services/uploadService';
+import BM01CopilotDrawer from '../student/BM01CopilotDrawer';
+import aiService from '../../services/aiService';
 
 const { TextArea } = Input;
 const { Text, Title } = Typography;
@@ -134,9 +136,45 @@ export default function HybridBMFormModal({
     const [fileList, setFileList] = useState([]);
     const [uploading, setUploading] = useState(false);
     const [uploadedFile, setUploadedFile] = useState(null);
+    const [copilotOpen, setCopilotOpen] = useState(false);
+    const [copilotLoading, setCopilotLoading] = useState(false);
+    const [copilotData, setCopilotData] = useState(null);
 
     const taskType = task?.taskType || 'GENERIC';
     const config = FORM_CONFIGS[taskType] || FORM_CONFIGS.GENERIC;
+    const isBM01Form = taskType === 'BM01' || taskType === 'BM01_INITIAL_SUBMISSION' || taskType === 'BM01_RESUBMISSION';
+
+    const handleRunCopilot = async () => {
+        try {
+            const values = form.getFieldsValue();
+            if (!values.topicTitle) {
+                message.warning('Vui lòng nhập tên đề tài trước khi đánh giá đề cương.');
+                return;
+            }
+            setCopilotLoading(true);
+            setCopilotOpen(true);
+            const payload = {
+                registrationId: registration?.id || null,
+                outlineContent: {
+                    topicTitle: values.topicTitle || '',
+                    objectives: values.objectives || '',
+                    technologies: values.technologies || '',
+                    deliverables: values.deliverables || '',
+                    revisionSummary: values.revisionSummary || '',
+                },
+            };
+            const res = await aiService.analyzeBM01(payload);
+            if (res?.success) {
+                setCopilotData(res.data);
+            } else {
+                message.error(res?.message || 'Không thể đánh giá đề cương với AI');
+            }
+        } catch (err) {
+            message.error(err?.message || 'Lỗi khi gọi AI phân tích đề cương');
+        } finally {
+            setCopilotLoading(false);
+        }
+    };
 
     useEffect(() => {
         if (visible) {
@@ -412,21 +450,43 @@ export default function HybridBMFormModal({
                     </div>
 
                     {/* Footer Actions */}
-                    <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
-                        <Button onClick={onClose} disabled={submitting} className="rounded-lg">
-                            Hủy bỏ
-                        </Button>
-                        <Button
-                            type="primary"
-                            htmlType="submit"
-                            loading={submitting || uploading}
-                            className="bg-[#0052a3] hover:bg-[#004080] rounded-lg px-6 font-medium shadow-sm"
-                        >
-                            Nộp biểu mẫu
-                        </Button>
+                    <div className="flex items-center justify-between pt-3 border-t border-slate-100 flex-wrap gap-2">
+                        <div>
+                            {isBM01Form && (
+                                <Button
+                                    type="dashed"
+                                    icon={<RobotOutlined />}
+                                    onClick={handleRunCopilot}
+                                    loading={copilotLoading}
+                                    className="border-teal-500 text-teal-700 hover:text-teal-800 hover:border-teal-600 font-medium"
+                                >
+                                    Đánh giá đề cương với AI
+                                </Button>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <Button onClick={onClose} disabled={submitting} className="rounded-lg">
+                                Hủy bỏ
+                            </Button>
+                            <Button
+                                type="primary"
+                                htmlType="submit"
+                                loading={submitting || uploading}
+                                className="bg-[#0052a3] hover:bg-[#004080] rounded-lg px-6 font-medium shadow-sm"
+                            >
+                                Nộp biểu mẫu
+                            </Button>
+                        </div>
                     </div>
                 </Form>
             </div>
+
+            <BM01CopilotDrawer
+                open={copilotOpen}
+                onClose={() => setCopilotOpen(false)}
+                data={copilotData}
+                loading={copilotLoading}
+            />
         </Modal>
     );
 }
