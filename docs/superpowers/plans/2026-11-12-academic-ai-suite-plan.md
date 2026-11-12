@@ -42,25 +42,25 @@
   - `aiProviderService.checkTopicSimilarity(newTopic, existingTopics, options)`: Returns max similarity percentage, risk level (`NOVEL` / `MODERATE_SIMILARITY` / `HIGH_DUPLICATE_RISK`), matched topics, and 3 refined title suggestions.
   - `aiProviderService.crossCheckArchivalDossier(registrationData, dossierFiles, options)`: Returns checklist matching effective topic title, MSSV, Student Name, Mentor Name, and consistency notes.
 
-- [ ] **Step 1: Write unit tests in `backend/tests/unit/aiProviderAdapter.test.js`**
+- [x] **Step 1: Write unit tests in `backend/tests/unit/aiProviderAdapter.test.js`**
   - Verify `geminiProvider` formats prompt and parses JSON responses correctly.
   - Verify `localFallbackProvider` executes rule-based outline analysis, Jaccard keyword similarity for topics, and title matching without external APIs.
   - Verify `aiProviderService` gracefully routes to local fallback when `GEMINI_API_KEY` is unset or on fetch error.
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
   - Command: `npm --prefix backend test -- backend/tests/unit/aiProviderAdapter.test.js`
   - Expected: FAIL (modules not found).
 
-- [ ] **Step 3: Implement `geminiProvider.js`, `localFallbackProvider.js`, and `aiProviderService.js`**
+- [x] **Step 3: Implement `geminiProvider.js`, `localFallbackProvider.js`, and `aiProviderService.js`**
   - In `geminiProvider.js`: implement standard HTTP POST to Google Generative Language API (`gemini-2.0-flash` endpoint) with system instructions requesting strict JSON output.
   - In `localFallbackProvider.js`: implement rule-based scoring (checking word count, keyword overlaps, methodology presence, title Jaccard distance, and exact substring matching).
   - In `aiProviderService.js`: orchestrate provider selection, timeout handling (8 seconds), and automatic fallback.
 
-- [ ] **Step 4: Run test to verify pass**
+- [x] **Step 4: Run test to verify pass**
   - Command: `npm --prefix backend test -- backend/tests/unit/aiProviderAdapter.test.js`
   - Expected: PASS (100%).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
   - Command: `git add backend/src/services/ai/ backend/tests/unit/aiProviderAdapter.test.js && git commit -m "feat(ai): implement core AI provider adapter and local fallback service"`
 
 ---
@@ -235,3 +235,4 @@
 - [ ] **Step 5: Record Session Update in `CLAUDE.md` and commit**
   - Update `CLAUDE.md` with full 4-section Session Summary for Academic AI Suite.
   - Command: `git commit -m "docs(claude): record Session Update for Academic AI Suite implementation"`
+
