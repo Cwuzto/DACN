@@ -429,14 +429,94 @@ const createUser = async (req, res, next) => {
 const updateUser = async (req, res, next) => {
     try {
         const { id } = req.params;
+        const targetUserId = parseInt(id, 10);
         const { fullName, email, code, role, department, phone, academicTitle } = req.body;
 
         const existing = await prisma.user.findUnique({
-            where: { id: parseInt(id) },
+            where: { id: targetUserId },
             include: { studentProfile: true },
         });
         if (!existing) {
             return res.status(404).json({ success: false, message: 'Không tìm thấy người dùng.' });
+        }
+
+        // Kiểm tra 1: Cấm người dùng tự thay đổi vai trò của chính mình
+        if (req.user?.id && targetUserId === req.user.id && role && role !== existing.role) {
+            return res.status(403).json({
+                success: false,
+                code: 'FORBIDDEN',
+                error: 'FORBIDDEN',
+                message: 'Không thể tự thay đổi vai trò của chính mình',
+            });
+        }
+
+        // Kiểm tra 2: Kiểm tra thẩm quyền khi thay đổi vai trò sang ADMIN
+        if (role && role !== existing.role && role === 'ADMIN') {
+            const userGroupCodes = Array.isArray(req.user?.permissionGroups)
+                ? req.user.permissionGroups.map((g) => (typeof g === 'string' ? g : g?.code || g?.permissionGroup?.code)).filter(Boolean)
+                : [];
+            const userPermissions = Array.isArray(req.user?.permissions)
+                ? req.user.permissions.map((p) => (typeof p === 'string' ? p : p?.code || p?.permission?.code)).filter(Boolean)
+                : [];
+            const hasAcademicDelegation = userPermissions.includes('PERMISSION_ASSIGN_ACADEMIC');
+            const isVienTruong = userGroupCodes.includes('VIEN_TRUONG');
+
+            if (!hasAcademicDelegation && !isVienTruong) {
+                return res.status(403).json({
+                    success: false,
+                    code: 'FORBIDDEN',
+                    error: 'FORBIDDEN',
+                    message: 'Quản trị viên kỹ thuật không có thẩm quyền nâng người dùng lên vai trò Quản trị viên',
+                });
+            }
+        }
+
+        // Kiểm tra 3: Chặn đổi vai trò khi đang có liên kết học vụ hoạt động
+        if (role && role !== existing.role) {
+            if (existing.role === 'STUDENT') {
+                const activeStudentRegistration = await prisma.topicRegistration.findFirst({
+                    where: {
+                        studentId: existing.id,
+                        status: { notIn: ['DROPPED', 'WITHDRAWN', 'REJECTED'] },
+                    },
+                });
+                if (activeStudentRegistration) {
+                    return res.status(400).json({
+                        success: false,
+                        code: 'CANNOT_CHANGE_ROLE_WITH_ACTIVE_ACADEMIC_WORKLOAD',
+                        error: 'CANNOT_CHANGE_ROLE_WITH_ACTIVE_ACADEMIC_WORKLOAD',
+                        message: 'Không thể đổi vai trò khi sinh viên đang có đề tài đồ án hoạt động',
+                    });
+                }
+            }
+
+            if (existing.role === 'LECTURER') {
+                const activeMentoredTopic = await prisma.topicRegistration.findFirst({
+                    where: {
+                        topic: { mentorId: existing.id },
+                        status: { notIn: ['DROPPED', 'WITHDRAWN', 'REJECTED'] },
+                    },
+                });
+                const activeCouncil = await prisma.councilMember.findFirst({
+                    where: {
+                        lecturerId: existing.id,
+                        isActive: true,
+                        council: {
+                            isActive: true,
+                            deletedAt: null,
+                            scoreBookLocked: false,
+                        },
+                    },
+                });
+                if (activeMentoredTopic || activeCouncil) {
+                    return res.status(400).json({
+                        success: false,
+                        code: 'CANNOT_CHANGE_ROLE_WITH_ACTIVE_ACADEMIC_WORKLOAD',
+                        error: 'CANNOT_CHANGE_ROLE_WITH_ACTIVE_ACADEMIC_WORKLOAD',
+                        message: 'Không thể đổi vai trò khi giảng viên đang hướng dẫn đề tài hoặc tham gia hội đồng hoạt động',
+                    });
+                }
+            }
         }
 
         // Kiểm tra email trùng (nếu đổi email)
@@ -455,22 +535,76 @@ const updateUser = async (req, res, next) => {
             }
         }
 
+        const isRoleChanged = Boolean(role && role !== existing.role);
         const effectiveRole = role || existing.role;
+
+        const ROLE_TO_DEFAULT_GROUP = {
+            STUDENT: 'SYSTEM_STUDENT_BASE',
+            LECTURER: 'GVHD',
+            ADMIN: 'QUAN_TRI_VIEN',
+        };
+
+        const syncRoleGroupsAndAuditTx = async (tx, userId, oldRole, nextRole) => {
+            const oldRoleGroups = [ROLE_TO_DEFAULT_GROUP[oldRole]];
+            if (oldRole === 'LECTURER') {
+                oldRoleGroups.push('VIEN_TRUONG', 'GIAO_VU');
+            }
+
+            await tx.userPermissionGroup.deleteMany({
+                where: {
+                    userId,
+                    permissionGroup: { code: { in: oldRoleGroups.filter(Boolean) } },
+                },
+            });
+
+            const newGroupCode = ROLE_TO_DEFAULT_GROUP[nextRole];
+            if (newGroupCode) {
+                const group = await tx.permissionGroup.findUnique({ where: { code: newGroupCode } });
+                if (group) {
+                    await tx.userPermissionGroup.create({
+                        data: {
+                            userId,
+                            permissionGroupId: group.id,
+                        },
+                    });
+                }
+            }
+
+            if (req.user?.id) {
+                await tx.auditLog.create({
+                    data: {
+                        userId: req.user.id,
+                        action: 'UPDATE_USER_ROLE',
+                        entityType: 'User',
+                        entityId: String(userId),
+                        details: {
+                            previousRole: oldRole,
+                            newRole: nextRole,
+                        },
+                        ipAddress: req.ip || null,
+                    },
+                });
+            }
+        };
 
         if (effectiveRole === 'STUDENT') {
             const mergedPayload = {
                 code: code !== undefined ? code : existing.code,
                 fullName: fullName !== undefined ? fullName : existing.fullName,
                 email: email !== undefined ? email : existing.email,
-                phone: phone !== undefined ? phone : (existing.phone || ''),
-                gender: req.body.gender !== undefined ? req.body.gender : existing.studentProfile?.gender,
-                dateOfBirth: req.body.dateOfBirth !== undefined ? req.body.dateOfBirth : existing.studentProfile?.dateOfBirth,
+                phone: phone !== undefined ? phone : (existing.phone || (isRoleChanged ? '0900000000' : '')),
+                gender: req.body.gender !== undefined
+                    ? req.body.gender
+                    : (existing.studentProfile?.gender || (isRoleChanged ? 'OTHER' : undefined)),
+                dateOfBirth: req.body.dateOfBirth !== undefined
+                    ? req.body.dateOfBirth
+                    : (existing.studentProfile?.dateOfBirth || (isRoleChanged ? '01/01/2000' : undefined)),
                 className: (req.body.className || req.body.lop) !== undefined
                     ? (req.body.className || req.body.lop)
-                    : existing.studentProfile?.className,
+                    : (existing.studentProfile?.className || (isRoleChanged ? 'CHUA_PHAN_LOP' : undefined)),
                 major: (req.body.major || req.body.nganh) !== undefined
                     ? (req.body.major || req.body.nganh)
-                    : existing.studentProfile?.major,
+                    : (existing.studentProfile?.major || (isRoleChanged ? 'CHUA_PHAN_NGANH' : undefined)),
             };
 
             let validated;
@@ -485,17 +619,22 @@ const updateUser = async (req, res, next) => {
             }
 
             const updated = await prisma.$transaction(async (tx) => {
+                const userUpdateData = {
+                    fullName: validated.user.fullName,
+                    email: validated.user.email,
+                    code: validated.user.code,
+                    role: 'STUDENT',
+                    department: null,
+                    academicTitle: null,
+                    phone: validated.user.phone,
+                };
+                if (isRoleChanged) {
+                    userUpdateData.permissionVersion = { increment: 1 };
+                }
+
                 const user = await tx.user.update({
                     where: { id: existing.id },
-                    data: {
-                        fullName: validated.user.fullName,
-                        email: validated.user.email,
-                        code: validated.user.code,
-                        role: 'STUDENT',
-                        department: null,
-                        academicTitle: null,
-                        phone: validated.user.phone,
-                    },
+                    data: userUpdateData,
                     select: {
                         id: true,
                         email: true,
@@ -536,11 +675,19 @@ const updateUser = async (req, res, next) => {
                     },
                 });
 
+                if (isRoleChanged) {
+                    await syncRoleGroupsAndAuditTx(tx, existing.id, existing.role, 'STUDENT');
+                }
+
                 return {
                     ...user,
                     studentProfile,
                 };
             });
+
+            if (isRoleChanged) {
+                clearAuthCache(existing.id);
+            }
 
             return res.json({ success: true, message: 'Cập nhật người dùng thành công.', data: updated });
         }
@@ -554,17 +701,40 @@ const updateUser = async (req, res, next) => {
         if (phone !== undefined) updateData.phone = phone;
         if (role === 'LECTURER' && academicTitle !== undefined) updateData.academicTitle = academicTitle;
         if (role !== 'LECTURER') updateData.academicTitle = null;
+        if (isRoleChanged) {
+            updateData.permissionVersion = { increment: 1 };
+        }
 
-        const user = await prisma.user.update({
-            where: { id: parseInt(id) },
-            data: updateData,
-            select: {
-                id: true, email: true, fullName: true, code: true,
-                role: true, department: true, academicTitle: true, phone: true, isActive: true, createdAt: true,
-            },
+        const updated = await prisma.$transaction(async (tx) => {
+            const user = await tx.user.update({
+                where: { id: parseInt(id, 10) },
+                data: updateData,
+                select: {
+                    id: true,
+                    email: true,
+                    fullName: true,
+                    code: true,
+                    role: true,
+                    department: true,
+                    academicTitle: true,
+                    phone: true,
+                    isActive: true,
+                    createdAt: true,
+                },
+            });
+
+            if (isRoleChanged) {
+                await syncRoleGroupsAndAuditTx(tx, existing.id, existing.role, role);
+            }
+
+            return user;
         });
 
-        res.json({ success: true, message: 'Cập nhật người dùng thành công.', data: user });
+        if (isRoleChanged) {
+            clearAuthCache(existing.id);
+        }
+
+        res.json({ success: true, message: 'Cập nhật người dùng thành công.', data: updated });
     } catch (error) {
         next(error);
     }
@@ -719,13 +889,13 @@ const updateUserPermissionGroups = async (req, res, next) => {
         });
 
         const hasAcademicDelegation = (req.user?.permissions || []).includes('PERMISSION_ASSIGN_ACADEMIC');
-        const hasAcademicGroup = selectedGroups.some((g) => ['VIEN_TRUONG', 'GVHD'].includes(g.code));
+        const hasAcademicGroup = selectedGroups.some((g) => ['VIEN_TRUONG', 'GVHD', 'GIAO_VU'].includes(g.code));
 
         if (hasAcademicGroup && !hasAcademicDelegation) {
             return res.status(403).json({
                 success: false,
                 error: 'FORBIDDEN_ACADEMIC_GROUP_ASSIGNMENT',
-                message: 'Quản trị viên kỹ thuật không được phép gán nhóm quyền học thuật (VIEN_TRUONG, GVHD).',
+                message: 'Quản trị viên kỹ thuật không được phép gán nhóm quyền học thuật (VIEN_TRUONG, GVHD, GIAO_VU).',
             });
         }
 
