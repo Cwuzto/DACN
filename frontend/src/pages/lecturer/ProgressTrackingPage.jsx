@@ -41,15 +41,44 @@ import useAuthStore from '../../stores/authStore';
  * - Interactive modals: Giao việc mới, Ghi nhận buổi gặp, Chấm BM04, Giấy xác nhận
  */
 export default function ProgressTrackingPage() {
-    const [searchParams] = useSearchParams();
+    const [searchParams, setSearchParams] = useSearchParams();
     const paramRegId = searchParams.get('registrationId');
+    const tabParam = searchParams.get('tab');
+
+    const resolveTabKey = (tab) => {
+        if (tab === 'bm04' || tab === 'archive') return 'archive';
+        if (tab === 'meeting-logs' || tab === 'bm03') return 'meeting-logs';
+        if (tab === 'checkpoints') return 'checkpoints';
+        if (tab === 'tasks') return 'tasks';
+        return null;
+    };
 
     const [loading, setLoading] = useState(true);
     const [students, setStudents] = useState([]);
     const [selectedStudent, setSelectedStudent] = useState(null);
     const [studentSearch, setStudentSearch] = useState('');
-    const [activeTab, setActiveTab] = useState('tasks'); // 'tasks' | 'meeting-logs' | 'checkpoints' | 'archive'
+    const [activeTab, setActiveTab] = useState(() => resolveTabKey(tabParam) || 'tasks'); // 'tasks' | 'meeting-logs' | 'checkpoints' | 'archive'
     const currentUser = useAuthStore((s) => s.user);
+
+    useEffect(() => {
+        const resolved = resolveTabKey(tabParam);
+        if (resolved && resolved !== activeTab) {
+            setActiveTab(resolved);
+        }
+    }, [tabParam]);
+
+    const handleTabChange = (key) => {
+        setActiveTab(key);
+        const nextParams = new URLSearchParams(searchParams);
+        if (key === 'archive') {
+            nextParams.set('tab', 'bm04');
+        } else if (key === 'tasks') {
+            nextParams.delete('tab');
+        } else {
+            nextParams.set('tab', key);
+        }
+        setSearchParams(nextParams, { replace: true });
+    };
 
     // Selected student data
     const [tasks, setTasks] = useState([]);
@@ -548,25 +577,25 @@ export default function ProgressTrackingPage() {
                     <div className="detail-nav-tabs">
                         <div
                             className={`d-tab ${activeTab === 'tasks' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('tasks')}
+                            onClick={() => handleTabChange('tasks')}
                         >
                             1. Nhiệm vụ tuần
                         </div>
                         <div
                             className={`d-tab ${activeTab === 'meeting-logs' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('meeting-logs')}
+                            onClick={() => handleTabChange('meeting-logs')}
                         >
                             2. Nhật ký trao đổi
                         </div>
                         <div
                             className={`d-tab ${activeTab === 'checkpoints' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('checkpoints')}
+                            onClick={() => handleTabChange('checkpoints')}
                         >
                             3. Đánh giá tiến độ
                         </div>
                         <div
                             className={`d-tab ${activeTab === 'archive' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('archive')}
+                            onClick={() => handleTabChange('archive')}
                         >
                             4. Phiếu nhận xét & Lưu chiểu
                         </div>

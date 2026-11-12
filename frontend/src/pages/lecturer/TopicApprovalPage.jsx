@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { message, Tag, Button, Modal, Input, Descriptions, Alert, Space, Divider } from 'antd';
 import {
     CheckOutlined,
@@ -28,7 +29,38 @@ const { TextArea } = Input;
  */
 export default function TopicApprovalPage() {
     const { user: currentUser } = useAuthStore();
-    const [activeTab, setActiveTab] = useState('mentor'); // 'mentor' | 'outline' | 'bm02a'
+    const [searchParams, setSearchParams] = useSearchParams();
+    const tabParam = searchParams.get('tab');
+
+    const resolveTabKey = (tab) => {
+        if (tab === 'bm01' || tab === 'outline') return 'outline';
+        if (tab === 'bm02a') return 'bm02a';
+        if (tab === 'mentor') return 'mentor';
+        return null;
+    };
+
+    const [activeTab, setActiveTab] = useState(() => resolveTabKey(tabParam) || 'mentor');
+
+    useEffect(() => {
+        const resolved = resolveTabKey(tabParam);
+        if (resolved && resolved !== activeTab) {
+            setActiveTab(resolved);
+        }
+    }, [tabParam]);
+
+    const handleTabChange = (key) => {
+        setActiveTab(key);
+        const nextParams = new URLSearchParams(searchParams);
+        if (key === 'outline') {
+            nextParams.set('tab', 'bm01');
+        } else if (key === 'bm02a') {
+            nextParams.set('tab', 'bm02a');
+        } else {
+            nextParams.set('tab', 'mentor');
+        }
+        setSearchParams(nextParams, { replace: true });
+    };
+
     const [pendingRegistrations, setPendingRegistrations] = useState([]);
     const [councilOutlineRegistrations, setCouncilOutlineRegistrations] = useState([]);
     const [bm02aRequests, setBm02aRequests] = useState([]);
@@ -248,19 +280,19 @@ export default function TopicApprovalPage() {
             <div className="segmented-tabs" style={{ marginBottom: 20 }}>
                 <div
                     className={`seg-tab ${activeTab === 'mentor' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('mentor')}
+                    onClick={() => handleTabChange('mentor')}
                 >
                     Nguyện Vọng Đăng Ký Hướng Dẫn ({pendingRegistrations.length})
                 </div>
                 <div
                     className={`seg-tab ${activeTab === 'outline' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('outline')}
+                    onClick={() => handleTabChange('outline')}
                 >
                     Hội Đồng Thẩm Định Đề Cương Chi Tiết ({pendingOutlineCount})
                 </div>
                 <div
                     className={`seg-tab ${activeTab === 'bm02a' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('bm02a')}
+                    onClick={() => handleTabChange('bm02a')}
                 >
                     Duyệt phiếu đổi tên BM02-A ({pendingBm02aCount})
                 </div>

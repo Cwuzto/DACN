@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
     Alert,
@@ -304,6 +304,12 @@ function ProjectPeriodPage() {
     const [allRegistrations, setAllRegistrations] = useState([]);
     const [decisionListModalVisible, setDecisionListModalVisible] = useState(false);
     const [selectedPeriodForDecisions, setSelectedPeriodForDecisions] = useState(null);
+    const openedDecisionsFromQueryRef = useRef(false);
+
+    const handleOpenDecisionList = useCallback((period) => {
+        setSelectedPeriodForDecisions(period);
+        setDecisionListModalVisible(true);
+    }, []);
 
     // Navigation Tabs state
     const [activeTab, setActiveTab] = useState(() => {
@@ -311,6 +317,7 @@ function ProjectPeriodPage() {
             const params = new URLSearchParams(window?.location?.search || '');
             if (params.get('tab') === 'delegations') return 'delegations';
             if (params.get('tab') === 'bm02') return 'bm02Queue';
+            if (params.get('tab') === 'decisions') return 'periods';
         } catch {}
         return 'periods';
     });
@@ -322,8 +329,17 @@ function ProjectPeriodPage() {
             setActiveTab('delegations');
         } else if (tabParam === 'bm02') {
             setActiveTab('bm02Queue');
+        } else if (tabParam === 'decisions') {
+            setActiveTab('periods');
+            if (periods.length > 0 && !openedDecisionsFromQueryRef.current) {
+                openedDecisionsFromQueryRef.current = true;
+                const active = periods.find((p) => p.status === 'ONGOING' || p.status === 'REGISTRATION') || periods[0];
+                if (active) {
+                    handleOpenDecisionList(active);
+                }
+            }
         }
-    }, [location.search]);
+    }, [location.search, periods, handleOpenDecisionList]);
 
     // Academic Delegation state
     const [delegations, setDelegations] = useState([]);
@@ -443,11 +459,6 @@ function ProjectPeriodPage() {
     const [selectedDecisionRecord, setSelectedDecisionRecord] = useState(null);
     const [amendmentSubmitting, setAmendmentSubmitting] = useState(false);
     const [amendmentForm] = Form.useForm();
-
-    const handleOpenDecisionList = (period) => {
-        setSelectedPeriodForDecisions(period);
-        setDecisionListModalVisible(true);
-    };
 
     const periodDecisionList = useMemo(() => {
         if (!selectedPeriodForDecisions) return [];
