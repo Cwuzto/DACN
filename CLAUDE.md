@@ -70,6 +70,69 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 
 ## 6. Cập Nhật Phiên Làm Việc (Session Update)
 
+### Phiên 13/11/2026 (Live Database Context, Trả Lời Đề Tài Cá Nhân, Graceful Chit-Chat, User-Isolated Cache & Anti-Injection Chatbot)
+
+#### 1. Những phần đã hoàn thành
+1. **Thiết kế Kiến trúc & Kế hoạch Triển khai (Spec & Plan)**:
+   - Hoàn thành tài liệu đặc tả [docs/superpowers/specs/2026-11-13-live-context-and-anti-injection-chatbot-design.md](file:///d:/DACN/docs/superpowers/specs/2026-11-13-live-context-and-anti-injection-chatbot-design.md) (Commit `5457d67`).
+   - Lập kế hoạch 4 task theo chuẩn TDD [docs/superpowers/plans/2026-11-13-live-context-and-anti-injection-chatbot-plan.md](file:///d:/DACN/docs/superpowers/plans/2026-11-13-live-context-and-anti-injection-chatbot-plan.md) (Commit `d8caa55`).
+2. **Task 1: Xây dựng `liveContextService.js` & Dynamic Database Context (Commit `f9f6e64`)**:
+   - Truy vấn học kỳ hiện tại (`Semester` có `status = 'ACTIVE'`, fallback học kỳ mới nhất).
+   - Truy vấn thông tin Viện trưởng (`PermissionGroup` có `code = 'VIEN_TRUONG'`).
+   - Truy vấn danh sách giảng viên tham gia đợt (tối đa 20 giảng viên kèm học hàm/học vị, bộ môn).
+   - In-memory cache thông tin thể chế (TTL 5 phút, 300.000ms).
+   - Cá nhân hóa theo người gọi: Với Sinh viên (`STUDENT`), truy vấn `TopicRegistration` để lấy tên đề tài (bao gồm cả tên điều chỉnh `adjustedTitle` hoặc snapshot BM01), họ tên GVHD và trạng thái học vụ; Với Giảng viên (`LECTURER`), truy vấn danh sách sinh viên và đề tài do mình hướng dẫn.
+   - Viết 13 unit tests tại `backend/tests/unit/liveContextService.test.js` (100% PASS).
+3. **Task 2: Nâng cấp `academicPromptBuilder.js` với XML Data Boundaries, Graceful Chit-chat & Anti-Injection Guardrails (Commit `5f0471f`)**:
+   - Tương thích ngược cả 2 chữ ký: `buildAcademicSystemInstruction({ user, liveContextText })` và `buildAcademicSystemInstruction(user, { liveContextText })`.
+   - Bổ sung khối `THÔNG TIN THỰC TẾ HỌC KỲ & CÁ NHÂN HÓA (LIVE DATABASE CONTEXT)`.
+   - Bổ sung khối `QUY TẮC BẢO MẬT & PHÒNG VỆ CHỐNG TIÊM LỆNH (STRICT SECURITY & ANTI-INJECTION)`: Coi nội dung trong thẻ `<user_query>` thuần túy là dữ liệu cần giải đáp, từ chối mọi yêu cầu bẻ khóa, giả lập vai trò (role spoofing) hoặc trích xuất system prompt / mật khẩu.
+   - Bổ sung khối `HƯỚNG DẪN ỨNG XỬ NGOÀI LUỒNG & GIAO TIẾP TỰ NHIÊN (GRACEFUL CHIT-CHAT)`: Xử lý ân cần lời chào, định hướng câu hỏi ngoài lề về quy chế đồ án của Viện.
+   - Export hàm `wrapUserMessage(message)` bọc dữ liệu trong `<user_query>\n...\n</user_query>` và sanitize thẻ chống breakout.
+   - Viết 9 unit tests tại `backend/tests/unit/liveContextPromptBuilder.test.js` (100% PASS).
+4. **Task 3: Tích hợp Service, Controller, User-Isolated Cache & Real-time Answering (Commit `a2bdb11`)**:
+   - Cập nhật `aiProviderService.answerAcademicChat`: Gọi `liveContextService.getLiveContext(user)`, nạp vào prompt builder, bọc câu hỏi người dùng bằng `wrapUserMessage`.
+   - Cập nhật `aiController.regulationChat`: Đưa `userId: req.user?.id || 'anonymous'` vào `cacheKeyPayload` đảm bảo cache cách ly 100% giữa các sinh viên/người dùng.
+   - Viết 5 integration tests tại `backend/tests/integration/liveContextAndChitChatWorkflow.test.js` (100% PASS).
+5. **Redesign Giao Diện Chatbot UI/UX Pro Max & Chuẩn Nút Bấm Rule 2.6 (Commit `6c39cb8` & `46c1f26`)**:
+   - Chuyển 3 nút điều khiển header (`Thu nhỏ`, `Làm mới`, `Đóng`) thành các nút icon tròn siêu gọn (`shape="circle"`, `w-7 h-7`), chuyển text nhãn thành `Tooltip` và `aria-label`, chống tràn 100% khi co nhỏ.
+6. **Task 4: Hồi Quy Toàn Diện, Chuẩn Hóa Schema Prisma & Xác Nhận Zero-BOM (Commit `553ed0e`)**:
+   - Backend test suite: **104/104 suites PASS, 1.029/1.029 tests PASS (100%)**.
+   - Frontend test suite: **187/187 tests PASS (100%)**.
+   - Frontend production build: **PASS (0 lỗi trong 17.12s)**.
+   - Xác nhận 100% file tạo mới và sửa đổi đạt chuẩn **UTF-8 (no BOM)**.
+
+#### 2. Trạng thái cập nhật của từng phần
+- **Database (Supabase PostgreSQL & Prisma)**: Schema ổn định, truy vấn thực tế thời gian thực hoạt động chính xác qua `liveContextService`.
+- **Backend AI Engine (Google Gemini 3.8 Flash)**:
+  * Được grounding dữ liệu CSDL sống (Học kỳ, Viện trưởng, Danh sách GVHD, Đề tài của chính SV).
+  * Bảo vệ bằng XML Data Boundary (`<user_query>`) chống prompt injection.
+  * Ứng xử hội thoại ngoài luồng mượt mà, tự nhiên (Graceful Chit-chat).
+  * Bộ nhớ đệm phân tầng: Dữ liệu thể chế cache 5 phút; phản hồi API cách ly theo `userId`.
+- **Frontend SPA**: Giao diện Chatbot widget hiện đại, chống tràn, hiển thị Role Tag, Quick Questions động và Ant Design icons chuẩn mực.
+- **Bảo mật & Liêm chính**: Ngăn chặn 100% rò rỉ chéo dữ liệu sinh viên qua cache và chống jailbreak qua XML data boundary.
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+1. **Trải Nghiệm Thực Tế & Kiểm Thử Người Dùng (E2E User Verification)**:
+   - Điền API Key thực tế vào `backend/.env` (`GEMINI_API_KEY=...`).
+   - Đăng nhập tài khoản sinh viên: Hỏi *"Đề tài của em là gì?", "Thầy hướng dẫn của em là ai?", "Viện trưởng là ai?", "Học kỳ này kết thúc khi nào?"* để kiểm chứng độ mượt mà và chính xác của câu trả lời.
+   - Thử nghiệm các câu chào hỏi xã giao hoặc các câu hỏi ngoài lề để kiểm tra phản ứng tự nhiên của bot.
+   - Thử nghiệm các prompt injection hiểm hóc để xác nhận rào chắn bảo vệ hoạt động bền vững.
+2. **Tiếp Tục Hoàn Thiện Nghiệp Vụ Giai Đoạn 5 & 6**:
+   - Biên bản tổng hợp điểm bảo vệ đồ án tốt nghiệp và quy trình nộp hồ sơ lưu chiểu đồ án.
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+1. **Dynamic Database Grounding Thay Vì Dữ Liệu Tĩnh Cứng**:
+   - Chatbot không bị "mù" thông tin thời gian thực. Bằng cách nạp dữ liệu sống qua `liveContextService`, chatbot luôn nắm rõ ngày kết thúc đợt, danh tính Viện trưởng và đề tài cụ thể của sinh viên mà không cần sửa đổi prompt mỗi khi qua kỳ mới.
+2. **XML Data Boundary (`<user_query>`)**:
+   - Cách tiếp cận chuẩn công nghiệp phòng vệ Prompt Injection: cô lập câu hỏi của người dùng dưới dạng khối dữ liệu (data literal) thay vì mệnh lệnh hệ thống (instruction), kết hợp escape ký tự thẻ đóng để chống tag breakout.
+3. **Cô Lập Bộ Nhớ Đệm Theo `userId` (User-Isolated Response Caching)**:
+   - Băm SHA-256 kèm `userId` vào cache key của `/api/ai/regulation-chat`. Điều này vừa giữ được ưu thế phản hồi dưới 50ms khi một sinh viên hỏi lại, vừa triệt tiêu hoàn toàn nguy cơ sinh viên A nhận được dữ liệu đề tài của sinh viên B.
+4. **Header Icon Buttons Đạt Chuẩn UI/UX Pro Max**:
+   - Giữ tiêu đề "Trợ lý Học vụ AI" và Role Tag luôn hiển thị đẹp mắt, 3 nút chức năng co gọn thành icon tròn có Tooltip, loại bỏ hoàn toàn hiện tượng vỡ giao diện khi thu nhỏ khung chat.
+
+---
+
 ### Phiên 13/11/2026 (Chuyển Đổi Gemini 3.8 Flash, Gỡ Bỏ @xenova/transformers & Phân Quyền Tri Thức AI Chống Rò Rỉ Dữ Liệu)
 
 #### 1. Những phần đã hoàn thành
