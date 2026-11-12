@@ -307,6 +307,14 @@ const updateNotificationTemplate = async (req, res, next) => {
 
 const sendLecturerBroadcast = async (req, res, next) => {
     try {
+        if (req.user?.role !== 'LECTURER') {
+            return res.status(403).json({
+                success: false,
+                code: 'FORBIDDEN',
+                message: 'Chỉ giảng viên mới có quyền sử dụng tính năng phát thông báo này',
+            });
+        }
+
         const { subject, content } = req.body || {};
 
         if (!content || typeof content !== 'string' || !content.trim()) {

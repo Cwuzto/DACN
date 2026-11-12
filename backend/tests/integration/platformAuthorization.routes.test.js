@@ -80,6 +80,7 @@ jest.mock('../../src/controllers/notificationController', () => {
         getNotificationTemplates: ok,
         updateNotificationTemplate: ok,
         sendBroadcastNotification: ok,
+        sendLecturerBroadcast: ok,
     };
 });
 jest.mock('../../src/controllers/rubricController', () => {
