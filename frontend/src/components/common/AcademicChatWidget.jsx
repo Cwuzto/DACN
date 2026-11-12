@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Button, Input, Tag, Spin, Tooltip } from 'antd';
+import { Button, Input, Tag, Tooltip, message as antdMessage } from 'antd';
 import {
     MessageOutlined,
     CloseOutlined,
@@ -7,7 +7,13 @@ import {
     RobotOutlined,
     ClearOutlined,
     BookOutlined,
-    QuestionCircleOutlined
+    QuestionCircleOutlined,
+    CopyOutlined,
+    CheckOutlined,
+    ArrowsAltOutlined,
+    ShrinkOutlined,
+    BulbOutlined,
+    UserOutlined
 } from '@ant-design/icons';
 import aiService from '../../services/aiService';
 import useAuth from '../../hooks/useAuth';
@@ -53,7 +59,7 @@ export const renderRoleBadge = (role) => {
 const INITIAL_MESSAGE = {
     id: 'welcome',
     sender: 'bot',
-    text: 'Xin chào! Tôi là Trợ lý AI Quy chế Học vụ của Viện. Tôi có thể giải đáp các thắc mắc về đề cương BM01, đơn bảo vệ BM02, điều kiện dừng đề tài, hồ sơ lưu chiểu và các quy định đồ án tốt nghiệp.',
+    text: 'Xin chào! Tôi là Trợ lý AI Quy chế Học vụ của Viện Công nghệ Số (sử dụng mô hình Gemini 3.8 Flash).\n\nTôi sẵn sàng giải đáp 24/7 mọi thắc mắc về:\n• Đề cương BM01 & Hội đồng xét duyệt\n• Đơn đăng ký BM02 & Cửa sổ 168h đổi tên\n• Tiến độ thực hiện BM03 & 2 Checkpoint bắt buộc\n• Đánh giá trước bảo vệ BM04 & Tiêu chí xét bảo vệ\n• Quy chế bảo vệ trước Hội đồng & Nộp lưu chiểu',
     provider: 'gemini-3.8-flash',
     relatedRegulations: [
         'Sổ tay Đồ án Tốt nghiệp',
@@ -63,19 +69,29 @@ const INITIAL_MESSAGE = {
 };
 
 /**
- * AcademicChatWidget
+ * AcademicChatWidget (UI/UX Pro Max Edition)
  * Floating conversational assistant answering academic regulations,
- * thesis milestones, and institutional procedures with Gemini AI & Local Rule Fallback.
- * Strictly adheres to AGENTS.md Rule 2.6 (no raw emojis or symbols in Button labels).
+ * thesis milestones, and institutional procedures with Gemini 3.8 Flash.
+ *
+ * Design features:
+ * - Glassmorphic floating window with dual-mode sizing (Standard & Expanded reading mode)
+ * - Online beacon pulse indicator (Active 24/7)
+ * - Role-based dynamic context & quick question chips
+ * - One-click answer copy to clipboard with instant feedback
+ * - Multi-turn conversational memory with smooth auto-scroll
+ * - Strictly adheres to AGENTS.md Rule 2.6 (no raw emojis or symbols in Button labels)
  */
 export default function AcademicChatWidget() {
     const { user } = useAuth();
     const [isOpen, setIsOpen] = useState(false);
+    const [isExpanded, setIsExpanded] = useState(false);
     const [messages, setMessages] = useState([INITIAL_MESSAGE]);
     const [inputValue, setInputValue] = useState('');
     const [loading, setLoading] = useState(false);
+    const [copiedId, setCopiedId] = useState(null);
     const [quickQuestions, setQuickQuestions] = useState(() => getRoleQuickQuestions(user?.role));
     const messagesEndRef = useRef(null);
+    const inputRef = useRef(null);
 
     // Synchronize quick questions whenever user role changes
     useEffect(() => {
@@ -89,8 +105,23 @@ export default function AcademicChatWidget() {
     useEffect(() => {
         if (isOpen) {
             scrollToBottom();
+            // Autofocus input on open
+            setTimeout(() => {
+                inputRef.current?.focus();
+            }, 150);
         }
-    }, [messages, isOpen]);
+    }, [messages, isOpen, isExpanded]);
+
+    const handleCopy = async (id, text) => {
+        try {
+            await navigator.clipboard.writeText(text);
+            setCopiedId(id);
+            antdMessage.success('Đã sao chép phản hồi quy chế vào bộ nhớ tạm!');
+            setTimeout(() => setCopiedId(null), 2000);
+        } catch {
+            antdMessage.error('Không thể sao chép');
+        }
+    };
 
     const handleSend = async (questionText) => {
         const query = (typeof questionText === 'string' ? questionText : inputValue).trim();
@@ -159,24 +190,47 @@ export default function AcademicChatWidget() {
     const handleReset = () => {
         setMessages([INITIAL_MESSAGE]);
         setQuickQuestions(getRoleQuickQuestions(user?.role));
+        antdMessage.info('Đã làm mới phiên hội thoại');
     };
 
     return (
-        <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end pointer-events-auto">
+        <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end pointer-events-auto font-sans">
             {/* Chat Window Panel */}
             {isOpen && (
-                <div className="w-[380px] h-[520px] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-6rem)] bg-white rounded-2xl shadow-2xl border border-slate-200/90 flex flex-col overflow-hidden mb-3 animate-in fade-in slide-in-from-bottom-4 duration-200">
+                <div
+                    className={`${
+                        isExpanded
+                            ? 'w-[640px] h-[720px] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-4rem)]'
+                            : 'w-[410px] h-[580px] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-5rem)]'
+                    } bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-200/90 flex flex-col overflow-hidden mb-3.5 transition-all duration-300 ease-out ring-1 ring-black/5 animate-in fade-in slide-in-from-bottom-4`}
+                    style={{
+                        boxShadow: '0 20px 45px -10px rgba(15, 118, 110, 0.2), 0 10px 20px -5px rgba(0, 0, 0, 0.08)'
+                    }}
+                >
                     {/* Header */}
-                    <div className="bg-gradient-to-r from-[#0F766E] to-[#115E59] text-white px-4 py-3 flex items-center justify-between shadow-sm">
-                        <div className="flex items-center space-x-2">
-                            <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white">
-                                <RobotOutlined className="text-base" />
-                            </div>
-                            <div>
-                                <div className="font-semibold text-sm leading-tight">
-                                    Trợ Lý Quy Chế Học Vụ (AI)
+                    <div className="bg-gradient-to-r from-teal-800 via-teal-700 to-slate-900 text-white px-4 py-3.5 flex items-center justify-between border-b border-teal-600/30 shadow-sm relative overflow-hidden">
+                        {/* Decorative background aura */}
+                        <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/5 rounded-full blur-2xl pointer-events-none" />
+
+                        <div className="flex items-center space-x-3 z-10">
+                            <div className="relative">
+                                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-white/20 to-white/10 ring-1 ring-white/30 backdrop-blur-sm flex items-center justify-center text-white shadow-inner">
+                                    <RobotOutlined className="text-lg" />
                                 </div>
-                                <div className="flex items-center space-x-1.5 mt-0.5">
+                                {/* Online beacon */}
+                                <span className="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400 border border-teal-900" />
+                                </span>
+                            </div>
+
+                            <div>
+                                <div className="font-semibold text-sm leading-tight tracking-wide text-white flex items-center gap-1.5">
+                                    <span>Trợ Lý Quy Chế Học Vụ</span>
+                                    <span className="text-[10px] font-normal text-teal-200/90 hidden sm:inline">(AI)</span>
+                                </div>
+
+                                <div className="flex items-center space-x-1.5 mt-1">
                                     {user?.role === 'LECTURER' ? (
                                         <Tag color="green">Giảng viên / HĐ</Tag>
                                     ) : user?.role === 'ADMIN' ? (
@@ -184,127 +238,173 @@ export default function AcademicChatWidget() {
                                     ) : (
                                         <Tag color="blue">Sinh viên</Tag>
                                     )}
-                                    <Tag color="cyan" className="!text-[10px] !leading-4 !py-0 !px-1.5 !border-none !bg-white/20 !text-white font-medium">
+
+                                    <Tag
+                                        color="cyan"
+                                        className="!text-[10px] !leading-4 !py-0 !px-1.5 !border-none !bg-white/15 !text-teal-100 font-medium tracking-tight rounded-sm"
+                                    >
                                         Gemini 3.8 Flash
                                     </Tag>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="flex items-center space-x-1">
-                            <Tooltip title="Làm mới cuộc trò chuyện">
+                        {/* Top Action Buttons (Strictly Rule 2.6: no raw emoji) */}
+                        <div className="flex items-center space-x-1 z-10">
+                            <Tooltip title={isExpanded ? 'Thu nhỏ giao diện' : 'Mở rộng giao diện'}>
+                                <Button
+                                    type="text"
+                                    size="small"
+                                    icon={isExpanded ? <ShrinkOutlined /> : <ArrowsAltOutlined />}
+                                    onClick={() => setIsExpanded(!isExpanded)}
+                                    className="!text-teal-100 hover:!text-white hover:!bg-white/15 !px-2 !rounded-md"
+                                >
+                                    {isExpanded ? 'Thu nhỏ' : 'Mở rộng'}
+                                </Button>
+                            </Tooltip>
+
+                            <Tooltip title="Xóa lịch sử và làm mới phiên">
                                 <Button
                                     type="text"
                                     size="small"
                                     icon={<ClearOutlined />}
                                     onClick={handleReset}
-                                    className="!text-white hover:!bg-white/10 !px-2"
+                                    className="!text-teal-100 hover:!text-white hover:!bg-white/15 !px-2 !rounded-md"
                                 >
                                     Làm mới
                                 </Button>
                             </Tooltip>
-                            <Button
-                                type="text"
-                                size="small"
-                                icon={<CloseOutlined />}
-                                onClick={() => setIsOpen(false)}
-                                className="!text-white hover:!bg-white/10 !px-2"
-                            >
-                                Đóng
-                            </Button>
+
+                            <Tooltip title="Đóng cửa sổ">
+                                <Button
+                                    type="text"
+                                    size="small"
+                                    icon={<CloseOutlined />}
+                                    onClick={() => setIsOpen(false)}
+                                    className="!text-teal-100 hover:!text-white hover:!bg-white/15 !px-2 !rounded-md"
+                                >
+                                    Đóng
+                                </Button>
+                            </Tooltip>
                         </div>
                     </div>
 
                     {/* Messages Body */}
-                    <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/60 text-xs sm:text-sm">
+                    <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-gradient-to-b from-slate-50/70 to-slate-100/50 text-xs sm:text-sm">
                         {messages.map((msg) => {
                             const isUser = msg.sender === 'user';
                             return (
                                 <div
                                     key={msg.id}
-                                    className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}
+                                    className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} group`}
                                 >
                                     <div
-                                        className={`rounded-2xl p-3 max-w-[85%] shadow-sm ${
+                                        className={`rounded-2xl p-3.5 shadow-xs transition-shadow relative ${
                                             isUser
-                                                ? 'bg-[#0F766E] text-white rounded-tr-none'
-                                                : 'bg-white text-slate-800 border border-slate-200/80 rounded-tl-none'
+                                                ? 'bg-gradient-to-r from-teal-700 to-teal-800 text-white rounded-tr-xs max-w-[85%] shadow-teal-900/10'
+                                                : 'bg-white text-slate-800 border border-slate-200/90 rounded-tl-xs max-w-[90%] shadow-slate-200/50'
                                         }`}
                                     >
                                         {!isUser && (
-                                            <div className="flex items-center justify-between gap-2 mb-1 pb-1 border-b border-slate-100 text-[11px] text-slate-500 font-medium">
-                                                <span className="flex items-center gap-1 text-[#0F766E]">
-                                                    <RobotOutlined />
+                                            <div className="flex items-center justify-between gap-2 mb-2 pb-1.5 border-b border-slate-100 text-[11px] text-slate-500 font-medium">
+                                                <span className="flex items-center gap-1.5 text-teal-700 font-semibold">
+                                                    <RobotOutlined className="text-sm" />
                                                     <span>Trợ lý Học vụ</span>
                                                 </span>
-                                                <Tag
-                                                    className="!text-[9px] !leading-3 !px-1 !py-0 !m-0 !border-none"
-                                                    color={msg.provider === 'local_fallback' ? 'orange' : 'cyan'}
-                                                >
-                                                    {msg.provider === 'local_fallback' ? 'Quy tắc nội bộ (Offline)' : 'Gemini 3.8 Flash'}
-                                                </Tag>
+                                                <div className="flex items-center gap-1.5">
+                                                    <Tag
+                                                        className="!text-[9px] !leading-3 !px-1.5 !py-0.5 !m-0 !border-none font-medium"
+                                                        color={msg.provider === 'local_fallback' ? 'orange' : 'cyan'}
+                                                    >
+                                                        {msg.provider === 'local_fallback'
+                                                            ? 'Quy tắc nội bộ (Offline)'
+                                                            : 'Gemini 3.8 Flash'}
+                                                    </Tag>
+                                                    {/* Quick copy response button */}
+                                                    <Tooltip title="Sao chép nội dung">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleCopy(msg.id, msg.text)}
+                                                            className="text-slate-400 hover:text-teal-700 p-0.5 rounded transition-colors cursor-pointer"
+                                                        >
+                                                            {copiedId === msg.id ? (
+                                                                <CheckOutlined className="text-emerald-600 text-xs" />
+                                                            ) : (
+                                                                <CopyOutlined className="text-xs" />
+                                                            )}
+                                                        </button>
+                                                    </Tooltip>
+                                                </div>
                                             </div>
                                         )}
 
-                                        <div className="whitespace-pre-line leading-relaxed">
-                                            {msg.text}
+                                        <div className="whitespace-pre-line leading-relaxed text-slate-700 font-normal">
+                                            {isUser ? <span className="text-white font-normal">{msg.text}</span> : msg.text}
                                         </div>
 
-                                        {/* Related Regulations */}
+                                        {/* Related Regulations Badge Pill */}
                                         {!isUser && msg.relatedRegulations && msg.relatedRegulations.length > 0 && (
-                                            <div className="mt-2.5 pt-2 border-t border-slate-100 text-[11px]">
-                                                <div className="text-slate-500 font-semibold mb-1 flex items-center gap-1">
-                                                    <BookOutlined className="text-[#0F766E]" />
+                                            <div className="mt-3 pt-2 border-t border-slate-100/90 text-[11px]">
+                                                <div className="text-slate-500 font-medium mb-1.5 flex items-center gap-1.5">
+                                                    <BookOutlined className="text-teal-700" />
                                                     <span>Căn cứ quy chế liên quan:</span>
                                                 </div>
-                                                <div className="flex flex-wrap gap-1">
+                                                <div className="flex flex-wrap gap-1.5">
                                                     {msg.relatedRegulations.map((reg, idx) => (
-                                                        <Tag
+                                                        <span
                                                             key={idx}
-                                                            color="blue"
-                                                            className="!text-[10px] !m-0 !px-1.5 !py-0.5 rounded"
+                                                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-teal-50/80 text-teal-800 border border-teal-200/70"
                                                         >
+                                                            <BookOutlined className="text-[9px]" />
                                                             {reg}
-                                                        </Tag>
+                                                        </span>
                                                     ))}
                                                 </div>
                                             </div>
                                         )}
                                     </div>
-                                    <span className="text-[10px] text-slate-400 mt-1 px-1">
+
+                                    <span className="text-[10px] text-slate-400 mt-1 px-1.5 flex items-center gap-1">
+                                        {isUser ? <UserOutlined className="text-[9px]" /> : <RobotOutlined className="text-[9px]" />}
                                         {msg.time}
                                     </span>
                                 </div>
                             );
                         })}
 
+                        {/* Modern Typing / Thinking Indicator */}
                         {loading && (
-                            <div className="flex flex-col items-start">
-                                <div className="rounded-2xl rounded-tl-none p-3 max-w-[85%] bg-white text-slate-600 border border-slate-200/80 shadow-sm flex items-center space-x-2">
-                                    <Spin size="small" />
-                                    <span className="text-xs">Đang tra cứu quy chế học vụ...</span>
+                            <div className="flex flex-col items-start animate-in fade-in duration-200">
+                                <div className="rounded-2xl rounded-tl-xs p-3.5 max-w-[85%] bg-white text-slate-600 border border-slate-200/90 shadow-sm flex items-center space-x-3">
+                                    <div className="flex space-x-1">
+                                        <span className="w-2 h-2 rounded-full bg-teal-600 animate-bounce" style={{ animationDelay: '0ms' }} />
+                                        <span className="w-2 h-2 rounded-full bg-teal-600 animate-bounce" style={{ animationDelay: '150ms' }} />
+                                        <span className="w-2 h-2 rounded-full bg-teal-600 animate-bounce" style={{ animationDelay: '300ms' }} />
+                                    </div>
+                                    <span className="text-xs text-slate-500 font-medium">Gemini 3.8 Flash đang tra cứu quy chế...</span>
                                 </div>
                             </div>
                         )}
                         <div ref={messagesEndRef} />
                     </div>
 
-                    {/* Quick Question Chips */}
+                    {/* Quick Question Chips Carousel */}
                     {quickQuestions && quickQuestions.length > 0 && (
-                        <div className="px-3 py-2 bg-slate-100/90 border-t border-slate-200/80">
-                            <div className="text-[10px] font-semibold text-slate-500 mb-1.5 uppercase tracking-wider">
-                                Gợi ý câu hỏi nhanh:
+                        <div className="px-3.5 py-2.5 bg-slate-100/95 border-t border-slate-200/80">
+                            <div className="text-[10px] font-semibold text-slate-500 mb-1.5 uppercase tracking-wider flex items-center gap-1">
+                                <BulbOutlined className="text-amber-500" />
+                                <span>Gợi ý câu hỏi thường gặp:</span>
                             </div>
-                            <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto">
+                            <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto pr-1">
                                 {quickQuestions.map((question, idx) => (
                                     <button
                                         key={idx}
                                         type="button"
                                         onClick={() => handleSend(question)}
                                         disabled={loading}
-                                        className="text-[11px] bg-white hover:bg-teal-50 hover:text-[#0F766E] hover:border-[#0F766E] text-slate-700 px-2.5 py-1 rounded-full border border-slate-200 transition-colors shadow-2xs text-left flex items-center gap-1"
+                                        className="text-[11px] bg-white hover:bg-teal-50/90 hover:text-teal-800 hover:border-teal-400 text-slate-700 px-2.5 py-1 rounded-full border border-slate-200/90 transition-all shadow-2xs text-left flex items-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-98"
                                     >
-                                        <QuestionCircleOutlined className="text-[#0F766E] text-[10px] shrink-0" />
+                                        <QuestionCircleOutlined className="text-teal-600 text-[10px] shrink-0" />
                                         <span>{question}</span>
                                     </button>
                                 ))}
@@ -313,42 +413,65 @@ export default function AcademicChatWidget() {
                     )}
 
                     {/* Input Footer */}
-                    <div className="p-3 bg-white border-t border-slate-200 flex gap-2 items-center">
-                        <Input
-                            placeholder="Hỏi về quy chế, hạn nộp, BM01/BM02..."
-                            value={inputValue}
-                            onChange={(e) => setInputValue(e.target.value)}
-                            onPressEnter={() => handleSend(inputValue)}
-                            disabled={loading}
-                            className="rounded-lg text-xs sm:text-sm"
-                            maxLength={500}
-                        />
-                        <Button
-                            type="primary"
-                            icon={<SendOutlined />}
-                            onClick={() => handleSend(inputValue)}
-                            loading={loading}
-                            disabled={!inputValue.trim() || loading}
-                            className="!bg-[#0F766E] hover:!bg-[#0D655E] !font-medium"
-                        >
-                            Gửi
-                        </Button>
+                    <div className="p-3 bg-white border-t border-slate-200/90 flex flex-col gap-1.5">
+                        <div className="flex gap-2 items-center">
+                            <Input
+                                ref={inputRef}
+                                placeholder="Hỏi về quy chế, hạn nộp, BM01, BM04..."
+                                value={inputValue}
+                                onChange={(e) => setInputValue(e.target.value)}
+                                onPressEnter={() => handleSend(inputValue)}
+                                disabled={loading}
+                                className="rounded-xl text-xs sm:text-sm !py-2 !px-3 border-slate-200 focus:!border-teal-600 focus:!ring-1 focus:!ring-teal-600/20"
+                                maxLength={500}
+                            />
+                            <Button
+                                type="primary"
+                                icon={<SendOutlined />}
+                                onClick={() => handleSend(inputValue)}
+                                loading={loading}
+                                disabled={!inputValue.trim() || loading}
+                                className="!bg-teal-700 hover:!bg-teal-800 !font-medium !h-9 !px-4 !rounded-xl !shadow-sm flex items-center justify-center transition-all shrink-0"
+                            >
+                                Gửi
+                            </Button>
+                        </div>
+                        <div className="flex justify-between items-center text-[10px] text-slate-400 px-1">
+                            <span>Nhấn Enter để gửi</span>
+                            <span>{inputValue.length}/500</span>
+                        </div>
                     </div>
                 </div>
             )}
 
             {/* Floating Trigger Toggle Button */}
             {!isOpen && (
-                <Tooltip title="Trợ lý Quy chế Học vụ (AI)" placement="left">
-                    <Button
-                        type="primary"
-                        shape="circle"
-                        size="large"
-                        icon={<MessageOutlined className="text-xl" />}
-                        className="!w-14 !h-14 shadow-lg !bg-[#0F766E] hover:!bg-[#0D655E] flex items-center justify-center border-none transition-transform hover:scale-105"
-                        onClick={() => setIsOpen(true)}
-                    />
-                </Tooltip>
+                <div className="relative group">
+                    {/* Floating mini status badge */}
+                    <div className="absolute -top-10 right-0 hidden group-hover:flex items-center px-2.5 py-1 bg-slate-900/90 backdrop-blur-sm text-white text-[11px] rounded-lg shadow-lg whitespace-nowrap pointer-events-none transition-opacity duration-200">
+                        <span>Hỏi đáp Quy chế AI (24/7)</span>
+                    </div>
+
+                    <Tooltip title="Trợ lý Quy chế Học vụ (AI)" placement="left">
+                        <Button
+                            type="primary"
+                            shape="circle"
+                            size="large"
+                            icon={<MessageOutlined className="text-xl" />}
+                            className="!w-14 !h-14 shadow-xl !bg-gradient-to-tr !from-teal-800 !to-teal-600 hover:!from-teal-700 hover:!to-teal-500 flex items-center justify-center border-none transition-all duration-200 hover:scale-105 active:scale-95"
+                            style={{
+                                boxShadow: '0 10px 25px -5px rgba(15, 118, 110, 0.4)'
+                            }}
+                            onClick={() => setIsOpen(true)}
+                        />
+                    </Tooltip>
+
+                    {/* Online indicator beacon on button */}
+                    <span className="absolute -top-0.5 -right-0.5 flex h-3.5 w-3.5 pointer-events-none">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 border-2 border-white" />
+                    </span>
+                </div>
             )}
         </div>
     );
