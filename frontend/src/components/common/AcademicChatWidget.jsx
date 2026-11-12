@@ -13,10 +13,14 @@ import {
     ArrowsAltOutlined,
     ShrinkOutlined,
     BulbOutlined,
-    UserOutlined
+    UserOutlined,
+    UpOutlined,
+    DownOutlined
 } from '@ant-design/icons';
 import aiService from '../../services/aiService';
 import useAuth from '../../hooks/useAuth';
+
+export const BOT_NAME = 'Trợ lý Học vụ VCN';
 
 export const ROLE_QUICK_QUESTIONS = {
     STUDENT: [
@@ -59,8 +63,8 @@ export const renderRoleBadge = (role) => {
 const INITIAL_MESSAGE = {
     id: 'welcome',
     sender: 'bot',
-    text: 'Xin chào! Tôi là Trợ lý AI Quy chế Học vụ của Viện Công nghệ Số (sử dụng mô hình Gemini 3.8 Flash).\n\nTôi sẵn sàng giải đáp 24/7 mọi thắc mắc về:\n• Đề cương BM01 & Hội đồng xét duyệt\n• Đơn đăng ký BM02 & Cửa sổ 168h đổi tên\n• Tiến độ thực hiện BM03 & 2 Checkpoint bắt buộc\n• Đánh giá trước bảo vệ BM04 & Tiêu chí xét bảo vệ\n• Quy chế bảo vệ trước Hội đồng & Nộp lưu chiểu',
-    provider: 'gemini-3.8-flash',
+    text: 'Xin chào! Tôi là Trợ lý Học vụ của Viện Công nghệ Số.\n\nTôi sẵn sàng giải đáp và hướng dẫn chi tiết về các quy định thực hiện đồ án tốt nghiệp:\n• Đề cương BM01 & Hội đồng xét duyệt đề cương\n• Đơn đăng ký BM02 & Cửa sổ 168h xin đổi tên đề tài (BM02-A)\n• Tiến độ thực hiện BM03 & 2 Checkpoint bắt buộc\n• Đánh giá trước bảo vệ BM04 & Tiêu chí xét bảo vệ\n• Quy chế bảo vệ trước Hội đồng & Nộp hồ sơ lưu chiểu',
+    provider: 'academic_assistant',
     relatedRegulations: [
         'Sổ tay Đồ án Tốt nghiệp',
         'Quy chế nộp lại v2 duy nhất (1 lần)'
@@ -71,12 +75,13 @@ const INITIAL_MESSAGE = {
 /**
  * AcademicChatWidget (UI/UX Pro Max Edition)
  * Floating conversational assistant answering academic regulations,
- * thesis milestones, and institutional procedures with Gemini 3.8 Flash.
+ * thesis milestones, and institutional procedures for Viện Công nghệ Số.
  *
  * Design features:
+ * - Clean academic identity ("Trợ lý Học vụ VCN") with zero technical model jargon
  * - Glassmorphic floating window with dual-mode sizing (Standard & Expanded reading mode)
  * - Online beacon pulse indicator (Active 24/7)
- * - Role-based dynamic context & quick question chips
+ * - Role-based dynamic context & collapsible quick question drawer
  * - One-click answer copy to clipboard with instant feedback
  * - Multi-turn conversational memory with smooth auto-scroll
  * - Strictly adheres to AGENTS.md Rule 2.6 (no raw emojis or symbols in Button labels)
@@ -85,6 +90,7 @@ export default function AcademicChatWidget() {
     const { user } = useAuth();
     const [isOpen, setIsOpen] = useState(false);
     const [isExpanded, setIsExpanded] = useState(false);
+    const [isQuestionsCollapsed, setIsQuestionsCollapsed] = useState(false);
     const [messages, setMessages] = useState([INITIAL_MESSAGE]);
     const [inputValue, setInputValue] = useState('');
     const [loading, setLoading] = useState(false);
@@ -116,7 +122,7 @@ export default function AcademicChatWidget() {
         try {
             await navigator.clipboard.writeText(text);
             setCopiedId(id);
-            antdMessage.success('Đã sao chép phản hồi quy chế vào bộ nhớ tạm!');
+            antdMessage.success('Đã sao chép nội dung giải đáp vào bộ nhớ tạm!');
             setTimeout(() => setCopiedId(null), 2000);
         } catch {
             antdMessage.error('Không thể sao chép');
@@ -139,7 +145,7 @@ export default function AcademicChatWidget() {
         setInputValue('');
         setLoading(true);
 
-        // Build multi-turn history context for backend adhering to Gemini format
+        // Build multi-turn history context for backend
         const history = messages
             .filter((m) => m.id !== 'welcome' && !m.id?.startsWith('bot-err'))
             .map((m) => ({
@@ -159,7 +165,7 @@ export default function AcademicChatWidget() {
                     id: `bot-${Date.now()}`,
                     sender: 'bot',
                     text: res.data.reply || 'Không có phản hồi từ hệ thống.',
-                    provider: res.data.provider || 'gemini-3.8-flash',
+                    provider: 'academic_assistant',
                     relatedRegulations: res.data.relatedRegulations || [],
                     time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                 };
@@ -176,8 +182,8 @@ export default function AcademicChatWidget() {
             const errorMsg = {
                 id: `bot-err-${Date.now()}`,
                 sender: 'bot',
-                text: error?.message || 'Hệ thống hiện không thể tra cứu. Vui lòng tham khảo Sổ tay Đồ án tốt nghiệp của Viện.',
-                provider: 'local_fallback',
+                text: error?.message || 'Trợ lý hiện chưa thể tra cứu thông tin này. Vui lòng tham khảo Sổ tay Đồ án tốt nghiệp của Viện hoặc liên hệ Giáo vụ.',
+                provider: 'academic_assistant',
                 relatedRegulations: ['Sổ tay Đồ án Tốt nghiệp'],
                 time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
             };
@@ -190,7 +196,7 @@ export default function AcademicChatWidget() {
     const handleReset = () => {
         setMessages([INITIAL_MESSAGE]);
         setQuickQuestions(getRoleQuickQuestions(user?.role));
-        antdMessage.info('Đã làm mới phiên hội thoại');
+        antdMessage.info('Đã làm mới phiên tư vấn');
     };
 
     return (
@@ -227,7 +233,7 @@ export default function AcademicChatWidget() {
 
                             <div className="min-w-0 flex-1">
                                 <div className="font-semibold text-xs sm:text-sm leading-tight tracking-wide text-white truncate flex items-center gap-1.5">
-                                    <span>Trợ Lý Quy Chế Học Vụ</span>
+                                    <span>{BOT_NAME}</span>
                                 </div>
 
                                 <div className="flex items-center gap-1 mt-1 flex-nowrap overflow-hidden">
@@ -243,7 +249,7 @@ export default function AcademicChatWidget() {
                                         color="cyan"
                                         className="!text-[10px] !leading-3.5 !py-0 !px-1.5 !border-none !bg-white/15 !text-teal-100 font-medium tracking-tight rounded-sm shrink-0"
                                     >
-                                        Gemini 3.8 Flash
+                                        Trực tuyến 24/7
                                     </Tag>
                                 </div>
                             </div>
@@ -314,16 +320,15 @@ export default function AcademicChatWidget() {
                                                 <div className="flex items-center gap-1.5">
                                                     <Tag
                                                         className="!text-[9px] !leading-3 !px-1.5 !py-0.5 !m-0 !border-none font-medium"
-                                                        color={msg.provider === 'local_fallback' ? 'orange' : 'cyan'}
+                                                        color="cyan"
                                                     >
-                                                        {msg.provider === 'local_fallback'
-                                                            ? 'Quy tắc nội bộ (Offline)'
-                                                            : 'Gemini 3.8 Flash'}
+                                                        Phản hồi học vụ
                                                     </Tag>
                                                     {/* Quick copy response button */}
                                                     <Tooltip title="Sao chép nội dung">
                                                         <button
                                                             type="button"
+                                                            aria-label="Sao chép phản hồi"
                                                             onClick={() => handleCopy(msg.id, msg.text)}
                                                             className="text-slate-400 hover:text-teal-700 p-0.5 rounded transition-colors cursor-pointer"
                                                         >
@@ -381,34 +386,56 @@ export default function AcademicChatWidget() {
                                         <span className="w-2 h-2 rounded-full bg-teal-600 animate-bounce" style={{ animationDelay: '150ms' }} />
                                         <span className="w-2 h-2 rounded-full bg-teal-600 animate-bounce" style={{ animationDelay: '300ms' }} />
                                     </div>
-                                    <span className="text-xs text-slate-500 font-medium">Gemini 3.8 Flash đang tra cứu quy chế...</span>
+                                    <span className="text-xs text-slate-500 font-medium">Trợ lý đang tra cứu quy chế học vụ...</span>
                                 </div>
                             </div>
                         )}
                         <div ref={messagesEndRef} />
                     </div>
 
-                    {/* Quick Question Chips Carousel */}
+                    {/* Quick Question Chips Carousel (Collapsible) */}
                     {quickQuestions && quickQuestions.length > 0 && (
-                        <div className="px-3.5 py-2.5 bg-slate-100/95 border-t border-slate-200/80">
-                            <div className="text-[10px] font-semibold text-slate-500 mb-1.5 uppercase tracking-wider flex items-center gap-1">
-                                <BulbOutlined className="text-amber-500" />
-                                <span>Gợi ý câu hỏi thường gặp:</span>
+                        <div className="bg-slate-100/95 border-t border-slate-200/80 transition-all duration-200">
+                            {/* Collapsible Header Bar */}
+                            <div
+                                onClick={() => setIsQuestionsCollapsed(!isQuestionsCollapsed)}
+                                className="px-3.5 py-1.5 flex items-center justify-between cursor-pointer hover:bg-slate-200/60 select-none transition-colors"
+                            >
+                                <div className="text-[10px] font-semibold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                                    <BulbOutlined className="text-amber-500" />
+                                    <span>Gợi ý câu hỏi ({quickQuestions.length})</span>
+                                </div>
+                                <Button
+                                    type="text"
+                                    size="small"
+                                    className="!text-[11px] !text-slate-500 hover:!text-teal-700 !p-0 !h-5 flex items-center gap-1"
+                                    icon={isQuestionsCollapsed ? <DownOutlined className="text-[10px]" /> : <UpOutlined className="text-[10px]" />}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setIsQuestionsCollapsed(!isQuestionsCollapsed);
+                                    }}
+                                >
+                                    {isQuestionsCollapsed ? 'Mở rộng' : 'Thu gọn'}
+                                </Button>
                             </div>
-                            <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto pr-1">
-                                {quickQuestions.map((question, idx) => (
-                                    <button
-                                        key={idx}
-                                        type="button"
-                                        onClick={() => handleSend(question)}
-                                        disabled={loading}
-                                        className="text-[11px] bg-white hover:bg-teal-50/90 hover:text-teal-800 hover:border-teal-400 text-slate-700 px-2.5 py-1 rounded-full border border-slate-200/90 transition-all shadow-2xs text-left flex items-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-98"
-                                    >
-                                        <QuestionCircleOutlined className="text-teal-600 text-[10px] shrink-0" />
-                                        <span>{question}</span>
-                                    </button>
-                                ))}
-                            </div>
+
+                            {/* Expandable Question Chips */}
+                            {!isQuestionsCollapsed && (
+                                <div className="px-3.5 pb-2.5 pt-0.5 flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1 animate-in fade-in duration-200">
+                                    {quickQuestions.map((question, idx) => (
+                                        <button
+                                            key={idx}
+                                            type="button"
+                                            onClick={() => handleSend(question)}
+                                            disabled={loading}
+                                            className="text-[11px] bg-white hover:bg-teal-50/90 hover:text-teal-800 hover:border-teal-400 text-slate-700 px-2.5 py-1 rounded-full border border-slate-200/90 transition-all shadow-2xs text-left flex items-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-98"
+                                        >
+                                            <QuestionCircleOutlined className="text-teal-600 text-[10px] shrink-0" />
+                                            <span>{question}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -449,10 +476,10 @@ export default function AcademicChatWidget() {
                 <div className="relative group">
                     {/* Floating mini status badge */}
                     <div className="absolute -top-10 right-0 hidden group-hover:flex items-center px-2.5 py-1 bg-slate-900/90 backdrop-blur-sm text-white text-[11px] rounded-lg shadow-lg whitespace-nowrap pointer-events-none transition-opacity duration-200">
-                        <span>Hỏi đáp Quy chế AI (24/7)</span>
+                        <span>Hỏi đáp Quy chế Học vụ (24/7)</span>
                     </div>
 
-                    <Tooltip title="Trợ lý Quy chế Học vụ (AI)" placement="left">
+                    <Tooltip title={BOT_NAME} placement="left">
                         <Button
                             type="primary"
                             shape="circle"

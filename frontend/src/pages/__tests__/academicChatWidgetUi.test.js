@@ -83,8 +83,10 @@ test('AcademicChatWidget: Renders correct role badges for STUDENT, LECTURER, and
     assert.match(src, /<Tag color="green">Giảng viên \/ HĐ<\/Tag>/, 'Must render green Tag for Giảng viên / HĐ');
     assert.match(src, /<Tag color="purple">Quản trị viên<\/Tag>/, 'Must render purple Tag for Quản trị viên');
 
-    // Model identity
-    assert.match(src, /Gemini 3\.8 Flash/, 'Header must display Gemini 3.8 Flash model tag');
+    // Bot identity and online status (no model technical jargon)
+    assert.match(src, /Trực tuyến 24\/7/, 'Header must display online status tag');
+    assert.match(src, /BOT_NAME = ['"]Trợ lý Học vụ VCN['"]/, 'Must define official bot identity BOT_NAME');
+    assert.doesNotMatch(src, /Gemini 3\.8 Flash/, 'Header must not expose technical model name Gemini 3.8 Flash');
 
     // Role badge render helper verification
     assert.match(src, /export const renderRoleBadge\s*=/, 'AcademicChatWidget must export renderRoleBadge helper');
@@ -125,6 +127,26 @@ test('AcademicChatWidget: Multi-turn history preserves Gemini chat contract with
     assert.match(src, /role:\s*m\.sender\s*===\s*'user'\s*\?\s*'user'\s*:\s*'model'/, 'History role must map user to "user" and bot to "model"');
     assert.match(src, /text:\s*m\.text/, 'History must preserve message text');
     assert.match(src, /aiService\.chatRegulation\(\{\s*message:\s*query,\s*history\s*\}\)/, 'aiService.chatRegulation must receive message and history');
+});
+
+test('AcademicChatWidget: Collapsible quick questions drawer and official noun-phrase bot identity', () => {
+    const src = read('frontend/src/components/common/AcademicChatWidget.jsx');
+
+    // Bot noun phrase identity
+    assert.match(src, /BOT_NAME\s*=\s*['"]Trợ lý Học vụ VCN['"]/, 'Must declare BOT_NAME as Trợ lý Học vụ VCN');
+    assert.match(src, /<span>Trợ lý Học vụ<\/span>/, 'Must display bot sender as noun phrase Trợ lý Học vụ');
+    assert.match(src, /Trợ lý đang tra cứu quy chế học vụ\.\.\./, 'Typing indicator must use noun phrase Trợ lý');
+
+    // No technical model jargon in user interface
+    assert.doesNotMatch(src, /Gemini 3\.8 Flash/, 'Must not contain Gemini 3.8 Flash');
+    assert.doesNotMatch(src, /qwen/i, 'Must not contain Qwen model name');
+    assert.doesNotMatch(src, /ollama/i, 'Must not contain Ollama technical term in UI');
+
+    // Collapsible quick questions drawer
+    assert.match(src, /isQuestionsCollapsed/, 'Must implement isQuestionsCollapsed state');
+    assert.match(src, /UpOutlined/, 'Must import and use UpOutlined');
+    assert.match(src, /DownOutlined/, 'Must import and use DownOutlined');
+    assert.match(src, /Gợi ý câu hỏi \(/, 'Must display collapsible question count header');
 });
 
 test('AcademicChatWidget: AppLayout.jsx imports and mounts AcademicChatWidget globally', () => {
