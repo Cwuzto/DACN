@@ -84,6 +84,11 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
     const [newOrderInShift, setNewOrderInShift] = useState(1);
     const [adjustReason, setAdjustReason] = useState('');
 
+    // Schedule adjustment logs modal state
+    const [isAdjustmentsModalVisible, setIsAdjustmentsModalVisible] = useState(false);
+    const [defenseScheduleAdjustmentLogs, setDefenseScheduleAdjustmentLogs] = useState([]);
+    const [loadingAdjustments, setLoadingAdjustments] = useState(false);
+
     // Replace member modal state
     const [isReplaceMemberModalVisible, setIsReplaceMemberModalVisible] = useState(false);
     const [replacingMember, setReplacingMember] = useState(null);
@@ -505,6 +510,96 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
         }
     };
 
+    const handleOpenAdjustmentsModal = async () => {
+        if (!council?.id) return;
+        setIsAdjustmentsModalVisible(true);
+        try {
+            setLoadingAdjustments(true);
+            const res = await councilService.getScheduleAdjustments(council.id);
+            if (res?.success) {
+                setDefenseScheduleAdjustmentLogs(res.data || []);
+            } else {
+                setDefenseScheduleAdjustmentLogs([]);
+            }
+        } catch (err) {
+            message.error(err?.message || 'Không thể tải nhật ký đổi ca');
+            setDefenseScheduleAdjustmentLogs([]);
+        } finally {
+            setLoadingAdjustments(false);
+        }
+    };
+
+    const adjustmentColumns = [
+        {
+            title: 'STT',
+            key: 'index',
+            width: 50,
+            align: 'center',
+            render: (_t, _r, index) => <span className="text-slate-600 font-medium">{index + 1}</span>,
+        },
+        {
+            title: 'Sinh viên',
+            key: 'student',
+            width: 200,
+            render: (_text, item) => (
+                <div>
+                    <span className="font-bold text-slate-800">
+                        {item.registration?.student?.fullName || 'N/A'}
+                    </span>
+                    <span className="text-slate-500 text-xs ml-1">
+                        - {item.registration?.student?.studentCode || item.registration?.student?.code || 'N/A'}
+                    </span>
+                </div>
+            ),
+        },
+        {
+            title: 'Đề tài',
+            key: 'topic',
+            render: (_text, item) => (
+                <span className="text-slate-700 text-xs font-medium">
+                    {item.registration?.topic?.title || 'Không có đề tài'}
+                </span>
+            ),
+        },
+        {
+            title: 'Ca thi & Thứ tự',
+            key: 'shifts',
+            width: 250,
+            render: (_text, item) => (
+                <span className="text-xs font-medium text-slate-700">
+                    {`Ca cũ: ${item.oldShift || 'Chưa xếp'} (STT: ${item.oldOrderInShift || '-'}) → Ca mới: ${item.newShift} (STT: ${item.newOrderInShift})`}
+                </span>
+            ),
+        },
+        {
+            title: 'Lý do',
+            dataIndex: 'reason',
+            key: 'reason',
+            render: (reason) => <span className="text-slate-600 text-xs">{reason || '—'}</span>,
+        },
+        {
+            title: 'Người thực hiện',
+            key: 'adjustedBy',
+            width: 150,
+            render: (_text, item) => (
+                <span className="text-slate-800 font-medium text-xs">
+                    {item.adjustedBy?.fullName || '—'}
+                </span>
+            ),
+        },
+        {
+            title: 'Thời gian',
+            dataIndex: 'createdAt',
+            key: 'createdAt',
+            width: 140,
+            render: (createdAt) => (
+                <span className="text-slate-500 text-xs">
+                    {createdAt ? dayjs(createdAt).format('DD/MM/YYYY HH:mm') : '—'}
+                </span>
+            ),
+        },
+    ];
+
     const renderStatusTag = (status) => {
         const colorMap = {
             APPROVED: 'green',
@@ -701,6 +796,11 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                                 className="bg-emerald-700 hover:bg-emerald-800 font-semibold"
                             >
                                 Công bố lịch bảo vệ chia ca
+                            </Button>
+                        )}
+                        {effectiveCouncilType === 'DEFENSE_COUNCIL' && (
+                            <Button icon={<HistoryOutlined />} onClick={() => handleOpenAdjustmentsModal()}>
+                                Nhật ký đổi ca
                             </Button>
                         )}
                         <Button icon={<HistoryOutlined />} onClick={openLogModal}>
@@ -1149,6 +1249,40 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                 council={council}
                 logs={councilLogs}
             />
+
+            {/* Modal Nhật ký đổi ca */}
+            <Modal
+                title={
+                    <div className="flex items-center gap-2 text-slate-800 font-bold">
+                        <HistoryOutlined className="text-teal-700" />
+                        <span>Nhật ký điều chỉnh ca thi Hội đồng: {council.name}</span>
+                    </div>
+                }
+                open={isAdjustmentsModalVisible}
+                onCancel={() => setIsAdjustmentsModalVisible(false)}
+                footer={[
+                    <Button key="close" onClick={() => setIsAdjustmentsModalVisible(false)}>
+                        Đóng
+                    </Button>,
+                ]}
+                width={950}
+                destroyOnClose
+            >
+                {defenseScheduleAdjustmentLogs.length === 0 && !loadingAdjustments ? (
+                    <Empty description="Chưa có lượt điều chỉnh ca thi nào" className="my-8" />
+                ) : (
+                    <Table
+                        columns={adjustmentColumns}
+                        dataSource={defenseScheduleAdjustmentLogs}
+                        rowKey="id"
+                        loading={loadingAdjustments}
+                        pagination={{ pageSize: 8, showSizeChanger: true }}
+                        size="small"
+                        className="mt-2"
+                        locale={{ emptyText: <Empty description="Chưa có lượt điều chỉnh ca thi nào" /> }}
+                    />
+                )}
+            </Modal>
 
             {/* Modal Điều chỉnh Ca & Thứ tự bảo vệ */}
             <Modal

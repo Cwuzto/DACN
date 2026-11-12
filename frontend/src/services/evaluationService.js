@@ -399,6 +399,14 @@ const evaluationService = {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi trả sổ điểm về Hội đồng');
         }
     },
+
+    getScoreBookReturnLogs: async (councilId) => {
+        try {
+            return await api.get(`/evaluations/councils/${councilId}/return-logs`);
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi tải nhật ký hoàn trả sổ điểm');
+        }
+    },
 };
 
 export default evaluationService;

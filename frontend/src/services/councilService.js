@@ -206,6 +206,14 @@ const councilService = {
         }
     },
 
+    getScheduleAdjustments: async (councilId) => {
+        try {
+            return await api.get(`/councils/${councilId}/schedule-adjustments`);
+        } catch (error) {
+            throw wrapServiceError(error, 'Lỗi khi tải nhật ký điều chỉnh ca bảo vệ');
+        }
+    },
+
     replaceCouncilMember: async (councilId, data) => {
         try {
             return await api.post(`/councils/${councilId}/members/replace`, data);

@@ -1,17 +1,21 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+    Alert,
     Button,
     Checkbox,
+    Empty,
     Input,
     message,
     Modal,
     Popconfirm,
+    Table,
     Tag,
     Tooltip,
 } from 'antd';
 import {
     CheckOutlined,
     DownloadOutlined,
+    HistoryOutlined,
     LockOutlined,
     PrinterOutlined,
     ReloadOutlined,
@@ -20,6 +24,7 @@ import {
     UnlockOutlined,
     WarningOutlined,
 } from '@ant-design/icons';
+import dayjs from 'dayjs';
 import councilService from '../../services/councilService';
 import evaluationService from '../../services/evaluationService';
 import { semesterService } from '../../services/semesterService';
@@ -82,6 +87,11 @@ export default function GradingDefensePage() {
     const [reopenMemberIds, setReopenMemberIds] = useState([]);
     const [returnReason, setReturnReason] = useState('');
     const [returnLoading, setReturnLoading] = useState(false);
+
+    // ScoreBook return logs state
+    const [returnLogs, setReturnLogs] = useState([]);
+    const [returnHistoryModalVisible, setReturnHistoryModalVisible] = useState(false);
+    const [loadingReturnLogs, setLoadingReturnLogs] = useState(false);
 
     const [semesters, setSemesters] = useState([]);
     const [councils, setCouncils] = useState([]);
@@ -158,6 +168,111 @@ export default function GradingDefensePage() {
         fetchData();
         setSelectedRowKeys([]);
     }, [fetchData]);
+
+    const fetchReturnLogs = useCallback(async (councilId) => {
+        if (!councilId) {
+            setReturnLogs([]);
+            return;
+        }
+        try {
+            setLoadingReturnLogs(true);
+            const res = await evaluationService.getScoreBookReturnLogs(councilId);
+            if (res?.success) {
+                setReturnLogs(res.data || []);
+            } else {
+                setReturnLogs([]);
+            }
+        } catch {
+            setReturnLogs([]);
+        } finally {
+            setLoadingReturnLogs(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (selectedCouncilId) {
+            fetchReturnLogs(selectedCouncilId);
+        } else {
+            setReturnLogs([]);
+        }
+    }, [selectedCouncilId, fetchReturnLogs]);
+
+    const returnHistoryColumns = [
+        {
+            title: 'STT',
+            key: 'index',
+            width: 50,
+            align: 'center',
+            render: (_t, _r, index) => <span className="text-slate-600 font-medium">{index + 1}</span>,
+        },
+        {
+            title: 'Sinh viên',
+            key: 'student',
+            width: 180,
+            render: (_text, item) => {
+                const sName = item.registration?.student?.fullName || 'N/A';
+                const sCode = item.registration?.student?.studentCode || item.registration?.student?.code || 'N/A';
+                return (
+                    <div>
+                        <div className="font-bold text-slate-800">{sName}</div>
+                        <div className="text-xs text-slate-500 font-mono">{sCode}</div>
+                    </div>
+                );
+            },
+        },
+        {
+            title: 'Đề tài',
+            key: 'topic',
+            render: (_text, item) => (
+                <span className="text-slate-700 text-xs font-medium">
+                    {item.registration?.topic?.title || 'Không có đề tài'}
+                </span>
+            ),
+        },
+        {
+            title: 'Phiên bản sổ',
+            key: 'version',
+            width: 130,
+            align: 'center',
+            render: (_text, item) => (
+                <Tag color="volcano" className="font-mono font-bold">
+                    {`v${item.fromLedgerVersion} → v${item.toLedgerVersion}`}
+                </Tag>
+            ),
+        },
+        {
+            title: 'Lý do hoàn trả',
+            dataIndex: 'reason',
+            key: 'reason',
+            render: (reason) => <span className="text-slate-700 text-xs">{reason || '—'}</span>,
+        },
+        {
+            title: 'Người thực hiện',
+            key: 'returnedByAdmin',
+            width: 160,
+            render: (_text, item) => (
+                <div>
+                    <div className="font-semibold text-slate-800 text-xs">
+                        {item.returnedByAdmin?.fullName || '—'}
+                    </div>
+                    {item.returnedByAdmin?.email && (
+                        <div className="text-[11px] text-slate-500">{item.returnedByAdmin.email}</div>
+                    )}
+                </div>
+            ),
+        },
+        {
+            title: 'Thời gian',
+            dataIndex: 'returnedAt',
+            key: 'returnedAt',
+            width: 140,
+            render: (returnedAt) => (
+                <span className="text-slate-500 text-xs">
+                    {returnedAt ? dayjs(returnedAt).format('DD/MM/YYYY HH:mm') : '—'}
+                </span>
+            ),
+        },
+    ];
 
     // KPI Metrics
     const metrics = useMemo(() => {
@@ -319,6 +434,9 @@ export default function GradingDefensePage() {
                 setReturnModalOpen(false);
                 setSelectedRegForReturn(null);
                 fetchData();
+                if (selectedCouncilId) {
+                    fetchReturnLogs(selectedCouncilId);
+                }
             } else {
                 message.error(res.message || 'Không thể trả sổ điểm.');
             }
@@ -657,6 +775,26 @@ export default function GradingDefensePage() {
                     </button>
                 </div>
             </section>
+
+            {returnLogs.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                    <Alert
+                        message="Hội đồng có lượt hoàn trả sổ điểm"
+                        description="Hội đồng này đã từng có sổ điểm được Giáo vụ/Trưởng Viện hoàn trả để rà soát lại kết quả chấm."
+                        type="warning"
+                        showIcon
+                        action={
+                            <Button
+                                size="small"
+                                icon={<HistoryOutlined />}
+                                onClick={() => setReturnHistoryModalVisible(true)}
+                            >
+                                Xem lịch sử trả ({returnLogs.length})
+                            </Button>
+                        }
+                    />
+                </div>
+            )}
 
             {/* GRADING DATA TABLE */}
             <section className="table-container" data-od-id="grading-table-container">
@@ -1319,6 +1457,40 @@ export default function GradingDefensePage() {
                         </div>
                     </div>
                 </div>
+            </Modal>
+
+            {/* Modal Lịch sử hoàn trả sổ điểm */}
+            <Modal
+                title={
+                    <div className="flex items-center gap-2 text-slate-800 font-bold">
+                        <HistoryOutlined className="text-amber-600" />
+                        <span>Lịch sử hoàn trả sổ điểm Hội đồng</span>
+                    </div>
+                }
+                open={returnHistoryModalVisible}
+                onCancel={() => setReturnHistoryModalVisible(false)}
+                footer={[
+                    <Button key="close" onClick={() => setReturnHistoryModalVisible(false)}>
+                        Đóng
+                    </Button>,
+                ]}
+                width={950}
+                destroyOnClose
+            >
+                {returnLogs.length === 0 && !loadingReturnLogs ? (
+                    <Empty description="Chưa có lượt hoàn trả sổ điểm nào" className="my-8" />
+                ) : (
+                    <Table
+                        columns={returnHistoryColumns}
+                        dataSource={returnLogs}
+                        rowKey="id"
+                        loading={loadingReturnLogs}
+                        pagination={{ pageSize: 8, showSizeChanger: true }}
+                        size="small"
+                        className="mt-2"
+                        locale={{ emptyText: <Empty description="Chưa có lượt hoàn trả sổ điểm nào" /> }}
+                    />
+                )}
             </Modal>
         </div>
     );
