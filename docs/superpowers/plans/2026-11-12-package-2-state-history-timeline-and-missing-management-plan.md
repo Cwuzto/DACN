@@ -95,7 +95,7 @@ git commit -m "feat(api): expose read endpoints for registration history, schedu
   - `GET /api/topics/cloneable`: Returns lecturer's approved topics from prior semesters.
   - `POST /api/topics/clone`: Clones selected topics into the active semester with `DRAFT` status, `currentEnrollmentCount = 0`, unique code. Guarded: Lecturer role or Admin.
 
-- [ ] **Step 1: Write failing integration tests in `backend/tests/integration/package2TopicCloning.test.js`**
+- [x] **Step 1: Write failing integration tests in `backend/tests/integration/package2TopicCloning.test.js`**
 
 Cover:
 1. `GET /api/topics/cloneable` returns approved topics from non-active semesters for the authenticated lecturer.
@@ -103,19 +103,19 @@ Cover:
 3. `POST /api/topics/clone` creates new topics in active semester with status `DRAFT`, resetting enrollments.
 4. `POST /api/topics/clone` rejects cloning topics that do not belong to the lecturer (unless admin).
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npm --prefix backend test -- backend/tests/integration/package2TopicCloning.test.js`
 Expected: FAIL
 
-- [ ] **Step 3: Implement `getCloneableTopics` and `cloneTopics` in `topicController.js` and mount in `topicRoutes.js`**
+- [x] **Step 3: Implement `getCloneableTopics` and `cloneTopics` in `topicController.js` and mount in `topicRoutes.js`**
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `npm --prefix backend test -- backend/tests/integration/package2TopicCloning.test.js`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/src/controllers/topicController.js backend/src/routes/topicRoutes.js backend/src/security/authorizationExemptions.js backend/src/constants/authorizationExemptions.js backend/tests/integration/package2TopicCloning.test.js
@@ -142,7 +142,7 @@ git commit -m "feat(topic): implement real semester topic cloning endpoints for 
   - Lecturer Progress Tracking: Button "Lịch sử" in student detail panel opening timeline.
   - Admin Topic Approval: Button "Xem lịch sử" in review drawer.
 
-- [ ] **Step 1: Write failing test in `frontend/src/pages/__tests__/registrationTimelineDrawer.test.js`**
+- [x] **Step 1: Write failing test in `frontend/src/pages/__tests__/registrationTimelineDrawer.test.js`**
 
 Cover:
 1. `topicService.js` exports `getRegistrationHistory`.
@@ -150,19 +150,19 @@ Cover:
 3. `StudentDashboardPage.jsx`, `ProgressTrackingPage.jsx`, and `TopicApprovalPage.jsx` integrate `RegistrationTimelineDrawer`.
 4. Buttons follow Rule 2.6 without raw symbols or emoji.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node --test frontend/src/pages/__tests__/registrationTimelineDrawer.test.js`
 Expected: FAIL
 
-- [ ] **Step 3: Implement `RegistrationTimelineDrawer.jsx` and wire into Student, Lecturer, and Admin pages**
+- [x] **Step 3: Implement `RegistrationTimelineDrawer.jsx` and wire into Student, Lecturer, and Admin pages**
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `node --test frontend/src/pages/__tests__/registrationTimelineDrawer.test.js`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/components/common/RegistrationTimelineDrawer.jsx frontend/src/services/topicService.js frontend/src/pages/student/StudentDashboardPage.jsx frontend/src/pages/lecturer/ProgressTrackingPage.jsx frontend/src/pages/admin/TopicApprovalPage.jsx frontend/src/pages/__tests__/registrationTimelineDrawer.test.js
@@ -186,7 +186,7 @@ git commit -m "feat(ui): build visual RegistrationTimelineDrawer and integrate a
   - `CouncilDetailPage.jsx`: "Nhật ký đổi ca" button & Modal/Drawer displaying schedule adjustments.
   - `GradingDefensePage.jsx`: Return alert banner & modal displaying return history when `returnLogs.length > 0`.
 
-- [ ] **Step 1: Write failing test in `frontend/src/pages/__tests__/councilLogsAndScorebookReturns.test.js`**
+- [x] **Step 1: Write failing test in `frontend/src/pages/__tests__/councilLogsAndScorebookReturns.test.js`**
 
 Cover:
 1. `councilService.getScheduleAdjustments` and `evaluationService.getScoreBookReturnLogs` are exported.
@@ -194,19 +194,19 @@ Cover:
 3. `GradingDefensePage.jsx` connects return logs and displays reason banner.
 4. Rule 2.6 button standards are respected.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node --test frontend/src/pages/__tests__/councilLogsAndScorebookReturns.test.js`
 Expected: FAIL
 
-- [ ] **Step 3: Update `councilService.js`, `evaluationService.js`, `CouncilDetailPage.jsx`, and `GradingDefensePage.jsx`**
+- [x] **Step 3: Update `councilService.js`, `evaluationService.js`, `CouncilDetailPage.jsx`, and `GradingDefensePage.jsx`**
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `node --test frontend/src/pages/__tests__/councilLogsAndScorebookReturns.test.js`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/services/councilService.js frontend/src/services/evaluationService.js frontend/src/pages/admin/CouncilDetailPage.jsx frontend/src/pages/admin/GradingDefensePage.jsx frontend/src/pages/__tests__/councilLogsAndScorebookReturns.test.js
@@ -229,7 +229,7 @@ git commit -m "feat(ui): display real schedule adjustment logs in CouncilDetailP
   - `TopicManagementPage.jsx`: Real clone modal loading previous topics from API, eliminating hardcoded `DT-2025-042`/`DT-2025-055` and fake toast.
   - `RubricManagementPage.jsx`: Tab "Biểu mẫu quy chuẩn" fetches templates dynamically from `portalContentService`, downloads real `.docx`/`.pdf` from Supabase Storage, eliminates fake static array & fake download toasts.
 
-- [ ] **Step 1: Write failing test in `frontend/src/pages/__tests__/topicCloningAndPortalTemplates.test.js`**
+- [x] **Step 1: Write failing test in `frontend/src/pages/__tests__/topicCloningAndPortalTemplates.test.js`**
 
 Cover:
 1. `topicService.getCloneableTopics` and `topicService.cloneTopics` are exported.
@@ -237,19 +237,19 @@ Cover:
 3. `RubricManagementPage.jsx` does not contain hardcoded static files list and connects real template download.
 4. Rule 2.6 compliance.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node --test frontend/src/pages/__tests__/topicCloningAndPortalTemplates.test.js`
 Expected: FAIL
 
-- [ ] **Step 3: Update `topicService.js`, `TopicManagementPage.jsx`, and `RubricManagementPage.jsx`**
+- [x] **Step 3: Update `topicService.js`, `TopicManagementPage.jsx`, and `RubricManagementPage.jsx`**
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `node --test frontend/src/pages/__tests__/topicCloningAndPortalTemplates.test.js`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/services/topicService.js frontend/src/pages/lecturer/TopicManagementPage.jsx frontend/src/pages/admin/RubricManagementPage.jsx frontend/src/pages/__tests__/topicCloningAndPortalTemplates.test.js
@@ -275,26 +275,26 @@ git commit -m "fix(ui): connect real topic cloning API and real portal template 
     * `GradingDefensePage.jsx`: Replace raw `<button>` at lines 1050/1076 with Ant Design `<Button>`.
     * `RubricManagementPage.jsx`: Replace raw `<button>` at lines 1027/1121 with Ant Design `<Button>`.
 
-- [ ] **Step 1: Write test in `frontend/src/pages/__tests__/rule26ButtonCompliancePackage2.test.js`**
+- [x] **Step 1: Write test in `frontend/src/pages/__tests__/rule26ButtonCompliancePackage2.test.js`**
 
 Cover:
 1. No raw emoji or graphic symbols in `<Button>` children across modified files.
 2. No duplicate `+` when `PlusOutlined` icon prop is used.
 3. No raw `<button className="btn...">` with graphic symbols in admin pages.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `node --test frontend/src/pages/__tests__/rule26ButtonCompliancePackage2.test.js`
 Expected: FAIL
 
-- [ ] **Step 3: Update `OutlineReviewModal.jsx`, `TopicManagementPage.jsx`, `GradingDefensePage.jsx`, and `RubricManagementPage.jsx`**
+- [x] **Step 3: Update `OutlineReviewModal.jsx`, `TopicManagementPage.jsx`, `GradingDefensePage.jsx`, and `RubricManagementPage.jsx`**
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `node --test frontend/src/pages/__tests__/rule26ButtonCompliancePackage2.test.js`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/components/lecturer/OutlineReviewModal.jsx frontend/src/pages/admin/TopicManagementPage.jsx frontend/src/pages/admin/GradingDefensePage.jsx frontend/src/pages/admin/RubricManagementPage.jsx frontend/src/pages/__tests__/rule26ButtonCompliancePackage2.test.js
@@ -321,14 +321,14 @@ git commit -m "fix(ui): eliminate all remaining Rule 2.6 button violations and s
     4. Topic cloning preserves ownership, assigns `DRAFT`, resets enrollment count, and ensures unique codes.
     5. Template downloads route to real Supabase URLs.
 
-- [ ] **Step 1: Write `backend/tests/integration/package2FullRegression.test.js`**
+- [x] **Step 1: Write `backend/tests/integration/package2FullRegression.test.js`**
 
-- [ ] **Step 2: Run the full regression test suite**
+- [x] **Step 2: Run the full regression test suite**
 
 Run: `npm --prefix backend test -- backend/tests/integration/package2FullRegression.test.js`
 Expected: PASS (100%)
 
-- [ ] **Step 3: Run full backend tests, frontend tests, and production build**
+- [x] **Step 3: Run full backend tests, frontend tests, and production build**
 
 Run:
 - `npm --prefix backend test`
@@ -337,7 +337,7 @@ Run:
 
 Expected: 100% test pass rate across all suites, 0 build errors.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add backend/tests/integration/package2FullRegression.test.js
