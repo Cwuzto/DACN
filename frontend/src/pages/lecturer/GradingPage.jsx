@@ -323,7 +323,7 @@ export default function GradingPage() {
                                                                         <Button
                                                                             size="small"
                                                                             type={hasScore ? 'default' : 'primary'}
-                                                                            onClick={() => navigate(`/lecturer/grading/${cand.id}`)}
+                                                                            onClick={() => navigate(`/lecturer/grading/sheet/${cand.id}`)}
                                                                         >
                                                                             {hasScore ? 'Xem phiếu chấm' : 'Vào chấm điểm'}
                                                                         </Button>
