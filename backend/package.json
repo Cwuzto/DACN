@@ -16,6 +16,7 @@
     "db:studio": "npx prisma studio",
     "db:reset": "npx prisma migrate reset",
     "seed:rag": "node src/scripts/seedRagVectors.js",
+    "ollama:start": "ollama serve",
     "test": "jest --runInBand --forceExit",
     "test:watch": "jest --watch"
   },
