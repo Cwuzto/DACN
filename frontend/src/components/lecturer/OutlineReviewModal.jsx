@@ -10,8 +10,10 @@ import {
     TeamOutlined,
     BookOutlined,
     LinkOutlined,
+    BulbOutlined,
 } from '@ant-design/icons';
 import registrationService from '../../services/registrationService';
+import aiService from '../../services/aiService';
 
 const { TextArea } = Input;
 
@@ -24,6 +26,7 @@ export default function OutlineReviewModal({
     const [form] = Form.useForm();
     const [submitting, setSubmitting] = useState(false);
     const [selectedDecision, setSelectedDecision] = useState('PASSED');
+    const [aiFeedbackLoading, setAiFeedbackLoading] = useState(false);
 
     const latestSubmission = registration?.submissions?.[0] || null;
     const fileUrl = latestSubmission?.fileUrl || registration?.outlineFileUrl || null;
@@ -40,6 +43,32 @@ export default function OutlineReviewModal({
             setSelectedDecision('PASSED');
         }
     }, [open, form]);
+
+    const handleAIGenerateFeedback = async () => {
+        try {
+            setAiFeedbackLoading(true);
+            const reviewComment = form.getFieldValue('feedback') || '';
+            const res = await aiService.generateFeedback({
+                contextType: 'BM01',
+                topicTitle: registration?.topic?.title || registration?.customTopicTitle,
+                studentName: registration?.student?.fullName,
+                scores: { decision: selectedDecision },
+                notes: reviewComment,
+            });
+
+            const feedbackText = res?.data?.feedback || res?.feedback || (typeof res?.data === 'string' ? res?.data : '');
+            if (feedbackText) {
+                form.setFieldsValue({ feedback: feedbackText });
+                message.success('AI đã gợi ý nhận xét thành công!');
+            } else {
+                message.warning('Không nhận được gợi ý nhận xét từ AI.');
+            }
+        } catch (error) {
+            message.error(error.message || 'Không thể tạo gợi ý nhận xét với AI');
+        } finally {
+            setAiFeedbackLoading(false);
+        }
+    };
 
     const handleSubmit = async (values) => {
         if (!registration?.id) return;
@@ -215,12 +244,24 @@ export default function OutlineReviewModal({
                     <Form.Item
                         name="feedback"
                         label={
-                            <span className="text-xs font-semibold text-slate-700">
-                                Ý kiến nhận xét & Hướng dẫn chỉnh sửa của Hội đồng:
-                                {selectedDecision === 'REVISION_REQUIRED' && (
-                                    <span className="text-rose-600 ml-1">(*) Bắt buộc</span>
-                                )}
-                            </span>
+                            <div className="flex items-center justify-between w-full">
+                                <span className="text-xs font-semibold text-slate-700">
+                                    Ý kiến nhận xét & Hướng dẫn chỉnh sửa của Hội đồng:
+                                    {selectedDecision === 'REVISION_REQUIRED' && (
+                                        <span className="text-rose-600 ml-1">(*) Bắt buộc</span>
+                                    )}
+                                </span>
+                                <Button
+                                    type="dashed"
+                                    size="small"
+                                    icon={<BulbOutlined />}
+                                    onClick={handleAIGenerateFeedback}
+                                    loading={aiFeedbackLoading}
+                                    className="text-amber-700 border-amber-400 hover:border-amber-600"
+                                >
+                                    AI Gợi ý nhận xét
+                                </Button>
+                            </div>
                         }
                         rules={[
                             {

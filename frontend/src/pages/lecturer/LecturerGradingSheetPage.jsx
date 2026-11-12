@@ -1,9 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button, Tag, message, Popconfirm } from 'antd';
-import { ArrowLeftOutlined } from '@ant-design/icons';
+import {
+    ArrowLeftOutlined,
+    BulbOutlined,
+    QuestionCircleOutlined,
+    CopyOutlined,
+} from '@ant-design/icons';
 import dayjs from 'dayjs';
 import evaluationService from '../../services/evaluationService';
+import aiService from '../../services/aiService';
 import PageLoader from '../../components/common/PageLoader';
 
 const ROLE_LABELS = {
@@ -14,6 +20,21 @@ const ROLE_LABELS = {
 };
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+
+const LEVEL_CONFIG = {
+    FOUNDATION: {
+        label: 'Kiến thức nền tảng',
+        color: 'blue',
+    },
+    TECHNICAL_CHALLENGE: {
+        label: 'Thách thức kỹ thuật',
+        color: 'orange',
+    },
+    FUTURE_EXPANSION: {
+        label: 'Hướng phát triển & Ứng dụng',
+        color: 'purple',
+    },
+};
 
 const getGradeClassification = (score) => {
     if (score >= 9.0) return { label: 'XUẤT SẮC (A+)', color: 'var(--success)' };
@@ -43,6 +64,9 @@ export default function LecturerGradingSheetPage() {
     const [commentsMap, setCommentsMap] = useState({});
     const [generalComment, setGeneralComment] = useState('');
     const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+    const [aiFeedbackLoading, setAiFeedbackLoading] = useState(false);
+    const [aiQuestionsLoading, setAiQuestionsLoading] = useState(false);
+    const [defenseQuestions, setDefenseQuestions] = useState([]);
 
     useEffect(() => {
         const loadScoreSheet = async () => {
@@ -210,6 +234,70 @@ export default function LecturerGradingSheetPage() {
         } finally {
             setExporting(false);
         }
+    };
+
+    const handleGenerateFeedback = async () => {
+        try {
+            setAiFeedbackLoading(true);
+            const scoresObj = {};
+            allCriteria.forEach((c) => {
+                if (scoresMap[c.code] !== null && scoresMap[c.code] !== undefined) {
+                    scoresObj[c.code] = scoresMap[c.code];
+                }
+            });
+            scoresObj.totalScore = totalScore;
+            scoresObj.gradeClassification = gradeInfo.label;
+
+            const res = await aiService.generateFeedback({
+                contextType: 'DEFENSE',
+                topicTitle: registration?.topic?.title,
+                studentName: registration?.student?.fullName,
+                scores: scoresObj,
+                notes: generalComment,
+            });
+
+            const feedbackText = res?.data?.feedback || res?.feedback || (typeof res?.data === 'string' ? res?.data : '');
+            if (feedbackText) {
+                setGeneralComment(feedbackText);
+                message.success('AI đã gợi ý nhận xét thành công!');
+            } else {
+                message.warning('Không nhận được gợi ý nhận xét từ AI.');
+            }
+        } catch (error) {
+            message.error(error.message || 'Không thể tạo gợi ý nhận xét với AI');
+        } finally {
+            setAiFeedbackLoading(false);
+        }
+    };
+
+    const handleGenerateQuestions = async () => {
+        try {
+            setAiQuestionsLoading(true);
+            const res = await aiService.generateDefenseQuestions({
+                topicTitle: registration?.topic?.title || 'Đồ án tốt nghiệp',
+                description: registration?.topic?.description || '',
+                technologies: registration?.topic?.technology || '',
+                major: registration?.student?.major || 'Công nghệ thông tin',
+            });
+
+            const questions = res?.data?.questions || res?.questions || [];
+            if (Array.isArray(questions) && questions.length > 0) {
+                setDefenseQuestions(questions);
+                message.success('Đã tạo bộ câu hỏi phản biện AI thành công!');
+            } else {
+                message.warning('Không nhận được danh sách câu hỏi từ AI.');
+            }
+        } catch (error) {
+            message.error(error.message || 'Không thể tạo câu hỏi phản biện với AI');
+        } finally {
+            setAiQuestionsLoading(false);
+        }
+    };
+
+    const copyQuestion = (text) => {
+        if (!text) return;
+        navigator.clipboard.writeText(text);
+        message.success('Đã sao chép câu hỏi vào clipboard!');
     };
 
     if (loading) return <PageLoader />;
@@ -442,9 +530,22 @@ export default function LecturerGradingSheetPage() {
 
                     {/* General Comment */}
                     <div style={{ marginTop: 20 }}>
-                        <label style={{ display: 'block', fontWeight: 600, fontSize: 13, marginBottom: 6 }}>
-                            Nhận xét chung của Giám khảo đối với Khóa luận & Buổi bảo vệ:
-                        </label>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+                            <label style={{ display: 'block', fontWeight: 600, fontSize: 13, margin: 0 }}>
+                                Nhận xét chung của Giám khảo đối với Khóa luận & Buổi bảo vệ:
+                            </label>
+                            <Button
+                                type="dashed"
+                                size="small"
+                                icon={<BulbOutlined />}
+                                onClick={handleGenerateFeedback}
+                                loading={aiFeedbackLoading}
+                                disabled={scoreLocked}
+                                className="text-amber-700 border-amber-400 hover:border-amber-600"
+                            >
+                                AI Gợi ý nhận xét
+                            </Button>
+                        </div>
                         <textarea
                             className="input-field"
                             rows={3}
@@ -455,6 +556,84 @@ export default function LecturerGradingSheetPage() {
                             onChange={(e) => setGeneralComment(e.target.value)}
                         />
                     </div>
+                </div>
+            </div>
+
+            {/* Gợi ý câu hỏi phản biện AI */}
+            <div className="card" style={{ marginBottom: 20 }}>
+                <div className="card-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                    <div>
+                        <div className="card-title">Gợi ý câu hỏi phản biện AI</div>
+                        <div className="card-subtitle">Hỗ trợ Cán bộ chấm thi đặt câu hỏi chất vấn sinh viên theo 3 cấp độ tư duy</div>
+                    </div>
+                    <Button
+                        size="small"
+                        icon={<QuestionCircleOutlined />}
+                        onClick={handleGenerateQuestions}
+                        loading={aiQuestionsLoading}
+                        className="text-teal-700 border-teal-500 hover:border-teal-700"
+                    >
+                        Tạo câu hỏi phản biện AI
+                    </Button>
+                </div>
+
+                <div style={{ padding: 20 }}>
+                    {defenseQuestions.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '24px 16px', color: 'var(--muted)', fontSize: 13 }}>
+                            Chưa có câu hỏi phản biện. Bấm <strong>Tạo câu hỏi phản biện AI</strong> để nhận gợi ý câu hỏi chất vấn theo đề tài.
+                        </div>
+                    ) : (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+                            {defenseQuestions.map((q, idx) => {
+                                const conf = LEVEL_CONFIG[q.level] || {
+                                    label: q.levelLabel || q.level,
+                                    color: 'default',
+                                };
+                                return (
+                                    <div
+                                        key={idx}
+                                        style={{
+                                            border: '1px solid #E2E8F0',
+                                            borderRadius: 8,
+                                            padding: 16,
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            justifyContent: 'space-between',
+                                            background: '#FAFAFA',
+                                        }}
+                                    >
+                                        <div>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                                <Tag color={conf.color}>{q.levelLabel || conf.label}</Tag>
+                                                <span className="mono" style={{ fontSize: 11, color: 'var(--muted)' }}>
+                                                    {q.level === 'FOUNDATION' && 'Cấp 1: Nền tảng (FOUNDATION)'}
+                                                    {q.level === 'TECHNICAL_CHALLENGE' && 'Cấp 2: Kỹ thuật (TECHNICAL_CHALLENGE)'}
+                                                    {q.level === 'FUTURE_EXPANSION' && 'Cấp 3: Mở rộng (FUTURE_EXPANSION)'}
+                                                </span>
+                                            </div>
+                                            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)', marginBottom: 8, lineHeight: 1.45 }}>
+                                                "{q.question}"
+                                            </div>
+                                            {q.purpose && (
+                                                <div style={{ fontSize: 11.5, color: '#64748B', fontStyle: 'italic', marginBottom: 12, lineHeight: 1.4 }}>
+                                                    <span style={{ fontWeight: 600 }}>Mục đích:</span> {q.purpose}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 8, borderTop: '1px dashed #E2E8F0' }}>
+                                            <Button
+                                                size="small"
+                                                icon={<CopyOutlined />}
+                                                onClick={() => copyQuestion(q.question)}
+                                            >
+                                                Sao chép câu hỏi
+                                            </Button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
             </div>
 
