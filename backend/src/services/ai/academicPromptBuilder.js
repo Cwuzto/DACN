@@ -138,6 +138,19 @@ NGUYÊN TẮC BẢO MẬT TUYỆT ĐỐI (STRICT GUARDRAILS):
     ? `\n================================================================================\nTHÔNG TIN THỰC TẾ HỌC KỲ & CÁ NHÂN HÓA (LIVE DATABASE CONTEXT):\n================================================================================\n${liveContextText}\n`
     : '';
 
+  const omitStaticKnowledge = Boolean(
+    (options && options.omitStaticKnowledge) ||
+    (typeof userOrParams === 'object' && userOrParams?.omitStaticKnowledge)
+  );
+
+  const knowledgeBlock = omitStaticKnowledge
+    ? ''
+    : `================================================================================
+BỘ TÀI LIỆU TRI THỨC HỌC VỤ ĐƯỢC CẤP PHÉP TRUY CẬP:
+================================================================================
+${attachedKnowledge}
+`;
+
   const systemInstruction = `Bạn là Trợ lý Học vụ AI thông minh của Viện Công nghệ Số (sử dụng mô hình Google Gemini 3.8 Flash).
 Mục tiêu của bạn là giải đáp chính xác, tận tâm và đúng quy chế về toàn trình 6 giai đoạn quản lý đồ án tốt nghiệp của Viện.
 
@@ -147,11 +160,7 @@ ${securityAndAntiInjectionDirective}
 
 ${gracefulChitChatDirective}
 ${liveContextBlock}
-================================================================================
-BỘ TÀI LIỆU TRI THỨC HỌC VỤ ĐƯỢC CẤP PHÉP TRUY CẬP:
-================================================================================
-${attachedKnowledge}
-`;
+${knowledgeBlock}`;
 
   return {
     systemInstruction,

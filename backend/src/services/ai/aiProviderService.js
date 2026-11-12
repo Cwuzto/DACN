@@ -359,14 +359,17 @@ async function answerAcademicChat({ message = '', history = [], user = null } = 
   ];
 
   // Helper to build system instruction with live database context and RAG context
-  const buildSystemInstructionWithRag = (ragContextText = '') => {
+  const buildSystemInstructionWithRag = (ragContextText = '', promptOptions = {}) => {
     let combinedContext = liveContextText;
     if (ragContextText) {
       combinedContext = liveContextText
         ? `${liveContextText}\n\n${ragContextText}`
         : ragContextText;
     }
-    const { systemInstruction } = buildAcademicSystemInstruction({ user, liveContextText: combinedContext });
+    const { systemInstruction } = buildAcademicSystemInstruction(
+      { user, liveContextText: combinedContext, ...promptOptions },
+      promptOptions
+    );
     return systemInstruction;
   };
 
@@ -412,7 +415,7 @@ async function answerAcademicChat({ message = '', history = [], user = null } = 
       }
 
       const ragContextText = ragService.formatRagContext(ragChunks);
-      const systemInstruction = buildSystemInstructionWithRag(ragContextText);
+      const systemInstruction = buildSystemInstructionWithRag(ragContextText, { omitStaticKnowledge: true });
 
       const timeoutMs =
         options.timeoutMs || parseInt(process.env.OLLAMA_TIMEOUT_MS, 10) || 30000;

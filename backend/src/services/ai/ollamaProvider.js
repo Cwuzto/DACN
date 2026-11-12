@@ -122,6 +122,9 @@ async function chatWithOllama(options = {}) {
     stream: false,
     options: {
       temperature,
+      ...(options.numCtx ? { num_ctx: options.numCtx } : {}),
+      ...(options.numPredict ? { num_predict: options.numPredict } : {}),
+      ...(options.options || {}),
     },
   };
 
@@ -150,10 +153,28 @@ async function chatWithOllama(options = {}) {
     throw new Error(errorMsg);
   }
 
-  const reply = data?.message?.content;
-  if (reply === undefined || reply === null) {
+/**
+ * Strip reasoning chain (<think>...</think>) from Qwen / reasoning models
+ * @param {string} text
+ * @returns {string}
+ */
+function stripThinking(text = '') {
+  if (typeof text !== 'string') return '';
+  if (text.includes('</think>')) {
+    const parts = text.split('</think>');
+    const candidate = parts[parts.length - 1].trim();
+    if (candidate.length > 0) return candidate;
+  }
+  return text.trim();
+}
+
+  const rawReply = data?.message?.content !== undefined && data?.message?.content !== null
+    ? data.message.content
+    : (data?.response || '');
+  if (rawReply === undefined || rawReply === null) {
     throw new Error('Ollama response did not contain message content');
   }
+  const reply = stripThinking(rawReply) || rawReply;
 
   return {
     reply,
