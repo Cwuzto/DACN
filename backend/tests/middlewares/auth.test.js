@@ -132,6 +132,64 @@ describe('auth middleware authenticate', () => {
         }));
         expect(next).toHaveBeenCalledTimes(1);
     });
+
+    test('resolves dynamic council assignment flags on req.user based on council memberships', async () => {
+        jwt.verify.mockReturnValue({ userId: 201, role: 'LECTURER' });
+        prisma.user.findUnique.mockResolvedValue({
+            id: 201,
+            email: 'council_member@example.com',
+            fullName: 'Council Member',
+            code: 'GV201',
+            role: 'LECTURER',
+            department: 'CNTT',
+            isActive: true,
+            permissionGroups: [],
+            councilMembers: [
+                { id: 10, council: { councilType: 'DEFENSE_COUNCIL' } },
+            ],
+        });
+
+        const req = createMockReq({
+            headers: { authorization: 'Bearer valid-council-token' },
+        });
+        const res = createMockRes();
+        const next = createNext();
+
+        await authenticate(req, res, next);
+
+        expect(req.user.hasDefenseCouncilAssignment).toBe(true);
+        expect(req.user.hasOutlineCouncilAssignment).toBe(false);
+        expect(next).toHaveBeenCalledTimes(1);
+    });
+
+    test('resolves outline council assignment flag when member has OUTLINE_REVIEW councilType', async () => {
+        jwt.verify.mockReturnValue({ userId: 202, role: 'LECTURER' });
+        prisma.user.findUnique.mockResolvedValue({
+            id: 202,
+            email: 'outline_member@example.com',
+            fullName: 'Outline Member',
+            code: 'GV202',
+            role: 'LECTURER',
+            department: 'CNTT',
+            isActive: true,
+            permissionGroups: [],
+            councilMembers: [
+                { id: 11, council: { councilType: 'OUTLINE_REVIEW' } },
+            ],
+        });
+
+        const req = createMockReq({
+            headers: { authorization: 'Bearer valid-outline-token' },
+        });
+        const res = createMockRes();
+        const next = createNext();
+
+        await authenticate(req, res, next);
+
+        expect(req.user.hasDefenseCouncilAssignment).toBe(false);
+        expect(req.user.hasOutlineCouncilAssignment).toBe(true);
+        expect(next).toHaveBeenCalledTimes(1);
+    });
 });
 
 describe('auth middleware capability guards', () => {

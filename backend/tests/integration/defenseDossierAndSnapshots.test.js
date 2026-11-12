@@ -109,6 +109,15 @@ const adminPerms = [{
     },
 }];
 
+const councilMemberPerms = (permissionCode) => [{
+    permissionGroup: {
+        code: 'COUNCIL_GROUP',
+        permissions: [
+            { permission: { code: permissionCode } },
+        ],
+    },
+}];
+
 describe('Task 3: 6-Document Defense Dossier, Multi-Version Uploads, 00:00 Defense Snapshot & Day-15 Window Closure', () => {
     const defenseDate = new Date('2026-11-20T00:00:00.000Z'); // 2026-11-20 Vietnam Time
     const mockStudent = {
@@ -146,12 +155,18 @@ describe('Task 3: 6-Document Defense Dossier, Multi-Version Uploads, 00:00 Defen
         jwt.verify.mockImplementation((token) => {
             if (token === 'student-token') return { userId: 10, role: 'STUDENT' };
             if (token === 'admin-token') return { userId: 1, role: 'ADMIN' };
+            if (token === 'council-view-grading-token') return { userId: 20, role: 'LECTURER' };
+            if (token === 'council-score-submit-token') return { userId: 21, role: 'LECTURER' };
+            if (token === 'council-score-view-token') return { userId: 22, role: 'LECTURER' };
             throw new Error('invalid token');
         });
 
         prisma.user.findUnique.mockImplementation(async ({ where }) => {
             if (where.id === 10) return mockStudent;
             if (where.id === 1) return mockAdmin;
+            if (where.id === 20) return { id: 20, role: 'LECTURER', isActive: true, permissionGroups: councilMemberPerms('VIEW_DEFENSE_GRADING') };
+            if (where.id === 21) return { id: 21, role: 'LECTURER', isActive: true, permissionGroups: councilMemberPerms('DEFENSE_SCORE_SUBMIT') };
+            if (where.id === 22) return { id: 22, role: 'LECTURER', isActive: true, permissionGroups: councilMemberPerms('DEFENSE_SCORE_VIEW') };
             return null;
         });
 
@@ -563,5 +578,16 @@ describe('Task 3: 6-Document Defense Dossier, Multi-Version Uploads, 00:00 Defen
         expect(adminCloseRes.status).toBe(200);
         expect(adminCloseRes.body.success).toBe(true);
         expect(adminCloseRes.body.data.snapshot).toBeDefined();
+    });
+
+    it('7. allows council members with VIEW_DEFENSE_GRADING, DEFENSE_SCORE_SUBMIT, or DEFENSE_SCORE_VIEW to view dossier', async () => {
+        for (const token of ['council-view-grading-token', 'council-score-submit-token', 'council-score-view-token']) {
+            const res = await request(app)
+                .get('/api/archives/registrations/100/dossier')
+                .set('Authorization', `Bearer ${token}`);
+            expect(res.status).toBe(200);
+            expect(res.body.success).toBe(true);
+            expect(res.body.data.linkedBm03).toBeDefined();
+        }
     });
 });

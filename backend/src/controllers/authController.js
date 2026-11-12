@@ -29,8 +29,12 @@ const login = async (req, res, next) => {
                     },
                 },
                 councilMembers: {
-                    where: { council: { councilType: 'DEFENSE_COUNCIL' } },
-                    select: { id: true },
+                    select: {
+                        id: true,
+                        council: {
+                            select: { councilType: true },
+                        },
+                    },
                 },
             },
         });
@@ -113,7 +117,8 @@ const login = async (req, res, next) => {
                     avatarUrl: user.avatarUrl,
                     permissionGroups: groupCodes,
                     permissions: [...new Set(permissions)],
-                    hasDefenseCouncilAssignment: Boolean(user.councilMembers?.length),
+                    hasDefenseCouncilAssignment: (user.councilMembers || []).some((m) => m.council?.councilType === 'DEFENSE_COUNCIL'),
+                    hasOutlineCouncilAssignment: (user.councilMembers || []).some((m) => m.council?.councilType === 'OUTLINE_REVIEW'),
                 },
             },
         });

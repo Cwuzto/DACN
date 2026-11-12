@@ -103,6 +103,85 @@ describe('authController.login', () => {
         );
         expect(next).not.toHaveBeenCalled();
     });
+
+    test('returns dynamic council assignment flags for defense and outline council members', async () => {
+        prisma.user.findUnique.mockResolvedValue({
+            id: 202,
+            email: 'lecturer@example.com',
+            passwordHash: 'hashed-password',
+            fullName: 'Test Lecturer',
+            code: 'GV002',
+            role: 'LECTURER',
+            department: 'CNTT',
+            avatarUrl: null,
+            isActive: true,
+            councilMembers: [
+                { id: 1, council: { councilType: 'DEFENSE_COUNCIL' } },
+                { id: 2, council: { councilType: 'OUTLINE_REVIEW' } },
+            ],
+            permissionGroups: [],
+        });
+        bcrypt.compare.mockResolvedValue(true);
+        jwt.sign.mockReturnValue('mocked-jwt-token');
+
+        const req = createMockReq({
+            body: { email: 'lecturer@example.com', password: 'secret123' },
+        });
+        const res = createMockRes();
+        const next = createNext();
+
+        await login(req, res, next);
+
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({
+                success: true,
+                data: expect.objectContaining({
+                    user: expect.objectContaining({
+                        hasDefenseCouncilAssignment: true,
+                        hasOutlineCouncilAssignment: true,
+                    }),
+                }),
+            })
+        );
+    });
+
+    test('returns false for council assignment flags when user has no council memberships', async () => {
+        prisma.user.findUnique.mockResolvedValue({
+            id: 203,
+            email: 'lecturer2@example.com',
+            passwordHash: 'hashed-password',
+            fullName: 'Test Lecturer 2',
+            code: 'GV003',
+            role: 'LECTURER',
+            department: 'CNTT',
+            avatarUrl: null,
+            isActive: true,
+            councilMembers: [],
+            permissionGroups: [],
+        });
+        bcrypt.compare.mockResolvedValue(true);
+        jwt.sign.mockReturnValue('mocked-jwt-token');
+
+        const req = createMockReq({
+            body: { email: 'lecturer2@example.com', password: 'secret123' },
+        });
+        const res = createMockRes();
+        const next = createNext();
+
+        await login(req, res, next);
+
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({
+                success: true,
+                data: expect.objectContaining({
+                    user: expect.objectContaining({
+                        hasDefenseCouncilAssignment: false,
+                        hasOutlineCouncilAssignment: false,
+                    }),
+                }),
+            })
+        );
+    });
 });
 
 describe('authController.getMe', () => {

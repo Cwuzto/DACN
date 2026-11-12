@@ -88,8 +88,12 @@ const fetchUserAndCapabilities = async (userId) => {
                 },
             },
             councilMembers: {
-                where: { council: { councilType: 'DEFENSE_COUNCIL' } },
-                select: { id: true },
+                select: {
+                    id: true,
+                    council: {
+                        select: { councilType: true },
+                    },
+                },
             },
         },
     });
@@ -138,7 +142,8 @@ const fetchUserAndCapabilities = async (userId) => {
             .filter(Boolean),
         permissions: [...permissionSet],
         activeDelegations: activeDelegations || [],
-        hasDefenseCouncilAssignment: Boolean(user.councilMembers?.length),
+        hasDefenseCouncilAssignment: (user.councilMembers || []).some((m) => m.council?.councilType === 'DEFENSE_COUNCIL'),
+        hasOutlineCouncilAssignment: (user.councilMembers || []).some((m) => m.council?.councilType === 'OUTLINE_REVIEW'),
     };
 
     userAuthCache.set(userId, {

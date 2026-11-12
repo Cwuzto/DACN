@@ -190,6 +190,9 @@ const dossierGuards = [
         PERMISSIONS.FINAL_DOCUMENT_REVIEW,
         PERMISSIONS.VIEW_PROJECT_OVERSIGHT,
         PERMISSIONS.DEFENSE_COUNCIL_MANAGE,
+        PERMISSIONS.VIEW_DEFENSE_GRADING,
+        PERMISSIONS.DEFENSE_SCORE_SUBMIT,
+        PERMISSIONS.DEFENSE_SCORE_VIEW,
     ),
     [
         param('registrationId').isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
