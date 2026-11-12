@@ -1634,7 +1634,89 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 
 ---
 
-### Cập Nhật Phiên Làm Việc (Session Update - Academic BI & Reporting Hub: Trung Tâm Báo Cáo & Thống Kê Học Vụ Chuyên Sâu)
+### Cập Nhật Phiên Làm Việc (Session Update - Bộ Ba Tiện Ích Trí Tuệ Nhân Tạo Học Vụ: Academic AI Suite)
+
+#### 1. Những phần đã hoàn thành
+
+1. **Hoàn Tất Ưu Tiên P1 (Thông Báo Sự Kiện Học Vụ & Cửa Sổ Lưu Chiểu 14 Ngày)**:
+   - Hoàn thiện 6 trigger thông báo học vụ tự động khi phát sinh sự kiện (Quyết định BM02 được ban hành, BM03 cần ký nhận trong 48h, BM04 đồng ý bảo vệ, Có quyết định phân công hội đồng, Sổ điểm được công bố, Quá hạn nộp lưu chiểu).
+   - Tích hợp chuông thông báo hiển thị số lượng chưa đọc trên Header Topbar (`AppLayout.jsx`).
+   - Tích hợp banner đếm ngược 14 ngày nộp lưu chiểu sau ngày bảo vệ trên Dashboard Sinh viên (`StudentDashboardPage.jsx`) và thẻ trạng thái tại Kho lưu chiểu (`ProjectOversightPage.jsx`).
+   - Đã kiểm thử và commit: `feat(notification): implement academic event-driven notification triggers, topbar unread badge, and 14-day archival countdown` (Commit `4ec5753`).
+
+2. **Thiết Kế Kiến Trúc & Kế Hoạch Bộ Ba Tiện Ích AI Học Vụ (Phương Án 3 - Hybrid Adapter)**:
+   - Xây dựng tài liệu thiết kế chi tiết: [docs/superpowers/specs/2026-11-12-academic-ai-suite-design.md](file:///d:/DACN/docs/superpowers/specs/2026-11-12-academic-ai-suite-design.md).
+   - Xây dựng kế hoạch triển khai 6 Tasks: [docs/superpowers/plans/2026-11-12-academic-ai-suite-plan.md](file:///d:/DACN/docs/superpowers/plans/2026-11-12-academic-ai-suite-plan.md).
+   - Đã kiểm thử và commit: `docs(plan): add spec and implementation plan for Academic AI Suite` (Commit `66a983e`).
+
+3. **Hiện Thực Lớp Adapter AI Cốt Lõi & Dự Phòng Nội Bộ Zero-Crash (Backend - Task 1)**:
+   - Tạo mới `backend/src/services/ai/geminiProvider.js`: Tích hợp trực tiếp Google Generative Language API (`gemini-2.0-flash:generateContent`) thông qua native `fetch` của Node.js, không phụ thuộc thư viện ngoài nặng nề, có timeout an toàn (8 giây) và format JSON có cấu trúc.
+   - Tạo mới `backend/src/services/ai/localFallbackProvider.js`: Bộ phân tích dự phòng rule-based chuyên sâu (Jaccard similarity n-gram, heuristics kiểm tra 5 chiều logic đề cương, đối chiếu chuỗi và bóc tách metadata tài liệu) hoạt động 100% offline, đảm bảo không bao giờ crash hệ thống.
+   - Tạo mới `backend/src/services/ai/aiProviderService.js`: Bộ điều phối tự động kiểm tra `GEMINI_API_KEY`. Khi có key gọi Gemini API; khi không có key, timeout hoặc lỗi mạng, tự động chuyển sang `localFallbackProvider` và gắn cờ `provider: 'local_fallback'`.
+   - Xây dựng bộ unit tests toàn diện [`backend/tests/unit/aiProviderAdapter.test.js`](file:///d:/DACN/backend/tests/unit/aiProviderAdapter.test.js) (21/21 tests PASS).
+   - Đã commit: `feat(ai): implement core AI provider adapter and local fallback service` (Commit `afae1d3`).
+
+4. **Xây Dựng In-Memory Cache, AI Controller & Tuyến Đường API Bảo Mật (Backend - Task 2)**:
+   - Tạo mới `backend/src/services/ai/aiCache.js`: Băm SHA-256 payload yêu cầu (`sha256Hash`), lưu cache trong bộ nhớ với TTL 5 phút, tránh gọi lặp lại tốn quota Gemini và tăng tốc độ phản hồi.
+   - Tạo mới `backend/src/controllers/aiController.js` và `backend/src/routes/aiRoutes.js`:
+     * Endpoint 1: `POST /api/ai/bm01-copilot`: Đánh giá logic 5 chiều đề cương (Tên $\leftrightarrow$ Mục tiêu $\leftrightarrow$ Phạm vi $\leftrightarrow$ Phương pháp $\leftrightarrow$ Sản phẩm), tính điểm hoàn thiện $[0 - 10]$, phân loại `GOOD` / `NEEDS_IMPROVEMENT` / `CRITICAL_GAPS`, và đưa ra gợi ý hành động.
+     * Endpoint 2: `POST /api/ai/topic-similarity`: So sánh ngữ nghĩa với toàn bộ kho đề tài lịch sử trong CSDL, tính % tương đồng, phân loại nguy cơ trùng lặp và đề xuất 3 tên đề tài khoa học tăng tính mới.
+     * Endpoint 3: `POST /api/ai/cross-check-archive`: Kết nối với `topicTitleResolverService.js` (`resolveEffectiveTopicTitle`) để lấy tên đề tài pháp lý chính thức, họ tên, MSSV, GVHD và đối chiếu với thông tin bóc tách từ tài liệu lưu chiểu (PDF/Word/Slide), chỉ ra các điểm sai lệch cho Giáo vụ duyệt.
+   - Gắn tuyến đường vào `backend/src/app.js` tại `/api/ai`, bảo vệ bằng middleware `authenticateToken`.
+   - Xây dựng bộ test tích hợp toàn diện [`backend/tests/integration/aiSuiteWorkflow.test.js`](file:///d:/DACN/backend/tests/integration/aiSuiteWorkflow.test.js) (13/13 tests PASS).
+   - Đã commit: `feat(ai): expose authenticated AI copilot, topic similarity, and archival cross-check endpoints` (Commit `8f60fab`).
+
+5. **Tích Hợp Giao Diện BM01 Copilot Drawer Cho Sinh Viên (Frontend - Task 3)**:
+   - Tạo mới `frontend/src/services/aiService.js`: Cung cấp 3 methods API `analyzeBM01`, `checkTopicSimilarity`, `crossCheckArchive`.
+   - Tạo mới `frontend/src/components/student/BM01CopilotDrawer.jsx`: Drawer Ant Design hiển thị đồng hồ điểm hoàn thiện, thanh đánh giá 5 chiều logic (Đạt / Cảnh báo / Chưa đạt), danh sách gợi ý hành động và tag nhận diện AI provider / Offline Fallback.
+   - Nâng cấp `frontend/src/components/forms/HybridBMFormModal.jsx`: Bổ sung nút `"Đánh giá đề cương với AI"` (`icon={<RobotOutlined />}`) cho phép sinh viên kiểm tra ngay trên bản nháp trước khi nộp chính thức.
+   - Nâng cấp `frontend/src/pages/student/SubmissionPage.jsx`: Bổ sung nút gọi BM01 Copilot tại thẻ nhiệm vụ đề cương v1 và banner yêu cầu chỉnh sửa đề cương v2.
+   - Xây dựng bộ test giao diện [`frontend/src/pages/__tests__/bm01CopilotUi.test.js`](file:///d:/DACN/frontend/src/pages/__tests__/bm01CopilotUi.test.js) (4/4 tests PASS).
+   - Đã commit: `feat(ui): implement BM01 Copilot drawer and integrate into outline submission flow` (Commit `070a608`).
+
+6. **Tích Hợp Modal Kiểm Tra Tính Mới & Tương Đồng Đề Tài (Frontend - Task 4)**:
+   - Tạo mới `frontend/src/components/topics/TopicSimilarityModal.jsx`: Modal Ant Design hiển thị thanh đo % tương đồng cao nhất, nhãn mức độ rủi ro, bảng đối chiếu đề tài trùng trong CSDL và danh sách 3 tên đề tài gợi ý có nút chọn nhanh `"Áp dụng tên này"`.
+   - Nâng cấp `frontend/src/pages/lecturer/TopicManagementPage.jsx`: Thêm nút `"Kiểm tra tính mới AI"` (`icon={<AuditOutlined />}`) cạnh trường nhập tên đề tài tiếng Việt.
+   - Nâng cấp `frontend/src/pages/admin/TopicManagementPage.jsx`: Thêm nút `"Kiểm tra tính mới AI"` trong Form tạo đề tài và Drawer thẩm định chuyên môn đề tài của Ban chủ nhiệm.
+   - Xây dựng bộ test giao diện [`frontend/src/pages/__tests__/topicSimilarityUi.test.js`](file:///d:/DACN/frontend/src/pages/__tests__/topicSimilarityUi.test.js) (4/4 tests PASS).
+   - Đã commit: `feat(ui): implement Topic Similarity modal and integrate into topic management` (Commit `20f23c1`).
+
+7. **Tích Hợp Modal Đối Soát Hồ Sơ Lưu Chiểu Cho Giáo Vụ & Sinh Viên (Frontend - Task 5)**:
+   - Tạo mới `frontend/src/components/admin/ArchivalCrossCheckModal.jsx`: Modal hiển thị bảng đối soát 2 cột (Dữ liệu pháp lý hệ thống vs Dữ liệu bóc tách từ file scan), thẻ kết quả khớp 100% hoặc sai lệch, và hộp khuyến nghị xử lý nghiệp vụ cho Giáo vụ.
+   - Nâng cấp `frontend/src/pages/admin/ProjectOversightPage.jsx`: Bổ sung nút `"AI Đối soát"` (`icon={<ScanOutlined />}`) trực tiếp trong cột Thao tác của bảng Kho lưu chiểu.
+   - Nâng cấp `frontend/src/components/forms/ArchiveSubmissionModal.jsx`: Bổ sung nút `"AI Đối soát hồ sơ"` (`icon={<ScanOutlined />}`) trong thanh footer để sinh viên chủ động tự kiểm tra trước khi hoàn tất nộp.
+   - Xây dựng bộ test giao diện [`frontend/src/pages/__tests__/archivalCrossCheckUi.test.js`](file:///d:/DACN/frontend/src/pages/__tests__/archivalCrossCheckUi.test.js) (4/4 tests PASS).
+   - Đã commit: `feat(ui): implement Archival Cross-Check modal for academic affairs review` (Commit `6530ee9`).
+
+8. **Kiểm Thử Hồi Quy Toàn Diện, Kiểm Tra Mã Hóa & Build Sản Xuất (Task 6)**:
+   - Backend test suite: **96/96 test suites, 941/941 tests PASS (100%)**.
+   - Frontend test suite: **177/177 tests PASS (100%)**.
+   - Production Build: `npm run build` thành công xuất sắc (**0 lỗi**, 12.20s).
+   - Mã hóa: 100% tệp đã kiểm tra đạt chuẩn **UTF-8 (no BOM)**.
+   - Chuẩn nút bấm (Rule 2.6): 100% nút bấm Ant Design sử dụng prop `icon={<IconComponent />}`, nhãn tiếng Việt thuần túy, không có emoji hay ký tự thô.
+
+#### 2. Trạng thái cập nhật của từng phần
+
+- **Database / Prisma**: `UP TO DATE & FULLY SYNCED`; Khai thác dữ liệu thực tế từ các bảng `TopicRegistration`, `Topic`, `BM02Submission`, `ArchiveRecord` qua hybrid adapter.
+- **Backend API**: `PRODUCTION READY`; 3 endpoints `/api/ai/bm01-copilot`, `/api/ai/topic-similarity`, `/api/ai/cross-check-archive` đã vận hành ổn định, bảo mật với token JWT và có cơ chế fallback không bao giờ crash.
+- **Frontend UI**: `RICH & HIGHLY INTERACTIVE (100%)`; 3 components AI (`BM01CopilotDrawer`, `TopicSimilarityModal`, `ArchivalCrossCheckModal`) tích hợp mượt mà vào luồng nộp đề cương, quản lý đề tài và thẩm định lưu chiểu.
+- **Tuân thủ quy chuẩn**: 100% tuân thủ AGENTS.md (Rule 1 TopicRegistration, Rule 2.4 UTF-8 no BOM, Rule 2.6 UI Button Standards, Rule 3 Subagent Isolation).
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+
+1. Trải nghiệm thực tế các tính năng AI trên giao diện:
+   - **Sinh viên** (`/student/submission`): Khi nộp đề cương BM01 v1 hoặc v2, nhập tên và nội dung rồi bấm **"Đánh giá đề cương với AI"** để xem BM01 Copilot phân tích tính logic 5 chiều.
+   - **Giảng viên** (`/lecturer/topics`): Bấm **"Kiểm tra tính mới AI"** khi đề xuất đề tài mới để xem tỷ lệ tương đồng với kho đề tài lịch sử và áp dụng tên gợi ý khoa học.
+   - **Giáo vụ / Quản trị viên** (`/admin/oversight` -> Tab Kho lưu chiểu): Bấm **"AI Đối soát"** tại từng hồ sơ sinh viên để AI tự động so khớp tên đề tài pháp lý (BM02/BM02-A), MSSV, GVHD trước khi duyệt nghiệm thu.
+2. Sẵn sàng tiếp nhận các yêu cầu phát triển tiếp theo từ người dùng.
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+
+1. **Kiến Trúc Hybrid Adapter (Zero-Crash Guarantee)**: Sử dụng Google Generative Language API (`gemini-2.0-flash`) thông qua native `fetch` của Node.js (không dùng SDK ngoài nặng nề). Khi không có `GEMINI_API_KEY` trong `.env`, timeout (>8 giây), hoặc gặp sự cố mạng, hệ thống tự động fallback trong suốt sang `localFallbackProvider.js` (rule-based Jaccard similarity, heuristics) với HTTP 200 OK và gắn cờ `provider: 'local_fallback'`, đảm bảo trải nghiệm người dùng luôn thông suốt kể cả khi demo offline.
+2. **Bộ Nhớ Đệm In-Memory Hash Cache (`aiCache.js`)**: Băm SHA-256 toàn bộ payload yêu cầu với thời gian sống (TTL) 5 phút. Ngăn chặn việc bấm nút lặp lại gây lãng phí quota Gemini API và mang lại phản hồi tức thì (<10ms) cho các yêu cầu giống nhau.
+3. **Đối Soát Dựa Trên Tên Đề Tài Pháp Lý Đã Phân Giải (`resolveEffectiveTopicTitle`)**: Khi đối soát hồ sơ lưu chiểu, hệ thống gọi trực tiếp `resolveEffectiveTopicTitle` để lấy tên đề tài có hiệu lực pháp lý cao nhất (BM02 hoặc BM02-A sau điều chỉnh), khắc phục triệt để lỗi sinh viên nộp báo cáo theo tên đề tài cũ ở BM01.
+4. **Chuẩn Hóa UI/UX Theo Rule 2.6**: Tất cả các nút bấm gọi AI đều sử dụng icon Ant Design chính quy (`RobotOutlined`, `AuditOutlined`, `ScanOutlined`), nhãn tiếng Việt thuần túy, tuyệt đối không chèn emoji thô vào nhãn nút.
+
 
 #### 1. Những phần đã hoàn thành
 
