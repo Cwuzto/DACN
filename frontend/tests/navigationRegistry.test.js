@@ -6,8 +6,8 @@ import {
     getVisibleNavigation,
 } from '../src/config/navigationRegistry.js';
 
-test('NAVIGATION_REGISTRY contains exactly 29 items with required keys and unique keys/permissions', () => {
-    assert.equal(NAVIGATION_REGISTRY.length, 29, 'Registry must contain exactly 29 entries');
+test('NAVIGATION_REGISTRY contains exactly 26 items with required keys and unique keys/permissions', () => {
+    assert.equal(NAVIGATION_REGISTRY.length, 26, 'Registry must contain exactly 26 entries');
 
     const expectedKeys = new Set([
         // Khối 1: Hồ sơ của tôi (5)
@@ -16,15 +16,12 @@ test('NAVIGATION_REGISTRY contains exactly 29 items with required keys and uniqu
         'my-submissions',
         'my-archive',
         'my-grades',
-        // Khối 2: Hướng dẫn & tiến độ (3)
+        // Khối 2: Hướng dẫn & tiến độ (2)
         'mentored-students',
         'progress-checkpoints',
-        'bm04-evaluations',
-        // Khối 3: Thẩm định & quyết định (4)
+        // Khối 3: Thẩm định & quyết định (2)
         'outline-reviews',
-        'bm02-reviews',
-        'assignment-decisions',
-        'academic-delegations',
+        'institute-management',
         // Khối 4: Hội đồng & bảo vệ (4)
         'outline-councils',
         'defense-councils',
@@ -56,7 +53,10 @@ test('NAVIGATION_REGISTRY contains exactly 29 items with required keys and uniqu
         assert.ok(item.label, `Item ${item.key} must have a label`);
         assert.ok(item.icon, `Item ${item.key} must have an icon`);
         assert.ok(item.group, `Item ${item.key} must have a group`);
-        assert.ok(item.requiredPermission, `Item ${item.key} must have a requiredPermission`);
+        assert.ok(
+            item.requiredPermission || (Array.isArray(item.requiredAnyPermissions) && item.requiredAnyPermissions.length > 0),
+            `Item ${item.key} must have a requiredPermission or requiredAnyPermissions`
+        );
         assert.ok(item.route, `Item ${item.key} must have a route`);
 
         assert.ok(
@@ -68,17 +68,19 @@ test('NAVIGATION_REGISTRY contains exactly 29 items with required keys and uniqu
         assert.ok(!seenKeys.has(item.key), `Duplicate key: ${item.key}`);
         seenKeys.add(item.key);
 
-        if (item.key !== 'academic-reports') {
-            assert.ok(
-                !seenPermissions.has(item.requiredPermission),
-                `Duplicate requiredPermission: ${item.requiredPermission}`
-            );
+        if (item.requiredPermission) {
+            if (item.key !== 'academic-reports') {
+                assert.ok(
+                    !seenPermissions.has(item.requiredPermission),
+                    `Duplicate requiredPermission: ${item.requiredPermission}`
+                );
+            }
+            seenPermissions.add(item.requiredPermission);
         }
-        seenPermissions.add(item.requiredPermission);
     }
 
-    assert.equal(seenKeys.size, 29);
-    assert.equal(seenPermissions.size, 28);
+    assert.equal(seenKeys.size, 26);
+    assert.equal(seenPermissions.size, 24);
 });
 
 test('NAVIGATION_GROUPS defines the 7 domain groups in strict business order', () => {
@@ -157,7 +159,7 @@ test('Lecturer with GVHD sees "Hồ sơ của tôi" (my-topics), "Hướng dẫn
     );
     assert.deepEqual(
         nav[1].items.map((i) => i.key),
-        ['mentored-students', 'progress-checkpoints', 'bm04-evaluations']
+        ['mentored-students', 'progress-checkpoints']
     );
     assert.deepEqual(
         nav[2].items.map((i) => i.key),
@@ -195,7 +197,7 @@ test('Institute leader (VIEN_TRUONG) sees "Thẩm định & quyết định", "H
     const decisionGroup = nav.find((n) => n.group === 'Thẩm định & quyết định');
     assert.deepEqual(
         decisionGroup.items.map((i) => i.key),
-        ['outline-reviews', 'bm02-reviews', 'assignment-decisions', 'academic-delegations']
+        ['outline-reviews', 'institute-management']
     );
 
     const councilGroup = nav.find((n) => n.group === 'Hội đồng & bảo vệ');
@@ -273,7 +275,7 @@ test('Returned navigation groups strictly preserve the canonical NAVIGATION_GROU
     // Pass permissions from various groups in reverse order
     const reverseOrderPermissions = [
         'VIEW_NOTIFICATIONS', // Quản trị hệ thống (Group 7)
-        'VIEW_PROJECT_PERIODS', // Quản trị học vụ (Group 6)
+        'VIEW_ALL_TOPICS', // Quản trị học vụ (Group 6)
         'VIEW_RUBRIC_CONFIG', // Kết quả & công bố (Group 5)
         'VIEW_MY_REGISTRATION', // Hồ sơ của tôi (Group 1)
     ];

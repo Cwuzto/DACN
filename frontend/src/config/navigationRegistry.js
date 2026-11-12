@@ -1,8 +1,8 @@
 /**
- * Navigation Registry Cố Định 27 Mục & 7 Khối Nghiệp Vụ
+ * Navigation Registry Cố Định 26 Mục & 7 Khối Nghiệp Vụ
  * Tuân thủ chuẩn 2-Tier Capability Matrix (Section 5.1 & Section 7.1 của Technical Spec).
  * 
- * Mỗi mục menu tương ứng duy nhất 1 quyền xem (VIEW_*).
+ * Mỗi mục menu tương ứng quyền xem (requiredPermission hoặc requiredAnyPermissions).
  * Client lọc menu theo effectivePermissions mà không rẽ nhánh role cứng.
  */
 
@@ -59,7 +59,7 @@ export const NAVIGATION_REGISTRY = [
         route: '/student/grades',
     },
 
-    // KHỐI 2: HƯỚNG DẪN & TIẾN ĐỘ (3 mục)
+    // KHỐI 2: HƯỚNG DẪN & TIẾN ĐỘ (2 mục)
     {
         key: 'mentored-students',
         label: 'Sinh viên hướng dẫn',
@@ -76,16 +76,8 @@ export const NAVIGATION_REGISTRY = [
         requiredPermission: 'VIEW_CHECKPOINTS',
         route: '/lecturer/progress',
     },
-    {
-        key: 'bm04-evaluations',
-        label: 'Phiếu nhận xét hướng dẫn',
-        icon: 'assignment_turned_in',
-        group: 'Hướng dẫn & tiến độ',
-        requiredPermission: 'VIEW_BM04_EVALUATIONS',
-        route: '/lecturer/progress?tab=bm04',
-    },
 
-    // KHỐI 3: THẨM ĐỊNH & QUYẾT ĐỊNH (4 mục)
+    // KHỐI 3: THẨM ĐỊNH & QUYẾT ĐỊNH (2 mục)
     {
         key: 'outline-reviews',
         label: 'Thẩm định đề cương',
@@ -95,28 +87,17 @@ export const NAVIGATION_REGISTRY = [
         route: '/lecturer/approvals?tab=bm01',
     },
     {
-        key: 'bm02-reviews',
-        label: 'Thẩm định đơn đăng ký',
-        icon: 'verified',
-        group: 'Thẩm định & quyết định',
-        requiredPermission: 'VIEW_BM02_REVIEWS',
-        route: '/lecturer/institute?tab=bm02',
-    },
-    {
-        key: 'assignment-decisions',
-        label: 'Quyết định giao đề tài',
+        key: 'institute-management',
+        label: 'Điều hành đợt & Quyết định',
         icon: 'gavel',
         group: 'Thẩm định & quyết định',
-        requiredPermission: 'VIEW_ASSIGNMENT_DECISIONS',
-        route: '/lecturer/institute?tab=decisions',
-    },
-    {
-        key: 'academic-delegations',
-        label: 'Ủy quyền chuyên môn',
-        icon: 'assignment_ind',
-        group: 'Thẩm định & quyết định',
-        requiredPermission: 'VIEW_ACADEMIC_DELEGATIONS',
-        route: '/lecturer/institute?tab=delegations',
+        requiredAnyPermissions: [
+            'VIEW_ASSIGNMENT_DECISIONS',
+            'VIEW_BM02_REVIEWS',
+            'VIEW_ACADEMIC_DELEGATIONS',
+            'VIEW_PROJECT_PERIODS',
+        ],
+        route: '/lecturer/institute',
     },
 
     // KHỐI 4: HỘI ĐỒNG & BẢO VỆ (4 mục)
@@ -286,6 +267,9 @@ export function getVisibleNavigation(permissionsInput) {
     }
 
     const visibleItems = NAVIGATION_REGISTRY.filter((item) => {
+        if (Array.isArray(item.requiredAnyPermissions) && item.requiredAnyPermissions.length > 0) {
+            return item.requiredAnyPermissions.some((p) => permSet.has(p));
+        }
         if (!item.requiredPermission) return true;
         return permSet.has(item.requiredPermission);
     });

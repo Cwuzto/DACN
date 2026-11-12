@@ -26,7 +26,7 @@ test('UTF-8 without BOM verification for navigation files (Rule 2.4)', () => {
     }
 });
 
-test('Regular GVHD with 5 core permissions sees only the 5 core lecturer menu items across 3 groups', () => {
+test('Regular GVHD with 5 core permissions sees only the 4 core lecturer menu items across 3 groups', () => {
     const regularGvhdPermissions = [
         'VIEW_MY_TOPICS',
         'VIEW_MENTORED_STUDENTS',
@@ -47,9 +47,9 @@ test('Regular GVHD with 5 core permissions sees only the 5 core lecturer menu it
 
     // Flat list of visible items
     const allVisibleItems = visibleGroups.flatMap((g) => g.items);
-    assert.equal(allVisibleItems.length, 5, 'Regular GVHD must see exactly 5 core menu items');
+    assert.equal(allVisibleItems.length, 4, 'Regular GVHD must see exactly 4 core menu items');
 
-    // Verify the exact 5 core routes and labels
+    // Verify the exact 4 core routes and labels
     const expectedLecturerItems = [
         {
             key: 'my-topics',
@@ -71,13 +71,6 @@ test('Regular GVHD with 5 core permissions sees only the 5 core lecturer menu it
             route: '/lecturer/progress',
             group: 'Hướng dẫn & tiến độ',
             permission: 'VIEW_CHECKPOINTS',
-        },
-        {
-            key: 'bm04-evaluations',
-            label: 'Phiếu nhận xét hướng dẫn',
-            route: '/lecturer/progress?tab=bm04',
-            group: 'Hướng dẫn & tiến độ',
-            permission: 'VIEW_BM04_EVALUATIONS',
         },
         {
             key: 'defense-grading',
@@ -144,9 +137,7 @@ test('Lecturer with management/Viện trưởng capabilities sees tiered governa
         decisionItems.map((item) => ({ key: item.key, route: item.route, label: item.label })),
         [
             { key: 'outline-reviews', route: '/lecturer/approvals?tab=bm01', label: 'Thẩm định đề cương' },
-            { key: 'bm02-reviews', route: '/lecturer/institute?tab=bm02', label: 'Thẩm định đơn đăng ký' },
-            { key: 'assignment-decisions', route: '/lecturer/institute?tab=decisions', label: 'Quyết định giao đề tài' },
-            { key: 'academic-delegations', route: '/lecturer/institute?tab=delegations', label: 'Ủy quyền chuyên môn' },
+            { key: 'institute-management', route: '/lecturer/institute', label: 'Điều hành đợt & Quyết định' },
         ]
     );
 
@@ -220,8 +211,8 @@ test('All items in NAVIGATION_REGISTRY strictly adhere to Rule 2.6 (No raw emoji
     }
 });
 
-test('NAVIGATION_REGISTRY maintains exactly 29 items, 7 groups, and valid routing structure', () => {
-    assert.equal(NAVIGATION_REGISTRY.length, 29, 'Registry must maintain exactly 29 items');
+test('NAVIGATION_REGISTRY maintains exactly 26 items, 7 groups, and valid routing structure', () => {
+    assert.equal(NAVIGATION_REGISTRY.length, 26, 'Registry must maintain exactly 26 items');
     assert.equal(NAVIGATION_GROUPS.length, 7, 'Must define exactly 7 business groups');
 
     for (const item of NAVIGATION_REGISTRY) {
