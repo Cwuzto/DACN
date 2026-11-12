@@ -10,6 +10,21 @@ const DEFAULT_EMBED_MODEL = process.env.OLLAMA_EMBED_MODEL || 'embeddinggemma-2:
 const DEFAULT_TIMEOUT_MS = parseInt(process.env.OLLAMA_TIMEOUT_MS, 10) || 30000;
 
 /**
+ * Strip reasoning chain (<think>...</think>) from Qwen / reasoning models
+ * @param {string} text
+ * @returns {string}
+ */
+function stripThinking(text = '') {
+  if (typeof text !== 'string') return '';
+  if (text.includes('</think>')) {
+    const parts = text.split('</think>');
+    const candidate = parts[parts.length - 1].trim();
+    if (candidate.length > 0) return candidate;
+  }
+  return text.trim();
+}
+
+/**
  * Execute a fetch call with AbortController timeout handling.
  * @param {string} url
  * @param {object} options
@@ -153,21 +168,6 @@ async function chatWithOllama(options = {}) {
     throw new Error(errorMsg);
   }
 
-/**
- * Strip reasoning chain (<think>...</think>) from Qwen / reasoning models
- * @param {string} text
- * @returns {string}
- */
-function stripThinking(text = '') {
-  if (typeof text !== 'string') return '';
-  if (text.includes('</think>')) {
-    const parts = text.split('</think>');
-    const candidate = parts[parts.length - 1].trim();
-    if (candidate.length > 0) return candidate;
-  }
-  return text.trim();
-}
-
   const rawReply = data?.message?.content !== undefined && data?.message?.content !== null
     ? data.message.content
     : (data?.response || '');
@@ -288,6 +288,7 @@ module.exports = {
   DEFAULT_CHAT_MODEL,
   DEFAULT_EMBED_MODEL,
   DEFAULT_TIMEOUT_MS,
+  stripThinking,
   fetchWithTimeout,
   isOllamaAvailable,
   chatWithOllama,

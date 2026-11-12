@@ -72,7 +72,7 @@ const aiService = {
      */
     chatRegulation: async (payload) => {
         try {
-            return await api.post('/ai/regulation-chat', payload);
+            return await api.post('/ai/regulation-chat', payload, { timeout: 120000 });
         } catch (error) {
             throw wrapServiceError(error, 'Không thể tra cứu quy chế học vụ với AI');
         }

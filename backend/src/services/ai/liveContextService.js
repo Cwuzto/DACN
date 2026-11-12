@@ -361,13 +361,18 @@ async function fetchPersonalContext(user, activeSemester) {
     return null;
   }
 
+  const numericUserId = Number.isInteger(user.id) ? user.id : Number.parseInt(user.id, 10);
+  if (!Number.isFinite(numericUserId)) {
+    return null;
+  }
+
   if (user.role === 'STUDENT') {
     let registration = null;
 
     if (activeSemester?.id) {
       registration = await prisma.topicRegistration.findFirst({
         where: {
-          studentId: user.id,
+          studentId: numericUserId,
           semesterId: activeSemester.id,
         },
         orderBy: { createdAt: 'desc' },
@@ -392,7 +397,7 @@ async function fetchPersonalContext(user, activeSemester) {
     if (!registration) {
       registration = await prisma.topicRegistration.findFirst({
         where: {
-          studentId: user.id,
+          studentId: numericUserId,
         },
         orderBy: { createdAt: 'desc' },
         include: {
@@ -456,7 +461,7 @@ async function fetchPersonalContext(user, activeSemester) {
     if (activeSemester?.id) {
       registrations = await prisma.topicRegistration.findMany({
         where: {
-          topic: { mentorId: user.id },
+          topic: { mentorId: numericUserId },
           semesterId: activeSemester.id,
         },
         include: {
@@ -483,7 +488,7 @@ async function fetchPersonalContext(user, activeSemester) {
     if (!registrations || registrations.length === 0) {
       registrations = await prisma.topicRegistration.findMany({
         where: {
-          topic: { mentorId: user.id },
+          topic: { mentorId: numericUserId },
         },
         include: {
           student: {

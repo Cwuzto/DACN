@@ -140,7 +140,7 @@ NGUYÊN TẮC BẢO MẬT TUYỆT ĐỐI (STRICT GUARDRAILS):
 
   const omitStaticKnowledge = Boolean(
     (options && options.omitStaticKnowledge) ||
-    (typeof userOrParams === 'object' && userOrParams?.omitStaticKnowledge)
+    (typeof userOrOptions === 'object' && userOrOptions?.omitStaticKnowledge)
   );
 
   const knowledgeBlock = omitStaticKnowledge
