@@ -134,4 +134,6 @@ export const hasRole = (...roles) => {
     return roles.includes(user.role);
 };
 
+export const useAuth = useAuthStore;
+
 export default useAuthStore;

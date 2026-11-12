@@ -6,22 +6,55 @@ import {
     SendOutlined,
     RobotOutlined,
     ClearOutlined,
-    BookOutlined
+    BookOutlined,
+    QuestionCircleOutlined
 } from '@ant-design/icons';
 import aiService from '../../services/aiService';
+import useAuth from '../../hooks/useAuth';
 
-const DEFAULT_QUICK_QUESTIONS = [
-    'Thời hạn nộp BM01',
-    'Điều kiện dừng đề tài',
-    'Quy định nộp lại v2 duy nhất',
-    'Hồ sơ lưu chiểu cần những gì?'
-];
+export const ROLE_QUICK_QUESTIONS = {
+    STUDENT: [
+        'Hạn nộp BM01 khi nào?',
+        'Điều kiện để được ra bảo vệ đồ án?',
+        'Khi nào bị dừng đề tài?',
+        'Quy định đổi tên đề tài?'
+    ],
+    LECTURER: [
+        'Tiêu chí chấm 4 nhóm chuẩn đầu ra BM04?',
+        'Quy trình thẩm định dừng đề tài BM03?',
+        'Cơ cấu điểm Hội đồng bảo vệ?',
+        'Gợi ý câu hỏi phản biện kỹ thuật'
+    ],
+    ADMIN: [
+        'Quy trình ban hành quyết định giao đề tài?',
+        'Xử lý quá hạn SLA 168 giờ thế nào?',
+        'Cơ chế hoạt động của 5 Sweep Jobs?'
+    ]
+};
+
+export const getRoleQuickQuestions = (role) => {
+    if (role === 'LECTURER') return ROLE_QUICK_QUESTIONS.LECTURER;
+    if (role === 'ADMIN') return ROLE_QUICK_QUESTIONS.ADMIN;
+    return ROLE_QUICK_QUESTIONS.STUDENT;
+};
+
+export const renderRoleBadge = (role) => {
+    switch (role) {
+        case 'LECTURER':
+            return <Tag color="green">Giảng viên / HĐ</Tag>;
+        case 'ADMIN':
+            return <Tag color="purple">Quản trị viên</Tag>;
+        case 'STUDENT':
+        default:
+            return <Tag color="blue">Sinh viên</Tag>;
+    }
+};
 
 const INITIAL_MESSAGE = {
     id: 'welcome',
     sender: 'bot',
     text: 'Xin chào! Tôi là Trợ lý AI Quy chế Học vụ của Viện. Tôi có thể giải đáp các thắc mắc về đề cương BM01, đơn bảo vệ BM02, điều kiện dừng đề tài, hồ sơ lưu chiểu và các quy định đồ án tốt nghiệp.',
-    provider: 'gemini-2.0-flash',
+    provider: 'gemini-3.8-flash',
     relatedRegulations: [
         'Sổ tay Đồ án Tốt nghiệp',
         'Quy chế nộp lại v2 duy nhất (1 lần)'
@@ -36,12 +69,18 @@ const INITIAL_MESSAGE = {
  * Strictly adheres to AGENTS.md Rule 2.6 (no raw emojis or symbols in Button labels).
  */
 export default function AcademicChatWidget() {
+    const { user } = useAuth();
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState([INITIAL_MESSAGE]);
     const [inputValue, setInputValue] = useState('');
     const [loading, setLoading] = useState(false);
-    const [quickQuestions, setQuickQuestions] = useState(DEFAULT_QUICK_QUESTIONS);
+    const [quickQuestions, setQuickQuestions] = useState(() => getRoleQuickQuestions(user?.role));
     const messagesEndRef = useRef(null);
+
+    // Synchronize quick questions whenever user role changes
+    useEffect(() => {
+        setQuickQuestions(getRoleQuickQuestions(user?.role));
+    }, [user?.role]);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -69,11 +108,12 @@ export default function AcademicChatWidget() {
         setInputValue('');
         setLoading(true);
 
-        // Build history context for backend
-        const history = updatedMessages
-            .filter((m) => m.id !== 'welcome')
+        // Build multi-turn history context for backend adhering to Gemini format
+        const history = messages
+            .filter((m) => m.id !== 'welcome' && !m.id?.startsWith('bot-err'))
             .map((m) => ({
                 role: m.sender === 'user' ? 'user' : 'model',
+                text: m.text,
                 content: m.text
             }));
 
@@ -88,7 +128,7 @@ export default function AcademicChatWidget() {
                     id: `bot-${Date.now()}`,
                     sender: 'bot',
                     text: res.data.reply || 'Không có phản hồi từ hệ thống.',
-                    provider: res.data.provider || 'local_fallback',
+                    provider: res.data.provider || 'gemini-3.8-flash',
                     relatedRegulations: res.data.relatedRegulations || [],
                     time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                 };
@@ -118,7 +158,7 @@ export default function AcademicChatWidget() {
 
     const handleReset = () => {
         setMessages([INITIAL_MESSAGE]);
-        setQuickQuestions(DEFAULT_QUICK_QUESTIONS);
+        setQuickQuestions(getRoleQuickQuestions(user?.role));
     };
 
     return (
@@ -137,8 +177,15 @@ export default function AcademicChatWidget() {
                                     Trợ Lý Quy Chế Học Vụ (AI)
                                 </div>
                                 <div className="flex items-center space-x-1.5 mt-0.5">
+                                    {user?.role === 'LECTURER' ? (
+                                        <Tag color="green">Giảng viên / HĐ</Tag>
+                                    ) : user?.role === 'ADMIN' ? (
+                                        <Tag color="purple">Quản trị viên</Tag>
+                                    ) : (
+                                        <Tag color="blue">Sinh viên</Tag>
+                                    )}
                                     <Tag color="cyan" className="!text-[10px] !leading-4 !py-0 !px-1.5 !border-none !bg-white/20 !text-white font-medium">
-                                        Gemini 2.0 Flash
+                                        Gemini 3.8 Flash
                                     </Tag>
                                 </div>
                             </div>
@@ -194,7 +241,7 @@ export default function AcademicChatWidget() {
                                                     className="!text-[9px] !leading-3 !px-1 !py-0 !m-0 !border-none"
                                                     color={msg.provider === 'local_fallback' ? 'orange' : 'cyan'}
                                                 >
-                                                    {msg.provider === 'local_fallback' ? 'Quy tắc nội bộ (Offline)' : 'Gemini 2.0 Flash'}
+                                                    {msg.provider === 'local_fallback' ? 'Quy tắc nội bộ (Offline)' : 'Gemini 3.8 Flash'}
                                                 </Tag>
                                             </div>
                                         )}
@@ -255,9 +302,10 @@ export default function AcademicChatWidget() {
                                         type="button"
                                         onClick={() => handleSend(question)}
                                         disabled={loading}
-                                        className="text-[11px] bg-white hover:bg-teal-50 hover:text-[#0F766E] hover:border-[#0F766E] text-slate-700 px-2 py-0.5 rounded-full border border-slate-200 transition-colors shadow-2xs text-left"
+                                        className="text-[11px] bg-white hover:bg-teal-50 hover:text-[#0F766E] hover:border-[#0F766E] text-slate-700 px-2.5 py-1 rounded-full border border-slate-200 transition-colors shadow-2xs text-left flex items-center gap-1"
                                     >
-                                        {question}
+                                        <QuestionCircleOutlined className="text-[#0F766E] text-[10px] shrink-0" />
+                                        <span>{question}</span>
                                     </button>
                                 ))}
                             </div>
@@ -282,7 +330,9 @@ export default function AcademicChatWidget() {
                             loading={loading}
                             disabled={!inputValue.trim() || loading}
                             className="!bg-[#0F766E] hover:!bg-[#0D655E] !font-medium"
-                        >Gửi</Button>
+                        >
+                            Gửi
+                        </Button>
                     </div>
                 </div>
             )}
