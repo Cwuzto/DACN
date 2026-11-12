@@ -13,6 +13,7 @@ import NavIcon from './NavIcon';
 import OpenDrawer from '../common/OpenDrawer';
 import QuotaMeter from '../common/QuotaMeter';
 import AcademicChatWidget from '../common/AcademicChatWidget';
+import ErrorBoundary from '../common/ErrorBoundary';
 
 /**
  * AppLayout - Dynamic 7-Group Academic Layout
@@ -467,7 +468,9 @@ function AppLayout({ role }) {
                 {/* Main Content Area */}
                 <main className="main-area">
                     <div className="content-container">
-                        <Outlet />
+                        <ErrorBoundary>
+                            <Outlet />
+                        </ErrorBoundary>
                     </div>
                 </main>
             </div>
