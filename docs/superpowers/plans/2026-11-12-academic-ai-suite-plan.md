@@ -121,24 +121,24 @@
   - `<BM01CopilotDrawer />`: Displays overall score badge, 5 logic dimension cards, warning alert list, and actionable suggestions.
   - Rule 2.6 trigger button in `SubmissionPage.jsx` and `HybridBMFormModal.jsx`.
 
-- [ ] **Step 1: Write frontend unit tests in `frontend/src/pages/__tests__/bm01CopilotUi.test.js`**
+- [x] **Step 1: Write frontend unit tests in `frontend/src/pages/__tests__/bm01CopilotUi.test.js`**
   - Verify `aiService.analyzeBM01` is exported and invokes correct endpoint.
   - Verify `BM01CopilotDrawer` component renders score, dimensions, and advice cleanly.
   - Verify zero raw emojis in button labels across modified components.
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
   - Command: `npm --prefix frontend test -- src/pages/__tests__/bm01CopilotUi.test.js`
   - Expected: FAIL.
 
-- [ ] **Step 3: Implement `aiService.js`, `BM01CopilotDrawer.jsx`, and integrate into pages**
+- [x] **Step 3: Implement `aiService.js`, `BM01CopilotDrawer.jsx`, and integrate into pages**
   - Build `BM01CopilotDrawer` with Ant Design `Drawer`, `Progress`, `Tag`, `Alert`, and `List`.
   - Wire button `<Button icon={<RobotOutlined />} onClick={openCopilot}>Đánh giá đề cương với AI</Button>` into outline submission flow.
 
-- [ ] **Step 4: Run test to verify pass**
+- [x] **Step 4: Run test to verify pass**
   - Command: `npm --prefix frontend test -- src/pages/__tests__/bm01CopilotUi.test.js`
   - Expected: PASS (100%).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
   - Command: `git add frontend/src/services/aiService.js frontend/src/components/student/BM01CopilotDrawer.jsx frontend/src/pages/student/SubmissionPage.jsx frontend/src/components/forms/HybridBMFormModal.jsx frontend/src/pages/__tests__/bm01CopilotUi.test.js && git commit -m "feat(ui): implement BM01 Copilot drawer and integrate into outline submission flow"`
 
 ---
@@ -156,23 +156,23 @@
   - `aiService.checkTopicSimilarity(payload)`: Calls `POST /api/ai/topic-similarity`.
   - `<TopicSimilarityModal />`: Shows similarity progress gauge, risk badge, comparison table, and 3 title suggestions with one-click selection.
 
-- [ ] **Step 1: Write frontend unit tests in `frontend/src/pages/__tests__/topicSimilarityUi.test.js`**
+- [x] **Step 1: Write frontend unit tests in `frontend/src/pages/__tests__/topicSimilarityUi.test.js`**
   - Verify `TopicSimilarityModal` renders similarity percentage and suggested titles.
   - Verify one-click title selection applies suggestion to topic form.
   - Verify strict Rule 2.6 compliance.
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
   - Command: `npm --prefix frontend test -- src/pages/__tests__/topicSimilarityUi.test.js`
   - Expected: FAIL.
 
-- [ ] **Step 3: Implement `TopicSimilarityModal.jsx` and integrate into topic creation/editing forms**
+- [x] **Step 3: Implement `TopicSimilarityModal.jsx` and integrate into topic creation/editing forms**
   - Add button `<Button icon={<AuditOutlined />} onClick={handleCheckSimilarity}>Kiểm tra tính mới AI</Button>` next to topic title input.
 
-- [ ] **Step 4: Run test to verify pass**
+- [x] **Step 4: Run test to verify pass**
   - Command: `npm --prefix frontend test -- src/pages/__tests__/topicSimilarityUi.test.js`
   - Expected: PASS (100%).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
   - Command: `git add frontend/src/components/topics/TopicSimilarityModal.jsx frontend/src/pages/lecturer/TopicManagementPage.jsx frontend/src/pages/admin/TopicManagementPage.jsx frontend/src/pages/__tests__/topicSimilarityUi.test.js && git commit -m "feat(ui): implement Topic Similarity modal and integrate into topic management"`
 
 ---
@@ -190,23 +190,23 @@
   - `aiService.crossCheckArchive(registrationId)`: Calls `POST /api/ai/cross-check-archive`.
   - `<ArchivalCrossCheckModal />`: Displays checklist comparing official system data with extracted document cover metadata, discrepancies alert, and Academic Affairs approval guidance.
 
-- [ ] **Step 1: Write frontend unit tests in `frontend/src/pages/__tests__/archivalCrossCheckUi.test.js`**
+- [x] **Step 1: Write frontend unit tests in `frontend/src/pages/__tests__/archivalCrossCheckUi.test.js`**
   - Verify modal renders 2-column comparison and discrepancy tags.
   - Verify quick-action button in `ProjectOversightPage` archive table.
   - Verify strict Rule 2.6 compliance.
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
   - Command: `npm --prefix frontend test -- src/pages/__tests__/archivalCrossCheckUi.test.js`
   - Expected: FAIL.
 
-- [ ] **Step 3: Implement `ArchivalCrossCheckModal.jsx` and integrate into Project Oversight & Archive Submission**
+- [x] **Step 3: Implement `ArchivalCrossCheckModal.jsx` and integrate into Project Oversight & Archive Submission**
   - Add `<Button size="small" icon={<ScanOutlined />} onClick={() => openCrossCheck(record.registrationId)}>AI Đối soát</Button>` into archive table.
 
-- [ ] **Step 4: Run test to verify pass**
+- [x] **Step 4: Run test to verify pass**
   - Command: `npm --prefix frontend test -- src/pages/__tests__/archivalCrossCheckUi.test.js`
   - Expected: PASS (100%).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
   - Command: `git add frontend/src/components/admin/ArchivalCrossCheckModal.jsx frontend/src/pages/admin/ProjectOversightPage.jsx frontend/src/components/forms/ArchiveSubmissionModal.jsx frontend/src/pages/__tests__/archivalCrossCheckUi.test.js && git commit -m "feat(ui): implement Archival Cross-Check modal for academic affairs review"`
 
 ---
@@ -217,22 +217,22 @@
 - Test: `backend/tests/integration/`
 - Test: `frontend/src/pages/__tests__/`
 
-- [ ] **Step 1: Run complete backend test suite**
+- [x] **Step 1: Run complete backend test suite**
   - Command: `npm --prefix backend test`
   - Expected: 95+ test suites PASS (100%).
 
-- [ ] **Step 2: Run complete frontend test suite**
+- [x] **Step 2: Run complete frontend test suite**
   - Command: `npm --prefix frontend test`
   - Expected: 168+ tests PASS (100%).
 
-- [ ] **Step 3: Run production frontend build**
+- [x] **Step 3: Run production frontend build**
   - Command: `npm --prefix frontend run build`
   - Expected: Build succeeds with 0 errors.
 
-- [ ] **Step 4: Verify UTF-8 (no BOM) on all created and modified files**
+- [x] **Step 4: Verify UTF-8 (no BOM) on all created and modified files**
   - Command: Verify with node script.
 
-- [ ] **Step 5: Record Session Update in `CLAUDE.md` and commit**
+- [x] **Step 5: Record Session Update in `CLAUDE.md` and commit**
   - Update `CLAUDE.md` with full 4-section Session Summary for Academic AI Suite.
   - Command: `git commit -m "docs(claude): record Session Update for Academic AI Suite implementation"`
 
