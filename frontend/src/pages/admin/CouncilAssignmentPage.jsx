@@ -143,9 +143,23 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
     const fetchLecturers = useCallback(async () => {
         try {
             const response = await userService.getUsers({ role: 'LECTURER', status: 'active', limit: 1000 });
-            if (response.success) setLecturers(response.data);
+            if (response?.success && Array.isArray(response.data)) {
+                setLecturers(response.data);
+                return;
+            }
+            throw new Error(response?.message || 'Không thể tải danh sách người dùng');
         } catch {
-            message.error('Lỗi khi tải danh sách giảng viên');
+            // Tự động fallback sang getPublicLecturers khi getUsers lỗi hoặc 403 (không có quyền VIEW_USERS)
+            try {
+                const fallbackResponse = await userService.getPublicLecturers();
+                if (fallbackResponse?.success && Array.isArray(fallbackResponse.data)) {
+                    setLecturers(fallbackResponse.data);
+                    return;
+                }
+                throw new Error(fallbackResponse?.message || 'Không thể tải danh sách giảng viên');
+            } catch {
+                message.error('Lỗi khi tải danh sách giảng viên');
+            }
         }
     }, []);
 
@@ -153,14 +167,24 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
         if (!selectedSemester) return;
         setLoading(true);
         try {
-            const [councilsRes, regsRes] = await Promise.all([
+            const [councilsResult, regsResult] = await Promise.allSettled([
                 councilService.getCouncils({ semesterId: selectedSemester }),
                 registrationService.getAllRegistrations({ semesterId: selectedSemester }),
             ]);
-            if (councilsRes.success) setCouncils(councilsRes.data);
-            if (regsRes.success) setAllRegistrations(regsRes.data || []);
+
+            if (councilsResult.status === 'fulfilled' && councilsResult.value?.success) {
+                setCouncils(councilsResult.value.data || []);
+            } else if (councilsResult.status === 'rejected') {
+                message.error(councilsResult.reason?.message || 'Lỗi khi tải danh sách hội đồng');
+            }
+
+            if (regsResult.status === 'fulfilled' && regsResult.value?.success) {
+                setAllRegistrations(regsResult.value.data || []);
+            } else if (regsResult.status === 'rejected') {
+                message.error(regsResult.reason?.message || 'Lỗi khi tải danh sách đăng ký đề tài');
+            }
         } catch (error) {
-            message.error(error.message || 'Lỗi khi tải dữ liệu hội đồng và sinh viên');
+            message.error(error?.message || 'Lỗi khi tải dữ liệu hội đồng và sinh viên');
         } finally {
             setLoading(false);
         }

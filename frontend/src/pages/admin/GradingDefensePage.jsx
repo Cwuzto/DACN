@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
     Alert,
     Button,
@@ -59,6 +60,7 @@ const getGradeClassification = (score) => {
 };
 
 export default function GradingDefensePage() {
+    const [searchParams, setSearchParams] = useSearchParams();
     const user = useAuthStore((state) => state.user);
     const permissionSet = useMemo(() => new Set(user?.permissions || []), [user?.permissions]);
     const canSubmitScore = permissionSet.has('DEFENSE_SCORE_SUBMIT');
@@ -81,6 +83,8 @@ export default function GradingDefensePage() {
     const [approvingId, setApprovingId] = useState(null);
     const [exportingId, setExportingId] = useState(null);
     const [publishModalOpen, setPublishModalOpen] = useState(false);
+    const isPublicationModalOpen = publishModalOpen;
+    const setIsPublicationModalOpen = setPublishModalOpen;
     const [historyModalOpen, setHistoryModalOpen] = useState(false);
     const [returnModalOpen, setReturnModalOpen] = useState(false);
     const [selectedRegForReturn, setSelectedRegForReturn] = useState(null);
@@ -110,14 +114,77 @@ export default function GradingDefensePage() {
     const [memberScoresList, setMemberScoresList] = useState([]);
     const [adminEditRubric, setAdminEditRubric] = useState(false);
 
+    const handleOpenPublicationModal = useCallback(() => {
+        if (!selectedSemesterId) {
+            message.warning('Vui lòng chọn học kỳ trước khi công bố kết quả.');
+            return;
+        }
+        setIsPublicationModalOpen(true);
+    }, [selectedSemesterId]);
+
+    const handleClosePublicationModal = useCallback(() => {
+        setIsPublicationModalOpen(false);
+        setSearchParams((prev) => {
+            const next = new URLSearchParams(prev);
+            if (next.get('tab') === 'publish') {
+                next.delete('tab');
+            }
+            return next;
+        });
+    }, [setSearchParams]);
+
+    const handleTabChange = useCallback((targetTab) => {
+        if (targetTab === 'approvals') {
+            setActiveTab('all');
+            setSearchParams((prev) => {
+                const next = new URLSearchParams(prev);
+                next.set('tab', 'approvals');
+                return next;
+            });
+        } else if (targetTab === 'all') {
+            setActiveTab('all');
+            setSearchParams((prev) => {
+                const next = new URLSearchParams(prev);
+                next.delete('tab');
+                return next;
+            });
+        } else {
+            setActiveTab(targetTab);
+            setSearchParams((prev) => {
+                const next = new URLSearchParams(prev);
+                next.set('tab', targetTab);
+                return next;
+            });
+        }
+    }, [setSearchParams]);
+
     // Initial load
     useEffect(() => {
         semesterService.getAll()
             .then((res) => {
-                if (res.success) setSemesters(res.data || []);
+                if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+                    setSemesters(res.data);
+                    setSelectedSemesterId((prev) => prev || res.data[0].id);
+                }
             })
             .catch(() => setSemesters([]));
     }, []);
+
+    // Synchronize tab and publication modal with URL search parameters
+    useEffect(() => {
+        const tab = searchParams.get('tab');
+        if (tab === 'approvals') {
+            setActiveTab('all');
+        } else if (tab === 'publish') {
+            if (canPublishResult) {
+                setIsPublicationModalOpen(true);
+            }
+        } else if (tab === 'COMPLETED' || tab === 'AWAITING_GRADING' || tab === 'discrepancy') {
+            setActiveTab(tab);
+        } else if (!tab) {
+            setActiveTab((prev) => (prev === 'all' ? prev : 'all'));
+        }
+    }, [searchParams, canPublishResult]);
 
     useEffect(() => {
         const timer = setTimeout(() => setDebouncedSearchText(searchText), 350);
@@ -282,8 +349,12 @@ export default function GradingDefensePage() {
         let validScores = 0;
         let excellentCount = 0;
         let discrepancyCount = 0;
+        let awaitingApprovalCount = 0;
 
         data.forEach((r) => {
+            if (r.status === 'AWAITING_FINAL_APPROVAL') {
+                awaitingApprovalCount++;
+            }
             if (r.gradingStatus === 'GRADED' || r.finalScore !== null) {
                 gradedCount++;
             }
@@ -309,12 +380,19 @@ export default function GradingDefensePage() {
             avgScore,
             excellentCount,
             discrepancyCount,
+            awaitingApprovalCount,
         };
     }, [data]);
 
     // Filtered Rows
     const filteredData = useMemo(() => {
+        const currentTabParam = searchParams.get('tab');
         return data.filter((r) => {
+            // Tab filter for approvals deep-link
+            if (currentTabParam === 'approvals') {
+                if (r.status !== 'AWAITING_FINAL_APPROVAL') return false;
+            }
+
             // Tab filter for discrepancy
             if (activeTab === 'discrepancy') {
                 const memberScores = r.memberScores || [];
@@ -334,7 +412,7 @@ export default function GradingDefensePage() {
 
             return true;
         });
-    }, [data, activeTab, selectedGradeFilter]);
+    }, [data, activeTab, selectedGradeFilter, searchParams]);
 
     // Batch Remind
     const handleRemindGrading = async () => {
@@ -395,7 +473,12 @@ export default function GradingDefensePage() {
             message.warning('Vui lòng chọn học kỳ trước khi công bố kết quả.');
             return;
         }
-        setPublishModalOpen(true);
+        setSearchParams((prev) => {
+            const next = new URLSearchParams(prev);
+            next.set('tab', 'publish');
+            return next;
+        });
+        handleOpenPublicationModal();
     };
 
     const handleOpenPublicationHistory = () => {
@@ -687,15 +770,15 @@ export default function GradingDefensePage() {
                 {/* Status Tabs */}
                 <div className="status-tabs">
                     <button
-                        className={`tab-pill ${activeTab === 'all' ? 'active' : ''}`}
-                        onClick={() => setActiveTab('all')}
+                        className={`tab-pill ${activeTab === 'all' && searchParams.get('tab') !== 'approvals' ? 'active' : ''}`}
+                        onClick={() => handleTabChange('all')}
                     >
                         <span>Tất cả</span>
                         <span className="tab-counter num">{metrics.total}</span>
                     </button>
                     <button
-                        className={`tab-pill ${activeTab === 'COMPLETED' ? 'active' : ''}`}
-                        onClick={() => setActiveTab('COMPLETED')}
+                        className={`tab-pill ${activeTab === 'COMPLETED' && searchParams.get('tab') !== 'approvals' ? 'active' : ''}`}
+                        onClick={() => handleTabChange('COMPLETED')}
                     >
                         <span>Đã chốt sổ</span>
                         <span className="tab-counter num" style={{ color: 'var(--success)' }}>
@@ -703,8 +786,8 @@ export default function GradingDefensePage() {
                         </span>
                     </button>
                     <button
-                        className={`tab-pill ${activeTab === 'AWAITING_GRADING' ? 'active' : ''}`}
-                        onClick={() => setActiveTab('AWAITING_GRADING')}
+                        className={`tab-pill ${activeTab === 'AWAITING_GRADING' && searchParams.get('tab') !== 'approvals' ? 'active' : ''}`}
+                        onClick={() => handleTabChange('AWAITING_GRADING')}
                     >
                         <span>Đang chấm</span>
                         <span className="tab-counter num" style={{ color: 'var(--warning)' }}>
@@ -712,12 +795,21 @@ export default function GradingDefensePage() {
                         </span>
                     </button>
                     <button
-                        className={`tab-pill ${activeTab === 'discrepancy' ? 'active' : ''}`}
-                        onClick={() => setActiveTab('discrepancy')}
+                        className={`tab-pill ${activeTab === 'discrepancy' && searchParams.get('tab') !== 'approvals' ? 'active' : ''}`}
+                        onClick={() => handleTabChange('discrepancy')}
                     >
                         <span>Cảnh báo lệch điểm</span>
                         <span className="tab-counter num" style={{ color: 'var(--danger)' }}>
                             {metrics.discrepancyCount}
+                        </span>
+                    </button>
+                    <button
+                        className={`tab-pill ${searchParams.get('tab') === 'approvals' ? 'active' : ''}`}
+                        onClick={() => handleTabChange('approvals')}
+                    >
+                        <span>Chờ phê duyệt</span>
+                        <span className="tab-counter num" style={{ color: 'var(--accent)' }}>
+                            {metrics.awaitingApprovalCount}
                         </span>
                     </button>
                 </div>
@@ -768,7 +860,7 @@ export default function GradingDefensePage() {
                             setSearchText('');
                             setSelectedCouncilId('');
                             setSelectedGradeFilter('');
-                            setActiveTab('all');
+                            handleTabChange('all');
                         }}
                     >
                         Đặt lại bộ lọc
@@ -1377,7 +1469,7 @@ export default function GradingDefensePage() {
             {/* Modal Công Bố Kết Quả Bảo Vệ Snapshot */}
             <DefenseResultPublicationModal
                 open={publishModalOpen}
-                onClose={() => setPublishModalOpen(false)}
+                onClose={handleClosePublicationModal}
                 semesterId={selectedSemesterId}
                 semesterName={semesters.find((s) => s.id === selectedSemesterId)?.name}
                 onSuccess={() => {
