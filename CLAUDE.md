@@ -85,16 +85,24 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
    - `frontend/src/services/aiService.js`: Thiết lập cấu hình timeout riêng `120000ms` (120 giây) cho API `chatRegulation` thay vì bị ngắt bởi axios global timeout 20s. Triệt tiêu hoàn toàn lỗi *"Không thể tra cứu quy chế học vụ với AI"* trên giao diện người dùng.
    - `backend/.env`: Cập nhật cấu hình chuẩn `OLLAMA_CHAT_MODEL=qwen2.5:3b`, `OLLAMA_TIMEOUT_MS=120000`.
    - `backend/.env.example`: Bổ sung toàn bộ biến môi trường mô tả cho cấu hình Local Ollama RAG và Gemini Cloud.
-3. **Sửa Lỗi Prisma Validation & Sanitize Live Database Context**:
+3. **Quy Hoạch Lại Bộ Tri Thức Chuẩn Hóa Markdown (Single Source of Truth)**:
+   - Gom toàn bộ quy chế rải rác trong các chuỗi Javascript hard-code thành các tệp Markdown tự nhiên đặt tại `backend/src/services/ai/knowledge/regulations/`:
+     * `student_regulations.md`: Quy chế 6 giai đoạn, điều kiện tiên quyết, biểu mẫu BM01-BM04, FAQ, liêm chính học thuật (10 chunks).
+     * `lecturer_regulations.md`: Thẩm định đề cương BM01, bảng điểm 4 tiêu chí BM04, 2 kết luận độc lập, dừng BM03, câu hỏi phản biện 3 cấp độ (5 chunks).
+     * `admin_regulations.md`: Quyết định giao đề tài, phụ lục điều chỉnh tên theo đợt, SLA 168h + 72h, 5 sweep jobs, phúc khảo (4 chunks).
+   - Xây dựng parser `knowledgeParser.js` tự động phân tách heading `##` và metadata comment (`<!-- chunk: id="..." stage="..." role="..." -->`) thành 19 chunks ngữ nghĩa chuẩn xác, tự động slugify tiêu đề tiếng Việt loại bỏ dấu (`normalize('NFD')`).
+   - Tái cấu trúc `studentKnowledge.js`, `lecturerKnowledge.js`, `adminKnowledge.js` và `ragService.js` chuyển sang nạp động từ Markdown thông qua `knowledgeParser.js`, bảo toàn 100% khả năng tương thích ngược và không có duplicate strings trong mã nguồn.
+   - Thêm 10 unit tests tại `backend/tests/unit/knowledgeParser.test.js` (100% PASS).
+4. **Sửa Lỗi Prisma Validation & Sanitize Live Database Context**:
    - `backend/src/services/ai/liveContextService.js`: Sanitize `user.id` thành số nguyên an toàn `numericUserId` (`Number.isInteger(user.id) ? user.id : Number.parseInt(user.id, 10)`), loại bỏ triệt để lỗi `PrismaClientValidationError: Argument studentId / mentorId: Invalid value provided. Expected IntFilter or Int, provided String`.
    - `backend/src/services/ai/academicPromptBuilder.js`: Sửa lỗi biến `userOrParams` $\rightarrow$ `userOrOptions` trong logic kiểm tra cờ `omitStaticKnowledge`.
    - `backend/src/services/ai/ollamaProvider.js`: Đưa hàm `stripThinking` ra module level và xuất qua `module.exports` chính quy.
-4. **Phân Tích & Xác Thực Deprecation Warning `pg@9.0`**:
+5. **Phân Tích & Xác Thực Deprecation Warning `pg@9.0`**:
    - Xác định rõ cảnh báo `Calling client.query() when the client is already executing a query is deprecated` xuất phát từ thư viện `pg` khi `@prisma/adapter-pg` thực thi các câu lệnh song song trên cùng một client kết nối; cảnh báo này không gây crash server và hệ thống vẫn chạy ổn định 100%.
-5. **Hồi Quy Toàn Bộ Hệ Thống & Kiểm Thử Tự Động (Subagent)**:
-   - Toàn bộ backend test suite: **107/107 test suites PASS, 1.071/1.071 tests PASS (100%)**.
+6. **Hồi Quy Toàn Bộ Hệ Thống & Kiểm Thử Tự Động (Subagent)**:
+   - Toàn bộ backend test suite: **108/108 test suites PASS, 1.081/1.081 tests PASS (100%)** (+10 tests cho `knowledgeParser`).
    - Toàn bộ frontend test suite: **187/187 tests PASS (100%)**.
-   - Production build Vite: **PASS (0 lỗi, hoàn thành trong 13.82s)**.
+   - Production build Vite: **PASS (0 lỗi, hoàn thành trong 17.08s)**.
    - Đảm bảo 100% tệp tin đạt chuẩn **UTF-8 (no BOM)**.
 
 #### 2. Trạng thái cập nhật của từng phần
