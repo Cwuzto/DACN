@@ -100,12 +100,7 @@ function DashboardPage() {
 
     const scores = useMemo(() => {
         if (scoreDistribution && scoreDistribution.length > 0) return scoreDistribution;
-        return [
-            { label: 'Xuất sắc (A)', percent: 25, color: '#10B981' },
-            { label: 'Giỏi (B)', percent: 45, color: '#0F766E' },
-            { label: 'Khá (C)', percent: 20, color: '#F59E0B' },
-            { label: 'Trung bình (D/F)', percent: 10, color: '#EF4444' },
-        ];
+        return [];
     }, [scoreDistribution]);
 
     const projectOptions = useMemo(() => [{ value: PROJECT_NAME, label: PROJECT_NAME }], []);
@@ -123,9 +118,9 @@ function DashboardPage() {
         return { color: 'bg-slate-100 text-slate-700 border-slate-200', icon: 'edit' };
     };
 
-    const pendingTopicCount = semesterOverview?.registrations?.pending ?? stats?.pendingRegistrations ?? 14;
-    const unassignedCount = stats?.unassignedRegistrations ?? 4;
-    const upcomingDefensesCount = stats?.upcomingDefenses ?? 2;
+    const pendingTopicCount = semesterOverview?.registrations?.pending ?? stats?.pendingRegistrations ?? 0;
+    const unassignedCount = stats?.unassignedRegistrations ?? 0;
+    const upcomingDefensesCount = stats?.upcomingDefenses ?? 0;
 
     return (
         <div className="space-y-6 pb-8">
@@ -438,27 +433,34 @@ function DashboardPage() {
                             <Button
                                 size="small"
                                 type="link"
+                                icon={<ArrowRightOutlined />}
                                 onClick={() => navigate('/admin/grading')}
                                 className="text-xs font-semibold text-[#0F766E] p-0"
                             >
-                                Xem chi tiết bảng điểm →
+                                Xem chi tiết bảng điểm
                             </Button>
                         </div>
 
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                            {scores.map((item, idx) => (
-                                <div key={idx} className="bg-slate-50 border border-slate-200/80 rounded-lg p-3 text-center space-y-1">
-                                    <div className="text-xs font-medium text-slate-600">{item.label}</div>
-                                    <div className="text-xl font-bold font-mono text-slate-900">{item.percent}%</div>
-                                    <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
-                                        <div
-                                            className="h-1.5 rounded-full"
-                                            style={{ width: `${item.percent}%`, backgroundColor: item.color }}
-                                        />
+                        {scores.length > 0 ? (
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                {scores.map((item, idx) => (
+                                    <div key={idx} className="bg-slate-50 border border-slate-200/80 rounded-lg p-3 text-center space-y-1">
+                                        <div className="text-xs font-medium text-slate-600">{item.label}</div>
+                                        <div className="text-xl font-bold font-mono text-slate-900">{item.percent}%</div>
+                                        <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                                            <div
+                                                className="h-1.5 rounded-full"
+                                                style={{ width: `${item.percent}%`, backgroundColor: item.color }}
+                                            />
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
-                        </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="text-xs text-slate-500 font-medium py-4 text-center bg-slate-50 border border-slate-200/60 rounded-lg">
+                                Chưa có dữ liệu phân bổ điểm cho đợt đồ án này.
+                            </div>
+                        )}
                     </div>
                 </div>
 

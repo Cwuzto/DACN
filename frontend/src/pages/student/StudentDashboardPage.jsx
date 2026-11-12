@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Input, Modal, Alert, Radio, message } from 'antd';
+import { Button, Input, Modal, Alert, Radio, message, Empty, Tooltip } from 'antd';
 import {
     ArrowRightOutlined,
     ClockCircleOutlined,
@@ -50,6 +50,37 @@ const ACTIVE_FLOW_STATUSES = [
     'TERMINATED_BM04',
 ];
 const WITHDRAWABLE_STATUSES = ['APPROVED', 'BM01_SUBMITTED', 'BM01_PASSED', 'BM01_NEEDS_REVISION', 'BM01_RESUBMITTED', 'BM02_SUBMITTED'];
+
+const getProgressPercentByStatus = (status) => {
+    switch (status) {
+        case 'APPROVED':
+        case 'BM01_SUBMITTED':
+        case 'BM01_NEEDS_REVISION':
+        case 'BM01_RESUBMITTED':
+            return 16;
+        case 'BM01_PASSED':
+            return 33;
+        case 'BM02_SUBMITTED':
+        case 'DECISION_ISSUED':
+        case 'IN_PROGRESS_BM03':
+        case 'BM03_SIGNATURE_PENDING':
+        case 'CHECKPOINT_SIGNATURE_APPEAL_OPEN':
+        case 'CHECKPOINT_SIGNATURE_APPEAL_SUBMITTED':
+        case 'CHECKPOINT_SIGNATURE_APPEAL_REVIEW':
+        case 'SIGNATURE_APPEAL_RESOLVED':
+            return 50;
+        case 'BM03_PASSED':
+        case 'BM04_REVIEW':
+            return 66;
+        case 'DEFENSE_READY':
+            return 83;
+        case 'DEFENDED':
+        case 'COMPLETED':
+            return 100;
+        default:
+            return 0;
+    }
+};
 
 export default function StudentDashboardPage() {
     const { user } = useAuthStore();
@@ -152,7 +183,8 @@ export default function StudentDashboardPage() {
         fetchDashboardData();
     }, []);
 
-    const { hasRegistration, registrationDetails, taskStatus, upcomingDeadlines } = data || {};
+    const dashboardData = data;
+    const { hasRegistration, registrationDetails, taskStatus, upcomingDeadlines } = dashboardData || {};
     const hasAnyRegistration = hasRegistration ?? false;
     const currentRegistration = registrationDetails ?? null;
     const outlineCouncil = outlineData?.outlineCouncil || currentRegistration?.outlineCouncil;
@@ -166,10 +198,13 @@ export default function StudentDashboardPage() {
         : 0;
     const titleAdjustmentOpen = Boolean(titleAdjustmentDeadline && !dayjs().isAfter(titleAdjustmentDeadline));
 
-    const totalTasks = taskStatus?.total || 6;
+    const totalTasks = taskStatus?.total ?? (dashboardData?.tasks?.length || 0);
     const completedTasks = taskStatus?.completed || 0;
     const overdueTasks = taskStatus?.overdue || 0;
-    const progressPercent = taskStatus?.progressPercent || (hasAnyRegistration ? 65 : 0);
+    const progressPercent = typeof taskStatus?.progressPercent === 'number' && taskStatus.progressPercent > 0
+        ? taskStatus.progressPercent
+        : getProgressPercentByStatus(currentRegistration?.status);
+    const mentorDisplayName = dashboardData?.mentorFullName || currentRegistration?.topic?.mentor?.user?.fullName || currentRegistration?.topic?.mentorName || 'Chưa phân công';
 
     const renderRegistrationStatusTag = () => {
         if (!hasAnyRegistration) {
@@ -400,7 +435,7 @@ export default function StudentDashboardPage() {
                             <div>
                                 <div className="topic-meta-label">Giảng viên hướng dẫn</div>
                                 <div className="topic-meta-val">
-                                    {currentRegistration.topic.mentorName || 'PGS.TS Lê Quang Dũng'}
+                                    {mentorDisplayName}
                                 </div>
                             </div>
                         </div>
@@ -644,8 +679,8 @@ export default function StudentDashboardPage() {
                         </svg>
                     </div>
                     <div>
-                        <div className="stat-num">18 / 20h</div>
-                        <div className="stat-label">Giờ trao đổi GVHD</div>
+                        <div className="stat-num">{dashboardData?.meetingLogsCount ?? 0} buổi</div>
+                        <div className="stat-label">Số buổi trao đổi GVHD</div>
                     </div>
                 </div>
 
@@ -657,7 +692,7 @@ export default function StudentDashboardPage() {
                     </div>
                     <div>
                         <div className="stat-num">
-                            {currentRegistration?.mentorScore ? `${Number(currentRegistration.mentorScore).toFixed(1)} / 10` : '8.8 / 10'}
+                            {dashboardData?.mentorScore != null ? `${Number(dashboardData.mentorScore).toFixed(1)} / 10` : 'Chưa đánh giá'}
                         </div>
                         <div className="stat-label">Điểm đánh giá GVHD</div>
                     </div>
@@ -684,48 +719,55 @@ export default function StudentDashboardPage() {
                             )}
                         </div>
                         <div className="card-body" style={{ padding: '16px 18px' }}>
-                            <div className="task-item" style={{ borderLeft: '3px solid #DC2626' }}>
-                                <div className="task-left">
-                                    <div>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                            <span className="task-title">Đánh giá tiến độ đợt 2</span>
-                                            <span className="task-badge-urgent">Hạn 22/10</span>
+                            {dashboardData?.tasks && dashboardData.tasks.length > 0 ? (
+                                dashboardData.tasks.map((task) => {
+                                    const taskDueDate = task.dueDate || task.deadline;
+                                    const isOverdue = taskDueDate && dayjs(taskDueDate).isBefore(dayjs()) && !['SUBMITTED', 'COMPLETED'].includes(task.status);
+                                    const isSubmitted = ['SUBMITTED', 'COMPLETED'].includes(task.status);
+                                    return (
+                                        <div
+                                            key={task.id}
+                                            className="task-item"
+                                            style={isOverdue ? { borderLeft: '3px solid #DC2626' } : undefined}
+                                        >
+                                            <div className="task-left">
+                                                <div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                                        <span className="task-title">{task.title}</span>
+                                                        {taskDueDate && (
+                                                            isOverdue ? (
+                                                                <span className="task-badge-urgent">
+                                                                    Quá hạn: {dayjs(taskDueDate).format('DD/MM/YYYY')}
+                                                                </span>
+                                                            ) : (
+                                                                <span className="tag blue">
+                                                                    Hạn: {dayjs(taskDueDate).format('DD/MM/YYYY')}
+                                                                </span>
+                                                            )
+                                                        )}
+                                                        {isSubmitted && <span className="tag green">Đã nộp</span>}
+                                                    </div>
+                                                    {(task.description || task.content) && (
+                                                        <div className="task-meta">{task.description || task.content}</div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <Button
+                                                type={isSubmitted ? 'default' : 'primary'}
+                                                size="small"
+                                                onClick={() => navigate('/student/submissions')}
+                                            >
+                                                {isSubmitted ? 'Xem bài nộp' : 'Nộp bài'}
+                                            </Button>
                                         </div>
-                                        <div className="task-meta">Yêu cầu: Minh chứng mã nguồn Git + Báo cáo kết quả kiểm thử API + Kế hoạch tuần 11-14</div>
-                                    </div>
-                                </div>
-                                <button className="btn btn-primary btn-sm" onClick={() => navigate('/student/submissions')}>
-                                    Nộp bài
-                                </button>
-                            </div>
-
-                            <div className="task-item">
-                                <div className="task-left">
-                                    <div>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                            <span className="task-title">Gặp GVHD định kỳ tuần 11</span>
-                                            <span className="tag blue">Thứ 6, 24/10 · 09:30</span>
-                                        </div>
-                                        <div className="task-meta">Địa điểm: Văn phòng Bộ môn KTPM (Phòng 502) hoặc Google Meet</div>
-                                    </div>
-                                </div>
-                                <button className="btn btn-secondary btn-sm" onClick={() => navigate('/student/submissions')}>
-                                    Chi tiết
-                                </button>
-                            </div>
-
-                            <div className="task-item">
-                                <div className="task-left">
-                                    <div>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                            <span className="task-title">Hoàn thiện dự thảo Báo cáo toàn văn & Kiểm tra đạo văn</span>
-                                            <span className="tag gray">Hạn 15/11</span>
-                                        </div>
-                                        <div className="task-meta">Quy định: Tỉ lệ trùng lặp Turnitin &lt; 20% trước khi GVHD ký duyệt Phiếu nhận xét</div>
-                                    </div>
-                                </div>
-                                <span className="tag gray">Chưa mở nộp</span>
-                            </div>
+                                    );
+                                })
+                            ) : (
+                                <Empty
+                                    description="Chưa có nhiệm vụ cần nộp trong đợt này"
+                                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                                />
+                            )}
                         </div>
                     </div>
 
@@ -747,7 +789,7 @@ export default function StudentDashboardPage() {
                                 </div>
                                 <div>
                                     <div style={{ fontSize: 14.5, fontWeight: 700 }}>
-                                        {currentRegistration?.topic?.mentorName || 'PGS.TS Lê Quang Dũng'}
+                                        {mentorDisplayName}
                                     </div>
                                     <div style={{ fontSize: 12, color: 'var(--muted)' }}>
                                         Khoa Kỹ thuật Phần mềm · Email: dung.lq@vcs.edu.vn
@@ -826,15 +868,21 @@ export default function StudentDashboardPage() {
                             <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 10, padding: 0, margin: 0 }}>
                                 <li style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12.5 }}>
                                     <span>Đề cương nghiên cứu chi tiết (.docx)</span>
-                                    <button className="btn btn-secondary btn-sm" onClick={() => message.success('Đang tải DeCuong_NghienCuu.docx...')}>Tải về</button>
+                                    <Tooltip title="Biểu mẫu chuẩn sẽ được công bố theo thông báo của Nhà trường">
+                                        <Button size="small" disabled icon={<DownloadOutlined />}>Tải về</Button>
+                                    </Tooltip>
                                 </li>
                                 <li style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12.5 }}>
                                     <span>Nhật ký &amp; Đánh giá tiến độ (.docx)</span>
-                                    <button className="btn btn-secondary btn-sm" onClick={() => message.success('Đang tải NhatKy_DanhGiaTienDo.docx...')}>Tải về</button>
+                                    <Tooltip title="Biểu mẫu chuẩn sẽ được công bố theo thông báo của Nhà trường">
+                                        <Button size="small" disabled icon={<DownloadOutlined />}>Tải về</Button>
+                                    </Tooltip>
                                 </li>
                                 <li style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12.5 }}>
                                     <span>Mẫu Slide báo cáo bảo vệ Hội đồng (.pptx)</span>
-                                    <button className="btn btn-secondary btn-sm" onClick={() => message.success('Đang tải VCS_Defense_Slide.pptx...')}>Tải về</button>
+                                    <Tooltip title="Biểu mẫu chuẩn sẽ được công bố theo thông báo của Nhà trường">
+                                        <Button size="small" disabled icon={<DownloadOutlined />}>Tải về</Button>
+                                    </Tooltip>
                                 </li>
                             </ul>
                         </div>
@@ -874,7 +922,7 @@ export default function StudentDashboardPage() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                         <p>Tên đề tài: <strong>{currentRegistration?.topic?.title}</strong></p>
                         <p>Sinh viên thực hiện: <strong>{user?.fullName} — MSSV: {user?.code}</strong></p>
-                        <p>Cán bộ hướng dẫn: <strong>{currentRegistration?.topic?.mentorName || 'PGS.TS Lê Quang Dũng'}</strong></p>
+                        <p>Cán bộ hướng dẫn: <strong>{mentorDisplayName}</strong></p>
                         <p>Quy chuẩn đào tạo: Khóa {user?.studentProfile?.academicYear || '2022 - 2026'} · {currentRegistration?.semester?.name || currentRegistration?.topic?.semesterName || 'Đồ án tốt nghiệp — HK1 2026–2027'}</p>
                     </div>
                 </div>

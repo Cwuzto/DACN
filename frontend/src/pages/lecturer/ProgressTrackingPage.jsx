@@ -375,7 +375,7 @@ export default function ProgressTrackingPage() {
     }
 
     const reg = selectedStudent;
-    const progress = reg?.progressPercent ?? (reg?.status === 'COMPLETED' || reg?.status === 'DEFENDED' ? 100 : 75);
+    const progress = reg?.progressPercent ?? (reg?.status === 'COMPLETED' || reg?.status === 'DEFENDED' ? 100 : 0);
     const bm04Status = reg?.status === 'COMPLETED' || reg?.status === 'DEFENDED' || reg?.status === 'DEFENSE_READY';
     const isAtRisk = progress < 50;
 
@@ -431,10 +431,10 @@ export default function ProgressTrackingPage() {
                         ) : (
                             filteredStudents.map((s) => {
                                 const isSel = s.id === reg?.id;
-                                const sProgress = s.progressPercent ?? 75;
+                                const sProgress = s.progressPercent ?? (sPassed ? 100 : 0);
                                 const sPassed = s.status === 'COMPLETED' || s.status === 'DEFENDED' || s.status === 'DEFENSE_READY';
                                 const sRisk = sProgress < 50;
-                                const logCount = s._count?.meetingLogs || s.meetingLogs?.length || (sPassed ? 8 : 4);
+                                const logCount = s._count?.meetingLogs ?? s.meetingLogs?.length ?? 0;
 
                                 return (
                                     <div

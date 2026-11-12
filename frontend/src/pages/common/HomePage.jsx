@@ -372,7 +372,7 @@ export default function HomePage() {
                 }
             }
 
-            const count = Math.min(10, lec._count?.mentoredTopics || (lec.mentoredTopics?.length ?? 4));
+            const count = Math.min(10, lec._count?.mentoredTopics ?? (lec.mentoredTopics?.length ?? 0));
             const max = 10;
             if (quotaFilter === 'AVAILABLE' && count >= max) return false;
             if (quotaFilter === 'FULL' && count < max) return false;
@@ -1252,7 +1252,7 @@ export default function HomePage() {
                                 {filteredLecturers.length > 0 ? (
                                     <>
                                         {(facultyExpanded || filteredLecturers.length <= 5 ? filteredLecturers : filteredLecturers.slice(0, 5)).map((lec) => {
-                                            const count = Math.min(10, lec._count?.mentoredTopics || (lec.mentoredTopics?.length ?? 4));
+                                            const count = Math.min(10, lec._count?.mentoredTopics ?? (lec.mentoredTopics?.length ?? 0));
                                             const max = 10;
                                             const isFull = count >= max;
                                             const remain = Math.max(0, max - count);
@@ -1262,7 +1262,7 @@ export default function HomePage() {
                                             // Deduplicate and limit topics to 3
                                             const topicPills = lec.mentoredTopics && lec.mentoredTopics.length > 0
                                                 ? [...new Set(lec.mentoredTopics.map((t) => t.title))].slice(0, 3)
-                                                : ['Event-Driven Architecture', 'Distributed Tracing', 'Fintech Core Engine'];
+                                                : [];
 
                                             return (
                                                 <div key={lec.id} className="faculty-card">
@@ -1283,13 +1283,19 @@ export default function HomePage() {
                                                             <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase' }}>
                                                                 Hướng nghiên cứu gợi ý:
                                                             </div>
-                                                            <div className="topic-pill-list">
-                                                                {topicPills.map((title, idx) => (
-                                                                    <span key={idx} className="topic-pill">
-                                                                        {title}
-                                                                    </span>
-                                                                ))}
-                                                            </div>
+                                                            {topicPills.length > 0 ? (
+                                                                <div className="topic-pill-list">
+                                                                    {topicPills.map((title, idx) => (
+                                                                        <span key={idx} className="topic-pill">
+                                                                            {title}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            ) : (
+                                                                <div style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic', marginTop: 4 }}>
+                                                                    Chưa có đề tài đề xuất
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </div>
 
