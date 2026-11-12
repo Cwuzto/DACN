@@ -12,6 +12,7 @@ import { isInstituteDirector, getUserDisplayRole } from '../../utils/authRedirec
 import NavIcon from './NavIcon';
 import OpenDrawer from '../common/OpenDrawer';
 import QuotaMeter from '../common/QuotaMeter';
+import AcademicChatWidget from '../common/AcademicChatWidget';
 
 /**
  * AppLayout - Dynamic 7-Group Academic Layout
@@ -470,6 +471,9 @@ function AppLayout({ role }) {
                     </div>
                 </main>
             </div>
+
+            {/* Academic Regulation AI Assistant Floating Widget */}
+            <AcademicChatWidget />
         </div>
     );
 }

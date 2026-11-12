@@ -41,6 +41,42 @@ const aiService = {
             throw wrapServiceError(error, 'Không thể đối soát hồ sơ lưu chiểu với AI');
         }
     },
+
+    /**
+     * 4. Gợi ý nhận xét học thuật & rubric tự động
+     * @param {{ contextType?: string, topicTitle?: string, studentName?: string, scores?: object, notes?: string }} payload
+     */
+    generateFeedback: async (payload) => {
+        try {
+            return await api.post('/ai/generate-feedback', payload);
+        } catch (error) {
+            throw wrapServiceError(error, 'Không thể tạo gợi ý nhận xét với AI');
+        }
+    },
+
+    /**
+     * 5. Gợi ý bộ câu hỏi phản biện & chất vấn hội đồng
+     * @param {{ topicTitle: string, description?: string, technologies?: string, major?: string }} payload
+     */
+    generateDefenseQuestions: async (payload) => {
+        try {
+            return await api.post('/ai/generate-defense-questions', payload);
+        } catch (error) {
+            throw wrapServiceError(error, 'Không thể tạo câu hỏi phản biện với AI');
+        }
+    },
+
+    /**
+     * 6. Trợ lý hỏi đáp quy chế học vụ & tra cứu sổ tay đồ án
+     * @param {{ message: string, history?: Array<{ role: string, content: string }> }} payload
+     */
+    chatRegulation: async (payload) => {
+        try {
+            return await api.post('/ai/regulation-chat', payload);
+        } catch (error) {
+            throw wrapServiceError(error, 'Không thể tra cứu quy chế học vụ với AI');
+        }
+    },
 };
 
 export default aiService;
