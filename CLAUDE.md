@@ -2148,35 +2148,56 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 
 #### 2. Trạng thái cập nhật của từng phần
 
+7. **Phân quyền ĐỘNG theo phân công Hội đồng thực tế (Dynamic Council Assignment)**:
+   - Backend `authController.js` và `auth.js`: Phân giải động 2 cờ phân công hội đồng thực tế từ bảng `council_members`:
+     * `hasDefenseCouncilAssignment`: `true` khi giảng viên có tên trong Hội đồng bảo vệ khóa luận (`DEFENSE_COUNCIL`).
+     * `hasOutlineCouncilAssignment`: `true` khi giảng viên có tên trong Hội đồng thẩm định đề cương (`OUTLINE_REVIEW`).
+   - Mở quyền xem hồ sơ đồ án 00:00: Bổ sung các quyền `VIEW_DEFENSE_GRADING`, `DEFENSE_SCORE_SUBMIT`, `DEFENSE_SCORE_VIEW` vào `dossierGuards` trong `backend/src/routes/archiveRoutes.js`, giải quyết dứt điểm lỗi `403 FORBIDDEN` khi giảng viên chấm thi bấm "Tài liệu 00:00" trên `GradingPage.jsx`.
+   - Frontend `navigationRegistry.js` & `AppLayout.jsx`:
+     * Gán `requiresDefenseCouncil: true` cho mục **"Phiếu chấm bảo vệ"** và `requiresOutlineCouncil: true` cho mục **"Thẩm định đề cương"**.
+     * Giảng viên KHÔNG được phân công vào hội đồng tương ứng sẽ bị ẩn hoàn toàn các mục này khỏi thanh menu, không còn gây hiểu nhầm hay hiển thị trang trống.
+     * Khi được phân công vào Hội đồng bảo vệ $\rightarrow$ tự động kích hoạt hiện "Phiếu chấm bảo vệ".
+     * Khi được phân công vào Hội đồng đề cương $\rightarrow$ tự động kích hoạt hiện "Thẩm định đề cương".
+   - Khắc phục lỗi trang `CouncilAssignmentPage.jsx` (`/admin/defense-councils`): Tự động fallback sang `userService.getPublicLecturers()` khi không có quyền `VIEW_USERS` của Admin, chuyển đổi `Promise.allSettled` cho dữ liệu hội đồng và sinh viên.
+   - Đồng bộ Tab & Modal `GradingDefensePage.jsx` (`/admin/grading`): Bổ sung `useSearchParams`:
+     * `?tab=approvals` $\rightarrow$ Tự động chuyển tab và lọc hồ sơ sinh viên `AWAITING_FINAL_APPROVAL` cần phê duyệt.
+     * `?tab=publish` $\rightarrow$ Tự động mở Modal công bố kết quả (`DefenseResultPublicationModal`) khi có quyền `canPublishResult`.
+   - Bổ sung bộ test tích hợp `frontend/src/pages/__tests__/councilAndGradingDeepLinking.test.js` (8/8 tests PASS).
+
+#### 2. Trạng thái cập nhật của từng phần
+
 - **Database/Prisma**: `STABLE & FULLY COMPATIBLE`; Không thay đổi schema hay migrations. Tuân thủ 100% mô hình `TopicRegistration`.
-- **Backend API**: `STABLE (100% PASS)`; Toàn bộ 108 test suites, 1081 tests backend PASS.
-- **Frontend SPA**: `RESILIENT & STREAMLINED (100% PASS)`;
-  * Đã loại bỏ hoàn toàn lỗi trắng trang khi click menu.
-  * Tinh gọn GVHD thường còn đúng 4 mục cốt lõi, xóa bỏ mục thừa BM04 khỏi sidebar.
-  * Gom 3 nút học vụ cấp viện bị lỗi thành 1 trang "Điều hành đợt & Quyết định" vững chắc, nạp dữ liệu `Promise.allSettled`.
-  * Toàn bộ 205/205 frontend tests PASS (100%).
-- **Production Build**: Vite build hoàn tất thành công trong 12.94s (**0 lỗi bundle**, 3236 modules transformed).
+- **Backend API**: `STABLE (100% PASS)`; Toàn bộ 108 test suites, 1086 tests backend PASS (bổ sung tests phân giải cờ hội đồng và dossier).
+- **Frontend SPA**: `RESILIENT, DYNAMIC & STREAMLINED (100% PASS)`;
+  * Menu tự động ẩn/hiện "Phiếu chấm bảo vệ" và "Thẩm định đề cương" theo đúng phân công hội đồng thực tế.
+  * Hết lỗi 403 khi thành viên hội đồng xem tài liệu 00:00 sinh viên.
+  * Hết lỗi nạp giảng viên trên trang phân công hội đồng `CouncilAssignmentPage`.
+  * Deep-linking `?tab=approvals` và `?tab=publish` hoạt động chính xác trong `GradingDefensePage`.
+  * Toàn bộ 216/216 frontend tests PASS (100%).
+- **Production Build**: Vite build hoàn tất thành công trong 16.25s (**0 lỗi bundle**, 3236 modules transformed).
 - **Mã hóa & Chuẩn tệp**: Tất cả các tệp tin tạo mới và sửa đổi đều đạt chuẩn **UTF-8 (no BOM)** theo Quy tắc 2.4.
 - **Quy chuẩn UI/UX**: Tuân thủ tuyệt đối Quy tắc 2.6 trong `AGENTS.md` (chỉ dùng `@ant-design/icons` qua prop `icon`, không emoji trong text nhãn).
 - **Quy chuẩn Subagent**: Tuân thủ nghiêm ngặt Quy tắc 3 trong `AGENTS.md` (ủy thác subagent theo từng task độc lập, kiểm tra chéo trước khi đóng phiên).
 
 #### 3. Bước tiếp theo cần làm (Next Session Plan)
 
-1. Trải nghiệm thực tế toàn bộ phân hệ Giảng viên trên trình duyệt:
-   - Đăng nhập tài khoản Giảng viên hướng dẫn thường (ví dụ: `lecturer02`):
-     * Xác nhận menu trái chỉ có đúng **4 mục cốt lõi** tinh gọn: *Đề tài phụ trách*, *Sinh viên hướng dẫn*, *Theo dõi tiến độ*, *Phiếu chấm bảo vệ*.
-     * Vào "Theo dõi tiến độ" $\rightarrow$ kiểm tra 4 tabs: Công việc tuần, Nhật ký họp, Checkpoints (BM03), Nghiệm thu & Phiếu BM04 hoạt động mượt mà.
-   - Đăng nhập tài khoản Viện trưởng (`lecturer01`):
-     * Xác nhận nhóm "Thẩm định & quyết định" chỉ còn 2 mục sắc sảo: *Thẩm định đề cương* và *Điều hành đợt & Quyết định*.
-     * Bấm "Điều hành đợt & Quyết định" $\rightarrow$ chuyển đổi qua lại giữa 3 tabs (Đợt đồ án & Ban hành QĐ, Hàng đợi thẩm định đơn BM02, Ủy quyền chuyên môn) kiểm tra không còn lỗi đỏ, URL đồng bộ mượt mà.
-2. Tiếp tục theo dõi và tối ưu hóa UI/UX các màn hình khác theo phản hồi của người dùng.
+1. Trải nghiệm thực tế trên trình duyệt:
+   - Đăng nhập tài khoản Giảng viên KHÔNG có phân công hội đồng:
+     * Xác nhận menu chỉ hiển thị đúng **3 mục cốt lõi**: *Đề tài phụ trách*, *Sinh viên hướng dẫn*, *Theo dõi tiến độ*. Tuyệt đối không xuất hiện các nút hội đồng.
+   - Đăng nhập tài khoản Giảng viên CÓ phân công Hội đồng bảo vệ (ví dụ: `lecturer01`, `lecturer02`, `lecturer03`):
+     * Xác nhận menu xuất hiện nút **"Phiếu chấm bảo vệ"**.
+     * Bấm vào xem sinh viên và click "Tài liệu 00:00" $\rightarrow$ hồ sơ mở thành công, không còn lỗi 403.
+   - Đăng nhập tài khoản Viện trưởng / Quản lý Hội đồng:
+     * Kiểm tra trang Hội đồng bảo vệ `/admin/defense-councils` không còn báo lỗi đỏ danh sách giảng viên.
+     * Kiểm tra bấm "Phê duyệt kết quả" và "Công bố kết quả" mở chính xác danh sách chờ duyệt và modal công bố.
+2. Sẵn sàng tiếp nhận các yêu cầu tinh chỉnh tiếp theo từ người dùng.
 
 #### 4. Quyết định quan trọng (Decisions & Rationale)
 
-1. **Lược bỏ "Phiếu nhận xét hướng dẫn" khỏi Sidebar (Cách 1)**: Đưa menu của GVHD về đúng 4 không gian làm việc chính. Đánh giá BM04 là một giai đoạn nghiệm thu cuối kỳ nằm trong trang Theo dõi tiến độ, không cần thiết phải tạo một nút shortcut riêng biệt gây thừa mứa.
-2. **Hợp nhất 3 nút quản trị cấp viện (`bm02`, `decisions`, `delegations`) thành 1**: Chấm dứt việc phân mảnh 1 trang thành nhiều nút URL query param trên sidebar. Thay vào đó, tập trung toàn bộ năng lực điều hành học vụ vào một màn hình duy nhất có hệ thống tab con rõ ràng.
-3. **Nạp dữ liệu phòng vệ (Graceful Loading với `Promise.allSettled`)**: Đảm bảo lỗi ở một API không làm sụp đổ toàn bộ giao diện của trang, giúp ứng dụng duy trì tính liên tục và cung cấp trải nghiệm ổn định cao nhất cho người dùng.
-4. **Hỗ trợ `requiredAnyPermissions` linh hoạt trong `navigationRegistry`**: Cho phép một mục menu hiển thị khi người dùng sở hữu bất kỳ quyền hợp lệ nào trong nhóm, giúp tinh giảm số lượng mục menu mà vẫn đảm bảo tính phân quyền chặt chẽ.
+1. **Chuyển từ Phân quyền Tĩnh sang Phân quyền Động theo Phân công Hội đồng**: Không cấp quyền xem hội đồng một cách dàn trải cho tất cả giảng viên. Chỉ những giảng viên được quyết định thành lập hội đồng và có tên trong bảng `council_members` mới được cấp cờ hiển thị chức năng chấm điểm tương ứng.
+2. **Mở Quyền Xem Dossier Bảo vệ cho Thành viên Chấm Điểm**: Thành viên Hội đồng chấm thi bắt buộc phải đọc được 6 tài liệu trong hồ sơ bảo vệ của sinh viên để đánh giá. Bổ sung các quyền chấm điểm vào `dossierGuards` giúp bảo đảm tính thông suốt của chu trình đánh giá học vụ.
+3. **Graceful Fallback sang API Công Khai cho Giảng viên**: Trang phân công hội đồng sử dụng `userService.getPublicLecturers()` khi người dùng không phải Admin tối cao, giúp ban lãnh đạo viện thao tác mượt mà không bị rào cản phân quyền hệ thống.
+4. **Đồng bộ hóa 2 chiều Modal / Tab Deep-Linking cho Phê duyệt & Công bố**: Tận dụng `useSearchParams` để URL thể hiện rõ ràng hành động người dùng mong muốn (`approvals` / `publish`), hỗ trợ liên kết trực tiếp từ menu hoặc dashboard.
 
 
 
