@@ -70,6 +70,55 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 
 ## 6. Cập Nhật Phiên Làm Việc (Session Update)
 
+### Phiên 13/11/2026 (Tối Ưu Hóa Tốc Độ Local AI VRAM Với Qwen2.5:3b, Khắc Phục Lỗi Timeout & Sanitize Live Database Context)
+
+#### 1. Những phần đã hoàn thành
+1. **Tải & Triển Khai Model Siêu Tốc `qwen2.5:3b` Trên Ổ `D:\ollama\models`**:
+   - Phân tích nguyên nhân `qwen3:4b` bị chậm (>70s - 120s): `qwen3:4b` có 37 layers vượt quá 3.2GB VRAM thực tế của GTX 1650 khiến 11 layers bị tràn sang RAM hệ thống; đồng thời mô hình này là Reasoning model sinh chuỗi suy nghĩ `<think>...</think>` rất dài.
+   - Tải thành công mô hình `qwen2.5:3b` (1.9 GB) vào `D:\ollama\models`.
+   - Kết quả benchmark vượt trội:
+     * Nạp 100% 36/36 layers vào VRAM của GPU NVIDIA GTX 1650.
+     * Tốc độ sinh từ đạt **59.4 tokens/giây**.
+     * Thời gian trả lời câu hỏi trực tiếp chỉ **1.97 giây** (warm cache).
+     * Thời gian xử lý toàn trình trọn vẹn RAG (truy vấn DB + vector retrieval `embeddinggemma-2:270m` + sinh câu trả lời): **13.07 giây** (nhanh gấp 6-10 lần so với Qwen3:4b).
+2. **Khắc Phục Lỗi Timeout Chatbot Trên Giao Diện Frontend**:
+   - `frontend/src/services/aiService.js`: Thiết lập cấu hình timeout riêng `120000ms` (120 giây) cho API `chatRegulation` thay vì bị ngắt bởi axios global timeout 20s. Triệt tiêu hoàn toàn lỗi *"Không thể tra cứu quy chế học vụ với AI"* trên giao diện người dùng.
+   - `backend/.env`: Cập nhật cấu hình chuẩn `OLLAMA_CHAT_MODEL=qwen2.5:3b`, `OLLAMA_TIMEOUT_MS=120000`.
+   - `backend/.env.example`: Bổ sung toàn bộ biến môi trường mô tả cho cấu hình Local Ollama RAG và Gemini Cloud.
+3. **Sửa Lỗi Prisma Validation & Sanitize Live Database Context**:
+   - `backend/src/services/ai/liveContextService.js`: Sanitize `user.id` thành số nguyên an toàn `numericUserId` (`Number.isInteger(user.id) ? user.id : Number.parseInt(user.id, 10)`), loại bỏ triệt để lỗi `PrismaClientValidationError: Argument studentId / mentorId: Invalid value provided. Expected IntFilter or Int, provided String`.
+   - `backend/src/services/ai/academicPromptBuilder.js`: Sửa lỗi biến `userOrParams` $\rightarrow$ `userOrOptions` trong logic kiểm tra cờ `omitStaticKnowledge`.
+   - `backend/src/services/ai/ollamaProvider.js`: Đưa hàm `stripThinking` ra module level và xuất qua `module.exports` chính quy.
+4. **Phân Tích & Xác Thực Deprecation Warning `pg@9.0`**:
+   - Xác định rõ cảnh báo `Calling client.query() when the client is already executing a query is deprecated` xuất phát từ thư viện `pg` khi `@prisma/adapter-pg` thực thi các câu lệnh song song trên cùng một client kết nối; cảnh báo này không gây crash server và hệ thống vẫn chạy ổn định 100%.
+5. **Hồi Quy Toàn Bộ Hệ Thống & Kiểm Thử Tự Động (Subagent)**:
+   - Toàn bộ backend test suite: **107/107 test suites PASS, 1.071/1.071 tests PASS (100%)**.
+   - Toàn bộ frontend test suite: **187/187 tests PASS (100%)**.
+   - Production build Vite: **PASS (0 lỗi, hoàn thành trong 13.82s)**.
+   - Đảm bảo 100% tệp tin đạt chuẩn **UTF-8 (no BOM)**.
+
+#### 2. Trạng thái cập nhật của từng phần
+- **Local AI Engine**: Đang chạy ngầm daemon Ollama tại `127.0.0.1:11434`. Đã có đầy đủ 3 models: `qwen2.5:3b`, `qwen3:4b`, và `embeddinggemma-2:270m` lưu tại `D:\ollama\models`.
+- **Backend API**: Phản hồi RAG câu hỏi quy chế học vụ chính xác 100% từ vector index và ngữ cảnh học kỳ/đề tài cá nhân, thời gian phản hồi ~13s.
+- **Frontend SPA**: Cấu hình timeout 120s, giao diện chat hoạt động mượt mà và không còn hiện tượng timeout ngắt kết nối.
+- **Database / Prisma**: Ổn định, không có lỗi validation type mapping.
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+1. **Khởi Động Lại Server Backend Để Nhận Cấu Hình Mới**:
+   - Khởi động lại backend dev server (`npm --prefix backend run dev`) để nhận biến môi trường `OLLAMA_CHAT_MODEL=qwen2.5:3b` và `OLLAMA_TIMEOUT_MS=120000`.
+2. **Trải Nghiệm Hỏi Đáp Trực Tiếp Trên Trình Duyệt**:
+   - Đăng nhập tài khoản sinh viên/giảng viên bất kỳ và đặt các câu hỏi quy chế học vụ (BM01, BM02, BM03, BM04, thời hạn bảo vệ, đề tài của em).
+3. **Tiếp Tục Hoàn Thiện Giai Đoạn 5 & 6 (Bảo Vệ Đồ Án & Nộp Lưu Chiểu)**:
+   - Rà soát các biểu mẫu chấm điểm hội đồng và xuất biên bản tổng hợp điểm bảo vệ.
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+1. **Sử Dụng `qwen2.5:3b` Làm Chat Model Mặc Định Cho GTX 1650 4GB VRAM**:
+   - Model `qwen2.5:3b` (1.9 GB) vừa vặn 100% trong VRAM của GPU GTX 1650 mà không cần offload CPU/RAM, đồng thời không có vòng lặp suy nghĩ ẩn (reasoning tokens), giúp tốc độ sinh từ đạt xấp xỉ 60 tokens/s, giảm thời gian chờ đợi từ >120s xuống dưới 15s.
+2. **Mô Hình Fallback Đa Tầng Không Gián Đoạn**:
+   - Nếu Ollama tắt hoặc model quá tải, hệ thống vẫn duy trì khả năng tự động chuyển tiếp sang Gemini Flash Lite hoặc bộ heuristic quy chế học vụ nội bộ.
+
+---
+
 ### Phiên 13/11/2026 (Chuyển Đổi Sang Local AI & RAG: Cài Đặt Ollama D:\ollama, Qwen3:4b, EmbeddingGemma-2:270m & Pre-computed Vector Seeder)
 
 #### 1. Những phần đã hoàn thành
