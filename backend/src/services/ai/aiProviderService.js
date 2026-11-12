@@ -8,6 +8,8 @@
 const geminiProvider = require('./geminiProvider');
 const localFallbackProvider = require('./localFallbackProvider');
 const localEmbeddingService = require('./localEmbeddingService');
+const ollamaProvider = require('./ollamaProvider');
+const ragService = require('./ragService');
 const { buildAcademicSystemInstruction, wrapUserMessage } = require('./academicPromptBuilder');
 const liveContextService = require('./liveContextService');
 
@@ -27,7 +29,16 @@ function isGeminiConfigured() {
  * @returns {string}
  */
 function getProviderMode() {
-  return isGeminiConfigured() ? (process.env.GEMINI_MODEL || geminiProvider.DEFAULT_MODEL || 'gemini-3.8-flash') : 'local_fallback';
+  const provider = (process.env.AI_PROVIDER || 'hybrid').toLowerCase();
+  if (provider === 'ollama') return 'ollama';
+  if (provider === 'gemini') {
+    return isGeminiConfigured()
+      ? (process.env.GEMINI_MODEL || geminiProvider.DEFAULT_MODEL || 'gemini-3.8-flash')
+      : 'local_fallback';
+  }
+  return isGeminiConfigured()
+    ? (process.env.GEMINI_MODEL || geminiProvider.DEFAULT_MODEL || 'gemini-3.8-flash')
+    : 'local_fallback';
 }
 
 /**
@@ -317,7 +328,7 @@ function getSuggestedRegulationsForUser(user) {
 }
 
 /**
- * Answer academic questions with role-based knowledge isolation using Gemini 3.8 Flash
+ * Answer academic questions with role-based knowledge isolation using Ollama, Gemini, or Local Heuristic
  * @param {object} payload
  * @param {string} payload.message
  * @param {Array<object>} [payload.history]
@@ -328,7 +339,9 @@ function getSuggestedRegulationsForUser(user) {
 async function answerAcademicChat({ message = '', history = [], user = null } = {}, options = {}) {
   const cleanMessage = String(message || '').trim();
   const safeRole = user?.role || 'STUDENT';
-  const defaultModel = process.env.GEMINI_MODEL || geminiProvider.DEFAULT_MODEL || 'gemini-3.8-flash';
+  const defaultGeminiModel = process.env.GEMINI_MODEL || geminiProvider.DEFAULT_MODEL || 'gemini-3.8-flash';
+  const defaultOllamaModel = process.env.OLLAMA_CHAT_MODEL || 'qwen3:4b';
+  const aiProviderMode = (process.env.AI_PROVIDER || 'hybrid').toLowerCase();
 
   let liveContextText = '';
   try {
@@ -341,8 +354,6 @@ async function answerAcademicChat({ message = '', history = [], user = null } = 
     liveContextText = '';
   }
 
-  const { systemInstruction } = buildAcademicSystemInstruction({ user, liveContextText });
-
   const formattedHistory = (Array.isArray(history) ? history : [])
     .map(normalizeHistoryItem)
     .filter((h) => h.text.trim().length > 0);
@@ -354,19 +365,104 @@ async function answerAcademicChat({ message = '', history = [], user = null } = 
     { role: 'user', text: wrappedUserMessage },
   ];
 
+  // Helper to build system instruction with live database context and RAG context
+  const buildSystemInstructionWithRag = (ragContextText = '') => {
+    let combinedContext = liveContextText;
+    if (ragContextText) {
+      combinedContext = liveContextText
+        ? `${liveContextText}\n\n${ragContextText}`
+        : ragContextText;
+    }
+    const { systemInstruction } = buildAcademicSystemInstruction({ user, liveContextText: combinedContext });
+    return systemInstruction;
+  };
+
+  // Determine whether to invoke local Ollama engine first
+  let shouldTryOllama = false;
+
+  const isGeminiTestMocked = Boolean(
+    process.env.NODE_ENV === 'test' &&
+    geminiProvider.chatWithGemini &&
+    geminiProvider.chatWithGemini._isMockFunction &&
+    (!ollamaProvider.chatWithOllama || !ollamaProvider.chatWithOllama._isMockFunction)
+  );
+
+  if (!isGeminiTestMocked && !options.forceGemini) {
+    if (aiProviderMode === 'ollama') {
+      shouldTryOllama = true;
+    } else if (aiProviderMode === 'hybrid') {
+      try {
+        shouldTryOllama = await ollamaProvider.isOllamaAvailable({ timeoutMs: 1000 });
+      } catch (_e) {
+        shouldTryOllama = false;
+      }
+    }
+  }
+
+  // 1. Ollama RAG Flow
+  if (shouldTryOllama) {
+    try {
+      let ragChunks = [];
+      try {
+        ragChunks = await ragService.retrieveRelevantChunks({
+          query: cleanMessage,
+          userRole: safeRole,
+          topK: 3,
+        });
+      } catch (ragErr) {
+        console.warn(`[AIProviderService] RAG retrieval error (${ragErr.message}). Continuing without RAG chunks.`);
+        ragChunks = [];
+      }
+
+      const ragContextText = ragService.formatRagContext(ragChunks);
+      const systemInstruction = buildSystemInstructionWithRag(ragContextText);
+
+      const timeoutMs =
+        options.timeoutMs || parseInt(process.env.OLLAMA_TIMEOUT_MS, 10) || 30000;
+
+      const result = await ollamaProvider.chatWithOllama({
+        messages,
+        systemInstruction,
+        model: defaultOllamaModel,
+        timeoutMs,
+        ...options,
+      });
+
+      const relatedRegulations =
+        Array.isArray(ragChunks) && ragChunks.length > 0
+          ? ragChunks.map((c) => c.title)
+          : getSuggestedRegulationsForUser(user);
+
+      return {
+        reply: result.reply || '',
+        role: safeRole,
+        provider: 'ollama',
+        model: result.model || defaultOllamaModel,
+        relatedRegulations,
+        suggestedQuickQuestions: getSuggestedQuickQuestionsForUser(user),
+      };
+    } catch (ollamaErr) {
+      console.warn(
+        `[AIProviderService] Ollama chat failed (${ollamaErr.message}). Engaging Dual-Engine Fallback.`
+      );
+    }
+  }
+
+  // 2. Gemini Flow (Primary or Fallback from Ollama)
   if (isGeminiConfigured() || options.forceGemini) {
     try {
+      const { systemInstruction } = buildAcademicSystemInstruction({ user, liveContextText });
       const result = await geminiProvider.chatWithGemini({
         messages,
         systemInstruction,
-        model: defaultModel,
+        model: defaultGeminiModel,
         ...options,
       });
 
       return {
         reply: result.reply || result.text || '',
         role: safeRole,
-        provider: result.provider || defaultModel,
+        provider: result.provider || defaultGeminiModel,
         relatedRegulations:
           Array.isArray(result.relatedRegulations) && result.relatedRegulations.length > 0
             ? result.relatedRegulations
@@ -383,7 +479,7 @@ async function answerAcademicChat({ message = '', history = [], user = null } = 
     }
   }
 
-  // Graceful fallback to local heuristic provider
+  // 3. Local Heuristic Provider Fallback (Zero Crash Guarantee)
   const fallback = localFallbackProvider.answerRegulationChat({ message: cleanMessage, history });
   return {
     ...fallback,

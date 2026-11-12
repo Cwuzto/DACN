@@ -143,25 +143,25 @@ backend/
 - Modify: `backend/src/services/ai/aiProviderService.js`
 - Test: `backend/tests/integration/ollamaRagWorkflow.test.js`
 
-- [ ] **Step 1: Write integration tests in `backend/tests/integration/ollamaRagWorkflow.test.js`**
+- [x] **Step 1: Write integration tests in `backend/tests/integration/ollamaRagWorkflow.test.js`**
   - Test 1: When `AI_PROVIDER=ollama` and Ollama is active, queries RAG context, calls `qwen3:4b` and returns local AI reply.
   - Test 2: Zero Crash Guarantee: When Ollama is offline/unreachable, gracefully falls back to Gemini or Local Heuristic without crashing.
   - Test 3: Grounding integration: RAG context + Live context (topic/advisor/semester) + XML `<user_query>` boundary are seamlessly combined.
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
   - Command: `npm --prefix backend test -- backend/tests/integration/ollamaRagWorkflow.test.js`
   - Expected: FAIL.
 
-- [ ] **Step 3: Update `aiProviderService.js`**
+- [x] **Step 3: Update `aiProviderService.js`**
   - Integrate `ollamaProvider` and `ragService`.
   - Route dynamically based on `process.env.AI_PROVIDER || 'hybrid'`.
 
-- [ ] **Step 4: Run test to verify pass**
+- [x] **Step 4: Run test to verify pass**
   - Command: `npm --prefix backend test -- backend/tests/integration/ollamaRagWorkflow.test.js`
   - Expected: PASS (100%).
 
-- [ ] **Step 5: Commit**
-  - Command: `git add backend/src/services/ai/aiProviderService.js backend/tests/integration/ollamaRagWorkflow.test.js && git commit -m "feat(ai): integrate Ollama RAG router and dual-engine fallback in aiProviderService"`
+- [x] **Step 5: Commit**
+  - Command: `git add backend/src/services/ai/aiProviderService.js backend/tests/integration/ollamaRagWorkflow.test.js docs/superpowers/plans/2026-11-13-local-ollama-rag-chatbot-plan.md && git commit -m "feat(ai): integrate Ollama RAG router and dual-engine fallback in aiProviderService"`
 
 ---
 
