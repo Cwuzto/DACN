@@ -319,7 +319,14 @@ describe('Academic AI Assistant Suite - Adapter Core & Local Embeddings (Task 1)
     let aiProviderService;
 
     beforeEach(() => {
+      delete process.env.GEMINI_API_KEY;
       aiProviderService = require('../../src/services/ai/aiProviderService');
+      delete process.env.GEMINI_API_KEY;
+    });
+
+    afterEach(() => {
+      delete process.env.GEMINI_API_KEY;
+      jest.restoreAllMocks();
     });
 
     it('should route generateFeedback to localFallbackProvider when GEMINI_API_KEY is not set', async () => {

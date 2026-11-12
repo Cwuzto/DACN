@@ -194,10 +194,7 @@ async function fetchDean() {
     if (prisma.userPermissionGroup && typeof prisma.userPermissionGroup.findFirst === 'function') {
       const upg = await prisma.userPermissionGroup.findFirst({
         where: {
-          OR: [
-            { permissionGroup: { code: 'VIEN_TRUONG' } },
-            { group: { code: 'VIEN_TRUONG' } },
-          ],
+          permissionGroup: { code: 'VIEN_TRUONG' },
         },
         include: {
           user: {
@@ -230,22 +227,11 @@ async function fetchDean() {
     if (prisma.user && typeof prisma.user.findFirst === 'function') {
       const u = await prisma.user.findFirst({
         where: {
-          OR: [
-            {
-              permissionGroups: {
-                some: {
-                  permissionGroup: { code: 'VIEN_TRUONG' },
-                },
-              },
+          permissionGroups: {
+            some: {
+              permissionGroup: { code: 'VIEN_TRUONG' },
             },
-            {
-              userPermissionGroups: {
-                some: {
-                  permissionGroup: { code: 'VIEN_TRUONG' },
-                },
-              },
-            },
-          ],
+          },
         },
         select: {
           id: true,

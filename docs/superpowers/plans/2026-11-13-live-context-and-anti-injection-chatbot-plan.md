@@ -142,19 +142,19 @@
 - Test: `frontend/src/pages/__tests__/`
 - Modify: `CLAUDE.md`
 
-- [ ] **Step 1: Run complete backend test suite**
+- [x] **Step 1: Run complete backend test suite**
   - Command: `npm --prefix backend test`
   - Expected: All test suites PASS (100%).
 
-- [ ] **Step 2: Run complete frontend test suite**
+- [x] **Step 2: Run complete frontend test suite**
   - Command: `npm --prefix frontend test`
   - Expected: All test suites PASS (100%).
 
-- [ ] **Step 3: Run production frontend build**
+- [x] **Step 3: Run production frontend build**
   - Command: `npm --prefix frontend run build`
   - Expected: Build succeeds with 0 errors.
 
-- [ ] **Step 4: Verify UTF-8 (no BOM) on all created and modified files**
+- [x] **Step 4: Verify UTF-8 (no BOM) on all created and modified files**
   - Command: Run node BOM check script.
 
 - [ ] **Step 5: Record Session Update in `CLAUDE.md` and commit**
