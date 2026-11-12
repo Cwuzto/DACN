@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const prisma = require('../config/database');
 const { transitionRegistration, WorkflowTransitionError } = require('./registrationTransitionService');
 const { roundDefenseScoreOneDecimal } = require('../utils/defenseTimeWindowUtils');
+const { safeNotifyMany } = require('./notificationService');
 
 const DEFENSE_SCORING_SCOPE = 'defense-scoring';
 const DEFENSE_MEMBER_SCORE_LOCK_SCOPE = 'defense-member-score-lock';
@@ -1026,8 +1027,9 @@ async function returnScoreBookBeforePublication(input, options = {}) {
         const registration = await tx.topicRegistration.findUnique({
             where: { id: registrationId },
             include: {
-                defenseCouncil: { select: { id: true } },
-                council: { select: { id: true } },
+                student: { select: { id: true, fullName: true, code: true } },
+                defenseCouncil: { include: { members: true } },
+                council: { include: { members: true } },
                 defenseResult: true,
                 memberScores: true,
             },
@@ -1134,6 +1136,34 @@ async function returnScoreBookBeforePublication(input, options = {}) {
             reason: `Admin trả sổ điểm về hội đồng: ${reason.trim()}`,
             idempotencyKey: idempotencyKey || `return-scorebook-${registration.id}-${toLedgerVersion}`,
         }, { tx });
+
+        const council = registration.defenseCouncil || registration.council;
+        let councilMembers = council?.members || [];
+        if ((!councilMembers || councilMembers.length === 0) && councilId && tx.councilMember?.findMany) {
+            try {
+                councilMembers = await tx.councilMember.findMany({
+                    where: { councilId, isActive: true },
+                });
+            } catch (_) {
+                councilMembers = [];
+            }
+        }
+
+        const memberUserIds = (councilMembers || [])
+            .map((m) => m.userId || m.lecturerId)
+            .filter(Boolean);
+
+        if (memberUserIds.length > 0) {
+            await safeNotifyMany(
+                memberUserIds.map((userId) => ({
+                    userId,
+                    title: 'Sổ điểm hội đồng đã được hoàn trả để rà soát',
+                    content: `Sổ điểm bảo vệ sinh viên ${registration.student?.fullName || ''} đã được Quản trị viên hoàn trả về hội đồng. Lý do: ${reason.trim()}`,
+                    type: 'DEFENSE',
+                })),
+                'returnScoreBookBeforePublication'
+            );
+        }
 
         return {
             defenseResult: updatedDefenseResult,

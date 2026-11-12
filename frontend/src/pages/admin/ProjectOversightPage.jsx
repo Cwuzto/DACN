@@ -1202,11 +1202,20 @@ function ProjectOversightPage() {
                 key: 'status',
                 width: 140,
                 render: (status) => {
-                    if (status === 'APPROVED') {
-                        return <Tag color="success" icon={<CheckCircleOutlined />}>Đã nghiệm thu</Tag>;
+                    if (status === 'APPROVED' || status === 'COMPLETED') {
+                        return <Tag color="success" icon={<CheckCircleOutlined />}>{status === 'COMPLETED' ? 'Đã hoàn tất' : 'Đã nghiệm thu'}</Tag>;
+                    }
+                    if (status === 'PENDING_INSTITUTE_SIGNATURE') {
+                        return <Tag color="purple" icon={<ClockCircleOutlined />}>Chờ Viện trưởng ký</Tag>;
                     }
                     if (status === 'REVISION_REQUIRED') {
-                        return <Tag color="error" icon={<ExclamationCircleOutlined />}>Cần sửa đổi</Tag>;
+                        return <Tag color="warning" icon={<ExclamationCircleOutlined />}>Cần sửa đổi</Tag>;
+                    }
+                    if (status === 'ARCHIVE_INCOMPLETE') {
+                        return <Tag color="error" icon={<CloseCircleOutlined />}>Quá hạn nộp</Tag>;
+                    }
+                    if (status === 'ARCHIVE_REJECTED') {
+                        return <Tag color="error" icon={<CloseCircleOutlined />}>Bị từ chối</Tag>;
                     }
                     return <Tag color="processing" icon={<ClockCircleOutlined />}>Chờ duyệt</Tag>;
                 },

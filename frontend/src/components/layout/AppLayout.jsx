@@ -1,7 +1,9 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
+import { Badge } from 'antd';
 import useAuthStore from '../../stores/authStore';
 import authService from '../../services/authService';
+import notificationService from '../../services/notificationService';
 import { semesterService } from '../../services/semesterService';
 import { getClosestSemester, resolveCurrentSemester } from '../../utils/semesterDisplay';
 import registrationService from '../../services/registrationService';
@@ -31,6 +33,36 @@ function AppLayout({ role }) {
 
     const [currentSemester, setCurrentSemester] = useState(null);
     const [lecturerStudentCount, setLecturerStudentCount] = useState(0);
+    const [unreadCount, setUnreadCount] = useState(0);
+
+    const fetchUnreadNotifications = useCallback(async () => {
+        if (!user) return;
+        try {
+            const res = await notificationService.getMyNotifications({ unreadOnly: 'true' });
+            if (res?.success) {
+                const count = Array.isArray(res.data) ? res.data.length : (res.data?.total || 0);
+                setUnreadCount(count);
+            }
+        } catch (_) {
+            // Ignore polling errors silently
+        }
+    }, [user]);
+
+    useEffect(() => {
+        if (!user) return;
+        fetchUnreadNotifications();
+        const intervalId = setInterval(fetchUnreadNotifications, 30000);
+        const onVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                fetchUnreadNotifications();
+            }
+        };
+        document.addEventListener('visibilitychange', onVisibilityChange);
+        return () => {
+            clearInterval(intervalId);
+            document.removeEventListener('visibilitychange', onVisibilityChange);
+        };
+    }, [user, fetchUnreadNotifications]);
 
     const toggleCollapse = () => {
         setCollapsed((prev) => {
@@ -402,15 +434,17 @@ function AppLayout({ role }) {
 
                     <div className="topbar-right">
                         {/* Notifications Quick Link */}
-                        <button
-                            type="button"
-                            className="btn btn-secondary btn-sm"
-                            onClick={() => navigate(notificationsPath)}
-                            title="Thông báo hệ thống"
-                        >
-                            <NavIcon name="notifications" size={16} />
-                            <span className="hidden md:inline">Thông báo</span>
-                        </button>
+                        <Badge count={unreadCount} overflowCount={99} size="small" offset={[-2, 2]}>
+                            <button
+                                type="button"
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => navigate(notificationsPath)}
+                                title={unreadCount > 0 ? `Có ${unreadCount} thông báo chưa đọc` : 'Thông báo hệ thống'}
+                            >
+                                <NavIcon name="notifications" size={16} />
+                                <span className="hidden md:inline">Thông báo</span>
+                            </button>
+                        </Badge>
 
                         {/* User Profile Quick Trigger */}
                         <button

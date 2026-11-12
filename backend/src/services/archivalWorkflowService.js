@@ -10,6 +10,7 @@ const {
 const { resolveEffectiveTopicTitle } = require('./topicTitleResolverService');
 const { recordSignatureEvent, computeCanonicalPayloadHash } = require('./electronicSignatureService');
 const { generateImmutableAcademicPdf } = require('./academicPdfService');
+const { safeNotify } = require('./notificationService');
 
 // Only an approved defense outcome can enter the post-defense archive flow.
 // DEFENDED remains as a read-only legacy compatibility status; score alone is
@@ -529,6 +530,25 @@ async function reviewArchiveByMentor(input, options = {}) {
             },
         });
 
+        const studentId = registration.studentId || registration.student?.id;
+        if (studentId) {
+            if (status === 'REVISION_REQUIRED') {
+                await safeNotify({
+                    userId: studentId,
+                    title: 'Hồ sơ lưu chiểu cần chỉnh sửa bổ sung',
+                    content: notes ? `Hồ sơ lưu chiểu cần chỉnh sửa bổ sung. Ghi chú: ${notes}` : 'Hồ sơ lưu chiểu cần chỉnh sửa bổ sung theo yêu cầu của GVHD.',
+                    type: 'SUBMISSION',
+                }, 'reviewArchiveByMentor:REVISION_REQUIRED');
+            } else if (status === 'REJECTED') {
+                await safeNotify({
+                    userId: studentId,
+                    title: 'Hồ sơ lưu chiểu chuyên môn bị từ chối',
+                    content: notes ? `Hồ sơ lưu chiểu chuyên môn bị từ chối. Ghi chú: ${notes}` : 'Hồ sơ lưu chiểu chuyên môn bị từ chối bởi GVHD.',
+                    type: 'SUBMISSION',
+                }, 'reviewArchiveByMentor:REJECTED');
+            }
+        }
+
         return updatedArchive;
     };
 
@@ -678,6 +698,25 @@ async function reviewArchiveByAcademicAffairs(input, options = {}) {
                 },
             },
         });
+
+        const studentId = registration.studentId || registration.student?.id;
+        if (studentId) {
+            if (status === 'REVISION_REQUIRED') {
+                await safeNotify({
+                    userId: studentId,
+                    title: 'Hồ sơ lưu chiểu cần bổ sung thủ tục (Giáo vụ)',
+                    content: notes ? `Hồ sơ lưu chiểu cần bổ sung thủ tục (Giáo vụ). Ghi chú: ${notes}` : 'Hồ sơ lưu chiểu cần bổ sung thủ tục theo yêu cầu của Giáo vụ.',
+                    type: 'SUBMISSION',
+                }, 'reviewArchiveByAcademicAffairs:REVISION_REQUIRED');
+            } else if (status === 'REJECTED') {
+                await safeNotify({
+                    userId: studentId,
+                    title: 'Hồ sơ lưu chiểu bị từ chối (Giáo vụ)',
+                    content: notes ? `Hồ sơ lưu chiểu bị từ chối (Giáo vụ). Ghi chú: ${notes}` : 'Hồ sơ lưu chiểu bị từ chối bởi Giáo vụ.',
+                    type: 'SUBMISSION',
+                }, 'reviewArchiveByAcademicAffairs:REJECTED');
+            }
+        }
 
         return updatedArchive;
     };
@@ -920,6 +959,16 @@ async function signClearanceCertificateByInstituteDirector(input, options = {}) 
             idempotencyKey: idempotencyKey || `archive-cert-sign-${registration.id}-${registration.stateVersion || 0}`,
         }, { tx });
 
+        const studentId = registration.studentId || registration.student?.id;
+        if (studentId) {
+            await safeNotify({
+                userId: studentId,
+                title: 'Giấy xác nhận hoàn thành đồ án tốt nghiệp đã được cấp',
+                content: `Chúc mừng bạn đã hoàn thành xuất sắc đồ án tốt nghiệp! Viện trưởng đã ký Giấy xác nhận hoàn thành số ${certificateNumber}. Bạn có thể tải giấy xác nhận PDF chính thức ngay bây giờ.`,
+                type: 'SYSTEM',
+            }, 'signClearanceCertificateByInstituteDirector');
+        }
+
         return {
             archive: updatedArchive,
             registration: updatedRegistration,
@@ -948,5 +997,7 @@ module.exports = {
     closeArchiveWindowAtDay15,
     reviewArchiveByMentor,
     reviewArchiveByAcademicAffairs,
+    reviewArchivalDossierByAdvisor: reviewArchiveByMentor,
+    reviewArchivalDossierByAcademicAffairs: reviewArchiveByAcademicAffairs,
     signClearanceCertificateByInstituteDirector,
 };

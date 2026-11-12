@@ -5,6 +5,7 @@ const { validateAcademicScope } = require('./academicScopeService');
 const { roundDefenseScoreOneDecimal } = require('../utils/defenseTimeWindowUtils');
 const { resolveEffectiveTopicTitle } = require('./topicTitleResolverService');
 const { resolveActiveScoringMembers } = require('./defenseScoringService');
+const { safeNotifyMany } = require('./notificationService');
 
 const hashScoreEvidence = (registration) => crypto.createHash('sha256').update(JSON.stringify({
     councilId: registration.defenseCouncilId || registration.councilId || null,
@@ -409,6 +410,26 @@ async function createResultPublication({ semesterId, actorId, actor, type, publi
             },
         });
 
+        const notifications = selected
+            .map((approval) => {
+                const studentId = approval.registration?.studentId || approval.registration?.student?.id;
+                if (!studentId) return null;
+                const outcomeText = approval.outcome === 'PASSED' ? 'ĐẠT' : (approval.outcome === 'ABSENT' ? 'VẮNG MẶT' : 'CHƯA ĐẠT');
+                const scoreText = approval.finalScoreSnapshot != null ? `Điểm chính thức: ${Number(approval.finalScoreSnapshot).toFixed(1)}.` : '';
+                return {
+                    userId: studentId,
+                    title: 'Kết quả bảo vệ khóa luận chính thức đã được công bố',
+                    content: `Hội đồng đã công bố kết quả bảo vệ khóa luận của bạn. Kết luận: ${outcomeText}. ${scoreText ? scoreText + ' ' : ''}Vui lòng truy cập hệ thống để kiểm tra chi tiết hoặc tiếp tục hoàn thiện hồ sơ lưu chiểu.`.trim(),
+                    type: 'DEFENSE',
+                    isPromulgated: true,
+                };
+            })
+            .filter(Boolean);
+
+        if (notifications.length > 0) {
+            await safeNotifyMany(notifications, 'createResultPublication');
+        }
+
         return {
             publication: await tx.resultPublication.findUnique({
                 where: { id: publication.id },
@@ -472,6 +493,7 @@ async function getStudentPublishedResult(studentId) {
 module.exports = {
     approveDefenseResult,
     createResultPublication,
+    publishDefenseResults: createResultPublication,
     getEligibleApprovals,
     hashScoreEvidence,
     isApprovalEvidenceCurrent,

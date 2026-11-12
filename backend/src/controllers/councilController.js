@@ -12,6 +12,7 @@ const {
     previewAutoOutlineCouncilSetup,
 } = require('../services/outlineAutoSetupService');
 const { resolveEffectiveTopicTitle } = require('../services/topicTitleResolverService');
+const { safeNotifyMany } = require('../services/notificationService');
 
 const splitConfirmedStudentsIntoShifts = (registrationIds = []) => {
     if (!Array.isArray(registrationIds)) return [];
@@ -1286,6 +1287,22 @@ const publishDefenseEligibleList = async (req, res, next) => {
             getRequestIp(req),
         );
 
+        const eligibleStudentIds = eligibleRegistrations
+            .map((r) => r.studentId || r.student?.id)
+            .filter(Boolean);
+
+        if (eligibleStudentIds.length > 0) {
+            await safeNotifyMany(
+                eligibleStudentIds.map((userId) => ({
+                    userId,
+                    title: 'Đủ điều kiện bảo vệ khóa luận tốt nghiệp',
+                    content: 'Chúc mừng! Bạn đã đủ điều kiện ra bảo vệ khóa luận tốt nghiệp đợt này. Vui lòng kiểm tra và chuẩn bị 4 thành phần tài liệu bảo vệ.',
+                    type: 'DEFENSE',
+                })),
+                'publishDefenseEligibleList'
+            );
+        }
+
         return res.json({
             success: true,
             message: `Đã công bố danh sách ${eligibleRegistrations.length} sinh viên đủ điều kiện ra bảo vệ.`,
@@ -1383,14 +1400,30 @@ const confirmAndPublishDefenseSchedule = async (req, res, next) => {
 
         const studentUserIds = council.registrations.map((r) => r.studentId).filter(Boolean);
         if (studentUserIds.length > 0) {
-            await prisma.notification.createMany({
-                data: studentUserIds.map((userId) => ({
+            await safeNotifyMany(
+                studentUserIds.map((userId) => ({
                     userId,
                     title: 'Lịch bảo vệ chính thức đã được công bố',
                     content: `Lịch bảo vệ khóa luận cho hội đồng ${council.name} đã được công bố chính thức. Vui lòng kiểm tra ca bảo vệ và thứ tự của bạn.`,
                     type: 'DEFENSE_SCHEDULE_PUBLISHED',
                 })),
-            });
+                'confirmAndPublishDefenseSchedule:students'
+            );
+        }
+
+        const memberUserIds = (council.members || [])
+            .map((m) => m.userId || m.lecturerId)
+            .filter(Boolean);
+        if (memberUserIds.length > 0) {
+            await safeNotifyMany(
+                memberUserIds.map((userId) => ({
+                    userId,
+                    title: `Lịch bảo vệ chính thức - Hội đồng ${council.name}`,
+                    content: `Lịch bảo vệ khóa luận cho hội đồng ${council.name} đã được công bố chính thức. Phiên bảo vệ gồm ${shiftSplits.length} sinh viên chia ca Sáng/Chiều.`,
+                    type: 'DEFENSE_SCHEDULE_PUBLISHED',
+                })),
+                'confirmAndPublishDefenseSchedule:members'
+            );
         }
 
         await auditLog(

@@ -14,6 +14,8 @@ import {
     CloseCircleOutlined,
     FileTextOutlined,
     HistoryOutlined,
+    CloudUploadOutlined,
+    LockOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import useAuthStore from '../../stores/authStore';
@@ -21,6 +23,7 @@ import dashboardService from '../../services/dashboardService';
 import registrationService from '../../services/registrationService';
 import outlineService from '../../services/outlineService';
 import evaluationService from '../../services/evaluationService';
+import archiveService from '../../services/archiveService';
 import TitleAdjustmentModal from '../../components/student/TitleAdjustmentModal';
 import RegistrationTimelineDrawer from '../../components/common/RegistrationTimelineDrawer';
 
@@ -104,6 +107,24 @@ export default function StudentDashboardPage() {
     const [bm03AckComment, setBm03AckComment] = useState('');
     const [ackSubmitting, setAckSubmitting] = useState(false);
     const [timelineOpen, setTimelineOpen] = useState(false);
+    const [defenseDossier, setDefenseDossier] = useState(null);
+
+    const handleDownloadCertificate = async () => {
+        const regId = currentRegistration?.registrationId || currentRegistration?.id;
+        if (!regId) return;
+        try {
+            message.loading({ content: 'Đang tải Giấy xác nhận hoàn thành...', key: 'cert-dl' });
+            const res = await archiveService.getClearanceCertificate(regId);
+            if (res.success && res.data?.pdfUrl) {
+                window.open(res.data.pdfUrl, '_blank');
+                message.success({ content: 'Đã mở Giấy xác nhận hoàn thành', key: 'cert-dl' });
+            } else {
+                message.info({ content: res.message || 'Chưa có file Giấy xác nhận', key: 'cert-dl' });
+            }
+        } catch (err) {
+            message.error({ content: err?.message || 'Không thể tải Giấy xác nhận', key: 'cert-dl' });
+        }
+    };
 
     const handleStudentAckBM03 = async (actionToSubmit) => {
         const action = actionToSubmit || bm03AckAction;
@@ -151,10 +172,11 @@ export default function StudentDashboardPage() {
                 const regId = resData?.registrationDetails?.registrationId || resData?.registrationDetails?.id;
                 if (regId) {
                     try {
-                        const [actionRes, bm03Res, bm04Res] = await Promise.all([
+                        const [actionRes, bm03Res, bm04Res, dossierRes] = await Promise.all([
                             registrationService.getAllowedActions(regId).catch(() => ({ success: false })),
                             evaluationService.getBM03Record(regId).catch(() => ({ success: false })),
                             evaluationService.getBM04Record(regId).catch(() => ({ success: false })),
+                            archiveService.getDefenseDossier(regId).catch(() => ({ success: false })),
                         ]);
 
                         if (actionRes?.success && Array.isArray(actionRes.data?.allowedActions)) {
@@ -167,6 +189,9 @@ export default function StudentDashboardPage() {
                         }
                         if (bm04Res?.success && bm04Res.data) {
                             setBm04Record(bm04Res.data);
+                        }
+                        if (dossierRes?.success && dossierRes.data) {
+                            setDefenseDossier(dossierRes.data);
                         }
                     } catch {
                         setAllowedActions([]);
@@ -232,6 +257,11 @@ export default function StudentDashboardPage() {
         if (status === 'BM04_REVIEW') return <span className="tag teal">Đang thẩm định Phiếu nhận xét</span>;
         if (status === 'DEFENSE_READY') return <span className="tag green">Đủ điều kiện bảo vệ</span>;
         if (status === 'DEFENDED') return <span className="tag yellow">Đã bảo vệ</span>;
+        if (status === 'DEFENSE_PASSED') return <span className="tag green">Bảo vệ đạt · Cần nộp lưu chiểu</span>;
+        if (status === 'DEFENSE_FAILED') return <span className="tag red">Bảo vệ chưa đạt (Kết thúc hồ sơ)</span>;
+        if (status === 'PENDING_INSTITUTE_SIGNATURE') return <span className="tag purple">Chờ Viện trưởng ký Giấy chứng nhận</span>;
+        if (status === 'ARCHIVE_INCOMPLETE') return <span className="tag red">Chưa hoàn tất lưu chiểu (Quá hạn)</span>;
+        if (status === 'ARCHIVE_REJECTED') return <span className="tag red">Lưu chiểu bị từ chối</span>;
         if (status === 'COMPLETED') return <span className="tag green">Hoàn tất đồ án</span>;
         if (status === 'TERMINATED_BM01') return <span className="tag red">Dừng đề tài (Đề cương không đạt)</span>;
         if (status === 'TERMINATED_FAILED_PROGRESS') return <span className="tag red">Dừng đề tài (Tiến độ không đạt)</span>;
@@ -573,6 +603,101 @@ export default function StudentDashboardPage() {
                                 onClick={() => navigate('/student/submissions')}
                             >
                                 Chi tiết đề cương
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Post-Defense Archival & Defense Council Session Banner */}
+            {['DEFENSE_READY', 'DEFENSE_PASSED', 'PENDING_INSTITUTE_SIGNATURE', 'COMPLETED', 'ARCHIVE_INCOMPLETE', 'ARCHIVE_REJECTED'].includes(currentRegistration?.status) && (
+                <div
+                    className="card"
+                    style={{
+                        marginBottom: 24,
+                        padding: '16px 20px',
+                        borderLeft: '6px solid',
+                        borderLeftColor: currentRegistration?.status === 'COMPLETED' ? '#10B981' : currentRegistration?.status === 'ARCHIVE_INCOMPLETE' || currentRegistration?.status === 'ARCHIVE_REJECTED' ? '#EF4444' : '#0F766E',
+                        background: currentRegistration?.status === 'COMPLETED' ? '#F0FDF4' : currentRegistration?.status === 'ARCHIVE_INCOMPLETE' || currentRegistration?.status === 'ARCHIVE_REJECTED' ? '#FEF2F2' : '#F0FDFA',
+                        borderColor: currentRegistration?.status === 'COMPLETED' ? '#BBF7D0' : currentRegistration?.status === 'ARCHIVE_INCOMPLETE' || currentRegistration?.status === 'ARCHIVE_REJECTED' ? '#FECACA' : '#99F6E4',
+                    }}
+                >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                        <div>
+                            <div style={{ fontSize: 15, fontWeight: 700, color: currentRegistration?.status === 'COMPLETED' ? '#166534' : currentRegistration?.status === 'ARCHIVE_INCOMPLETE' || currentRegistration?.status === 'ARCHIVE_REJECTED' ? '#991B1B' : '#0F766E', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                {currentRegistration?.status === 'COMPLETED' && (
+                                    <span>Đồ Án Tốt Nghiệp Đã Hoàn Tất — Giấy Xác Nhận Đã Được Ký</span>
+                                )}
+                                {currentRegistration?.status === 'DEFENSE_READY' && (
+                                    <span>Chuẩn Bị Bảo Vệ Khóa Luận Trước Hội Đồng</span>
+                                )}
+                                {['DEFENSE_PASSED', 'PENDING_INSTITUTE_SIGNATURE', 'ARCHIVE_INCOMPLETE', 'ARCHIVE_REJECTED'].includes(currentRegistration?.status) && (
+                                    <span>Cửa Sổ Nộp &amp; Hoàn Thiện Hồ Sơ Lưu Chiểu (14 Ngày Sau Bảo Vệ)</span>
+                                )}
+                            </div>
+
+                            <div style={{ marginTop: 6, fontSize: 13, color: 'var(--fg)', display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+                                {defenseDossier?.windows?.defenseDateYmd && (
+                                    <span>
+                                        Ngày bảo vệ: <strong>{dayjs(defenseDossier.windows.defenseDateYmd).format('DD/MM/YYYY')}</strong>
+                                    </span>
+                                )}
+                                {currentRegistration?.status === 'DEFENSE_READY' && defenseDossier?.windows?.softPreparationDeadlineAt && (
+                                    <span style={{ color: defenseDossier.windows.isSoftDeadlinePassed ? '#DC2626' : '#D97706' }}>
+                                        Hạn mềm nộp 4 tài liệu: <strong>{dayjs(defenseDossier.windows.softPreparationDeadlineAt).format('DD/MM/YYYY HH:mm')}</strong>
+                                        {defenseDossier.windows.isSoftDeadlinePassed && ' (Đã quá hạn mềm)'}
+                                    </span>
+                                )}
+                                {['DEFENSE_PASSED', 'PENDING_INSTITUTE_SIGNATURE', 'ARCHIVE_INCOMPLETE', 'ARCHIVE_REJECTED'].includes(currentRegistration?.status) && defenseDossier?.windows?.windowClosesAt && (
+                                    <span>
+                                        {defenseDossier.windows.isWindowClosed ? (
+                                            <span style={{ color: '#DC2626', fontWeight: 600 }}>
+                                                Cổng lưu chiểu đã đóng lúc: <strong>{dayjs(defenseDossier.windows.windowClosesAt).format('DD/MM/YYYY HH:mm')}</strong>
+                                            </span>
+                                        ) : (
+                                            <span style={{ color: '#0F766E' }}>
+                                                Hạn chót đóng cổng lưu chiểu: <strong>{dayjs(defenseDossier.windows.windowClosesAt).format('DD/MM/YYYY HH:mm')}</strong>
+                                                {' '}— Còn <strong>{Math.max(0, Math.ceil(dayjs(defenseDossier.windows.windowClosesAt).diff(dayjs(), 'day', true)))} ngày</strong>
+                                            </span>
+                                        )}
+                                    </span>
+                                )}
+                                {currentRegistration?.status === 'PENDING_INSTITUTE_SIGNATURE' && (
+                                    <span style={{ color: '#7C3AED', fontWeight: 600 }}>
+                                        GVHD và Giáo vụ đã thẩm định xong — Đang chờ Viện trưởng ký số
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                            {currentRegistration?.status === 'COMPLETED' ? (
+                                <button
+                                    type="button"
+                                    className="btn btn-primary btn-sm"
+                                    onClick={handleDownloadCertificate}
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600 }}
+                                >
+                                    <DownloadOutlined />
+                                    <span>Tải Giấy Xác Nhận (PDF)</span>
+                                </button>
+                            ) : (
+                                <button
+                                    type="button"
+                                    className="btn btn-primary btn-sm"
+                                    onClick={() => navigate('/student/submissions')}
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600 }}
+                                >
+                                    <CloudUploadOutlined />
+                                    <span>Vào Kho Lưu Chiểu 4 Tài Liệu</span>
+                                </button>
+                            )}
+                            <button
+                                type="button"
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => navigate('/student/grades')}
+                            >
+                                Xem Điểm Bảo Vệ
                             </button>
                         </div>
                     </div>
