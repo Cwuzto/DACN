@@ -70,6 +70,70 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 
 ## 6. Cập Nhật Phiên Làm Việc (Session Update)
 
+### Phiên 13/11/2026 (Chuyển Đổi Gemini 3.8 Flash, Gỡ Bỏ @xenova/transformers & Phân Quyền Tri Thức AI Chống Rò Rỉ Dữ Liệu)
+
+#### 1. Những phần đã hoàn thành
+1. **Thiết kế Kiến trúc & Kế hoạch Triển khai (Spec & Plan)**:
+   - Hoàn thành đặc tả [docs/superpowers/specs/2026-11-13-role-based-gemini-academic-chatbot-design.md](file:///d:/DACN/docs/superpowers/specs/2026-11-13-role-based-gemini-academic-chatbot-design.md) (Commit `32a5ad6`).
+   - Lập và theo dõi kế hoạch 5 task chi tiết [docs/superpowers/plans/2026-11-13-role-based-gemini-academic-chatbot-plan.md](file:///d:/DACN/docs/superpowers/plans/2026-11-13-role-based-gemini-academic-chatbot-plan.md) (Commit `9ab54c1`).
+2. **Task 1: Gỡ bỏ `@xenova/transformers`, làm sạch AI Local & Nâng cấp `geminiProvider.js` (Commit `1acfccd`)**:
+   - Gỡ bỏ hoàn toàn thư viện `@xenova/transformers` khỏi `backend/package.json` và `node_modules`.
+   - Refactor `localEmbeddingService.js` loại bỏ dynamic import WASM, chuyển sang giải thuật tính tương đồng n-gram Jaccard / Character 3-gram Cosine thuần JS siêu tốc và an toàn.
+   - Cấu hình model mặc định: `process.env.GEMINI_MODEL || 'gemini-3.8-flash'`.
+   - Triển khai hàm `chatWithGemini({ messages, systemInstruction, model, apiKey, temperature })` chuẩn hóa payload Gemini v1beta REST API đa lượt hội thoại.
+   - Viết 9 unit tests tại `backend/tests/unit/gemini38Provider.test.js` (100% PASS).
+3. **Task 2: Bộ Tri Thức Học Vụ 3 Tầng & Bộ Nạp Ngữ Cảnh RBAC Chống Rò Rỉ (`academicPromptBuilder.js`) (Commit `69d97c2`)**:
+   - Xây dựng 3 tệp tri thức học vụ độc lập tại `backend/src/services/ai/knowledge/`:
+     * `studentKnowledge.js`: Toàn bộ 6 giai đoạn đồ án dưới góc nhìn Sinh viên, nguyên tắc 1 SV / 1 đề tài (`maxStudents = 1`), 1 GVHD tối đa 10 SV, nộp BM01-BM04, mốc 168h đổi tên đề tài, 2 Checkpoint dừng đề tài ngay lập tức nếu không đạt (`TERMINATED_FAILED_PROGRESS`), quy chế bảo vệ 3 thành viên, FAQ, liêm chính học thuật.
+     * `lecturerKnowledge.js`: Tiêu chí đánh giá học thuật nội bộ, thẩm định lại BM01, bảng điểm 4 tiêu chí chuẩn đầu ra BM04 (10 điểm), 2 kết luận độc lập, quy trình đề xuất dừng đề tài BM03 (`PROPOSE_STOP`) và thẩm định không cho bảo vệ BM04 (`DO_NOT_ALLOW_DEFENSE`), bộ câu hỏi phản biện 3 cấp độ.
+     * `adminKnowledge.js`: Tri thức điều hành Viện và Giáo vụ, quy trình ban hành Quyết định giao đề tài kèm danh sách, ban hành Phụ lục điều chỉnh tên theo đợt, quản lý SLA 168h + 1 lần gia hạn 72h, cơ chế 5 Sweep Jobs idempotent zero-fake signatures (`SYSTEM_TIMEOUT`, `ACKNOWLEDGEMENT_TIMEOUT`), quy định phúc khảo.
+   - Xây dựng `academicPromptBuilder.js`: Phân quyền 3 tầng tri thức (`STUDENT`, `FACULTY`, `FULL`). Sinh viên CHỈ nhận `studentKnowledge` cùng chỉ thị STRICT SECURITY GUARDRAILS chống prompt injection / bẻ khóa và cấm lộ lọt dữ liệu nội bộ. Giảng viên nhận thêm `lecturerKnowledge`. Admin hoặc Giảng viên có quyền Giáo vụ (`GIAO_VU`, `PROJECT_OVERSIGHT_MANAGE`) nhận đầy đủ 3 tầng tri thức.
+   - Viết 9 unit tests tại `backend/tests/unit/academicPromptBuilder.test.js` (100% PASS).
+4. **Task 3: Controller & Route Integration, Multi-turn Chat & Cache Cô Lập Vai Trò (Commit `d92e6bc`)**:
+   - Cập nhật `aiProviderService.answerAcademicChat` chuẩn hóa lịch sử hội thoại `history` từ mọi định dạng, kết hợp `systemInstruction` từ `academicPromptBuilder` và trích xuất gợi ý câu hỏi/quy chế liên quan.
+   - Nâng cấp `aiController.regulationChat`: Tạo cache key băm SHA-256 đối tượng `{ message, history, role, isSuperOrAcademic }`. Đảm bảo sinh viên và giảng viên hỏi cùng câu hỏi vẫn nhận được 2 phản hồi độc lập từ 2 cache key riêng biệt, triệt tiêu nguy cơ rò rỉ dữ liệu qua cache.
+   - Viết 9 integration tests tại `backend/tests/integration/roleBasedRegulationChatWorkflow.test.js` (100% PASS).
+5. **Task 4: Giao Diện Role-Aware Chatbot Widget & Quick Questions Theo Vai Trò (Commit `99fa04b`)**:
+   - Nâng cấp `AcademicChatWidget.jsx`: Nhận diện `user` qua `useAuth()`.
+   - Hiển thị Role Badge chính quy trên Header (`Sinh viên`, `Giảng viên / HĐ`, `Quản trị viên`) và model tag `Gemini 3.8 Flash`.
+   - Hiển thị danh sách câu hỏi nhanh (Quick Question Chips) phù hợp riêng cho từng vai trò người dùng đang đăng nhập.
+   - Gửi payload lịch sử hội thoại chuẩn multi-turn `history: messages.map(m => ({ role, text }))`.
+   - Đảm bảo 100% tuân thủ Rule 2.6 (chỉ dùng Ant Design icons, không có emoji thô trong nút bấm).
+   - Viết 8 unit tests tại `frontend/src/pages/__tests__/academicChatWidgetUi.test.js` (100% PASS).
+6. **Task 5: Hồi Quy Toàn Diện, Xác Nhận UTF-8 & Kiểm Thử Build**:
+   - Toàn bộ backend test suite: **101/101 suites PASS, 1.002/1.002 tests PASS (100%)**.
+   - Toàn bộ frontend test suite: **187/187 tests PASS (100%)**.
+   - Production build `npm --prefix frontend run build`: **PASS (0 lỗi, hoàn thành trong 13.26s)**.
+   - Xác nhận 100% file tạo mới và sửa đổi đạt chuẩn **UTF-8 (no BOM)**.
+
+#### 2. Trạng thái cập nhật của từng phần
+- **Database (Supabase PostgreSQL & Prisma)**: Ổn định 100%, bảo toàn mô hình `TopicRegistration`.
+- **Backend AI Engine**: Hoàn toàn giải phóng khỏi `@xenova/transformers`, sẵn sàng kết nối trực tiếp **Gemini 3.8 Flash** qua API Key, có cơ chế Zero-Crash fallback tự động khi offline.
+- **Frontend SPA**: Chatbot widget hỗ trợ đa vai trò, đa lượt tương tác, câu hỏi nhanh động; đạt 187/187 tests; build production thành công.
+- **Bảo mật Tri thức (Anti-Leakage)**: Dữ liệu nhạy cảm của Giảng viên/Hội đồng được cô lập vật lý ở tầng nạp context và tầng cache key, sinh viên tuyệt đối không thể trích xuất.
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+1. **Kiểm thử Thủ công Trực tiếp trên Trình duyệt**:
+   - Đăng nhập tài khoản Sinh viên (`SV001`), mở widget chat, kiểm tra tag `Sinh viên`, bấm các câu hỏi gợi ý nhanh hoặc thử các câu lệnh bẻ khóa (prompt injection) để kiểm tra phản hồi từ chối an toàn.
+   - Đăng nhập tài khoản Giảng viên (`GV001`), kiểm tra tag `Giảng viên / HĐ`, hỏi về tiêu chí chấm BM04 hoặc câu hỏi phản biện bảo vệ.
+   - Đăng nhập tài khoản Admin (`ADMIN001`), kiểm tra tag `Quản trị viên`, hỏi về quy trình sweep jobs và SLA 168 giờ.
+2. **Cấu hình `GEMINI_API_KEY` trong `backend/.env`**:
+   - Điền API Key thực tế vào `backend/.env` để trải nghiệm phản hồi tự nhiên, thời gian thực từ Google Gemini 3.8 Flash.
+3. **Tiếp tục hoàn thiện Giai đoạn 5 & 6**:
+   - Biên bản tổng hợp điểm bảo vệ và luồng nộp quyển/source code lưu chiểu sau bảo vệ.
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+1. **Loại bỏ Thư viện `@xenova/transformers`**:
+   - Giảm tải dung lượng gói cài đặt và triệt tiêu các cảnh báo dynamic import WASM của Node.js; các tính năng so sánh đề tài được xử lý bằng giải thuật cosine/n-gram siêu tốc, chuẩn bị sẵn sàng cho việc tích hợp Ollama / Local AI chuyên dụng sau này theo đúng định hướng của người dùng.
+2. **Định Danh Model `gemini-3.8-flash`**:
+   - Sử dụng `gemini-3.8-flash` làm model mặc định trong mã nguồn (`process.env.GEMINI_MODEL || 'gemini-3.8-flash'`), cho phép người dùng tự do cấu hình linh hoạt trong `.env`.
+3. **Kiến Trúc Phân Tầng Tri Thức (Tiered Context Injection)**:
+   - Thay vì nạp toàn bộ dữ liệu rồi dặn AI "đừng nói cho sinh viên biết", hệ thống cô lập dữ liệu từ gốc: payload gửi lên Google cho tài khoản Sinh viên **hoàn toàn không chứa** văn bản quy chế nội bộ của Giảng viên và Admin. Đây là biện pháp chống rò rỉ dữ liệu (Anti-Leakage) triệt để và an toàn nhất hiện nay.
+4. **Cô Lập Bộ Nhớ Đệm Theo Vai Trò (Role-Isolated Cache Key)**:
+   - Cache key gắn chặt với `role` người hỏi, giải quyết dứt điểm lỗ hổng rò rỉ dữ liệu khi sinh viên hỏi trùng câu hỏi với giảng viên.
+
+---
+
 ### Phiên 12-13/11/2026 (Bộ Tứ Tiện Ích Trí Tuệ Nhân Tạo Học Vụ Toàn Diện - Academic AI Assistant Suite & Mini AI Local Embeddings)
 
 #### 1. Những phần đã hoàn thành

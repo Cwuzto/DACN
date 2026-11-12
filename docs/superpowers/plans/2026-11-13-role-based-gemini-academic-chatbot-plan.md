@@ -83,24 +83,24 @@
   - `adminKnowledge`: Official decisions, adjustments appendix, 168h SLA handling, sweep jobs, dispute resolutions.
   - `academicPromptBuilder.buildAcademicSystemInstruction(user)`: Returns `{ systemInstruction, permittedRole, knowledgeTier }`.
 
-- [ ] **Step 1: Write unit tests in `backend/tests/unit/academicPromptBuilder.test.js`**
+- [x] **Step 1: Write unit tests in `backend/tests/unit/academicPromptBuilder.test.js`**
   - Test 1: For `user.role === 'STUDENT'`, system instruction contains `studentKnowledge` and STRICT GUARDRAILS, but does NOT contain `lecturerKnowledge` or `adminKnowledge`.
   - Test 2: For `user.role === 'LECTURER'`, system instruction contains both `studentKnowledge` and `lecturerKnowledge`, but not `adminKnowledge`.
   - Test 3: For `user.role === 'ADMIN'` or `user.permissionGroups.includes('GIAO_VU')`, system instruction contains all 3 knowledge tiers.
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
   - Command: `npm --prefix backend test -- backend/tests/unit/academicPromptBuilder.test.js`
   - Expected: FAIL (files and functions not found).
 
-- [ ] **Step 3: Implement knowledge files and `academicPromptBuilder.js`**
+- [x] **Step 3: Implement knowledge files and `academicPromptBuilder.js`**
   - Author complete `studentKnowledge.js`, `lecturerKnowledge.js`, `adminKnowledge.js` in UTF-8 (no BOM).
   - Implement `academicPromptBuilder.js` checking `user.role` and `user.permissionGroups`.
 
-- [ ] **Step 4: Run test to verify pass**
+- [x] **Step 4: Run test to verify pass**
   - Command: `npm --prefix backend test -- backend/tests/unit/academicPromptBuilder.test.js`
   - Expected: PASS (100%).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
   - Command: `git add backend/src/services/ai/knowledge/ backend/src/services/ai/academicPromptBuilder.js backend/tests/unit/academicPromptBuilder.test.js && git commit -m "feat(ai): build 3-tier academic knowledge base and role-based prompt builder"`
 
 ---
@@ -119,25 +119,25 @@
   - Response: `{ success: true, data: { reply, role, provider: 'gemini-3.8-flash', relatedRegulations, suggestedQuickQuestions } }`.
   - Cache key isolated by role: `hashPayload({ message, history, role: req.user.role })`.
 
-- [ ] **Step 1: Write integration tests in `backend/tests/integration/roleBasedRegulationChatWorkflow.test.js`**
+- [x] **Step 1: Write integration tests in `backend/tests/integration/roleBasedRegulationChatWorkflow.test.js`**
   - Test 1: Student role receives academic guidance; anti-leakage guardrails activated.
   - Test 2: Lecturer role receives faculty-level grading guidance.
   - Test 3: Cache key differs between Student and Lecturer for the same message string, preventing data leaks.
   - Test 4: Rejection of unauthenticated calls with 401.
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
   - Command: `npm --prefix backend test -- backend/tests/integration/roleBasedRegulationChatWorkflow.test.js`
   - Expected: FAIL.
 
-- [ ] **Step 3: Update `aiProviderService.js` and `aiController.js`**
+- [x] **Step 3: Update `aiProviderService.js` and `aiController.js`**
   - In `aiProviderService.js`: Implement `answerAcademicChat({ message, history, user })` assembling prompt via `academicPromptBuilder` and calling `geminiProvider.chatWithGemini`.
   - In `aiController.js`: Update `regulationChat` handler with role-isolated cache keys.
 
-- [ ] **Step 4: Run test to verify pass**
+- [x] **Step 4: Run test to verify pass**
   - Command: `npm --prefix backend test -- backend/tests/integration/roleBasedRegulationChatWorkflow.test.js`
   - Expected: PASS (100%).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
   - Command: `git add backend/src/controllers/aiController.js backend/src/services/ai/aiProviderService.js backend/tests/integration/roleBasedRegulationChatWorkflow.test.js && git commit -m "feat(ai): integrate role-isolated academic chat workflow with gemini-3.8-flash"`
 
 ---
@@ -155,25 +155,25 @@
   - Dynamic quick question chips tailored to the authenticated user's role.
   - Full adherence to Rule 2.6 (no raw emojis in buttons).
 
-- [ ] **Step 1: Write frontend unit tests in `frontend/src/pages/__tests__/academicChatWidgetUi.test.js`**
+- [x] **Step 1: Write frontend unit tests in `frontend/src/pages/__tests__/academicChatWidgetUi.test.js`**
   - Verify `AcademicChatWidget` renders role badges for `STUDENT`, `LECTURER`, and `ADMIN`.
   - Verify quick questions render role-specific choices.
   - Verify all buttons strictly use `@ant-design/icons` via `icon={<IconComponent />}`.
 
-- [ ] **Step 2: Run test to verify failure**
+- [x] **Step 2: Run test to verify failure**
   - Command: `npm --prefix frontend test -- src/pages/__tests__/academicChatWidgetUi.test.js`
   - Expected: FAIL.
 
-- [ ] **Step 3: Update `AcademicChatWidget.jsx`**
+- [x] **Step 3: Update `AcademicChatWidget.jsx`**
   - Consume `user` from `useAuth()`.
   - Render dynamic badge and tailored quick question chips.
   - Ensure message history preserves multi-turn flow cleanly.
 
-- [ ] **Step 4: Run test to verify pass**
+- [x] **Step 4: Run test to verify pass**
   - Command: `npm --prefix frontend test -- src/pages/__tests__/academicChatWidgetUi.test.js`
   - Expected: PASS (100%).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
   - Command: `git add frontend/src/components/common/AcademicChatWidget.jsx frontend/src/pages/__tests__/academicChatWidgetUi.test.js && git commit -m "feat(ui): add role-aware tags and quick questions to AcademicChatWidget"`
 
 ---
@@ -185,21 +185,21 @@
 - Test: `frontend/src/pages/__tests__/`
 - Modify: `CLAUDE.md`
 
-- [ ] **Step 1: Run complete backend test suite**
+- [x] **Step 1: Run complete backend test suite**
   - Command: `npm --prefix backend test`
   - Expected: All test suites PASS (100%).
 
-- [ ] **Step 2: Run complete frontend test suite**
+- [x] **Step 2: Run complete frontend test suite**
   - Command: `npm --prefix frontend test`
   - Expected: All test suites PASS (100%).
 
-- [ ] **Step 3: Run production frontend build**
+- [x] **Step 3: Run production frontend build**
   - Command: `npm --prefix frontend run build`
   - Expected: Build succeeds with 0 errors.
 
-- [ ] **Step 4: Verify UTF-8 (no BOM) on all created and modified files**
+- [x] **Step 4: Verify UTF-8 (no BOM) on all created and modified files**
   - Command: Run node BOM check script.
 
-- [ ] **Step 5: Record Session Update in `CLAUDE.md` and commit**
+- [x] **Step 5: Record Session Update in `CLAUDE.md` and commit**
   - Command: `git add CLAUDE.md docs/superpowers/plans/2026-11-13-role-based-gemini-academic-chatbot-plan.md && git commit -m "docs(claude): record Session Update for Role-Based Academic Chatbot with Gemini 3.8 Flash"`
 
