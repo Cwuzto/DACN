@@ -17,6 +17,7 @@ const path = require('path');
 const { studentKnowledge } = require('./knowledge/studentKnowledge');
 const { lecturerKnowledge } = require('./knowledge/lecturerKnowledge');
 const { adminKnowledge } = require('./knowledge/adminKnowledge');
+const { loadChunksFromDocs } = require('./knowledge/knowledgeParser');
 
 const DEFAULT_INDEX_PATH = path.resolve(__dirname, 'knowledge', 'knowledgeVectorIndex.json');
 
@@ -25,8 +26,23 @@ let inMemoryIndexCache = null;
 
 /**
  * Standard semantic chunks covering all 6 stages and key administrative forms.
+ * Sourced dynamically from Markdown files in docs/ (Single Source of Truth).
+ *
+ * @param {string} [docsDir]
+ * @returns {Array<{ id: string, title: string, stage: number, roleScope: string, text: string }>}
  */
-function chunkKnowledgeBase() {
+function chunkKnowledgeBase(docsDir) {
+  const chunks = loadChunksFromDocs(docsDir);
+  if (Array.isArray(chunks) && chunks.length > 0) {
+    return chunks;
+  }
+  return getStaticFallbackChunks();
+}
+
+/**
+ * Fallback static chunks if docs directory is inaccessible.
+ */
+function getStaticFallbackChunks() {
   return [
     // ---------------- STUDENT CHUNKS (roleScope: STUDENT) ----------------
     {

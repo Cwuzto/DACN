@@ -10,18 +10,25 @@ const DEFAULT_EMBED_MODEL = process.env.OLLAMA_EMBED_MODEL || 'embeddinggemma-2:
 const DEFAULT_TIMEOUT_MS = parseInt(process.env.OLLAMA_TIMEOUT_MS, 10) || 30000;
 
 /**
- * Strip reasoning chain (<think>...</think>) from Qwen / reasoning models
+ * Strip reasoning chain (<think>...</think>) and echoed user query from model replies
  * @param {string} text
  * @returns {string}
  */
 function stripThinking(text = '') {
   if (typeof text !== 'string') return '';
-  if (text.includes('</think>')) {
-    const parts = text.split('</think>');
-    const candidate = parts[parts.length - 1].trim();
-    if (candidate.length > 0) return candidate;
+  let cleaned = text;
+  if (cleaned.includes('</think>')) {
+    const parts = cleaned.split('</think>');
+    cleaned = parts[parts.length - 1].trim();
   }
-  return text.trim();
+  if (cleaned.includes('</user_query>')) {
+    const parts = cleaned.split('</user_query>');
+    const candidate = parts[parts.length - 1].trim();
+    if (candidate.length > 0) {
+      cleaned = candidate;
+    }
+  }
+  return cleaned.trim();
 }
 
 /**
