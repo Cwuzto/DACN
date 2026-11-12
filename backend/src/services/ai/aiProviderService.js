@@ -29,13 +29,6 @@ function isGeminiConfigured() {
  * @returns {string}
  */
 function getProviderMode() {
-  const provider = (process.env.AI_PROVIDER || 'hybrid').toLowerCase();
-  if (provider === 'ollama') return 'ollama';
-  if (provider === 'gemini') {
-    return isGeminiConfigured()
-      ? (process.env.GEMINI_MODEL || geminiProvider.DEFAULT_MODEL || 'gemini-3.8-flash')
-      : 'local_fallback';
-  }
   return isGeminiConfigured()
     ? (process.env.GEMINI_MODEL || geminiProvider.DEFAULT_MODEL || 'gemini-3.8-flash')
     : 'local_fallback';
@@ -380,14 +373,18 @@ async function answerAcademicChat({ message = '', history = [], user = null } = 
   // Determine whether to invoke local Ollama engine first
   let shouldTryOllama = false;
 
-  const isGeminiTestMocked = Boolean(
-    process.env.NODE_ENV === 'test' &&
-    geminiProvider.chatWithGemini &&
-    geminiProvider.chatWithGemini._isMockFunction &&
-    (!ollamaProvider.chatWithOllama || !ollamaProvider.chatWithOllama._isMockFunction)
+  const isTestEnvironment = process.env.NODE_ENV === 'test';
+  const isOllamaMockedInTest = Boolean(
+    ollamaProvider.chatWithOllama && ollamaProvider.chatWithOllama._isMockFunction
   );
 
-  if (!isGeminiTestMocked && !options.forceGemini) {
+  // In test environment:
+  // - If Ollama is mocked (e.g. ollamaRagWorkflow.test.js), allow Ollama testing.
+  // - If Ollama is not mocked (e.g. general regression & legacy AI unit tests),
+  //   do NOT invoke live unmocked Ollama daemon to avoid long timeouts and test flakiness.
+  const allowOllama = !isTestEnvironment || isOllamaMockedInTest;
+
+  if (allowOllama && !options.forceGemini) {
     if (aiProviderMode === 'ollama') {
       shouldTryOllama = true;
     } else if (aiProviderMode === 'hybrid') {

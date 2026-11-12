@@ -163,3 +163,4 @@ $\rightarrow$ **Cam kết Zero-Crash 100%**: Kể cả khi chưa khởi động 
 4. **Hồi quy hệ thống**:
    - Đảm bảo toàn bộ 104 test suites backend (1.029 tests) và 187 frontend tests tiếp tục PASS 100%.
    - Xác thực UTF-8 (no BOM) trên toàn bộ tệp mới.
+

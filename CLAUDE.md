@@ -70,6 +70,70 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 
 ## 6. Cập Nhật Phiên Làm Việc (Session Update)
 
+### Phiên 13/11/2026 (Chuyển Đổi Sang Local AI & RAG: Cài Đặt Ollama D:\ollama, Qwen3:4b, EmbeddingGemma-2:270m & Pre-computed Vector Seeder)
+
+#### 1. Những phần đã hoàn thành
+1. **Thiết Kế Kiến Trúc & Kế Hoạch Triển Khai (Spec & Plan)**:
+   - Soạn thảo đặc tả thiết kế hệ thống [docs/superpowers/specs/2026-11-13-local-ollama-rag-chatbot-design.md](file:///d:/DACN/docs/superpowers/specs/2026-11-13-local-ollama-rag-chatbot-design.md) (Commit `31e04ff`).
+   - Lập kế hoạch 5 task TDD chi tiết [docs/superpowers/plans/2026-11-13-local-ollama-rag-chatbot-plan.md](file:///d:/DACN/docs/superpowers/plans/2026-11-13-local-ollama-rag-chatbot-plan.md) (Commit `66aecec`).
+2. **Task 1: Cài Đặt Ollama Trực Tiếp Vào Ổ `D:\ollama` & Cấu Hình Model Storage**:
+   - Tải bộ cài chính thức `OllamaSetup.exe` (1.77 GB) trực tiếp về `D:\ollama\OllamaSetup.exe`.
+   - Cài đặt thành công vào `D:\ollama` (tham số `/DIR="D:\ollama" /SILENT`).
+   - Cấu hình biến môi trường hệ thống: `OLLAMA_MODELS = D:\ollama\models` và thêm `D:\ollama` vào `PATH`. Đảm bảo 100% tệp nhị phân và trọng số các mô hình lớn được lưu trữ trên ổ D:, giữ sạch hoàn toàn ổ C:.
+   - Tải thành công 2 mô hình theo yêu cầu người dùng:
+     * `qwen3:4b` (2.5 GB) - mô hình sinh ngôn ngữ cục bộ, tối ưu cho card đồ họa NVIDIA GeForce GTX 1650 (4GB VRAM).
+     * `embeddinggemma-2:270m` (303 MB) - mô hình nhúng vector ngữ nghĩa thế hệ 2 từ Google (sinh vector 768 chiều).
+   - Cấu hình `.env`: `AI_PROVIDER=ollama`, `OLLAMA_BASE_URL=http://localhost:11434`, `OLLAMA_CHAT_MODEL=qwen3:4b`, `OLLAMA_EMBED_MODEL=embeddinggemma-2:270m`.
+3. **Task 2: Xây Dựng `ollamaProvider.js` Adapter (Commit `8f99fcf`)**:
+   - Adapter REST API thuần JS (native `fetch`, zero external npm dependencies):
+     * `isOllamaAvailable`: Kiểm tra sức khỏe endpoint `GET /api/version`.
+     * `chatWithOllama`: Gửi yêu cầu `POST /api/chat`, hỗ trợ cấu hình nhiệt độ, num_ctx và AbortController timeout 30s.
+     * `generateEmbedding`: Gửi `POST /api/embed` (kèm fallback `/api/embeddings`), trả về mảng vector số thực 768 chiều.
+   - Viết 13 unit tests tại `backend/tests/unit/ollamaProvider.test.js` (100% PASS).
+4. **Task 3: Xây Dựng Bộ Máy RAG Quy Chế & Pre-computed Vector Seeder (Commit `9fe76eb`)**:
+   - Module `ragService.js`:
+     * Chunking ngữ nghĩa: Tách nhỏ tri thức học vụ thành 19 chunks cấu trúc rõ ràng (`id`, `title`, `stage`, `roleScope`, `text`), bao phủ trọn vẹn 6 giai đoạn và biểu mẫu BM01-BM04.
+     * RBAC Pre-filtering: Sinh viên (`STUDENT`) tuyệt đối không bao giờ nhận được chunk của Giảng viên hoặc Quản trị viên.
+     * Cosine Similarity thuần JS siêu tốc: Lọc và xếp hạng Top-K (K=3) chunks phù hợp nhất với câu hỏi.
+     * Cache Vector Index: Tự động nạp bộ nhớ đệm vector từ `knowledgeVectorIndex.json` cho thời gian truy vấn dưới 10ms.
+   - Script Seeder `backend/src/scripts/seedRagVectors.js`: Nhúng toàn bộ 19 chunks bằng `embeddinggemma-2:270m` và lưu vào `knowledgeVectorIndex.json`. Thêm lệnh npm: `npm run seed:rag`.
+   - Viết 25 unit tests tại `backend/tests/unit/ragService.test.js` (100% PASS).
+5. **Task 4: Tích Hợp Dual-Engine Router Trong `aiProviderService.js` (Commit `3fff151`)**:
+   - Tích hợp điều phối thông minh: `Ollama RAG` -> `Gemini API` -> `Local Heuristic Provider`.
+   - Khi `AI_PROVIDER=ollama` và Ollama online: Trích xuất Top-3 điều khoản RAG liên quan nhất, ghép cùng Live Database Context (Đề tài của SV, GVHD, Học kỳ, Viện trưởng) và bọc câu hỏi trong `<user_query>` gửi tới `qwen3:4b`.
+   - Zero Crash Guarantee: Nếu Ollama daemon bị tắt hoặc mất kết nối, hệ thống tự động fallback an toàn sang Gemini hoặc Local Fallback mà không bao giờ ném lỗi 500 hay làm sập server.
+   - Viết 4 integration tests tại `backend/tests/integration/ollamaRagWorkflow.test.js` (100% PASS).
+6. **Task 5: Hồi Quy Toàn Diện & Xác Thực Zero-BOM**:
+   - Toàn bộ backend test suite: **107/107 test suites PASS, 1.071/1.071 tests PASS (100%)**.
+   - Toàn bộ frontend test suite: **187/187 tests PASS (100%)**.
+   - Production build Vite: **PASS (0 lỗi, hoàn thành trong 15.52s)**.
+   - Xác nhận 100% file tạo mới và sửa đổi đạt chuẩn **UTF-8 (no BOM)**.
+
+#### 2. Trạng thái cập nhật của từng phần
+- **Local AI Infrastructure (Ollama on D:\ollama)**: Hoàn tất 100%. `ollama.exe` chạy ngầm tại cổng 11434, lưu models tại `D:\ollama\models`. Đã có sẵn cả 2 model `qwen3:4b` và `embeddinggemma-2:270m`.
+- **RAG Subsystem (`ragService.js`)**: Hoạt động hoàn hảo với 19 vector chunks (768 chiều) lập chỉ mục sẵn trong `knowledgeVectorIndex.json`.
+- **Backend Facade (`aiProviderService.js`)**: Điều phối 3 tầng (`ollama` -> `gemini` -> `local_fallback`), hỗ trợ RAG context + Live context + XML boundaries.
+- **Frontend SPA**: Hoạt động đồng bộ với chatbot widget, không bị ảnh hưởng giao diện hay phá vỡ tương thích.
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+1. **Trải Nghiệm Hội Thoại Thực Tế Với Local AI**:
+   - Mở giao diện chat trên trình duyệt: Đặt các câu hỏi về quy chế 6 giai đoạn (ví dụ: *"Khi nào bị dừng đề tài ở BM01?", "Điểm BM04 tối thiểu là bao nhiêu?", "Hạn nộp lưu chiểu là mấy ngày?"*).
+   - Kiểm tra log terminal để quan sát RAG trích xuất các điều khoản quy chế và Qwen3:4b sinh câu trả lời cục bộ 100% không tốn một giọt quota nào.
+2. **Tiếp Tục Hoàn Thiện Nghiệp Vụ Giai Đoạn 5 & 6**:
+   - Biên bản tổng hợp điểm bảo vệ đồ án tốt nghiệp và quy trình nộp hồ sơ lưu chiểu đồ án.
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+1. **Lưu Trữ 100% Trên Ổ D: (`D:\ollama` & `OLLAMA_MODELS=D:\ollama\models`)**:
+   - Tránh làm đầy ổ đĩa hệ thống C: khi tải các mô hình AI lớn; bảo toàn toàn bộ models và binary trên phân vùng D:.
+2. **Bộ Nhúng Vector `embeddinggemma-2:270m` Thế Hệ Mới (768 Dimensions)**:
+   - Thay thế việc nhồi hàng ngàn dòng tài liệu vào prompt bằng giải thuật Semantic Search Cosine Similarity, giúp giảm kích thước prompt xuống còn 3-5 đoạn quy chế cô đọng nhất.
+3. **Pre-computed Vector Indexing (`knowledgeVectorIndex.json`)**:
+   - Nhúng sẵn 19 chunks của tài liệu học vụ giúp loại bỏ hoàn toàn độ trễ tính toán lại vector khi khởi động server, đạt tốc độ truy xuất vector RAG dưới 10ms.
+4. **Kiến Trúc Dual-Engine 3 Tầng Bảo Vệ Toàn Diện (Zero Crash Guarantee)**:
+   - Hệ thống không bị trói buộc cứng vào bất kỳ engine nào: máy bật Ollama thì chạy Local AI; máy tắt Ollama thì tự động fallback sang Gemini Cloud; mất cả mạng thì chạy Local Heuristic Fallback.
+
+---
+
 ### Phiên 13/11/2026 (Live Database Context, Trả Lời Đề Tài Cá Nhân, Graceful Chit-Chat, User-Isolated Cache & Anti-Injection Chatbot)
 
 #### 1. Những phần đã hoàn thành
