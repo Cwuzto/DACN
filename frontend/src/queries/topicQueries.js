@@ -21,8 +21,8 @@ export const useTopicDetail = (scope, id, enabled = true) => useQuery({
 
 export const useCloneableTopics = (scope, semesterId, enabled = true) => useQuery({
     queryKey: topicKeys.cloneable(scope, semesterId),
-    queryFn: async () => requireSuccess(await topicService.getCloneableTopics({ semesterId })).data,
-    enabled: Boolean(semesterId) && enabled,
+    queryFn: async () => requireSuccess(await topicService.getCloneableTopics(semesterId !== undefined ? { semesterId } : {})).data,
+    enabled: (semesterId !== undefined ? Boolean(semesterId) : true) && enabled,
 });
 
 export const useMentors = (scope, params = {}, enabled = true) => useQuery({

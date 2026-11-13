@@ -11,7 +11,10 @@ const requireSuccess = (response) => {
 };
 
 export const outlineKeys = {
-    myOutline: (scope, params = {}) => [...scope, 'outline', 'my-outline', params],
+    all: (scope) => [...scope, 'outline'],
+    myOutline: (scope, params = {}) => (params && Object.keys(params).length > 0
+        ? [...scope, 'outline', 'my-outline', params]
+        : [...scope, 'outline', 'my-outline']),
 };
 
 export const useMyOutline = (scope, params = {}, enabled = true) => useQuery({

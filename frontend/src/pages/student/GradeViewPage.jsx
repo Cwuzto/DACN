@@ -78,7 +78,7 @@ export default function GradeViewPage() {
     const [archiveModalOpen, setArchiveModalOpen] = useState(false);
     const [certModalOpen, setCertModalOpen] = useState(false);
     const certQuery = useClearanceCertificate(scope, selectedRegistration?.id, certModalOpen);
-    const certificateData = certQuery.data?.data || null;
+    const certificateData = certQuery.data?.data ?? certQuery.data ?? null;
     const certLoading = certQuery.isLoading;
 
     const handleOpenCertificate = () => {

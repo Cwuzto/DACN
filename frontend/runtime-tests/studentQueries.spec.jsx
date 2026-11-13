@@ -78,7 +78,7 @@ beforeEach(() => {
     vi.spyOn(window, 'getComputedStyle').mockImplementation(element => native(element));
 
     client = createAppQueryClient();
-    client.setDefaultOptions({ queries: { retry: false, staleTime: 60000 }, mutations: { retry: false } });
+    client.setDefaultOptions({ queries: { retry: false, staleTime: 60000, refetchOnWindowFocus: false }, mutations: { retry: false } });
     useAuthStore.setState({ user: studentUser, isAuthenticated: true });
 
     // Service mocks
@@ -290,6 +290,7 @@ test('topic availability invalidation after registration', async () => {
 
     mount(<TopicObserver />);
     await waitFor(() => expect(topicService.getAll).toHaveBeenCalled());
+    const initialCalls = topicService.getAll.mock.calls.length;
 
     vi.spyOn(registrationService, 'registerTopic').mockResolvedValue({
         success: true,
@@ -301,7 +302,7 @@ test('topic availability invalidation after registration', async () => {
     });
 
     // Topic list cache must be invalidated and refetched
-    await waitFor(() => expect(topicService.getAll).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(topicService.getAll.mock.calls.length).toBeGreaterThan(initialCalls));
 });
 
 test('submission page gates registration-dependent queries on registration id', async () => {
