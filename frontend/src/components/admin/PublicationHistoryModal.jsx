@@ -1,32 +1,27 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import {
     Modal,
-    Card,
     Tag,
     Table,
-    Space,
-    Typography,
-    Divider,
     Button,
     Empty,
-    Spin,
     Badge,
-    Tooltip,
 } from 'antd';
 import {
     HistoryOutlined,
-    SafetyCertificateOutlined,
     CheckCircleOutlined,
     CloseCircleOutlined,
     SwapOutlined,
-    FileTextOutlined,
     UserOutlined,
     CalendarOutlined,
     ReloadOutlined,
 } from '@ant-design/icons';
-import evaluationService from '../../services/evaluationService';
-
-const { Text, Title } = Typography;
+import useAuthStore from '../../stores/authStore';
+import { queryKeys } from '../../query/queryKeys';
+import { usePublicationHistory } from '../../queries/gradingQueries';
+import ContentSkeleton from '../common/ContentSkeleton';
+import QueryErrorState from '../common/QueryErrorState';
+import ContentRefreshIndicator from '../common/ContentRefreshIndicator';
 
 const TYPE_TAG_PROPS = {
     INITIAL: { color: 'cyan', text: 'CÔNG BỐ CHÍNH THỨC ĐỢT 1' },
@@ -40,37 +35,14 @@ export default function PublicationHistoryModal({
     semesterId,
     semesterName,
 }) {
-    const [loading, setLoading] = useState(false);
-    const [history, setHistory] = useState([]);
-    const [selectedPublication, setSelectedPublication] = useState(null);
-
-    const loadHistory = useCallback(async () => {
-        if (!semesterId) return;
-        try {
-            setLoading(true);
-            const res = await evaluationService.getResultPublicationHistory(semesterId);
-            if (res.success) {
-                const list = res.data || [];
-                setHistory(list);
-                if (list.length > 0) {
-                    setSelectedPublication(list[0]);
-                } else {
-                    setSelectedPublication(null);
-                }
-            }
-        } catch {
-            setHistory([]);
-            setSelectedPublication(null);
-        } finally {
-            setLoading(false);
-        }
-    }, [semesterId]);
-
-    useEffect(() => {
-        if (open) {
-            loadHistory();
-        }
-    }, [open, loadHistory]);
+    const user = useAuthStore((state) => state.user);
+    const canRead = user?.permissions?.some((permission) => ['VIEW_RESULT_PUBLICATIONS', 'RESULT_PUBLICATION_PUBLISH'].includes(permission));
+    const historyQuery = usePublicationHistory(queryKeys.scope(user), semesterId, { enabled: open && canRead });
+    const history = historyQuery.data?.data || [];
+    const [selectedPublicationId, setSelectedPublicationId] = useState(null);
+    // Derive selection from the current semester response, so old local objects
+    // never survive a refresh or semester change.
+    const selectedPublication = history.find((publication) => publication.id === selectedPublicationId) || history[0] || null;
 
     const itemColumns = [
         {
@@ -159,7 +131,7 @@ export default function PublicationHistoryModal({
             onCancel={onClose}
             footer={null}
             width={1000}
-            destroyOnClose
+            destroyOnHidden
             title={
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginRight: 24 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -188,16 +160,18 @@ export default function PublicationHistoryModal({
                     </div>
                     <Button
                         size="small"
-                        icon={<ReloadOutlined />}
-                        onClick={loadHistory}
-                        loading={loading}
+                        icon={<ReloadOutlined aria-hidden="true" />}
+                        onClick={() => historyQuery.refetch()}
+                        loading={historyQuery.isFetching}
                     >
                         Làm mới
                     </Button>
                 </div>
             }
         >
-            <Spin spinning={loading}>
+            <ContentRefreshIndicator refreshing={Boolean(historyQuery.data) && historyQuery.isFetching} />
+            {historyQuery.isError && <QueryErrorState error={historyQuery.error} onRetry={() => historyQuery.refetch()} retrying={historyQuery.isFetching} />}
+            {historyQuery.isPending ? <ContentSkeleton variant="table" /> : historyQuery.data ? <>
                 {history.length === 0 ? (
                     <Empty
                         style={{ padding: '40px 0' }}
@@ -224,7 +198,7 @@ export default function PublicationHistoryModal({
                                 return (
                                     <div
                                         key={pub.id}
-                                        onClick={() => setSelectedPublication(pub)}
+                                        onClick={() => setSelectedPublicationId(pub.id)}
                                         style={{
                                             border: isSelected ? '2px solid var(--primary)' : '1px solid var(--border)',
                                             background: isSelected ? 'var(--primary-light)' : '#FFFFFF',
@@ -323,7 +297,7 @@ export default function PublicationHistoryModal({
                         )}
                     </div>
                 )}
-            </Spin>
+            </> : null}
         </Modal>
     );
 }

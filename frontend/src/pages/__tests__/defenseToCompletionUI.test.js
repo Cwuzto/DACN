@@ -89,6 +89,10 @@ test('Task 7: GradingDefensePage eliminates mock scores (9.0, 8.5), mock examine
     assert.ok(!pageSrc.includes("Number(r.mentorScore).toFixed(1) : '9.0'"), 'Mock 9.0 score must be removed');
     assert.ok(!pageSrc.includes("Number(r.reviewerScore).toFixed(1) : '8.5'"), 'Mock 8.5 score must be removed');
     assert.ok(!pageSrc.includes('CorrectDefenseResultModal'), 'CorrectDefenseResultModal must be completely removed');
+    assert.ok(!pageSrc.includes('handleExportExcel'), 'Unsupported Excel control must be removed');
+    const publicationSrc = read('frontend/src/components/admin/DefenseResultPublicationModal.jsx');
+    assert.doesNotMatch(publicationSrc, /CORRECTION|correctionItems/, 'Publication form must not offer immutable-result corrections');
+    assert.doesNotMatch(publicationSrc, /['"]RESULT_PUBLISH['"]/, 'Publication form must not depend on the legacy permission');
     assert.match(pageSrc, /returnScoreBook/);
     assert.match(pageSrc, /roundedFinalScore|rawAverageScore/);
 });

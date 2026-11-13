@@ -60,20 +60,21 @@ test('GradingDefensePage: Handles tab=approvals by switching to activeTab("all")
     assert.match(src, /searchParams\.get\(['"]tab['"]\)/, 'Must inspect searchParams.get("tab")');
     assert.match(src, /tab === ['"]approvals['"][\s\S]*?setActiveTab\(['"]all['"]\)/, 'When tab=approvals, must setActiveTab to "all"');
 
-    // Filter logic in filteredData
-    assert.match(src, /currentTabParam === ['"]approvals['"]/, 'filteredData must check for approvals tab param');
-    assert.match(src, /r\.status !== ['"]AWAITING_FINAL_APPROVAL['"]/, 'filteredData must filter records to only AWAITING_FINAL_APPROVAL');
+    // Filtering is exercised by resultApprovals.spec.jsx against the real route.
+    assert.match(src, /useResultApprovals/, 'Must use the shared approval projection');
 
     // Tab button for approvals
     assert.match(src, /Chờ phê duyệt/, 'Must have a "Chờ phê duyệt" tab pill in UI');
     assert.match(src, /handleTabChange\(['"]approvals['"]\)/, 'Clicking approvals pill must invoke handleTabChange("approvals")');
 });
 
-test('GradingDefensePage: Handles tab=publish by opening publication modal when canPublishResult is true', () => {
+test('GradingDefensePage: Handles tab=publish for publication readers and canonical publishers', () => {
     const src = read('frontend/src/pages/admin/GradingDefensePage.jsx');
 
     assert.match(src, /tab === ['"]publish['"]/, 'Must check for tab=publish in URL');
-    assert.match(src, /canPublishResult[\s\S]*?setIsPublicationModalOpen\(true\)|canPublishResult[\s\S]*?handleOpenPublicationModal\(\)/, 'Must open publication modal when canPublishResult is true');
+    assert.match(src, /canViewPublications[\s\S]*?setIsPublicationModalOpen\(true\)/, 'Publication viewers must be able to open the preview');
+    assert.match(src, /RESULT_PUBLICATION_PUBLISH/, 'Publish controls must use the canonical permission');
+    assert.doesNotMatch(src, /['"]RESULT_PUBLISH['"]/, 'Legacy publisher permission must not enable controls');
 
     // Open & close modal helpers
     assert.match(src, /handleOpenPublicationModal/, 'Must define handleOpenPublicationModal');

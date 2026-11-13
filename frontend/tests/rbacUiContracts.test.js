@@ -109,7 +109,10 @@ test('defense and archive UI separates view, submit, lock, publish, and review c
     assert.match(appSource, /requiredAnyPermissions=\{\[[^\]]*'OUTLINE_COUNCIL_MANAGE'[^\]]*'DEFENSE_COUNCIL_MANAGE'[^\]]*\]\}/);
     assert.match(gradingSource, /canSubmitScore && <button/);
     assert.match(gradingSource, /canLockResult && \(r\.scoreLocked/);
-    assert.match(gradingSource, /canPublishResult && <button/);
+    assert.match(gradingSource, /canViewPublications && <button/);
+    assert.match(gradingSource, /canPublishResult = permissionSet\.has\('RESULT_PUBLICATION_PUBLISH'\)/);
+    // Actual viewer/publisher rendering and mutation behavior are covered by
+    // runtime-tests/resultPublications.spec.jsx.
     assert.match(oversightSource, /(?:!isApproved && canReviewArchive|canReviewArchive && !isApproved)/);
 });
 

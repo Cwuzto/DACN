@@ -8,28 +8,27 @@ import {
     Input,
     message,
     Modal,
-    Popconfirm,
     Table,
     Tag,
     Tooltip,
 } from 'antd';
 import {
     CheckOutlined,
-    DownloadOutlined,
     HistoryOutlined,
     LockOutlined,
     PrinterOutlined,
     ReloadOutlined,
     RollbackOutlined,
     SettingOutlined,
-    UnlockOutlined,
     WarningOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import councilService from '../../services/councilService';
 import evaluationService from '../../services/evaluationService';
-import { semesterService } from '../../services/semesterService';
-import userService from '../../services/userService';
+import { queryKeys } from '../../query/queryKeys';
+import { useApproveDefenseResult, useDefenseResults, useGradingSemesters, useResultApprovals } from '../../queries/gradingQueries';
+import ContentSkeleton from '../../components/common/ContentSkeleton';
+import QueryErrorState from '../../components/common/QueryErrorState';
+import ContentRefreshIndicator from '../../components/common/ContentRefreshIndicator';
 import { PROJECT_NAME } from '../../utils/semesterDisplay';
 import useAuthStore from '../../stores/authStore';
 import DefenseResultPublicationModal from '../../components/admin/DefenseResultPublicationModal';
@@ -66,11 +65,11 @@ export default function GradingDefensePage() {
     const canSubmitScore = permissionSet.has('DEFENSE_SCORE_SUBMIT');
     const canLockResult = permissionSet.has('RESULT_LOCK');
     const canApproveResult = permissionSet.has('DEFENSE_RESULT_APPROVE');
-    const canPublishResult = permissionSet.has('RESULT_PUBLISH');
+    const canPublishResult = permissionSet.has('RESULT_PUBLICATION_PUBLISH');
+    const canViewPublications = canPublishResult || permissionSet.has('VIEW_RESULT_PUBLICATIONS');
+    const canReadLedger = ['DEFENSE_SCORE_VIEW', 'VIEW_DEFENSE_LOCK_LEDGER', 'VIEW_RESULT_LOCKS', 'VIEW_DEFENSE_RESULT_APPROVALS', 'VIEW_DEFENSE_RESULTS_APPROVAL', 'DEFENSE_RESULT_APPROVE'].some((permission) => permissionSet.has(permission));
+    const canRemindGrading = permissionSet.has('DEFENSE_SCORE_VIEW');
     const [activeTab, setActiveTab] = useState('all'); // 'all', 'COMPLETED', 'AWAITING_GRADING', 'discrepancy'
-    const [data, setData] = useState([]);
-    const [meta, setMeta] = useState({ counts: {}, targetSemester: null, total: 0 });
-    const [loading, setLoading] = useState(true);
 
     const [searchText, setSearchText] = useState('');
     const [debouncedSearchText, setDebouncedSearchText] = useState('');
@@ -81,7 +80,6 @@ export default function GradingDefensePage() {
     const [selectedRowKeys, setSelectedRowKeys] = useState([]);
     const [lockingId, setLockingId] = useState(null);
     const [approvingId, setApprovingId] = useState(null);
-    const [exportingId, setExportingId] = useState(null);
     const [publishModalOpen, setPublishModalOpen] = useState(false);
     const isPublicationModalOpen = publishModalOpen;
     const setIsPublicationModalOpen = setPublishModalOpen;
@@ -96,10 +94,6 @@ export default function GradingDefensePage() {
     const [returnLogs, setReturnLogs] = useState([]);
     const [returnHistoryModalVisible, setReturnHistoryModalVisible] = useState(false);
     const [loadingReturnLogs, setLoadingReturnLogs] = useState(false);
-
-    const [semesters, setSemesters] = useState([]);
-    const [councils, setCouncils] = useState([]);
-
     // Rubric Drawer state
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [drawerLoading, setDrawerLoading] = useState(false);
@@ -113,6 +107,28 @@ export default function GradingDefensePage() {
     const [activeJuryIndex, setActiveJuryIndex] = useState(0);
     const [memberScoresList, setMemberScoresList] = useState([]);
     const [adminEditRubric, setAdminEditRubric] = useState(false);
+
+    const scope = queryKeys.scope(user);
+    const semesterQuery = useGradingSemesters(scope);
+    const semesters = semesterQuery.data?.data || [];
+    const filters = useMemo(() => ({
+        ...(activeTab === 'COMPLETED' || activeTab === 'AWAITING_GRADING' ? { tab: activeTab } : {}),
+        ...(selectedSemesterId ? { semesterId: selectedSemesterId } : {}),
+        ...(selectedCouncilId ? { councilId: selectedCouncilId } : {}),
+        ...(debouncedSearchText.trim() ? { search: debouncedSearchText.trim() } : {}),
+    }), [activeTab, selectedSemesterId, selectedCouncilId, debouncedSearchText]);
+    const ledgerEnabled = canReadLedger && Boolean(semesterQuery.data) && (Boolean(selectedSemesterId) || semesters.length === 0);
+    const resultsQuery = useDefenseResults(scope, filters, { enabled: ledgerEnabled });
+    const approvalsQuery = useResultApprovals(scope, filters, { enabled: ledgerEnabled && searchParams.get('tab') === 'approvals' });
+    const approveMutation = useApproveDefenseResult(scope, selectedSemesterId);
+    const data = resultsQuery.data?.data || [];
+    const meta = resultsQuery.data?.meta || { counts: {}, targetSemester: null, total: 0 };
+    const loading = canReadLedger && !semesterQuery.isError && !resultsQuery.data && (semesterQuery.isPending || resultsQuery.isPending);
+    const fetchData = resultsQuery.refetch;
+    // The ledger already supplies council identities; result viewers must never
+    // request the council-management endpoint just to populate an optional filter.
+    const councils = useMemo(() => Array.from(new Map(data.filter((row) => row.council?.id)
+        .map((row) => [row.council.id, row.council])).values()), [data]);
 
     const handleOpenPublicationModal = useCallback(() => {
         if (!selectedSemesterId) {
@@ -158,17 +174,11 @@ export default function GradingDefensePage() {
         }
     }, [setSearchParams]);
 
-    // Initial load
+    // Semester lookup is shared and retryable rather than a mount-only effect.
     useEffect(() => {
-        semesterService.getAll()
-            .then((res) => {
-                if (res.success && Array.isArray(res.data) && res.data.length > 0) {
-                    setSemesters(res.data);
-                    setSelectedSemesterId((prev) => prev || res.data[0].id);
-                }
-            })
-            .catch(() => setSemesters([]));
-    }, []);
+        const targetId = semesterQuery.data?.data?.[0]?.id || resultsQuery.data?.meta?.targetSemester?.id;
+        if (targetId) setSelectedSemesterId((previous) => previous || targetId);
+    }, [semesterQuery.data, resultsQuery.data]);
 
     // Synchronize tab and publication modal with URL search parameters
     useEffect(() => {
@@ -176,7 +186,7 @@ export default function GradingDefensePage() {
         if (tab === 'approvals') {
             setActiveTab('all');
         } else if (tab === 'publish') {
-            if (canPublishResult) {
+            if (canViewPublications) {
                 setIsPublicationModalOpen(true);
             }
         } else if (tab === 'COMPLETED' || tab === 'AWAITING_GRADING' || tab === 'discrepancy') {
@@ -184,7 +194,7 @@ export default function GradingDefensePage() {
         } else if (!tab) {
             setActiveTab((prev) => (prev === 'all' ? prev : 'all'));
         }
-    }, [searchParams, canPublishResult]);
+    }, [searchParams, canViewPublications]);
 
     useEffect(() => {
         const timer = setTimeout(() => setDebouncedSearchText(searchText), 350);
@@ -192,49 +202,8 @@ export default function GradingDefensePage() {
     }, [searchText]);
 
     useEffect(() => {
-        const params = {};
-        if (selectedSemesterId) params.semesterId = selectedSemesterId;
-
-        councilService.getCouncils(params)
-            .then((res) => {
-                if (res.success) setCouncils(res.data || []);
-            })
-            .catch(() => setCouncils([]));
-    }, [selectedSemesterId]);
-
-    const fetchData = useCallback(
-        async () => {
-            try {
-                setLoading(true);
-                const params = {};
-                if (activeTab === 'COMPLETED' || activeTab === 'AWAITING_GRADING') {
-                    params.tab = activeTab;
-                }
-                if (selectedSemesterId) params.semesterId = selectedSemesterId;
-                if (selectedCouncilId) params.councilId = selectedCouncilId;
-                if (debouncedSearchText?.trim()) params.search = debouncedSearchText.trim();
-
-                const res = await evaluationService.getAdminDefenseCenter(params);
-                if (res.success) {
-                    setData(res.data || []);
-                    setMeta(res.meta || { counts: {}, targetSemester: null, total: 0 });
-                    if (!selectedSemesterId && res.meta?.targetSemester?.id) {
-                        setSelectedSemesterId(res.meta.targetSemester.id);
-                    }
-                }
-            } catch (err) {
-                message.error(err?.message || 'Không thể tải dữ liệu sổ điểm');
-            } finally {
-                setLoading(false);
-            }
-        },
-        [activeTab, debouncedSearchText, selectedCouncilId, selectedSemesterId]
-    );
-
-    useEffect(() => {
-        fetchData();
         setSelectedRowKeys([]);
-    }, [fetchData]);
+    }, [filters]);
 
     const fetchReturnLogs = useCallback(async (councilId) => {
         if (!councilId) {
@@ -257,12 +226,12 @@ export default function GradingDefensePage() {
     }, []);
 
     useEffect(() => {
-        if (selectedCouncilId) {
+        if (selectedCouncilId && canLockResult) {
             fetchReturnLogs(selectedCouncilId);
         } else {
             setReturnLogs([]);
         }
-    }, [selectedCouncilId, fetchReturnLogs]);
+    }, [selectedCouncilId, canLockResult, fetchReturnLogs]);
 
     const returnHistoryColumns = [
         {
@@ -373,7 +342,7 @@ export default function GradingDefensePage() {
             }
         });
 
-        const avgScore = validScores > 0 ? (sumScore / validScores).toFixed(2) : '8.42';
+        const avgScore = validScores > 0 ? (sumScore / validScores).toFixed(2) : '—';
         return {
             total,
             gradedCount,
@@ -386,12 +355,8 @@ export default function GradingDefensePage() {
 
     // Filtered Rows
     const filteredData = useMemo(() => {
-        const currentTabParam = searchParams.get('tab');
-        return data.filter((r) => {
-            // Tab filter for approvals deep-link
-            if (currentTabParam === 'approvals') {
-                if (r.status !== 'AWAITING_FINAL_APPROVAL') return false;
-            }
+        const rows = searchParams.get('tab') === 'approvals' ? (approvalsQuery.data?.data || []) : data;
+        return rows.filter((r) => {
 
             // Tab filter for discrepancy
             if (activeTab === 'discrepancy') {
@@ -412,7 +377,7 @@ export default function GradingDefensePage() {
 
             return true;
         });
-    }, [data, activeTab, selectedGradeFilter, searchParams]);
+    }, [data, approvalsQuery.data, activeTab, selectedGradeFilter, searchParams]);
 
     // Batch Remind
     const handleRemindGrading = async () => {
@@ -448,6 +413,7 @@ export default function GradingDefensePage() {
     };
 
     const handleApproveResult = (registrationId, outcome) => {
+        if (!canApproveResult) return;
         Modal.confirm({
             title: outcome === 'PASSED' ? 'Phê duyệt kết quả đạt' : 'Phê duyệt kết quả không đạt',
             content: 'Quyết định này tạo bản ghi audit bất biến cho hồ sơ. Kết quả chỉ hiển thị cho sinh viên sau khi được công bố theo học kỳ.',
@@ -456,9 +422,8 @@ export default function GradingDefensePage() {
             onOk: async () => {
                 try {
                     setApprovingId(registrationId);
-                    const result = await evaluationService.approveDefenseResult(registrationId, { outcome });
+                    const result = await approveMutation.mutateAsync({ registrationId, outcome });
                     message.success(result.message || 'Đã phê duyệt kết quả.');
-                    fetchData();
                 } catch (err) {
                     message.error(err?.message || 'Không thể phê duyệt kết quả.');
                 } finally {
@@ -705,15 +670,10 @@ export default function GradingDefensePage() {
                     </p>
                 </div>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                    <button className="btn btn-secondary" onClick={handleExportExcel}>
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                            <polyline points="7 10 12 15 17 10" />
-                            <line x1="12" y1="15" x2="12" y2="3" />
-                        </svg>
-                        <span>Xuất Bảng Điểm Excel</span>
-                    </button>
-                    {canPublishResult && <button
+                    {canReadLedger && <Button icon={<ReloadOutlined aria-hidden="true" />} onClick={() => fetchData()} disabled={!ledgerEnabled || resultsQuery.isFetching}>
+                        Làm mới sổ điểm
+                    </Button>}
+                    {canViewPublications && <button
                         className="btn btn-primary"
                         onClick={handlePublishResults}
                     >
@@ -721,14 +681,16 @@ export default function GradingDefensePage() {
                             <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
                             <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                         </svg>
-                        <span>Công bố kết quả học kỳ</span>
+                        <span>{canPublishResult ? 'Công bố kết quả học kỳ' : 'Xem trước công bố kết quả'}</span>
                     </button>}
-                    {canPublishResult && <button className="btn btn-secondary" onClick={handleOpenPublicationHistory}>
+                    {canViewPublications && <button className="btn btn-secondary" onClick={handleOpenPublicationHistory}>
                         <span>Lịch sử công bố</span>
                     </button>}
                 </div>
             </div>
 
+            {semesterQuery.isError && <QueryErrorState error={semesterQuery.error} onRetry={() => semesterQuery.refetch()} retrying={semesterQuery.isFetching} />}
+            {canReadLedger && <>
             {/* KPI Summary Cards */}
             <div className="kpi-grid-4" data-od-id="grading-kpi-grid">
                 <div className="kpi-stat-card">
@@ -889,6 +851,11 @@ export default function GradingDefensePage() {
             )}
 
             {/* GRADING DATA TABLE */}
+            <ContentRefreshIndicator refreshing={Boolean(resultsQuery.data) && resultsQuery.isFetching} />
+            {resultsQuery.isError && resultsQuery.data && <QueryErrorState error={resultsQuery.error} onRetry={() => fetchData()} retrying={resultsQuery.isFetching} />}
+            {loading ? <ContentSkeleton variant="table" /> : resultsQuery.isError && !resultsQuery.data ? (
+                <QueryErrorState error={resultsQuery.error} onRetry={() => fetchData()} retrying={resultsQuery.isFetching} />
+            ) : (resultsQuery.data || !semesterQuery.isError) && (
             <section className="table-container" data-od-id="grading-table-container">
                 <table className="data-table" id="grading-table">
                     <thead>
@@ -1164,9 +1131,10 @@ export default function GradingDefensePage() {
                     </tbody>
                 </table>
             </section>
+            )}
 
             {/* FLOATING BATCH ACTION BAR */}
-            {selectedRowKeys.length > 0 && (
+            {canRemindGrading && selectedRowKeys.length > 0 && (
                 <div className="floating-batch-bar" style={{ display: 'flex' }}>
                     <span className="batch-count-text">
                         Đã chọn: <span className="num">{selectedRowKeys.length}</span> đề tài
@@ -1184,10 +1152,12 @@ export default function GradingDefensePage() {
                     </button>
                 </div>
             )}
+            </>}
 
             {/* CONTEXT-PRESERVING RUBRIC GRADING DRAWER */}
             {drawerOpen && <div className="drawer-overlay" onClick={closeRubricDrawer} />}
             <aside
+                aria-hidden={!drawerOpen}
                 className={`side-drawer ${drawerOpen ? 'open' : ''}`}
                 id="rubric-drawer"
                 style={{ width: 740, right: drawerOpen ? 0 : -780, transition: 'right 0.25s ease' }}
@@ -1468,18 +1438,15 @@ export default function GradingDefensePage() {
             </aside>
             {/* Modal Công Bố Kết Quả Bảo Vệ Snapshot */}
             <DefenseResultPublicationModal
-                open={publishModalOpen}
+                open={publishModalOpen && Boolean(selectedSemesterId)}
                 onClose={handleClosePublicationModal}
                 semesterId={selectedSemesterId}
                 semesterName={semesters.find((s) => s.id === selectedSemesterId)?.name}
-                onSuccess={() => {
-                    fetchData();
-                }}
             />
 
             {/* Modal Lịch Sử Công Bố & Lưu Chiểu Snapshot */}
             <PublicationHistoryModal
-                open={historyModalOpen}
+                open={historyModalOpen && Boolean(selectedSemesterId)}
                 onClose={() => setHistoryModalOpen(false)}
                 semesterId={selectedSemesterId}
                 semesterName={semesters.find((s) => s.id === selectedSemesterId)?.name}
@@ -1497,7 +1464,7 @@ export default function GradingDefensePage() {
                 confirmLoading={returnLoading}
                 okText="Xác nhận trả sổ điểm"
                 okButtonProps={{ danger: true }}
-                destroyOnClose
+                destroyOnHidden
             >
                 <div className="space-y-4 py-2">
                     <p className="text-xs text-slate-600">
@@ -1567,7 +1534,7 @@ export default function GradingDefensePage() {
                     </Button>,
                 ]}
                 width={950}
-                destroyOnClose
+                destroyOnHidden
             >
                 {returnLogs.length === 0 && !loadingReturnLogs ? (
                     <Empty description="Chưa có lượt hoàn trả sổ điểm nào" className="my-8" />

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
     Modal,
     Segmented,
@@ -10,26 +10,23 @@ import {
     Alert,
     Button,
     Space,
-    Typography,
     Divider,
     message,
-    Tooltip,
-    Badge,
 } from 'antd';
 import {
     SendOutlined,
     PlusCircleOutlined,
-    EditOutlined,
     SafetyCertificateOutlined,
-    InfoCircleOutlined,
     CheckCircleOutlined,
     CloseCircleOutlined,
-    FileTextOutlined,
     ExclamationCircleOutlined,
 } from '@ant-design/icons';
-import evaluationService from '../../services/evaluationService';
-
-const { Text, Paragraph } = Typography;
+import useAuthStore from '../../stores/authStore';
+import { queryKeys } from '../../query/queryKeys';
+import { usePublicationHistory, usePublicationPreview, usePublishDefenseResults } from '../../queries/gradingQueries';
+import ContentSkeleton from '../common/ContentSkeleton';
+import QueryErrorState from '../common/QueryErrorState';
+import ContentRefreshIndicator from '../common/ContentRefreshIndicator';
 
 const TYPE_CONFIG = {
     INITIAL: {
@@ -44,12 +41,6 @@ const TYPE_CONFIG = {
         desc: 'Ban hành cho các sinh viên bảo vệ đợt bổ sung hoặc duyệt trễ.',
         badgeColor: '#0284C7',
     },
-    CORRECTION: {
-        label: 'Công bố Đính chính',
-        icon: <EditOutlined />,
-        desc: 'Đính chính kết quả đã ban hành do phúc khảo hoặc quyết định điều chỉnh.',
-        badgeColor: '#D97706',
-    },
 };
 
 export default function DefenseResultPublicationModal({
@@ -61,50 +52,29 @@ export default function DefenseResultPublicationModal({
 }) {
     const [form] = Form.useForm();
     const [type, setType] = useState('INITIAL');
-    const [previewLoading, setPreviewLoading] = useState(false);
-    const [previewData, setPreviewData] = useState(null);
-    const [history, setHistory] = useState([]);
-    const [submitting, setSubmitting] = useState(false);
+    const user = useAuthStore((state) => state.user);
+    const canPublish = Boolean(user?.permissions?.includes('RESULT_PUBLICATION_PUBLISH'));
+    const canRead = canPublish || Boolean(user?.permissions?.includes('VIEW_RESULT_PUBLICATIONS'));
+    const scope = queryKeys.scope(user);
+    const previewQuery = usePublicationPreview(scope, semesterId, { enabled: open && canRead });
+    const historyQuery = usePublicationHistory(scope, semesterId, { enabled: open && canRead });
+    const publishMutation = usePublishDefenseResults(scope, semesterId);
+    const previewData = previewQuery.data?.data;
+    const history = historyQuery.data?.data || [];
+    const submitting = publishMutation.isPending;
     const publicationRequestKey = useRef(null);
-
-    // Dành cho CORRECTION: Chọn đợt công bố tiền nhiệm và danh sách đính chính
-    const [selectedPreviousPubId, setSelectedPreviousPubId] = useState(null);
-    const [correctionSelections, setCorrectionSelections] = useState({}); // { [registrationId]: replacesPublicationItemId }
-
-    const loadData = useCallback(async () => {
-        if (!semesterId) return;
-        try {
-            setPreviewLoading(true);
-            const [previewRes, historyRes] = await Promise.all([
-                evaluationService.previewResultPublication(semesterId),
-                evaluationService.getResultPublicationHistory(semesterId),
-            ]);
-
-            if (previewRes.success) {
-                setPreviewData(previewRes.data);
-            }
-            if (historyRes.success) {
-                setHistory(historyRes.data || []);
-            }
-        } catch (err) {
-            message.error(err?.message || 'Không thể tải dữ liệu chuẩn bị công bố');
-        } finally {
-            setPreviewLoading(false);
-        }
-    }, [semesterId]);
+    const submittedPayload = useRef(null);
 
     useEffect(() => {
         if (open) {
-            loadData();
             form.resetFields();
             setType('INITIAL');
-            setSelectedPreviousPubId(null);
-            setCorrectionSelections({});
             publicationRequestKey.current = null;
+            submittedPayload.current = null;
         }
-    }, [open, loadData, form]);
+    }, [open, semesterId, form]);
 
-    // Các ấn phẩm trước có thể dùng làm tiền nhiệm cho CORRECTION
+    // Các đợt công bố trước có thể dùng làm tiền nhiệm cho đợt bổ sung
     const previousPublicationOptions = useMemo(() => {
         return history.map((pub) => {
             const typeLabel = TYPE_CONFIG[pub.type]?.label || pub.type;
@@ -116,95 +86,43 @@ export default function DefenseResultPublicationModal({
         });
     }, [history]);
 
-    // Lấy items của đợt công bố tiền nhiệm đã chọn
-    const previousPublicationItems = useMemo(() => {
-        if (!selectedPreviousPubId) return [];
-        const pub = history.find((p) => p.id === selectedPreviousPubId);
-        return pub?.items || [];
-    }, [selectedPreviousPubId, history]);
-
-    // Danh sách hồ sơ đủ điều kiện để công bố
-    const eligibleList = useMemo(() => {
-        return type === 'CORRECTION'
-            ? previewData?.correctionEligible || []
-            : previewData?.eligible || [];
-    }, [previewData, type]);
-
-    // Thống kê nhanh danh sách sẽ công bố
-    const summaryStats = useMemo(() => {
-        let targetList = [];
-        if (type !== 'CORRECTION') {
-            targetList = eligibleList;
-        } else {
-            const selectedRegIds = Object.keys(correctionSelections).filter(
-                (k) => correctionSelections[k]
-            );
-            targetList = eligibleList.filter((a) =>
-                selectedRegIds.includes(String(a.registrationId))
-            );
-        }
-
-        const total = targetList.length;
-        const passed = targetList.filter((a) => a.outcome === 'PASSED').length;
-        const failed = targetList.filter((a) => a.outcome === 'FAILED').length;
-        return { total, passed, failed, targetList };
-    }, [type, eligibleList, correctionSelections]);
+    const eligibleList = previewData?.eligible || [];
+    const summaryStats = useMemo(() => ({
+        total: eligibleList.length,
+        passed: eligibleList.filter((row) => row.outcome === 'PASSED').length,
+        failed: eligibleList.filter((row) => row.outcome === 'FAILED').length,
+    }), [eligibleList]);
 
     const handleFormSubmit = async (values) => {
-        if (type !== 'CORRECTION' && summaryStats.total === 0) {
+        if (!canPublish || !previewQuery.data || previewQuery.isError || historyQuery.isError) return;
+        if (summaryStats.total === 0) {
             message.warning('Không có hồ sơ hợp lệ nào để công bố.');
             return;
         }
-
-        if (type !== 'INITIAL' && !values.previousPublicationId) {
+        if (type === 'SUPPLEMENTARY' && !values.previousPublicationId) {
             message.warning('Vui lòng chọn đợt công bố tiền nhiệm.');
             return;
         }
-
-        if (type === 'CORRECTION') {
-            const correctionItems = Object.entries(correctionSelections)
-                .filter(([, replacesItemId]) => replacesItemId)
-                .map(([regId, replacesItemId]) => ({
-                    registrationId: Number(regId),
-                    replacesPublicationItemId: Number(replacesItemId),
-                }));
-
-            if (!correctionItems.length) {
-                message.warning('Vui lòng chọn ít nhất một hồ sơ đối ứng cần đính chính.');
-                return;
-            }
-        }
-
-        try {
-            setSubmitting(true);
-            publicationRequestKey.current ||= globalThis.crypto?.randomUUID?.()
+        const payload = {
+            type,
+            reason: values.reason?.trim() || undefined,
+            previousPublicationId: type === 'SUPPLEMENTARY' ? values.previousPublicationId : undefined,
+        };
+        // Keep the same request key on a failed retry, and start a new command
+        // if the user edits the payload after that failure.
+        const signature = JSON.stringify(payload);
+        if (signature !== submittedPayload.current) {
+            submittedPayload.current = signature;
+            publicationRequestKey.current = globalThis.crypto?.randomUUID?.()
                 || `result-publication-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-            const payload = {
-                type,
-                reason: values.reason?.trim() || undefined,
-                previousPublicationId:
-                    type !== 'INITIAL' ? values.previousPublicationId : undefined,
-                correctionItems:
-                    type === 'CORRECTION'
-                        ? Object.entries(correctionSelections)
-                              .filter(([, replacesItemId]) => replacesItemId)
-                              .map(([regId, replacesItemId]) => ({
-                                  registrationId: Number(regId),
-                                  replacesPublicationItemId: Number(replacesItemId),
-                              }))
-                        : undefined,
-            };
-
-            const res = await evaluationService.publishDefenseResults(semesterId, payload, publicationRequestKey.current);
-            if (res.success) {
-                message.success(res.message || 'Đã ban hành snapshot công bố kết quả thành công!');
-                onSuccess?.();
-                onClose();
-            }
+        }
+        try {
+            const res = await publishMutation.mutateAsync({ payload, idempotencyKey: publicationRequestKey.current });
+            message.success(res.message || 'Đã ban hành snapshot công bố kết quả thành công!');
+            onSuccess?.();
+            onClose();
         } catch (err) {
             message.error(err?.message || 'Không thể công bố kết quả');
-        } finally {
-            setSubmitting(false);
         }
     };
 
@@ -276,47 +194,14 @@ export default function DefenseResultPublicationModal({
         },
     ];
 
-    // Cột bổ sung nếu là CORRECTION để map replacesPublicationItemId
-    if (type === 'CORRECTION') {
-        columns.push({
-            title: 'Bản ghi cũ cần thay thế',
-            key: 'replaceItem',
-            width: 220,
-            render: (_, record) => {
-                const regId = record.registrationId;
-                const matchItem = previousPublicationItems.find(
-                    (item) => item.registrationId === regId
-                );
-
-                return (
-                    <Select
-                        placeholder="Chọn bản ghi cũ..."
-                        style={{ width: '100%' }}
-                        allowClear
-                        value={correctionSelections[regId] || (matchItem ? matchItem.id : undefined)}
-                        onChange={(val) => {
-                            setCorrectionSelections((prev) => ({
-                                ...prev,
-                                [regId]: val,
-                            }));
-                        }}
-                        options={previousPublicationItems.map((item) => ({
-                            label: `${item.studentCodeSnapshot} - ${item.outcomeSnapshot} (${item.finalScoreSnapshot}đ)`,
-                            value: item.id,
-                        }))}
-                    />
-                );
-            },
-        });
-    }
-
     return (
         <Modal
             open={open}
             onCancel={onClose}
             footer={null}
             width={940}
-            destroyOnClose
+            destroyOnHidden
+            forceRender
             title={
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div
@@ -338,27 +223,32 @@ export default function DefenseResultPublicationModal({
                             Ban Hành Snapshot Công Bố Kết Quả Bảo Vệ
                         </div>
                         <div style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 400 }}>
-                            Học kỳ: <strong style={{ color: 'var(--fg)' }}>{semesterName || `ID #${semesterId}`}</strong> · Quyền hạn: <Tag color="geekblue">RESULT_PUBLISH</Tag>
+                            Học kỳ: <strong style={{ color: 'var(--fg)' }}>{semesterName || `ID #${semesterId}`}</strong>
                         </div>
                     </div>
                 </div>
             }
         >
             <div style={{ display: 'flex', flexDirection: 'column', gap: 18, marginTop: 12 }}>
+                <ContentRefreshIndicator refreshing={(Boolean(previewQuery.data) && previewQuery.isFetching) || (Boolean(historyQuery.data) && historyQuery.isFetching)} />
+                {previewQuery.isError && <QueryErrorState error={previewQuery.error} onRetry={() => previewQuery.refetch()} retrying={previewQuery.isFetching} />}
+                {historyQuery.isError && <QueryErrorState error={historyQuery.error} onRetry={() => historyQuery.refetch()} retrying={historyQuery.isFetching} />}
+                {!previewQuery.data && previewQuery.isPending && <ContentSkeleton variant="table" />}
                 {/* 1. Chọn loại hình công bố */}
+                {previewQuery.data && (
                 <div style={{ background: '#F8FAFC', padding: 14, borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
                     <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8, color: 'var(--fg)' }}>
                         Loại hình công bố kết quả:
                     </div>
                     <Segmented
                         block
+                        disabled={!canPublish || submitting}
                         value={type}
                         onChange={(val) => {
                             setType(val);
                             form.setFieldsValue({ reason: undefined, previousPublicationId: undefined });
-                            setSelectedPreviousPubId(null);
-                            setCorrectionSelections({});
                             publicationRequestKey.current = null;
+                            submittedPayload.current = null;
                         }}
                         options={Object.entries(TYPE_CONFIG).map(([key, cfg]) => ({
                             value: key,
@@ -376,49 +266,11 @@ export default function DefenseResultPublicationModal({
                         }))}
                     />
                 </div>
+                )}
 
                 {/* 2. Cấu hình Form phụ trợ (Lý do & Tiền nhiệm) */}
-                <Form form={form} layout="vertical" onFinish={handleFormSubmit}>
-                    {type === 'CORRECTION' && (
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                            <Form.Item
-                                name="previousPublicationId"
-                                label="Văn bản công bố tiền nhiệm cần đính chính"
-                                rules={[{ required: true, message: 'Vui lòng chọn đợt công bố cần đính chính' }]}
-                            >
-                                <Select
-                                    placeholder="Chọn đợt công bố..."
-                                    options={previousPublicationOptions}
-                                    onChange={(val) => {
-                                        setSelectedPreviousPubId(val);
-                                        // Tự động gợi ý map các sinh viên trùng registrationId
-                                        const pub = history.find((p) => p.id === val);
-                                        if (pub?.items) {
-                                            const autoMap = {};
-                                            eligibleList.forEach((el) => {
-                                                const found = pub.items.find(
-                                                    (it) => it.registrationId === el.registrationId
-                                                );
-                                                if (found) {
-                                                    autoMap[el.registrationId] = found.id;
-                                                }
-                                            });
-                                            setCorrectionSelections(autoMap);
-                                        }
-                                    }}
-                                />
-                            </Form.Item>
-
-                            <Form.Item
-                                name="reason"
-                                label="Căn cứ / Quyết định đính chính (Bắt buộc)"
-                                rules={[{ required: true, message: 'Vui lòng nhập lý do/căn cứ đính chính' }]}
-                            >
-                                <Input placeholder="Ví dụ: Theo Kết luận Hội đồng Phúc khảo số 12/KL-ĐH..." />
-                            </Form.Item>
-                        </div>
-                    )}
-
+                <Form form={form} layout="vertical" onFinish={handleFormSubmit} disabled={!canPublish || submitting}>
+                    {previewQuery.data && <>
                     {type === 'SUPPLEMENTARY' && (
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                             <Form.Item
@@ -504,11 +356,10 @@ export default function DefenseResultPublicationModal({
                             </span>
                         </div>
                         <Table
-                            rowKey="id"
+                            rowKey="registrationId"
                             size="small"
                             columns={columns}
                             dataSource={eligibleList}
-                            loading={previewLoading}
                             pagination={{ pageSize: 5 }}
                             locale={{ emptyText: 'Không có hồ sơ nào chờ công bố trong học kỳ này' }}
                         />
@@ -520,21 +371,21 @@ export default function DefenseResultPublicationModal({
                         type="info"
                         showIcon
                         icon={<ExclamationCircleOutlined />}
-                        message="Cam kết bảo toàn dữ liệu vĩnh viễn"
-                        description="Sau khi ban hành, bản ghi kết quả này sẽ được niêm phong vĩnh viễn (sao chép đầy đủ họ tên, điểm, đề tài, kết quả). Sinh viên sẽ tra cứu được kết quả chính thức ngay lập tức. Mọi điều chỉnh sau này bắt buộc phải tạo văn bản công bố đính chính."
+                        title="Cam kết bảo toàn dữ liệu vĩnh viễn"
+                        description="Sau khi ban hành, bản ghi kết quả này sẽ được niêm phong vĩnh viễn (sao chép đầy đủ họ tên, điểm, đề tài, kết quả). Sinh viên sẽ tra cứu được kết quả chính thức ngay lập tức. Kết quả đã công bố không được điều chỉnh hoặc đính chính."
                     />
 
                     {/* 6. Footer Buttons */}
                     <Divider style={{ margin: '16px 0 12px 0' }} />
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
                         <Button onClick={onClose} disabled={submitting}>
-                            Hủy bỏ
+                            Đóng
                         </Button>
-                        <Button
+                        {canPublish && <Button
                             type="primary"
                             htmlType="submit"
                             loading={submitting}
-                            disabled={summaryStats.total === 0}
+                            disabled={summaryStats.total === 0 || previewQuery.isError || historyQuery.isError || previewQuery.isFetching || historyQuery.isFetching}
                             style={{
                                 background: 'var(--primary)',
                                 borderColor: 'var(--primary)',
@@ -543,8 +394,9 @@ export default function DefenseResultPublicationModal({
                             icon={<SafetyCertificateOutlined />}
                         >
                             Ký & Ban Hành Công Bố
-                        </Button>
+                        </Button>}
                     </div>
+                </>}
                 </Form>
             </div>
         </Modal>

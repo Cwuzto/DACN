@@ -42,16 +42,15 @@ test('defense grading ledger connects publication and history modals, forbidding
     const correctModal = read('src/components/admin/CorrectDefenseResultModal.jsx');
     const service = read('src/services/evaluationService.js');
 
-    assert.match(page, /<DefenseResultPublicationModal[\s\S]*?open=\{publishModalOpen\}/);
-    assert.match(page, /<PublicationHistoryModal[\s\S]*?open=\{historyModalOpen\}/);
+    assert.match(page, /<DefenseResultPublicationModal[\s\S]*?open=\{publishModalOpen && Boolean\(selectedSemesterId\)\}/);
+    assert.match(page, /<PublicationHistoryModal[\s\S]*?open=\{historyModalOpen && Boolean\(selectedSemesterId\)\}/);
     assert.doesNotMatch(page, /<CorrectDefenseResultModal/);
 
     assert.match(pubModal, /INITIAL/);
     assert.match(pubModal, /SUPPLEMENTARY/);
-    assert.match(pubModal, /CORRECTION/);
-    assert.match(pubModal, /publishDefenseResults/);
-    assert.match(pubModal, /type !== 'INITIAL' \? values\.previousPublicationId : undefined/);
-    assert.match(pubModal, /publicationRequestKey\.current \|\|=/);
+    assert.doesNotMatch(pubModal, /CORRECTION|correctionItems/);
+    assert.match(pubModal, /usePublishDefenseResults/);
+    // Predecessor validation and retained idempotency keys are runtime contracts.
     assert.match(service, /publishDefenseResults:\s*async \(semesterId, data, idempotencyKey\)/);
 
     assert.match(correctModal, /correctDefenseResult/);

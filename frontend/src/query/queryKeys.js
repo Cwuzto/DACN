@@ -10,7 +10,15 @@ const createResourceKeys = (resource) => ({
 // list/detail; the complete object participates in TanStack Query's stable hash.
 export const queryKeys = {
     scope: (user) => ['scope', user?.id ?? null, user?.permissionVersion ?? null],
-    grading: createResourceKeys('grading'),
+    grading: {
+        ...createResourceKeys('grading'),
+        defenseResults: (scope, filters = {}) => [...scope, 'grading', 'defense-results', filters],
+        // Approvals are a select projection of the same server response. Sharing
+        // the key deduplicates reads and keeps both observers consistent.
+        resultApprovals: (scope, filters = {}) => [...scope, 'grading', 'defense-results', filters],
+        publicationHistory: (scope, semesterId) => [...scope, 'grading', 'publication-history', semesterId],
+        publicationPreview: (scope, semesterId) => [...scope, 'grading', 'publication-preview', semesterId],
+    },
     archives: createResourceKeys('archives'),
     registrations: createResourceKeys('registrations'),
     semesters: createResourceKeys('semesters'),
