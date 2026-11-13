@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
     Table,
     Button,
@@ -15,7 +15,6 @@ import {
     Tabs,
     Card,
     Alert,
-    Spin,
     Switch,
     Radio,
     Segmented,
@@ -42,7 +41,10 @@ import {
     InfoCircleOutlined,
     CheckCircleFilled,
 } from '@ant-design/icons';
-import permissionService from '../../services/permissionService';
+import { usePermissionMatrix, usePermissionGroups, usePermissionCatalog, usePermissionMutation } from '../../queries/permissionQueries';
+import { queryKeys } from '../../query/queryKeys';
+import QueryPanel from '../../components/common/QueryPanel';
+import EmptyState from '../../components/common/EmptyState';
 import useAuthStore from '../../stores/authStore';
 import {
     ACADEMIC_PROTECTED_PERMISSIONS,
@@ -68,9 +70,11 @@ function PermissionGroupPage() {
     const [activeTab, setActiveTab] = useState('MATRIX');
 
     // Matrix states
-    const [matrixData, setMatrixData] = useState({ roles: [], modules: [], role_permissions: {} });
+    const scope = queryKeys.scope(currentUser);
+    const matrixQuery = usePermissionMatrix(scope, activeTab === 'MATRIX');
+    const matrixData = matrixQuery.data || { roles: [], modules: [], role_permissions: {} };
+    const permissionMutation = usePermissionMutation(scope);
     const [localMatrix, setLocalMatrix] = useState({});
-    const [matrixLoading, setMatrixLoading] = useState(false);
     const [savingMatrix, setSavingMatrix] = useState(false);
     const [dirty, setDirty] = useState(false);
 
@@ -85,81 +89,39 @@ function PermissionGroupPage() {
     const [openModules, setOpenModules] = useState(new Set());
 
     // CRUD Groups states
-    const [groups, setGroups] = useState([]);
-    const [allPermissions, setAllPermissions] = useState([]);
-    const [loading, setLoading] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingGroup, setEditingGroup] = useState(null);
     const [submitting, setSubmitting] = useState(false);
     const [form] = Form.useForm();
 
-    const isMountedRef = useRef(true);
-    useEffect(() => {
-        isMountedRef.current = true;
-        return () => {
-            isMountedRef.current = false;
-        };
-    }, []);
-
-    // 1. Tải dữ liệu ma trận phân quyền
-    const fetchMatrix = useCallback(async () => {
-        setMatrixLoading(true);
-        try {
-            const res = await permissionService.getPermissionMatrix();
-            if (!isMountedRef.current) return;
-            if (res.success && res.data) {
-                const data = res.data;
-                setMatrixData(data);
-
-                // Khởi tạo localMatrix: { [roleId]: Set([permissionId, ...]) }
-                const local = {};
-                (data.roles || []).forEach((r) => {
-                    const permIds = data.role_permissions?.[String(r.id)] || [];
-                    local[r.id] = new Set(permIds);
-                });
-                setLocalMatrix(local);
-                setDirty(false);
-
-                // Mặc định mở tất cả các module
-                const allMods = new Set((data.modules || []).map((m) => m.module_name));
-                setOpenModules(allMods);
-            }
-        } catch (error) {
-            if (!isMountedRef.current) return;
-            message.error(error.message || 'Lỗi khi tải ma trận phân quyền');
-        } finally {
-            if (isMountedRef.current) setMatrixLoading(false);
-        }
-    }, []);
-
-    // 2. Tải dữ liệu nhóm quyền & danh mục quyền (Lazy load khi đổi tab)
-    const fetchGroupsData = useCallback(async () => {
-        setLoading(true);
-        try {
-            const [groupsRes, permsRes] = await Promise.all([
-                permissionService.listGroups(),
-                permissionService.listPermissions(),
-            ]);
-            if (!isMountedRef.current) return;
-            if (groupsRes.success) setGroups(groupsRes.data || []);
-            if (permsRes.success) setAllPermissions(permsRes.data || []);
-        } catch (error) {
-            if (!isMountedRef.current) return;
-            message.error(error.message || 'Lỗi khi tải danh sách nhóm quyền');
-        } finally {
-            if (isMountedRef.current) setLoading(false);
-        }
-    }, []);
+    const groupsQuery = usePermissionGroups(scope, activeTab === 'GROUPS' || activeTab === 'AUDIT');
+    const catalogQuery = usePermissionCatalog(scope, activeTab === 'CATALOG' || activeTab === 'AUDIT' || isModalOpen);
+    const groups = groupsQuery.data || [];
+    const allPermissions = catalogQuery.data || [];
+    const appliedMatrixRef = useRef(null);
+    const openedModulesRef = useRef(false);
 
     useEffect(() => {
-        if (activeTab === 'MATRIX') {
-            fetchMatrix();
-        } else if (activeTab === 'GROUPS' || activeTab === 'AUDIT' || activeTab === 'CATALOG') {
-            fetchGroupsData();
+        const data = matrixQuery.data;
+        if (!data || dirty || appliedMatrixRef.current === data) return;
+        const local = {};
+        (data.roles || []).forEach(role => {
+            local[role.id] = new Set(data.role_permissions?.[String(role.id)] || []);
+        });
+        setLocalMatrix(local);
+        appliedMatrixRef.current = data;
+        if (!openedModulesRef.current) {
+            setOpenModules(new Set((data.modules || []).map(module => module.module_name)));
+            openedModulesRef.current = true;
         }
-    }, [activeTab, fetchMatrix, fetchGroupsData]);
+    }, [matrixQuery.data, dirty]);
 
-    // Map mã quyền sang đối tượng permission và ID
+    const fetchMatrix = () => matrixQuery.refetch();
+    const fetchGroupsData = () => {
+        if (activeTab === 'GROUPS' || activeTab === 'AUDIT') groupsQuery.refetch();
+        if (activeTab === 'CATALOG' || activeTab === 'AUDIT') catalogQuery.refetch();
+    };
+
     const permCodeToIdMap = useMemo(() => {
         const map = new Map();
         (matrixData.modules || []).forEach((m) => {
@@ -332,6 +294,7 @@ function PermissionGroupPage() {
 
     // Lưu hàng loạt ma trận phân quyền
     const handleSaveMatrix = async () => {
+        if (!matrixQuery.data) return;
         try {
             setSavingMatrix(true);
             const payload = (matrixData.roles || []).map((role) => ({
@@ -339,12 +302,10 @@ function PermissionGroupPage() {
                 permission_ids: Array.from(localMatrix[role.id] || []),
             }));
 
-            const res = await permissionService.bulkUpdatePermissionMatrix(payload);
+            const res = await permissionMutation.mutateAsync({ action: 'matrix', data: payload });
             if (res.success) {
                 message.success(res.message || 'Lưu ma trận phân quyền thành công!');
                 setDirty(false);
-                fetchMatrix();
-                fetchGroupsData();
             }
         } catch (error) {
             message.error(error.message || 'Lỗi khi lưu ma trận phân quyền');
@@ -461,11 +422,9 @@ function PermissionGroupPage() {
 
     const handleDelete = async (record) => {
         try {
-            const res = await permissionService.deleteGroup(record.id);
+            const res = await permissionMutation.mutateAsync({ action: 'delete', id: record.id });
             if (res.success) {
                 message.success(res.message || 'Đã xóa nhóm quyền');
-                fetchGroupsData();
-                fetchMatrix();
             }
         } catch (error) {
             message.error(error.message || 'Lỗi khi xóa nhóm quyền');
@@ -477,29 +436,25 @@ function PermissionGroupPage() {
             const values = await form.validateFields();
             setSubmitting(true);
             if (editingGroup) {
-                const res = await permissionService.updateGroup(editingGroup.id, {
+                const res = await permissionMutation.mutateAsync({ action: 'update', id: editingGroup.id, data: {
                     name: values.name,
                     description: values.description,
                     permissionCodes: values.permissionCodes || [],
-                });
+                } });
                 if (res.success) {
                     message.success(res.message || 'Cập nhật nhóm quyền thành công');
                     setIsModalOpen(false);
-                    fetchGroupsData();
-                    fetchMatrix();
                 }
             } else {
-                const res = await permissionService.createGroup({
+                const res = await permissionMutation.mutateAsync({ action: 'create', data: {
                     code: values.code,
                     name: values.name,
                     description: values.description,
                     permissionCodes: values.permissionCodes || [],
-                });
+                } });
                 if (res.success) {
                     message.success(res.message || 'Tạo nhóm quyền thành công');
                     setIsModalOpen(false);
-                    fetchGroupsData();
-                    fetchMatrix();
                 }
             }
         } catch (error) {
@@ -692,6 +647,7 @@ function PermissionGroupPage() {
                                 type="primary"
                                 icon={<SaveOutlined />}
                                 loading={savingMatrix}
+                                disabled={!matrixQuery.data}
                                 onClick={handleSaveMatrix}
                                 style={{
                                     background: dirty ? '#0F766E' : undefined,
@@ -716,6 +672,7 @@ function PermissionGroupPage() {
             </div>
 
             {/* 4 KPI Cards (Thống kê ma trận & quyền tự động sinh từ registry) */}
+            {matrixQuery.data && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
                 <div className="card" style={{ padding: '14px 18px' }}>
                     <span className="meta">Tổng số vai trò</span>
@@ -765,6 +722,7 @@ function PermissionGroupPage() {
                     </div>
                 </div>
             </div>
+            )}
 
             {/* Cảnh báo thay đổi chưa lưu trên ma trận */}
             {dirty && (
@@ -887,7 +845,7 @@ function PermissionGroupPage() {
                                 </div>
 
                                 {/* Accordion Modules List */}
-                                <Spin spinning={matrixLoading}>
+                                <QueryPanel query={matrixQuery} empty={filteredModules.length === 0}>
                                     <div className="flex flex-col gap-3">
                                         {filteredModules.map((mod) => {
                                             const isOpen = openModules.has(mod.module_name);
@@ -1160,7 +1118,7 @@ function PermissionGroupPage() {
                                             );
                                         })}
                                     </div>
-                                </Spin>
+                                </QueryPanel>
                             </div>
                         ),
                     },
@@ -1173,6 +1131,7 @@ function PermissionGroupPage() {
                             </span>
                         ),
                         children: (
+                            <QueryPanel query={groupsQuery} variant="table">
                             <div className="bg-white rounded-lg border border-slate-200 shadow-xs p-4 lg:p-6 space-y-4">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
@@ -1191,13 +1150,15 @@ function PermissionGroupPage() {
                                         dataSource={groups}
                                         rowKey="id"
                                         columns={groupColumns}
-                                        loading={loading}
+                                        locale={{ emptyText: <EmptyState /> }}
+                                        loading={false}
                                         pagination={false}
                                         size="middle"
                                         scroll={{ x: 1000 }}
                                     />
                                 </div>
                             </div>
+                            </QueryPanel>
                         ),
                     },
                     {
@@ -1209,6 +1170,7 @@ function PermissionGroupPage() {
                             </span>
                         ),
                         children: (
+                            <QueryPanel query={catalogQuery} empty={allPermissions.length === 0}>
                             <div className="bg-white rounded-lg border border-slate-200 shadow-xs p-4 lg:p-6 space-y-4">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
@@ -1276,6 +1238,7 @@ function PermissionGroupPage() {
                                     ))}
                                 </div>
                             </div>
+                            </QueryPanel>
                         ),
                     },
                 ]}
@@ -1295,10 +1258,12 @@ function PermissionGroupPage() {
                 okText={editingGroup ? 'Lưu thay đổi' : 'Tạo nhóm'}
                 cancelText="Hủy"
                 confirmLoading={submitting}
+                okButtonProps={{ disabled: !catalogQuery.isSuccess }}
                 width={680}
                 centered
                 destroyOnHidden
             >
+                <QueryPanel query={catalogQuery}>
                 <Form form={form} layout="vertical" className="pt-2">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <Form.Item
@@ -1377,6 +1342,7 @@ function PermissionGroupPage() {
                         </div>
                     )}
                 </Form>
+                </QueryPanel>
             </Modal>
         </div>
     );

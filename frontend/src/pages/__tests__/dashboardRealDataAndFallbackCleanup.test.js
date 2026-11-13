@@ -160,6 +160,16 @@ test('Task 5: DashboardPage eliminates triage fake numbers (14, 4, 2) and fake s
     );
 });
 
+test('Admin Dashboard reads independent scoped server panels without effect-level fallback data', () => {
+    const src = read('frontend/src/pages/admin/DashboardPage.jsx');
+    for (const hook of ['useDashboardStats', 'useDashboardScores', 'useDashboardActivities', 'useDashboardOverview', 'useSemesters']) {
+        assert.ok(src.includes(hook));
+    }
+    assert.doesNotMatch(src, /Promise\.all|setStats|setScoreDistribution|setActivities/);
+    assert.match(src, /<QueryPanel query=\{scoresQuery\}/);
+    assert.match(src, /<QueryPanel query=\{activitiesQuery\}/);
+});
+
 test('Task 5: HomePage eliminates fallback ?? 4 and fake English topics', () => {
     const homeSrc = read('frontend/src/pages/common/HomePage.jsx');
 

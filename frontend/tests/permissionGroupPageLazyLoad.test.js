@@ -17,10 +17,11 @@ test('PermissionGroupPage does not call fetchGroupsData unconditionally on mount
     );
 });
 
-test('PermissionGroupPage contains unmount guard to prevent duplicate error toasts during StrictMode mount cycles', () => {
-    assert.match(
-        pageSource,
-        /isMounted/i,
-        'fetchMatrix or its effect must check isMounted before calling message.error'
-    );
+test('PermissionGroupPage lets query observers own request lifecycle and shows inline panel errors', () => {
+    assert.match(pageSource, /usePermissionMatrix\(scope, activeTab === 'MATRIX'\)/);
+    assert.match(pageSource, /usePermissionGroups\(scope, activeTab === 'GROUPS'/);
+    assert.match(pageSource, /usePermissionCatalog\(scope, activeTab === 'CATALOG'/);
+    assert.match(pageSource, /<QueryPanel query=\{matrixQuery\}/);
+    assert.match(pageSource, /<QueryPanel query=\{groupsQuery\}/);
+    assert.doesNotMatch(pageSource, /permissionService\.(getPermissionMatrix|listGroups|listPermissions)/);
 });
