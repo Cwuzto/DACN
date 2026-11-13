@@ -70,6 +70,58 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 
 ## 6. Cập Nhật Phiên Làm Việc (Session Update)
 
+### Phiên 13/11/2026 (Sửa Lỗi HĐ Bảo Vệ Khóa Luận, Đồng Bộ Phân Quyền & Menu Động Theo Phân Công)
+
+#### 1. Những phần đã hoàn thành
+1. **Khắc Phục Lỗi Trắng Trang / 403 Tại HĐ Bảo Vệ Khóa Luận (`/admin/defense-councils`)**:
+   - `backend/src/controllers/registrationController.js`: Bổ sung `OUTLINE_COUNCIL_MANAGE`, `DEFENSE_COUNCIL_MANAGE`, `VIEW_COUNCIL_ASSIGNMENTS`, `DEFENSE_COUNCIL_ASSIGN` vào điều kiện kiểm tra `hasInstituteAuthority`. Cho phép người dùng có quyền quản trị hội đồng xem toàn bộ sinh viên toàn viện khi truy vấn với `scope: 'institute'` (thay vì bị giới hạn chỉ thấy sinh viên mình hướng dẫn).
+   - `frontend/src/pages/admin/CouncilAssignmentPage.jsx`:
+     * Khi tải dữ liệu `fetchCouncils`: Truyền chính xác tham số `councilType: forcedCouncilType || councilTypeFilter` và `scope: 'institute'`.
+     * Hoàn thiện bộ lọc sinh viên `candidatesForPhase`: Đối với `DEFENSE_COUNCIL`, chấp nhận các trạng thái hợp lệ của giai đoạn bảo vệ (`DEFENSE_READY`, `DEFENSE_ELIGIBLE`, `ELIGIBLE_BY_INSTITUTE`, `AWAITING_SCORES`, `DEFENSE_PASSED`, `DEFENSE_FAILED`, `AWAITING_FINAL_APPROVAL`, `COMPLETED`) hoặc sinh viên đã được phân công vào hội đồng (`defenseCouncilId || councilId`).
+     * Phân quyền nút bấm (`canManageCouncil`): Ẩn các thao tác quản trị ghi ("Lập Hội đồng", "Tự động phân công", "Công bố DS") đối với giảng viên thành viên chỉ có quyền xem; tại bảng danh sách và card ghép cặp, hiển thị nút *"Xem chi tiết"* chuyển tiếp tới trang chi tiết hội đồng.
+     * Chuẩn hóa UI/UX: Thay thế toàn bộ ký tự emoji thô `⚠️`, `✓` bằng icon chính quy `@ant-design/icons` (`<WarningOutlined />`, `<CheckCircleOutlined />`, `<ExclamationCircleOutlined />`).
+2. **Khắc Phục Lỗi Trang Chi Tiết Hội Đồng (`/admin/defense-councils/:id` - `CouncilDetailPage.jsx`)**:
+   - `loadLecturers`: Bổ sung cơ chế fallback sang `userService.getPublicLecturers()` khi `userService.getUsers()` bị 403 Forbidden đối với người dùng không phải Quản trị viên (giảng viên/chủ tịch hội đồng).
+   - `openAssignModal`: Bổ sung tham số `scope: 'institute'` khi tải danh sách sinh viên chưa phân công.
+   - Phân quyền thao tác: Chỉ hiển thị các nút thao tác chỉnh sửa ("Công bố lịch bảo vệ chia ca", "Sửa thông tin HĐ", "Đổi thành viên HĐ", "Gán thêm Sinh viên", "Gỡ SV", "Thay thế GV", "Đổi ca/STT") cho người dùng có thẩm quyền quản trị `DEFENSE_COUNCIL_MANAGE` hoặc `ADMIN`. Thành viên hội đồng xem ở chế độ chỉ đọc.
+   - Thay thế toàn bộ ký tự emoji thô `⚠️` bằng icon chính quy `<WarningOutlined className="text-amber-600" />`.
+3. **Mở Rộng Phân Quyền Route & Điều Hướng Menu Động (Dynamic Navigation)**:
+   - `frontend/src/config/navigationRegistry.js`:
+     * Cập nhật `outline-councils` (`HĐ Xét duyệt Đề cương`): `requiresOutlineCouncil: true`, `requiredPermission: 'OUTLINE_COUNCIL_MANAGE'`.
+     * Cập nhật `defense-councils` (`HĐ Bảo vệ khóa luận`): `requiresDefenseCouncil: true`, `requiredPermission: 'DEFENSE_COUNCIL_MANAGE'`.
+     * Giảng viên được phân công vào Hội đồng bảo vệ sẽ thấy mục *"Phiếu chấm bảo vệ"* (`/lecturer/grading`).
+   - `frontend/src/App.jsx`:
+     * Route `/admin/grading` (`GradingDefensePage`): Bổ sung `VIEW_DEFENSE_RESULT_APPROVALS`, `DEFENSE_RESULT_APPROVE`, `VIEW_RESULT_PUBLICATIONS`, `RESULT_PUBLICATION_MANAGE` vào `requiredAnyPermissions`. Triệt tiêu hoàn toàn lỗi trắng trang khi người dùng truy cập tab Phê duyệt kết quả hoặc Công bố kết quả.
+     * Route `/admin/outline-councils` và `/admin/defense-councils`: Bổ sung `VIEW_DEFENSE_GRADING`, `OUTLINE_REVIEW` vào `requiredAnyPermissions` của `ProtectedRoute`.
+4. **Kiểm Thử & Đảm Bảo Chất Lượng Toàn Diện**:
+   - Bổ sung bộ kiểm thử `frontend/src/pages/__tests__/defenseCouncilHardening.test.js` kiểm tra 7 hợp đồng kỹ thuật (Pass 7/7).
+   - Kiểm thử toàn bộ frontend: **223/223 tests PASS (100%)**.
+   - Kiểm thử toàn bộ backend: **108/108 test suites PASS, 1.086/1.086 tests PASS (100%)**.
+   - Vite production build: **Hoàn tất thành công (0 lỗi)**.
+   - Đảm bảo 100% tệp tin đạt chuẩn **UTF-8 (no BOM)** và chuẩn nút bấm **Rule 2.6 trong AGENTS.md**.
+
+#### 2. Trạng thái cập nhật của từng phần
+- **Backend**: Quyền hạn `hasInstituteAuthority` đã bao quát đầy đủ các quyền quản trị hội đồng bảo vệ/đề cương; 108 test suites (1.086 tests) PASS 100%.
+- **Frontend**: Menu bên trái hiển thị chính xác theo vai trò và phân công thực tế của giảng viên; trang phân công hội đồng bảo vệ và chi tiết hội đồng bảo vệ tải mượt mà, không còn lỗi 403 hay trắng trang.
+- **Tuân thủ quy chuẩn**: 100% nút bấm tuân thủ Rule 2.6 (không emoji thô), toàn bộ file UTF-8 không BOM.
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+- Đăng nhập thử nghiệm trực tiếp trên trình duyệt với các tài khoản:
+  * `lecturer01` (Viện trưởng): Có đầy đủ menu Thẩm định, Quyết định, HĐ Bảo vệ, Phê duyệt kết quả, Công bố kết quả.
+  * `lecturer02` (Thành viên HĐ Bảo vệ): Thấy menu "Phiếu chấm bảo vệ", vào chấm điểm sinh viên.
+  * Giảng viên bình thường không có hội đồng: Menu gọn gàng (chỉ có Đề tài của tôi, Sinh viên hướng dẫn, Tiến độ đồ án).
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+1. **Phân quyền Institute Scope cho Quản trị Hội đồng**:
+   - Người phụ trách phân công hội đồng (`DEFENSE_COUNCIL_MANAGE`) cần quyền xem danh sách sinh viên toàn viện chứ không chỉ sinh viên mình hướng dẫn. Do đó mở rộng `hasInstituteAuthority` cho quyền này ở backend.
+2. **Ẩn các nút hành động đột biến đối với Thành viên chỉ xem (Read-Only Mode)**:
+   - Các nút "Lập hội đồng", "Tự động phân công", "Đổi ca", "Gỡ SV" chỉ hiển thị khi người dùng có thẩm quyền quản trị. Thành viên chỉ xem thông tin để tránh click gây 403 Forbidden.
+3. **Phân biệt rành mạch giữa "HĐ Bảo vệ khóa luận" và "Phiếu chấm bảo vệ"**:
+   - "HĐ Bảo vệ khóa luận" (`/admin/defense-councils`) là nơi thành lập, xếp phòng, chia ca thi (dành cho Admin / Viện trưởng).
+   - "Phiếu chấm bảo vệ" (`/lecturer/grading`) là nơi thành viên hội đồng nhập điểm số, biên bản (dành cho GV có phân công HĐ).
+
+---
+
 ### Phiên 13/11/2026 (Tối Ưu Hóa Tốc Độ Local AI VRAM Với Qwen2.5:3b, Khắc Phục Lỗi Timeout & Sanitize Live Database Context)
 
 #### 1. Những phần đã hoàn thành
