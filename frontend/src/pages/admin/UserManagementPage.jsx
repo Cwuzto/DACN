@@ -578,9 +578,11 @@ function UserManagementPage() {
                         onClick={() => { resetPage(); setActiveRole('LECTURER'); }}
                     >
                         <span>Giảng viên</span>
+                        {countsQuery.data && (
                         <span className="px-1.5 py-0.2 rounded-full bg-teal-100 text-teal-800 font-mono text-[11px]">
-                            {roleCounts.LECTURER || 0}
+                            {roleCounts.LECTURER}
                         </span>
+                        )}
                     </button>
                     <button
                         className={`inline-flex items-center gap-2 px-3.5 py-1.5 text-xs rounded-lg font-semibold transition-all cursor-pointer ${
@@ -591,9 +593,11 @@ function UserManagementPage() {
                         onClick={() => { resetPage(); setActiveRole('STUDENT'); }}
                     >
                         <span>Sinh viên</span>
+                        {countsQuery.data && (
                         <span className="px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-800 font-mono text-[11px]">
-                            {roleCounts.STUDENT || 0}
+                            {roleCounts.STUDENT}
                         </span>
+                        )}
                     </button>
                     <button
                         className={`inline-flex items-center gap-2 px-3.5 py-1.5 text-xs rounded-lg font-semibold transition-all cursor-pointer ${
@@ -604,9 +608,11 @@ function UserManagementPage() {
                         onClick={() => { resetPage(); setActiveRole('ADMIN'); }}
                     >
                         <span>Quản trị & Giáo vụ</span>
+                        {countsQuery.data && (
                         <span className="px-1.5 py-0.2 rounded-full bg-rose-100 text-rose-800 font-mono text-[11px]">
-                            {roleCounts.ADMIN || 0}
+                            {roleCounts.ADMIN}
                         </span>
+                        )}
                     </button>
                 </div>
 

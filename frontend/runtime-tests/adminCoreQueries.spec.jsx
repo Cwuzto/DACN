@@ -45,6 +45,23 @@ test('dashboard panel failure preserves successful scores and activities and doe
     expect(screen.queryByText('Chưa có dữ liệu phân bổ điểm cho đợt đồ án này.')).not.toBeInTheDocument();
 });
 
+test('initial dashboard stats failure does not claim zero students in the header', async () => {
+    dashboardService.getStats.mockRejectedValue({ status: 500, message: 'Thống kê sinh viên gián đoạn' });
+    mount(DashboardPage);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Thống kê sinh viên gián đoạn');
+    expect(screen.queryByText('0 SV', { exact: true })).not.toBeInTheDocument();
+});
+
+test('cached dashboard student count stays visible after refresh failure', async () => {
+    const first = mount(DashboardPage);
+    await screen.findByText('32 SV', { exact: true });
+    first.unmount();
+    dashboardService.getStats.mockRejectedValue({ status: 500, message: 'Thống kê sinh viên chưa cập nhật được' });
+    mount(DashboardPage);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Thống kê sinh viên chưa cập nhật được');
+    expect(screen.getByText('32 SV', { exact: true })).toBeInTheDocument();
+});
+
 test('returning to dashboard keeps cached content visible during refresh and after refresh failure', async () => {
     const first = mount(DashboardPage);
     await screen.findByText('Hoạt động đã lưu');
@@ -85,6 +102,37 @@ function mockUsers() {
     vi.spyOn(userService, 'getUsers').mockImplementation(async params => ({ success: true, data: params.limit === 1 ? [] : [userRow], pagination: { page: params.page, limit: params.limit, total: 1 } }));
     vi.spyOn(permissionService, 'listGroups').mockResolvedValue({ success: true, data: [] });
 }
+
+test('initial role count failure does not claim zero accounts in any role badge', async () => {
+    mockUsers();
+    userService.getUsers.mockImplementation(async params => {
+        if (params.limit === 1) throw { status: 500, message: 'Số tài khoản theo vai trò gián đoạn' };
+        return { success: true, data: [userRow], pagination: { page: params.page, limit: params.limit, total: 1 } };
+    });
+    mount(UserManagementPage);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Số tài khoản theo vai trò gián đoạn');
+    for (const label of ['Giảng viên', 'Sinh viên', 'Quản trị & Giáo vụ']) {
+        const roleButton = screen.getByRole('button', { name: new RegExp(label) });
+        expect(within(roleButton).queryByText('0', { exact: true })).not.toBeInTheDocument();
+    }
+    expect(screen.getByText('Người dùng thật')).toBeInTheDocument();
+});
+
+test('cached role count badges stay visible after refresh failure', async () => {
+    mockUsers();
+    const first = mount(UserManagementPage);
+    await within(screen.getByRole('button', { name: /^Giảng viên/ })).findByText('1', { exact: true });
+    first.unmount();
+    userService.getUsers.mockImplementation(async params => {
+        if (params.limit === 1) throw { status: 500, message: 'Số tài khoản theo vai trò chưa cập nhật được' };
+        return { success: true, data: [userRow], pagination: { page: params.page, limit: params.limit, total: 1 } };
+    });
+    mount(UserManagementPage);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Số tài khoản theo vai trò chưa cập nhật được');
+    for (const label of ['Giảng viên', 'Sinh viên', 'Quản trị & Giáo vụ']) {
+        expect(within(screen.getByRole('button', { name: new RegExp(label) })).getByText('1', { exact: true })).toBeInTheDocument();
+    }
+});
 
 test('user request failure renders retry without showing a successful empty user table', async () => {
     mockUsers();

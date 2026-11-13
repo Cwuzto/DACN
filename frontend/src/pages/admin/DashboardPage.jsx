@@ -97,7 +97,7 @@ function DashboardPage() {
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs text-slate-500 mr-2">
-                        Đợt: <strong className="text-slate-800">{activeSemester?.name || 'Học kỳ 1'}</strong> • <span className="font-mono">{stats?.totalStudents || 0} SV</span>
+                        Đợt: <strong className="text-slate-800">{activeSemester?.name || 'Học kỳ 1'}</strong> • <span className="font-mono">{stats?.totalStudents != null ? `${stats.totalStudents} SV` : 'Chưa có số liệu'}</span>
                     </span>
                     <Button
                         icon={<TeamOutlined />}
