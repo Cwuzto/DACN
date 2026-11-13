@@ -2251,6 +2251,56 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 3. **Graceful Fallback sang API Công Khai cho Giảng viên**: Trang phân công hội đồng sử dụng `userService.getPublicLecturers()` khi người dùng không phải Admin tối cao, giúp ban lãnh đạo viện thao tác mượt mà không bị rào cản phân quyền hệ thống.
 4. **Đồng bộ hóa 2 chiều Modal / Tab Deep-Linking cho Phê duyệt & Công bố**: Tận dụng `useSearchParams` để URL thể hiện rõ ràng hành động người dùng mong muốn (`approvals` / `publish`), hỗ trợ liên kết trực tiếp từ menu hoặc dashboard.
 
+---
+
+### Phiên 13/11/2026 — UI/UX Hardening: Triệt Tiêu Nhảy Chữ & Co Rút Layout Giữa 2 Trang Hội Đồng
+
+#### 1. Những phần đã hoàn thành
+- **Chụp ảnh thực tế chẩn đoán lỗi bằng Puppeteer headless**:
+  - Ghi nhận chính xác hiện tượng "nhảy chữ" và sập layout:
+    * Ở trang **Hội đồng Bảo vệ Khóa luận** (`/admin/defense-councils`), khối `PageHeader.actions` chứa 5 điều khiển có tổng chiều rộng vượt quá **1.040px**.
+    * Khi hiển thị ở màn hình chuẩn (1440px trừ sidebar 280px), phần chiều rộng còn lại cho tiêu đề bị ép xuống chỉ còn **48px - 72px**.
+    * Hệ quả: Tiêu đề và dòng mô tả bị bóp nghẹt thành **cột chữ dọc 1 từ / dòng** ("Phân \n công \n Hội \n đồng \n Bảo \n vệ \n Khóa \n luận").
+    * Chiều cao header bị phình to hơn 200px so với trang Đề cương, gây hiện tượng giật nảy layout (Cumulative Layout Shift) rất khó chịu khi chuyển menu.
+- **Tái cấu trúc bố cục giao diện theo chuẩn UI/UX Pro Max**:
+  - Tách bạch tầng **Nhận diện trang (Page Identity)** và tầng **Điều khiển bộ lọc (Context & Scope Toolbar)**:
+    * Di chuyển 2 dropdown chọn phạm vi dữ liệu (`Chọn Đồ án` & `Chọn Học kỳ`) xuống thanh công cụ ngữ cảnh chuyên biệt nằm ngay trên hàng thẻ KPI.
+    * `PageHeader.actions` chỉ còn tập trung vào các nút hành động nghiệp vụ cốt lõi (Action CTAs), giúp giải phóng hơn 400px chiều ngang.
+  - Chuẩn hóa nhãn nút bấm & bổ sung Tooltip:
+    * Nút `"Công bố DS đủ điều kiện bảo vệ"` (30 ký tự) $\rightarrow$ rút gọn thành `"Công bố DS đủ ĐK bảo vệ"` kèm `<Tooltip title="Công bố danh sách sinh viên đủ điều kiện bảo vệ">`.
+    * Nút tạo mới được tinh gọn thành `"Lập Hội đồng"` với prop `icon={<PlusOutlined />}`.
+  - Gia cố chống co rút trong [PageHeader.jsx](file:///d:/DACN/frontend/src/components/common/PageHeader.jsx):
+    * Thiết lập `space-y-1 min-w-[280px] flex-1` bảo vệ khu vực tiêu đề không bao giờ bị bóp méo dưới 280px.
+    * Nâng điểm ngắt responsive lên `lg:flex-row`, tự động chuyển sang xếp tầng mềm mại trên màn hình nhỏ.
+- **Xác thực kết quả thực tế**:
+  - Chụp ảnh màn hình kiểm chứng sau khi sửa (`outline_councils_after.png` và `defense_councils_after.png`):
+    * Cả 2 trang đều hiển thị tiêu đề và mô tả trên đúng **1 hàng ngang** duy nhất, thanh nút bấm gọn gàng trên 1 hàng.
+    * Chiều cao `PageHeader` và vị trí thanh công cụ của cả 2 trang hoàn toàn trùng khớp từng pixel, **triệt tiêu 100% hiện tượng nhảy chữ / giật layout**.
+  - Toàn bộ 223/223 frontend unit tests PASS (100%).
+  - Frontend production build thành công trong 15.50s với 0 lỗi.
+
+#### 2. Trạng thái cập nhật của từng phần
+- **Database/Prisma**: `STABLE`; Không thay đổi schema, tuân thủ 100% mô hình `TopicRegistration`.
+- **Backend API**: `STABLE (100% PASS)`; Đang chạy daemon tại cổng 5000 (`task-1057`).
+- **Frontend SPA**: `PIXEL-PERFECT & ZERO CLS (100% PASS)`;
+  * Đang chạy dev daemon tại cổng 5174 (`task-1059`).
+  * 223/223 tests PASS.
+  * Bản build production đạt 100% không lỗi.
+- **Quy chuẩn mã hóa & nút bấm**:
+  * UTF-8 without BOM (Rule 2.4).
+  * 100% nút bấm sử dụng prop `icon={<IconComponent />}` từ `@ant-design/icons`, không emoji hay ký tự đồ họa thô (Rule 2.6).
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+1. Mở trình duyệt xem trực tiếp tại:
+   - `http://localhost:5174/admin/outline-councils`
+   - `http://localhost:5174/admin/defense-councils`
+2. Bấm chuyển đổi qua lại giữa 2 trang trên thanh menu bên trái để trải nghiệm cảm giác chuyển trang mượt mà, chiều cao cố định và không còn giật nảy vị trí.
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+1. **Phân tách Action CTAs và Scope Filters**: Bộ chọn đợt đồ án và tên đồ án là bộ lọc dữ liệu (Filters/Scope), không nên đặt chung hàng với các nút hành động chính (Primary Actions) trong `PageHeader`. Việc đưa bộ lọc xuống thanh công cụ phía dưới giúp giao diện cân đối, giải phóng không gian cho tiêu đề trang.
+2. **Bảo vệ độ rộng tối thiểu cho Tiêu đề (`min-w-[280px]`)**: Sử dụng Flexbox kết hợp `flex-1 min-w-[280px]` để ngăn chặn hoàn toàn việc các nút bấm bên phải chèn ép tiêu đề thành cột chữ 1 từ/dòng khi người dùng dùng màn hình độ phân giải trung bình hoặc mở sidebar.
+
+
 
 
 
