@@ -896,21 +896,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                 title={pageTitle}
                 subtitle={pageSubtitle}
                 actions={
-                    <div className="flex items-center gap-3 flex-wrap">
-                        <Select
-                            value={selectedProjectName}
-                            onChange={setSelectedProjectName}
-                            style={{ width: 180 }}
-                            options={projectOptions}
-                        />
-                        <Select
-                            value={selectedSemester}
-                            onChange={setSelectedSemester}
-                            style={{ width: 220 }}
-                            options={semesterOptions}
-                            loading={semesters.length === 0}
-                            placeholder="Chọn đợt đồ án"
-                        />
+                    <div className="flex items-center gap-2.5 flex-wrap">
                         {councilTypeFilter === 'OUTLINE_REVIEW' ? (
                             canManageOutline && (
                                 <Button
@@ -927,14 +913,16 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                         ) : (
                             canManageDefense && (
                                 <>
-                                    <Button
-                                        icon={<CheckCircleOutlined />}
-                                        onClick={handlePublishEligibleDefenseList}
-                                        loading={submitLoading}
-                                        disabled={!selectedSemester}
-                                    >
-                                        Công bố DS đủ điều kiện bảo vệ
-                                    </Button>
+                                    <Tooltip title="Công bố danh sách sinh viên đủ điều kiện bảo vệ">
+                                        <Button
+                                            icon={<CheckCircleOutlined />}
+                                            onClick={handlePublishEligibleDefenseList}
+                                            loading={submitLoading}
+                                            disabled={!selectedSemester}
+                                        >
+                                            Công bố DS đủ ĐK bảo vệ
+                                        </Button>
+                                    </Tooltip>
                                     <Button
                                         onClick={handleAutoAssign}
                                         loading={submitLoading}
@@ -953,67 +941,83 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                 onClick={showCreateModal}
                                 disabled={!selectedSemester}
                             >
-                                Lập Hội Đồng {councilTypeFilter === 'OUTLINE_REVIEW' ? 'Đề cương' : 'Bảo vệ'}
+                                Lập Hội đồng
                             </Button>
                         )}
                     </div>
                 }
             />
 
-            {/* Phase Switcher Navigation */}
+            {/* Phase Switcher Navigation & Scope Controls */}
             {!forcedCouncilType ? (
-                <div className="flex items-center justify-between pb-3 border-b border-slate-300 flex-wrap gap-3">
-                    <div className="flex items-center gap-3">
-                        {canManageOutline && <button
-                            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg border transition-all cursor-pointer ${
-                                councilTypeFilter === 'OUTLINE_REVIEW'
-                                    ? 'bg-teal-50 border-teal-600 text-teal-900 shadow-sm'
-                                    : 'bg-white border-slate-300 text-slate-700 hover:border-slate-400 font-semibold'
-                            }`}
-                            onClick={() => setCouncilTypeFilter('OUTLINE_REVIEW')}
-                        >
-                            <span className="material-symbols-outlined text-base">description</span>
-                            <span>1. Hội đồng Thẩm định Đề cương (Giai đoạn 2)</span>
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-mono font-bold ${
-                                councilTypeFilter === 'OUTLINE_REVIEW'
-                                    ? 'bg-teal-100 text-teal-900'
-                                    : 'bg-slate-100 text-slate-700'
-                            }`}>
-                                {councils.filter((c) => c.councilType === 'OUTLINE_REVIEW').length} HĐ
-                            </span>
-                        </button>}
-                        {canManageDefense && <button
-                            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg border transition-all cursor-pointer ${
-                                councilTypeFilter === 'DEFENSE_COUNCIL'
-                                    ? 'bg-teal-50 border-teal-600 text-teal-900 shadow-sm'
-                                    : 'bg-white border-slate-300 text-slate-700 hover:border-slate-400 font-semibold'
-                            }`}
-                            onClick={() => setCouncilTypeFilter('DEFENSE_COUNCIL')}
-                        >
-                            <span className="material-symbols-outlined text-base">gavel</span>
-                            <span>2. Hội đồng Chấm Bảo vệ Khóa luận (Giai đoạn 5)</span>
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-mono font-bold ${
-                                councilTypeFilter === 'DEFENSE_COUNCIL'
-                                    ? 'bg-teal-100 text-teal-900'
-                                    : 'bg-slate-100 text-slate-700'
-                            }`}>
-                                {councils.filter((c) => c.councilType === 'DEFENSE_COUNCIL').length} HĐ
-                            </span>
-                        </button>}
-                        {canManageOutline && canManageDefense && <button
-                            className={`inline-flex items-center gap-2 px-3 py-2 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
-                                councilTypeFilter === 'ALL'
-                                    ? 'bg-teal-50 border-teal-600 text-teal-900 shadow-sm'
-                                    : 'bg-white border-slate-300 text-slate-700 hover:border-slate-400'
-                            }`}
-                            onClick={() => setCouncilTypeFilter('ALL')}
-                        >
-                            Tất cả ({councils.length})
-                        </button>}
+                <div className="flex flex-col xl:flex-row xl:items-center justify-between pb-3 border-b border-slate-300 gap-3">
+                    <div className="flex items-center gap-3 flex-wrap">
+                        <Select
+                            value={selectedProjectName}
+                            onChange={setSelectedProjectName}
+                            style={{ width: 170 }}
+                            options={projectOptions}
+                        />
+                        <Select
+                            value={selectedSemester}
+                            onChange={setSelectedSemester}
+                            style={{ width: 220 }}
+                            options={semesterOptions}
+                            loading={semesters.length === 0}
+                            placeholder="Chọn đợt đồ án"
+                        />
+                        <div className="flex items-center gap-2 flex-wrap">
+                            {canManageOutline && <button
+                                className={`inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
+                                    councilTypeFilter === 'OUTLINE_REVIEW'
+                                        ? 'bg-teal-50 border-teal-600 text-teal-900 shadow-sm'
+                                        : 'bg-white border-slate-300 text-slate-700 hover:border-slate-400 font-semibold'
+                                }`}
+                                onClick={() => setCouncilTypeFilter('OUTLINE_REVIEW')}
+                            >
+                                <span className="material-symbols-outlined text-sm">description</span>
+                                <span>1. Hội đồng Thẩm định Đề cương</span>
+                                <span className={`text-[11px] px-1.5 py-0.5 rounded-full font-mono font-bold ${
+                                    councilTypeFilter === 'OUTLINE_REVIEW'
+                                        ? 'bg-teal-100 text-teal-900'
+                                        : 'bg-slate-100 text-slate-700'
+                                }`}>
+                                    {councils.filter((c) => c.councilType === 'OUTLINE_REVIEW').length} HĐ
+                                </span>
+                            </button>}
+                            {canManageDefense && <button
+                                className={`inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
+                                    councilTypeFilter === 'DEFENSE_COUNCIL'
+                                        ? 'bg-teal-50 border-teal-600 text-teal-900 shadow-sm'
+                                        : 'bg-white border-slate-300 text-slate-700 hover:border-slate-400 font-semibold'
+                                }`}
+                                onClick={() => setCouncilTypeFilter('DEFENSE_COUNCIL')}
+                            >
+                                <span className="material-symbols-outlined text-sm">gavel</span>
+                                <span>2. Hội đồng Chấm Bảo vệ Khóa luận</span>
+                                <span className={`text-[11px] px-1.5 py-0.5 rounded-full font-mono font-bold ${
+                                    councilTypeFilter === 'DEFENSE_COUNCIL'
+                                        ? 'bg-teal-100 text-teal-900'
+                                        : 'bg-slate-100 text-slate-700'
+                                }`}>
+                                    {councils.filter((c) => c.councilType === 'DEFENSE_COUNCIL').length} HĐ
+                                </span>
+                            </button>}
+                            {canManageOutline && canManageDefense && <button
+                                className={`inline-flex items-center gap-2 px-3 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
+                                    councilTypeFilter === 'ALL'
+                                        ? 'bg-teal-50 border-teal-600 text-teal-900 shadow-sm'
+                                        : 'bg-white border-slate-300 text-slate-700 hover:border-slate-400'
+                                }`}
+                                onClick={() => setCouncilTypeFilter('ALL')}
+                            >
+                                Tất cả ({councils.length})
+                            </button>}
+                        </div>
                     </div>
 
                     {/* View switcher: 2-column Matcher vs Table */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 shrink-0">
                         <Segmented
                             value={viewMode}
                             onChange={setViewMode}
@@ -1025,15 +1029,29 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                     </div>
                 </div>
             ) : (
-                <div className="flex items-center justify-between pb-3 border-b border-slate-300 flex-wrap gap-3">
-                    <div className="flex items-center gap-2">
-                        <Tag color="cyan" className="px-3 py-1 text-sm font-bold border border-teal-300">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-300 gap-3">
+                    <div className="flex items-center gap-3 flex-wrap">
+                        <Select
+                            value={selectedProjectName}
+                            onChange={setSelectedProjectName}
+                            style={{ width: 170 }}
+                            options={projectOptions}
+                        />
+                        <Select
+                            value={selectedSemester}
+                            onChange={setSelectedSemester}
+                            style={{ width: 220 }}
+                            options={semesterOptions}
+                            loading={semesters.length === 0}
+                            placeholder="Chọn đợt đồ án"
+                        />
+                        <Tag color="cyan" className="px-3 py-1 text-xs font-bold border border-teal-300 m-0">
                             {councilTypeFilter === 'OUTLINE_REVIEW'
                                 ? `Hội đồng Đề cương: ${councils.filter((c) => c.councilType === 'OUTLINE_REVIEW').length} HĐ`
                                 : `Hội đồng Bảo vệ: ${councils.filter((c) => c.councilType === 'DEFENSE_COUNCIL').length} HĐ`}
                         </Tag>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 shrink-0">
                         <Segmented
                             value={viewMode}
                             onChange={setViewMode}

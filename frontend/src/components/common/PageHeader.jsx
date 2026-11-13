@@ -37,8 +37,8 @@ export default function PageHeader({
                     />
                 </div>
             )}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="space-y-1 min-w-0">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div className="space-y-1 min-w-[280px] flex-1">
                     <div className="flex items-center gap-2.5 flex-wrap">
                         <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight leading-snug">
                             {title}
@@ -64,7 +64,7 @@ export default function PageHeader({
                     )}
                 </div>
                 {actions && (
-                    <div className="flex items-center flex-wrap gap-2 shrink-0">
+                    <div className="flex items-center flex-wrap gap-2.5 shrink-0">
                         {actions}
                     </div>
                 )}
