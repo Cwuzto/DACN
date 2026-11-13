@@ -33,6 +33,7 @@ import {
     SearchOutlined,
     HistoryOutlined,
     SwapOutlined,
+    WarningOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import CouncilAuditLogModal from '../../components/admin/CouncilAuditLogModal';
@@ -46,8 +47,10 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
     const navigate = useNavigate();
     const user = useAuthStore((state) => state.user);
 
-    const canManageOutline = (user?.permissions || []).includes('OUTLINE_COUNCIL_MANAGE') || user?.role === 'QUAN_TRI_VIEN';
-    const canManageDefense = (user?.permissions || []).includes('DEFENSE_COUNCIL_MANAGE') || user?.role === 'QUAN_TRI_VIEN';
+    const canManageOutline = (user?.permissions || []).includes('OUTLINE_COUNCIL_MANAGE') || user?.role === 'ADMIN' || user?.role === 'QUAN_TRI_VIEN';
+    const canManageDefense = (user?.permissions || []).includes('DEFENSE_COUNCIL_MANAGE') || user?.role === 'ADMIN' || user?.role === 'QUAN_TRI_VIEN';
+    const effectiveCouncilType = forcedCouncilType || council?.councilType || 'DEFENSE_COUNCIL';
+    const canManageCouncil = effectiveCouncilType === 'OUTLINE_REVIEW' ? canManageOutline : canManageDefense;
 
     const [council, setCouncil] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -120,8 +123,17 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
         const loadLecturers = async () => {
             try {
                 const res = await userService.getUsers({ role: 'LECTURER', status: 'active', limit: 1000 });
-                if (res.success) {
+                if (res.success && Array.isArray(res.data?.users || res.data)) {
                     setLecturers(res.data?.users || res.data || []);
+                    return;
+                }
+            } catch {
+                // Non-blocking
+            }
+            try {
+                const fallbackRes = await userService.getPublicLecturers();
+                if (fallbackRes.success && Array.isArray(fallbackRes.data)) {
+                    setLecturers(fallbackRes.data);
                 }
             } catch {
                 // Non-blocking
@@ -129,8 +141,6 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
         };
         loadLecturers();
     }, []);
-
-    const effectiveCouncilType = forcedCouncilType || council?.councilType || 'DEFENSE_COUNCIL';
 
     const effectiveRegistrations = useMemo(() => {
         if (!council) return [];
@@ -305,6 +315,7 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                 semesterId: council.semesterId,
                 unassignedCouncilOnly: true,
                 councilType: council.councilType,
+                scope: 'institute',
             });
             if (res.success) {
                 setUnassignedRegistrations(res.data || []);
@@ -689,7 +700,7 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                         {!isMorning && !isAfternoon && (
                             <span className="text-xs text-slate-400 italic">Chưa xếp ca</span>
                         )}
-                        {effectiveCouncilType === 'DEFENSE_COUNCIL' && (
+                        {effectiveCouncilType === 'DEFENSE_COUNCIL' && canManageCouncil && (
                             <div>
                                 <Button
                                     size="small"
@@ -711,20 +722,25 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
             key: 'actions',
             width: 90,
             align: 'center',
-            render: (_text, reg) => (
-                <Popconfirm
-                    title="Gỡ sinh viên khỏi hội đồng?"
-                    description="Bạn có chắc muốn gỡ sinh viên này ra khỏi hội đồng không?"
-                    onConfirm={() => handleRemoveRegistration(reg.id)}
-                    okText="Gỡ"
-                    cancelText="Hủy"
-                    okButtonProps={{ danger: true }}
-                >
-                    <Button size="small" danger>
-                        Gỡ
-                    </Button>
-                </Popconfirm>
-            ),
+            render: (_text, reg) => {
+                if (!canManageCouncil) {
+                    return <span className="text-xs text-slate-400">---</span>;
+                }
+                return (
+                    <Popconfirm
+                        title="Gỡ sinh viên khỏi hội đồng?"
+                        description="Bạn có chắc muốn gỡ sinh viên này ra khỏi hội đồng không?"
+                        onConfirm={() => handleRemoveRegistration(reg.id)}
+                        okText="Gỡ"
+                        cancelText="Hủy"
+                        okButtonProps={{ danger: true }}
+                    >
+                        <Button size="small" danger>
+                            Gỡ
+                        </Button>
+                    </Popconfirm>
+                );
+            },
         },
     ];
 
@@ -787,7 +803,7 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
 
                     {/* Action buttons */}
                     <div className="flex items-center gap-2 flex-wrap">
-                        {effectiveCouncilType === 'DEFENSE_COUNCIL' && (
+                        {effectiveCouncilType === 'DEFENSE_COUNCIL' && canManageCouncil && (
                             <Button
                                 type="primary"
                                 icon={<CalendarOutlined />}
@@ -806,21 +822,25 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                         <Button icon={<HistoryOutlined />} onClick={openLogModal}>
                             Lịch sử thao tác
                         </Button>
-                        <Button icon={<EditOutlined />} onClick={openEditModal}>
-                            Sửa thông tin HĐ
-                        </Button>
-                        <Button icon={<TeamOutlined />} onClick={openMemberModal}>
-                            Đổi thành viên HĐ
-                        </Button>
-                        <Button
-                            type="primary"
-                            icon={<UserAddOutlined />}
-                            onClick={openAssignModal}
-                            className="bg-teal-700 hover:bg-teal-800 font-semibold"
-                        >
-                            Gán thêm Sinh viên
-                        </Button>
-                        {effectiveCouncilType === 'OUTLINE_REVIEW' && (
+                        {canManageCouncil && (
+                            <>
+                                <Button icon={<EditOutlined />} onClick={openEditModal}>
+                                    Sửa thông tin HĐ
+                                </Button>
+                                <Button icon={<TeamOutlined />} onClick={openMemberModal}>
+                                    Đổi thành viên HĐ
+                                </Button>
+                                <Button
+                                    type="primary"
+                                    icon={<UserAddOutlined />}
+                                    onClick={openAssignModal}
+                                    className="bg-teal-700 hover:bg-teal-800 font-semibold"
+                                >
+                                    Gán thêm Sinh viên
+                                </Button>
+                            </>
+                        )}
+                        {effectiveCouncilType === 'OUTLINE_REVIEW' && canManageCouncil && (
                             <Button danger icon={<UnlockOutlined />} onClick={openReopenModal}>
                                 Mở khóa kết quả
                             </Button>
@@ -895,7 +915,7 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                             </div>
                             {conflictNames.length > 0 && (
                                 <span className="inline-flex items-center gap-1 text-amber-950 bg-amber-100 px-2.5 py-1 rounded border border-amber-300 font-bold text-xs">
-                                    ⚠️ Có GV {conflictNames.join(', ')} là GVHD của sinh viên HĐ này
+                                    <WarningOutlined className="text-amber-600" /> Có GV {conflictNames.join(', ')} là GVHD của sinh viên HĐ này
                                 </span>
                             )}
                         </div>
@@ -922,7 +942,7 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                                             <div className="text-xs text-teal-800 font-medium truncate" title={chairman.lecturer?.email}>
                                                 {chairman.lecturer?.email || '---'}
                                             </div>
-                                            {effectiveCouncilType === 'DEFENSE_COUNCIL' && (
+                                            {effectiveCouncilType === 'DEFENSE_COUNCIL' && canManageCouncil && (
                                                 <Button
                                                     size="small"
                                                     type="link"
@@ -962,7 +982,7 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                                             <div className="text-xs text-blue-800 font-medium truncate" title={secretary.lecturer?.email}>
                                                 {secretary.lecturer?.email || '---'}
                                             </div>
-                                            {effectiveCouncilType === 'DEFENSE_COUNCIL' && (
+                                            {effectiveCouncilType === 'DEFENSE_COUNCIL' && canManageCouncil && (
                                                 <Button
                                                     size="small"
                                                     type="link"
@@ -1002,7 +1022,7 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                                             <div className="text-xs text-purple-800 font-medium truncate" title={reviewer.lecturer?.email}>
                                                 {reviewer.lecturer?.email || '---'}
                                             </div>
-                                            {effectiveCouncilType === 'DEFENSE_COUNCIL' && (
+                                            {effectiveCouncilType === 'DEFENSE_COUNCIL' && canManageCouncil && (
                                                 <Button
                                                     size="small"
                                                     type="link"
@@ -1195,9 +1215,10 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                     <p className="text-sm text-slate-700">
                         Hội đồng: <strong>{council.name}</strong>
                     </p>
-                    <p className="text-xs text-amber-700 bg-amber-50 p-2.5 rounded border border-amber-200">
-                        ⚠️ Thao tác mở khóa sẽ hủy hiệu lực của bản công bố kết quả hiện tại và chuyển hội đồng về trạng thái Nháp (DRAFT) để Thư ký và Chủ tịch có thể cập nhật kết quả đánh giá.
-                    </p>
+                    <div className="text-xs text-amber-900 bg-amber-50 p-2.5 rounded border border-amber-200 flex items-start gap-2">
+                        <WarningOutlined className="text-amber-600 mt-0.5 flex-shrink-0" />
+                        <span>Thao tác mở khóa sẽ hủy hiệu lực của bản công bố kết quả hiện tại và chuyển hội đồng về trạng thái Nháp (DRAFT) để Thư ký và Chủ tịch có thể cập nhật kết quả đánh giá.</span>
+                    </div>
 
                     {reopenError && (
                         <Alert

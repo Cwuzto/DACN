@@ -580,7 +580,11 @@ const getAllRegistrations = async (req, res, next) => {
             permissions.includes('VIEW_PROJECT_PERIODS') ||
             permissions.includes('PROJECT_ASSIGNMENT_PUBLISH') ||
             permissions.includes('VIEW_ASSIGNMENT_DECISIONS') ||
-            permissions.includes('PERMISSION_ASSIGN_ACADEMIC');
+            permissions.includes('PERMISSION_ASSIGN_ACADEMIC') ||
+            permissions.includes('OUTLINE_COUNCIL_MANAGE') ||
+            permissions.includes('DEFENSE_COUNCIL_MANAGE') ||
+            permissions.includes('VIEW_COUNCIL_ASSIGNMENTS') ||
+            permissions.includes('DEFENSE_COUNCIL_ASSIGN');
 
         const shouldViewInstituteScope =
             (asInstituteDirector === 'true' || scope === 'all' || scope === 'institute') && hasInstituteAuthority;

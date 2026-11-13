@@ -108,6 +108,7 @@ export const NAVIGATION_REGISTRY = [
         icon: 'fact_check',
         group: 'Hội đồng & bảo vệ',
         requiredPermission: 'OUTLINE_COUNCIL_MANAGE',
+        requiresOutlineCouncil: true,
         route: '/admin/outline-councils',
     },
     {
@@ -116,6 +117,7 @@ export const NAVIGATION_REGISTRY = [
         icon: 'groups',
         group: 'Hội đồng & bảo vệ',
         requiredPermission: 'DEFENSE_COUNCIL_MANAGE',
+        requiresDefenseCouncil: true,
         route: '/admin/defense-councils',
     },
     {

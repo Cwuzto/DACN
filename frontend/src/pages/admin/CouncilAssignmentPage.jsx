@@ -40,6 +40,8 @@ import {
     UnlockOutlined,
     DownOutlined,
     UpOutlined,
+    EyeOutlined,
+    WarningOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
@@ -70,8 +72,13 @@ const getConflictingMentors = (council) => {
 function CouncilAssignmentPage({ forcedCouncilType }) {
     const navigate = useNavigate();
     const user = useAuthStore((state) => state.user);
-    const canManageOutline = (user?.permissions || []).includes('OUTLINE_COUNCIL_MANAGE');
-    const canManageDefense = (user?.permissions || []).includes('DEFENSE_COUNCIL_MANAGE');
+    const canManageOutline = (user?.permissions || []).includes('OUTLINE_COUNCIL_MANAGE') || user?.role === 'ADMIN';
+    const canManageDefense = (user?.permissions || []).includes('DEFENSE_COUNCIL_MANAGE') || user?.role === 'ADMIN';
+    const canManageCouncil = forcedCouncilType === 'OUTLINE_REVIEW'
+        ? canManageOutline
+        : forcedCouncilType === 'DEFENSE_COUNCIL'
+            ? canManageDefense
+            : (canManageOutline || canManageDefense);
     const [councils, setCouncils] = useState([]);
     const [semesters, setSemesters] = useState([]);
     const [lecturers, setLecturers] = useState([]);
@@ -167,9 +174,15 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
         if (!selectedSemester) return;
         setLoading(true);
         try {
+            const councilQueryParams = { semesterId: selectedSemester };
+            const effectiveType = forcedCouncilType || (councilTypeFilter !== 'ALL' ? councilTypeFilter : undefined);
+            if (effectiveType) {
+                councilQueryParams.councilType = effectiveType;
+            }
+
             const [councilsResult, regsResult] = await Promise.allSettled([
-                councilService.getCouncils({ semesterId: selectedSemester }),
-                registrationService.getAllRegistrations({ semesterId: selectedSemester }),
+                councilService.getCouncils(councilQueryParams),
+                registrationService.getAllRegistrations({ semesterId: selectedSemester, scope: 'institute' }),
             ]);
 
             if (councilsResult.status === 'fulfilled' && councilsResult.value?.success) {
@@ -621,9 +634,9 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
     const candidatesForPhase = useMemo(() => {
         return allRegistrations.filter((r) => {
             if (r.status === 'DROPPED' || r.status === 'WITHDRAWN') return false;
-            if (councilTypeFilter === 'DEFENSE_COUNCIL') return r.status === 'DEFENSE_READY';
+            if (councilTypeFilter === 'DEFENSE_COUNCIL') return r.status === 'DEFENSE_READY' || Boolean(r.defenseCouncilId || r.councilId);
             if (councilTypeFilter === 'OUTLINE_REVIEW') {
-                return ['REGISTERED', 'APPROVED', 'BM01_SUBMITTED', 'BM01_NEEDS_REVISION'].includes(r.status);
+                return ['REGISTERED', 'APPROVED', 'BM01_SUBMITTED', 'BM01_NEEDS_REVISION', 'BM01_APPROVED', 'BM01_PASSED'].includes(r.status) || !!r.outlineCouncilId;
             }
             return true;
         });
@@ -721,7 +734,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                         </div>
                         {conflicts.length > 0 && (
                             <span className="inline-flex items-center gap-1 text-amber-950 bg-amber-100 px-2 py-0.5 rounded border border-amber-300 font-bold text-xs">
-                                ⚠️ Có GV {conflicts.join(', ')} là GVHD của sinh viên HĐ này
+                                <WarningOutlined className="text-amber-600" /> Có GV {conflicts.join(', ')} là GVHD của sinh viên HĐ này
                             </span>
                         )}
                     </div>
@@ -800,6 +813,22 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
             width: 260,
             align: 'center',
             render: (_, record) => {
+                if (!canManageCouncil) {
+                    return (
+                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                            <Button
+                                size="small"
+                                type="primary"
+                                ghost
+                                icon={<EyeOutlined />}
+                                onClick={() => navigate(record.councilType === 'OUTLINE_REVIEW' ? `/admin/outline-councils/${record.id}` : `/admin/defense-councils/${record.id}`)}
+                            >
+                                Xem chi tiết
+                            </Button>
+                            <Button size="small" icon={<HistoryOutlined />} onClick={() => showLogModal(record)} />
+                        </div>
+                    );
+                }
                 const hasEnoughMembers = (record.members?.length || 0) === 3;
                 return (
                     <div className="flex items-center justify-center gap-1.5 flex-wrap">
@@ -917,14 +946,16 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                 </>
                             )
                         )}
-                        <Button
-                            type="primary"
-                            icon={<PlusOutlined />}
-                            onClick={showCreateModal}
-                            disabled={!selectedSemester}
-                        >
-                        Lập Hội Đồng {councilTypeFilter === 'OUTLINE_REVIEW' ? 'Đề cương' : 'Bảo vệ'}
-                        </Button>
+                        {canManageCouncil && (
+                            <Button
+                                type="primary"
+                                icon={<PlusOutlined />}
+                                onClick={showCreateModal}
+                                disabled={!selectedSemester}
+                            >
+                                Lập Hội Đồng {councilTypeFilter === 'OUTLINE_REVIEW' ? 'Đề cương' : 'Bảo vệ'}
+                            </Button>
+                        )}
                     </div>
                 }
             />
@@ -1054,7 +1085,19 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                     <div>
                         <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Xung đột Lợi ích</span>
                         <p className={`text-lg font-black mt-1 ${conflictCount === 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                            {conflictCount === 0 ? '✓ 0 Vi phạm' : `⚠ ${conflictCount} Vi phạm`}
+                            <span className="inline-flex items-center gap-1.5">
+                                {conflictCount === 0 ? (
+                                    <>
+                                        <CheckCircleOutlined className="text-emerald-600" />
+                                        <span>0 Vi phạm</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <WarningOutlined className="text-rose-600" />
+                                        <span>{conflictCount} Vi phạm</span>
+                                    </>
+                                )}
+                            </span>
                         </p>
                     </div>
                     <span className="text-[11px] text-slate-600 font-semibold">
@@ -1278,7 +1321,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                                         </span>
                                                         {conflicts.length > 0 && (
                                                             <span className="inline-flex items-center gap-1 text-amber-950 bg-amber-100 px-2 py-0.5 rounded border border-amber-300 font-bold text-xs">
-                                                                ⚠️ Có GV {conflicts.join(', ')} là GVHD của sinh viên HĐ này
+                                                                <WarningOutlined className="text-amber-600" /> Có GV {conflicts.join(', ')} là GVHD của sinh viên HĐ này
                                                             </span>
                                                         )}
                                                     </div>
@@ -1332,27 +1375,39 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
 
                                             {/* Council Card Action Footer */}
                                             <div className="flex items-center justify-between pt-2 border-t border-slate-200 flex-wrap gap-2">
-                                                <div className="flex items-center gap-1.5">
-                                                    <Button
-                                                        size="small"
-                                                        icon={<TeamOutlined />}
-                                                        onClick={() => showMemberModal(council)}
-                                                    >
-                                                        Đổi thành viên HĐ
-                                                    </Button>
+                                                {canManageCouncil ? (
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Button
+                                                            size="small"
+                                                            icon={<TeamOutlined />}
+                                                            onClick={() => showMemberModal(council)}
+                                                        >
+                                                            Đổi thành viên HĐ
+                                                        </Button>
+                                                        <Button
+                                                            size="small"
+                                                            type="primary"
+                                                            icon={<LinkOutlined />}
+                                                            onClick={() => showAssignModal(council)}
+                                                            disabled={!isComplete}
+                                                        >
+                                                            Gán Sinh viên
+                                                        </Button>
+                                                    </div>
+                                                ) : (
                                                     <Button
                                                         size="small"
                                                         type="primary"
-                                                        icon={<LinkOutlined />}
-                                                        onClick={() => showAssignModal(council)}
-                                                        disabled={!isComplete}
+                                                        ghost
+                                                        icon={<EyeOutlined />}
+                                                        onClick={() => navigate(council.councilType === 'OUTLINE_REVIEW' ? `/admin/outline-councils/${council.id}` : `/admin/defense-councils/${council.id}`)}
                                                     >
-                                                        Gán Sinh viên
+                                                        Xem chi tiết hội đồng
                                                     </Button>
-                                                </div>
+                                                )}
 
                                                 <div className="flex items-center gap-1">
-                                                    {council.councilType === 'OUTLINE_REVIEW' && (
+                                                    {canManageCouncil && council.councilType === 'OUTLINE_REVIEW' && (
                                                         <Button
                                                             size="small"
                                                             icon={<UnlockOutlined />}
@@ -1367,28 +1422,32 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                                         onClick={() => showLogModal(council)}
                                                         title="Nhật ký thao tác"
                                                     />
-                                                    <Button
-                                                        size="small"
-                                                        icon={<EditOutlined />}
-                                                        onClick={() => showEditModal(council)}
-                                                        title="Sửa thông tin"
-                                                    />
-                                                    <Popconfirm
-                                                        title="Xóa hội đồng này?"
-                                                        description="Chỉ xóa được nếu hội đồng chưa có sinh viên nào."
-                                                        onConfirm={() => handleDeleteCouncil(council.id)}
-                                                        okText="Xóa"
-                                                        cancelText="Hủy"
-                                                        okButtonProps={{ danger: true }}
-                                                    >
-                                                        <Button
-                                                            size="small"
-                                                            danger
-                                                            icon={<DeleteOutlined />}
-                                                            disabled={assignedCount > 0}
-                                                            title="Xóa hội đồng"
-                                                        />
-                                                    </Popconfirm>
+                                                    {canManageCouncil && (
+                                                        <>
+                                                            <Button
+                                                                size="small"
+                                                                icon={<EditOutlined />}
+                                                                onClick={() => showEditModal(council)}
+                                                                title="Sửa thông tin"
+                                                            />
+                                                            <Popconfirm
+                                                                title="Xóa hội đồng này?"
+                                                                description="Chỉ xóa được nếu hội đồng chưa có sinh viên nào."
+                                                                onConfirm={() => handleDeleteCouncil(council.id)}
+                                                                okText="Xóa"
+                                                                cancelText="Hủy"
+                                                                okButtonProps={{ danger: true }}
+                                                            >
+                                                                <Button
+                                                                    size="small"
+                                                                    danger
+                                                                    icon={<DeleteOutlined />}
+                                                                    disabled={assignedCount > 0}
+                                                                    title="Xóa hội đồng"
+                                                                />
+                                                            </Popconfirm>
+                                                        </>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -1607,9 +1666,10 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                     <p className="text-sm text-slate-700">
                         Hội đồng: <strong>{reopeningCouncil?.name}</strong>
                     </p>
-                    <p className="text-xs text-amber-700 bg-amber-50 p-2.5 rounded border border-amber-200">
-                        ⚠️ Thao tác mở khóa sẽ hủy hiệu lực của bản công bố kết quả hiện tại và chuyển hội đồng về trạng thái Nháp (DRAFT) để Thư ký và Chủ tịch có thể cập nhật kết quả đánh giá.
-                    </p>
+                    <div className="text-xs text-amber-900 bg-amber-50 p-2.5 rounded border border-amber-200 flex items-start gap-2">
+                        <WarningOutlined className="text-amber-600 mt-0.5 flex-shrink-0" />
+                        <span>Thao tác mở khóa sẽ hủy hiệu lực của bản công bố kết quả hiện tại và chuyển hội đồng về trạng thái Nháp (DRAFT) để Thư ký và Chủ tịch có thể cập nhật kết quả đánh giá.</span>
+                    </div>
 
                     {reopenError && (
                         <Alert
@@ -1887,15 +1947,17 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
 
                                 {/* Inline duplicate lecturer warning */}
                                 {isDuplicate && (
-                                    <div className="text-rose-900 bg-rose-100 px-3 py-2 rounded-md border border-rose-300 text-xs font-bold">
-                                        ⚠️ Mỗi hội đồng phải có đúng 3 giảng viên khác nhau (Chủ tịch, Thư ký, UV Phản biện).
+                                    <div className="text-rose-900 bg-rose-100 px-3 py-2 rounded-md border border-rose-300 text-xs font-bold flex items-center gap-1.5">
+                                        <ExclamationCircleOutlined className="text-rose-600" />
+                                        <span>Mỗi hội đồng phải có đúng 3 giảng viên khác nhau (Chủ tịch, Thư ký, UV Phản biện).</span>
                                     </div>
                                 )}
 
                                 {/* Live Conflict Warning */}
                                 {liveConflicts.length > 0 && (
-                                    <div className="text-amber-950 bg-amber-100 px-3 py-2 rounded-md border border-amber-300 text-xs font-bold">
-                                        ⚠️ Có GV {liveConflicts.join(', ')} là GVHD của sinh viên HĐ này
+                                    <div className="text-amber-950 bg-amber-100 px-3 py-2 rounded-md border border-amber-300 text-xs font-bold flex items-center gap-1.5">
+                                        <WarningOutlined className="text-amber-600" />
+                                        <span>Có GV {liveConflicts.join(', ')} là GVHD của sinh viên HĐ này</span>
                                     </div>
                                 )}
                             </div>
