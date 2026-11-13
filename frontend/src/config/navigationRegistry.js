@@ -145,6 +145,7 @@ export const NAVIGATION_REGISTRY = [
         icon: 'approval',
         group: 'Kết quả & công bố',
         requiredPermission: 'VIEW_DEFENSE_RESULT_APPROVALS',
+        requiredAnyPermissions: ['VIEW_DEFENSE_RESULT_APPROVALS', 'VIEW_DEFENSE_RESULTS_APPROVAL', 'DEFENSE_RESULT_APPROVE'],
         route: '/admin/grading?tab=approvals',
     },
     {
@@ -153,6 +154,7 @@ export const NAVIGATION_REGISTRY = [
         icon: 'campaign',
         group: 'Kết quả & công bố',
         requiredPermission: 'VIEW_RESULT_PUBLICATIONS',
+        requiredAnyPermissions: ['VIEW_RESULT_PUBLICATIONS', 'RESULT_PUBLICATION_PUBLISH'],
         route: '/admin/grading?tab=publish',
     },
     {

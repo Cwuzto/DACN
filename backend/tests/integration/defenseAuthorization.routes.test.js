@@ -27,7 +27,11 @@ const users = {
     scoreSubmit: { id: 14, role: 'LECTURER', permissions: ['DEFENSE_SCORE_SUBMIT'] },
     resultLock: { id: 15, role: 'LECTURER', permissions: ['RESULT_LOCK'] },
     resultApprove: { id: 16, role: 'LECTURER', permissions: ['DEFENSE_RESULT_APPROVE'] },
-    resultPublish: { id: 17, role: 'LECTURER', permissions: ['RESULT_PUBLISH'] },
+    resultPublish: { id: 17, role: 'LECTURER', permissions: ['RESULT_PUBLICATION_PUBLISH'] },
+    approvalView: { id: 18, role: 'LECTURER', permissions: ['VIEW_DEFENSE_RESULT_APPROVALS'] },
+    approvalViewAlias: { id: 19, role: 'LECTURER', permissions: ['VIEW_DEFENSE_RESULTS_APPROVAL'] },
+    publicationView: { id: 20, role: 'LECTURER', permissions: ['VIEW_RESULT_PUBLICATIONS'] },
+    legacyPublisher: { id: 21, role: 'LECTURER', permissions: ['RESULT_PUBLISH'] },
     archiveReviewer: { id: 99, role: 'LECTURER', permissions: ['FINAL_DOCUMENT_REVIEW'] },
 };
 
@@ -170,4 +174,34 @@ describe('Defense and archive capability boundaries', () => {
 
         expect(response.status).toBe(403);
     });
+
+    test.each(['approvalView', 'approvalViewAlias', 'publicationView', 'legacyPublisher'])(
+        '%s cannot approve, correct, or publish results through any mutation alias', async (user) => {
+            const paths = [
+                '/api/evaluations/admin-defense-center/101/result-approval',
+                '/api/evaluations/councils/101/results/approve',
+                '/api/evaluations/admin-defense-center/101/approve-result',
+                '/api/evaluations/101/approve-result',
+                '/api/evaluations/admin-defense-center/101/result-approval/correction',
+                '/api/evaluations/semesters/1/result-publications',
+                '/api/evaluations/semesters/1/results/publish',
+            ];
+            for (const path of paths) {
+                const response = await request(app).post(path)
+                    .set('Authorization', `Bearer ${user}`)
+                    .set('Idempotency-Key', 'read-only-mutation-001')
+                    .send({ outcome: 'PASSED', type: 'INITIAL', reason: 'Correction' });
+                expect({ path, status: response.status }).toEqual({ path, status: 403 });
+            }
+        },
+    );
+
+    test.each(['approvalView', 'approvalViewAlias', 'resultApprove', 'publicationView', 'resultPublish'])(
+        '%s cannot read council management as a result-access workaround', async (user) => {
+            for (const path of ['/api/councils', '/api/councils/2']) {
+                const response = await request(app).get(path).set('Authorization', `Bearer ${user}`);
+                expect({ path, status: response.status }).toEqual({ path, status: 403 });
+            }
+        },
+    );
 });

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { getVisibleNavigation } from '../src/config/navigationRegistry.js';
 
 const appSource = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
 const layoutSource = readFileSync(new URL('../src/components/layout/AppLayout.jsx', import.meta.url), 'utf8');
@@ -100,7 +101,7 @@ test('defense and archive UI separates view, submit, lock, publish, and review c
         'DEFENSE_SCORE_VIEW',
         'DEFENSE_SCORE_SUBMIT',
         'RESULT_LOCK',
-        'RESULT_PUBLISH',
+        'RESULT_PUBLICATION_PUBLISH',
         'FINAL_DOCUMENT_REVIEW',
     ]) {
         assert.match(`${appSource}\n${layoutSource}\n${gradingSource}\n${oversightSource}`, new RegExp(permission));
@@ -110,6 +111,37 @@ test('defense and archive UI separates view, submit, lock, publish, and review c
     assert.match(gradingSource, /canLockResult && \(r\.scoreLocked/);
     assert.match(gradingSource, /canPublishResult && <button/);
     assert.match(oversightSource, /(?:!isApproved && canReviewArchive|canReviewArchive && !isApproved)/);
+});
+
+test('result route accepts canonical viewers and publishers without obsolete publication aliases', () => {
+    const resultGuard = appSource.match(/requiredAnyPermissions=\{\[([^\]]*)\]\}[^\n]*\n\s*<Route path="grading" element=\{<GradingDefensePage/);
+    assert.ok(resultGuard, 'The admin result route must have a capability guard');
+    for (const permission of [
+        'VIEW_DEFENSE_LOCK_LEDGER', 'VIEW_RESULT_LOCKS', 'DEFENSE_SCORE_VIEW', 'RESULT_LOCK',
+        'VIEW_DEFENSE_RESULT_APPROVALS', 'VIEW_DEFENSE_RESULTS_APPROVAL', 'DEFENSE_RESULT_APPROVE',
+        'VIEW_RESULT_PUBLICATIONS', 'RESULT_PUBLICATION_PUBLISH',
+    ]) {
+        assert.ok(resultGuard[1].includes(`'${permission}'`), `${permission} must reach the result route`);
+    }
+    assert.doesNotMatch(resultGuard[1], /'RESULT_PUBLICATION_MANAGE'|'RESULT_PUBLISH'/);
+});
+
+test('result viewers and mutation owners see the corresponding menu without council-management access', () => {
+    for (const [permission, expectedKey] of [
+        ['VIEW_DEFENSE_RESULT_APPROVALS', 'defense-result-approvals'],
+        ['VIEW_DEFENSE_RESULTS_APPROVAL', 'defense-result-approvals'],
+        ['DEFENSE_RESULT_APPROVE', 'defense-result-approvals'],
+        ['VIEW_RESULT_PUBLICATIONS', 'result-publications'],
+        ['RESULT_PUBLICATION_PUBLISH', 'result-publications'],
+    ]) {
+        const items = getVisibleNavigation([permission]).flatMap((group) => group.items);
+        assert.deepEqual(items.map((item) => item.key), [expectedKey], `${permission} should have only its result menu`);
+    }
+    for (const permission of ['RESULT_PUBLICATION_MANAGE', 'RESULT_PUBLISH', 'VIEW_USERS']) {
+        const resultItems = getVisibleNavigation([permission]).flatMap((group) => group.items)
+            .filter((item) => ['defense-result-approvals', 'result-publications'].includes(item.key));
+        assert.deepEqual(resultItems, [], `${permission} must not grant result navigation`);
+    }
 });
 
 test('ProjectPeriodPage embeds academic delegations tab for VIEW_ACADEMIC_DELEGATIONS or PERMISSION_ASSIGN_ACADEMIC with idempotency', () => {

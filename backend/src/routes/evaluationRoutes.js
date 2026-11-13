@@ -126,7 +126,14 @@ router.post(
 // Admin defense center
 router.get(
     '/admin-defense-center',
-    authorizePermission(PERMISSIONS.DEFENSE_SCORE_VIEW, PERMISSIONS.VIEW_DEFENSE_LOCK_LEDGER, PERMISSIONS.VIEW_RESULT_LOCKS),
+    authorizePermission(
+        PERMISSIONS.DEFENSE_SCORE_VIEW,
+        PERMISSIONS.VIEW_DEFENSE_LOCK_LEDGER,
+        PERMISSIONS.VIEW_RESULT_LOCKS,
+        PERMISSIONS.VIEW_DEFENSE_RESULT_APPROVALS,
+        PERMISSIONS.VIEW_DEFENSE_RESULTS_APPROVAL,
+        PERMISSIONS.DEFENSE_RESULT_APPROVE,
+    ),
     evaluationController.getAdminDefenseCenter,
 );
 
@@ -209,7 +216,7 @@ router.post(
 
 router.get(
     '/admin-defense-center/:id/result-approval',
-    authorizePermission(PERMISSIONS.DEFENSE_SCORE_VIEW, PERMISSIONS.VIEW_DEFENSE_RESULT_APPROVALS, PERMISSIONS.VIEW_DEFENSE_RESULTS_APPROVAL),
+    authorizePermission(PERMISSIONS.DEFENSE_SCORE_VIEW, PERMISSIONS.VIEW_DEFENSE_RESULT_APPROVALS, PERMISSIONS.VIEW_DEFENSE_RESULTS_APPROVAL, PERMISSIONS.DEFENSE_RESULT_APPROVE),
     [param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'), validateRequest],
     evaluationController.getDefenseResultApprovalAction,
 );
@@ -244,14 +251,14 @@ router.post(
 
 router.get(
     '/semesters/:semesterId/result-publications/preview',
-    authorizePermission(PERMISSIONS.RESULT_PUBLISH, PERMISSIONS.RESULT_PUBLICATION_PUBLISH),
+    authorizePermission(PERMISSIONS.VIEW_RESULT_PUBLICATIONS, PERMISSIONS.RESULT_PUBLICATION_PUBLISH),
     [param('semesterId').isInt({ min: 1 }).withMessage('semesterId phải là số nguyên dương.'), validateRequest],
     evaluationController.previewResultPublication,
 );
 
 router.get(
     '/semesters/:semesterId/result-publications',
-    authorizePermission(PERMISSIONS.RESULT_PUBLISH, PERMISSIONS.RESULT_PUBLICATION_PUBLISH),
+    authorizePermission(PERMISSIONS.VIEW_RESULT_PUBLICATIONS, PERMISSIONS.RESULT_PUBLICATION_PUBLISH),
     [param('semesterId').isInt({ min: 1 }).withMessage('semesterId phải là số nguyên dương.'), validateRequest],
     evaluationController.getResultPublicationHistory,
 );

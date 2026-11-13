@@ -177,7 +177,7 @@ function App() {
                                 <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_PROJECT_OVERSIGHT', 'REPORT_VIEW', 'PROJECT_OVERSIGHT_MANAGE']} />}>
                                     <Route path="reports" element={<AcademicReportsPage />} />
                                 </Route>
-                                <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_DEFENSE_LOCK_LEDGER', 'DEFENSE_SCORE_VIEW', 'RESULT_LOCK', 'VIEW_DEFENSE_RESULT_APPROVALS', 'DEFENSE_RESULT_APPROVE', 'VIEW_RESULT_PUBLICATIONS', 'RESULT_PUBLICATION_MANAGE']} />}>
+                                <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_DEFENSE_LOCK_LEDGER', 'VIEW_RESULT_LOCKS', 'DEFENSE_SCORE_VIEW', 'RESULT_LOCK', 'VIEW_DEFENSE_RESULT_APPROVALS', 'VIEW_DEFENSE_RESULTS_APPROVAL', 'DEFENSE_RESULT_APPROVE', 'VIEW_RESULT_PUBLICATIONS', 'RESULT_PUBLICATION_PUBLISH']} />}>
                                     <Route path="grading" element={<GradingDefensePage />} />
                                 </Route>
                                 <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_RUBRIC_CONFIG', 'RUBRIC_MANAGE']} />}>
