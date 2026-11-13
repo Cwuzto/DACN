@@ -15,6 +15,8 @@ export const useTasksByRegistration = (scope, registrationId, enabled = true) =>
     enabled: Boolean(registrationId) && enabled,
 });
 
+export const useRegistrationTasks = useTasksByRegistration;
+
 export const useTaskMutation = (scope, registrationId) => {
     const client = useQueryClient();
     return useMutation({

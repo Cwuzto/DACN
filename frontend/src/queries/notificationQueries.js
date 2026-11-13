@@ -2,11 +2,23 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import notificationService from '../services/notificationService';
 import { queryKeys } from '../query/queryKeys';
 import { requireSuccess } from './semesterQueries';
+import { normalizeApiError } from '../utils/apiError';
 
 export const notificationCenterKeys = {
     history: (scope) => [...queryKeys.notifications.all(scope), 'history'],
     templates: (scope) => [...queryKeys.notifications.all(scope), 'templates'],
 };
+
+export const useMyNotifications = (scope, filters = {}, enabled = true) => useQuery({
+    queryKey: queryKeys.notifications.list(scope, filters),
+    queryFn: async () => {
+        const res = await notificationService.getMyNotifications(filters);
+        if (!res?.success) throw normalizeApiError(res);
+        return Array.isArray(res.data) ? res.data : (res.data?.notifications || []);
+    },
+    enabled,
+    refetchInterval: 30000,
+});
 
 export const useNotificationHistory = (scope, enabled = true) => useQuery({
     queryKey: notificationCenterKeys.history(scope),

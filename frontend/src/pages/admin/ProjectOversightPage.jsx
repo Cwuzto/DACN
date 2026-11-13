@@ -81,6 +81,7 @@ import {
     useBm04DefenseReviews,
     useManualReviewMutation,
 } from '../../queries/manualReviewQueries';
+import { useRegistrationTasks } from '../../queries/taskQueries';
 import QueryPanel from '../../components/common/QueryPanel';
 import QueryErrorState from '../../components/common/QueryErrorState';
 import ContentSkeleton from '../../components/common/ContentSkeleton';
@@ -154,8 +155,9 @@ function ProjectOversightPage() {
     const [isProgressModalOpen, setIsProgressModalOpen] = useState(false);
     const [progressTopic, setProgressTopic] = useState(null);
     const [progressRegistrationId, setProgressRegistrationId] = useState(null);
-    const [progressTasks, setProgressTasks] = useState([]);
-    const [progressLoading, setProgressLoading] = useState(false);
+    const progressTasksQuery = useRegistrationTasks(scope, progressRegistrationId, Boolean(isProgressModalOpen && progressRegistrationId));
+    const progressTasks = progressTasksQuery.data || [];
+    const progressLoading = progressTasksQuery.isPending && progressTasksQuery.fetchStatus !== 'idle';
 
     // Gói 2: Archive & Health Radar queries
     const [activeMainTab, setActiveMainTab] = useState('TOPIC_OVERSIGHT');
@@ -616,31 +618,12 @@ function ProjectOversightPage() {
         const firstRegistrationId = registrationEvents[0]?.id || null;
         setProgressTopic(record);
         setProgressRegistrationId(firstRegistrationId);
-        setProgressTasks([]);
         setIsProgressModalOpen(true);
     };
 
-    const loadProgressTasks = async (registrationId) => {
-        if (!registrationId) {
-            setProgressTasks([]);
-            return;
-        }
-        try {
-            setProgressLoading(true);
-            const res = await taskService.getTasksByRegistration(registrationId);
-            setProgressTasks(res?.data || []);
-        } catch (error) {
-            message.error(error?.message || 'Không thể tải chi tiết tiến độ');
-            setProgressTasks([]);
-        } finally {
-            setProgressLoading(false);
-        }
+    const loadProgressTasks = () => {
+        if (progressRegistrationId) progressTasksQuery.refetch();
     };
-
-    useEffect(() => {
-        if (!isProgressModalOpen) return;
-        loadProgressTasks(progressRegistrationId);
-    }, [isProgressModalOpen, progressRegistrationId]);
 
     const progressStats = useMemo(() => {
         const total = progressTasks.length;

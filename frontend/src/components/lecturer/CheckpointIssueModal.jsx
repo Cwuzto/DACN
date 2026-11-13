@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { Modal, Form, Input, Radio, Alert, message, Divider } from 'antd';
 import { SafetyCertificateOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import evaluationService from '../../services/evaluationService';
+import { useQueryClient } from '@tanstack/react-query';
+import useAuthStore from '../../stores/authStore';
+import { queryKeys } from '../../query/queryKeys';
 
 const { TextArea } = Input;
 
@@ -15,6 +18,9 @@ export default function CheckpointIssueModal({
 }) {
     const [form] = Form.useForm();
     const [submitting, setSubmitting] = useState(false);
+    const user = useAuthStore((state) => state.user);
+    const scope = queryKeys.scope(user);
+    const queryClient = useQueryClient();
 
     useEffect(() => {
         if (open) {
@@ -43,6 +49,7 @@ export default function CheckpointIssueModal({
             if (res.success) {
                 message.success(`Đã phát hành biên bản đánh giá tiến độ đợt ${values.checkpointNo} thành công!`);
                 form.resetFields();
+                await queryClient.invalidateQueries({ queryKey: queryKeys.registrations.all(scope) });
                 onSuccess?.();
                 onClose?.();
             } else {

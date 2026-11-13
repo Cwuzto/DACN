@@ -36,6 +36,16 @@ export const useRegistrations = (scope, filters = {}, enabled = true) => useQuer
     enabled: (filters?.semesterId !== undefined ? Boolean(filters.semesterId) : true) && enabled,
 });
 
+export const useRegistrationHistory = (scope, registrationId, enabled = true) => useQuery({
+    queryKey: [...queryKeys.registrations.detail(scope, registrationId), 'history'],
+    queryFn: async () => {
+        const res = await registrationService.getRegistrationHistory(registrationId);
+        if (!res?.success && !Array.isArray(res?.data) && !Array.isArray(res)) throw normalizeApiError(res);
+        return Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+    },
+    enabled: Boolean(registrationId) && enabled,
+});
+
 export const usePendingTitleAdjustments = (scope, enabled = true) => useQuery({
     queryKey: registrationCustomKeys.pendingTitleAdjustments(scope),
     queryFn: async () => requireSuccess(await registrationService.getPendingTitleAdjustments()).data,

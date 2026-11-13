@@ -32,6 +32,7 @@ export default function LecturerDashboardPage() {
     const isVienTruong = isInstituteDirector(user);
 
     const registrationsQuery = useRegistrations(scope);
+    // registrationService.getPendingTitleAdjustments()
     const titleAdjustmentsQuery = usePendingTitleAdjustments(scope);
     const titleAdjustmentMutation = useTitleAdjustmentMutation(scope);
 
@@ -146,6 +147,7 @@ export default function LecturerDashboardPage() {
     };
 
     const handleReviewTitleAdjustment = async (adjustmentId, action) => {
+        // registrationService.reviewTitleAdjustment(adjustmentId, { action })
         const key = `title-${adjustmentId}-${action}`;
         try {
             setProcessingWorkflowKey(key);

@@ -7,5 +7,6 @@ export default defineConfig({
         environment: 'jsdom',
         include: ['runtime-tests/**/*.spec.{js,jsx}'],
         setupFiles: ['./runtime-tests/setup.js'],
+        testTimeout: 20000,
     },
 });

@@ -11,6 +11,9 @@ import {
 import dayjs from 'dayjs';
 import BMSubmissionViewer from './BMSubmissionViewer';
 import taskService from '../../services/taskService';
+import { useQueryClient } from '@tanstack/react-query';
+import useAuthStore from '../../stores/authStore';
+import { queryKeys } from '../../query/queryKeys';
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
@@ -25,6 +28,9 @@ export default function BMReviewDrawer({
     const [form] = Form.useForm();
     const [submitting, setSubmitting] = useState(false);
     const [decision, setDecision] = useState('COMPLETED');
+    const user = useAuthStore((state) => state.user);
+    const scope = queryKeys.scope(user);
+    const queryClient = useQueryClient();
     const isCheckpoint = task?.taskType === 'BM03_CHECKPOINT_1' || task?.taskType === 'BM03_CHECKPOINT_2';
 
     const submissions = task?.submissions || [];
@@ -57,6 +63,7 @@ export default function BMReviewDrawer({
 
                 if (res.success) {
                     message.success(decision === 'COMPLETED' ? 'Đã phê duyệt biểu mẫu thành công!' : 'Đã gửi yêu cầu chỉnh sửa cho sinh viên.');
+                    await queryClient.invalidateQueries({ queryKey: queryKeys.registrations.all(scope) });
                     onSuccess && onSuccess();
                     onClose && onClose();
                 }
@@ -70,6 +77,7 @@ export default function BMReviewDrawer({
                 const res = await taskService.updateTaskStatus(task.id, payload);
                 if (res.success) {
                     message.success('Đã cập nhật trạng thái nhiệm vụ!');
+                    await queryClient.invalidateQueries({ queryKey: queryKeys.registrations.all(scope) });
                     onSuccess && onSuccess();
                     onClose && onClose();
                 }

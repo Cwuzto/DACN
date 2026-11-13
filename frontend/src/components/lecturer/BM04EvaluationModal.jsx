@@ -8,7 +8,11 @@ import {
     FileDoneOutlined,
     InfoCircleOutlined,
 } from '@ant-design/icons';
+import { useQueryClient } from '@tanstack/react-query';
 import evaluationService from '../../services/evaluationService';
+import useAuthStore from '../../stores/authStore';
+import { queryKeys } from '../../query/queryKeys';
+import { useBM04Record } from '../../queries/gradingQueries';
 
 const { TextArea } = Input;
 
@@ -20,9 +24,14 @@ export default function BM04EvaluationModal({
     currentLecturerName,
 }) {
     const [form] = Form.useForm();
-    const [loadingRecord, setLoadingRecord] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [savingDraft, setSavingDraft] = useState(false);
+    const user = useAuthStore((state) => state.user);
+    const scope = queryKeys.scope(user);
+    const queryClient = useQueryClient();
+
+    const bm04Query = useBM04Record(scope, registration?.id, Boolean(open && registration?.id));
+    const loadingRecord = bm04Query.isPending && bm04Query.fetchStatus !== 'idle';
 
     const programOutcome = Form.useWatch('programOutcome', form);
     const defenseRecommendation = Form.useWatch('defenseRecommendation', form);
@@ -51,33 +60,21 @@ export default function BM04EvaluationModal({
             defenseRecommendation: 'APPROVE_FOR_DEFENSE',
         });
 
-        const fetchDraft = async () => {
-            try {
-                setLoadingRecord(true);
-                const res = await evaluationService.getBM04Record(registration.id);
-                if (res?.success && res.data) {
-                    const d = res.data;
-                    form.setFieldsValue({
-                        thesisFormatScore: d.thesisFormatScore || '',
-                        researchContentScore: d.researchContentScore || '',
-                        applicabilityScore: d.applicabilityScore || '',
-                        attitudeScore: d.attitudeScore || '',
-                        programOutcome: d.programOutcome || 'MEETS_PROGRAM_OUTCOMES',
-                        defenseRecommendation: d.defenseRecommendation || 'APPROVE_FOR_DEFENSE',
-                        mismatchReason: d.mismatchReason || '',
-                        generalNotes: d.generalNotes || '',
-                        lecturerSignature: d.lecturerSignature || currentLecturerName || '',
-                    });
-                }
-            } catch {
-                // Ignore silent fetch draft errors
-            } finally {
-                setLoadingRecord(false);
-            }
-        };
-
-        fetchDraft();
-    }, [open, registration?.id, currentLecturerName, form]);
+        if (bm04Query.data) {
+            const d = bm04Query.data;
+            form.setFieldsValue({
+                thesisFormatScore: d.thesisFormatScore || '',
+                researchContentScore: d.researchContentScore || '',
+                applicabilityScore: d.applicabilityScore || '',
+                attitudeScore: d.attitudeScore || '',
+                programOutcome: d.programOutcome || 'MEETS_PROGRAM_OUTCOMES',
+                defenseRecommendation: d.defenseRecommendation || 'APPROVE_FOR_DEFENSE',
+                mismatchReason: d.mismatchReason || '',
+                generalNotes: d.generalNotes || '',
+                lecturerSignature: d.lecturerSignature || currentLecturerName || '',
+            });
+        }
+    }, [open, registration?.id, currentLecturerName, form, bm04Query.data]);
 
     const handleSaveDraft = async () => {
         try {
@@ -96,6 +93,8 @@ export default function BM04EvaluationModal({
 
             if (res.success) {
                 message.success('Đã lưu nháp phiếu nhận xét BM04 thành công!');
+                await queryClient.invalidateQueries({ queryKey: queryKeys.grading.all(scope) });
+                await queryClient.invalidateQueries({ queryKey: queryKeys.registrations.all(scope) });
                 onSuccess?.();
             } else {
                 message.error(res.message || 'Không thể lưu nháp phiếu nhận xét.');
@@ -126,6 +125,8 @@ export default function BM04EvaluationModal({
             if (res.success) {
                 message.success('Đã ký và nộp phiếu nhận xét BM04 thành công!');
                 form.resetFields();
+                await queryClient.invalidateQueries({ queryKey: queryKeys.grading.all(scope) });
+                await queryClient.invalidateQueries({ queryKey: queryKeys.registrations.all(scope) });
                 onSuccess?.();
                 onClose?.();
             } else {

@@ -48,6 +48,11 @@ import useAuthStore from '../../stores/authStore';
 import { queryKeys } from '../../query/queryKeys';
 import { useStudentRegistration } from '../../queries/registrationQueries';
 import { useStudentArchive, useDefenseDossier } from '../../queries/archiveQueries';
+import { useRegistrationTasks } from '../../queries/taskQueries';
+import { useRegistrationMeetingLogs, useBM03Record } from '../../queries/meetingQueries';
+import { useRegistrationCheckpoints } from '../../queries/checkpointQueries';
+import { useMyOutline } from '../../queries/outlineQueries';
+import { useBM04Record } from '../../queries/gradingQueries';
 import QueryErrorState from '../../components/common/QueryErrorState';
 import ContentSkeleton from '../../components/common/ContentSkeleton';
 
@@ -64,10 +69,6 @@ const formatTaskTitle = (title) => {
 
 export default function SubmissionPage() {
     const [searchParams, setSearchParams] = useSearchParams();
-    const [outlineData, setOutlineData] = useState(null);
-    const [tasks, setTasks] = useState([]);
-    const [meetingLogs, setMeetingLogs] = useState([]);
-    const [, setLoading] = useState(true);
 
     // Modal state
     const [modalVisible, setModalVisible] = useState(false);
@@ -80,8 +81,6 @@ export default function SubmissionPage() {
     const [viewerSubmission, setViewerSubmission] = useState(null);
     const [bm04ViewerOpen, setBm04ViewerOpen] = useState(false);
     const [bm04Evaluation, setBm04Evaluation] = useState(null);
-    const [bm03Record, setBm03Record] = useState(null);
-    const [bm04Record, setBm04Record] = useState(null);
 
     // BM03 48h Student Acknowledgement state
     const [bm03AckModalOpen, setBm03AckModalOpen] = useState(false);
@@ -100,7 +99,6 @@ export default function SubmissionPage() {
     const [notes, setNotes] = useState('');
 
     // Checkpoint state
-    const [checkpoints, setCheckpoints] = useState([]);
     const [checkpointSignModalOpen, setCheckpointSignModalOpen] = useState(false);
     const [selectedCheckpoint, setSelectedCheckpoint] = useState(null);
     const currentUser = useAuthStore((s) => s.user);
@@ -109,6 +107,22 @@ export default function SubmissionPage() {
     const registration = registrationQuery.data?.data;
     const archiveQuery = useStudentArchive(scope, registration?.id);
     const dossierQuery = useDefenseDossier(scope, registration?.id);
+
+    const tasksQuery = useRegistrationTasks(scope, registration?.id, Boolean(registration?.id));
+    const meetingLogsQuery = useRegistrationMeetingLogs(scope, registration?.id, Boolean(registration?.id));
+    const checkpointsQuery = useRegistrationCheckpoints(scope, registration?.id, Boolean(registration?.id));
+    // outlineService.getMyOutline via useMyOutline
+    const outlineQuery = useMyOutline(scope, Boolean(registration?.id));
+    const bm03Query = useBM03Record(scope, registration?.id, Boolean(registration?.id));
+    const bm04Query = useBM04Record(scope, registration?.id, Boolean(registration?.id));
+
+    const tasks = tasksQuery.data || [];
+    const meetingLogs = meetingLogsQuery.data || [];
+    const checkpointEvaluations = checkpointsQuery.data || [];
+    const checkpoints = checkpointEvaluations;
+    const outlineData = outlineQuery.data || null;
+    const bm03Record = bm03Query.data || null;
+    const bm04Record = bm04Query.data || null;
     const preDefenseArchive = archiveQuery.data?.data?.archive;
     const dossier = dossierQuery.data?.data;
     const archiveTab = searchParams.get('tab') === 'archive';
@@ -218,41 +232,18 @@ export default function SubmissionPage() {
         }
     };
 
-    useEffect(() => {
-        if (registration?.id) fetchRelatedData(registration);
-    }, [registration?.id]);
-
     const fetchData = async () => {
-        const [result] = await Promise.all([registrationQuery.refetch(), archiveQuery.refetch(), dossierQuery.refetch()]);
-        if (result.data?.data) await fetchRelatedData(result.data.data);
-    };
-
-    const fetchRelatedData = async (regData) => {
-        try {
-            setLoading(true);
-            const [taskRes, logRes, cpRes, outlineRes, bm03Res, bm04Res] = await Promise.all([
-                taskService.getTasksByRegistration(regData.id).catch(() => ({ success: false, data: [] })),
-                meetingLogService.getMeetingLogs(regData.id).catch(() => ({ success: false, data: [] })),
-                evaluationService.getCheckpointEvaluations(regData.id).catch(() => ({ success: false, data: [] })),
-                outlineService.getMyOutline().catch(() => ({ success: false, data: null })),
-                evaluationService.getBM03Record(regData.id).catch(() => ({ success: false, data: null })),
-                evaluationService.getBM04Record(regData.id).catch(() => ({ success: false, data: null })),
-            ]);
-
-            if (taskRes.success) setTasks(taskRes.data || []);
-            if (logRes.success) setMeetingLogs(logRes.data || []);
-            if (cpRes.success) setCheckpoints(cpRes.data || []);
-            if (outlineRes?.success && outlineRes.data) setOutlineData(outlineRes.data);
-            if (bm03Res?.success && bm03Res.data) setBm03Record(bm03Res.data);
-            if (bm04Res?.success && bm04Res.data) {
-                setBm04Record(bm04Res.data);
-                setBm04Evaluation(bm04Res.data);
-            }
-        } catch (error) {
-            message.error(error?.message || 'Không thể tải dữ liệu nộp biểu mẫu.');
-        } finally {
-            setLoading(false);
-        }
+        await Promise.all([
+            registrationQuery.refetch(),
+            archiveQuery.refetch(),
+            dossierQuery.refetch(),
+            tasksQuery.refetch(),
+            meetingLogsQuery.refetch(),
+            checkpointsQuery.refetch(),
+            outlineQuery.refetch(),
+            bm03Query.refetch(),
+            bm04Query.refetch(),
+        ]);
     };
 
     const taskByType = useMemo(() => {

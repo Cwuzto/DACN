@@ -12,3 +12,8 @@ export const useSemesters = scope => useQuery({
     queryKey: queryKeys.semesters.list(scope),
     queryFn: async () => requireSuccess(await semesterService.getAll()).data,
 });
+
+export const usePublicSemesters = scope => useQuery({
+    queryKey: [...queryKeys.semesters.all(scope), 'public'],
+    queryFn: async () => requireSuccess(await semesterService.getPublic()).data,
+});

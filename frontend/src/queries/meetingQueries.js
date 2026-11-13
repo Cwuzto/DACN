@@ -17,6 +17,8 @@ export const useMeetingLogs = (scope, registrationId, enabled = true) => useQuer
     enabled: Boolean(registrationId) && enabled,
 });
 
+export const useRegistrationMeetingLogs = useMeetingLogs;
+
 export const useBM03Record = (scope, registrationId, enabled = true) => useQuery({
     queryKey: meetingKeys.bm03(scope, registrationId),
     queryFn: async () => requireSuccess(await meetingLogService.getBM03Record(registrationId)).data,

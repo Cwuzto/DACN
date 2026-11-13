@@ -126,12 +126,14 @@ export default function StudentDashboardPage() {
     const currentRegistration = registrationDetails ?? null;
     const regId = currentRegistration?.registrationId || currentRegistration?.id;
 
+    // Contract: registrationService.getAllowedActions queried via useAllowedActions
     const allowedActionsQuery = useAllowedActions(scope, regId);
     const allowedActions = allowedActionsQuery.data || [];
     const bm03Query = useBM03Record(scope, regId);
     const bm03Record = bm03Query.data || null;
     const bm04Query = useBM04Record(scope, regId);
     const bm04Record = bm04Query.data || null;
+    // archiveService.getDefenseDossier queried via useDefenseDossier
     const dossierQuery = useDefenseDossier(scope, regId);
     const defenseDossier = dossierQuery.data?.data || null;
 

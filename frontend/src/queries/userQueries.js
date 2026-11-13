@@ -1,15 +1,29 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import userService from '../services/userService';
+import authService from '../services/authService';
 import { queryKeys } from '../query/queryKeys';
 import { requireSuccess } from './semesterQueries';
 
 export const userKeys = {
     counts: scope => [...queryKeys.users.all(scope), 'counts'],
     permissions: (scope, id) => [...queryKeys.users.detail(scope, id), 'permissions'],
+    publicLecturers: (scope) => [...queryKeys.users.all(scope), 'public-lecturers'],
+    currentUser: (scope) => [...queryKeys.users.detail(scope, 'me')],
 };
-export const useUsers = (scope, filters) => useQuery({
+export const useUsers = (scope, filters, enabled = true) => useQuery({
     queryKey: queryKeys.users.list(scope, filters),
     queryFn: async () => requireSuccess(await userService.getUsers(filters)),
+    enabled,
+});
+export const usePublicLecturers = (scope, enabled = true) => useQuery({
+    queryKey: userKeys.publicLecturers(scope),
+    queryFn: async () => requireSuccess(await userService.getPublicLecturers()).data,
+    enabled,
+});
+export const useCurrentUser = (scope, enabled = true) => useQuery({
+    queryKey: userKeys.currentUser(scope),
+    queryFn: async () => requireSuccess(await authService.getMe()).data,
+    enabled,
 });
 export const useUserRoleCounts = scope => useQuery({
     queryKey: userKeys.counts(scope),

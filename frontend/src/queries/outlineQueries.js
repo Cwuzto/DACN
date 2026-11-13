@@ -17,11 +17,16 @@ export const outlineKeys = {
         : [...scope, 'outline', 'my-outline']),
 };
 
-export const useMyOutline = (scope, params = {}, enabled = true) => useQuery({
-    queryKey: outlineKeys.myOutline(scope, params),
-    queryFn: async () => requireSuccess(await outlineService.getMyOutline(params)).data,
-    enabled,
-});
+export const useMyOutline = (scope, paramsOrEnabled = {}, enabled = true) => {
+    const isBool = typeof paramsOrEnabled === 'boolean';
+    const params = isBool ? {} : paramsOrEnabled;
+    const isEnabled = isBool ? paramsOrEnabled : enabled;
+    return useQuery({
+        queryKey: outlineKeys.myOutline(scope, params),
+        queryFn: async () => requireSuccess(await outlineService.getMyOutline(params)).data,
+        enabled: isEnabled,
+    });
+};
 
 export const useOutlineMutation = (scope, registrationId) => {
     const client = useQueryClient();

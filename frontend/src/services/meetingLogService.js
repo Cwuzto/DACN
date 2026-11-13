@@ -1,5 +1,6 @@
 // src/services/meetingLogService.js
 import api from './api';
+import evaluationService from './evaluationService';
 
 const wrapServiceError = (error, fallbackMessage) => {
     if (error?.success === false) return error;
@@ -52,6 +53,9 @@ export const meetingLogService = {
     // ==========================================
     getBM03Record: async (registrationId) => {
         try {
+            if (evaluationService?.getBM03Record) {
+                return await evaluationService.getBM03Record(registrationId);
+            }
             return await api.get(`/bm03/${registrationId}`);
         } catch (error) {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi tải phiếu BM03');

@@ -16,6 +16,8 @@ export const useCheckpointEvaluations = (scope, registrationId, enabled = true) 
     enabled: Boolean(registrationId) && enabled,
 });
 
+export const useRegistrationCheckpoints = useCheckpointEvaluations;
+
 export const useCheckpointAppeals = (scope, filters = {}, enabled = true) => useQuery({
     queryKey: checkpointKeys.appeals(scope, filters),
     queryFn: async () => requireSuccess(await evaluationService.getCheckpointAppeals(filters)).data,

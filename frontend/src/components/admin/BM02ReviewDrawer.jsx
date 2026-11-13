@@ -20,6 +20,9 @@ import {
     InfoCircleOutlined,
 } from '@ant-design/icons';
 import { reviewBM02 } from '../../services/registrationService';
+import { useQueryClient } from '@tanstack/react-query';
+import useAuthStore from '../../stores/authStore';
+import { queryKeys } from '../../query/queryKeys';
 
 const { TextArea } = Input;
 const { Text } = Typography;
@@ -33,6 +36,9 @@ export default function BM02ReviewDrawer({
     const [form] = Form.useForm();
     const [submitting, setSubmitting] = useState(false);
     const [selectedAction, setSelectedAction] = useState('APPROVE');
+    const user = useAuthStore((state) => state.user);
+    const scope = queryKeys.scope(user);
+    const queryClient = useQueryClient();
 
     useEffect(() => {
         if (open && registration) {
@@ -89,6 +95,7 @@ export default function BM02ReviewDrawer({
                         : 'Đã gửi yêu cầu chỉnh sửa đơn đăng ký đề tài cho sinh viên.'
                 );
                 if (onSuccess) onSuccess(res.data || res);
+                await queryClient.invalidateQueries({ queryKey: queryKeys.registrations.all(scope) });
                 if (onClose) onClose();
             } else {
                 message.error(res.message || 'Không thể cập nhật kết quả thẩm định');

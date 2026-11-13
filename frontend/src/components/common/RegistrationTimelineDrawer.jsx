@@ -1,61 +1,67 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Drawer, Timeline, Skeleton, Empty, Alert, Button } from 'antd';
-import { ReloadOutlined, CloseOutlined } from '@ant-design/icons';
+import React from 'react';
+import { Drawer, Timeline, Tag, Spin, Skeleton, Alert, Empty, Button } from 'antd';
+import {
+    ClockCircleOutlined,
+    CheckCircleOutlined,
+    CloseCircleOutlined,
+    SyncOutlined,
+    ExclamationCircleOutlined,
+    CloseOutlined,
+    ReloadOutlined,
+} from '@ant-design/icons';
 import dayjs from 'dayjs';
-import registrationService from '../../services/registrationService';
-import { STATUS_MAP } from './statusMap';
+import useAuthStore from '../../stores/authStore';
+import { queryKeys } from '../../query/queryKeys';
+import { useRegistrationHistory } from '../../queries/registrationQueries';
+import QueryPanel from './QueryPanel';
+
+const STATUS_LABELS = {
+    PROPOSED: 'Đã đề xuất',
+    APPROVED: 'Đã duyệt đề tài',
+    REJECTED: 'Bị từ chối',
+    IN_PROGRESS_BM01: 'Nộp đề cương chi tiết (BM01)',
+    BM01_PASSED: 'Đề cương đạt yêu cầu',
+    IN_PROGRESS_BM02: 'Nộp đăng ký chính thức (BM02)',
+    BM02_SUBMITTED: 'Đã nộp BM02',
+    OFFICIALLY_REGISTERED: 'Đã có QĐ giao đề tài',
+    IN_PROGRESS_BM03: 'Thực hiện & Đánh giá tiến độ',
+    BM03_PASSED: 'Tiến độ đạt yêu cầu',
+    IN_PROGRESS_BM04: 'Đánh giá điều kiện bảo vệ (BM04)',
+    BM04_PASSED: 'Đủ điều kiện ra bảo vệ',
+    COUNCIL_ASSIGNED: 'Đã phân công hội đồng',
+    DEFENSE_READY: 'Sẵn sàng bảo vệ',
+    DEFENSE_IN_PROGRESS: 'Đang bảo vệ',
+    DEFENDED: 'Đã bảo vệ',
+    DEFENSE_PASSED: 'Bảo vệ đạt yêu cầu',
+    DEFENSE_FAILED: 'Bảo vệ không đạt',
+    POST_DEFENSE_REVISION: 'Chỉnh sửa sau bảo vệ',
+    COMPLETED: 'Đã hoàn thành khóa luận',
+    ARCHIVED: 'Đã lưu chiểu thư viện',
+    CANCELLED: 'Đề tài đã bị hủy',
+    TERMINATED: 'Dừng thực hiện đề tài',
+};
 
 const ROLE_LABEL_MAP = {
     STUDENT: 'Sinh viên',
     LECTURER: 'Giảng viên',
-    ADMIN: 'Quản trị viên',
+    ADMIN: 'Giáo vụ',
     DEPARTMENT_HEAD: 'Trưởng bộ môn',
-    COUNCIL_PRESIDENT: 'Chủ tịch hội đồng',
-    SECRETARY: 'Thư ký',
 };
+
+const getStatusLabel = (status) => STATUS_LABELS[status] || status || 'Chưa xác định';
 
 const getDotColor = (status) => {
-    const s = String(status || '').toUpperCase();
-    if (['COMPLETED', 'BM01_PASSED', 'BM03_PASSED', 'DEFENDED', 'DEFENSE_PASSED', 'PASSED'].includes(s)) {
+    if (!status) return 'gray';
+    if (status.includes('PASSED') || status === 'COMPLETED' || status === 'ARCHIVED' || status === 'OFFICIALLY_REGISTERED') {
         return 'green';
     }
-    if ([
-        'APPROVED',
-        'IN_PROGRESS_BM03',
-        'DEFENSE_READY',
-        'READY_FOR_DEFENSE',
-        'DECISION_ISSUED',
-        'IN_PROGRESS',
-        'REGISTERED',
-        'SUBMITTED',
-        'BM01_SUBMITTED',
-        'BM02_SUBMITTED',
-        'BM02_RESUBMITTED',
-    ].includes(s)) {
-        return 'blue';
-    }
-    if ([
-        'STOPPED',
-        'CANCELLED',
-        'REJECTED',
-        'TERMINATED_BM01',
-        'TERMINATED_BM02',
-        'TERMINATED_FAILED_PROGRESS',
-        'TERMINATED_BM04',
-        'DROPPED',
-        'WITHDRAWN',
-        'FAILED',
-        'DEFENSE_FAILED',
-        'ARCHIVE_REJECTED',
-    ].includes(s)) {
+    if (status.includes('REJECTED') || status === 'DEFENSE_FAILED' || status === 'CANCELLED' || status === 'TERMINATED') {
         return 'red';
     }
-    return 'gray';
-};
-
-const getStatusLabel = (status) => {
-    if (!status) return 'Chưa xác định';
-    return STATUS_MAP[status]?.label || status;
+    if (status.includes('IN_PROGRESS') || status.includes('SUBMITTED') || status === 'DEFENSE_READY') {
+        return 'blue';
+    }
+    return 'orange';
 };
 
 export default function RegistrationTimelineDrawer({
@@ -66,36 +72,13 @@ export default function RegistrationTimelineDrawer({
     studentName,
     studentCode,
 }) {
-    const [loading, setLoading] = useState(false);
-    const [history, setHistory] = useState([]);
-    const [error, setError] = useState(null);
+    const user = useAuthStore((state) => state.user);
+    const scope = queryKeys.scope(user);
+    const historyQuery = useRegistrationHistory(scope, registrationId, Boolean(open && registrationId));
 
-    const fetchHistory = useCallback(async () => {
-        if (!registrationId) {
-            setHistory([]);
-            return;
-        }
-        try {
-            setLoading(true);
-            setError(null);
-            const res = await registrationService.getRegistrationHistory(registrationId);
-            const items = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
-            setHistory(items);
-        } catch (err) {
-            setError(err?.message || 'Không thể tải lịch sử tiến trình đề tài.');
-            setHistory([]);
-        } finally {
-            setLoading(false);
-        }
-    }, [registrationId]);
-
-    useEffect(() => {
-        if (open && registrationId) {
-            fetchHistory();
-        } else if (!open) {
-            setError(null);
-        }
-    }, [open, registrationId, fetchHistory]);
+    const history = historyQuery.data || [];
+    const loading = historyQuery.isPending && historyQuery.fetchStatus !== 'idle';
+    const error = historyQuery.isError ? (historyQuery.error?.message || 'Không thể tải lịch sử tiến trình đề tài.') : null;
 
     const timelineItems = history.map((item, index) => {
         const color = getDotColor(item.toStatus);
@@ -110,23 +93,17 @@ export default function RegistrationTimelineDrawer({
             key: item.id || index,
             color,
             children: (
-                <div className="space-y-1 pb-2">
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <span className="font-semibold text-sm text-slate-800">
-                            {toLabel}
+                <div className="text-sm pb-2">
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                        <span className="font-semibold text-slate-800">
+                            {fromLabel ? `${fromLabel} → ${toLabel}` : toLabel}
                         </span>
-                        <span className="text-xs text-slate-600 font-mono">
+                        <span className="text-xs text-slate-600 shrink-0 font-mono">
                             {timeStr}
                         </span>
                     </div>
 
-                    {fromLabel && fromLabel !== toLabel && (
-                        <div className="text-xs text-slate-600">
-                            Trạng thái trước: <span className="font-medium text-slate-700">{fromLabel}</span>
-                        </div>
-                    )}
-
-                    <div className="text-xs text-slate-600">
+                    <div className="text-xs text-slate-600 mb-1">
                         Người thực hiện: <span className="font-medium text-slate-700">{actorDisplay}</span>
                     </div>
 
@@ -150,7 +127,7 @@ export default function RegistrationTimelineDrawer({
                 <Button
                     size="small"
                     icon={<ReloadOutlined />}
-                    onClick={fetchHistory}
+                    onClick={() => historyQuery.refetch()}
                     loading={loading}
                 >
                     Làm mới
@@ -184,29 +161,9 @@ export default function RegistrationTimelineDrawer({
                 </div>
             )}
 
-            {error && (
-                <Alert
-                    type="error"
-                    showIcon
-                    message="Lỗi tải dữ liệu"
-                    description={error}
-                    style={{ marginBottom: 16 }}
-                />
-            )}
-
-            {loading ? (
-                <div className="py-4">
-                    <Skeleton active paragraph={{ rows: 6 }} />
-                </div>
-            ) : history.length === 0 ? (
-                <div className="py-12">
-                    <Empty description="Chưa có lịch sử chuyển trạng thái" />
-                </div>
-            ) : (
-                <div className="pt-2">
-                    <Timeline items={timelineItems} />
-                </div>
-            )}
+            <QueryPanel query={historyQuery} empty={history.length === 0} emptyDescription="Chưa có lịch sử chuyển trạng thái cho đề tài này.">
+                <Timeline items={timelineItems} />
+            </QueryPanel>
         </Drawer>
     );
 }

@@ -29,6 +29,21 @@ export const useResultApprovals = (scope, filters = {}, options = {}) => useQuer
     select: selectApprovals,
 });
 
+export const useScoreBookReturnLogs = (scope, councilId, enabled = true) => useQuery({
+    queryKey: [...queryKeys.grading.all(scope), 'return-logs', councilId],
+    queryFn: async () => requireSuccess(await evaluationService.getScoreBookReturnLogs(councilId)).data,
+    enabled: Boolean(councilId) && enabled,
+});
+
+export const useBM04Record = (scope, registrationId, enabled = true) => useQuery({
+    queryKey: [...queryKeys.grading.all(scope), 'bm04', registrationId],
+    queryFn: async () => {
+        const res = await evaluationService.getBM04Record(registrationId);
+        return res?.success ? res.data : null;
+    },
+    enabled: Boolean(registrationId) && enabled,
+});
+
 export const useGradingSemesters = (scope) => useQuery({
     queryKey: queryKeys.semesters.list(scope),
     queryFn: async () => requireSuccess(await semesterService.getAll()).data,

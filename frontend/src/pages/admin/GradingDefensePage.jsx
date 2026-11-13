@@ -25,7 +25,7 @@ import {
 import dayjs from 'dayjs';
 import evaluationService from '../../services/evaluationService';
 import { queryKeys } from '../../query/queryKeys';
-import { useApproveDefenseResult, useDefenseResults, useGradingSemesters, useResultApprovals } from '../../queries/gradingQueries';
+import { useApproveDefenseResult, useDefenseResults, useGradingSemesters, useResultApprovals, useScoreBookReturnLogs } from '../../queries/gradingQueries';
 import ContentSkeleton from '../../components/common/ContentSkeleton';
 import QueryErrorState from '../../components/common/QueryErrorState';
 import ContentRefreshIndicator from '../../components/common/ContentRefreshIndicator';
@@ -91,9 +91,7 @@ export default function GradingDefensePage() {
     const [returnLoading, setReturnLoading] = useState(false);
 
     // ScoreBook return logs state
-    const [returnLogs, setReturnLogs] = useState([]);
     const [returnHistoryModalVisible, setReturnHistoryModalVisible] = useState(false);
-    const [loadingReturnLogs, setLoadingReturnLogs] = useState(false);
     // Rubric Drawer state
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [drawerLoading, setDrawerLoading] = useState(false);
@@ -205,33 +203,14 @@ export default function GradingDefensePage() {
         setSelectedRowKeys([]);
     }, [filters]);
 
+    // evaluationService.getScoreBookReturnLogs(councilId)
+    const returnLogsQuery = useScoreBookReturnLogs(scope, selectedCouncilId, Boolean(selectedCouncilId && canLockResult));
+    const returnLogs = returnLogsQuery.data || [];
+    const loadingReturnLogs = returnLogsQuery.isPending && returnLogsQuery.fetchStatus !== 'idle';
     const fetchReturnLogs = useCallback(async (councilId) => {
-        if (!councilId) {
-            setReturnLogs([]);
-            return;
-        }
-        try {
-            setLoadingReturnLogs(true);
-            const res = await evaluationService.getScoreBookReturnLogs(councilId);
-            if (res?.success) {
-                setReturnLogs(res.data || []);
-            } else {
-                setReturnLogs([]);
-            }
-        } catch {
-            setReturnLogs([]);
-        } finally {
-            setLoadingReturnLogs(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        if (selectedCouncilId && canLockResult) {
-            fetchReturnLogs(selectedCouncilId);
-        } else {
-            setReturnLogs([]);
-        }
-    }, [selectedCouncilId, canLockResult, fetchReturnLogs]);
+        if (!councilId) return;
+        await returnLogsQuery.refetch();
+    }, [returnLogsQuery]);
 
     const returnHistoryColumns = [
         {
