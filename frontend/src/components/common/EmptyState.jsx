@@ -1,14 +1,16 @@
-/**
- * EmptyState — Unified empty/no-data display.
- * Replaces ad-hoc empty state patterns across pages.
- */
+import { Empty, Typography } from 'antd';
 
-export default function EmptyState({ icon = 'inventory_2', title = 'Không có dữ liệu', description }) {
+export default function EmptyState({ title = 'Không có dữ liệu', description, action, icon }) {
     return (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-12 flex flex-col items-center justify-center text-center">
-            <span className="material-symbols-outlined text-5xl text-slate-400 mb-4 block">{icon}</span>
-            <h3 className="text-xl font-bold text-slate-800 mb-2">{title}</h3>
-            {description && <p className="text-slate-600 font-medium max-w-md">{description}</p>}
-        </div>
+        <section className="rounded-lg border border-slate-200 bg-white px-4 py-10">
+            <Empty image={icon || Empty.PRESENTED_IMAGE_SIMPLE} description={(
+                <div className="space-y-2">
+                    <Typography.Text strong>{title}</Typography.Text>
+                    {description && <div className="text-slate-600">{description}</div>}
+                </div>
+            )}>
+                {action}
+            </Empty>
+        </section>
     );
 }

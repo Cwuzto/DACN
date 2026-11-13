@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { Suspense, useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { Badge } from 'antd';
 import useAuthStore from '../../stores/authStore';
@@ -13,7 +13,8 @@ import NavIcon from './NavIcon';
 import OpenDrawer from '../common/OpenDrawer';
 import QuotaMeter from '../common/QuotaMeter';
 import AcademicChatWidget from '../common/AcademicChatWidget';
-import ErrorBoundary from '../common/ErrorBoundary';
+import RouteContentBoundary from '../common/RouteContentBoundary';
+import ContentSkeleton from '../common/ContentSkeleton';
 
 /**
  * AppLayout - Dynamic 7-Group Academic Layout
@@ -468,9 +469,12 @@ function AppLayout({ role }) {
                 {/* Main Content Area */}
                 <main className="main-area">
                     <div className="content-container">
-                        <ErrorBoundary>
-                            <Outlet />
-                        </ErrorBoundary>
+                        <RouteContentBoundary>
+                            {/* A new pathname reveals its local fallback during router transitions. */}
+                            <Suspense key={location.pathname} fallback={<ContentSkeleton />}>
+                                <Outlet />
+                            </Suspense>
+                        </RouteContentBoundary>
                     </div>
                 </main>
             </div>
