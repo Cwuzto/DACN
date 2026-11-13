@@ -1,4 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCouncilDetail, useCouncilLogs, useCouncilAdjustments, useCouncilLecturers, useCouncilMutation } from '../../queries/councilQueries';
+
+import { usePeriodRegistrations } from '../../queries/periodQueries';
+import { queryKeys } from '../../query/queryKeys';
+import QueryPanel from '../../components/common/QueryPanel';
+import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
     Alert,
@@ -37,10 +42,10 @@ import {
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import CouncilAuditLogModal from '../../components/admin/CouncilAuditLogModal';
-import councilService from '../../services/councilService';
-import registrationService from '../../services/registrationService';
-import userService from '../../services/userService';
+
 import useAuthStore from '../../stores/authStore';
+
+const EMPTY_LIST = [];
 
 export default function CouncilDetailPage({ forcedCouncilType }) {
     const { id } = useParams();
@@ -49,12 +54,16 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
 
     const canManageOutline = (user?.permissions || []).includes('OUTLINE_COUNCIL_MANAGE') || user?.role === 'ADMIN' || user?.role === 'QUAN_TRI_VIEN';
     const canManageDefense = (user?.permissions || []).includes('DEFENSE_COUNCIL_MANAGE') || user?.role === 'ADMIN' || user?.role === 'QUAN_TRI_VIEN';
+    const scope = queryKeys.scope(user);
+    const councilQuery = useCouncilDetail(scope, id);
+    const council = councilQuery.data;
+    const loading = councilQuery.isPending;
+    const lecturersQuery = useCouncilLecturers(scope);
+    const lecturers = lecturersQuery.data || EMPTY_LIST;
+    const councilMutation = useCouncilMutation(scope, council?.semesterId);
     const effectiveCouncilType = forcedCouncilType || council?.councilType || 'DEFENSE_COUNCIL';
     const canManageCouncil = effectiveCouncilType === 'OUTLINE_REVIEW' ? canManageOutline : canManageDefense;
 
-    const [council, setCouncil] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [lecturers, setLecturers] = useState([]);
     const [searchText, setSearchText] = useState('');
 
     // Modals
@@ -63,16 +72,13 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
     const [isAssignModalVisible, setIsAssignModalVisible] = useState(false);
     const [isReopenModalVisible, setIsReopenModalVisible] = useState(false);
     const [isLogModalVisible, setIsLogModalVisible] = useState(false);
-    const [councilLogs, setCouncilLogs] = useState([]);
 
     const [submitLoading, setSubmitLoading] = useState(false);
     const [councilForm] = Form.useForm();
     const [memberForm] = Form.useForm();
 
     // Assign Student state
-    const [unassignedRegistrations, setUnassignedRegistrations] = useState([]);
     const [selectedRegistrationsToAssign, setSelectedRegistrationsToAssign] = useState([]);
-    const [loadingUnassigned, setLoadingUnassigned] = useState(false);
 
     // Reopen state
     const [reopenReason, setReopenReason] = useState('');
@@ -89,8 +95,6 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
 
     // Schedule adjustment logs modal state
     const [isAdjustmentsModalVisible, setIsAdjustmentsModalVisible] = useState(false);
-    const [defenseScheduleAdjustmentLogs, setDefenseScheduleAdjustmentLogs] = useState([]);
-    const [loadingAdjustments, setLoadingAdjustments] = useState(false);
 
     // Replace member modal state
     const [isReplaceMemberModalVisible, setIsReplaceMemberModalVisible] = useState(false);
@@ -99,48 +103,14 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
     const [replaceReason, setReplaceReason] = useState('');
     const [confirmLockedSheetOverride, setConfirmLockedSheetOverride] = useState(false);
 
-    const fetchCouncilDetail = useCallback(async () => {
-        try {
-            setLoading(true);
-            const res = await councilService.getCouncilById(id);
-            if (res.success && res.data) {
-                setCouncil(res.data);
-            } else {
-                message.error(res.message || 'Không tìm thấy thông tin hội đồng');
-            }
-        } catch (err) {
-            message.error(err?.message || 'Lỗi khi tải chi tiết hội đồng');
-        } finally {
-            setLoading(false);
-        }
-    }, [id]);
-
-    useEffect(() => {
-        fetchCouncilDetail();
-    }, [fetchCouncilDetail]);
-
-    useEffect(() => {
-        const loadLecturers = async () => {
-            try {
-                const res = await userService.getUsers({ role: 'LECTURER', status: 'active', limit: 1000 });
-                if (res.success && Array.isArray(res.data?.users || res.data)) {
-                    setLecturers(res.data?.users || res.data || []);
-                    return;
-                }
-            } catch {
-                // Non-blocking
-            }
-            try {
-                const fallbackRes = await userService.getPublicLecturers();
-                if (fallbackRes.success && Array.isArray(fallbackRes.data)) {
-                    setLecturers(fallbackRes.data);
-                }
-            } catch {
-                // Non-blocking
-            }
-        };
-        loadLecturers();
-    }, []);
+    const logsQuery = useCouncilLogs(scope, id, isLogModalVisible);
+    const councilLogs = logsQuery.data;
+    const adjustmentsQuery = useCouncilAdjustments(scope, id, isAdjustmentsModalVisible);
+    const defenseScheduleAdjustmentLogs = adjustmentsQuery.data || EMPTY_LIST;
+    const loadingAdjustments = adjustmentsQuery.isFetching;
+    const unassignedQuery = usePeriodRegistrations(scope, { semesterId: council?.semesterId, unassignedCouncilOnly: true, councilType: council?.councilType, scope: 'institute' }, isAssignModalVisible && Boolean(council?.semesterId));
+    const unassignedRegistrations = unassignedQuery.data || EMPTY_LIST;
+    const loadingUnassigned = unassignedQuery.isFetching;
 
     const effectiveRegistrations = useMemo(() => {
         if (!council) return [];
@@ -241,11 +211,10 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                 defenseDate: values.defenseDate ? values.defenseDate.toISOString() : null,
                 meetingMode: values.meetingMode,
             };
-            const res = await councilService.updateCouncil(council.id, payload);
+            const res = await councilMutation.mutateAsync({ action: 'updateCouncil', args: [council.id, payload] });
             if (res.success !== false) {
                 message.success('Cập nhật thông tin hội đồng thành công');
                 setIsEditModalVisible(false);
-                await fetchCouncilDetail();
             } else {
                 message.error(res.message || 'Lỗi khi cập nhật hội đồng');
             }
@@ -286,14 +255,13 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                 return;
             }
 
-            const res = await councilService.updateCouncil(council.id, { members });
+            const res = await councilMutation.mutateAsync({ action: 'updateCouncil', args: [council.id, { members }] });
             if (res.success !== false) {
                 message.success('Đã cập nhật thành viên hội đồng');
                 if (res?.warnings?.length) {
                     res.warnings.forEach((warning) => message.warning(warning));
                 }
                 setIsMemberModalVisible(false);
-                await fetchCouncilDetail();
             } else {
                 message.error(res.message || 'Lỗi khi cập nhật thành viên');
             }
@@ -305,26 +273,10 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
     };
 
     // Assign Registrations Handlers
-    const openAssignModal = async () => {
+    const openAssignModal = () => {
         if (!council) return;
         setSelectedRegistrationsToAssign([]);
         setIsAssignModalVisible(true);
-        try {
-            setLoadingUnassigned(true);
-            const res = await registrationService.getAllRegistrations({
-                semesterId: council.semesterId,
-                unassignedCouncilOnly: true,
-                councilType: council.councilType,
-                scope: 'institute',
-            });
-            if (res.success) {
-                setUnassignedRegistrations(res.data || []);
-            }
-        } catch (err) {
-            message.error(err?.message || 'Lỗi khi tải danh sách sinh viên chưa phân công');
-        } finally {
-            setLoadingUnassigned(false);
-        }
     };
 
     const handleAssignRegistrations = async () => {
@@ -333,11 +285,10 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
         }
         try {
             setSubmitLoading(true);
-            const res = await councilService.assignRegistrations(council.id, selectedRegistrationsToAssign);
+            const res = await councilMutation.mutateAsync({ action: 'assignRegistrations', args: [council.id, selectedRegistrationsToAssign] });
             if (res.success !== false) {
                 message.success('Phân công sinh viên thành công');
                 setIsAssignModalVisible(false);
-                await fetchCouncilDetail();
             } else {
                 message.error(res.message || 'Lỗi khi phân công sinh viên');
             }
@@ -351,18 +302,17 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
     // Remove Registration
     const handleRemoveRegistration = async (registrationId) => {
         try {
-            setLoading(true);
-            const res = await councilService.removeRegistration(council.id, registrationId);
+            setSubmitLoading(true);
+            const res = await councilMutation.mutateAsync({ action: 'removeRegistration', args: [council.id, registrationId] });
             if (res.success !== false) {
                 message.success('Đã gỡ sinh viên khỏi hội đồng thành công');
-                await fetchCouncilDetail();
             } else {
                 message.error(res.message || 'Lỗi khi gỡ sinh viên');
             }
         } catch (err) {
             message.error(err?.message || 'Lỗi khi gỡ sinh viên');
         } finally {
-            setLoading(false);
+            setSubmitLoading(false);
         }
     };
 
@@ -370,10 +320,9 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
     const handleConfirmAndPublishDefenseSchedule = async () => {
         try {
             setSubmitLoading(true);
-            const res = await councilService.confirmAndPublishDefenseSchedule(council.id);
+            const res = await councilMutation.mutateAsync({ action: 'confirmAndPublishDefenseSchedule', args: [council.id] });
             if (res.success) {
                 message.success(res.message || 'Đã công bố lịch bảo vệ chia ca Sáng / Chiều thành công!');
-                await fetchCouncilDetail();
             } else {
                 message.error(res.message || 'Không thể công bố lịch bảo vệ');
             }
@@ -401,17 +350,16 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
         }
         try {
             setSubmitLoading(true);
-            const res = await councilService.adjustStudentSchedule(council.id, adjustingReg.id, {
+            const res = await councilMutation.mutateAsync({ action: 'adjustStudentSchedule', args: [council.id, adjustingReg.id, {
                 newShift,
                 newOrderInShift: Number(newOrderInShift),
                 reason: adjustReason.trim(),
-            });
+            }] });
             if (res.success) {
                 message.success('Đã điều chỉnh ca và thứ tự bảo vệ thành công!');
                 setIsAdjustModalVisible(false);
                 setAdjustingReg(null);
                 setAdjustReason('');
-                await fetchCouncilDetail();
             } else {
                 message.error(res.message || 'Không thể điều chỉnh lịch bảo vệ.');
             }
@@ -443,12 +391,12 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
         }
         try {
             setSubmitLoading(true);
-            const res = await councilService.replaceCouncilMember(council.id, {
+            const res = await councilMutation.mutateAsync({ action: 'replaceCouncilMember', args: [council.id, {
                 oldMemberId: replacingMember.id,
                 newLecturerId: Number(newLecturerId),
                 reason: replaceReason.trim(),
                 confirmLockedSheetOverride,
-            });
+            }] });
             if (res.success) {
                 message.success('Đã thay thế thành viên hội đồng thành công!');
                 setIsReplaceMemberModalVisible(false);
@@ -456,7 +404,6 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                 setNewLecturerId(null);
                 setReplaceReason('');
                 setConfirmLockedSheetOverride(false);
-                await fetchCouncilDetail();
             } else {
                 message.error(res.message || 'Không thể thay thế thành viên.');
             }
@@ -483,12 +430,11 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
             setReopenLoading(true);
             setReopenBlockingList(null);
             setReopenError(null);
-            const res = await councilService.reopenResults(council.id, reopenReason.trim());
+            const res = await councilMutation.mutateAsync({ action: 'reopenResults', args: [council.id, reopenReason.trim()] });
             if (res.success !== false) {
                 message.success('Đã mở khóa kết quả hội đồng thành công');
                 setIsReopenModalVisible(false);
                 setReopenReason('');
-                await fetchCouncilDetail();
             } else {
                 handleReopenFail(res);
             }
@@ -508,37 +454,8 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
         }
     };
 
-    const openLogModal = async () => {
-        if (!council?.id) return;
-        try {
-            setIsLogModalVisible(true);
-            const res = await councilService.getCouncilLogs(council.id);
-            if (res?.success) {
-                setCouncilLogs(res.data || []);
-            }
-        } catch (err) {
-            message.error(err?.message || 'Không thể tải lịch sử thao tác của hội đồng');
-        }
-    };
-
-    const handleOpenAdjustmentsModal = async () => {
-        if (!council?.id) return;
-        setIsAdjustmentsModalVisible(true);
-        try {
-            setLoadingAdjustments(true);
-            const res = await councilService.getScheduleAdjustments(council.id);
-            if (res?.success) {
-                setDefenseScheduleAdjustmentLogs(res.data || []);
-            } else {
-                setDefenseScheduleAdjustmentLogs([]);
-            }
-        } catch (err) {
-            message.error(err?.message || 'Không thể tải nhật ký đổi ca');
-            setDefenseScheduleAdjustmentLogs([]);
-        } finally {
-            setLoadingAdjustments(false);
-        }
-    };
+    const openLogModal = () => setIsLogModalVisible(true);
+    const handleOpenAdjustmentsModal = () => setIsAdjustmentsModalVisible(true);
 
     const adjustmentColumns = [
         {
@@ -744,13 +661,7 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
         },
     ];
 
-    if (loading && !council) {
-        return (
-            <div className="p-8 flex justify-center items-center min-h-[300px]">
-                <Spin size="large" tip="Đang tải thông tin hội đồng..." />
-            </div>
-        );
-    }
+    if (loading || (councilQuery.isError && !council)) return <QueryPanel query={councilQuery} />;
 
     if (!council) {
         return (
@@ -768,6 +679,7 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
     }
 
     return (
+        <QueryPanel query={councilQuery}>
         <div className="p-6 space-y-6">
             {/* Header with Navigation, Title, and Actions */}
             <div className="flex flex-col gap-4">
@@ -1119,6 +1031,7 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                 width={700}
                 destroyOnClose
             >
+                <QueryPanel query={lecturersQuery}>
                 <p className="text-xs text-slate-500 mb-4">
                     Quy chuẩn Viện: Hội đồng gồm đúng 3 giảng viên độc lập (Chủ tịch, Thư ký, Phản biện). Không được trùng lặp.
                 </p>
@@ -1156,6 +1069,7 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                         </div>
                     </div>
                 </Form>
+            </QueryPanel>
             </Modal>
 
             {/* Modal Gán thêm Sinh viên */}
@@ -1168,6 +1082,7 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                 width={700}
                 destroyOnClose
             >
+                <QueryPanel query={unassignedQuery}>
                 <div className="mb-4">
                     <p className="text-sm text-slate-700 font-medium">
                         Chọn sinh viên để phân công vào hội đồng.
@@ -1187,6 +1102,7 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                     options={unassignedOptions}
                     optionRender={(option) => option.data.desc}
                 />
+            </QueryPanel>
             </Modal>
 
             {/* Modal Mở khóa kết quả (Reopen) cho HĐ Đề cương */}
@@ -1289,6 +1205,7 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                 width={950}
                 destroyOnClose
             >
+                <QueryPanel query={adjustmentsQuery}>
                 {defenseScheduleAdjustmentLogs.length === 0 && !loadingAdjustments ? (
                     <Empty description="Chưa có lượt điều chỉnh ca thi nào" className="my-8" />
                 ) : (
@@ -1303,6 +1220,7 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                         locale={{ emptyText: <Empty description="Chưa có lượt điều chỉnh ca thi nào" /> }}
                     />
                 )}
+            </QueryPanel>
             </Modal>
 
             {/* Modal Điều chỉnh Ca & Thứ tự bảo vệ */}
@@ -1372,6 +1290,7 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                 confirmLoading={submitLoading}
                 destroyOnClose
             >
+                <QueryPanel query={lecturersQuery}>
                 <div className="space-y-4 py-2">
                     <Alert
                         type="info"
@@ -1417,7 +1336,9 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                         </label>
                     </div>
                 </div>
+            </QueryPanel>
             </Modal>
         </div>
+        </QueryPanel>
     );
 }

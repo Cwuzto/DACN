@@ -63,7 +63,7 @@ test('ProjectPeriodPage embeds BM02 review queue with student, topic, mentor, at
     assert.match(pageSource, /dataIndex:\s*['"]status['"]/);
 
     // Must fetch institute-wide registrations so Viện Trưởng and Admin both see the BM02 queue
-    assert.match(pageSource, /getAllRegistrations\(\s*\{\s*asInstituteDirector:\s*['"]true['"]\s*\}\s*\)/);
+    assert.match(pageSource, /usePeriodRegistrations\(scope, \s*\{\s*asInstituteDirector:\s*['"]true['"]\s*\}\s*\)/);
 });
 
 test('ProjectPeriodPage provides decision amendment creation modal calling semesterService', () => {

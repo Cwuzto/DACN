@@ -107,7 +107,7 @@ test('Task 4: ProjectPeriodPage integrates Decision Publish control and batch Ti
     // Appendix manager
     assert.match(pageSource, /Phụ lục điều chỉnh tên đề tài|Phụ lục điều chỉnh/);
     assert.match(pageSource, /createAppendix|issueAppendix|updateAppendixItems/);
-    assert.match(pageSource, /bm02aService/);
+    assert.match(pageSource, /useBm02aMutation/);
 });
 
 test('Task 4: BM02ReviewDrawer displays bm01ApprovedTitle, bm02ProposedTitle, and titleChangeReason', () => {

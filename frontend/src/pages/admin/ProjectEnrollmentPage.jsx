@@ -1,4 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSemesters } from '../../queries/semesterQueries';
+import { useUsers } from '../../queries/userQueries';
+import { useProjectCatalogs, useEnrollments, useEnrollmentAudit, useEnrollmentMutation } from '../../queries/enrollmentQueries';
+import { queryKeys } from '../../query/queryKeys';
+import QueryPanel from '../../components/common/QueryPanel';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { Button, Form, message, Modal, Popconfirm, Select, Table, Tag, Tabs } from 'antd';
 import {
@@ -14,14 +19,13 @@ import {
 
 import ExcelImportModal from '../../components/common/ExcelImportModal';
 import projectEnrollmentService from '../../services/projectEnrollmentService';
-import registrationService from '../../services/registrationService';
-import { semesterService } from '../../services/semesterService';
-import { topicService } from '../../services/topicService';
-import userService from '../../services/userService';
+
 import useAuthStore from '../../stores/authStore';
 import { formatSemesterLabel } from '../../utils/semesterDisplay';
 import CoordinationOverviewTab from '../../components/coordination/CoordinationOverviewTab';
 import LecturerAssignmentTab from '../../components/coordination/LecturerAssignmentTab';
+
+const EMPTY_LIST = [];
 
 export function ProjectEnrollmentPage() {
     const { roundId } = useParams();
@@ -32,7 +36,7 @@ export function ProjectEnrollmentPage() {
     const canAccessLecturers = useMemo(() => {
         if (!user) return false;
         if (user.role === 'ADMIN') return true;
-        const permissions = user.permissions || [];
+        const permissions = user.permissions || EMPTY_LIST;
         return (
             permissions.includes('PERMISSION_ASSIGN_ACADEMIC') ||
             permissions.includes('MENTOR_ASSIGN') ||
@@ -43,7 +47,7 @@ export function ProjectEnrollmentPage() {
     const canAccessOverview = useMemo(() => {
         if (!user) return false;
         if (user.role === 'ADMIN') return true;
-        const permissions = user.permissions || [];
+        const permissions = user.permissions || EMPTY_LIST;
         return (
             permissions.includes('VIEW_PROJECT_ENROLLMENTS') ||
             permissions.includes('PERMISSION_ASSIGN_ACADEMIC') ||
@@ -54,7 +58,7 @@ export function ProjectEnrollmentPage() {
     const canAccessStudents = useMemo(() => {
         if (!user) return false;
         if (user.role === 'ADMIN') return true;
-        const permissions = user.permissions || [];
+        const permissions = user.permissions || EMPTY_LIST;
         return (
             permissions.includes('VIEW_PROJECT_ENROLLMENTS') ||
             permissions.includes('ENROLLMENT_MANAGE') ||
@@ -85,26 +89,14 @@ export function ProjectEnrollmentPage() {
         return qCat ? Number(qCat) : null;
     });
 
-    const [semesters, setSemesters] = useState([]);
-    const [catalogs, setCatalogs] = useState([]);
-    const [students, setStudents] = useState([]);
-
     // Student tab state
-    const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
-    const [rows, setRows] = useState([]);
     const [selectedStudentIds, setSelectedStudentIds] = useState([]);
     const [showAssignPanel, setShowAssignPanel] = useState(false);
     const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
     const [exporting, setExporting] = useState(false);
 
     // Audit state
-    const [auditLoading, setAuditLoading] = useState(false);
-    const [audit, setAudit] = useState({
-        enrolledWithoutTopicRegistration: [],
-        topicsMissingProjectCatalog: [],
-        registrationsRuleMismatch: [],
-    });
     const [fixing, setFixing] = useState(false);
     const [topicFixModalOpen, setTopicFixModalOpen] = useState(false);
     const [topicToFix, setTopicToFix] = useState(null);
@@ -131,130 +123,30 @@ export function ProjectEnrollmentPage() {
         setSearchParams(next, { replace: true });
     };
 
-    // Fetch Reference Meta (Semesters, Catalogs, Students)
-    const fetchMeta = useCallback(async () => {
-        try {
-            const [semesterRes, catalogRes, studentRes] = await Promise.all([
-                semesterService.getAll(),
-                projectEnrollmentService.getCatalogs(),
-                userService.getUsers({ role: 'STUDENT', status: 'active', limit: 2000 }),
-            ]);
-
-            if (semesterRes.success) {
-                const list = semesterRes.data || [];
-                setSemesters(list);
-                if (!filterSemesterId) {
-                    const matched = roundId
-                        ? list.find((s) => s.id === Number(roundId))
-                        : (list.find((s) => ['REGISTRATION', 'ONGOING', 'DEFENSE'].includes(s.status)) || list[0]);
-                    const selectedId = matched?.id || list[0]?.id || null;
-                    if (selectedId) {
-                        setFilterSemesterId(selectedId);
-                        form.setFieldsValue({ semesterId: selectedId });
-                    }
-                }
-            }
-            if (catalogRes.success) {
-                setCatalogs(catalogRes.data || []);
-            }
-            if (studentRes.success) {
-                setStudents(studentRes.data || []);
-            }
-        } catch (error) {
-            message.error(error?.message || 'Không thể tải dữ liệu tham chiếu');
-        }
-    }, [filterSemesterId, form, roundId]);
-
-    // Fetch Students Rows
-    const fetchRows = useCallback(async () => {
-        if (!filterSemesterId) {
-            setRows([]);
-            return;
-        }
-        setLoading(true);
-        try {
-            const params = { semesterId: filterSemesterId };
-            if (filterCatalogId) params.projectCatalogId = filterCatalogId;
-            const res = await projectEnrollmentService.getEnrollments(params);
-            if (res.success) setRows(res.data || []);
-        } catch (error) {
-            message.error(error?.message || 'Không thể tải danh sách gán môn đồ án');
-        } finally {
-            setLoading(false);
-        }
-    }, [filterCatalogId, filterSemesterId]);
-
+    const scope = queryKeys.scope(user);
+    const semestersQuery = useSemesters(scope);
+    const catalogsQuery = useProjectCatalogs(scope);
+    const studentsQuery = useUsers(scope, { role: 'STUDENT', status: 'active', limit: 2000 });
+    const semesters = semestersQuery.data || EMPTY_LIST;
+    const catalogs = catalogsQuery.data || EMPTY_LIST;
+    const students = studentsQuery.data?.data || EMPTY_LIST;
+    const enrollmentFilters = { semesterId: filterSemesterId };
+    if (filterCatalogId) enrollmentFilters.projectCatalogId = filterCatalogId;
+    const rowsQuery = useEnrollments(scope, enrollmentFilters, canAccessStudents);
+    const rows = rowsQuery.data || EMPTY_LIST;
+    const loading = rowsQuery.isFetching;
+    const auditQuery = useEnrollmentAudit(scope, filterSemesterId, canAccessStudents);
+    const audit = auditQuery.data || { enrolledWithoutTopicRegistration: [], topicsMissingProjectCatalog: [], registrationsRuleMismatch: [] };
+    const auditLoading = auditQuery.isFetching;
+    const fetchAudit = () => auditQuery.refetch();
+    const enrollmentMutation = useEnrollmentMutation(scope, filterSemesterId);
     useEffect(() => {
-        fetchMeta();
-    }, [fetchMeta]);
-
-    useEffect(() => {
-        fetchRows();
-    }, [fetchRows]);
-
-    // Fetch Audit Integrity
-    const fetchAudit = useCallback(async () => {
-        if (!filterSemesterId) {
-            setAudit({
-                enrolledWithoutTopicRegistration: [],
-                topicsMissingProjectCatalog: [],
-                registrationsRuleMismatch: [],
-            });
-            return;
-        }
-
-        setAuditLoading(true);
-        try {
-            const [enrollRes, regRes, topicRes] = await Promise.all([
-                projectEnrollmentService.getEnrollments({ semesterId: filterSemesterId }),
-                registrationService.getAllRegistrations({ semesterId: filterSemesterId, limit: 5000 }),
-                topicService.getAll({ semesterId: filterSemesterId, limit: 5000 }),
-            ]);
-
-            const enrollments = enrollRes?.success ? (enrollRes.data || []) : [];
-            const registrations = regRes?.success ? (regRes.data || []) : [];
-            const topics = topicRes?.success ? (topicRes.data || []) : [];
-
-            const activeEnrollments = enrollments.filter((r) => r.status === 'ACTIVE');
-            const activeRegistrations = registrations.filter((r) => r.status !== 'REJECTED');
-
-            const registeredStudentIds = new Set(activeRegistrations.map((r) => r.studentId));
-            const enrolledWithoutTopic = activeEnrollments.filter((r) => !registeredStudentIds.has(r.studentId));
-
-            const topicsMissingCatalog = topics.filter((t) => !t.projectCatalogId);
-
-            const studentCatalogMap = new Map();
-            activeEnrollments.forEach((row) => {
-                studentCatalogMap.set(row.studentId, row.projectCatalogId);
-            });
-
-            const ruleMismatch = [];
-            activeRegistrations.forEach((reg) => {
-                const topicCatalogId = reg.topic?.projectCatalogId;
-                const studentEnrollmentCatalogId = studentCatalogMap.get(reg.studentId);
-
-                if (!topicCatalogId) {
-                    ruleMismatch.push({ ...reg, mismatchReason: 'TOPIC_MISSING_PROJECT_CATALOG' });
-                } else if (!studentEnrollmentCatalogId || studentEnrollmentCatalogId !== topicCatalogId) {
-                    ruleMismatch.push({ ...reg, mismatchReason: 'MISSING_MATCHED_ENROLLMENT' });
-                }
-            });
-
-            setAudit({
-                enrolledWithoutTopicRegistration: enrolledWithoutTopic,
-                topicsMissingProjectCatalog: topicsMissingCatalog,
-                registrationsRuleMismatch: ruleMismatch,
-            });
-        } catch (error) {
-            // Silently absorb or log audit warning
-        } finally {
-            setAuditLoading(false);
-        }
-    }, [filterSemesterId]);
-
-    useEffect(() => {
-        fetchAudit();
-    }, [fetchAudit]);
+        if (filterSemesterId || !semesters.length) return;
+        const matched = roundId ? semesters.find(s => s.id === Number(roundId)) : semesters.find(s => ['REGISTRATION', 'ONGOING', 'DEFENSE'].includes(s.status));
+        const selectedId = matched?.id || semesters[0]?.id;
+        setFilterSemesterId(selectedId);
+        form.setFieldsValue({ semesterId: selectedId });
+    }, [filterSemesterId, semesters, roundId, form]);
 
     // Student Operations
     const handleExport = async () => {
@@ -280,16 +172,14 @@ export function ProjectEnrollmentPage() {
         }
         setSaving(true);
         try {
-            const res = await projectEnrollmentService.createEnrollment({
+            const res = await enrollmentMutation.mutateAsync({ action: 'createEnrollment', args: [{
                 semesterId: values.semesterId || filterSemesterId,
                 projectCatalogId: values.projectCatalogId || filterCatalogId,
                 studentId: values.studentId,
-            });
+            }] });
             if (res.success) {
                 message.success('Gán môn đồ án thành công');
                 form.setFieldsValue({ studentId: null });
-                fetchRows();
-                fetchAudit();
             }
         } catch (error) {
             message.error(error?.message || 'Lỗi khi gán môn đồ án');
@@ -314,16 +204,14 @@ export function ProjectEnrollmentPage() {
 
         setSaving(true);
         try {
-            const res = await projectEnrollmentService.bulkAssign({
+            const res = await enrollmentMutation.mutateAsync({ action: 'bulkAssign', args: [{
                 semesterId: targetSemesterId,
                 projectCatalogId: targetCatalogId,
                 studentIds: selectedStudentIds,
-            });
+            }] });
             if (res.success) {
                 message.success(`Đã gán ${res.data?.created || selectedStudentIds.length} sinh viên`);
                 setSelectedStudentIds([]);
-                fetchRows();
-                fetchAudit();
             }
         } catch (error) {
             message.error(error?.message || 'Lỗi khi gán hàng loạt');
@@ -334,11 +222,9 @@ export function ProjectEnrollmentPage() {
 
     const handleDelete = async (id) => {
         try {
-            const res = await projectEnrollmentService.deleteEnrollment(id);
+            const res = await enrollmentMutation.mutateAsync({ action: 'deleteEnrollment', args: [id] });
             if (res.success) {
                 message.success('Đã xóa gán môn đồ án');
-                fetchRows();
-                fetchAudit();
             }
         } catch (error) {
             message.error(error?.message || 'Lỗi khi xóa gán');
@@ -352,13 +238,12 @@ export function ProjectEnrollmentPage() {
         }
         setFixing(true);
         try {
-            const res = await topicService.update(topicToFix.id, { projectCatalogId: topicFixCatalogId });
+            const res = await enrollmentMutation.mutateAsync({ action: 'updateTopic', args: [topicToFix.id, { projectCatalogId: topicFixCatalogId }] });
             if (res.success) {
                 message.success('Đã cập nhật Tên đồ án cho đề tài');
                 setTopicFixModalOpen(false);
                 setTopicToFix(null);
                 setTopicFixCatalogId(null);
-                fetchAudit();
             }
         } catch (error) {
             message.error(error?.message || 'Không thể cập nhật đề tài');
@@ -486,10 +371,11 @@ export function ProjectEnrollmentPage() {
             key: 'students',
             label: (
                 <span className="flex items-center gap-1.5 font-semibold text-sm">
-                    <TeamOutlined /> Sinh viên ({rows.length})
+                    <TeamOutlined /> Sinh viên ({rowsQuery.data ? rows.length : '—'})
                 </span>
             ),
             children: (
+                <QueryPanel query={rowsQuery}>
                 <div className="space-y-4">
                     {/* Student Action Bar */}
                     <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200/90 shadow-xs">
@@ -524,6 +410,7 @@ export function ProjectEnrollmentPage() {
 
                     {/* Manual Assign Panel (Expandable) */}
                     {showAssignPanel && (
+                        <QueryPanel query={studentsQuery}>
                         <div className="bg-white rounded-lg border border-teal-200 bg-teal-50/20 p-5 shadow-xs space-y-4">
                             <div className="flex items-center justify-between">
                                 <h4 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
@@ -589,6 +476,7 @@ export function ProjectEnrollmentPage() {
                                 />
                             </div>
                         </div>
+                        </QueryPanel>
                     )}
 
                     {/* Students Data Table Card */}
@@ -609,6 +497,7 @@ export function ProjectEnrollmentPage() {
                         />
                     </div>
 
+                    <QueryPanel query={auditQuery}>
                     {/* Audit Integrity Section */}
                     <div className="bg-white rounded-xl border border-slate-200/90 shadow-xs p-5 space-y-4">
                         <div className="flex items-center justify-between">
@@ -646,7 +535,9 @@ export function ProjectEnrollmentPage() {
                             </div>
                         </div>
                     </div>
+                    </QueryPanel>
                 </div>
+                </QueryPanel>
             ),
         },
         canAccessLecturers && {
@@ -663,13 +554,14 @@ export function ProjectEnrollmentPage() {
                     semesters={semesters}
                     catalogs={catalogs}
                     user={user}
-                    onRefreshOverview={fetchRows}
+
                 />
             ),
         },
     ].filter(Boolean);
 
     return (
+        <QueryPanel query={semestersQuery}><QueryPanel query={catalogsQuery}>
         <div className="space-y-5">
             {/* Page Header */}
             <div className="flex flex-wrap items-center justify-between gap-4">
@@ -744,17 +636,14 @@ export function ProjectEnrollmentPage() {
             <ExcelImportModal
                 open={isExcelModalOpen}
                 onCancel={() => setIsExcelModalOpen(false)}
-                onSuccess={() => {
-                    fetchRows();
-                    fetchAudit();
-                }}
                 type="PROJECT_ENROLLMENT"
                 semesters={semesters}
                 catalogs={catalogs}
                 onDownloadTemplate={() => projectEnrollmentService.downloadTemplate()}
-                onExecuteImport={(payload) => projectEnrollmentService.importEnrollmentsExcel(payload)}
+                onExecuteImport={(payload) => enrollmentMutation.mutateAsync({ action: 'importEnrollmentsExcel', args: [payload] })}
             />
         </div>
+        </QueryPanel></QueryPanel>
     );
 }
 

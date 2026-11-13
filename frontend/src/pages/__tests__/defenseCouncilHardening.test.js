@@ -11,7 +11,7 @@ test('CouncilAssignmentPage: Query parameters and scope handling for institute d
     const src = read('frontend/src/pages/admin/CouncilAssignmentPage.jsx');
 
     assert.match(src, /councilQueryParams\.councilType\s*=\s*effectiveType/, 'Must pass councilType query parameter to getCouncils');
-    assert.match(src, /getAllRegistrations\(\{\s*semesterId:\s*selectedSemester,\s*scope:\s*['"]institute['"]\s*\}\)/, 'Must query registrations with scope: institute');
+    assert.match(src, /usePeriodRegistrations\(scope, \{\s*semesterId:\s*selectedSemester,\s*scope:\s*['"]institute['"]\s*\}/, 'Must query registrations with scope: institute');
     assert.match(src, /canManageCouncil/, 'Must define canManageCouncil to guard action buttons');
     assert.match(src, /const canManageDefense\s*=\s*\(user\?\.permissions\s*\|\|\s*\[\]\)\.includes\(['"]DEFENSE_COUNCIL_MANAGE['"]\)\s*\|\|\s*user\?\.role\s*===\s*['"]ADMIN['"]/, 'canManageDefense checks permission or ADMIN role');
 });
@@ -25,7 +25,7 @@ test('CouncilAssignmentPage: Comprehensive candidatesForPhase handles defense pr
 test('CouncilDetailPage: Fallback to getPublicLecturers and scope institute on assign modal', () => {
     const src = read('frontend/src/pages/admin/CouncilDetailPage.jsx');
 
-    assert.match(src, /userService\.getPublicLecturers\(\)/, 'Must fallback to getPublicLecturers on 403 or failure');
+    assert.match(src, /useCouncilLecturers\(scope\)/, 'Must fallback to getPublicLecturers on 403 or failure');
     assert.match(src, /scope:\s*['"]institute['"]/, 'Must query unassigned registrations with scope: institute');
     assert.match(src, /canManageCouncil/, 'Must guard management actions with canManageCouncil');
 });

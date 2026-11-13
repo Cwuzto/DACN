@@ -31,7 +31,8 @@ export const useResultApprovals = (scope, filters = {}, options = {}) => useQuer
 
 export const useGradingSemesters = (scope) => useQuery({
     queryKey: queryKeys.semesters.list(scope),
-    queryFn: async () => requireSuccess(await semesterService.getAll()),
+    queryFn: async () => requireSuccess(await semesterService.getAll()).data,
+    select: data => ({ success: true, data }),
 });
 
 export const usePublicationHistory = (scope, semesterId, options = {}) => useQuery({

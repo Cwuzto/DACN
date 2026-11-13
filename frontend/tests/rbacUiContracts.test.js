@@ -151,7 +151,7 @@ test('ProjectPeriodPage embeds academic delegations tab for VIEW_ACADEMIC_DELEGA
     assert.match(periodSource, /tab=delegations|'delegations'/);
     assert.match(periodSource, /VIEW_ACADEMIC_DELEGATIONS/);
     assert.match(periodSource, /PERMISSION_ASSIGN_ACADEMIC/);
-    assert.match(periodSource, /\/api\/delegations|delegationService/);
+    assert.match(periodSource, /useDelegations|useDelegationMutation/);
     assert.match(periodSource, /Idempotency-Key|crypto\.randomUUID/);
 });
 
