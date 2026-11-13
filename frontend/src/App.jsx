@@ -90,6 +90,7 @@ import PublicOnlyRoute from './components/common/PublicOnlyRoute';
 import RoleDashboardRedirect from './components/common/RoleDashboardRedirect';
 import RouteFallbackHandler from './components/common/RouteFallbackHandler';
 import ErrorBoundary from './components/common/ErrorBoundary';
+import AppQueryProvider from './providers/AppQueryProvider';
 
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
 const ForgotPasswordPage = lazy(() => import('./pages/auth/ForgotPasswordPage'));
@@ -141,6 +142,7 @@ function RouteLoading() {
 function App() {
     return (
         <ConfigProvider locale={viVN} theme={academicPineTheme}>
+            <AppQueryProvider>
             <BrowserRouter>
                 <Suspense fallback={<RouteLoading />}>
                     <ErrorBoundary>
@@ -265,6 +267,7 @@ function App() {
                     </ErrorBoundary>
                 </Suspense>
             </BrowserRouter>
+            </AppQueryProvider>
         </ConfigProvider>
     );
 }
