@@ -9,11 +9,14 @@ import {
     LockOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import { useQueryClient } from '@tanstack/react-query';
 
 import evaluationService from '../../services/evaluationService';
 import archiveService from '../../services/archiveService';
 import useAuthStore from '../../stores/authStore';
-import PageLoader from '../../components/common/PageLoader';
+import { queryKeys } from '../../query/queryKeys';
+import { useCouncilDefenses, gradingCustomKeys } from '../../queries/gradingQueries';
+import QueryPanel from '../../components/common/QueryPanel';
 import OutlineCouncilGradingCard from './components/OutlineCouncilGradingCard';
 
 /**
@@ -25,10 +28,16 @@ import OutlineCouncilGradingCard from './components/OutlineCouncilGradingCard';
  */
 export default function GradingPage() {
     const navigate = useNavigate();
-    const [loading, setLoading] = useState(true);
-    const [councils, setCouncils] = useState([]);
-    const [activeStage, setActiveStage] = useState('defense'); // 'defense' | 'outline'
+    const queryClient = useQueryClient();
     const currentUser = useAuthStore((s) => s.user);
+    const scope = useMemo(() => queryKeys.scope(currentUser), [currentUser]);
+
+    const councilsQuery = useCouncilDefenses(scope);
+    const councils = useMemo(
+        () => (Array.isArray(councilsQuery.data) ? councilsQuery.data : []),
+        [councilsQuery.data]
+    );
+    const [activeStage, setActiveStage] = useState('defense'); // 'defense' | 'outline'
 
     // Absent state
     const [absentModalVisible, setAbsentModalVisible] = useState(false);
@@ -40,6 +49,10 @@ export default function GradingPage() {
     const [snapshotModalVisible, setSnapshotModalVisible] = useState(false);
     const [viewingDossier, setViewingDossier] = useState(null);
     const [dossierLoading, setDossierLoading] = useState(false);
+
+    const refreshCouncils = useCallback(async () => {
+        await queryClient.invalidateQueries({ queryKey: gradingCustomKeys.councils(scope) });
+    }, [queryClient, scope]);
 
     const handleOpenAbsentModal = (cand) => {
         setAbsentingReg(cand);
@@ -61,7 +74,7 @@ export default function GradingPage() {
                 message.success('Đã lập biên bản vắng mặt thành công!');
                 setAbsentModalVisible(false);
                 setAbsentingReg(null);
-                fetchDefenseData();
+                await refreshCouncils();
             } else {
                 message.error(res.message || 'Không thể lập biên bản vắng mặt.');
             }
@@ -77,7 +90,7 @@ export default function GradingPage() {
             const res = await evaluationService.lockScoreBookByChairman(cand.id);
             if (res.success) {
                 message.success('Đã khóa sổ điểm Hội đồng thành công!');
-                fetchDefenseData();
+                await refreshCouncils();
             } else {
                 message.error(res.message || 'Không thể khóa sổ điểm.');
             }
@@ -103,24 +116,6 @@ export default function GradingPage() {
         }
     };
 
-    const fetchDefenseData = useCallback(async () => {
-        try {
-            setLoading(true);
-            const res = await evaluationService.getMyCouncilDefenses();
-            if (res.success && Array.isArray(res.data)) {
-                setCouncils(res.data);
-            }
-        } catch (error) {
-            message.error(error?.message || 'Không thể tải danh sách Hội đồng');
-        } finally {
-            setLoading(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        fetchDefenseData();
-    }, [fetchDefenseData]);
-
     const defenseCouncils = useMemo(() => {
         return councils.filter((c) => c.councilType !== 'OUTLINE_REVIEW');
     }, [councils]);
@@ -130,10 +125,6 @@ export default function GradingPage() {
     }, [councils]);
 
     const currentList = activeStage === 'defense' ? defenseCouncils : outlineCouncils;
-
-    if (loading) {
-        return <PageLoader />;
-    }
 
     return (
         <section id="view-grading" className="view-pane active" style={{ display: 'block' }}>
@@ -164,7 +155,8 @@ export default function GradingPage() {
             </div>
 
             {/* 2. Council Cards List */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <QueryPanel query={councilsQuery}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                 {currentList.length === 0 ? (
                     <div className="card" style={{ padding: '48px 24px', textAlign: 'center', color: 'var(--muted)' }}>
                         <div style={{ fontSize: 32, marginBottom: 8 }}>📋</div>
@@ -363,7 +355,8 @@ export default function GradingPage() {
                         );
                     })
                 )}
-            </div>
+                </div>
+            </QueryPanel>
 
             {/* Modal Lập Biên Bản Vắng Mặt */}
             <Modal

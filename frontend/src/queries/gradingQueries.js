@@ -79,3 +79,35 @@ export const usePublishDefenseResults = (scope, semesterId) => {
         onSuccess: () => invalidateResultViews(client, scope, semesterId),
     });
 };
+
+export const gradingCustomKeys = {
+    councils: (scope) => [...scope, 'grading', 'my-councils'],
+    scoreSheet: (scope, registrationId) => [...scope, 'grading', 'score-sheet', String(registrationId)],
+};
+
+export const useCouncilDefenses = (scope, enabled = true) => useQuery({
+    queryKey: gradingCustomKeys.councils(scope),
+    queryFn: async () => requireSuccess(await evaluationService.getMyCouncilDefenses()).data,
+    enabled,
+});
+
+export const useScoreSheet = (scope, registrationId, enabled = true) => useQuery({
+    queryKey: gradingCustomKeys.scoreSheet(scope, registrationId),
+    queryFn: async () => requireSuccess(await evaluationService.getScoreSheet(registrationId)).data,
+    enabled: Boolean(registrationId) && enabled,
+});
+
+export const useScoreSheetMutation = (scope, registrationId) => {
+    const client = useQueryClient();
+    return useMutation({
+        mutationFn: async ({ action, args }) => requireSuccess(await evaluationService[action](...args)),
+        onSuccess: async () => {
+            const keys = [
+                gradingCustomKeys.scoreSheet(scope, registrationId),
+                gradingCustomKeys.councils(scope),
+            ];
+            await Promise.all(keys.map((queryKey) => client.invalidateQueries({ queryKey })));
+        },
+    });
+};
+

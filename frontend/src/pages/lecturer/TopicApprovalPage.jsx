@@ -14,10 +14,14 @@ import {
 } from '@ant-design/icons';
 import registrationService from '../../services/registrationService';
 import bm02aService from '../../services/bm02aService';
-import PageLoader from '../../components/common/PageLoader';
 import OutlineReviewModal from '../../components/lecturer/OutlineReviewModal';
 import RegistrationTimelineDrawer from '../../components/common/RegistrationTimelineDrawer';
 import useAuthStore from '../../stores/authStore';
+import { queryKeys } from '../../query/queryKeys';
+import { useRegistrations, useRegistrationMutation } from '../../queries/registrationQueries';
+import { useBm02aQueue, useBm02aMutation } from '../../queries/bm02aQueries';
+import QueryPanel from '../../components/common/QueryPanel';
+import ContentSkeleton from '../../components/common/ContentSkeleton';
 
 const { TextArea } = Input;
 
@@ -29,6 +33,7 @@ const { TextArea } = Input;
  */
 export default function TopicApprovalPage() {
     const { user: currentUser } = useAuthStore();
+    const scope = queryKeys.scope(currentUser);
     const [searchParams, setSearchParams] = useSearchParams();
     const tabParam = searchParams.get('tab');
 
@@ -61,10 +66,16 @@ export default function TopicApprovalPage() {
         setSearchParams(nextParams, { replace: true });
     };
 
-    const [pendingRegistrations, setPendingRegistrations] = useState([]);
-    const [councilOutlineRegistrations, setCouncilOutlineRegistrations] = useState([]);
-    const [bm02aRequests, setBm02aRequests] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const mentorRegistrationsQuery = useRegistrations(scope, { status: 'PENDING' });
+    const councilOutlineQuery = useRegistrations(scope, { asCouncilChairman: 'true' });
+    const bm02aQueueQuery = useBm02aQueue(scope);
+
+    const registrationMutation = useRegistrationMutation(scope);
+    const bm02aMutation = useBm02aMutation(scope);
+
+    const pendingRegistrations = mentorRegistrationsQuery.data || [];
+    const councilOutlineRegistrations = councilOutlineQuery.data || [];
+    const bm02aRequests = bm02aQueueQuery.data || [];
 
     // Modals for Mentor Approval
     const [rejectModalOpen, setRejectModalOpen] = useState(false);
@@ -87,35 +98,6 @@ export default function TopicApprovalPage() {
     const [timelineOpen, setTimelineOpen] = useState(false);
     const [timelineRegistration, setTimelineRegistration] = useState(null);
 
-    const fetchData = async () => {
-        try {
-            setLoading(true);
-            const [mentorRes, outlineRes, bm02aRes] = await Promise.all([
-                registrationService.getAllRegistrations({ status: 'PENDING' }),
-                registrationService.getAllRegistrations({ asCouncilChairman: 'true' }),
-                bm02aService.getPendingQueue().catch(() => ({ success: false, data: [] })),
-            ]);
-
-            if (mentorRes.success) {
-                setPendingRegistrations(mentorRes.data || []);
-            }
-            if (outlineRes.success) {
-                setCouncilOutlineRegistrations(outlineRes.data || []);
-            }
-            if (bm02aRes.success && Array.isArray(bm02aRes.data)) {
-                setBm02aRequests(bm02aRes.data);
-            }
-        } catch (error) {
-            message.error(error?.message || 'Không thể tải danh sách phê duyệt');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchData();
-    }, []);
-
     const pendingOutlineCount = useMemo(() => {
         return councilOutlineRegistrations.filter((r) => r.status === 'BM01_SUBMITTED').length;
     }, [councilOutlineRegistrations]);
@@ -127,11 +109,11 @@ export default function TopicApprovalPage() {
     const handleApprove = async (record) => {
         try {
             setSubmitting(true);
-            const res = await registrationService.handleRegistration(record.id, 'APPROVE');
-            if (res.success) {
-                message.success(`Đã chấp thuận hướng dẫn sinh viên ${record.student?.fullName || ''}!`);
-                fetchData();
-            }
+            await registrationMutation.mutateAsync({
+                action: 'handleRegistration',
+                args: [record.id, 'APPROVE'],
+            });
+            message.success(`Đã chấp thuận hướng dẫn sinh viên ${record.student?.fullName || ''}!`);
         } catch (error) {
             message.error(error?.message || 'Lỗi khi chấp thuận hướng dẫn');
         } finally {
@@ -148,18 +130,18 @@ export default function TopicApprovalPage() {
 
         try {
             setSubmitting(true);
-            const res = await registrationService.handleRegistration(
-                rejectingRecord.id,
-                'REJECT',
-                rejectReason.trim()
-            );
-            if (res.success) {
-                message.success('Đã từ chối đơn đăng ký.');
-                setRejectModalOpen(false);
-                setRejectingRecord(null);
-                setRejectReason('');
-                fetchData();
-            }
+            await registrationMutation.mutateAsync({
+                action: 'handleRegistration',
+                args: [
+                    rejectingRecord.id,
+                    'REJECT',
+                    rejectReason.trim(),
+                ],
+            });
+            message.success('Đã từ chối đơn đăng ký.');
+            setRejectModalOpen(false);
+            setRejectingRecord(null);
+            setRejectReason('');
         } catch (error) {
             message.error(error?.message || 'Lỗi khi từ chối đăng ký');
         } finally {
@@ -175,17 +157,14 @@ export default function TopicApprovalPage() {
                 || request.versions?.[0];
             const payloadHash = currentVersion?.payloadHash;
 
-            const res = await bm02aService.advisorSign(request.id, {
-                payloadHash,
-                signatureImageId: null,
+            await bm02aMutation.mutateAsync({
+                action: 'advisorSign',
+                args: [request.id, {
+                    payloadHash,
+                    signatureImageId: null,
+                }],
             });
-
-            if (res.success) {
-                message.success('GVHD đã ký duyệt xác nhận đơn điều chỉnh tên BM02-A thành công!');
-                fetchData();
-            } else {
-                message.error(res.message || 'Không thể ký duyệt đơn BM02-A.');
-            }
+            message.success('GVHD đã ký duyệt xác nhận đơn điều chỉnh tên BM02-A thành công!');
         } catch (error) {
             message.error(error?.message || 'Lỗi khi GVHD ký duyệt đơn BM02-A');
         } finally {
@@ -200,17 +179,14 @@ export default function TopicApprovalPage() {
                 || request.versions?.[0];
             const payloadHash = currentVersion?.payloadHash;
 
-            const res = await bm02aService.departmentSign(request.id, {
-                payloadHash,
-                signatureImageId: null,
+            await bm02aMutation.mutateAsync({
+                action: 'departmentSign',
+                args: [request.id, {
+                    payloadHash,
+                    signatureImageId: null,
+                }],
             });
-
-            if (res.success) {
-                message.success('Phụ trách bộ môn đã phê duyệt và ký số hoàn tất đơn BM02-A!');
-                fetchData();
-            } else {
-                message.error(res.message || 'Không thể ký duyệt đơn BM02-A.');
-            }
+            message.success('Phụ trách bộ môn đã phê duyệt và ký số hoàn tất đơn BM02-A!');
         } catch (error) {
             message.error(error?.message || 'Lỗi khi Phụ trách bộ môn ký duyệt đơn BM02-A');
         } finally {
@@ -234,20 +210,17 @@ export default function TopicApprovalPage() {
 
         try {
             setSubmittingBm02a(true);
-            const res = await bm02aService.returnRequest(returningRequest.id, {
-                reason: returnReason.trim(),
-                actorRole: returningRole,
+            await bm02aMutation.mutateAsync({
+                action: 'returnRequest',
+                args: [returningRequest.id, {
+                    reason: returnReason.trim(),
+                    actorRole: returningRole,
+                }],
             });
-
-            if (res.success) {
-                message.success('Đã trả lại yêu cầu điều chỉnh tên đề tài BM02-A.');
-                setReturnModalOpen(false);
-                setReturningRequest(null);
-                setReturnReason('');
-                fetchData();
-            } else {
-                message.error(res.message || 'Không thể trả lại yêu cầu.');
-            }
+            message.success('Đã trả lại yêu cầu điều chỉnh tên đề tài BM02-A.');
+            setReturnModalOpen(false);
+            setReturningRequest(null);
+            setReturnReason('');
         } catch (error) {
             message.error(error?.message || 'Lỗi khi trả lại yêu cầu BM02-A');
         } finally {
@@ -255,8 +228,12 @@ export default function TopicApprovalPage() {
         }
     };
 
-    if (loading) {
-        return <PageLoader />;
+    const isInitialPending = mentorRegistrationsQuery.isPending && !mentorRegistrationsQuery.data &&
+        councilOutlineQuery.isPending && !councilOutlineQuery.data &&
+        bm02aQueueQuery.isPending && !bm02aQueueQuery.data;
+
+    if (isInitialPending) {
+        return <ContentSkeleton variant="table" />;
     }
 
     return (
@@ -300,7 +277,8 @@ export default function TopicApprovalPage() {
 
             {/* TAB 1: NGHIỆP VỤ GVHD TIẾP NHẬN HƯỚNG DẪN */}
             {activeTab === 'mentor' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <QueryPanel query={mentorRegistrationsQuery}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                     {pendingRegistrations.length === 0 ? (
                         <div className="card" style={{ padding: '48px 24px', textAlign: 'center', color: 'var(--muted)' }}>
                             <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--fg)' }}>
@@ -403,11 +381,13 @@ export default function TopicApprovalPage() {
                             );
                         })
                     )}
-                </div>
+                    </div>
+                </QueryPanel>
             )}
 
             {/* TAB 2: HỘI ĐỒNG THẨM ĐỊNH ĐỀ CƯƠNG BM01 (CHỦ TỊCH HỘI ĐỒNG) */}
             {activeTab === 'outline' && (
+                <QueryPanel query={councilOutlineQuery}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                     <div style={{ padding: '14px 18px', background: '#EFF6FF', borderRadius: 'var(--radius)', border: '1px solid #BFDBFE', fontSize: 13, color: '#1E40AF' }}>
                         <strong>Quyền hạn Chủ tịch Hội đồng:</strong> Bạn đang xem danh sách đề cương nghiên cứu chi tiết được phân công cho Hội đồng mà bạn là Chủ tịch. Quyết định thẩm định của Chủ tịch sẽ chốt trạng thái đề cương: Đạt hoặc Yêu cầu chỉnh sửa.
@@ -485,12 +465,14 @@ export default function TopicApprovalPage() {
                             );
                         })
                     )}
-                </div>
+                    </div>
+                </QueryPanel>
             )}
 
             {/* TAB 3: DUYỆT PHIẾU ĐỔI TÊN BM02-A (GVHD & PHỤ TRÁCH BỘ MÔN) */}
             {activeTab === 'bm02a' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <QueryPanel query={bm02aQueueQuery}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                     <div style={{ padding: '14px 18px', background: '#F0FDF4', borderRadius: 'var(--radius)', border: '1px solid #BBF7D0', fontSize: 13, color: '#166534' }}>
                         <strong>Quy trình ký duyệt BM02-A:</strong> Phiếu điều chỉnh tên đề tài BM02-A trải qua 3 chữ ký điện tử nội bộ. Sau khi sinh viên ký nộp, GVHD ký xác nhận, tiếp đó Phụ trách bộ môn phê duyệt và ký số để hoàn tất hồ sơ đưa vào Phụ lục điều chỉnh.
                     </div>
@@ -619,7 +601,8 @@ export default function TopicApprovalPage() {
                             );
                         })
                     )}
-                </div>
+                    </div>
+                </QueryPanel>
             )}
 
             {/* MODAL: TỪ CHỐI ĐĂNG KÝ HƯỚNG DẪN */}
@@ -716,7 +699,7 @@ export default function TopicApprovalPage() {
                     setSelectedOutlineRecord(null);
                 }}
                 onSuccess={() => {
-                    fetchData();
+                    councilOutlineQuery.refetch();
                 }}
                 registration={selectedOutlineRecord}
             />

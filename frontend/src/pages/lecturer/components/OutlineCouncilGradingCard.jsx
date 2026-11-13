@@ -36,6 +36,9 @@ import dayjs from 'dayjs';
 
 import councilService from '../../../services/councilService';
 import useAuthStore from '../../../stores/authStore';
+import { queryKeys } from '../../../query/queryKeys';
+import { useCouncilDetail, useCouncilMutation } from '../../../queries/councilQueries';
+import QueryPanel from '../../../components/common/QueryPanel';
 
 const INITIAL_OUTCOME_OPTIONS = [
     { label: 'Đạt (PASS)', value: 'PASS' },
@@ -67,8 +70,12 @@ const REVISION_STATUS_CONFIG = {
 
 export default function OutlineCouncilGradingCard({ council, onRefreshParent }) {
     const user = useAuthStore((state) => state.user);
-    const [loading, setLoading] = useState(false);
-    const [councilDetail, setCouncilDetail] = useState(null);
+    const scope = useMemo(() => queryKeys.scope(user), [user]);
+    const councilDetailQuery = useCouncilDetail(scope, council?.id, Boolean(council?.id));
+    const councilMutation = useCouncilMutation(scope, council?.semesterId);
+
+    const councilDetail = councilDetailQuery.data || null;
+    const loading = councilDetailQuery.isPending && councilDetailQuery.fetchStatus !== 'idle';
 
     // Form evaluation state per registration ID
     const [evalMap, setEvalMap] = useState({});
@@ -95,57 +102,46 @@ export default function OutlineCouncilGradingCard({ council, onRefreshParent }) 
     const [reviewDecision, setReviewDecision] = useState('APPROVE');
     const [reviewFeedback, setReviewFeedback] = useState('');
 
-    const fetchDetail = useCallback(async () => {
+    const fetchDetail = useCallback(() => {
         if (!council?.id) return;
-        try {
-            setLoading(true);
-            const res = await councilService.getCouncilById(council.id);
-            if (res.success && res.data) {
-                const data = res.data;
-                setCouncilDetail(data);
-
-                // Initialize evaluation form state map
-                const currentBatch = data.resultBatches?.[0] || null;
-                const batchEvaluations = currentBatch?.evaluations || [];
-                const registrations = data.registrations || [];
-
-                const initialMap = {};
-                registrations.forEach((reg) => {
-                    const foundInBatch = batchEvaluations.find((e) => e.registrationId === reg.id);
-                    const fallback = reg.bm01Evaluations?.[0] || {};
-                    const effectiveEval = foundInBatch || fallback;
-
-                    initialMap[reg.id] = {
-                        initialOutcome: effectiveEval.initialOutcome || 'PASS',
-                        attendanceStatus: effectiveEval.attendanceStatus || 'PRESENT',
-                        comment: effectiveEval.comment || '',
-                        revisionRequirements: effectiveEval.revisionRequirements || '',
-                    };
-                });
-                setEvalMap(initialMap);
-
-                // Set schedule form state
-                setScheduleForm({
-                    defenseDate: data.defenseDate ? dayjs(data.defenseDate) : null,
-                    meetingMode: data.meetingMode || 'IN_PERSON',
-                    location: data.location || '',
-                    meetingUrl: data.meetingUrl || '',
-                });
-
-                if (data.revisionSubmissionDeadline) {
-                    setRevisionDeadline(dayjs(data.revisionSubmissionDeadline));
-                }
-            }
-        } catch (error) {
-            message.error(error?.message || 'Không thể tải chi tiết hội đồng');
-        } finally {
-            setLoading(false);
-        }
-    }, [council?.id]);
+        councilDetailQuery.refetch();
+    }, [council?.id, councilDetailQuery]);
 
     useEffect(() => {
-        fetchDetail();
-    }, [fetchDetail]);
+        if (!councilDetail) return;
+
+        // Initialize evaluation form state map
+        const currentBatch = councilDetail.resultBatches?.[0] || null;
+        const batchEvaluations = currentBatch?.evaluations || [];
+        const registrations = councilDetail.registrations || [];
+
+        const initialMap = {};
+        registrations.forEach((reg) => {
+            const foundInBatch = batchEvaluations.find((e) => e.registrationId === reg.id);
+            const fallback = reg.bm01Evaluations?.[0] || {};
+            const effectiveEval = foundInBatch || fallback;
+
+            initialMap[reg.id] = {
+                initialOutcome: effectiveEval.initialOutcome || 'PASS',
+                attendanceStatus: effectiveEval.attendanceStatus || 'PRESENT',
+                comment: effectiveEval.comment || '',
+                revisionRequirements: effectiveEval.revisionRequirements || '',
+            };
+        });
+        setEvalMap((prev) => (Object.keys(prev).length === 0 ? initialMap : prev));
+
+        // Set schedule form state
+        setScheduleForm({
+            defenseDate: councilDetail.defenseDate ? dayjs(councilDetail.defenseDate) : null,
+            meetingMode: councilDetail.meetingMode || 'IN_PERSON',
+            location: councilDetail.location || '',
+            meetingUrl: councilDetail.meetingUrl || '',
+        });
+
+        if (councilDetail.revisionSubmissionDeadline) {
+            setRevisionDeadline(dayjs(councilDetail.revisionSubmissionDeadline));
+        }
+    }, [councilDetail]);
 
     // Role identification
     const effectiveCouncil = councilDetail || council;

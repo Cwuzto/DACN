@@ -1,16 +1,20 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { message } from 'antd';
 import { ArrowRightOutlined, CloseOutlined, PlusOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import { useQueryClient } from '@tanstack/react-query';
 
 import registrationService from '../../services/registrationService';
 import evaluationService from '../../services/evaluationService';
-import meetingLogService from '../../services/meetingLogService';
 import notificationService from '../../services/notificationService';
-import PageLoader from '../../components/common/PageLoader';
 import useAuthStore from '../../stores/authStore';
 import { isInstituteDirector } from '../../utils/authRedirect';
+import { queryKeys } from '../../query/queryKeys';
+import { useRegistrations, usePendingTitleAdjustments, useTitleAdjustmentMutation } from '../../queries/registrationQueries';
+import { useMeetingMutation } from '../../queries/meetingQueries';
+import QueryPanel from '../../components/common/QueryPanel';
+import ContentSkeleton from '../../components/common/ContentSkeleton';
 
 /**
  * LecturerDashboardPage — 100% OpenDesign Golden Standard
@@ -23,13 +27,14 @@ import { isInstituteDirector } from '../../utils/authRedirect';
 export default function LecturerDashboardPage() {
     const navigate = useNavigate();
     const user = useAuthStore((state) => state.user);
+    const scope = queryKeys.scope(user);
+    const queryClient = useQueryClient();
     const isVienTruong = isInstituteDirector(user);
 
-    const [loading, setLoading] = useState(true);
-    const [supervisedStudents, setSupervisedStudents] = useState([]);
-    const [pendingRegistrations, setPendingRegistrations] = useState([]);
-    const [bm01RevisionQueue, setBm01RevisionQueue] = useState([]);
-    const [pendingTitleAdjustments, setPendingTitleAdjustments] = useState([]);
+    const registrationsQuery = useRegistrations(scope);
+    const titleAdjustmentsQuery = usePendingTitleAdjustments(scope);
+    const titleAdjustmentMutation = useTitleAdjustmentMutation(scope);
+
     const [processingWorkflowKey, setProcessingWorkflowKey] = useState('');
 
     // Modals
@@ -45,6 +50,8 @@ export default function LecturerDashboardPage() {
     const [meetingNextTask, setMeetingNextTask] = useState('');
     const [meetingSubmitting, setMeetingSubmitting] = useState(false);
 
+    const meetingMutation = useMeetingMutation(scope, meetingStudentId);
+
     // Broadcast Form State
     const [broadcastSubject, setBroadcastSubject] = useState('');
     const [broadcastContent, setBroadcastContent] = useState('');
@@ -52,37 +59,28 @@ export default function LecturerDashboardPage() {
 
     const maxQuota = 10; // Rule 1 of AGENTS.md: 1 GVHD tối đa 10 SV
 
-    const fetchDashboardInfo = useCallback(async () => {
-        try {
-            setLoading(true);
-            const [regRes, titleRes] = await Promise.all([
-                registrationService.getAllRegistrations().catch(() => ({ success: false, data: [] })),
-                registrationService.getPendingTitleAdjustments().catch(() => ({ success: false, data: [] })),
-            ]);
+    const rawRegistrations = registrationsQuery.data || [];
+    const supervisedStudents = useMemo(() => {
+        return rawRegistrations.filter(
+            (r) => r.status !== 'PENDING' && r.status !== 'REJECTED' && r.status !== 'WITHDRAWN' && r.status !== 'DROPPED'
+        );
+    }, [rawRegistrations]);
 
-            if (regRes.success && Array.isArray(regRes.data)) {
-                const active = regRes.data.filter(
-                    (r) => r.status !== 'PENDING' && r.status !== 'REJECTED' && r.status !== 'WITHDRAWN' && r.status !== 'DROPPED'
-                );
-                const pending = regRes.data.filter((r) => r.status === 'PENDING');
-                setSupervisedStudents(active);
-                setPendingRegistrations(pending);
-                setBm01RevisionQueue(regRes.data.filter((r) => r.status === 'BM01_NEEDS_REVISION'));
-                if (active.length > 0) {
-                    setMeetingStudentId((current) => current || active[0].id);
-                }
-            }
-            setPendingTitleAdjustments(titleRes.success && Array.isArray(titleRes.data) ? titleRes.data : []);
-        } catch (error) {
-            message.error(error.message || 'Lỗi tải dashboard giảng viên');
-        } finally {
-            setLoading(false);
-        }
-    }, []);
+    const pendingRegistrations = useMemo(() => {
+        return rawRegistrations.filter((r) => r.status === 'PENDING');
+    }, [rawRegistrations]);
+
+    const bm01RevisionQueue = useMemo(() => {
+        return rawRegistrations.filter((r) => r.status === 'BM01_NEEDS_REVISION');
+    }, [rawRegistrations]);
+
+    const pendingTitleAdjustments = titleAdjustmentsQuery.data || [];
 
     useEffect(() => {
-        fetchDashboardInfo();
-    }, [fetchDashboardInfo]);
+        if (supervisedStudents.length > 0) {
+            setMeetingStudentId((current) => current || String(supervisedStudents[0].id));
+        }
+    }, [supervisedStudents]);
 
     const studentCount = supervisedStudents.length;
     const pendingCount = pendingRegistrations.length;
@@ -102,21 +100,23 @@ export default function LecturerDashboardPage() {
 
         try {
             setMeetingSubmitting(true);
-            const res = await meetingLogService.createMeetingLog({
-                registrationId: Number(meetingStudentId),
-                meetingDate: new Date(meetingDate),
-                meetingMode: meetingLocation.includes('Meet') ? 'ONLINE' : 'IN_PERSON',
-                meetingNote: meetingContent.trim(),
-                nextMilestone: meetingNextTask.trim() || undefined,
+            await meetingMutation.mutateAsync({
+                action: 'createMeetingLog',
+                args: [
+                    Number(meetingStudentId),
+                    {
+                        meetingDate: new Date(meetingDate),
+                        meetingMode: meetingLocation.includes('Meet') ? 'ONLINE' : 'IN_PERSON',
+                        meetingNote: meetingContent.trim(),
+                        nextMilestone: meetingNextTask.trim() || undefined,
+                    },
+                ],
             });
 
-            if (res.success) {
-                message.success('Đã lưu nhật ký buổi gặp hướng dẫn thành công!');
-                setMeetingModalOpen(false);
-                setMeetingContent('');
-                setMeetingNextTask('');
-                fetchDashboardInfo();
-            }
+            message.success('Đã lưu nhật ký buổi gặp hướng dẫn thành công!');
+            setMeetingModalOpen(false);
+            setMeetingContent('');
+            setMeetingNextTask('');
         } catch (error) {
             message.error(error?.message || 'Không thể lưu nhật ký buổi gặp lúc này.');
         } finally {
@@ -136,7 +136,7 @@ export default function LecturerDashboardPage() {
             const res = await evaluationService.approveResubmittedBM01(registrationId, { outcome: 'PASSED' });
             if (res.success) {
                 message.success('Đã duyệt đề cương chỉnh sửa đạt yêu cầu.');
-                await fetchDashboardInfo();
+                await queryClient.invalidateQueries({ queryKey: queryKeys.registrations.lists(scope) });
             }
         } catch (error) {
             message.error(error?.message || 'Không thể duyệt lại đề cương.');
@@ -149,11 +149,11 @@ export default function LecturerDashboardPage() {
         const key = `title-${adjustmentId}-${action}`;
         try {
             setProcessingWorkflowKey(key);
-            const res = await registrationService.reviewTitleAdjustment(adjustmentId, { action });
-            if (res.success) {
-                message.success(action === 'APPROVE' ? 'Đã duyệt tên đề tài mới.' : 'Đã từ chối yêu cầu đổi tên.');
-                await fetchDashboardInfo();
-            }
+            await titleAdjustmentMutation.mutateAsync({
+                action: 'reviewTitleAdjustment',
+                args: [adjustmentId, { action }],
+            });
+            message.success(action === 'APPROVE' ? 'Đã duyệt tên đề tài mới.' : 'Đã từ chối yêu cầu đổi tên.');
         } catch (error) {
             message.error(error?.message || 'Không thể xử lý yêu cầu đổi tên.');
         } finally {
@@ -187,8 +187,8 @@ export default function LecturerDashboardPage() {
         }
     };
 
-    if (loading) {
-        return <PageLoader />;
+    if (registrationsQuery.isPending && !registrationsQuery.data && titleAdjustmentsQuery.isPending && !titleAdjustmentsQuery.data) {
+        return <ContentSkeleton variant="dashboard" />;
     }
 
     return (
@@ -639,35 +639,35 @@ export default function LecturerDashboardPage() {
                         </div>
                     </div>
                     <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        {pendingTitleAdjustments.length === 0 ? (
-                            <div style={{ color: 'var(--muted)', fontSize: 13 }}>Không có yêu cầu đổi tên đang chờ xử lý.</div>
-                        ) : pendingTitleAdjustments.map((adjustment) => (
-                            <div key={adjustment.id} style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 12 }}>
-                                <strong>{adjustment.registration?.student?.fullName || 'Sinh viên'}</strong>
-                                <div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 2 }}>
-                                    {adjustment.originalTitle} → <strong style={{ color: 'var(--fg)' }}>{adjustment.newTitle}</strong>
+                        <QueryPanel query={titleAdjustmentsQuery} empty={pendingTitleAdjustments.length === 0} emptyDescription="Không có yêu cầu đổi tên đang chờ xử lý.">
+                            {pendingTitleAdjustments.map((adjustment) => (
+                                <div key={adjustment.id} style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 12 }}>
+                                    <strong>{adjustment.registration?.student?.fullName || 'Sinh viên'}</strong>
+                                    <div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 2 }}>
+                                        {adjustment.originalTitle} → <strong style={{ color: 'var(--fg)' }}>{adjustment.newTitle}</strong>
+                                    </div>
+                                    <div style={{ fontSize: 12, marginTop: 6 }}>{adjustment.reason}</div>
+                                    <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                                        <button
+                                            type="button"
+                                            className="btn btn-primary btn-sm"
+                                            disabled={processingWorkflowKey.startsWith(`title-${adjustment.id}-`)}
+                                            onClick={() => handleReviewTitleAdjustment(adjustment.id, 'APPROVE')}
+                                        >
+                                            Duyệt
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="btn btn-secondary btn-sm"
+                                            disabled={processingWorkflowKey.startsWith(`title-${adjustment.id}-`)}
+                                            onClick={() => handleReviewTitleAdjustment(adjustment.id, 'REJECT')}
+                                        >
+                                            Từ chối
+                                        </button>
+                                    </div>
                                 </div>
-                                <div style={{ fontSize: 12, marginTop: 6 }}>{adjustment.reason}</div>
-                                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                                    <button
-                                        type="button"
-                                        className="btn btn-primary btn-sm"
-                                        disabled={processingWorkflowKey.startsWith(`title-${adjustment.id}-`)}
-                                        onClick={() => handleReviewTitleAdjustment(adjustment.id, 'APPROVE')}
-                                    >
-                                        Duyệt
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="btn btn-secondary btn-sm"
-                                        disabled={processingWorkflowKey.startsWith(`title-${adjustment.id}-`)}
-                                        onClick={() => handleReviewTitleAdjustment(adjustment.id, 'REJECT')}
-                                    >
-                                        Từ chối
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
+                            ))}
+                        </QueryPanel>
                     </div>
                 </div>
             </div>
@@ -694,86 +694,88 @@ export default function LecturerDashboardPage() {
                     </button>
                 </div>
 
-                <div className="table-wrap">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Mã ĐT</th>
-                                <th>Tên Đề tài</th>
-                                <th>Sinh viên thực hiện</th>
-                                <th>Tiến độ thực hiện</th>
-                                <th>Số buổi gặp hướng dẫn</th>
-                                <th>Điều kiện bảo vệ</th>
-                                <th style={{ textAlign: 'right' }}>Thao tác</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {supervisedStudents.length === 0 ? (
+                <QueryPanel query={registrationsQuery} variant="table">
+                    <div className="table-wrap">
+                        <table>
+                            <thead>
                                 <tr>
-                                    <td colSpan={7} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--muted)' }}>
-                                        Chưa có sinh viên nào trong danh sách hướng dẫn chính thức.
-                                    </td>
+                                    <th>Mã ĐT</th>
+                                    <th>Tên Đề tài</th>
+                                    <th>Sinh viên thực hiện</th>
+                                    <th>Tiến độ thực hiện</th>
+                                    <th>Số buổi gặp hướng dẫn</th>
+                                    <th>Điều kiện bảo vệ</th>
+                                    <th style={{ textAlign: 'right' }}>Thao tác</th>
                                 </tr>
-                            ) : (
-                                supervisedStudents.map((r) => {
-                                    const pct = r.progressPercent ?? (r.status === 'COMPLETED' || r.status === 'DEFENDED' ? 100 : 75);
-                                    const isComplete = pct >= 80;
-                                    const meetingsCount = r._count?.meetingLogs || r.meetingLogs?.length || (isComplete ? 7 : 4);
-                                    const bm04Passed = r.status === 'COMPLETED' || r.status === 'DEFENDED' || r.status === 'DEFENSE_READY';
+                            </thead>
+                            <tbody>
+                                {supervisedStudents.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={7} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--muted)' }}>
+                                            Chưa có sinh viên nào trong danh sách hướng dẫn chính thức.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    supervisedStudents.map((r) => {
+                                        const pct = r.progressPercent ?? (r.status === 'COMPLETED' || r.status === 'DEFENDED' ? 100 : 75);
+                                        const isComplete = pct >= 80;
+                                        const meetingsCount = r._count?.meetingLogs || r.meetingLogs?.length || (isComplete ? 7 : 4);
+                                        const bm04Passed = r.status === 'COMPLETED' || r.status === 'DEFENDED' || r.status === 'DEFENSE_READY';
 
-                                    return (
-                                        <tr key={r.id}>
-                                            <td className="mono" style={{ fontWeight: 600, color: 'var(--accent)' }}>
-                                                {r.topic?.code || `DT-${r.id}`}
-                                            </td>
-                                            <td>
-                                                <strong>{r.topic?.title || 'Đề tài tốt nghiệp'}</strong>
-                                                {r.topic?.englishTitle && (
-                                                    <div style={{ fontSize: '11.5px', color: 'var(--muted)', fontStyle: 'italic' }}>
-                                                        {r.topic.englishTitle}
-                                                    </div>
-                                                )}
-                                            </td>
-                                            <td>
-                                                <div>{r.student?.fullName || 'Sinh viên'}</div>
-                                                <span className="mono" style={{ fontSize: 11, color: 'var(--muted)' }}>
-                                                    {r.student?.code || '-'}
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <span className={`tag ${isComplete ? 'green' : pct < 50 ? 'red' : 'blue'}`}>
-                                                    {pct}% {isComplete ? 'Hoàn thành' : 'Đang nộp'}
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <strong style={{ color: meetingsCount >= 5 ? 'var(--primary)' : 'var(--warning)' }}>
-                                                    {meetingsCount} buổi
-                                                </strong>{' '}
-                                                <span style={{ fontSize: 11, color: 'var(--muted)' }}>
-                                                    ({meetingsCount >= 5 ? 'Đầy đủ' : 'Cần thêm'})
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <span className={`tag ${bm04Passed ? 'green' : 'yellow'}`}>
-                                                    {bm04Passed ? '✓ Đạt — Đủ điều kiện bảo vệ' : 'Đang xét duyệt'}
-                                                </span>
-                                            </td>
-                                            <td style={{ textAlign: 'right' }}>
-                                                <button
-                                                    type="button"
-                                                    className="btn btn-secondary btn-sm"
-                                                    onClick={() => navigate(`/lecturer/progress?registrationId=${r.id}`)}
-                                                >
-                                                    Sổ tiến độ
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    );
-                                })
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+                                        return (
+                                            <tr key={r.id}>
+                                                <td className="mono" style={{ fontWeight: 600, color: 'var(--accent)' }}>
+                                                    {r.topic?.code || `DT-${r.id}`}
+                                                </td>
+                                                <td>
+                                                    <strong>{r.topic?.title || 'Đề tài tốt nghiệp'}</strong>
+                                                    {r.topic?.englishTitle && (
+                                                        <div style={{ fontSize: '11.5px', color: 'var(--muted)', fontStyle: 'italic' }}>
+                                                            {r.topic.englishTitle}
+                                                        </div>
+                                                    )}
+                                                </td>
+                                                <td>
+                                                    <div>{r.student?.fullName || 'Sinh viên'}</div>
+                                                    <span className="mono" style={{ fontSize: 11, color: 'var(--muted)' }}>
+                                                        {r.student?.code || '-'}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <span className={`tag ${isComplete ? 'green' : pct < 50 ? 'red' : 'blue'}`}>
+                                                        {pct}% {isComplete ? 'Hoàn thành' : 'Đang nộp'}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <strong style={{ color: meetingsCount >= 5 ? 'var(--primary)' : 'var(--warning)' }}>
+                                                        {meetingsCount} buổi
+                                                    </strong>{' '}
+                                                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+                                                        ({meetingsCount >= 5 ? 'Đầy đủ' : 'Cần thêm'})
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <span className={`tag ${bm04Passed ? 'green' : 'yellow'}`}>
+                                                        {bm04Passed ? '✓ Đạt — Đủ điều kiện bảo vệ' : 'Đang xét duyệt'}
+                                                    </span>
+                                                </td>
+                                                <td style={{ textAlign: 'right' }}>
+                                                    <button
+                                                        type="button"
+                                                        className="btn btn-secondary btn-sm"
+                                                        onClick={() => navigate(`/lecturer/progress?registrationId=${r.id}`)}
+                                                    >
+                                                        Sổ tiến độ
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </QueryPanel>
             </div>
 
             {/* MODAL 1: GHI NHẬN BUỔI GẶP LAB (BM03) */}

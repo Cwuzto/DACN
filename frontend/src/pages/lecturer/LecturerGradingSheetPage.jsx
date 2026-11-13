@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button, Tag, message, Popconfirm } from 'antd';
 import {
@@ -10,7 +10,10 @@ import {
 import dayjs from 'dayjs';
 import evaluationService from '../../services/evaluationService';
 import aiService from '../../services/aiService';
-import PageLoader from '../../components/common/PageLoader';
+import useAuthStore from '../../stores/authStore';
+import { queryKeys } from '../../query/queryKeys';
+import { useScoreSheet, useScoreSheetMutation } from '../../queries/gradingQueries';
+import QueryPanel from '../../components/common/QueryPanel';
 
 const ROLE_LABELS = {
     CHAIRMAN: 'Chủ tịch',
@@ -50,8 +53,12 @@ const getGradeClassification = (score) => {
 export default function LecturerGradingSheetPage() {
     const { registrationId } = useParams();
     const navigate = useNavigate();
+    const currentUser = useAuthStore((s) => s.user);
+    const scope = useMemo(() => queryKeys.scope(currentUser), [currentUser]);
 
-    const [loading, setLoading] = useState(true);
+    const scoreSheetQuery = useScoreSheet(scope, registrationId);
+    const scoreSheetMutation = useScoreSheetMutation(scope, registrationId);
+
     const [saving, setSaving] = useState(false);
     const [locking, setLocking] = useState(false);
     const [exporting, setExporting] = useState(false);
@@ -68,58 +75,54 @@ export default function LecturerGradingSheetPage() {
     const [aiQuestionsLoading, setAiQuestionsLoading] = useState(false);
     const [defenseQuestions, setDefenseQuestions] = useState([]);
 
+    const initializedRef = useRef(false);
+
     useEffect(() => {
-        const loadScoreSheet = async () => {
-            try {
-                setLoading(true);
-                const res = await evaluationService.getScoreSheet(registrationId);
-                if (!res.success || !res.data) return;
-
-                const payload = res.data;
-                setRegistration(payload.registration || null);
-                setCurrentEvaluator(payload.currentEvaluator || null);
-                setScoreLocked(Boolean(payload.scoreLocked));
-                setGeneralComment(payload.defenseResult?.comments || '');
-
-                const rubric = payload.rubric || {};
-                setRubricInfo({
-                    version: rubric.version || 'v1',
-                    title: rubric.title || 'Barem đánh giá bảo vệ đồ án',
-                    totalMaxScore: rubric.totalMaxScore || 10.0,
-                });
-
-                let rawCategories = rubric.categories || [];
-                if (!rawCategories.length && rubric.criteria?.length) {
-                    rawCategories = [
-                        {
-                            code: 'DEFAULT_CAT',
-                            name: 'Tiêu chuẩn đánh giá',
-                            maxScore: rubric.totalMaxScore || 10.0,
-                            criteria: rubric.criteria,
-                        },
-                    ];
-                }
-                setCategories(rawCategories);
-
-                const sMap = {};
-                const cMap = {};
-                (payload.scores || []).forEach((item) => {
-                    if (item?.criterionCode) {
-                        sMap[item.criterionCode] = Number.isFinite(Number(item.score)) ? Number(item.score) : null;
-                        cMap[item.criterionCode] = item.comment || '';
-                    }
-                });
-                setScoresMap(sMap);
-                setCommentsMap(cMap);
-            } catch (e) {
-                message.error(e.message || 'Không thể tải phiếu chấm điểm');
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        loadScoreSheet();
+        initializedRef.current = false;
     }, [registrationId]);
+
+    useEffect(() => {
+        if (!scoreSheetQuery.data) return;
+        if (initializedRef.current) return;
+        initializedRef.current = true;
+
+        const payload = scoreSheetQuery.data;
+        setRegistration(payload.registration || null);
+        setCurrentEvaluator(payload.currentEvaluator || null);
+        setScoreLocked(Boolean(payload.scoreLocked));
+        setGeneralComment(payload.defenseResult?.comments || '');
+
+        const rubric = payload.rubric || {};
+        setRubricInfo({
+            version: rubric.version || 'v1',
+            title: rubric.title || 'Barem đánh giá bảo vệ đồ án',
+            totalMaxScore: rubric.totalMaxScore || 10.0,
+        });
+
+        let rawCategories = rubric.categories || [];
+        if (!rawCategories.length && rubric.criteria?.length) {
+            rawCategories = [
+                {
+                    code: 'DEFAULT_CAT',
+                    name: 'Tiêu chuẩn đánh giá',
+                    maxScore: rubric.totalMaxScore || 10.0,
+                    criteria: rubric.criteria,
+                },
+            ];
+        }
+        setCategories(rawCategories);
+
+        const sMap = {};
+        const cMap = {};
+        (payload.scores || []).forEach((item) => {
+            if (item?.criterionCode) {
+                sMap[item.criterionCode] = Number.isFinite(Number(item.score)) ? Number(item.score) : null;
+                cMap[item.criterionCode] = item.comment || '';
+            }
+        });
+        setScoresMap(sMap);
+        setCommentsMap(cMap);
+    }, [scoreSheetQuery.data]);
 
     const allCriteria = useMemo(() => {
         return categories.flatMap((cat) => cat.criteria || []);
@@ -179,10 +182,11 @@ export default function LecturerGradingSheetPage() {
                 generalComment: generalComment ? generalComment.trim() : '',
             };
 
-            const res = await evaluationService.saveScoreSheet(registrationId, payload);
-            if (res.success) {
-                message.success('Đã lưu điểm đánh giá (' + totalScore + 'đ) và ký số biên bản điện tử thành công!');
-            }
+            await scoreSheetMutation.mutateAsync({
+                action: 'saveScoreSheet',
+                args: [registrationId, payload],
+            });
+            message.success('Đã lưu điểm đánh giá (' + totalScore + 'đ) và ký số biên bản điện tử thành công!');
         } catch (e) {
             message.error(e.message || 'Lưu phiếu chấm thất bại');
         } finally {
@@ -209,11 +213,12 @@ export default function LecturerGradingSheetPage() {
                 targetRubricVersion: rubricInfo?.version || 'v1',
             };
 
-            const res = await evaluationService.lockMemberScoreSheet(payload);
-            if (res.success) {
-                setScoreLocked(true);
-                message.success('Đã nộp và khóa phiếu chấm cá nhân thành công!');
-            }
+            await scoreSheetMutation.mutateAsync({
+                action: 'lockMemberScoreSheet',
+                args: [payload],
+            });
+            setScoreLocked(true);
+            message.success('Đã nộp và khóa phiếu chấm cá nhân thành công!');
         } catch (e) {
             message.error(e.message || 'Khóa phiếu chấm thất bại');
         } finally {
@@ -300,10 +305,9 @@ export default function LecturerGradingSheetPage() {
         message.success('Đã sao chép câu hỏi vào clipboard!');
     };
 
-    if (loading) return <PageLoader />;
-
     return (
-        <section id="view-grading-sheet" className="view-pane active">
+        <QueryPanel query={scoreSheetQuery}>
+            <section id="view-grading-sheet" className="view-pane active">
             {/* Top Back Bar */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
                 <Button
@@ -720,5 +724,6 @@ export default function LecturerGradingSheetPage() {
                 </div>
             )}
         </section>
+    </QueryPanel>
     );
 }
