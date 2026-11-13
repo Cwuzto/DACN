@@ -1,8 +1,9 @@
-import api from './api';
+import api from './api.js';
+import { normalizeApiError } from '../utils/apiError.js';
 
 const wrapServiceError = (error, fallbackMessage) => {
-    if (error?.success === false) return error;
-    return { success: false, message: fallbackMessage };
+    const normalized = normalizeApiError(error);
+    return { ...normalized, message: error?.response?.data?.message || error?.message || fallbackMessage };
 };
 
 const archiveService = {

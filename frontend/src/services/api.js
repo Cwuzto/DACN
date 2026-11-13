@@ -1,5 +1,6 @@
 import axios from 'axios';
 import useAuthStore from '../stores/authStore.js';
+import { normalizeApiError } from '../utils/apiError.js';
 
 const API_BASE_URL = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) || 'http://localhost:5000/api';
 
@@ -45,7 +46,9 @@ api.interceptors.request.use(
 // Xử lý lỗi chung (VD: token hết hạn -> đẩy ra login, 409 stale replay, 403 bảo toàn session)
 // ============================
 api.interceptors.response.use(
-    (response) => response.data,
+    (response) => response.data?.success === false
+        ? Promise.reject(normalizeApiError({ response }))
+        : response.data,
     async (error) => {
         const config = error.config;
         const isLoginRequest = config?.url?.includes('/auth/login');
@@ -69,7 +72,7 @@ api.interceptors.response.use(
 
         if (isStaleVersion && config) {
             if (config._retry) {
-                return Promise.reject(error.response?.data || error);
+                return Promise.reject(normalizeApiError(error));
             }
             config._retry = true;
 
@@ -159,12 +162,12 @@ api.interceptors.response.use(
 
                 // Mutations WITHOUT Idempotency-Key: Block auto-replay to prevent duplicate writes
                 return Promise.reject({
-                    ...(error.response?.data || {}),
+                    ...normalizeApiError(error),
                     requiresUserConfirmation: true,
                     message: 'Quyền hạn vừa được cập nhật trên hệ thống. Vui lòng xác nhận để gửi lại thao tác.',
                 });
             } catch (refreshErr) {
-                return Promise.reject(refreshErr?.response?.data || refreshErr || error.response?.data || error);
+                return Promise.reject(normalizeApiError(refreshErr || error));
             }
         }
 
@@ -201,7 +204,7 @@ api.interceptors.response.use(
         // Invariant: 403 Forbidden strictly preserves session and tokens
         // Never logout on 403 (Forbidden, COI, out-of-scope domain guards)
         // ============================================================
-        return Promise.reject(error.response?.data || error);
+        return Promise.reject(normalizeApiError(error));
     }
 );
 
