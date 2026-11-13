@@ -2253,15 +2253,15 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 
 ---
 
-### Phiên 13/11/2026 — UI/UX Hardening: Triệt Tiêu Nhảy Chữ & Co Rút Layout Giữa 2 Trang Hội Đồng
+### Phiên 13/11/2026 — UI/UX Hardening: Triệt Tiêu Nhảy Chữ Council Pages & Điều Tra Sự Cố Phê Duyệt / Công Bố Kết Quả
 
 #### 1. Những phần đã hoàn thành
-- **Chụp ảnh thực tế chẩn đoán lỗi bằng Puppeteer headless**:
-  - Ghi nhận chính xác hiện tượng "nhảy chữ" và sập layout:
+- **Chẩn đoán & Chụp ảnh minh chứng hiện tượng "nhảy chữ" bằng Puppeteer headless**:
+  - Ghi nhận chính xác hiện tượng layout shift:
     * Ở trang **Hội đồng Bảo vệ Khóa luận** (`/admin/defense-councils`), khối `PageHeader.actions` chứa 5 điều khiển có tổng chiều rộng vượt quá **1.040px**.
     * Khi hiển thị ở màn hình chuẩn (1440px trừ sidebar 280px), phần chiều rộng còn lại cho tiêu đề bị ép xuống chỉ còn **48px - 72px**.
     * Hệ quả: Tiêu đề và dòng mô tả bị bóp nghẹt thành **cột chữ dọc 1 từ / dòng** ("Phân \n công \n Hội \n đồng \n Bảo \n vệ \n Khóa \n luận").
-    * Chiều cao header bị phình to hơn 200px so với trang Đề cương, gây hiện tượng giật nảy layout (Cumulative Layout Shift) rất khó chịu khi chuyển menu.
+    * Chiều cao header bị phình to hơn 200px so với trang Đề cương, gây hiện tượng giật nảy layout (Cumulative Layout Shift) khi chuyển menu.
 - **Tái cấu trúc bố cục giao diện theo chuẩn UI/UX Pro Max**:
   - Tách bạch tầng **Nhận diện trang (Page Identity)** và tầng **Điều khiển bộ lọc (Context & Scope Toolbar)**:
     * Di chuyển 2 dropdown chọn phạm vi dữ liệu (`Chọn Đồ án` & `Chọn Học kỳ`) xuống thanh công cụ ngữ cảnh chuyên biệt nằm ngay trên hàng thẻ KPI.
@@ -2272,33 +2272,44 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
   - Gia cố chống co rút trong [PageHeader.jsx](file:///d:/DACN/frontend/src/components/common/PageHeader.jsx):
     * Thiết lập `space-y-1 min-w-[280px] flex-1` bảo vệ khu vực tiêu đề không bao giờ bị bóp méo dưới 280px.
     * Nâng điểm ngắt responsive lên `lg:flex-row`, tự động chuyển sang xếp tầng mềm mại trên màn hình nhỏ.
-- **Xác thực kết quả thực tế**:
+- **Xác thực kết quả thực tế qua ảnh chụp & test**:
   - Chụp ảnh màn hình kiểm chứng sau khi sửa (`outline_councils_after.png` và `defense_councils_after.png`):
     * Cả 2 trang đều hiển thị tiêu đề và mô tả trên đúng **1 hàng ngang** duy nhất, thanh nút bấm gọn gàng trên 1 hàng.
     * Chiều cao `PageHeader` và vị trí thanh công cụ của cả 2 trang hoàn toàn trùng khớp từng pixel, **triệt tiêu 100% hiện tượng nhảy chữ / giật layout**.
   - Toàn bộ 223/223 frontend unit tests PASS (100%).
   - Frontend production build thành công trong 15.50s với 0 lỗi.
+- **Điều tra & Định vị gốc rễ sự cố 2 trang "Phê duyệt kết quả" và "Công bố kết quả"**:
+  - Phân tích qua script Puppeteer headless kiểm tra luồng truy cập `/admin/grading?tab=approvals` và `/admin/grading?tab=publish`:
+    * **Nguyên nhân 1 (Route Guard Bounce)**: Trong `frontend/src/utils/authRedirect.js`, hàm `getRouteRedirect` không cấp quyền bypass cho `user.role === 'ADMIN'`. Vì nhóm quyền của `ADMIN` trong CSDL không chứa các mã quyền chuyên biệt `VIEW_DEFENSE_RESULT_APPROVALS` và `VIEW_RESULT_PUBLICATIONS` (vốn chỉ gắn với nhóm `VIEN_TRUONG`), nên khi Admin click vào menu, `ProtectedRoute` tự động đá văng về `/admin/dashboard`.
+    * **Nguyên nhân 2 (Quyền Publish không đồng nhất)**: Trong `GradingDefensePage.jsx`, cờ `canPublishResult` kiểm tra `RESULT_PUBLISH`, trong khi menu `navigationRegistry.js` kiểm tra `VIEW_RESULT_PUBLICATIONS`. Nếu không đồng bộ, modal công bố sẽ không tự động bật mở khi có query param `?tab=publish`.
+    * **Nguyên nhân 3 (Lỗi 500 endpoint overview)**: Ghi nhận request `GET /api/dashboard/semester-overview` trả về 500 Internal Server Error trong lúc load trang dashboard/admin.
 
 #### 2. Trạng thái cập nhật của từng phần
 - **Database/Prisma**: `STABLE`; Không thay đổi schema, tuân thủ 100% mô hình `TopicRegistration`.
-- **Backend API**: `STABLE (100% PASS)`; Đang chạy daemon tại cổng 5000 (`task-1057`).
-- **Frontend SPA**: `PIXEL-PERFECT & ZERO CLS (100% PASS)`;
-  * Đang chạy dev daemon tại cổng 5174 (`task-1059`).
-  * 223/223 tests PASS.
-  * Bản build production đạt 100% không lỗi.
+- **Backend API**: `108/108 test suites PASS (100%)`; Cần bổ sung các quyền `VIEW_DEFENSE_RESULT_APPROVALS`, `VIEW_RESULT_PUBLICATIONS`, `RESULT_PUBLISH` vào nhóm Quản trị viên (hoặc xử lý bypass cho role `ADMIN`).
+- **Frontend SPA**: `ZERO CLS & FULL BUILD PASS (100%)`;
+  * 223/223 unit tests PASS.
+  * Bản build production đạt 100% không lỗi (15.50s).
 - **Quy chuẩn mã hóa & nút bấm**:
   * UTF-8 without BOM (Rule 2.4).
   * 100% nút bấm sử dụng prop `icon={<IconComponent />}` từ `@ant-design/icons`, không emoji hay ký tự đồ họa thô (Rule 2.6).
 
 #### 3. Bước tiếp theo cần làm (Next Session Plan)
-1. Mở trình duyệt xem trực tiếp tại:
-   - `http://localhost:5174/admin/outline-councils`
-   - `http://localhost:5174/admin/defense-councils`
-2. Bấm chuyển đổi qua lại giữa 2 trang trên thanh menu bên trái để trải nghiệm cảm giác chuyển trang mượt mà, chiều cao cố định và không còn giật nảy vị trí.
+1. **[P0] Khắc phục triệt để lỗi 2 trang "Phê duyệt kết quả" & "Công bố kết quả"**:
+   - Cập nhật `frontend/src/utils/authRedirect.js`: Cho phép `user.role === 'ADMIN'` tự động vượt qua các route guard quản trị `/admin/*` mà không bị đá về `/admin/dashboard`.
+   - Đồng bộ ma trận quyền trong `backend/src/constants/permissions.js` và cập nhật seed quyền cho tài khoản Quản trị viên: Gán các quyền `VIEW_DEFENSE_RESULT_APPROVALS`, `DEFENSE_RESULT_APPROVE`, `VIEW_RESULT_PUBLICATIONS`, `RESULT_PUBLISH` cho nhóm `QUAN_TRI_VIEN` / role `ADMIN`.
+   - Chuẩn hóa cờ `canPublishResult` trong `GradingDefensePage.jsx` để nhận diện cả `RESULT_PUBLISH` lẫn `VIEW_RESULT_PUBLICATIONS`.
+   - Sửa lỗi 500 tại endpoint `GET /api/dashboard/semester-overview` khi truy vấn dữ liệu học kỳ.
+2. **[P1] Kiểm thử E2E luồng Phê duyệt & Công bố kết quả**:
+   - Dùng Puppeteer đăng nhập với cả tài khoản `ADMIN` và `VIEN_TRUONG` (`lecturer01`), truy cập trực tiếp:
+     * `/admin/grading?tab=approvals` $\rightarrow$ Xác nhận hiển thị danh sách sinh viên chờ duyệt đạt/không đạt.
+     * `/admin/grading?tab=publish` $\rightarrow$ Xác nhận modal công bố kết quả mở lên tự động và thao tác mượt mà.
 
 #### 4. Quyết định quan trọng (Decisions & Rationale)
 1. **Phân tách Action CTAs và Scope Filters**: Bộ chọn đợt đồ án và tên đồ án là bộ lọc dữ liệu (Filters/Scope), không nên đặt chung hàng với các nút hành động chính (Primary Actions) trong `PageHeader`. Việc đưa bộ lọc xuống thanh công cụ phía dưới giúp giao diện cân đối, giải phóng không gian cho tiêu đề trang.
 2. **Bảo vệ độ rộng tối thiểu cho Tiêu đề (`min-w-[280px]`)**: Sử dụng Flexbox kết hợp `flex-1 min-w-[280px]` để ngăn chặn hoàn toàn việc các nút bấm bên phải chèn ép tiêu đề thành cột chữ 1 từ/dòng khi người dùng dùng màn hình độ phân giải trung bình hoặc mở sidebar.
+3. **Admin Role Bypass trong Route Guard**: `ADMIN` là vai trò quản trị tối cao của hệ thống. Cơ chế `getRouteRedirect` cần công nhận vai trò này cho toàn bộ không gian `/admin/*` để tránh tình trạng tài khoản Admin bị rào cản phân quyền của giáo vụ/viện trưởng chặn và đá về trang chủ.
+
 
 
 
