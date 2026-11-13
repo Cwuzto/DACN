@@ -3,9 +3,29 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { normalizeDefenseDossier } from '../../../services/archiveService.js';
+import { queryKeys } from '../../../query/queryKeys.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../..');
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'utf8');
+
+test('archive normalization preserves all four current slots without inventing files', () => {
+    const dossier = normalizeDefenseDossier({ currentFiles: {
+        REPORT_WORD: null, REPORT_PDF: { fileName: 'final.pdf', versionNumber: 7 },
+        DEMO_VIDEO: null, SLIDE_PPTX: { fileUrl: '/slides.pptx', versionNumber: 2 },
+    } });
+    assert.equal(dossier.currentFiles.REPORT_WORD, null);
+    assert.equal(dossier.currentFiles.DEMO_VIDEO, null);
+    assert.deepEqual(dossier.documents.map(file => [file.documentType, file.versionNumber]), [['REPORT_PDF', 7], ['SLIDE_PPTX', 2]]);
+    assert.deepEqual(dossier.missingTypes, ['REPORT_WORD', 'DEMO_VIDEO']);
+});
+
+test('archive and dossier keys isolate registration and account scopes', () => {
+    const scope = queryKeys.scope({ id: 6, permissionVersion: 2 });
+    assert.deepEqual(queryKeys.archives.dossier(scope, 101), ['scope', 6, 2, 'archives', 'dossier', 101]);
+    assert.notDeepEqual(queryKeys.archives.dossier(scope, 101), queryKeys.archives.dossier(scope, 102));
+    assert.notDeepEqual(queryKeys.archives.dossier(scope, 101), queryKeys.archives.dossier(queryKeys.scope({ id: 7, permissionVersion: 2 }), 101));
+});
 
 test('outlineService connects to the /api/outline endpoints', () => {
     const serviceSource = read('frontend/src/services/outlineService.js');

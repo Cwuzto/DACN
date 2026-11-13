@@ -19,8 +19,14 @@ export const queryKeys = {
         publicationHistory: (scope, semesterId) => [...scope, 'grading', 'publication-history', semesterId],
         publicationPreview: (scope, semesterId) => [...scope, 'grading', 'publication-preview', semesterId],
     },
-    archives: createResourceKeys('archives'),
-    registrations: createResourceKeys('registrations'),
+    archives: {
+        ...createResourceKeys('archives'),
+        dossier: (scope, registrationId) => [...scope, 'archives', 'dossier', registrationId],
+    },
+    registrations: {
+        ...createResourceKeys('registrations'),
+        current: (scope) => [...scope, 'registrations', 'current'],
+    },
     semesters: createResourceKeys('semesters'),
     users: createResourceKeys('users'),
     permissions: createResourceKeys('permissions'),

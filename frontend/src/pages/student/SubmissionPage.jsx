@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
     Alert,
     Button,
@@ -26,6 +27,7 @@ import {
     AuditOutlined,
     CalendarOutlined,
     CloudUploadOutlined,
+    UploadOutlined,
     RobotOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -43,6 +45,11 @@ import CheckpointSignModal from '../../components/student/CheckpointSignModal';
 import TitleAdjustmentModal from '../../components/student/TitleAdjustmentModal';
 import ArchiveSubmissionModal from '../../components/forms/ArchiveSubmissionModal';
 import useAuthStore from '../../stores/authStore';
+import { queryKeys } from '../../query/queryKeys';
+import { useStudentRegistration } from '../../queries/registrationQueries';
+import { useStudentArchive, useDefenseDossier } from '../../queries/archiveQueries';
+import QueryErrorState from '../../components/common/QueryErrorState';
+import ContentSkeleton from '../../components/common/ContentSkeleton';
 
 const formatTaskTitle = (title) => {
     if (!title) return '';
@@ -56,7 +63,7 @@ const formatTaskTitle = (title) => {
 };
 
 export default function SubmissionPage() {
-    const [registration, setRegistration] = useState(null);
+    const [searchParams, setSearchParams] = useSearchParams();
     const [outlineData, setOutlineData] = useState(null);
     const [tasks, setTasks] = useState([]);
     const [meetingLogs, setMeetingLogs] = useState([]);
@@ -83,7 +90,6 @@ export default function SubmissionPage() {
     const [ackSubmitting, setAckSubmitting] = useState(false);
 
     // Pre-defense archive state
-    const [preDefenseArchive, setPreDefenseArchive] = useState(null);
     const [archiveModalOpen, setArchiveModalOpen] = useState(false);
     const [preDefenseSubmitting, setPreDefenseSubmitting] = useState(false);
     const [reportFileUrl, setReportFileUrl] = useState('');
@@ -98,6 +104,32 @@ export default function SubmissionPage() {
     const [checkpointSignModalOpen, setCheckpointSignModalOpen] = useState(false);
     const [selectedCheckpoint, setSelectedCheckpoint] = useState(null);
     const currentUser = useAuthStore((s) => s.user);
+    const scope = queryKeys.scope(currentUser);
+    const registrationQuery = useStudentRegistration(scope);
+    const registration = registrationQuery.data?.data;
+    const archiveQuery = useStudentArchive(scope, registration?.id);
+    const dossierQuery = useDefenseDossier(scope, registration?.id);
+    const preDefenseArchive = archiveQuery.data?.data?.archive;
+    const dossier = dossierQuery.data?.data;
+    const archiveTab = searchParams.get('tab') === 'archive';
+    const closeArchive = () => {
+        setArchiveModalOpen(false);
+        if (archiveTab) {
+            const next = new URLSearchParams(searchParams);
+            next.delete('tab');
+            setSearchParams(next, { replace: true });
+        }
+    };
+
+    useEffect(() => {
+        if (!preDefenseArchive) return;
+        setReportFileUrl(preDefenseArchive.reportFileUrl || '');
+        setReportFileName(preDefenseArchive.reportFileName || '');
+        setSlideFileUrl(preDefenseArchive.slideFileUrl || '');
+        setSlideFileName(preDefenseArchive.slideFileName || '');
+        setSourceCodeUrl(preDefenseArchive.sourceCodeUrl || '');
+        setNotes(preDefenseArchive.summary || preDefenseArchive.notes || '');
+    }, [preDefenseArchive]);
 
     // BM01 Copilot AI state
     const [copilotOpen, setCopilotOpen] = useState(false);
@@ -187,57 +219,34 @@ export default function SubmissionPage() {
     };
 
     useEffect(() => {
-        fetchData();
-    }, []);
+        if (registration?.id) fetchRelatedData(registration);
+    }, [registration?.id]);
 
     const fetchData = async () => {
+        const [result] = await Promise.all([registrationQuery.refetch(), archiveQuery.refetch(), dossierQuery.refetch()]);
+        if (result.data?.data) await fetchRelatedData(result.data.data);
+    };
+
+    const fetchRelatedData = async (regData) => {
         try {
             setLoading(true);
-            const regRes = await registrationService.getMyRegistration();
-            if (regRes.success && regRes.data) {
-                const regData = regRes.data;
-                setRegistration(regData);
+            const [taskRes, logRes, cpRes, outlineRes, bm03Res, bm04Res] = await Promise.all([
+                taskService.getTasksByRegistration(regData.id).catch(() => ({ success: false, data: [] })),
+                meetingLogService.getMeetingLogs(regData.id).catch(() => ({ success: false, data: [] })),
+                evaluationService.getCheckpointEvaluations(regData.id).catch(() => ({ success: false, data: [] })),
+                outlineService.getMyOutline().catch(() => ({ success: false, data: null })),
+                evaluationService.getBM03Record(regData.id).catch(() => ({ success: false, data: null })),
+                evaluationService.getBM04Record(regData.id).catch(() => ({ success: false, data: null })),
+            ]);
 
-                const [taskRes, logRes, cpRes, archiveRes, outlineRes, bm03Res, bm04Res] = await Promise.all([
-                    taskService.getTasksByRegistration(regData.id).catch(() => ({ success: false, data: [] })),
-                    meetingLogService.getMeetingLogs(regData.id).catch(() => ({ success: false, data: [] })),
-                    evaluationService.getCheckpointEvaluations(regData.id).catch(() => ({ success: false, data: [] })),
-                    archiveService.getArchiveByRegistration(regData.id).catch(() => ({ success: false })),
-                    outlineService.getMyOutline().catch(() => ({ success: false, data: null })),
-                    evaluationService.getBM03Record(regData.id).catch(() => ({ success: false, data: null })),
-                    evaluationService.getBM04Record(regData.id).catch(() => ({ success: false, data: null })),
-                ]);
-
-                if (taskRes.success) setTasks(taskRes.data || []);
-                if (logRes.success) setMeetingLogs(logRes.data || []);
-                if (cpRes.success) setCheckpoints(cpRes.data || []);
-                if (outlineRes?.success && outlineRes.data) setOutlineData(outlineRes.data);
-                if (bm03Res?.success && bm03Res.data) setBm03Record(bm03Res.data);
-                if (bm04Res?.success && bm04Res.data) {
-                    setBm04Record(bm04Res.data);
-                    setBm04Evaluation(bm04Res.data);
-                }
-
-                if (archiveRes?.success && archiveRes.data) {
-                    const arch = archiveRes.data.archive || archiveRes.data;
-                    setPreDefenseArchive(arch);
-                    if (arch) {
-                        setReportFileUrl(arch.reportFileUrl || '');
-                        setReportFileName(arch.reportFileName || '');
-                        setSlideFileUrl(arch.slideFileUrl || '');
-                        setSlideFileName(arch.slideFileName || '');
-                        setSourceCodeUrl(arch.sourceCodeUrl || '');
-                        setNotes(arch.summary || arch.notes || '');
-                    }
-                }
-            } else {
-                setRegistration(null);
-                setTasks([]);
-                setMeetingLogs([]);
-                setCheckpoints([]);
-                setPreDefenseArchive(null);
-                setBm03Record(null);
-                setBm04Record(null);
+            if (taskRes.success) setTasks(taskRes.data || []);
+            if (logRes.success) setMeetingLogs(logRes.data || []);
+            if (cpRes.success) setCheckpoints(cpRes.data || []);
+            if (outlineRes?.success && outlineRes.data) setOutlineData(outlineRes.data);
+            if (bm03Res?.success && bm03Res.data) setBm03Record(bm03Res.data);
+            if (bm04Res?.success && bm04Res.data) {
+                setBm04Record(bm04Res.data);
+                setBm04Evaluation(bm04Res.data);
             }
         } catch (error) {
             message.error(error?.message || 'Không thể tải dữ liệu nộp biểu mẫu.');
@@ -411,6 +420,9 @@ export default function SubmissionPage() {
             issues: Array.isArray(bm02Current?.issues) ? bm02Current.issues : [],
         }
         : null;
+
+    if (registrationQuery.isPending) return <ContentSkeleton variant="detail" />;
+    if (registrationQuery.isError && !registration) return <QueryErrorState error={registrationQuery.error} onRetry={registrationQuery.refetch} retrying={registrationQuery.isFetching} />;
 
     if (!registration) {
         return (
@@ -965,6 +977,8 @@ export default function SubmissionPage() {
             )}
 
             {/* Post-Defense 4-Slot Digital Archive Dossier Section */}
+            {archiveQuery.isError && <QueryErrorState error={archiveQuery.error} onRetry={archiveQuery.refetch} retrying={archiveQuery.isFetching} />}
+            {dossierQuery.isError && !archiveTab && !archiveModalOpen && <QueryErrorState error={dossierQuery.error} onRetry={dossierQuery.refetch} retrying={dossierQuery.isFetching} />}
             {['DEFENSE_PASSED', 'DEFENDED', 'COMPLETED', 'ARCHIVE_INCOMPLETE', 'ARCHIVE_REJECTED', 'PENDING_INSTITUTE_SIGNATURE'].includes(registration?.status) && (
                 <div
                     className="card"
@@ -998,32 +1012,33 @@ export default function SubmissionPage() {
                         </Button>
                     </div>
 
-                    <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+                    {dossierQuery.isPending && <ContentSkeleton rows={2} />}
+                    {dossier && <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
                         <div style={{ background: '#FFFFFF', padding: 12, borderRadius: 6, border: '1px solid #E9D5FF' }}>
                             <div style={{ fontSize: 12, fontWeight: 700, color: '#7E22CE' }}>1. Báo cáo Word (REPORT_WORD)</div>
                             <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
-                                {preDefenseArchive?.dossierFiles?.find(f => f.docType === 'REPORT_WORD') ? 'Đã tải lên' : 'Chưa có tệp'}
+                                {dossier?.currentFiles?.REPORT_WORD ? 'Đã tải lên' : 'Chưa có tệp'}
                             </div>
                         </div>
                         <div style={{ background: '#FFFFFF', padding: 12, borderRadius: 6, border: '1px solid #E9D5FF' }}>
                             <div style={{ fontSize: 12, fontWeight: 700, color: '#7E22CE' }}>2. Báo cáo PDF (REPORT_PDF)</div>
                             <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
-                                {preDefenseArchive?.dossierFiles?.find(f => f.docType === 'REPORT_PDF') ? 'Đã tải lên' : 'Chưa có tệp'}
+                                {dossier?.currentFiles?.REPORT_PDF ? 'Đã tải lên' : 'Chưa có tệp'}
                             </div>
                         </div>
                         <div style={{ background: '#FFFFFF', padding: 12, borderRadius: 6, border: '1px solid #E9D5FF' }}>
                             <div style={{ fontSize: 12, fontWeight: 700, color: '#7E22CE' }}>3. Video demo (DEMO_VIDEO)</div>
                             <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
-                                {preDefenseArchive?.dossierFiles?.find(f => f.docType === 'DEMO_VIDEO') ? 'Đã tải lên' : 'Chưa có tệp'}
+                                {dossier?.currentFiles?.DEMO_VIDEO ? 'Đã tải lên' : 'Chưa có tệp'}
                             </div>
                         </div>
                         <div style={{ background: '#FFFFFF', padding: 12, borderRadius: 6, border: '1px solid #E9D5FF' }}>
                             <div style={{ fontSize: 12, fontWeight: 700, color: '#7E22CE' }}>4. Slide PPTX (SLIDE_PPTX)</div>
                             <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
-                                {preDefenseArchive?.dossierFiles?.find(f => f.docType === 'SLIDE_PPTX') ? 'Đã tải lên' : 'Chưa có tệp'}
+                                {dossier?.currentFiles?.SLIDE_PPTX ? 'Đã tải lên' : 'Chưa có tệp'}
                             </div>
                         </div>
-                    </div>
+                    </div>}
                 </div>
             )}
 
@@ -1456,12 +1471,10 @@ export default function SubmissionPage() {
 
             {/* Post-Defense Archive Submission Modal */}
             <ArchiveSubmissionModal
-                open={archiveModalOpen}
-                onClose={() => setArchiveModalOpen(false)}
+                open={archiveModalOpen || archiveTab}
+                onClose={closeArchive}
                 registration={registration}
                 registrationId={registration?.id}
-                initialData={preDefenseArchive}
-                onSuccess={fetchData}
             />
 
             {/* BM01 Copilot Drawer */}
