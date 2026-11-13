@@ -12,7 +12,7 @@ export const councilKeys = {
 export const useCouncils = (scope, filters = {}, enabled = true) => useQuery({
     queryKey: queryKeys.councils.list(scope, filters),
     queryFn: async () => requireSuccess(await councilService.getCouncils(filters)).data,
-    enabled: Boolean(filters.semesterId) && enabled,
+    enabled: (filters?.semesterId !== undefined ? Boolean(filters.semesterId) : true) && enabled,
 });
 export const useCouncilDetail = (scope, id, enabled = true) => useQuery({
     queryKey: queryKeys.councils.detail(scope, String(id)),

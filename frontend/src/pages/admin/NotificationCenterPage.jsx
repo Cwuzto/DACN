@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
     Tabs,
     Table,
@@ -11,7 +11,6 @@ import {
     message,
     Progress,
     Button,
-    Spin,
     Space,
 } from 'antd';
 import {
@@ -29,67 +28,39 @@ import dayjs from 'dayjs';
 
 import notificationService from '../../services/notificationService';
 import councilService from '../../services/councilService';
+import useAuthStore from '../../stores/authStore';
+import { queryKeys } from '../../query/queryKeys';
+import {
+    useNotificationHistory,
+    useNotificationTemplates,
+    useNotificationMutation,
+} from '../../queries/notificationQueries';
+import { useCouncils } from '../../queries/councilQueries';
+import QueryPanel from '../../components/common/QueryPanel';
 
 function NotificationCenterPage() {
-    const [history, setHistory] = useState([]);
-    const [templates, setTemplates] = useState([]);
-    const [councils, setCouncils] = useState([]);
-    const [loadingHistory, setLoadingHistory] = useState(true);
-    const [loadingTemplates, setLoadingTemplates] = useState(true);
+    const user = useAuthStore((state) => state.user);
+    const scope = queryKeys.scope(user);
+
+    const historyQuery = useNotificationHistory(scope);
+    const templatesQuery = useNotificationTemplates(scope);
+    const notificationMutation = useNotificationMutation(scope);
+
+    const [form] = Form.useForm();
+    const [templateForm] = Form.useForm();
+    const selectedAudience = Form.useWatch('audience', form);
+
+    const councilsQuery = useCouncils(scope, {}, selectedAudience === 'SPECIFIC_COUNCIL');
+    const councils = councilsQuery.data || [];
+    const history = historyQuery.data || [];
+    const templates = templatesQuery.data || [];
+
     const [sending, setSending] = useState(false);
     const [savingTemplate, setSavingTemplate] = useState(false);
     const [isSendModalOpen, setIsSendModalOpen] = useState(false);
     const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
     const [editingTemplate, setEditingTemplate] = useState(null);
     const [activeTab, setActiveTab] = useState('history');
-    const [form] = Form.useForm();
-    const [templateForm] = Form.useForm();
-
-    const fetchHistory = async () => {
-        setLoadingHistory(true);
-        try {
-            const response = await notificationService.getHistory();
-            if (response.success) setHistory(response.data || []);
-        } catch (error) {
-            message.error(error?.message || 'Không thể tải lịch sử thông báo');
-        } finally {
-            setLoadingHistory(false);
-        }
-    };
-
-    const fetchTemplates = async () => {
-        setLoadingTemplates(true);
-        try {
-            const response = await notificationService.getTemplates();
-            if (response.success) setTemplates(response.data || []);
-        } catch (error) {
-            message.error(error?.message || 'Không thể tải template thông báo');
-        } finally {
-            setLoadingTemplates(false);
-        }
-    };
-
-    const fetchCouncils = async () => {
-        try {
-            const response = await councilService.getCouncils();
-            if (response.success) setCouncils(response.data || []);
-        } catch (error) {
-            message.warning(error?.message || 'Không thể tải danh sách hội đồng');
-        }
-    };
-
-    useEffect(() => {
-        fetchHistory();
-        fetchTemplates();
-    }, []);
-
-    const selectedAudience = Form.useWatch('audience', form);
-
-    useEffect(() => {
-        if (selectedAudience === 'SPECIFIC_COUNCIL' && councils.length === 0) {
-            fetchCouncils();
-        }
-    }, [selectedAudience, councils.length]);
 
     const handleSendNotification = async () => {
         try {
@@ -103,14 +74,14 @@ function NotificationCenterPage() {
                 isEmail: Boolean(values.isEmail),
             };
 
-            const response = await notificationService.sendBroadcast(payload);
-            if (response.success) {
-                message.success(`Đã gửi thông báo thành công (${response.data?.sentCount || 0} người nhận)`);
-                setIsSendModalOpen(false);
-                form.resetFields();
-                setActiveTab('history');
-                fetchHistory();
-            }
+            const response = await notificationMutation.mutateAsync({
+                action: 'sendBroadcast',
+                args: [payload],
+            });
+            message.success(`Đã gửi thông báo thành công (${response?.data?.sentCount || 0} người nhận)`);
+            setIsSendModalOpen(false);
+            form.resetFields();
+            setActiveTab('history');
         } catch (error) {
             message.error(error?.message || 'Không thể gửi thông báo');
         } finally {
@@ -135,13 +106,13 @@ function NotificationCenterPage() {
         try {
             const values = await templateForm.validateFields();
             setSavingTemplate(true);
-            const response = await notificationService.updateTemplate(editingTemplate.key, values);
-            if (response.success) {
-                message.success('Đã cập nhật template');
-                setIsTemplateModalOpen(false);
-                setEditingTemplate(null);
-                fetchTemplates();
-            }
+            await notificationMutation.mutateAsync({
+                action: 'updateTemplate',
+                args: [editingTemplate.key, values],
+            });
+            message.success('Đã cập nhật template');
+            setIsTemplateModalOpen(false);
+            setEditingTemplate(null);
         } catch (error) {
             message.error(error?.message || 'Không thể cập nhật template');
         } finally {
@@ -241,26 +212,25 @@ function NotificationCenterPage() {
                     <h1 className="h1">Gửi Thông Báo Người Dùng</h1>
                 </div>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                    <button
-                        className="btn btn-secondary"
+                    <Button
+                        icon={<ReloadOutlined />}
                         onClick={() => {
-                            fetchHistory();
-                            fetchTemplates();
+                            historyQuery.refetch();
+                            templatesQuery.refetch();
                         }}
                     >
-                        <ReloadOutlined />
-                        <span>Làm mới</span>
-                    </button>
-                    <button
-                        className="btn btn-primary"
+                        Làm mới
+                    </Button>
+                    <Button
+                        type="primary"
+                        icon={<SendOutlined />}
                         onClick={() => {
                             setIsSendModalOpen(true);
                             form.resetFields();
                         }}
                     >
-                        <SendOutlined />
-                        <span>Gửi thông báo người dùng</span>
-                    </button>
+                        Gửi thông báo người dùng
+                    </Button>
                 </div>
             </div>
 
@@ -302,11 +272,12 @@ function NotificationCenterPage() {
                             ),
                             children: (
                                 <div className="py-4 space-y-4 min-h-[400px]">
-                                    {loadingHistory ? (
-                                        <div className="py-12 flex justify-center">
-                                            <Spin size="large" />
-                                        </div>
-                                    ) : (
+                                    <QueryPanel
+                                        query={historyQuery}
+                                        empty={history.length === 0}
+                                        emptyDescription="Chưa có lịch sử gửi thông báo"
+                                        variant="table"
+                                    >
                                         <div className="border border-slate-200 rounded-lg overflow-hidden shadow-xs">
                                             <Table
                                                 columns={columnsHistory}
@@ -317,7 +288,7 @@ function NotificationCenterPage() {
                                                 scroll={{ x: 800 }}
                                             />
                                         </div>
-                                    )}
+                                    </QueryPanel>
                                 </div>
                             ),
                         },
@@ -330,11 +301,11 @@ function NotificationCenterPage() {
                             ),
                             children: (
                                 <div className="py-4 min-h-[400px]">
-                                    {loadingTemplates ? (
-                                        <div className="py-12 flex justify-center">
-                                            <Spin size="large" />
-                                        </div>
-                                    ) : (
+                                    <QueryPanel
+                                        query={templatesQuery}
+                                        empty={templates.length === 0}
+                                        emptyDescription="Chưa có cấu hình mẫu thông báo nào"
+                                    >
                                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                             {templates.map((template) => (
                                                 <div
@@ -382,7 +353,7 @@ function NotificationCenterPage() {
                                                 </div>
                                             ))}
                                         </div>
-                                    )}
+                                    </QueryPanel>
                                 </div>
                             ),
                         },
