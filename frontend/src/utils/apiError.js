@@ -22,9 +22,15 @@ export const normalizeApiError = (error) => {
     const code = isCancellation(error) ? 'ERR_CANCELED'
         : payload.code ?? (typeof payload.error === 'string' ? payload.error : undefined)
             ?? error?.code ?? (error?.request && !error?.response ? 'ERR_NETWORK' : undefined);
+    const metadata = {};
+    for (const field of ['details', 'errors', 'requiresUserConfirmation']) {
+        const value = payload[field] !== undefined ? payload[field] : error?.[field];
+        if (value !== undefined) metadata[field] = value;
+    }
 
     return {
         ...payload,
+        ...metadata,
         success: false,
         message: payload.message || error?.message
             || (typeof error === 'string' && error) || 'Đã xảy ra lỗi. Vui lòng thử lại.',

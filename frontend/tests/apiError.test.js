@@ -42,6 +42,41 @@ test('getErrorStatus handles Axios and normalized errors without inventing statu
     assert.equal(getErrorStatus(null), undefined);
 });
 
+test('enriched native Errors preserve metadata and confirmation through repeated normalization', () => {
+    for (const response of [undefined, { status: 503, data: { message: 'Backend unavailable' } }]) {
+        const error = Object.assign(new Error('Unavailable'), {
+            status: 503, code: 'ERR_BAD_RESPONSE', details: { id: 'r1' },
+            errors: ['confirm first'], requiresUserConfirmation: true,
+            request: {}, config: { url: '/protected' },
+            ...(response ? { response } : {}),
+        });
+        const normalized = normalizeApiError(error);
+        assert.deepEqual(normalized, {
+            success: false, message: response ? 'Backend unavailable' : 'Unavailable',
+            status: 503, code: 'ERR_BAD_RESPONSE', details: { id: 'r1' },
+            errors: ['confirm first'], requiresUserConfirmation: true,
+        });
+        assert.deepEqual(normalizeApiError(normalizeApiError(normalized)), normalized);
+        assert.equal(shouldRetryQuery(0, error), false);
+        assert.equal(shouldRetryQuery(0, normalized), false);
+    }
+});
+
+test('response metadata takes precedence over enriched native Error fields', () => {
+    const error = Object.assign(new Error('Unavailable'), {
+        details: { id: 'fallback' }, errors: ['fallback'], requiresUserConfirmation: true,
+        response: {
+            status: 503,
+            data: { details: null, errors: ['backend'], requiresUserConfirmation: false },
+        },
+    });
+    const normalized = normalizeApiError(error);
+    assert.equal(normalized.details, null);
+    assert.deepEqual(normalized.errors, ['backend']);
+    assert.equal(normalized.requiresUserConfirmation, false);
+    assert.equal(shouldRetryQuery(0, normalized), true);
+});
+
 test('query retries once only for network errors and server failures', () => {
     for (const error of [
         { code: 'ERR_NETWORK' }, { code: 'ECONNABORTED' }, { code: 'ETIMEDOUT' },
