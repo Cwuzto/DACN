@@ -7,15 +7,27 @@ import { requireSuccess } from './semesterQueries.js';
 export const registrationCustomKeys = {
     titleAdjustments: (scope) => [...scope, 'registrations', 'title-adjustments'],
     pendingTitleAdjustments: (scope) => [...scope, 'registrations', 'title-adjustments', 'pending'],
+    projectEnrollments: (scope, filters = {}) => [...scope, 'registrations', 'project-enrollments', filters],
 };
 
-export const useStudentRegistration = (scope) => useQuery({
-    queryKey: queryKeys.registrations.current(scope),
+export const useStudentRegistration = (scope, filters = {}, enabled = true) => useQuery({
+    queryKey: Object.keys(filters).length ? [...queryKeys.registrations.current(scope), filters] : queryKeys.registrations.current(scope),
     queryFn: async () => {
-        const response = await registrationService.getMyRegistration();
+        const response = await registrationService.getMyRegistration(filters);
         if (!response?.success) throw normalizeApiError(response);
         return response;
     },
+    enabled,
+});
+
+export const useMyProjectEnrollments = (scope, filters = {}, enabled = true) => useQuery({
+    queryKey: registrationCustomKeys.projectEnrollments(scope, filters),
+    queryFn: async () => {
+        const res = await registrationService.getMyProjectEnrollments(filters);
+        if (!res?.success) throw normalizeApiError(res);
+        return res;
+    },
+    enabled,
 });
 
 export const useRegistrations = (scope, filters = {}, enabled = true) => useQuery({

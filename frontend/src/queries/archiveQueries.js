@@ -41,6 +41,12 @@ export const useUploadDefenseDocument = (scope, registrationId) => {
     });
 };
 
+export const useClearanceCertificate = (scope, registrationId, enabled = true) => useQuery({
+    queryKey: [...queryKeys.archives.detail(scope, registrationId), 'clearance-certificate'],
+    queryFn: async () => requireSuccess(await archiveService.getClearanceCertificate(registrationId)).data,
+    enabled: Boolean(registrationId) && enabled,
+});
+
 export const canUploadArchive = status => [
     'BM03_PASSED', 'DEFENSE_READY', 'DEFENSE_PASSED', 'DEFENDED', 'COMPLETED',
     'ARCHIVE_INCOMPLETE', 'ARCHIVE_REJECTED', 'PENDING_INSTITUTE_SIGNATURE',

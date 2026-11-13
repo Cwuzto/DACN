@@ -83,7 +83,28 @@ export const usePublishDefenseResults = (scope, semesterId) => {
 export const gradingCustomKeys = {
     councils: (scope) => [...scope, 'grading', 'my-councils'],
     scoreSheet: (scope, registrationId) => [...scope, 'grading', 'score-sheet', String(registrationId)],
+    myGrades: (scope) => [...scope, 'grading', 'my-grades'],
+    myPublishedResult: (scope) => [...scope, 'grading', 'my-published-result'],
 };
+
+export const useMyGrades = (scope, enabled = true) => useQuery({
+    queryKey: gradingCustomKeys.myGrades(scope),
+    queryFn: async () => requireSuccess(await evaluationService.getMyGrades()).data,
+    enabled,
+});
+
+export const useMyPublishedResult = (scope, enabled = true) => useQuery({
+    queryKey: gradingCustomKeys.myPublishedResult(scope),
+    queryFn: async () => {
+        try {
+            const res = await evaluationService.getMyPublishedResult();
+            return res?.success ? res.data : null;
+        } catch {
+            return null;
+        }
+    },
+    enabled,
+});
 
 export const useCouncilDefenses = (scope, enabled = true) => useQuery({
     queryKey: gradingCustomKeys.councils(scope),

@@ -25,6 +25,12 @@ export const useCloneableTopics = (scope, semesterId, enabled = true) => useQuer
     enabled: Boolean(semesterId) && enabled,
 });
 
+export const useMentors = (scope, params = {}, enabled = true) => useQuery({
+    queryKey: [...scope, 'topics', 'mentors', params],
+    queryFn: async () => requireSuccess(await topicService.getMentors(params)).data,
+    enabled,
+});
+
 export const useTopicMutation = (scope) => {
     const client = useQueryClient();
     return useMutation({
@@ -33,6 +39,8 @@ export const useTopicMutation = (scope) => {
             const requests = [
                 client.invalidateQueries({ queryKey: queryKeys.topics.lists(scope) }),
                 client.invalidateQueries({ queryKey: queryKeys.registrations.lists(scope) }),
+                client.invalidateQueries({ queryKey: queryKeys.registrations.current(scope) }),
+                client.invalidateQueries({ queryKey: [...scope, 'student-dashboard', 'stats'] }),
             ];
             const id = ['update', 'changeStatus', 'delete'].includes(action) ? args[0] : null;
             if (id) {

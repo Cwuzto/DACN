@@ -8,7 +8,7 @@ import TopicSimilarityModal from '../../components/topics/TopicSimilarityModal';
 import useAuthStore from '../../stores/authStore';
 import { queryKeys } from '../../query/queryKeys';
 import { useSemesters } from '../../queries/semesterQueries';
-import { useTopics, useTopicMutation } from '../../queries/topicQueries';
+import { useTopics, useTopicMutation, useCloneableTopics } from '../../queries/topicQueries';
 import QueryPanel from '../../components/common/QueryPanel';
 import ContentSkeleton from '../../components/common/ContentSkeleton';
 
@@ -36,8 +36,9 @@ export default function TopicManagementPage() {
     // Modals
     const [newTopicModalOpen, setNewTopicModalOpen] = useState(false);
     const [cloneModalOpen, setCloneModalOpen] = useState(false);
-    const [cloneableTopics, setCloneableTopics] = useState([]);
-    const [loadingCloneable, setLoadingCloneable] = useState(false);
+    const cloneableQuery = useCloneableTopics(scope, undefined, cloneModalOpen);
+    const cloneableTopics = cloneableQuery.data || [];
+    const loadingCloneable = cloneableQuery.isFetching;
     const [selectedTopicIds, setSelectedTopicIds] = useState([]);
     const [cloning, setCloning] = useState(false);
     const [submitting, setSubmitting] = useState(false);
@@ -224,34 +225,7 @@ export default function TopicManagementPage() {
         }
     };
 
-    // Auto-fetch cloneable topics from previous semesters upon modal open
-    useEffect(() => {
-        if (cloneModalOpen) {
-            setSelectedTopicIds([]);
-            setLoadingCloneable(true);
-            topicService
-                .getCloneableTopics()
-                .then((res) => {
-                    if (res?.success && Array.isArray(res.data)) {
-                        setCloneableTopics(res.data);
-                    } else if (Array.isArray(res?.data)) {
-                        setCloneableTopics(res.data);
-                    } else if (Array.isArray(res)) {
-                        setCloneableTopics(res);
-                    } else {
-                        setCloneableTopics([]);
-                    }
-                })
-                .catch((err) => {
-                    message.error(err?.message || 'Không thể tải danh sách đề tài từ các học kỳ trước.');
-                    setCloneableTopics([]);
-                })
-                .finally(() => {
-                    setLoadingCloneable(false);
-                });
-        }
-    }, [cloneModalOpen]);
-
+    // Cloned topics via topicService.getCloneableTopics and topicService.cloneTopics
     const handleCloneTopics = async () => {
         if (!selectedTopicIds.length) {
             message.warning('Vui lòng chọn ít nhất một đề tài để sao chép.');

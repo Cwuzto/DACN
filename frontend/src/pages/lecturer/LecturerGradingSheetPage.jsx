@@ -6,6 +6,7 @@ import {
     BulbOutlined,
     QuestionCircleOutlined,
     CopyOutlined,
+    CloseOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import evaluationService from '../../services/evaluationService';
@@ -647,7 +648,7 @@ export default function LecturerGradingSheetPage() {
                     <div className="modal-box" style={{ maxWidth: 720 }}>
                         <div className="modal-head">
                             <div className="modal-title">Phiếu Chấm Điểm Cá Nhân Của Thành Viên Hội Đồng</div>
-                            <button className="modal-close" onClick={() => setIsPrintModalOpen(false)} type="button">×</button>
+                            <button className="modal-close" onClick={() => setIsPrintModalOpen(false)} type="button" aria-label="Đóng"><CloseOutlined /></button>
                         </div>
                         <div className="modal-body" style={{ background: '#FAFAFA', padding: 20 }}>
                             <div style={{ background: 'white', border: '1px solid var(--border)', padding: 24, fontSize: '12.5px', lineHeight: 1.5 }}>

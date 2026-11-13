@@ -1,19 +1,22 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import {
     Button,
     Empty,
     Tag,
     message,
-    Spin,
 } from 'antd';
 import {
     ReloadOutlined,
     FileDoneOutlined,
     CloudUploadOutlined,
 } from '@ant-design/icons';
-import evaluationService from '../../services/evaluationService';
-import registrationService from '../../services/registrationService';
-import archiveService from '../../services/archiveService';
+import useAuthStore from '../../stores/authStore';
+import { queryKeys } from '../../query/queryKeys';
+import { useMyGrades, useMyPublishedResult } from '../../queries/gradingQueries';
+import { useStudentRegistration } from '../../queries/registrationQueries';
+import { useStudentArchive, useClearanceCertificate } from '../../queries/archiveQueries';
+import ContentSkeleton from '../../components/common/ContentSkeleton';
+import QueryErrorState from '../../components/common/QueryErrorState';
 import { STATUS_MAP } from '../../components/common/statusMap';
 import ArchiveSubmissionModal from '../../components/forms/ArchiveSubmissionModal';
 import ClearanceCertificateModal from '../../components/forms/ClearanceCertificateModal';
@@ -29,62 +32,34 @@ const getLetterGrade = (score) => {
 };
 
 export default function GradeViewPage() {
-    const [loading, setLoading] = useState(true);
-    const [registrations, setRegistrations] = useState([]);
-    const [selectedRegId, setSelectedRegId] = useState(null);
-    const [publishedResult, setPublishedResult] = useState(null);
+    const { user } = useAuthStore();
+    const scope = queryKeys.scope(user);
 
-    // Archive & Certificate states
-    const [archiveData, setArchiveData] = useState(null);
-    const [archiveModalOpen, setArchiveModalOpen] = useState(false);
-    const [certModalOpen, setCertModalOpen] = useState(false);
-    const [certificateData, setCertificateData] = useState(null);
-    const [certLoading, setCertLoading] = useState(false);
+    const gradesQuery = useMyGrades(scope);
+    const regQuery = useStudentRegistration(scope);
+    const publishedResultQuery = useMyPublishedResult(scope);
 
-    const fetchGrades = useCallback(async () => {
-        try {
-            setLoading(true);
-            const [gradeRes, regRes, publishedRes] = await Promise.all([
-                evaluationService.getMyGrades(),
-                registrationService.getMyRegistration().catch(() => ({ success: false })),
-                evaluationService.getMyPublishedResult().catch(() => ({ success: false })),
-            ]);
+    const publishedResult = publishedResultQuery.data || null;
 
-            setPublishedResult(publishedRes.success ? publishedRes.data : null);
-
-            let list = [];
-            if (gradeRes.success && Array.isArray(gradeRes.data) && gradeRes.data.length > 0) {
-                list = [...gradeRes.data];
-            }
-
-            if (regRes.success && regRes.data) {
-                const activeReg = regRes.data;
-                const idx = list.findIndex((r) => r.id === activeReg.id);
-                if (idx === -1) {
-                    list.unshift(activeReg);
-                } else {
-                    list[idx] = { ...list[idx], ...activeReg };
-                }
-            }
-
-            setRegistrations(list);
-            if (list.length > 0) {
-                setSelectedRegId((prev) => {
-                    if (prev) return prev;
-                    const withScore = list.find((item) => item.defenseResult || (item.finalScore !== null && item.finalScore !== undefined));
-                    return (withScore || list[0]).id;
-                });
-            }
-        } catch (error) {
-            message.error(error?.message || 'Không thể tải dữ liệu điểm.');
-        } finally {
-            setLoading(false);
+    const registrations = useMemo(() => {
+        let list = [];
+        if (gradesQuery.data && Array.isArray(gradesQuery.data) && gradesQuery.data.length > 0) {
+            list = [...gradesQuery.data];
         }
-    }, []);
 
-    useEffect(() => {
-        fetchGrades();
-    }, [fetchGrades]);
+        const activeReg = regQuery.data?.data;
+        if (activeReg) {
+            const idx = list.findIndex((r) => r.id === activeReg.id);
+            if (idx === -1) {
+                list.unshift(activeReg);
+            } else {
+                list[idx] = { ...list[idx], ...activeReg };
+            }
+        }
+        return list;
+    }, [gradesQuery.data, regQuery.data]);
+
+    const [selectedRegId, setSelectedRegId] = useState(null);
 
     const selectedRegistration = useMemo(() => {
         if (!registrations.length) return null;
@@ -92,47 +67,39 @@ export default function GradeViewPage() {
             const found = registrations.find((r) => r.id === selectedRegId);
             if (found) return found;
         }
-        return registrations[0];
+        const withScore = registrations.find((item) => item.defenseResult || (item.finalScore !== null && item.finalScore !== undefined));
+        return withScore || registrations[0];
     }, [registrations, selectedRegId]);
 
-    const fetchArchive = useCallback(async (regId) => {
-        if (!regId) return;
-        try {
-            const res = await archiveService.getArchiveByRegistration(regId);
-            if (res.success) {
-                setArchiveData(res.data?.archive || null);
-            }
-        } catch {
-            setArchiveData(null);
-        }
-    }, []);
+    const archiveQuery = useStudentArchive(scope, selectedRegistration?.id);
+    const archiveData = archiveQuery.data?.data?.archive || null;
 
-    useEffect(() => {
-        if (selectedRegistration?.id) {
-            fetchArchive(selectedRegistration.id);
-        }
-    }, [fetchArchive, selectedRegistration?.id]);
+    // Archive & Certificate states
+    const [archiveModalOpen, setArchiveModalOpen] = useState(false);
+    const [certModalOpen, setCertModalOpen] = useState(false);
+    const certQuery = useClearanceCertificate(scope, selectedRegistration?.id, certModalOpen);
+    const certificateData = certQuery.data?.data || null;
+    const certLoading = certQuery.isLoading;
 
-    const handleOpenCertificate = async () => {
+    const handleOpenCertificate = () => {
         if (!selectedRegistration?.id) return;
-        try {
-            setCertLoading(true);
-            const res = await archiveService.getClearanceCertificate(selectedRegistration.id);
-            if (res.success) {
-                setCertificateData(res.data);
-                setCertModalOpen(true);
-            }
-        } catch (error) {
-            message.error(error?.message || 'Không thể tải Giấy xác nhận hoàn thành');
-        } finally {
-            setCertLoading(false);
-        }
+        setCertModalOpen(true);
     };
+
+    const loading = gradesQuery.isLoading || regQuery.isLoading;
 
     if (loading) {
         return (
-            <div style={{ padding: '60px 32px', textAlign: 'center' }} className="sub-view">
-                <Spin size="large" tip="Đang tải bảng điểm và hồ sơ lưu chiểu..." />
+            <div style={{ padding: '24px 32px' }} data-od-id="view-grades" className="sub-view">
+                <ContentSkeleton rows={6} />
+            </div>
+        );
+    }
+
+    if (gradesQuery.isError) {
+        return (
+            <div style={{ padding: '24px 32px' }} data-od-id="view-grades" className="sub-view">
+                <QueryErrorState error={gradesQuery.error} onRetry={() => gradesQuery.refetch()} />
             </div>
         );
     }
