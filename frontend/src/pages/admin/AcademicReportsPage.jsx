@@ -38,6 +38,10 @@ import useAuthStore from '../../stores/authStore';
 import { queryKeys } from '../../query/queryKeys';
 import QueryPanel from '../../components/common/QueryPanel';
 import EmptyState from '../../components/common/EmptyState';
+import GradeDistributionBarChart from '../../components/charts/GradeDistributionBarChart';
+import GradeDonutChart from '../../components/charts/GradeDonutChart';
+import FunnelFlowChart from '../../components/charts/FunnelFlowChart';
+import MajorComparisonChart from '../../components/charts/MajorComparisonChart';
 
 const GRADE_BAND_COLORS = {
     EXCELLENT: '#10B981',
@@ -596,6 +600,12 @@ export default function AcademicReportsPage() {
                             label: 'Phổ điểm & Xếp loại',
                             children: overviewData ? (
                                 <div className="space-y-6 pt-2">
+                                    {/* Cặp Biểu đồ Trực quan: Histogram và Donut */}
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                        <GradeDistributionBarChart data={gradeDistribution} />
+                                        <GradeDonutChart data={gradeDistribution} totalStudents={kpis.totalStudents || 0} />
+                                    </div>
+
                                     {/* Thanh phân bổ phổ điểm trực quan */}
                                     <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
                                         <div className="flex justify-between items-center mb-2">
@@ -676,6 +686,9 @@ export default function AcademicReportsPage() {
                                         />
                                     )}
 
+                                    {/* Biểu đồ Dòng chảy Phễu 6 Mốc */}
+                                    <FunnelFlowChart data={funnel} />
+
                                     {/* Hiển thị 6 giai đoạn phễu */}
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                         {funnel.map((stage, index) => {
@@ -753,6 +766,9 @@ export default function AcademicReportsPage() {
                                             Bảng thống kê đối sánh quy mô sinh viên, tỷ lệ hoàn thành đồ án và chất lượng điểm số giữa các chuyên ngành đào tạo
                                         </p>
                                     </div>
+
+                                    {/* Biểu đồ Đối Sánh Chuyên Ngành Trực Quan */}
+                                    <MajorComparisonChart data={majorsData} />
 
                                     <Table
                                         rowKey="major"
