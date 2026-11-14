@@ -395,10 +395,12 @@ async function seedTenStudentsBM04AcademicFixtures({ prisma, accountsByEmail, ba
   const semesterHK2Record = await prisma.semester.create({
     data: {
       ...semesterDefs.semesterHK2,
-      status: 'ONGOING',
-      registrationOpen: true,
-      outlineSubmissionOpenAt: addDays(now, -30),
-      outlineSubmissionDeadline: addDays(now, -10),
+      status: 'UPCOMING',
+      registrationOpen: false,
+      startDate: addDays(now, 30),
+      endDate: addDays(now, 150),
+      outlineSubmissionOpenAt: addDays(now, 35),
+      outlineSubmissionDeadline: addDays(now, 55),
       lockedPolicyVersionId: null,
     },
   });

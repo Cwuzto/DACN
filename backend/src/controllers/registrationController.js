@@ -633,11 +633,31 @@ const getAllRegistrations = async (req, res, next) => {
         if (semesterId) {
             where.semesterId = parseInt(semesterId, 10);
         } else if (role === 'LECTURER' && !shouldViewInstituteScope) {
-            const defaultSemester = await getDefaultSemester({ id: true });
-            if (!defaultSemester) {
-                return res.json({ success: true, data: [] });
+            let targetSemesterId = null;
+            if (asCouncilChairman !== 'true' && typeof prisma.topicRegistration?.findFirst === 'function') {
+                const mentorActiveReg = await prisma.topicRegistration.findFirst({
+                    where: {
+                        topic: { mentorId: userId },
+                        semester: { status: { in: ['REGISTRATION', 'ONGOING', 'DEFENSE'] } },
+                        status: { not: 'REJECTED' },
+                    },
+                    select: { semesterId: true },
+                    orderBy: { createdAt: 'desc' },
+                });
+                if (mentorActiveReg?.semesterId) {
+                    targetSemesterId = mentorActiveReg.semesterId;
+                }
             }
-            where.semesterId = defaultSemester.id;
+
+            if (targetSemesterId) {
+                where.semesterId = targetSemesterId;
+            } else {
+                const defaultSemester = await getDefaultSemester({ id: true });
+                if (!defaultSemester) {
+                    return res.json({ success: true, data: [] });
+                }
+                where.semesterId = defaultSemester.id;
+            }
         }
 
         if (status) {
