@@ -17,17 +17,22 @@ const DEFAULT_TIMEOUT_MS = parseInt(process.env.OLLAMA_TIMEOUT_MS, 10) || 30000;
 function stripThinking(text = '') {
   if (typeof text !== 'string') return '';
   let cleaned = text;
+
+  // 1. Strip reasoning chain <think>...</think>
+  cleaned = cleaned.replace(/<think>[\s\S]*?<\/think>/gi, '');
   if (cleaned.includes('</think>')) {
     const parts = cleaned.split('</think>');
-    cleaned = parts[parts.length - 1].trim();
+    cleaned = parts[parts.length - 1];
   }
-  if (cleaned.includes('</user_query>')) {
-    const parts = cleaned.split('</user_query>');
-    const candidate = parts[parts.length - 1].trim();
-    if (candidate.length > 0) {
-      cleaned = candidate;
-    }
-  }
+
+  // 2. Strip echoed <user_query>...</user_query> blocks
+  cleaned = cleaned.replace(/<user_query>[\s\S]*?<\/user_query>/gi, '');
+  cleaned = cleaned.replace(/&lt;user_query&gt;[\s\S]*?&lt;\/user_query&gt;/gi, '');
+
+  // 3. Strip standalone unclosed tags
+  cleaned = cleaned.replace(/<\/?user_query>/gi, '');
+  cleaned = cleaned.replace(/&lt;\/?user_query&gt;/gi, '');
+
   return cleaned.trim();
 }
 

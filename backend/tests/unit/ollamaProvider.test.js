@@ -319,4 +319,21 @@ describe('ollamaProvider.js - Local Ollama REST Provider', () => {
       ).rejects.toThrow(/timed out/i);
     });
   });
+
+  describe('7. Reasoning (<think>) and User Query Tag Sanitization', () => {
+    it('should strip <think> reasoning tokens cleanly', () => {
+      const raw = '<think>User is asking about BM01</think>Bạn cần nộp BM01 trước hạn.';
+      expect(ollamaProvider.stripThinking(raw)).toBe('Bạn cần nộp BM01 trước hạn.');
+    });
+
+    it('should strip echoed <user_query> blocks cleanly', () => {
+      const raw = '<user_query>\ntôi là ai\n</user_query>\n\nXin chào thầy/cô, bạn là sinh viên Nguyễn Văn A.';
+      expect(ollamaProvider.stripThinking(raw)).toBe('Xin chào thầy/cô, bạn là sinh viên Nguyễn Văn A.');
+    });
+
+    it('should handle unclosed or escaped user query tags', () => {
+      const raw = '&lt;user_query&gt;Đề tài của em&lt;/user_query&gt;\nĐề tài của bạn là Hệ thống DACN.';
+      expect(ollamaProvider.stripThinking(raw)).toBe('Đề tài của bạn là Hệ thống DACN.');
+    });
+  });
 });

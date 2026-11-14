@@ -554,6 +554,9 @@ async function regulationChat(req, res, next) {
 
     const cachedResult = aiCache.get('regulation_chat', cacheKeyPayload);
     if (cachedResult) {
+      if (cachedResult.reply && typeof cachedResult.reply === 'string') {
+        cachedResult.reply = aiProviderService.sanitizeAiReply(cachedResult.reply);
+      }
       return res.json({
         success: true,
         data: cachedResult,
@@ -566,6 +569,10 @@ async function regulationChat(req, res, next) {
       history: historyList,
       user: req.user,
     });
+
+    if (result && result.reply && typeof result.reply === 'string') {
+      result.reply = aiProviderService.sanitizeAiReply(result.reply);
+    }
 
     aiCache.set('regulation_chat', cacheKeyPayload, result);
 

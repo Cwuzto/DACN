@@ -161,10 +161,19 @@ export default function AcademicChatWidget() {
             });
 
             if (res?.success && res.data) {
+                const rawReply = String(res.data.reply || '');
+                const cleanReply = rawReply
+                    .replace(/<think>[\s\S]*?<\/think>/gi, '')
+                    .replace(/<user_query>[\s\S]*?<\/user_query>/gi, '')
+                    .replace(/&lt;user_query&gt;[\s\S]*?&lt;\/user_query&gt;/gi, '')
+                    .replace(/<\/?user_query>/gi, '')
+                    .replace(/&lt;\/?user_query&gt;/gi, '')
+                    .trim();
+
                 const botMsg = {
                     id: `bot-${Date.now()}`,
                     sender: 'bot',
-                    text: res.data.reply || 'Không có phản hồi từ hệ thống.',
+                    text: cleanReply || 'Không có phản hồi từ hệ thống.',
                     provider: 'academic_assistant',
                     relatedRegulations: res.data.relatedRegulations || [],
                     time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })

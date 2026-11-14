@@ -35,6 +35,36 @@ function getProviderMode() {
 }
 
 /**
+ * Sanitize AI generated response text:
+ * - Strips internal reasoning chains (<think>...</think>)
+ * - Strips echoed user query tags (<user_query>...</user_query> or standalone tags)
+ * - Trims extraneous whitespace
+ * @param {string} text
+ * @returns {string}
+ */
+function sanitizeAiReply(text = '') {
+  if (typeof text !== 'string') return '';
+  let cleaned = text;
+
+  // 1. Strip reasoning chain <think>...</think>
+  cleaned = cleaned.replace(/<think>[\s\S]*?<\/think>/gi, '');
+  if (cleaned.includes('</think>')) {
+    const parts = cleaned.split('</think>');
+    cleaned = parts[parts.length - 1];
+  }
+
+  // 2. Strip echoed <user_query>...</user_query> blocks
+  cleaned = cleaned.replace(/<user_query>[\s\S]*?<\/user_query>/gi, '');
+  cleaned = cleaned.replace(/&lt;user_query&gt;[\s\S]*?&lt;\/user_query&gt;/gi, '');
+
+  // 3. Strip standalone unclosed tags
+  cleaned = cleaned.replace(/<\/?user_query>/gi, '');
+  cleaned = cleaned.replace(/&lt;\/?user_query&gt;/gi, '');
+
+  return cleaned.trim();
+}
+
+/**
  * Helper to execute with Gemini and automatically fall back on failure.
  * @param {string} methodName
  * @param {Array<any>} args
@@ -434,7 +464,7 @@ async function answerAcademicChat({ message = '', history = [], user = null } = 
           : getSuggestedRegulationsForUser(user);
 
       return {
-        reply: result.reply || '',
+        reply: sanitizeAiReply(result.reply || ''),
         role: safeRole,
         provider: 'ollama',
         model: result.model || defaultOllamaModel,
@@ -460,7 +490,7 @@ async function answerAcademicChat({ message = '', history = [], user = null } = 
       });
 
       return {
-        reply: result.reply || result.text || '',
+        reply: sanitizeAiReply(result.reply || result.text || ''),
         role: safeRole,
         provider: result.provider || defaultGeminiModel,
         relatedRegulations:
@@ -483,6 +513,7 @@ async function answerAcademicChat({ message = '', history = [], user = null } = 
   const fallback = localFallbackProvider.answerRegulationChat({ message: cleanMessage, history });
   return {
     ...fallback,
+    reply: sanitizeAiReply(fallback.reply),
     role: safeRole,
     provider: fallback.provider || 'local_fallback',
     relatedRegulations:
@@ -538,4 +569,5 @@ module.exports = {
   answerAcademicChat,
   answerRegulationChat,
   chatWithGemini,
+  sanitizeAiReply,
 };
