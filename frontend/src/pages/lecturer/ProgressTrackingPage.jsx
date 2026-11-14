@@ -16,6 +16,7 @@ import {
     TeamOutlined,
     HistoryOutlined,
     CloseOutlined,
+    PrinterOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
@@ -26,6 +27,9 @@ import BM04EvaluationModal from '../../components/lecturer/BM04EvaluationModal';
 import CheckpointIssueModal from '../../components/lecturer/CheckpointIssueModal';
 import ClearanceCertificateModal from '../../components/forms/ClearanceCertificateModal';
 import RegistrationTimelineDrawer from '../../components/common/RegistrationTimelineDrawer';
+import AcademicFormPrintModal from '../../components/prints/AcademicFormPrintModal';
+import BM03PrintSheet from '../../components/prints/BM03PrintSheet';
+import BM04PrintSheet from '../../components/prints/BM04PrintSheet';
 import evaluationService from '../../services/evaluationService';
 import useAuthStore from '../../stores/authStore';
 import { queryKeys } from '../../query/queryKeys';
@@ -157,6 +161,8 @@ export default function ProgressTrackingPage() {
     const [checkpointModalOpen, setCheckpointModalOpen] = useState(false);
     const [selectedCheckpointNo, setSelectedCheckpointNo] = useState(1);
     const [bm04ModalOpen, setBm04ModalOpen] = useState(false);
+    const [bm03PrintOpen, setBm03PrintOpen] = useState(false);
+    const [bm04PrintOpen, setBm04PrintOpen] = useState(false);
     const [certModalOpen, setCertModalOpen] = useState(false);
     const [timelineOpen, setTimelineOpen] = useState(false);
 
@@ -514,27 +520,39 @@ export default function ProgressTrackingPage() {
                                 {reg?.topic?.code || 'DT'}: {reg?.topic?.title}
                             </div>
                         </div>
-                        <div style={{ display: 'flex', gap: 8 }}>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                            <Button
+                                icon={<PrinterOutlined />}
+                                onClick={() => setBm03PrintOpen(true)}
+                            >
+                                In Sổ tiến độ BM03
+                            </Button>
+                            <Button
+                                icon={<PrinterOutlined />}
+                                onClick={() => setBm04PrintOpen(true)}
+                                disabled={!bm04Status && !reg?.bm04Evaluation}
+                            >
+                                In Phiếu BM04
+                            </Button>
                             <Button
                                 icon={<HistoryOutlined />}
                                 onClick={() => setTimelineOpen(true)}
                             >
                                 Lịch sử tiến trình
                             </Button>
-                            <button
-                                type="button"
-                                className="btn btn-secondary btn-sm"
+                            <Button
+                                icon={<FilePdfOutlined />}
                                 onClick={() => message.info('Mở xem bản dự thảo luận văn tốt nghiệp...')}
                             >
                                 Xem Báo cáo PDF
-                            </button>
-                            <button
-                                type="button"
-                                className="btn btn-primary btn-sm"
+                            </Button>
+                            <Button
+                                type="primary"
+                                icon={<FileDoneOutlined />}
                                 onClick={() => setBm04ModalOpen(true)}
                             >
                                 Lập / Cập nhật Phiếu nhận xét
-                            </button>
+                            </Button>
                         </div>
                     </div>
 
@@ -687,13 +705,21 @@ export default function ProgressTrackingPage() {
                                             {meetingLogs.length} buổi
                                         </span>
                                     </div>
-                                    <Button
-                                        type="primary"
-                                        icon={<PlusOutlined />}
-                                        onClick={() => setMeetingModalOpen(true)}
-                                    >
-                                        Ghi nhận buổi hướng dẫn mới
-                                    </Button>
+                                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                        <Button
+                                            icon={<PrinterOutlined />}
+                                            onClick={() => setBm03PrintOpen(true)}
+                                        >
+                                            In Sổ tiến độ BM03
+                                        </Button>
+                                        <Button
+                                            type="primary"
+                                            icon={<PlusOutlined />}
+                                            onClick={() => setMeetingModalOpen(true)}
+                                        >
+                                            Ghi nhận buổi hướng dẫn mới
+                                        </Button>
+                                    </div>
                                 </div>
 
                                 <QueryPanel query={bm03Query}>
@@ -787,6 +813,22 @@ export default function ProgressTrackingPage() {
                                 <div id="tab-checkpoints" className="tab-pane-content">
                                     <QueryPanel query={checkpointsQuery}>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                        {/* Top Banner Toolbar */}
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F8FAFC', padding: '12px 18px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }} className="flex-wrap gap-2">
+                                            <div>
+                                                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)' }}>Đánh giá các giai đoạn & Sổ theo dõi tiến độ BM03</div>
+                                                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
+                                                    Theo dõi 2 mốc đánh giá (Giữa kỳ & Cuối kỳ) cùng chữ ký điện tử nội bộ chốt sổ BM03.
+                                                </div>
+                                            </div>
+                                            <Button
+                                                icon={<PrinterOutlined />}
+                                                onClick={() => setBm03PrintOpen(true)}
+                                            >
+                                                In Sổ tiến độ BM03
+                                            </Button>
+                                        </div>
+
                                         {/* Midterm Stage Evaluation Card */}
                                         <div className="card" style={{ marginBottom: 0, borderLeft: '4px solid #0F766E' }}>
                                             <div className="card-head flex-wrap gap-2">
@@ -922,7 +964,13 @@ export default function ProgressTrackingPage() {
                                                     <div className="card-title">Ký toàn phiếu BM03 & Xác nhận sinh viên (48h)</div>
                                                     <div className="card-subtitle">Chữ ký điện tử nội bộ chốt toàn bộ quá trình theo dõi tiến độ</div>
                                                 </div>
-                                                <div>
+                                                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                                    <Button
+                                                        icon={<PrinterOutlined />}
+                                                        onClick={() => setBm03PrintOpen(true)}
+                                                    >
+                                                        In Sổ tiến độ BM03
+                                                    </Button>
                                                     {bm03Record?.advisorSignedAt ? (
                                                         <Tag color="purple">GVHD đã ký số</Tag>
                                                     ) : (
@@ -1001,42 +1049,54 @@ export default function ProgressTrackingPage() {
                                     <div className="card" style={{ marginBottom: 0, borderLeft: '4px solid var(--success)' }}>
                                         <div className="card-head flex-wrap gap-2">
                                             <div>
-                                                <div className="card-title">Phiếu Nhận Xét Của Giảng Viên Hướng Dẫn</div>
+                                                <div className="card-title">Phiếu Nhận Xét Của Giảng Viên Hướng Dẫn (BM04)</div>
                                                 <div className="card-subtitle">
                                                     Văn bản pháp lý quyết định sinh viên có được phép ra bảo vệ trước Hội đồng
                                                 </div>
                                             </div>
-                                            <button
-                                                type="button"
-                                                className="btn btn-primary btn-sm"
-                                                onClick={() => setBm04ModalOpen(true)}
-                                            >
-                                                Xem / Sửa Phiếu nhận xét
-                                            </button>
+                                            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                                <Button
+                                                    icon={<PrinterOutlined />}
+                                                    onClick={() => setBm04PrintOpen(true)}
+                                                    disabled={!bm04Status && !reg?.bm04Evaluation}
+                                                >
+                                                    In Phiếu BM04
+                                                </Button>
+                                                <Button
+                                                    type="primary"
+                                                    icon={<FileDoneOutlined />}
+                                                    onClick={() => setBm04ModalOpen(true)}
+                                                >
+                                                    Xem / Sửa Phiếu nhận xét
+                                                </Button>
+                                            </div>
                                         </div>
                                         <div style={{ padding: '16px 20px', fontSize: 13 }}>
                                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 12 }}>
                                                 <div>
-                                                    <span style={{ color: 'var(--muted)', fontSize: 12 }}>Tổng số buổi gặp:</span>
+                                                    <span style={{ color: 'var(--muted)', fontSize: 12 }}>Tổng số buổi gặp BM03:</span>
                                                     <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--primary)' }}>
                                                         {meetingLogs.length || reg?.totalMeetings || reg?._count?.meetingLogs || 0} buổi làm việc
                                                     </div>
                                                 </div>
                                                 <div>
-                                                    <span style={{ color: 'var(--muted)', fontSize: 12 }}>Điểm đánh giá quá trình:</span>
+                                                    <span style={{ color: 'var(--muted)', fontSize: 12 }}>Chuẩn đầu ra (CĐR):</span>
                                                     <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--success)' }}>
-                                                        {reg?.evaluationScore || '9.0'} / 10
+                                                        {reg?.bm04Evaluation?.programOutcome === 'MEETS_PROGRAM_OUTCOMES' || bm04Status ? 'Đạt chuẩn đầu ra' : 'Đang thẩm định'}
                                                     </div>
                                                 </div>
                                                 <div>
-                                                    <span style={{ color: 'var(--muted)', fontSize: 12 }}>Kết luận pháp lý:</span>
+                                                    <span style={{ color: 'var(--muted)', fontSize: 12 }}>Kết luận của GVHD:</span>
                                                     <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--success)' }}>
-                                                        {bm04Status ? 'Đồng ý cho bảo vệ' : 'Đang đánh giá'}
+                                                        {bm04Status || reg?.bm04Evaluation?.conclusion === 'AGREED_FOR_DEFENSE' ? 'Đồng ý cho bảo vệ' : 'Chưa thẩm định'}
                                                     </div>
                                                 </div>
                                             </div>
                                             <div style={{ background: '#F8FAFC', padding: 12, borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                                                <strong>Ý kiến nhận xét:</strong> Sinh viên có tinh thần tự giác cao, nắm vững kiến thức công nghệ hiện đại. Đề tài có tính ứng dụng thực tiễn tốt, đủ điều kiện bảo vệ trước Hội đồng chấm khóa luận tốt nghiệp.
+                                                <strong>Ý kiến nhận xét của GVHD:</strong>{' '}
+                                                {reg?.bm04Evaluation?.generalNotes ||
+                                                 reg?.bm04Evaluation?.attitudeScore ||
+                                                 'Chưa có nhận xét tổng quát. Nhấp "Xem / Sửa Phiếu nhận xét" để nhập nội dung đánh giá và xuất BM04.'}
                                             </div>
                                         </div>
                                     </div>
@@ -1434,6 +1494,36 @@ export default function ProgressTrackingPage() {
                     }}
                 />
             )}
+
+            {/* BM03 PRINT MODAL */}
+            <AcademicFormPrintModal
+                open={bm03PrintOpen}
+                onClose={() => setBm03PrintOpen(false)}
+                onCancel={() => setBm03PrintOpen(false)}
+                title={`In Sổ Theo Dõi Tiến Độ & Hướng Dẫn BM03 - ${reg?.student?.fullName || ''}`}
+                documentCode="BM03"
+            >
+                <BM03PrintSheet
+                    meetingLogs={meetingLogs}
+                    checkpoints={checkpoints}
+                    registration={reg}
+                    bm03Record={bm03Record}
+                />
+            </AcademicFormPrintModal>
+
+            {/* BM04 PRINT MODAL */}
+            <AcademicFormPrintModal
+                open={bm04PrintOpen}
+                onClose={() => setBm04PrintOpen(false)}
+                onCancel={() => setBm04PrintOpen(false)}
+                title={`In Phiếu Nhận Xét BM04 - ${reg?.student?.fullName || ''}`}
+                documentCode="BM04"
+            >
+                <BM04PrintSheet
+                    evaluation={reg?.bm04Evaluation}
+                    registration={reg}
+                />
+            </AcademicFormPrintModal>
 
             <RegistrationTimelineDrawer
                 open={timelineOpen}
