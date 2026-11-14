@@ -7,9 +7,12 @@ import {
     SaveOutlined,
     FileDoneOutlined,
     InfoCircleOutlined,
+    PrinterOutlined,
 } from '@ant-design/icons';
 import { useQueryClient } from '@tanstack/react-query';
 import evaluationService from '../../services/evaluationService';
+import AcademicFormPrintModal from '../prints/AcademicFormPrintModal';
+import BM04PrintSheet from '../prints/BM04PrintSheet';
 import useAuthStore from '../../stores/authStore';
 import { queryKeys } from '../../query/queryKeys';
 import { useBM04Record } from '../../queries/gradingQueries';
@@ -26,6 +29,7 @@ export default function BM04EvaluationModal({
     const [form] = Form.useForm();
     const [submitting, setSubmitting] = useState(false);
     const [savingDraft, setSavingDraft] = useState(false);
+    const [printModalOpen, setPrintModalOpen] = useState(false);
     const user = useAuthStore((state) => state.user);
     const scope = queryKeys.scope(user);
     const queryClient = useQueryClient();
@@ -365,6 +369,12 @@ export default function BM04EvaluationModal({
                             Hủy bỏ
                         </Button>
                         <Button
+                            icon={<PrinterOutlined />}
+                            onClick={() => setPrintModalOpen(true)}
+                        >
+                            Xem & In Phiếu BM04
+                        </Button>
+                        <Button
                             icon={<SaveOutlined />}
                             loading={savingDraft}
                             onClick={handleSaveDraft}
@@ -391,6 +401,21 @@ export default function BM04EvaluationModal({
                     </div>
                 </Form>
             </div>
+
+            <AcademicFormPrintModal
+                open={printModalOpen}
+                onCancel={() => setPrintModalOpen(false)}
+                title="PHIẾU NHẬN XÉT KHÓA LUẬN TỐT NGHIỆP CỦA NGƯỜI HƯỚNG DẪN"
+                documentCode="BM04"
+            >
+                <BM04PrintSheet
+                    evaluation={{
+                        ...bm04Query.data,
+                        ...form.getFieldsValue(),
+                    }}
+                    registration={registration}
+                />
+            </AcademicFormPrintModal>
         </Modal>
     );
 }

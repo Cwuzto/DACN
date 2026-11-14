@@ -9,9 +9,12 @@ import {
     FileDoneOutlined,
     UserOutlined,
     AuditOutlined,
+    PrinterOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import bm02aService from '../../services/bm02aService';
+import AcademicFormPrintModal from '../prints/AcademicFormPrintModal';
+import BM02APrintSheet from '../prints/BM02APrintSheet';
 import useAuthStore from '../../stores/authStore';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../query/queryKeys';
@@ -33,6 +36,7 @@ export default function TitleAdjustmentModal({
     const [form] = Form.useForm();
     const [revisionForm] = Form.useForm();
     const [submitting, setSubmitting] = useState(false);
+    const [printModalOpen, setPrintModalOpen] = useState(false);
 
     const user = useAuthStore((state) => state.user);
     const scope = queryKeys.scope(user);
@@ -327,6 +331,12 @@ export default function TitleAdjustmentModal({
                                     </Form.Item>
 
                                     <div className="flex justify-end gap-2 pt-2">
+                                        <Button
+                                            icon={<PrinterOutlined />}
+                                            onClick={() => setPrintModalOpen(true)}
+                                        >
+                                            In Đơn BM02-A
+                                        </Button>
                                         <Button icon={<CloseCircleOutlined />} onClick={onClose}>
                                             Đóng
                                         </Button>
@@ -377,7 +387,13 @@ export default function TitleAdjustmentModal({
                                     </a>
                                 </div>
                             )}
-                            <div className="flex justify-end pt-2">
+                            <div className="flex justify-end gap-2 pt-2">
+                                <Button
+                                    icon={<PrinterOutlined />}
+                                    onClick={() => setPrintModalOpen(true)}
+                                >
+                                    In Đơn BM02-A
+                                </Button>
                                 <Button icon={<CloseCircleOutlined />} onClick={onClose}>
                                     Đóng
                                 </Button>
@@ -435,6 +451,18 @@ export default function TitleAdjustmentModal({
                     )}
                 </div>
             </Spin>
+
+            <AcademicFormPrintModal
+                open={printModalOpen}
+                onCancel={() => setPrintModalOpen(false)}
+                title="ĐƠN ĐỀ NGHỊ ĐIỀU CHỈNH TÊN ĐỀ TÀI"
+                documentCode="BM02-A"
+            >
+                <BM02APrintSheet
+                    adjustment={latestRequest}
+                    registration={registration}
+                />
+            </AcademicFormPrintModal>
         </Modal>
     );
 }

@@ -29,6 +29,7 @@ import {
     CloudUploadOutlined,
     UploadOutlined,
     RobotOutlined,
+    PrinterOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import taskService from '../../services/taskService';
@@ -44,6 +45,11 @@ import BM01CopilotDrawer from '../../components/student/BM01CopilotDrawer';
 import CheckpointSignModal from '../../components/student/CheckpointSignModal';
 import TitleAdjustmentModal from '../../components/student/TitleAdjustmentModal';
 import ArchiveSubmissionModal from '../../components/forms/ArchiveSubmissionModal';
+import AcademicFormPrintModal from '../../components/prints/AcademicFormPrintModal';
+import BM01PrintSheet from '../../components/prints/BM01PrintSheet';
+import BM02PrintSheet from '../../components/prints/BM02PrintSheet';
+import BM03PrintSheet from '../../components/prints/BM03PrintSheet';
+import BM04PrintSheet from '../../components/prints/BM04PrintSheet';
 import useAuthStore from '../../stores/authStore';
 import { queryKeys } from '../../query/queryKeys';
 import { useStudentRegistration } from '../../queries/registrationQueries';
@@ -81,6 +87,51 @@ export default function SubmissionPage() {
     const [viewerSubmission, setViewerSubmission] = useState(null);
     const [bm04ViewerOpen, setBm04ViewerOpen] = useState(false);
     const [bm04Evaluation, setBm04Evaluation] = useState(null);
+    const [printConfig, setPrintConfig] = useState({
+        open: false,
+        type: null,
+        title: '',
+        documentCode: '',
+    });
+
+    const handleOpenPrint = (type) => {
+        switch (type) {
+            case 'BM01':
+                setPrintConfig({
+                    open: true,
+                    type: 'BM01',
+                    title: 'ĐỀ CƯƠNG CHI TIẾT KHÓA LUẬN TỐT NGHIỆP',
+                    documentCode: 'BM01',
+                });
+                break;
+            case 'BM02':
+                setPrintConfig({
+                    open: true,
+                    type: 'BM02',
+                    title: 'NHIỆM VỤ KHÓA LUẬN TỐT NGHIỆP',
+                    documentCode: 'BM02',
+                });
+                break;
+            case 'BM03':
+                setPrintConfig({
+                    open: true,
+                    type: 'BM03',
+                    title: 'PHIẾU THEO DÕI TIẾN ĐỘ THỰC HIỆN KHÓA LUẬN TỐT NGHIỆP',
+                    documentCode: 'BM03',
+                });
+                break;
+            case 'BM04':
+                setPrintConfig({
+                    open: true,
+                    type: 'BM04',
+                    title: 'PHIẾU NHẬN XÉT KHÓA LUẬN TỐT NGHIỆP CỦA NGƯỜI HƯỚNG DẪN',
+                    documentCode: 'BM04',
+                });
+                break;
+            default:
+                break;
+        }
+    };
 
     // BM03 48h Student Acknowledgement state
     const [bm03AckModalOpen, setBm03AckModalOpen] = useState(false);
@@ -1126,13 +1177,31 @@ export default function SubmissionPage() {
 
                             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                                 {(isBM01Initial || isBM01Resub) && (
+                                    <>
+                                        <Button
+                                            size="small"
+                                            icon={<PrinterOutlined />}
+                                            onClick={() => handleOpenPrint('BM01')}
+                                        >
+                                            In Đề cương BM01
+                                        </Button>
+                                        <Button
+                                            size="small"
+                                            icon={<RobotOutlined />}
+                                            onClick={() => handleOpenCopilot(task)}
+                                            className="text-teal-700 border-teal-400 hover:border-teal-600"
+                                        >
+                                            AI Chấm đề cương
+                                        </Button>
+                                    </>
+                                )}
+                                {task.taskType === 'BM02' && (
                                     <Button
                                         size="small"
-                                        icon={<RobotOutlined />}
-                                        onClick={() => handleOpenCopilot(task)}
-                                        className="text-teal-700 border-teal-400 hover:border-teal-600"
+                                        icon={<PrinterOutlined />}
+                                        onClick={() => handleOpenPrint('BM02')}
                                     >
-                                        AI Chấm đề cương
+                                        In Nhiệm vụ BM02
                                     </Button>
                                 )}
                                 {lastSubmission && (
@@ -1202,6 +1271,12 @@ export default function SubmissionPage() {
                         </div>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
+                        <Button
+                            icon={<PrinterOutlined />}
+                            onClick={() => handleOpenPrint('BM04')}
+                        >
+                            In Phiếu BM04
+                        </Button>
                         {['DEFENSE_READY', 'TERMINATED_BM04', 'DEFENDED', 'COMPLETED', 'BM04_REVIEW'].includes(registration.status) && (
                             <Button icon={<FileDoneOutlined />} onClick={handleViewBM04}>Xem Phiếu nhận xét đã ký</Button>
                         )}
@@ -1224,15 +1299,23 @@ export default function SubmissionPage() {
                 <div className="card" style={{ marginTop: 24, padding: 20 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
                         <h3 className="h3 m-0">Nhật Ký Làm Việc &amp; Trao Đổi Lab Với GVHD ({meetingLogs.length})</h3>
-                        {bm03Record?.finalPdfFileUrl && (
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                             <Button
-                                icon={<FilePdfOutlined />}
-                                href={bm03Record.finalPdfFileUrl}
-                                target="_blank"
+                                icon={<PrinterOutlined />}
+                                onClick={() => handleOpenPrint('BM03')}
                             >
-                                Tải PDF BM03 đã ký
+                                In Sổ tiến độ BM03
                             </Button>
-                        )}
+                            {bm03Record?.finalPdfFileUrl && (
+                                <Button
+                                    icon={<FilePdfOutlined />}
+                                    href={bm03Record.finalPdfFileUrl}
+                                    target="_blank"
+                                >
+                                    Tải PDF BM03 đã ký
+                                </Button>
+                            )}
+                        </div>
                     </div>
                     <div className="table-container">
                         <table className="data-table">
@@ -1475,6 +1558,53 @@ export default function SubmissionPage() {
                 data={copilotData}
                 loading={copilotLoading}
             />
+
+            {/* Academic Form Print Modal */}
+            <AcademicFormPrintModal
+                open={printConfig.open}
+                onCancel={() => setPrintConfig((prev) => ({ ...prev, open: false }))}
+                title={printConfig.title}
+                documentCode={printConfig.documentCode}
+            >
+                {printConfig.type === 'BM01' && (
+                    <BM01PrintSheet
+                        outline={outlineData || (() => {
+                            const bm01Task = tasks.find((t) => t.taskType === 'BM01' || t.taskType === 'BM01_INITIAL_SUBMISSION' || t.taskType === 'BM01_RESUBMISSION');
+                            const lastSub = bm01Task?.submissions?.[0];
+                            if (lastSub?.content) {
+                                try {
+                                    const parsed = JSON.parse(lastSub.content);
+                                    return parsed.fields || parsed;
+                                } catch {
+                                    return { summary: lastSub.content };
+                                }
+                            }
+                            return null;
+                        })()}
+                        registration={registration}
+                    />
+                )}
+                {printConfig.type === 'BM02' && (
+                    <BM02PrintSheet
+                        task={tasks.find((t) => t.taskType === 'BM02')}
+                        registration={registration}
+                    />
+                )}
+                {printConfig.type === 'BM03' && (
+                    <BM03PrintSheet
+                        meetingLogs={meetingLogs}
+                        checkpoints={checkpoints}
+                        registration={registration}
+                        bm03Record={bm03Record}
+                    />
+                )}
+                {printConfig.type === 'BM04' && (
+                    <BM04PrintSheet
+                        evaluation={bm04Evaluation || bm04Record}
+                        registration={registration}
+                    />
+                )}
+            </AcademicFormPrintModal>
         </div>
     );
 }
