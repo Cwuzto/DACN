@@ -1,5 +1,10 @@
 function validateDemoSummary(summary) {
-  if (summary.admins !== 1 || summary.lecturers !== 12 || summary.students !== 120) {
+  const isCompact = summary.students === 10 || summary.isCompact;
+
+  if (!isCompact && (summary.admins !== 1 || summary.lecturers !== 12 || summary.students !== 120)) {
+    throw new Error('Demo seed must contain 1 admin, 12 lecturers, and 120 students.');
+  }
+  if (isCompact && (summary.admins !== 1 || summary.lecturers < 3 || summary.students !== 10)) {
     throw new Error('Demo seed must contain 1 admin, 12 lecturers, and 120 students.');
   }
   if (summary.semesters !== 2) {
@@ -11,14 +16,17 @@ function validateDemoSummary(summary) {
   if (!summary.rubricCriteria || summary.rubricCriteria < 6) {
     throw new Error('Demo seed must contain at least 6 rubric criteria.');
   }
-  if (summary.activeEnrollments !== 120) {
-    throw new Error('Every demo registration must have one active enrollment.');
+  if (summary.activeEnrollments !== summary.students) {
+    throw new Error(`Every demo registration must have one active enrollment (expected ${summary.students}, got ${summary.activeEnrollments}).`);
   }
   if (summary.maxMentorActivePerPeriod === undefined || summary.maxMentorActivePerPeriod > 10) {
     throw new Error('No mentor may exceed the maximum capacity of 10 registrations per period.');
   }
-  if (summary.mentorsWithRegistrations !== 12) {
+  if (!isCompact && summary.mentorsWithRegistrations !== 12) {
     throw new Error('All 12 lecturers must have registrations.');
+  }
+  if (isCompact && (!summary.mentorsWithRegistrations || summary.mentorsWithRegistrations < 1)) {
+    throw new Error('At least one mentor must have registrations.');
   }
   if (summary.conflicts !== 0) {
     throw new Error('Defense council conflicts must be zero.');

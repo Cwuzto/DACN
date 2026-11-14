@@ -17,10 +17,11 @@ const {
   seedPhase2AcademicFixtures,
   seedPhase2DefenseEvidenceAndPublications,
 } = require('../scripts/seed/phase2Fixtures');
+const { seedTenStudentsBM04AcademicFixtures } = require('../scripts/seed/tenStudentsBM04Fixtures');
 const { validateDemoSeed } = require('../scripts/seed/validateDemoSeed');
 
-async function createAccounts(db, precomputedHashes) {
-  const accounts = buildAccounts();
+async function createAccounts(db, precomputedHashes, options = {}) {
+  const accounts = buildAccounts(options);
   const accountsData = accounts.map(({ password, ...data }, idx) => ({
     ...data,
     phone: data.role === 'ADMIN'
@@ -73,62 +74,93 @@ async function runPhase2Seed() {
     precomputedHashes.set(pwd, await bcrypt.hash(pwd, 10));
   }
 
-  console.log('[seed:phase2] Resetting application tables and seeding Phase 2 fixtures...');
+  const isFullSuite = process.env.SEED_STUDENT_COUNT === '120';
+  const studentCount = isFullSuite ? 120 : 10;
+
+  console.log(`[seed:phase2] Resetting application tables and seeding dataset (${studentCount} sinh viên)...`);
   await resetApplicationData(prisma, process.env);
   await seedPermissionCatalog(prisma);
-  const accountsByEmail = await createAccounts(prisma, precomputedHashes);
+  const accountsByEmail = await createAccounts(prisma, precomputedHashes, { studentCount });
   await assignPermissionGroups(prisma, accountsByEmail);
-  const academic = await seedPhase2AcademicFixtures({ prisma, accountsByEmail });
-  const publications = await seedPhase2DefenseEvidenceAndPublications({
-    prisma,
-    context: academic,
-    fixtures: academic.registrations,
-  });
+
+  let academic;
+  let publications = {};
+
+  if (isFullSuite) {
+    academic = await seedPhase2AcademicFixtures({ prisma, accountsByEmail });
+    publications = await seedPhase2DefenseEvidenceAndPublications({
+      prisma,
+      context: academic,
+      fixtures: academic.registrations,
+    });
+  } else {
+    // 10 Students with 10 Real Topics, 3-Milestone BM03 logs, and BM04 stage
+    academic = await seedTenStudentsBM04AcademicFixtures({ prisma, accountsByEmail });
+  }
+
   const summary = await validateDemoSeed(prisma);
 
   console.log('[seed:phase2] Phase 2 seed complete.');
   console.table({
     ...summary,
-    phase: 'PHASE 2 (BM02 -> Decision -> BM02-A -> Appendix -> BM03 -> BM04 -> Defense)',
+    phase: isFullSuite
+      ? 'PHASE 2 (FULL 120 STUDENTS)'
+      : 'PHASE 2 (10 REAL TOPICS - BM03 MILESTONES - BM04 DEMO)',
     semesterHK1: academic.semesters.semesterHK1.name,
     semesterHK2: academic.semesters.semesterHK2.name,
     publications: Object.keys(publications).length,
   });
 
-  console.log('\n[seed:phase2] === DANH SÁCH TÀI KHOẢN TEST GIAI ĐOẠN 2 ===');
-  console.table([
-    { Kịch_bản: 'Quản trị hệ thống (Ban hành QĐ, Phụ lục, Thẩm định dừng/bảo vệ)', Email: 'admin@university.edu.vn', Mật_khẩu: 'admin123', Ghi_chú: 'QUAN_TRI_VIEN' },
-    { Kịch_bản: 'Viện trưởng kiêm GVHD (Duyệt BM02, Ban hành QĐ/PL, Thẩm định BM03/BM04)', Email: 'lecturer01@university.edu.vn', Mật_khẩu: 'lecturer123', Ghi_chú: 'VIEN_TRUONG + GVHD (sv031, sv049, sv063, sv079)' },
-    { Kịch_bản: 'Phụ trách Bộ môn kiêm GVHD (Duyệt bước 3 BM02-A, Ủy quyền BM02)', Email: 'lecturer02@university.edu.vn', Mật_khẩu: 'lecturer123', Ghi_chú: 'BM02A_FINAL_APPROVE + BM02_REVIEW + GVHD (sv032, sv050, sv064, sv080)' },
-    { Kịch_bản: '1A.1. HK2 - Đã qua BM01, chờ SV nộp BM02 (sv001..sv008)', Email: 'sv001@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'BM01_PASSED, Task BM02 OPEN' },
-    { Kịch_bản: '1A.2. HK2 - Đã nộp BM02 đổi tên, chờ Viện duyệt (sv009..sv014)', Email: 'sv009@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'BM02_SUBMITTED (có titleChangeReason)' },
-    { Kịch_bản: '1A.3. HK2 - BM02 yêu cầu chỉnh sửa, chờ SV nộp v2 (sv015..sv018)', Email: 'sv015@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'BM02_NEEDS_REVISION, hạn +5 ngày' },
-    { Kịch_bản: '1A.4. HK2 - Đã duyệt BM02, chờ công bố Quyết định (sv019..sv024)', Email: 'sv019@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'BM02_APPROVED, sẵn sàng tạo QĐ giao đề tài' },
-    { Kịch_bản: '1B.1. HK1 - Đã có QĐ giao đề tài, mở cửa sổ 168h BM02-A (sv025..sv030)', Email: 'sv025@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'DECISION_ISSUED, còn 120h để tạo BM02-A v1' },
-    { Kịch_bản: '1B.2. HK1 - Đã gửi BM02-A v1, chờ GVHD ký duyệt (sv031..sv034)', Email: 'sv031@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'PENDING_ADVISOR (GVHD: lecturer01)' },
-    { Kịch_bản: '1B.3. HK1 - BM02-A v1 bị trả lại, chờ SV sửa v2 (sv035..sv038)', Email: 'sv035@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'RETURNED_FOR_CORRECTION (revisionCount = 0)' },
-    { Kịch_bản: '1B.4. HK1 - BM02-A chờ Phụ trách Bộ môn ký duyệt cuối (sv039..sv042)', Email: 'sv039@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'PENDING_DEPARTMENT_APPROVAL (lecturer02 duyệt)' },
-    { Kịch_bản: '1B.5. HK1 - BM02-A đủ 3 chữ ký, chờ gộp Phụ lục Đợt 2 (sv043..sv045)', Email: 'sv043@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'APPROVED_PENDING_APPENDIX (có finalPdfFileUrl)' },
-    { Kịch_bản: '1B.6. HK1 - Đã ban hành Phụ lục Đợt 1 PL-01 (sv046..sv048)', Email: 'sv046@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'ADJUSTMENT_ISSUED, tên mới đã có hiệu lực' },
-    { Kịch_bản: '2.1. HK1 - BM03 đang hướng dẫn, có 1 buổi chưa ký khóa (sv049..sv056)', Email: 'sv049@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'IN_PROGRESS (GVHD: lecturer01 ký khóa buổi 3)' },
-    { Kịch_bản: '2.2A. HK1 - GVHD đề nghị dừng Giữa kỳ, chờ Viện thẩm định (sv057..sv059)', Email: 'sv057@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'STOP_REVIEW_PENDING (MIDTERM, hạn +120h)' },
-    { Kịch_bản: '2.2B. HK1 - Đề nghị dừng Cuối kỳ, Viện yêu cầu bổ sung (sv060..sv062)', Email: 'sv060@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'MORE_INFO_REQUIRED (FINAL, extensionCount = 1)' },
-    { Kịch_bản: '2.3. HK1 - BM03 đủ 3 buổi & 2 chặng, chờ GVHD ký toàn phiếu (sv063..sv068)', Email: 'sv063@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'IN_PROGRESS (GVHD: lecturer01 ký toàn phiếu BM03)' },
-    { Kịch_bản: '2.4. HK1 - BM03 đang mở cửa sổ 48h chờ SV xác nhận (sv069..sv074)', Email: 'sv069@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'Còn 36h để SV bấm Đồng ý / Đề nghị kiểm tra lại' },
-    { Kịch_bản: '2.5A. HK1 - BM03 hoàn tất STUDENT_CONFIRMED (sv075..sv076)', Email: 'sv075@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'BM03_COMPLETED (SV đã xác nhận)' },
-    { Kịch_bản: '2.5B. HK1 - BM03 hoàn tất AUTO_CLOSED_AFTER_48H (sv077..sv078)', Email: 'sv077@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'BM03_COMPLETED (Tự động đóng sau 48h)' },
-    { Kịch_bản: '3.1. HK1 - BM04 bản nháp DRAFT, chờ GVHD chấm & ký (sv079..sv084)', Email: 'sv079@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'sv079-sv080 có Phụ lục tên mới (GVHD: lecturer01)' },
-    { Kịch_bản: '3.2. HK1 - GVHD kết luận Không cho bảo vệ, chờ Viện thẩm định (sv085..sv090)', Email: 'sv085@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'DEFENSE_REVIEW_PENDING (hạn +120h)' },
-    { Kịch_bản: '3.3. HK1 - Đủ điều kiện bảo vệ, chờ xếp Hội đồng (sv091..sv094)', Email: 'sv091@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'DEFENSE_READY (sv091-sv092 BM04 đạt, sv093-sv094 Viện duyệt ELIGIBLE_BY_INSTITUTE)' },
-    { Kịch_bản: '4.1. HK1 - HĐ Bảo vệ xếp ca Sáng/Chiều & đang chấm (sv095..sv098)', Email: 'sv095@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'AWAITING_SCORES (sv095: 1 người khóa, sv096: 3 người khóa, sv097: ABSENT, sv098: ca Chiều)' },
-    { Kịch_bản: '4.2. HK1 - Chủ tịch khóa sổ điểm, chờ công bố (sv099..sv100)', Email: 'sv099@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'AWAITING_FINAL_APPROVAL (Chủ tịch khóa sổ điểm)' },
-    { Kịch_bản: '4.3. HK1 - Đã công bố DEFENSE_PASSED, nộp lưu chiểu 14 ngày (sv101..sv104)', Email: 'sv101@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'DEFENSE_PASSED (sv101 nộp 4 file, sv102 thiếu file)' },
-    { Kịch_bản: '4.4. HK1 - Đã duyệt 2 tầng lưu chiểu, chờ Viện trưởng ký (sv105..sv106)', Email: 'sv105@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'PENDING_INSTITUTE_SIGNATURE (GVHD + Giáo vụ APPROVED)' },
-    { Kịch_bản: '4.5A. HK1 - Lưu chiểu bị từ chối ARCHIVE_REJECTED (sv107..sv108)', Email: 'sv107@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'ARCHIVE_REJECTED (Điểm bảo vệ giữ nguyên)' },
-    { Kịch_bản: '4.5B. HK1 - Quá hạn 15 ngày thiếu file ARCHIVE_INCOMPLETE (sv109..sv110)', Email: 'sv109@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'ARCHIVE_INCOMPLETE (Cổng đóng cứng 00:00 ngày +15)' },
-    { Kịch_bản: '4.6. HK1 - Không đạt bảo vệ DEFENSE_FAILED (sv111..sv114)', Email: 'sv111@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'sv111-sv112 (Điểm < 5.0), sv113-sv114 (ABSENT vắng mặt không điểm giả)' },
-    { Kịch_bản: '4.7. HK1 - Hoàn thành toàn khóa COMPLETED (sv115..sv120)', Email: 'sv115@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'COMPLETED (Có Giấy xác nhận hoàn thành & Chữ ký số Viện trưởng)' },
-  ]);
+  if (isFullSuite) {
+    console.log('\n[seed:phase2] === DANH SÁCH TÀI KHOẢN TEST GIAI ĐOẠN 2 (120 SINH VIÊN) ===');
+    console.table([
+      { Kịch_bản: 'Quản trị hệ thống (Ban hành QĐ, Phụ lục, Thẩm định dừng/bảo vệ)', Email: 'admin@university.edu.vn', Mật_khẩu: 'admin123', Ghi_chú: 'QUAN_TRI_VIEN' },
+      { Kịch_bản: 'Viện trưởng kiêm GVHD (Duyệt BM02, Ban hành QĐ/PL, Thẩm định BM03/BM04)', Email: 'lecturer01@university.edu.vn', Mật_khẩu: 'lecturer123', Ghi_chú: 'VIEN_TRUONG + GVHD (sv031, sv049, sv063, sv079)' },
+      { Kịch_bản: 'Phụ trách Bộ môn kiêm GVHD (Duyệt bước 3 BM02-A, Ủy quyền BM02)', Email: 'lecturer02@university.edu.vn', Mật_khẩu: 'lecturer123', Ghi_chú: 'BM02A_FINAL_APPROVE + BM02_REVIEW + GVHD (sv032, sv050, sv064, sv080)' },
+      { Kịch_bản: '1A.1. HK2 - Đã qua BM01, chờ SV nộp BM02 (sv001..sv008)', Email: 'sv001@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'BM01_PASSED, Task BM02 OPEN' },
+      { Kịch_bản: '1A.2. HK2 - Đã nộp BM02 đổi tên, chờ Viện duyệt (sv009..sv014)', Email: 'sv009@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'BM02_SUBMITTED (có titleChangeReason)' },
+      { Kịch_bản: '1A.3. HK2 - BM02 yêu cầu chỉnh sửa, chờ SV nộp v2 (sv015..sv018)', Email: 'sv015@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'BM02_NEEDS_REVISION, hạn +5 ngày' },
+      { Kịch_bản: '1A.4. HK2 - Đã duyệt BM02, chờ công bố Quyết định (sv019..sv024)', Email: 'sv019@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'BM02_APPROVED, sẵn sàng tạo QĐ giao đề tài' },
+      { Kịch_bản: '1B.1. HK1 - Đã có QĐ giao đề tài, mở cửa sổ 168h BM02-A (sv025..sv030)', Email: 'sv025@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'DECISION_ISSUED, còn 120h để tạo BM02-A v1' },
+      { Kịch_bản: '1B.2. HK1 - Đã gửi BM02-A v1, chờ GVHD ký duyệt (sv031..sv034)', Email: 'sv031@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'PENDING_ADVISOR (GVHD: lecturer01)' },
+      { Kịch_bản: '1B.3. HK1 - BM02-A v1 bị trả lại, chờ SV sửa v2 (sv035..sv038)', Email: 'sv035@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'RETURNED_FOR_CORRECTION (revisionCount = 0)' },
+      { Kịch_bản: '1B.4. HK1 - BM02-A chờ Phụ trách Bộ môn ký duyệt cuối (sv039..sv042)', Email: 'sv039@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'PENDING_DEPARTMENT_APPROVAL (lecturer02 duyệt)' },
+      { Kịch_bản: '1B.5. HK1 - BM02-A đủ 3 chữ ký, chờ gộp Phụ lục Đợt 2 (sv043..sv045)', Email: 'sv043@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'APPROVED_PENDING_APPENDIX (có finalPdfFileUrl)' },
+      { Kịch_bản: '1B.6. HK1 - Đã ban hành Phụ lục Đợt 1 PL-01 (sv046..sv048)', Email: 'sv046@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'ADJUSTMENT_ISSUED, tên mới đã có hiệu lực' },
+      { Kịch_bản: '2.1. HK1 - BM03 đang hướng dẫn, có 1 buổi chưa ký khóa (sv049..sv056)', Email: 'sv049@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'IN_PROGRESS (GVHD: lecturer01 ký khóa buổi 3)' },
+      { Kịch_bản: '2.2A. HK1 - GVHD đề nghị dừng Giữa kỳ, chờ Viện thẩm định (sv057..sv059)', Email: 'sv057@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'STOP_REVIEW_PENDING (MIDTERM, hạn +120h)' },
+      { Kịch_bản: '2.2B. HK1 - Đề nghị dừng Cuối kỳ, Viện yêu cầu bổ sung (sv060..sv062)', Email: 'sv060@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'MORE_INFO_REQUIRED (FINAL, extensionCount = 1)' },
+      { Kịch_bản: '2.3. HK1 - BM03 đủ 3 buổi & 2 chặng, chờ GVHD ký toàn phiếu (sv063..sv068)', Email: 'sv063@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'IN_PROGRESS (GVHD: lecturer01 ký toàn phiếu BM03)' },
+      { Kịch_bản: '2.4. HK1 - BM03 đang mở cửa sổ 48h chờ SV xác nhận (sv069..sv074)', Email: 'sv069@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'Còn 36h để SV bấm Đồng ý / Đề nghị kiểm tra lại' },
+      { Kịch_bản: '2.5A. HK1 - BM03 hoàn tất STUDENT_CONFIRMED (sv075..sv076)', Email: 'sv075@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'BM03_COMPLETED (SV đã xác nhận)' },
+      { Kịch_bản: '2.5B. HK1 - BM03 hoàn tất AUTO_CLOSED_AFTER_48H (sv077..sv078)', Email: 'sv077@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'BM03_COMPLETED (Tự động đóng sau 48h)' },
+      { Kịch_bản: '3.1. HK1 - BM04 bản nháp DRAFT, chờ GVHD chấm & ký (sv079..sv084)', Email: 'sv079@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'sv079-sv080 có Phụ lục tên mới (GVHD: lecturer01)' },
+      { Kịch_bản: '3.2. HK1 - GVHD kết luận Không cho bảo vệ, chờ Viện thẩm định (sv085..sv090)', Email: 'sv085@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'DEFENSE_REVIEW_PENDING (hạn +120h)' },
+      { Kịch_bản: '3.3. HK1 - Đủ điều kiện bảo vệ, chờ xếp Hội đồng (sv091..sv094)', Email: 'sv091@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'DEFENSE_READY (sv091-sv092 BM04 đạt, sv093-sv094 Viện duyệt ELIGIBLE_BY_INSTITUTE)' },
+      { Kịch_bản: '4.1. HK1 - HĐ Bảo vệ xếp ca Sáng/Chiều & đang chấm (sv095..sv098)', Email: 'sv095@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'AWAITING_SCORES (sv095: 1 người khóa, sv096: 3 người khóa, sv097: ABSENT, sv098: ca Chiều)' },
+      { Kịch_bản: '4.2. HK1 - Chủ tịch khóa sổ điểm, chờ công bố (sv099..sv100)', Email: 'sv099@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'AWAITING_FINAL_APPROVAL (Chủ tịch khóa sổ điểm)' },
+      { Kịch_bản: '4.3. HK1 - Đã công bố DEFENSE_PASSED, nộp lưu chiểu 14 ngày (sv101..sv104)', Email: 'sv101@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'DEFENSE_PASSED (sv101 nộp 4 file, sv102 thiếu file)' },
+      { Kịch_bản: '4.4. HK1 - Đã duyệt 2 tầng lưu chiểu, chờ Viện trưởng ký (sv105..sv106)', Email: 'sv105@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'PENDING_INSTITUTE_SIGNATURE (GVHD + Giáo vụ APPROVED)' },
+      { Kịch_bản: '4.5A. HK1 - Lưu chiểu bị từ chối ARCHIVE_REJECTED (sv107..sv108)', Email: 'sv107@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'ARCHIVE_REJECTED (Điểm bảo vệ giữ nguyên)' },
+      { Kịch_bản: '4.5B. HK1 - Quá hạn 15 ngày thiếu file ARCHIVE_INCOMPLETE (sv109..sv110)', Email: 'sv109@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'ARCHIVE_INCOMPLETE (Cổng đóng cứng 00:00 ngày +15)' },
+      { Kịch_bản: '4.6. HK1 - Không đạt bảo vệ DEFENSE_FAILED (sv111..sv114)', Email: 'sv111@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'sv111-sv112 (Điểm < 5.0), sv113-sv114 (ABSENT vắng mặt không điểm giả)' },
+      { Kịch_bản: '4.7. HK1 - Hoàn thành toàn khóa COMPLETED (sv115..sv120)', Email: 'sv115@university.edu.vn', Mật_khẩu: 'student123', Ghi_chú: 'COMPLETED (Có Giấy xác nhận hoàn thành & Chữ ký số Viện trưởng)' },
+    ]);
+  } else {
+    console.log('\n[seed:phase2] === DANH SÁCH 10 SINH VIÊN & KỊCH BẢN DEMO BM04 ===');
+    console.table([
+      { STT: '1', MSSV: '2200001', Sinh_viên: 'sv001', GVHD: 'TS. Nguyễn Văn Thắng (lecturer01)', Giai_đoạn: 'Sẵn sàng thẩm định BM04', AI_BM04: 'Có (3 mốc BM03)', In_BM03: 'Sẵn sàng', In_BM04: 'Sau khi lưu' },
+      { STT: '2', MSSV: '2200002', Sinh_viên: 'sv002', GVHD: 'TS. Nguyễn Văn Thắng (lecturer01)', Giai_đoạn: 'Sẵn sàng thẩm định BM04', AI_BM04: 'Có (3 mốc BM03)', In_BM03: 'Sẵn sàng', In_BM04: 'Sau khi lưu' },
+      { STT: '3', MSSV: '2200003', Sinh_viên: 'sv003', GVHD: 'TS. Nguyễn Văn Thắng (lecturer01)', Giai_đoạn: 'Sẵn sàng thẩm định BM04', AI_BM04: 'Có (3 mốc BM03)', In_BM03: 'Sẵn sàng', In_BM04: 'Sau khi lưu' },
+      { STT: '4', MSSV: '2200004', Sinh_viên: 'sv004', GVHD: 'ThS. Trần Thị Mai Phương (lecturer02)', Giai_đoạn: 'Sẵn sàng thẩm định BM04', AI_BM04: 'Có (3 mốc BM03)', In_BM03: 'Sẵn sàng', In_BM04: 'Sau khi lưu' },
+      { STT: '5', MSSV: '2200005', Sinh_viên: 'sv005', GVHD: 'ThS. Trần Thị Mai Phương (lecturer02)', Giai_đoạn: 'Sẵn sàng thẩm định BM04', AI_BM04: 'Có (3 mốc BM03)', In_BM03: 'Sẵn sàng', In_BM04: 'Sau khi lưu' },
+      { STT: '6', MSSV: '2200006', Sinh_viên: 'sv006', GVHD: 'ThS. Trần Thị Mai Phương (lecturer02)', Giai_đoạn: 'Sẵn sàng thẩm định BM04', AI_BM04: 'Có (3 mốc BM03)', In_BM03: 'Sẵn sàng', In_BM04: 'Sau khi lưu' },
+      { STT: '7', MSSV: '2200007', Sinh_viên: 'sv007', GVHD: 'TS. Lê Hoàng Nam (lecturer03)', Giai_đoạn: 'Đã hoàn tất BM04 & Ký số', AI_BM04: 'Đã áp dụng', In_BM03: 'Sẵn sàng', In_BM04: 'IN NGAY' },
+      { STT: '8', MSSV: '2200008', Sinh_viên: 'sv008', GVHD: 'TS. Lê Hoàng Nam (lecturer03)', Giai_đoạn: 'Đã hoàn tất BM04 & Ký số', AI_BM04: 'Đã áp dụng', In_BM03: 'Sẵn sàng', In_BM04: 'IN NGAY' },
+      { STT: '9', MSSV: '2200009', Sinh_viên: 'sv009', GVHD: 'TS. Nguyễn Văn Thắng (lecturer01)', Giai_đoạn: 'Đã hoàn tất BM04 & Ký số', AI_BM04: 'Đã áp dụng', In_BM03: 'Sẵn sàng', In_BM04: 'IN NGAY' },
+      { STT: '10', MSSV: '2200010', Sinh_viên: 'sv010', GVHD: 'ThS. Trần Thị Mai Phương (lecturer02)', Giai_đoạn: 'Đã hoàn tất BM04 & Ký số', AI_BM04: 'Đã áp dụng', In_BM03: 'Sẵn sàng', In_BM04: 'IN NGAY' },
+    ]);
+  }
 
   return { academic, publications, summary };
 }

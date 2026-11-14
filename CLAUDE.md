@@ -70,7 +70,93 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 
 ## 6. Cập Nhật Phiên Làm Việc (Session Update)
 
-### Phiên 14/11/2026 (Làm Mới Toàn Diện Bộ Dữ Liệu Demo Học Thuật Chuẩn TDMU / Viện CNS & Nâng Cấp Khả Năng In BM03, BM04 Ngay Lập Tức)
+### Phiên 14/11/2026 (Bộ Dữ Liệu Demo Thu Gọn 10 Sinh Viên Thực Tế — Giai Đoạn Thẩm Định BM04 & Demo Trợ Lý AI Sinh Nhận Xét Từ BM03)
+
+#### 1. Những phần đã hoàn thành
+1. **Thiết Lập Bộ Dữ Liệu Học Thuật Chuẩn Xác Với 10 Sinh Viên Thực Tế (`backend/scripts/seed/tenStudentsBM04Fixtures.js`)**:
+   - Khởi tạo chính xác **10 sinh viên** (`sv001` đến `sv010`) kèm mã số sinh viên `2200001` đến `2200010`.
+   - Phân bổ hồ sơ sinh viên chuẩn xác: Trường (*Trường Đại học Thủ Dầu Một*), Đơn vị (*Viện Công nghệ số*), Ngành (*Công nghệ thông tin*), Khóa (*D22 — Nhập học năm 2022*), Lớp hành chính (*D22CNTT01* và *D22CNTT02*).
+   - Phân bổ hồ sơ giảng viên: Đơn vị (*Viện Công nghệ số*), Bộ môn (*Kỹ thuật phần mềm & Hệ thống thông tin*), gồm các giảng viên hướng dẫn chủ chốt:
+     * `TS. Nguyễn Văn Thắng` (`lecturer01` - Viện trưởng) hướng dẫn `sv001`, `sv002`, `sv003`, `sv009`.
+     * `ThS. Trần Thị Mai Phương` (`lecturer02` - Phụ trách bộ môn) hướng dẫn `sv004`, `sv005`, `sv006`, `sv010`.
+     * `TS. Lê Hoàng Nam` (`lecturer03`) hướng dẫn `sv007`, `sv008`.
+   - Áp dụng đầy đủ **10 tên đề tài thực tế** từ dữ liệu mẫu của người dùng:
+     * `sv001`: Nghiên cứu phát triển nền tảng học trực tuyến tích hợp trợ lý AI tạo sinh hỗ trợ phân tích tài liệu và thực thi mã nguồn tự động.
+     * `sv002`: Xây dựng hệ thống học từ vựng tiếng Anh tương tác 3D đa nền tảng tích hợp thị giác máy tính và cơ chế đấu trường ngôn ngữ.
+     * `sv003`: Xây dựng hệ thống giám sát và cảnh báo an toàn lao động tại công trường xây dựng bằng thị giác máy tính và phân tích rủi ro AI.
+     * `sv004`: Xây dựng website quản lý quy trình thực hiện đồ án tốt nghiệp tại viện Công nghệ số trên nền tảng ReactJS và NodeJS.
+     * `sv005`: Xây dựng ứng dụng di động hỗ trợ quản lý tài chính cá nhân thông minh và lập kế hoạch tiết kiệm tích hợp mô hình phân tích chi tiêu.
+     * `sv006`: Nghiên cứu và xây dựng hệ thống gợi ý việc làm ngành Công nghệ thông tin sử dụng kỹ thuật xử lý ngôn ngữ tự nhiên và phân loại hồ sơ ứng viên.
+     * `sv007`: Xây dựng hệ thống IoT giám sát chất lượng nguồn nước nuôi trồng thủy sản tự động cảnh báo theo thời gian thực.
+     * `sv008`: Phát triển hệ thống quản lý chuỗi cung ứng nông sản an toàn ứng dụng công nghệ Blockchain và mã QR truy xuất nguồn gốc.
+     * `sv009`: Nghiên cứu giải pháp phát hiện xâm nhập và ngăn chặn tấn công mạng cho hệ thống thông tin doanh nghiệp vừa và nhỏ sử dụng Machine Learning.
+     * `sv010`: Xây dựng ứng dụng hỗ trợ người khiếm thị nhận diện vật thể và đọc văn bản thời gian thực bằng mô hình thị giác nhân tạo trên thiết bị di động.
+2. **Khởi Tạo Đầy Đủ 3 Mốc Kiểm Tra Tiến Độ Định Kỳ BM03 Cụ Thể (24/8, 21/9, 19/10)**:
+   - Toàn bộ 10 sinh viên đều sở hữu nhật ký tiến độ BM03 bám sát nội dung chuyên môn thực tế do người dùng cung cấp:
+     * **Mốc 1 (24/8)**: Khởi động đồ án, khảo sát mô hình/nghiệp vụ, xác định điều kiện cần (con người, dữ liệu, framework).
+     * **Mốc 2 (21/9)**: Xây dựng các module chức năng chính (Admin, Giảng viên, Sinh viên, tính năng camera/yolo, luồng kết nối CSDL Supabase).
+     * **Mốc 3 (19/10)**: Hoàn thiện tính năng nâng cao (AI tích hợp, runcode, đấu trường, cảnh báo rủi ro, phân tích sai sót), chuẩn bị báo cáo tổng kết.
+   - Hoàn thành Đánh giá Giữa kỳ (Checkpoint 1 - `ALLOWED_TO_CONTINUE` / `CONTINUE`) và Cuối kỳ (Checkpoint 2 - `ALLOWED_TO_CONTINUE` / `CONTINUE_TO_BM04`).
+   - Sinh viên đã ký số xác nhận nhật ký tiến độ (`ACKNOWLEDGED_WITH_COMMENT`).
+   - **Tất cả 10 sinh viên đều sẵn sàng để in Sổ tiến độ BM03 (khổ A4 chuẩn)**.
+3. **Phân Luồng Rõ Ràng Cho Kịch Bản Trải Nghiệm Giai Đoạn Thẩm Định BM04**:
+   - **Nhóm 1 (`sv001` .. `sv006`) — Đang mở đợt thẩm định BM04 (`IN_PROGRESS_BM03`)**:
+     * Dành cho Giảng viên hướng dẫn (`lecturer01` hoặc `lecturer02`) bấm **Thẩm định BM04**.
+     * Giảng viên bấm nút **AI Gợi ý từ BM03** để xem AI phân tích 3 mốc tiến độ định kỳ (24/8, 21/9, 19/10) và tự động sinh nội dung nhận xét cho 4 tiêu chí CĐR:
+       1. Tiêu chí 1: Hình thức trình bày Báo cáo tốt nghiệp (IEEE format, trích dẫn, mã nguồn).
+       2. Tiêu chí 2: Nội dung nghiên cứu và giải thuật chuyên sâu.
+       3. Tiêu chí 3: Tính ứng dụng thực tiễn và khả năng triển khai.
+       4. Tiêu chí 4: Thái độ, kỷ luật và tính chủ động suốt 3 đợt theo dõi.
+     * Hỗ trợ nút **Áp dụng toàn bộ vào phiếu** hoặc **Áp dụng mục này** cho từng tiêu chí riêng lẻ.
+   - **Nhóm 2 (`sv007` .. `sv010`) — Đã hoàn tất thẩm định & ký số BM04 (`DEFENSE_READY` / `SIGNED_APPROVED`)**:
+     * Đã có bản đánh giá 4 tiêu chí xuất sắc, kết luận cho phép ra bảo vệ trước Hội đồng.
+     * Sẵn sàng demo tính năng **In Phiếu BM04** ngay lập tức mà không cần thao tác thêm.
+4. **Tương Thích Ngược & Tối Ưu Hóa Bộ Công Cụ Nạp Dữ Liệu (`seedPhase2.js`, `demoFixtures.js`, `validateDemoSeed.js`)**:
+   - Hỗ trợ biến môi trường `SEED_STUDENT_COUNT` hoặc cấu hình tham số: mặc định nạp bộ 10 sinh viên thực tế gọn nhẹ, đồng thời hỗ trợ bộ đầy đủ 120 sinh viên khi cần.
+   - Hàm `validateDemoSeed` nhận diện chế độ rút gọn (`isCompact`), xác thực tính toàn vẹn 0 xung đột hội đồng (Zero-COI), 10 sinh viên / 10 đề tài / 10 enrollment hợp lệ.
+5. **Kiểm Thử Toàn Trình Đạt 100%**:
+   - Backend: 110/110 test suites PASS (1,123/1,123 tests).
+   - Frontend Contract: 291/291 tests PASS.
+   - Frontend Runtime (Vitest): 14/14 test files PASS (118/118 tests).
+   - Frontend Production Build (`vite build`): Hoàn tất trong 14.35s, 0 lỗi.
+
+#### 2. Bảng Tài Khoản & Hướng Dẫn Trải Nghiệm Demo BM03 / BM04
+
+| STT | Sinh viên (MSSV) | GVHD | Đề tài nghiên cứu | Trạng thái học vụ | Trải nghiệm BM04 | In BM03 | In BM04 |
+|:---:|:---|:---|:---|:---:|:---:|:---:|:---:|
+| 1 | **sv001** (`2200001`) | TS. Nguyễn Văn Thắng (`lecturer01`) | Nền tảng học trực tuyến tích hợp AI & Runcode | Đang thực hiện BM04 | **Bấm "AI Gợi ý từ BM03"** để sinh 4 tiêu chí | **IN NGAY** | Sau khi ký |
+| 2 | **sv002** (`2200002`) | TS. Nguyễn Văn Thắng (`lecturer01`) | Học tiếng Anh 3D & Thị giác máy tính Yolo | Đang thực hiện BM04 | **Bấm "AI Gợi ý từ BM03"** để sinh 4 tiêu chí | **IN NGAY** | Sau khi ký |
+| 3 | **sv003** (`2200003`) | TS. Nguyễn Văn Thắng (`lecturer01`) | Giám sát an toàn công trường xây dựng AI | Đang thực hiện BM04 | **Bấm "AI Gợi ý từ BM03"** để sinh 4 tiêu chí | **IN NGAY** | Sau khi ký |
+| 4 | **sv004** (`2200004`) | ThS. Trần Thị Mai Phương (`lecturer02`) | Quản lý quy trình đồ án tốt nghiệp Viện CNS | Đang thực hiện BM04 | **Bấm "AI Gợi ý từ BM03"** để sinh 4 tiêu chí | **IN NGAY** | Sau khi ký |
+| 5 | **sv005** (`2200005`) | ThS. Trần Thị Mai Phương (`lecturer02`) | Quản lý tài chính cá nhân & Phân tích chi tiêu | Đang thực hiện BM04 | **Bấm "AI Gợi ý từ BM03"** để sinh 4 tiêu chí | **IN NGAY** | Sau khi ký |
+| 6 | **sv006** (`2200006`) | ThS. Trần Thị Mai Phương (`lecturer02`) | Gợi ý việc làm IT bằng NLP & Phân loại CV | Đang thực hiện BM04 | **Bấm "AI Gợi ý từ BM03"** để sinh 4 tiêu chí | **IN NGAY** | Sau khi ký |
+| 7 | **sv007** (`2200007`) | TS. Lê Hoàng Nam (`lecturer03`) | IoT giám sát nước thủy sản thời gian thực | Sẵn sàng bảo vệ | Đã hoàn tất & Ký số | **IN NGAY** | **IN NGAY** |
+| 8 | **sv008** (`2200008`) | TS. Lê Hoàng Nam (`lecturer03`) | Chuỗi cung ứng nông sản Blockchain & QR Code | Sẵn sàng bảo vệ | Đã hoàn tất & Ký số | **IN NGAY** | **IN NGAY** |
+| 9 | **sv009** (`2200009`) | TS. Nguyễn Văn Thắng (`lecturer01`) | Phát hiện xâm nhập mạng bằng Machine Learning | Sẵn sàng bảo vệ | Đã hoàn tất & Ký số | **IN NGAY** | **IN NGAY** |
+| 10 | **sv010** (`2200010`) | ThS. Trần Thị Mai Phương (`lecturer02`) | Hỗ trợ người khiếm thị nhận diện vật thể AI | Sẵn sàng bảo vệ | Đã hoàn tất & Ký số | **IN NGAY** | **IN NGAY** |
+
+> **Thông tin đăng nhập**:
+> - Tài khoản Sinh viên: `sv001@university.edu.vn` .. `sv010@university.edu.vn` | Mật khẩu: `student123`
+> - Tài khoản Giảng viên: `lecturer01@university.edu.vn` .. `lecturer03@university.edu.vn` | Mật khẩu: `lecturer123`
+> - Tài khoản Quản trị viên: `admin@university.edu.vn` | Mật khẩu: `admin123`
+
+#### 3. Trạng thái cập nhật của từng phần
+- **Database (Supabase / PostgreSQL)**: Đã nạp mới hoàn toàn bộ dữ liệu 10 sinh viên, 10 đề tài thực tế, 3 mốc BM03 và các phiếu BM04.
+- **Backend API**: Hoạt động ổn định, 110/110 test suites PASS (1,123/1,123 tests).
+- **Frontend SPA**: Hoạt động mượt mà, 291/291 contract tests PASS, 118 runtime tests PASS.
+- **Frontend Production Build**: Đóng gói thành công trong 14.35s.
+- **Tuân thủ quy chuẩn `AGENTS.md`**:
+  * 100% tuân thủ mô hình `TopicRegistration` (`maxStudents = 1`, 1 đề tài / 1 sinh viên).
+  * 100% UTF-8 without BOM.
+  * 100% không chèn raw emoji trong Button labels (Rule 2.6).
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+- **Ánh xạ Enum `TaskType` Chuẩn Xác**: `BM03_CHECKPOINT` được sử dụng thay cho chuỗi tự do `BM03` để phù hợp tuyệt đối với định nghĩa Prisma Schema.
+- **Bảo Lưu Bộ 10 Sinh Viên Trọng Tâm Cho Demo**: Việc thu gọn về 10 sinh viên với dữ liệu thực tế sâu sắc (thay vì 120 sinh viên dữ liệu tổng quát) giúp giao diện sạch đẹp, các biểu mẫu in và trợ lý AI phản hồi nhanh chóng, trực quan và ấn tượng khi trình chiếu thực tế.
+
+---
+
+
 
 #### 1. Những phần đã hoàn thành
 1. **Chuẩn Hóa Bộ Dữ Liệu Demo Toàn Diện (`backend/scripts/seed/`)**:

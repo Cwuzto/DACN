@@ -126,7 +126,12 @@ function generateStudentFullName(index) {
   return `${surname} ${middle} ${given}`;
 }
 
-function buildAccounts() {
+function buildAccounts(options = {}) {
+  const envCount = process.env.SEED_STUDENT_COUNT ? parseInt(process.env.SEED_STUDENT_COUNT, 10) : undefined;
+  const studentCount = options.studentCount !== undefined 
+    ? options.studentCount 
+    : (envCount !== undefined ? envCount : 120);
+
   const admin = [{
     email: 'admin@university.edu.vn', code: 'ADMIN001', fullName: 'Quản trị hệ thống',
     role: 'ADMIN', department: 'Viện Công nghệ số', password: 'admin123', isActive: true,
@@ -143,7 +148,7 @@ function buildAccounts() {
       academicTitle: profile.academicTitle, password: 'lecturer123', isActive: true,
     };
   });
-  const students = Array.from({ length: 120 }, (_, index) => {
+  const students = Array.from({ length: studentCount }, (_, index) => {
     const number = index + 1;
     return {
       email: `sv${studentPad(number)}@university.edu.vn`, code: `SV${String(number).padStart(4, '0')}`,

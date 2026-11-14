@@ -67,3 +67,4 @@ test('BM04 AI Suggestion: BM04AiSuggestionDrawer renders evidence summary and 4 
     assert.ok(source.includes('onApplyAll'), 'BM04AiSuggestionDrawer phải có chức năng áp dụng toàn bộ');
     assert.ok(source.includes('onApplyField'), 'BM04AiSuggestionDrawer phải có chức năng áp dụng từng tiêu chí');
 });
+
