@@ -22,6 +22,7 @@ import {
     RollbackOutlined,
     SettingOutlined,
     WarningOutlined,
+    FolderOpenOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import evaluationService from '../../services/evaluationService';
@@ -35,6 +36,7 @@ import useAuthStore from '../../stores/authStore';
 import DefenseResultPublicationModal from '../../components/admin/DefenseResultPublicationModal';
 import PublicationHistoryModal from '../../components/admin/PublicationHistoryModal';
 import DefenseSummaryRecordModal from '../../components/admin/DefenseSummaryRecordModal';
+import AcademicDossierDrawer from '../../components/prints/AcademicDossierDrawer';
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
@@ -96,6 +98,8 @@ export default function GradingDefensePage() {
     const [returnHistoryModalVisible, setReturnHistoryModalVisible] = useState(false);
     const [summaryModalOpen, setSummaryModalOpen] = useState(false);
     const [selectedRegForSummary, setSelectedRegForSummary] = useState(null);
+    const [dossierDrawerOpen, setDossierDrawerOpen] = useState(false);
+    const [selectedRegForDossier, setSelectedRegForDossier] = useState(null);
     // Rubric Drawer state
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [drawerLoading, setDrawerLoading] = useState(false);
@@ -1069,6 +1073,17 @@ export default function GradingDefensePage() {
                                                 >
                                                     BM05
                                                 </Button>
+                                                <Button
+                                                    size="small"
+                                                    icon={<FolderOpenOutlined />}
+                                                    onClick={() => {
+                                                        setSelectedRegForDossier(r);
+                                                        setDossierDrawerOpen(true);
+                                                    }}
+                                                    title="Xem toàn bộ hồ sơ biểu mẫu học vụ (BM01 - BM05)"
+                                                >
+                                                    Hồ sơ BM
+                                                </Button>
                                                 {canLockResult && (r.scoreLocked ? (
                                                     <button
                                                         className="btn btn-secondary btn-sm"
@@ -1562,6 +1577,16 @@ export default function GradingDefensePage() {
                     setSelectedRegForSummary(null);
                 }}
                 registration={selectedRegForSummary}
+            />
+
+            {/* Ngăn kéo Hồ sơ Biểu mẫu Học vụ Toàn trình */}
+            <AcademicDossierDrawer
+                open={dossierDrawerOpen}
+                onClose={() => {
+                    setDossierDrawerOpen(false);
+                    setSelectedRegForDossier(null);
+                }}
+                registration={selectedRegForDossier}
             />
         </div>
     );

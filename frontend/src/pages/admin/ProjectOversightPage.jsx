@@ -42,6 +42,7 @@ import {
     WarningOutlined,
     YoutubeOutlined,
     ScanOutlined,
+    FolderOpenOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
@@ -52,6 +53,7 @@ import userService from '../../services/userService';
 import taskService from '../../services/taskService';
 import archiveService from '../../services/archiveService';
 import aiService from '../../services/aiService';
+import AcademicDossierDrawer from '../../components/prints/AcademicDossierDrawer';
 import manualReviewService from '../../services/manualReviewService';
 import useAuthStore from '../../stores/authStore';
 import { formatSemesterLabel } from '../../utils/semesterDisplay';
@@ -147,6 +149,8 @@ function ProjectOversightPage() {
 
     const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
     const [auditTopic, setAuditTopic] = useState(null);
+    const [dossierDrawerOpen, setDossierDrawerOpen] = useState(false);
+    const [selectedRegForDossier, setSelectedRegForDossier] = useState(null);
 
     const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
     const [transferTopic, setTransferTopic] = useState(null);
@@ -898,11 +902,24 @@ function ProjectOversightPage() {
                 };
 
                 return (
-                    <Dropdown menu={{ items: menuItems, onClick: onAction }} trigger={['click']} placement="bottomRight">
-                        <Button size="small" className="text-xs font-semibold text-slate-700 hover:text-primary">
-                            Thao tác <MoreOutlined />
+                    <div className="flex items-center justify-end gap-1">
+                        <Button
+                            size="small"
+                            icon={<FolderOpenOutlined />}
+                            onClick={() => {
+                                const reg = record.registrationEvents?.[0] || record;
+                                setSelectedRegForDossier(reg);
+                                setDossierDrawerOpen(true);
+                            }}
+                        >
+                            Hồ sơ BM
                         </Button>
-                    </Dropdown>
+                        <Dropdown menu={{ items: menuItems, onClick: onAction }} trigger={['click']} placement="bottomRight">
+                            <Button size="small" className="text-xs font-semibold text-slate-700 hover:text-primary">
+                                Thao tác <MoreOutlined />
+                            </Button>
+                        </Dropdown>
+                    </div>
                 );
             },
         },
@@ -2805,6 +2822,16 @@ function ProjectOversightPage() {
                 onClose={() => setCrossCheckModalOpen(false)}
                 data={crossCheckData}
                 loading={crossCheckLoading}
+            />
+
+            {/* Ngăn kéo Hồ sơ Biểu mẫu Học vụ Toàn trình */}
+            <AcademicDossierDrawer
+                open={dossierDrawerOpen}
+                onClose={() => {
+                    setDossierDrawerOpen(false);
+                    setSelectedRegForDossier(null);
+                }}
+                registration={selectedRegForDossier}
             />
         </div>
     );

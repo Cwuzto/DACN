@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { message } from 'antd';
-import { ArrowRightOutlined, CloseOutlined, PlusOutlined } from '@ant-design/icons';
+import { Button, message } from 'antd';
+import { ArrowRightOutlined, CloseOutlined, PlusOutlined, FolderOpenOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -15,6 +15,7 @@ import { useRegistrations, usePendingTitleAdjustments, useTitleAdjustmentMutatio
 import { useMeetingMutation } from '../../queries/meetingQueries';
 import QueryPanel from '../../components/common/QueryPanel';
 import ContentSkeleton from '../../components/common/ContentSkeleton';
+import AcademicDossierDrawer from '../../components/prints/AcademicDossierDrawer';
 
 /**
  * LecturerDashboardPage — 100% OpenDesign Golden Standard
@@ -42,6 +43,8 @@ export default function LecturerDashboardPage() {
     const [meetingModalOpen, setMeetingModalOpen] = useState(false);
     const [broadcastModalOpen, setBroadcastModalOpen] = useState(false);
     const [workloadModalOpen, setWorkloadModalOpen] = useState(false);
+    const [dossierDrawerOpen, setDossierDrawerOpen] = useState(false);
+    const [selectedRegForDossier, setSelectedRegForDossier] = useState(null);
 
     // Meeting Log Form State
     const [meetingStudentId, setMeetingStudentId] = useState('');
@@ -762,13 +765,25 @@ export default function LecturerDashboardPage() {
                                                     </span>
                                                 </td>
                                                 <td style={{ textAlign: 'right' }}>
-                                                    <button
-                                                        type="button"
-                                                        className="btn btn-secondary btn-sm"
-                                                        onClick={() => navigate(`/lecturer/progress?registrationId=${r.id}`)}
-                                                    >
-                                                        Sổ tiến độ
-                                                    </button>
+                                                    <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', alignItems: 'center' }}>
+                                                        <Button
+                                                            size="small"
+                                                            icon={<FolderOpenOutlined />}
+                                                            onClick={() => {
+                                                                setSelectedRegForDossier(r);
+                                                                setDossierDrawerOpen(true);
+                                                            }}
+                                                        >
+                                                            Hồ sơ BM
+                                                        </Button>
+                                                        <button
+                                                            type="button"
+                                                            className="btn btn-secondary btn-sm"
+                                                            onClick={() => navigate(`/lecturer/progress?registrationId=${r.id}`)}
+                                                        >
+                                                            Sổ tiến độ
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         );
@@ -957,6 +972,16 @@ export default function LecturerDashboardPage() {
                     </div>
                 </div>
             )}
+
+            {/* Ngăn kéo Hồ sơ Biểu mẫu Học vụ Toàn trình */}
+            <AcademicDossierDrawer
+                open={dossierDrawerOpen}
+                onClose={() => {
+                    setDossierDrawerOpen(false);
+                    setSelectedRegForDossier(null);
+                }}
+                registration={selectedRegForDossier}
+            />
         </section>
     );
 }
