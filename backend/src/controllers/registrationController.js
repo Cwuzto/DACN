@@ -729,6 +729,7 @@ const getAllRegistrations = async (req, res, next) => {
                 _count: { select: { submissions: true, meetingLogs: true, bm03MeetingEntries: true } },
                 tasks: { select: { id: true, status: true, taskType: true } },
                 meetingLogs: { select: { id: true, meetingDate: true }, orderBy: { meetingDate: 'desc' } },
+                bm03Record: { select: { id: true, advisorSignedAt: true, studentAckStatus: true, finalConclusion: true } },
                 bm04Evaluation: true,
                 titleAdjustments: { orderBy: { requestedAt: 'desc' } },
                 currentBM02Submission: true,
@@ -778,8 +779,20 @@ const getAllRegistrations = async (req, res, next) => {
                 daysSinceLastMeeting = Math.floor((now.getTime() - new Date(lastMeetingDate).getTime()) / (1000 * 60 * 60 * 24));
             }
 
-            const isFinishedThesis = ['DEFENSE_READY', 'DEFENDED', 'COMPLETED'].includes(reg.status);
-            const isMeetingWarning = !isFinishedThesis && daysSinceLastMeeting !== null && daysSinceLastMeeting > 21;
+            const isFinishedThesis = [
+                'BM03_PASSED',
+                'BM04_REVIEW',
+                'DEFENSE_READY',
+                'DEFENSE_ELIGIBLE',
+                'ELIGIBLE_BY_INSTITUTE',
+                'AWAITING_SCORES',
+                'AWAITING_FINAL_APPROVAL',
+                'DEFENSE_PASSED',
+                'DEFENDED',
+                'COMPLETED',
+            ].includes(reg.status);
+            const isBm03Finalized = Boolean(reg.bm03Record?.advisorSignedAt) || Boolean(reg.bm04Evaluation);
+            const isMeetingWarning = !isFinishedThesis && !isBm03Finalized && daysSinceLastMeeting !== null && daysSinceLastMeeting > 21;
 
             return {
                 ...reg,

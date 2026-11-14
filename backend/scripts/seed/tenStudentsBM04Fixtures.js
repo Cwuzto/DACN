@@ -632,10 +632,10 @@ async function seedTenStudentsBM04AcademicFixtures({ prisma, accountsByEmail, ba
     });
 
     // Registration Status:
-    // sv001..sv006: IN_PROGRESS_BM03, BM04 is ready for evaluation
+    // sv001..sv006: BM03_PASSED, BM04 is ready for evaluation
     // sv007..sv010: DEFENSE_READY, BM04 is completed and signed
     const isCompleted = Boolean(topicConfig.isCompleted);
-    const regStatus = isCompleted ? 'DEFENSE_READY' : 'IN_PROGRESS_BM03';
+    const regStatus = isCompleted ? 'DEFENSE_READY' : 'BM03_PASSED';
     const assignedCouncil = isCompleted ? (number <= 8 ? council1 : council2) : null;
 
     const registration = await prisma.topicRegistration.create({

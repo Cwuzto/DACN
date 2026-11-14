@@ -412,8 +412,9 @@ export default function ProgressTrackingPage() {
 
     const reg = selectedStudent;
     const bm04Status = reg?.status === 'COMPLETED' || reg?.status === 'DEFENDED' || reg?.status === 'DEFENSE_READY';
+    const regWaitingBM04 = reg?.status === 'BM03_PASSED' || reg?.status === 'BM04_REVIEW' || Boolean(reg?.bm03Record?.advisorSignedAt);
     const progress = reg?.progressPercent ?? reg?.progress ?? (bm04Status ? 100 : 0);
-    const isAtRisk = !bm04Status && (Boolean(reg?.isMeetingWarning) || progress < 50);
+    const isAtRisk = !bm04Status && !regWaitingBM04 && (Boolean(reg?.isMeetingWarning) || progress < 50);
 
     return (
         <section id="view-progress" className="view-pane active" style={{ display: 'block' }}>
@@ -469,8 +470,9 @@ export default function ProgressTrackingPage() {
                                 filteredStudents.map((s) => {
                                     const isSel = s.id === reg?.id;
                                     const sPassed = s.status === 'COMPLETED' || s.status === 'DEFENDED' || s.status === 'DEFENSE_READY';
-                                    const sProgress = s.progressPercent ?? s.progress ?? (sPassed ? 100 : 0);
-                                    const sRisk = !sPassed && (Boolean(s.isMeetingWarning) || sProgress < 50);
+                                    const sBm03Done = s.status === 'BM03_PASSED' || s.status === 'BM04_REVIEW' || Boolean(s.bm03Record?.advisorSignedAt);
+                                    const sProgress = s.progressPercent ?? s.progress ?? (sPassed ? 100 : sBm03Done ? 75 : 0);
+                                    const sRisk = !sPassed && !sBm03Done && (Boolean(s.isMeetingWarning) || sProgress < 50);
                                     const logCount = s.totalMeetings ?? s._count?.meetingLogs ?? s.meetingLogs?.length ?? 0;
 
                                     return (
@@ -481,8 +483,8 @@ export default function ProgressTrackingPage() {
                                         >
                                             <div className="student-card-top">
                                                 <span className="student-card-name">{s.student?.fullName}</span>
-                                                <span className={`tag ${sPassed ? 'green' : sRisk ? 'red' : 'blue'}`}>
-                                                    {sPassed ? 'Đủ điều kiện BV' : sRisk ? 'Nguy cơ trễ' : 'Đang làm'}
+                                                <span className={`tag ${sPassed ? 'green' : sRisk ? 'red' : sBm03Done ? 'blue' : 'yellow'}`}>
+                                                    {sPassed ? 'Đủ điều kiện BV' : sRisk ? 'Nguy cơ trễ' : sBm03Done ? 'Chờ duyệt BM04' : 'Đang làm'}
                                                 </span>
                                             </div>
                                             <div className="student-card-topic">
@@ -490,7 +492,7 @@ export default function ProgressTrackingPage() {
                                             </div>
                                             <div className="student-card-foot">
                                                 <span>MSSV: {s.student?.code}</span>
-                                                <strong style={{ color: logCount >= 5 ? 'var(--primary)' : 'var(--warning)' }}>
+                                                <strong style={{ color: logCount >= 3 ? 'var(--primary)' : 'var(--warning)' }}>
                                                     {logCount} buổi gặp
                                                 </strong>
                                             </div>
@@ -512,8 +514,12 @@ export default function ProgressTrackingPage() {
                                 <span className="mono" style={{ fontSize: '12.5px', color: 'var(--muted)' }}>
                                     MSSV: {reg?.student?.code || '-'}
                                 </span>
-                                <span className={`tag ${bm04Status ? 'green' : 'yellow'}`}>
-                                    {bm04Status ? '✓ Đã duyệt phiếu nhận xét — Đủ điều kiện bảo vệ' : 'Đang thực hiện'}
+                                <span className={`tag ${bm04Status ? 'green' : regWaitingBM04 ? 'blue' : 'yellow'}`}>
+                                    {bm04Status
+                                        ? '✓ Đã duyệt phiếu nhận xét — Đủ điều kiện bảo vệ'
+                                        : regWaitingBM04
+                                            ? 'Đã hoàn thành BM03 — Chờ lập phiếu BM04'
+                                            : 'Đang thực hiện'}
                                 </span>
                             </div>
                             <div style={{ fontSize: '12.5px', color: 'var(--fg)', marginTop: 3 }}>
@@ -1360,7 +1366,7 @@ export default function ProgressTrackingPage() {
                                 </div>
                             </div>
                             <div>
-                                <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Địa điểm / Đường dẫn họp (locationOrLink):</label>
+                                <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Địa điểm / Link họp:</label>
                                 <input
                                     type="text"
                                     className="input-field"
@@ -1371,16 +1377,16 @@ export default function ProgressTrackingPage() {
                                 />
                             </div>
                             <div>
-                                <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Đánh giá tiến độ buổi gặp (progressRating):</label>
+                                <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Đánh giá tiến độ buổi gặp:</label>
                                 <Select
                                     value={progressRating}
                                     onChange={setProgressRating}
                                     style={{ width: '100%' }}
                                     options={[
-                                        { value: 'ON_TRACK', label: 'Đúng tiến độ (ON_TRACK)' },
-                                        { value: 'AT_RISK', label: 'Có rủi ro (AT_RISK)' },
-                                        { value: 'BEHIND', label: 'Chậm tiến độ (BEHIND)' },
-                                        { value: 'NO_PROGRESS', label: 'Không có tiến độ (NO_PROGRESS)' },
+                                        { value: 'ON_TRACK', label: 'Đúng tiến độ' },
+                                        { value: 'AT_RISK', label: 'Có rủi ro' },
+                                        { value: 'BEHIND', label: 'Chậm tiến độ' },
+                                        { value: 'NO_PROGRESS', label: 'Không có tiến độ' },
                                     ]}
                                 />
                             </div>
