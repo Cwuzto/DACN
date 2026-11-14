@@ -40,6 +40,16 @@ import { useQueryClient } from '@tanstack/react-query';
 import PasswordStrengthMeter from '../../components/profile/PasswordStrengthMeter';
 import ProfileQuickMetrics from '../../components/profile/ProfileQuickMetrics';
 
+function formatCohortDisplay(className) {
+    if (!className) return 'D22 — Nhập học năm 2022';
+    const match = String(className).match(/^[dD](\d{2})/);
+    if (match) {
+        const year = match[1];
+        return `D${year} — Nhập học năm 20${year}`;
+    }
+    return 'D22 — Nhập học năm 2022';
+}
+
 function ProfilePage() {
     const { user: authUser, updateUser } = useAuthStore();
     const scope = queryKeys.scope(authUser);
@@ -224,6 +234,26 @@ function ProfilePage() {
                             <div className="space-y-4">
                                 <div>
                                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                                        Trường
+                                    </label>
+                                    <div className="text-sm font-semibold text-slate-900 bg-white p-2.5 rounded-lg border border-slate-200 flex items-center gap-2">
+                                        <BankOutlined className="text-blue-600" />
+                                        Trường Đại học Thủ Dầu Một
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                                        {isStudent ? 'Đơn vị quản lý' : 'Đơn vị công tác'}
+                                    </label>
+                                    <div className="text-sm font-semibold text-slate-900 bg-white p-2.5 rounded-lg border border-slate-200 flex items-center gap-2">
+                                        <BankOutlined className="text-indigo-600" />
+                                        Viện Công nghệ số
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
                                         Họ và tên
                                     </label>
                                     <div className="text-sm font-semibold text-slate-900 bg-white p-2.5 rounded-lg border border-slate-200">
@@ -249,36 +279,43 @@ function ProfilePage() {
                                     </div>
                                 </div>
 
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-                                        Khoa / Viện trực thuộc
-                                    </label>
-                                    <div className="text-sm font-medium text-slate-900 bg-white p-2.5 rounded-lg border border-slate-200 flex items-center gap-2">
-                                        <BankOutlined className="text-slate-400" />
-                                        Viện Công nghệ Số (VCN)
-                                    </div>
-                                </div>
-
                                 {isStudent ? (
                                     <>
                                         <div>
                                             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-                                                Lớp
+                                                Ngành học (Ngành)
                                             </label>
                                             <div className="text-sm font-semibold text-slate-900 bg-white p-2.5 rounded-lg border border-slate-200">
-                                                {tempProfile.className || 'Chưa cập nhật'}
+                                                {tempProfile.major || 'Công nghệ thông tin'}
                                             </div>
                                         </div>
                                         <div>
                                             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-                                                Ngành
+                                                Khóa
                                             </label>
                                             <div className="text-sm font-semibold text-slate-900 bg-white p-2.5 rounded-lg border border-slate-200">
-                                                {tempProfile.major || 'Chưa cập nhật'}
+                                                {formatCohortDisplay(tempProfile.className)}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                                                Lớp hành chính (Lớp)
+                                            </label>
+                                            <div className="text-sm font-semibold text-slate-900 bg-white p-2.5 rounded-lg border border-slate-200 font-mono">
+                                                {tempProfile.className || 'D22CNTT01'}
                                             </div>
                                         </div>
                                     </>
-                                ) : null}
+                                ) : (
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                                            Bộ môn
+                                        </label>
+                                        <div className="text-sm font-semibold text-slate-900 bg-white p-2.5 rounded-lg border border-slate-200">
+                                            {tempProfile.department || 'Kỹ thuật phần mềm & Hệ thống thông tin'}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -327,7 +364,7 @@ function ProfilePage() {
                                 {!isStudent && (
                                     <div>
                                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-                                            Đơn vị / Bộ môn công tác {editing && <span className="text-blue-600 font-normal">(Có thể sửa)</span>}
+                                            Bộ môn {editing && <span className="text-blue-600 font-normal">(Có thể sửa)</span>}
                                         </label>
                                         {editing ? (
                                             <Input
@@ -335,14 +372,14 @@ function ProfilePage() {
                                                 prefix={<BankOutlined className="text-slate-400" />}
                                                 value={tempProfile.department}
                                                 onChange={(e) => handleChange('department', e.target.value)}
-                                                placeholder="VD: Bộ môn Kỹ thuật phần mềm"
+                                                placeholder="VD: Kỹ thuật phần mềm & Hệ thống thông tin"
                                                 disabled={isProfileBusy}
                                                 className="rounded-lg"
                                             />
                                         ) : (
                                             <div className="text-sm font-medium text-slate-900 bg-slate-50 p-2.5 rounded-lg border border-slate-200 flex items-center gap-2">
                                                 <BankOutlined className="text-slate-400" />
-                                                <span>{tempProfile.department || 'Chưa cập nhật đơn vị'}</span>
+                                                <span>{tempProfile.department || 'Kỹ thuật phần mềm & Hệ thống thông tin'}</span>
                                             </div>
                                         )}
                                     </div>
@@ -608,7 +645,7 @@ function ProfilePage() {
                                     {roleName}
                                 </Tag>
                                 <Tag color="blue" icon={<CheckCircleOutlined />} className="px-2.5 py-0.5 rounded-full">
-                                    Định danh chính thức Viện CNS
+                                    Đại học Thủ Dầu Một — Viện Công nghệ số
                                 </Tag>
                                 <span className="inline-flex items-center gap-1.5 text-xs text-emerald-600 font-semibold bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
                                     <Badge status="success" />

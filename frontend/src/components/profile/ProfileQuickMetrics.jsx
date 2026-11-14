@@ -25,13 +25,19 @@ function ProfileQuickMetrics({ user, roleName, isStudent }) {
         };
     }, [user, isStudent]);
 
-    const academicTitle = isStudent ? 'Định danh học vụ' : 'Đơn vị công tác';
+    const extractCohortShort = (className) => {
+        if (!className) return 'Khóa D22';
+        const match = className.match(/^[dD](\d{2})/);
+        return match ? `Khóa D${match[1]}` : 'Khóa D22';
+    };
+
+    const academicTitle = isStudent ? 'Lớp & Ngành học' : 'Đơn vị & Bộ môn';
     const academicPrimary = isStudent
-        ? (user?.studentProfile?.className || user?.className || 'Lớp sinh hoạt')
-        : (user?.department || 'Viện Công nghệ Số');
+        ? (user?.studentProfile?.className || user?.className || 'D22CNTT01')
+        : (user?.department || 'Kỹ thuật phần mềm & Hệ thống thông tin');
     const academicSecondary = isStudent
-        ? (user?.studentProfile?.major || user?.major || 'Chuyên ngành Đào tạo')
-        : (roleName || 'Cán bộ phụ trách');
+        ? `${user?.studentProfile?.major || user?.major || 'Công nghệ thông tin'} (${extractCohortShort(user?.studentProfile?.className || user?.className)})`
+        : 'Viện Công nghệ số — ĐH Thủ Dầu Một';
 
     const permissionsCount = (user?.permissions || []).length;
     const groupsCount = (user?.permissionGroups || []).length || 1;

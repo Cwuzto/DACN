@@ -87,6 +87,13 @@ test('Profile Redesign: Tab 1 separates read-only academic data from editable co
     // Student edit boundary
     assert.match(source, /isStudent|user\?\.role === 'STUDENT'/);
     assert.match(source, /!isStudent|user\?\.role !== 'STUDENT'/);
+
+    // Standardized Institutional & Academic Entity Fields (Trường, Viện, Ngành, Khóa, Lớp hành chính, Bộ môn)
+    assert.match(source, /Trường Đại học Thủ Dầu Một/, 'Phải hiển thị Trường Đại học Thủ Dầu Một');
+    assert.match(source, /Viện Công nghệ số/, 'Phải hiển thị Viện Công nghệ số');
+    assert.match(source, /Khóa/, 'Phải hiển thị mục Khóa sinh viên');
+    assert.match(source, /Lớp hành chính/, 'Phải hiển thị mục Lớp hành chính');
+    assert.match(source, /Bộ môn/, 'Phải hiển thị mục Bộ môn');
 });
 
 test('Profile Redesign: Tab 2 integrates PasswordStrengthMeter and session information', () => {
