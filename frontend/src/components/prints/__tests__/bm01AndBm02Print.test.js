@@ -37,3 +37,4 @@ test('BM01 & BM02 Print Sheets: Adhere to Rule 2.4 and contain required institut
     assert.match(bm02Src, /BỘ MÔN CÔNG NGHỆ THÔNG TIN/, 'BM02 must have department header');
     assert.match(bm02Src, /PHỤ TRÁCH BỘ MÔN/, 'BM02 must have head of department signature block');
 });
+

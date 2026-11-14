@@ -37,3 +37,4 @@ test('BM02-A & BM03 Print Sheets: Adhere to Rule 2.4 and contain required instit
     assert.match(bm03Src, /Được tiếp tục/, 'BM03 must have Checkpoint continue checkbox');
     assert.match(bm03Src, /Không tiếp tục/, 'BM03 must have Checkpoint discontinue checkbox');
 });
+

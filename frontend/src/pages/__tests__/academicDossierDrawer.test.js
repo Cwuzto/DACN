@@ -63,3 +63,4 @@ test('AcademicDossierDrawer: Integration into GradingDefensePage, ProjectOversig
     assert.match(oversightSrc, /AcademicDossierDrawer/, 'ProjectOversightPage must import AcademicDossierDrawer');
     assert.match(lecturerSrc, /AcademicDossierDrawer/, 'LecturerDashboardPage must import AcademicDossierDrawer');
 });
+

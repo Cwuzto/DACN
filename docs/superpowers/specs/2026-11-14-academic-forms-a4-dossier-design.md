@@ -166,3 +166,4 @@ frontend/src/components/prints/
 - **Unit & Contract Testing**:
   - Viết bộ kiểm thử `academicFormsPrint.test.js` kiểm tra không có BOM (Rule 2.4), không có emoji trong nút bấm (Rule 2.6).
   - Kiểm tra các prop dữ liệu truyền vào từng PrintSheet hiển thị đầy đủ thông tin.
+

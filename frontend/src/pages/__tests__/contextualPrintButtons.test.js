@@ -34,3 +34,4 @@ test('Contextual Print Buttons: Integrates A4 print modals into SubmissionPage, 
     assert.match(titleSrc, /AcademicFormPrintModal|BM02APrintSheet/, 'TitleAdjustmentModal must import print component');
     assert.match(bm04Src, /AcademicFormPrintModal|BM04PrintSheet/, 'BM04EvaluationModal must import print component');
 });
+

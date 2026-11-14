@@ -73,3 +73,4 @@ export default function A4PageContainer({ children, className = '', id = 'academ
         </div>
     );
 }
+
