@@ -90,6 +90,11 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 5. **Kiểm Thử Toàn Diện & Đóng Gói Bản Dựng Production**:
    - 100% tests PASS: 109 backend test suites (1,117 tests), 286 frontend contract tests (8 tests mới), 118 vitest runtime tests (14 test files).
    - Vite production build hoàn tất trong 13.55s, 0 warnings/errors, main entry chunk `456.86 kB` (< 500 kB).
+6. **Chuẩn Hóa Bộ Nhãn Học Thuật & Đơn Vị Quản Lý (TDMU, Viện CNS, Khóa, Lớp, Bộ Môn)**:
+   - `ProfilePage.jsx`: Bổ sung hiển thị chuẩn hóa 5 trường cho Sinh viên: Trường (*Trường Đại học Thủ Dầu Một*), Đơn vị quản lý (*Viện Công nghệ số*), Ngành học (*Công nghệ thông tin*), Khóa học (*tự động phân tích từ mã lớp D22 $\rightarrow$ D22 — Nhập học năm 2022*), Lớp hành chính (*D22CNTT01*).
+   - Với Giảng viên: Hiển thị Đơn vị công tác (*Viện Công nghệ số*), Bộ môn chuyên môn (*Kỹ thuật phần mềm & Hệ thống thông tin*).
+   - `ProfileQuickMetrics.jsx`: Thẻ thông số Card 2 tự động hiển thị Lớp & Ngành kèm Khóa (cho SV) hoặc Đơn vị & Bộ môn (cho GV).
+   - Cập nhật test contract [frontend/tests/profilePageUiUx.test.js](file:///d:/DACN/frontend/tests/profilePageUiUx.test.js) kiểm tra 100% các nhãn thực tế này.
 
 #### 2. Trạng thái cập nhật của từng phần
 - **Frontend SPA**: Trang Hồ sơ cá nhân (`/profile`) mang diện mạo mới hiện đại, chuẩn UI/UX Pro Max, trực quan và tiện ích cho mọi vai trò (Sinh viên, Giảng viên, Viện trưởng, Quản trị viên).
