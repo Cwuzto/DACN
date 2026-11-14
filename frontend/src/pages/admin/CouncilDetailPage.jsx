@@ -787,8 +787,8 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                                 {council.meetingMode === 'ONLINE'
                                     ? 'Trực tuyến (Online)'
                                     : council.meetingMode === 'HYBRID'
-                                    ? 'Kết hợp (Hybrid)'
-                                    : 'Trực tiếp (In-person)'}
+                                    ? 'Kết hợp'
+                                    : 'Trực tiếp'}
                             </span>
                         </div>
 

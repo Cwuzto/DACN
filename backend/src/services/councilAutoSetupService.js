@@ -4,7 +4,14 @@ const { MAX_STUDENTS_PER_COUNCIL, MAX_STUDENTS_PER_DEFENSE_COUNCIL } = require('
 const ROLE_ORDER = ['CHAIRMAN', 'SECRETARY', 'REVIEWER'];
 const COUNCIL_NAME_PREFIX = 'Hội đồng';
 const DEFAULT_LOOKAHEAD_DAYS = 14;
-const DEFENSE_ASSIGNMENT_STATUSES = ['SUBMITTED', 'DEFENDED', 'COMPLETED'];
+const DEFENSE_ASSIGNMENT_STATUSES = [
+    'DEFENSE_READY',
+    'DEFENSE_ELIGIBLE',
+    'ELIGIBLE_BY_INSTITUTE',
+    'SUBMITTED',
+    'DEFENDED',
+    'COMPLETED',
+];
 
 const isValidCouncilComposition = (members = []) => {
     if (!Array.isArray(members) || (members.length !== 3 && members.length !== 4)) return false;
@@ -18,7 +25,7 @@ const isValidCouncilComposition = (members = []) => {
 };
 
 const getNextCouncilIndex = (councils = []) => {
-    const regex = /^Há»™i Ä‘á»“ng\s+(\d+)$/i;
+    const regex = /^Hội đồng\s+(\d+)$/i;
     const maxIndex = councils.reduce((max, council) => {
         const match = `${council.name || ''}`.trim().match(regex);
         if (!match) return max;
@@ -28,13 +35,16 @@ const getNextCouncilIndex = (councils = []) => {
     return maxIndex + 1;
 };
 
-const pickThreeLecturers = (lecturers, excludedMentorIds, lecturerLoads) => {
+const pickThreeLecturers = (lecturers, excludedMentorIds, lecturerLoads, mentorCountsInSemester = new Map()) => {
     const excludedSet = new Set(excludedMentorIds || []);
     const candidates = lecturers
         .filter((lecturer) => !excludedSet.has(lecturer.id))
         .sort((a, b) => {
             const loadDiff = (lecturerLoads.get(a.id) || 0) - (lecturerLoads.get(b.id) || 0);
             if (loadDiff !== 0) return loadDiff;
+            // Prioritize lecturers who have fewer or 0 mentored students in this semester to minimize COI:
+            const mentorDiff = (mentorCountsInSemester.get(a.id) || 0) - (mentorCountsInSemester.get(b.id) || 0);
+            if (mentorDiff !== 0) return mentorDiff;
             return a.id - b.id;
         });
 
@@ -73,7 +83,7 @@ const ensureCouncilsForSemester = async (tx, semester, councilCountTarget) => {
 
 const assignMembersForSemesterCouncils = async (tx, semesterId, lecturers) => {
     const councils = await tx.council.findMany({
-        where: { semesterId },
+        where: { semesterId, councilType: 'DEFENSE_COUNCIL' },
         include: {
             members: true,
             registrations: {
@@ -83,6 +93,18 @@ const assignMembersForSemesterCouncils = async (tx, semesterId, lecturers) => {
             },
         },
         orderBy: { id: 'asc' },
+    });
+
+    const mentorRegistrations = await tx.topicRegistration.findMany({
+        where: { semesterId },
+        select: { topic: { select: { mentorId: true } } },
+    });
+    const mentorCountsInSemester = new Map();
+    mentorRegistrations.forEach((r) => {
+        const mId = r.topic?.mentorId;
+        if (mId) {
+            mentorCountsInSemester.set(mId, (mentorCountsInSemester.get(mId) || 0) + 1);
+        }
     });
 
     const lecturerLoads = new Map();
@@ -102,7 +124,7 @@ const assignMembersForSemesterCouncils = async (tx, semesterId, lecturers) => {
             .map((registration) => registration.topic?.mentorId)
             .filter((mentorId) => Number.isInteger(mentorId));
 
-        const selected = pickThreeLecturers(lecturers, mentorIds, lecturerLoads);
+        const selected = pickThreeLecturers(lecturers, mentorIds, lecturerLoads, mentorCountsInSemester);
         if (!selected) {
             memberWarnings.push(`Council ${council.id} does not have enough eligible lecturers.`);
             continue;
@@ -159,6 +181,7 @@ const autoAssignRegistrationsForSemester = async (tx, semesterId) => {
         include: {
             student: { select: { fullName: true, code: true } },
             topic: { select: { title: true, mentorId: true } },
+            bm04Evaluation: { select: { id: true, conclusion: true, defenseRecommendation: true, isLocked: true } },
             tasks: {
                 where: { taskType: 'BM04' },
                 select: { id: true, status: true },
@@ -173,7 +196,11 @@ const autoAssignRegistrationsForSemester = async (tx, semesterId) => {
     for (const registration of unassigned) {
         const bm04Task = registration.tasks?.[0];
         const isBm04Completed = bm04Task && bm04Task.status === 'COMPLETED';
-        if (!isBm04Completed) {
+        const isDefenseReady = ['DEFENSE_READY', 'DEFENSE_ELIGIBLE', 'ELIGIBLE_BY_INSTITUTE'].includes(registration.status);
+        const isBm04Approved = registration.bm04Evaluation?.conclusion === 'AGREED_FOR_DEFENSE'
+            || registration.bm04Evaluation?.defenseRecommendation === 'APPROVE_FOR_DEFENSE';
+
+        if (!isDefenseReady && !isBm04Approved && !isBm04Completed) {
             skipped.push({
                 registrationId: registration.id,
                 student: registration.student?.fullName || null,
@@ -196,6 +223,7 @@ const autoAssignRegistrationsForSemester = async (tx, semesterId) => {
                 data: {
                     councilId: council.id,
                     defenseCouncilId: council.id,
+                    status: 'DEFENSE_READY',
                 },
             });
             council.currentCount += 1;
@@ -210,7 +238,7 @@ const autoAssignRegistrationsForSemester = async (tx, semesterId) => {
                 student: registration.student?.fullName || null,
                 code: registration.student?.code || null,
                 topic: registration.topic?.title || null,
-                reason: 'No eligible council slot (capacity/conflict).',
+                reason: 'Không còn slot hội đồng hợp lệ (xung đột GVHD hoặc vượt sĩ số).',
             });
         }
     }
@@ -246,8 +274,9 @@ const runAutoCouncilSetupForSemester = async (semesterId) => prisma.$transaction
             status: { in: DEFENSE_ASSIGNMENT_STATUSES },
         },
     });
+    const STUDENTS_PER_DEFENSE_SESSION = 5;
     const targetCouncils = registrationsCount > 0
-        ? Math.ceil(registrationsCount / MAX_STUDENTS_PER_COUNCIL)
+        ? Math.ceil(registrationsCount / STUDENTS_PER_DEFENSE_SESSION)
         : 0;
 
     const existingBefore = await tx.council.count({ where: { semesterId } });

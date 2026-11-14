@@ -839,7 +839,7 @@ export default function ProgressTrackingPage() {
                                         <div className="card" style={{ marginBottom: 0, borderLeft: '4px solid #0F766E' }}>
                                             <div className="card-head flex-wrap gap-2">
                                                 <div>
-                                                    <div className="card-title">Đánh giá giữa kỳ (BM03 Midterm Stage Evaluation)</div>
+                                                    <div className="card-title">Đánh giá giữa kỳ</div>
                                                     <div className="card-subtitle">Đánh giá tiến độ giữa giai đoạn đồ án · Kết luận Tiếp tục hoặc Đề nghị dừng</div>
                                                 </div>
                                                 <div>
@@ -864,8 +864,8 @@ export default function ProgressTrackingPage() {
                                                 <div className="space-y-2">
                                                     <label className="font-semibold block text-slate-700">Kết luận đánh giá giữa kỳ:</label>
                                                     <Radio.Group value={midtermDecision} onChange={(e) => setMidtermDecision(e.target.value)}>
-                                                        <Radio value="CONTINUE">Cho phép tiếp tục (CONTINUE)</Radio>
-                                                        <Radio value="PROPOSE_STOP">Đề nghị dừng đề tài (PROPOSE_STOP)</Radio>
+                                                        <Radio value="CONTINUE">Cho phép tiếp tục</Radio>
+                                                        <Radio value="PROPOSE_STOP">Đề nghị dừng đề tài</Radio>
                                                     </Radio.Group>
                                                 </div>
 
@@ -873,7 +873,7 @@ export default function ProgressTrackingPage() {
                                                     <Alert
                                                         type="warning"
                                                         showIcon
-                                                        message="Cảnh báo quy trình thẩm định cấp Viện (SLA 168h)"
+                                                        message="Cảnh báo quy trình thẩm định cấp Viện"
                                                         description="Đề nghị dừng đề tài sẽ chuyển ngay sang hàng đợi thẩm định của Viện với thời hạn xử lý 168 giờ (+72h nếu yêu cầu bổ sung thông tin)."
                                                     />
                                                 )}
@@ -903,7 +903,7 @@ export default function ProgressTrackingPage() {
                                         <div className="card" style={{ marginBottom: 0, borderLeft: '4px solid #2563EB' }}>
                                             <div className="card-head flex-wrap gap-2">
                                                 <div>
-                                                    <div className="card-title">Đánh giá cuối kỳ (BM03 Final Stage Evaluation)</div>
+                                                    <div className="card-title">Đánh giá cuối kỳ</div>
                                                     <div className="card-subtitle">Kết luận hoàn thành tiến độ BM03 · Điều kiện tiên quyết để mở BM04</div>
                                                 </div>
                                                 <div>
@@ -928,8 +928,8 @@ export default function ProgressTrackingPage() {
                                                 <div className="space-y-2">
                                                     <label className="font-semibold block text-slate-700">Kết luận đánh giá cuối kỳ:</label>
                                                     <Radio.Group value={finalDecision} onChange={(e) => setFinalDecision(e.target.value)}>
-                                                        <Radio value="CONTINUE_TO_BM04">Đạt yêu cầu - Chuyển sang BM04 (CONTINUE_TO_BM04)</Radio>
-                                                        <Radio value="PROPOSE_STOP">Đề nghị dừng đề tài (PROPOSE_STOP)</Radio>
+                                                        <Radio value="CONTINUE_TO_BM04">Đạt yêu cầu - Chuyển sang BM04</Radio>
+                                                        <Radio value="PROPOSE_STOP">Đề nghị dừng đề tài</Radio>
                                                     </Radio.Group>
                                                 </div>
 
@@ -1360,7 +1360,7 @@ export default function ProgressTrackingPage() {
                                         onChange={(e) => setMeetingMode(e.target.value)}
                                         style={{ width: '100%' }}
                                     >
-                                        <option value="IN_PERSON">Trực tiếp tại Lab</option>
+                                        <option value="IN_PERSON">Trực tiếp tại Phòng (Offline)</option>
                                         <option value="ONLINE">Trực tuyến (ONLINE)</option>
                                     </select>
                                 </div>
@@ -1402,7 +1402,7 @@ export default function ProgressTrackingPage() {
                                 />
                             </div>
                             <div>
-                                <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Kết quả sinh viên đã hoàn thành (studentCompletedWork):</label>
+                                <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Kết quả sinh viên đã hoàn thành:</label>
                                 <textarea
                                     className="input-field"
                                     rows={2}
@@ -1413,7 +1413,7 @@ export default function ProgressTrackingPage() {
                                 />
                             </div>
                             <div>
-                                <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Vấn đề còn tồn đọng (remainingIssues):</label>
+                                <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Vấn đề còn tồn đọng:</label>
                                 <textarea
                                     className="input-field"
                                     rows={2}
@@ -1425,7 +1425,7 @@ export default function ProgressTrackingPage() {
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                                 <div>
-                                    <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Nhiệm vụ cho kỳ tiếp theo (nextTasks):</label>
+                                    <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Nhiệm vụ cho kỳ tiếp theo:</label>
                                     <input
                                         type="text"
                                         className="input-field"
@@ -1436,7 +1436,7 @@ export default function ProgressTrackingPage() {
                                     />
                                 </div>
                                 <div>
-                                    <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Hạn hoàn thành (expectedDeadline):</label>
+                                    <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Hạn hoàn thành:</label>
                                     <input
                                         type="date"
                                         className="input-field"
