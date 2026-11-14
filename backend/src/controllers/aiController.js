@@ -585,6 +585,150 @@ async function regulationChat(req, res, next) {
   }
 }
 
+/**
+ * 7. Generate BM04 Evaluation Suggestions from BM03 Milestones
+ * POST /api/ai/bm04-suggestion
+ * Body: { registrationId: number }
+ */
+async function bm04Suggestion(req, res, next) {
+  try {
+    const { registrationId } = req.body || {};
+
+    if (!registrationId) {
+      return res.status(400).json({
+        success: false,
+        error: 'BAD_REQUEST',
+        message: 'registrationId là bắt buộc.',
+      });
+    }
+
+    const regId = Number(registrationId);
+    let registration = null;
+
+    try {
+      registration = await prisma.topicRegistration.findUnique({
+        where: { id: regId },
+        include: {
+          student: { select: { id: true, fullName: true, code: true, email: true } },
+          topic: {
+            select: {
+              id: true,
+              title: true,
+              mentorId: true,
+              mentor: { select: { id: true, fullName: true, email: true } },
+            },
+          },
+          bm03Record: {
+            include: {
+              meetings: { orderBy: { meetingDate: 'asc' } },
+              stageEvaluations: true,
+            },
+          },
+          meetingLogs: { orderBy: { meetingDate: 'asc' } },
+          checkpointEvaluations: { orderBy: { checkpointNo: 'asc' } },
+        },
+      });
+    } catch (err) {
+      registration = await prisma.topicRegistration.findUnique({
+        where: { id: regId },
+        include: {
+          student: true,
+          topic: true,
+          bm03Record: {
+            include: {
+              meetings: true,
+              stageEvaluations: true,
+            },
+          },
+          meetingLogs: true,
+          checkpointEvaluations: true,
+        },
+      });
+    }
+
+    if (!registration) {
+      return res.status(404).json({
+        success: false,
+        error: 'NOT_FOUND',
+        message: 'Không tìm thấy hồ sơ đăng ký đề tài.',
+      });
+    }
+
+    // Authorization check: Assigned Mentor or Admin/Academic Affairs
+    const userId = req.user?.id;
+    const isMentor =
+      userId === registration.topic?.mentorId ||
+      userId === registration.topic?.mentor?.id;
+    const isStaff = isAdminOrAcademicAffairs(req.user);
+
+    if (!isMentor && !isStaff) {
+      return res.status(403).json({
+        success: false,
+        error: 'FORBIDDEN',
+        message: 'Chỉ Giảng viên hướng dẫn hoặc Quản trị viên mới có quyền sử dụng tính năng gợi ý nhận xét BM04.',
+      });
+    }
+
+    // Resolve legal topic title
+    let effectiveTitleObj = null;
+    try {
+      effectiveTitleObj = await resolveEffectiveTopicTitle(regId, new Date());
+    } catch (resolverErr) {
+      effectiveTitleObj = {
+        title: registration.bm01ApprovedTitleSnapshot || registration.topic?.title || '',
+      };
+    }
+    const effectiveOfficialTitle =
+      effectiveTitleObj?.title ||
+      registration.bm01ApprovedTitleSnapshot ||
+      registration.topic?.title ||
+      '';
+
+    const meetingsList = registration.bm03Record?.meetings || [];
+    const meetingLogsList = registration.meetingLogs || [];
+    const checkpointsList = registration.checkpointEvaluations || [];
+    const stageEvaluationsList = registration.bm03Record?.stageEvaluations || [];
+
+    const cacheKeyPayload = {
+      registrationId: regId,
+      effectiveOfficialTitle,
+      meetingsCount: meetingsList.length + meetingLogsList.length,
+      checkpointsCount: checkpointsList.length,
+    };
+
+    const cachedResult = aiCache.get('bm04_suggestion', cacheKeyPayload);
+    if (cachedResult) {
+      return res.json({
+        success: true,
+        data: cachedResult,
+        fromCache: true,
+      });
+    }
+
+    const payload = {
+      registrationId: regId,
+      topicTitle: effectiveOfficialTitle,
+      studentName: registration.student?.fullName || '',
+      studentCode: registration.student?.code || '',
+      mentorName: registration.topic?.mentor?.fullName || '',
+      meetings: meetingsList,
+      meetingLogs: meetingLogsList,
+      checkpoints: checkpointsList,
+      stageEvaluations: stageEvaluationsList,
+    };
+
+    const result = await aiProviderService.generateBM04Suggestion(payload);
+    aiCache.set('bm04_suggestion', cacheKeyPayload, result);
+
+    return res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   bm01Copilot,
   topicSimilarity,
@@ -592,4 +736,5 @@ module.exports = {
   generateFeedback,
   generateDefenseQuestions,
   regulationChat,
+  bm04Suggestion,
 };

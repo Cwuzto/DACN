@@ -8,11 +8,14 @@ import {
     FileDoneOutlined,
     InfoCircleOutlined,
     PrinterOutlined,
+    RobotOutlined,
 } from '@ant-design/icons';
 import { useQueryClient } from '@tanstack/react-query';
 import evaluationService from '../../services/evaluationService';
+import aiService from '../../services/aiService';
 import AcademicFormPrintModal from '../prints/AcademicFormPrintModal';
 import BM04PrintSheet from '../prints/BM04PrintSheet';
+import BM04AiSuggestionDrawer from './BM04AiSuggestionDrawer';
 import useAuthStore from '../../stores/authStore';
 import { queryKeys } from '../../query/queryKeys';
 import { useBM04Record } from '../../queries/gradingQueries';
@@ -30,6 +33,9 @@ export default function BM04EvaluationModal({
     const [submitting, setSubmitting] = useState(false);
     const [savingDraft, setSavingDraft] = useState(false);
     const [printModalOpen, setPrintModalOpen] = useState(false);
+    const [loadingAi, setLoadingAi] = useState(false);
+    const [aiSuggestion, setAiSuggestion] = useState(null);
+    const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
     const user = useAuthStore((state) => state.user);
     const scope = queryKeys.scope(user);
     const queryClient = useQueryClient();
@@ -147,6 +153,47 @@ export default function BM04EvaluationModal({
         }
     };
 
+    const handleOpenAiSuggestions = async () => {
+        if (!registration?.id) return;
+        try {
+            setLoadingAi(true);
+            const res = await aiService.generateBM04Suggestions({
+                registrationId: registration.id,
+            });
+            if (res.success && res.data) {
+                setAiSuggestion(res.data);
+                setAiDrawerOpen(true);
+                message.success('Đã phân tích tiến độ BM03 và sinh gợi ý nhận xét BM04 thành công!');
+            } else {
+                message.error(res.message || 'Không thể tạo gợi ý nhận xét từ BM03.');
+            }
+        } catch (err) {
+            message.error(err.message || 'Lỗi khi gọi AI gợi ý nhận xét BM04.');
+        } finally {
+            setLoadingAi(false);
+        }
+    };
+
+    const handleApplyAllAiSuggestions = () => {
+        if (!aiSuggestion) return;
+        form.setFieldsValue({
+            thesisFormatScore: aiSuggestion.thesisFormatScore || '',
+            researchContentScore: aiSuggestion.researchContentScore || '',
+            applicabilityScore: aiSuggestion.applicabilityScore || '',
+            attitudeScore: aiSuggestion.attitudeScore || '',
+            programOutcome: aiSuggestion.programOutcome || 'MEETS_PROGRAM_OUTCOMES',
+            defenseRecommendation: aiSuggestion.defenseRecommendation || 'APPROVE_FOR_DEFENSE',
+            generalNotes: aiSuggestion.generalNotes || '',
+        });
+        setAiDrawerOpen(false);
+        message.success('Đã áp dụng toàn bộ nhận xét gợi ý từ BM03 vào biểu mẫu!');
+    };
+
+    const handleApplyAiField = (fieldName, value) => {
+        form.setFieldsValue({ [fieldName]: value });
+        message.success('Đã áp dụng nội dung gợi ý vào biểu mẫu!');
+    };
+
     const isMismatch = programOutcome === 'MEETS_PROGRAM_OUTCOMES' && defenseRecommendation === 'NOT_APPROVE_FOR_DEFENSE';
 
     return (
@@ -192,6 +239,30 @@ export default function BM04EvaluationModal({
                     requiredMark="optional"
                     disabled={loadingRecord}
                 >
+                    {/* AI Assistant Banner */}
+                    <div className="mb-3 p-3 bg-gradient-to-r from-teal-50 to-emerald-50 rounded-lg border border-teal-200 flex flex-wrap items-center justify-between gap-2.5">
+                        <div className="flex items-center gap-2">
+                            <RobotOutlined className="text-teal-700 text-lg" />
+                            <div>
+                                <div className="text-xs font-semibold text-teal-900">
+                                    Trợ Lý AI: Sinh Gợi Ý Nhận Xét Từ Minh Chứng Tiến Độ BM03
+                                </div>
+                                <div className="text-[11px] text-teal-700">
+                                    Tự động rà soát nhật ký các buổi gặp định kỳ và 2 mốc Checkpoint để gợi ý nhận xét 4 tiêu chí CĐR.
+                                </div>
+                            </div>
+                        </div>
+                        <Button
+                            type="primary"
+                            icon={<RobotOutlined />}
+                            onClick={handleOpenAiSuggestions}
+                            loading={loadingAi}
+                            className="bg-teal-700 hover:bg-teal-800 text-white border-teal-700 text-xs font-medium shadow-sm hover:!text-white hover:!bg-teal-800"
+                        >
+                            AI Gợi ý từ BM03
+                        </Button>
+                    </div>
+
                     <Divider orientation="left" className="text-xs text-slate-600 font-bold uppercase tracking-wider !my-2">
                         4 Tiêu Chí Đánh Giá Bắt Buộc
                     </Divider>
@@ -417,6 +488,15 @@ export default function BM04EvaluationModal({
                     registration={registration}
                 />
             </AcademicFormPrintModal>
+
+            {/* BM04 AI Suggestion Drawer */}
+            <BM04AiSuggestionDrawer
+                open={aiDrawerOpen}
+                onClose={() => setAiDrawerOpen(false)}
+                suggestion={aiSuggestion}
+                onApplyAll={handleApplyAllAiSuggestions}
+                onApplyField={handleApplyAiField}
+            />
         </Modal>
     );
 }

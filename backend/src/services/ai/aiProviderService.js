@@ -297,6 +297,27 @@ async function generateDefenseQuestions(payload, options = {}) {
 }
 
 /**
+ * Generate BM04 evaluation suggestions based on BM03 progress milestones
+ * @param {object} payload
+ * @param {object} options
+ * @returns {Promise<object>}
+ */
+async function generateBM04Suggestion(payload, options = {}) {
+  const result = await executeWithFallback('generateBM04SuggestionFromBM03', [payload], options);
+  return {
+    thesisFormatScore: sanitizeAiReply(result.thesisFormatScore),
+    researchContentScore: sanitizeAiReply(result.researchContentScore),
+    applicabilityScore: sanitizeAiReply(result.applicabilityScore),
+    attitudeScore: sanitizeAiReply(result.attitudeScore),
+    programOutcome: result.programOutcome || 'MEETS_PROGRAM_OUTCOMES',
+    defenseRecommendation: result.defenseRecommendation || 'APPROVE_FOR_DEFENSE',
+    generalNotes: sanitizeAiReply(result.generalNotes),
+    evidenceSummary: result.evidenceSummary || {},
+    provider: result.provider || getProviderMode(),
+  };
+}
+
+/**
  * Normalize a single history message item to { role: 'user' | 'model', text: string }
  * Supports:
  * - { role: 'user' | 'model' | 'assistant', text | content | message }
@@ -610,6 +631,7 @@ module.exports = {
   crossCheckArchivalDossier,
   generateFeedback,
   generateDefenseQuestions,
+  generateBM04Suggestion,
   answerAcademicChat,
   answerRegulationChat,
   chatWithGemini,

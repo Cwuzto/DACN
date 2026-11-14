@@ -783,6 +783,75 @@ function answerRegulationChat(payload = {}) {
   };
 }
 
+/**
+ * 8. Generate BM04 Evaluation Suggestions from BM03 Milestones (Local Heuristic Fallback)
+ * @param {object} payload
+ * @returns {object}
+ */
+function generateBM04SuggestionFromBM03(payload = {}) {
+  const topicTitle = (payload.topicTitle || 'Đề tài tốt nghiệp').trim();
+  const studentName = (payload.studentName || 'Sinh viên').trim();
+  const studentCode = (payload.studentCode || '').trim();
+  const meetings = Array.isArray(payload.meetings) ? payload.meetings : [];
+  const meetingLogs = Array.isArray(payload.meetingLogs) ? payload.meetingLogs : [];
+  const checkpoints = Array.isArray(payload.checkpoints) ? payload.checkpoints : [];
+  const stageEvaluations = Array.isArray(payload.stageEvaluations) ? payload.stageEvaluations : [];
+
+  const allMeetings = [...meetings, ...meetingLogs];
+  const totalMeetings = allMeetings.length;
+
+  // Extract student work completed keywords
+  const completedWorks = allMeetings
+    .map((m) => m.studentCompletedWork || m.studentWorkSummary || '')
+    .filter(Boolean);
+  const sampleWorkText = completedWorks.slice(0, 3).join(', ');
+
+  // Check checkpoints status
+  const cp1 = checkpoints.find((c) => c.checkpointNo === 1);
+  const cp2 = checkpoints.find((c) => c.checkpointNo === 2);
+  const cp1Passed = !cp1 || cp1.conclusion === 'PASS';
+  const cp2Passed = !cp2 || cp2.conclusion === 'PASS';
+  const allPassed = cp1Passed && cp2Passed;
+
+  const meetingCountStr = totalMeetings > 0 ? `${totalMeetings} buổi` : 'các buổi';
+
+  const thesisFormatScore = `Báo cáo khóa luận tốt nghiệp của ${studentName} được soạn thảo và hoàn thiện nghiêm túc, bám sát các mốc rà soát đề tài. Bố cục các chương logic, hình vẽ và sơ đồ kiến trúc rõ ràng, hệ thống bảng biểu và danh mục tài liệu tham khảo được trích dẫn chuẩn mực theo quy định của Viện Công nghệ Số (Trường ĐH Thủ Dầu Một).`;
+
+  let researchContentScore = `Sinh viên đã bám sát đề cương và hoàn thành tốt khối lượng công việc nghiên cứu đề tài "${topicTitle}".`;
+  if (sampleWorkText) {
+    researchContentScore += ` Quá trình thực hiện đã hoàn thành các phân hệ kỹ thuật trọng tâm: ${sampleWorkText}.`;
+  }
+  researchContentScore += ` Các giải thuật và mô hình kiến trúc đáp ứng đầy đủ mục tiêu đặt ra, kết quả thực nghiệm có độ tin cậy và khả thi cao.`;
+
+  const applicabilityScore = `Sản phẩm phần mềm của đề tài có tính thực tiễn cao, giao diện trực quan và các chức năng vận hành ổn định. Hệ thống giải quyết hiệu quả bài toán nghiệp vụ thực tế của đơn vị thụ hưởng và có khả năng mở rộng, tích hợp dịch vụ phụ trợ trong tương lai.`;
+
+  const attitudeScore = `Trong suốt quá trình thực hiện đồ án, sinh viên ${studentName} luôn thể hiện tinh thần trách nhiệm và tính kỷ luật cao. Tham gia đầy đủ ${meetingCountStr} gặp gỡ và trao đổi tiến độ định kỳ với GVHD, chủ động báo cáo các vướng mắc kỹ thuật, tích cực tiếp thu các hướng dẫn chuyên môn và hoàn thành đúng hạn các cột mốc kiểm tra tiến độ (Đạt cả 2 mốc Checkpoint).`;
+
+  const programOutcome = allPassed ? 'MEETS_PROGRAM_OUTCOMES' : 'DOES_NOT_MEET_PROGRAM_OUTCOMES';
+  const defenseRecommendation = allPassed ? 'APPROVE_FOR_DEFENSE' : 'NOT_APPROVE_FOR_DEFENSE';
+
+  const generalNotes = allPassed
+    ? `Sinh viên hoàn thành tốt khối lượng và tiến độ đồ án theo kế hoạch đã cam kết. Đủ điều kiện ra bảo vệ trước Hội đồng chấm khóa luận tốt nghiệp.`
+    : `Cần tiếp tục hoàn thiện một số nội dung chưa đạt trước khi xem xét cho bảo vệ.`;
+
+  return {
+    thesisFormatScore,
+    researchContentScore,
+    applicabilityScore,
+    attitudeScore,
+    programOutcome,
+    defenseRecommendation,
+    generalNotes,
+    evidenceSummary: {
+      totalMeetings,
+      checkpoint1Status: cp1?.conclusion || (cp1Passed ? 'PASS' : 'FAIL'),
+      checkpoint2Status: cp2?.conclusion || (cp2Passed ? 'PASS' : 'FAIL'),
+      summaryText: `Dựa trên ghi nhận ${totalMeetings} buổi làm việc tiến độ BM03 và kết quả ${allPassed ? 'ĐẠT' : 'CHƯA ĐẠT'} của các đợt Checkpoint giữa kỳ/cuối kỳ.`,
+    },
+    provider: 'local_fallback',
+  };
+}
+
 module.exports = {
   tokenize,
   calculateJaccardSimilarity,
@@ -792,4 +861,5 @@ module.exports = {
   generateAcademicFeedback,
   generateDefenseQuestions,
   answerRegulationChat,
+  generateBM04SuggestionFromBM03,
 };

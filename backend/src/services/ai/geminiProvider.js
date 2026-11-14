@@ -615,6 +615,111 @@ async function crossCheckArchivalDossier(registrationData, dossierFiles = [], op
   return callGeminiApi(prompt, options);
 }
 
+/**
+ * Format prompt for BM04 Suggestion based on BM03 progress milestones
+ * @param {object} payload
+ * @returns {string}
+ */
+function formatBM04SuggestionPrompt(payload = {}) {
+  const {
+    topicTitle = '',
+    studentName = '',
+    studentCode = '',
+    mentorName = '',
+    meetings = [],
+    meetingLogs = [],
+    checkpoints = [],
+    stageEvaluations = [],
+  } = payload;
+
+  const allMeetings = [...(meetings || []), ...(meetingLogs || [])];
+  const meetingsText = allMeetings
+    .map(
+      (m, idx) =>
+        `Buổi ${idx + 1} (${m.meetingDate ? new Date(m.meetingDate).toLocaleDateString('vi-VN') : 'N/A'}, Đánh giá: ${m.progressRating || 'Tốt'}):
+- Nội dung trao đổi: ${m.discussionContent || m.studentWorkSummary || 'N/A'}
+- Đã hoàn thành: ${m.studentCompletedWork || m.studentWorkSummary || 'N/A'}
+- Vướng mắc/khó khăn: ${m.remainingIssues || 'Không có'}
+- Kế hoạch tiếp theo: ${m.nextTasks || m.nextPlan || 'N/A'}`
+    )
+    .join('\n\n');
+
+  const checkpointsText = (checkpoints || [])
+    .map(
+      (cp) =>
+        `- Checkpoint ${cp.checkpointNo} (${cp.checkpointNo === 1 ? 'Giữa kỳ' : 'Cuối kỳ'}): Kết luận: ${cp.conclusion} | Góp ý GVHD: ${cp.comments || 'N/A'}`
+    )
+    .join('\n');
+
+  return `Bạn là Giảng viên Hướng dẫn (GVHD) và Chuyên gia Đào tạo tại Viện Công nghệ Số, Trường Đại học Thủ Dầu Một.
+Nhiệm vụ của bạn là dựa trên toàn bộ dữ liệu tiến độ thực tế được ghi nhận xuyên suốt học kỳ trong Phiếu BM03 (gồm các buổi gặp định kỳ và 2 mốc Checkpoint giữa kỳ/cuối kỳ) để soạn thảo Phiếu Nhận Xét & Đánh Giá Đồ Án Tốt Nghiệp (BM04) chuẩn mực, khách quan, giàu tính sư phạm và bám sát quy chế học thuật của Viện.
+
+THÔNG TIN ĐỒ ÁN & HỌC VỤ:
+- Tên đề tài: ${topicTitle}
+- Sinh viên thực hiện: ${studentName} (MSSV: ${studentCode})
+- Giảng viên hướng dẫn: ${mentorName || 'GVHD'}
+
+KẾT QUẢ ĐÁNH GIÁ 2 MỐC CHECKPOINT (BM03):
+${checkpointsText || '(Chưa ghi nhận đánh giá Checkpoint)'}
+
+NHẬT KÝ CHI TIẾT CÁC BUỔI GẶP ĐỊNH KỲ (BM03):
+${meetingsText || '(Chưa có nhật ký buổi gặp chi tiết)'}
+
+HÃY ĐÁNH GIÁ VÀ XUẤT RA JSON CHUẨN XÁC CHO 4 TIÊU CHÍ BM04:
+1. thesisFormatScore: Nhận xét hình thức quyển Báo cáo tốt nghiệp (bố cục các chương, hình vẽ sơ đồ, bảng biểu, danh mục tài liệu tham khảo theo quy chuẩn Viện CNS).
+2. researchContentScore: Đánh giá nội dung nghiên cứu (mức độ hoàn thành mục tiêu đề ra, phương pháp nghiên cứu, giải thuật, công nghệ, kiến trúc sản phẩm dựa trên công việc sinh viên đã làm qua các buổi gặp).
+3. applicabilityScore: Đánh giá tính ứng dụng và triển vọng phát triển (tính thực tiễn của sản phẩm, khả năng vận hành demo thực tế, tiềm năng ứng dụng thực tế).
+4. attitudeScore: Đánh giá thái độ và ý thức làm việc (dựa vào số buổi gặp định kỳ, tính chuyên cần, chủ động báo cáo, đúng hạn tiến độ và tinh thần tiếp thu góp ý của GVHD qua nhật ký BM03).
+5. programOutcome: "MEETS_PROGRAM_OUTCOMES" (Đạt chuẩn đầu ra) hoặc "DOES_NOT_MEET_PROGRAM_OUTCOMES".
+6. defenseRecommendation: "APPROVE_FOR_DEFENSE" (Đồng ý cho bảo vệ) hoặc "NOT_APPROVE_FOR_DEFENSE".
+7. generalNotes: Ghi chú và kết luận tổng quan ngắn gọn của GVHD.
+8. evidenceSummary: Tóm tắt ngắn gọn các mốc tiến độ chính làm căn cứ đánh giá (số buổi gặp, kết quả checkpoint).
+
+Định dạng JSON thuần túy bắt buộc:
+{
+  "thesisFormatScore": "...",
+  "researchContentScore": "...",
+  "applicabilityScore": "...",
+  "attitudeScore": "...",
+  "programOutcome": "MEETS_PROGRAM_OUTCOMES",
+  "defenseRecommendation": "APPROVE_FOR_DEFENSE",
+  "generalNotes": "...",
+  "evidenceSummary": {
+    "totalMeetings": 7,
+    "checkpoint1Status": "PASS",
+    "checkpoint2Status": "PASS",
+    "summaryText": "..."
+  }
+}`;
+}
+
+/**
+ * Generate BM04 Evaluation Suggestions using Gemini
+ * @param {object} payload
+ * @param {object} options
+ * @returns {Promise<object>}
+ */
+async function generateBM04SuggestionFromBM03(payload, options = {}) {
+  const prompt = formatBM04SuggestionPrompt(payload);
+  const result = await callGeminiApi(prompt, options);
+  return {
+    thesisFormatScore: result.thesisFormatScore || '',
+    researchContentScore: result.researchContentScore || '',
+    applicabilityScore: result.applicabilityScore || '',
+    attitudeScore: result.attitudeScore || '',
+    programOutcome: result.programOutcome || 'MEETS_PROGRAM_OUTCOMES',
+    defenseRecommendation: result.defenseRecommendation || 'APPROVE_FOR_DEFENSE',
+    generalNotes: result.generalNotes || '',
+    evidenceSummary: result.evidenceSummary || {
+      totalMeetings: (payload.meetings || []).length,
+      checkpoint1Status: 'PASS',
+      checkpoint2Status: 'PASS',
+      summaryText: 'Sinh viên hoàn thành các mốc tiến độ theo quy định.',
+    },
+    provider: result.provider || DEFAULT_MODEL,
+  };
+}
+
 module.exports = {
   DEFAULT_MODEL,
   parseJsonResponse,
@@ -624,6 +729,7 @@ module.exports = {
   formatFeedbackPrompt,
   formatDefenseQuestionsPrompt,
   formatRegulationChatPrompt,
+  formatBM04SuggestionPrompt,
   callGeminiApi,
   chatWithGemini,
   analyzeBM01Outline,
@@ -632,4 +738,5 @@ module.exports = {
   generateAcademicFeedback,
   generateDefenseQuestions,
   answerRegulationChat,
+  generateBM04SuggestionFromBM03,
 };

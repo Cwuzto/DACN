@@ -77,6 +77,18 @@ const aiService = {
             throw wrapServiceError(error, 'Không thể tra cứu quy chế học vụ với AI');
         }
     },
+
+    /**
+     * 7. Gợi ý nhận xét đánh giá BM04 từ tiến độ thực tế BM03
+     * @param {{ registrationId: number }} payload
+     */
+    generateBM04Suggestions: async (payload) => {
+        try {
+            return await api.post('/ai/bm04-suggestion', payload);
+        } catch (error) {
+            throw wrapServiceError(error, 'Không thể tạo gợi ý nhận xét BM04 từ AI');
+        }
+    },
 };
 
 export default aiService;

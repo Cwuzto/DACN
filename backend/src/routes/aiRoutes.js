@@ -9,5 +9,6 @@ router.post('/cross-check-archive', authenticateToken, aiController.crossCheckAr
 router.post('/generate-feedback', authenticateToken, aiController.generateFeedback);
 router.post('/generate-defense-questions', authenticateToken, aiController.generateDefenseQuestions);
 router.post('/regulation-chat', authenticateToken, aiController.regulationChat);
+router.post('/bm04-suggestion', authenticateToken, aiController.bm04Suggestion);
 
 module.exports = router;
