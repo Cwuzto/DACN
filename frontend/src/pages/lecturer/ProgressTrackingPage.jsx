@@ -1360,7 +1360,7 @@ export default function ProgressTrackingPage() {
                                         onChange={(e) => setMeetingMode(e.target.value)}
                                         style={{ width: '100%' }}
                                     >
-                                        <option value="IN_PERSON">Trực tiếp tại Lab (IN_PERSON)</option>
+                                        <option value="IN_PERSON">Trực tiếp tại Lab</option>
                                         <option value="ONLINE">Trực tuyến (ONLINE)</option>
                                     </select>
                                 </div>
