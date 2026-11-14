@@ -4,6 +4,10 @@ if (process.env.DIRECT_URL) {
   process.env.DATABASE_URL = process.env.DIRECT_URL;
 }
 
+process.env.DB_POOL_MAX = '3';
+process.env.DB_POOL_CONNECTION_TIMEOUT_MS = '60000';
+process.env.DB_POOL_IDLE_TIMEOUT_MS = '60000';
+
 const bcrypt = require('bcryptjs');
 const prisma = require('../src/config/database');
 const { seedPermissionCatalog } = require('../src/services/permissionService');
@@ -24,7 +28,7 @@ async function createAccounts(db, precomputedHashes) {
       : data.role === 'LECTURER'
         ? `0901000${String(idx).padStart(3, '0')}`
         : `0912000${String(idx - 12).padStart(3, '0')}`,
-    academicTitle: data.role === 'LECTURER' ? (idx <= 2 ? 'TIEN_SI' : 'THAC_SI') : null,
+    academicTitle: data.role === 'LECTURER' ? (data.academicTitle || (idx <= 2 ? 'TIEN_SI' : 'THAC_SI')) : null,
     passwordHash: precomputedHashes.get(password),
   }));
   await db.user.createMany({ data: accountsData });

@@ -19,33 +19,44 @@ export default function BM04PrintSheet({
     const s = student?.fullName ? student : registration?.student || {};
     const m = mentor?.fullName ? mentor : registration?.topic?.mentor || {};
     const topic = registration?.topic || {};
-    const title = registration?.adjustedTitle || registration?.bm01ApprovedTitleSnapshot || topic?.title || '................................................................................................................';
+    const title = evaluation?.effectiveTitleSnapshot || registration?.adjustedTitle || registration?.bm01ApprovedTitleSnapshot || topic?.title || '................................................................................................................';
 
     const isMentor = evaluatorRole === 'MENTOR';
     const roleSubtitle = isMentor ? 'Dành cho giảng viên hướng dẫn' : 'Dành cho giảng viên phản biện';
 
-    const crit1 = evaluation?.formReview || 'Bố cục báo cáo phù hợp, văn phong rõ ràng mạch lạc, danh mục hình ảnh và bảng biểu được trình bày đúng quy chuẩn học thuật.';
-    const crit2 = evaluation?.contentReview || 'Nội dung nghiên cứu phù hợp với mục tiêu đề ra; phương pháp nghiên cứu hợp lý và các kết quả đạt được có giá trị khoa học.';
-    const crit3 = evaluation?.applicabilityReview || 'Đề tài có tính ứng dụng thực tiễn cao, có khả năng triển khai ứng dụng cho các đơn vị hoặc phục vụ đào tạo.';
-    const crit4 = evaluation?.attitudeReview || 'Sinh viên có tinh thần tự giác, ý thức nghiên cứu độc lập, thái độ làm việc nghiêm túc và tinh thần trách nhiệm cao.';
+    const crit1 = evaluation?.thesisFormatScore || evaluation?.formReview || 'Bố cục báo cáo phù hợp, văn phong rõ ràng mạch lạc, danh mục hình ảnh và bảng biểu được trình bày đúng quy chuẩn học thuật.';
+    const crit2 = evaluation?.researchContentScore || evaluation?.contentReview || 'Nội dung nghiên cứu phù hợp với mục tiêu đề ra; phương pháp nghiên cứu hợp lý và các kết quả đạt được có giá trị khoa học.';
+    const crit3 = evaluation?.applicabilityScore || evaluation?.applicabilityReview || 'Đề tài có tính ứng dụng thực tiễn cao, có khả năng triển khai ứng dụng cho các đơn vị hoặc phục vụ đào tạo.';
+    const crit4 = evaluation?.attitudeScore || evaluation?.attitudeReview || 'Sinh viên có tinh thần tự giác, ý thức nghiên cứu độc lập, thái độ làm việc nghiêm túc và tinh thần trách nhiệm cao.';
 
-    const programOutcomeMet = evaluation?.programOutcomeMet !== false;
-    const defenseRecommended = evaluation?.defenseRecommended !== false;
+    const programOutcomeMet = evaluation?.programOutcome
+        ? (evaluation.programOutcome === 'MEETS_PROGRAM_OUTCOMES' || evaluation.programOutcome === 'SATISFACTORY')
+        : (evaluation?.programOutcomeMet !== false);
+
+    const defenseRecommended = evaluation?.conclusion
+        ? (evaluation.conclusion === 'AGREED_FOR_DEFENSE' || evaluation.conclusion === 'ALLOW_DEFENSE' || evaluation.conclusion === 'AGREE')
+        : (evaluation?.defenseRecommendation
+            ? (evaluation.defenseRecommendation === 'APPROVE_FOR_DEFENSE' || evaluation.defenseRecommendation === 'ALLOW_DEFENSE')
+            : (evaluation?.defenseRecommended !== false));
+
+    const studentClass = evaluation?.studentClassSnapshot || s.studentProfile?.className || s.className || s.class || s.studentClass || 'D22CNTT01';
+    const studentCode = s.code || s.studentCode || s.studentProfile?.studentCode || '..........................';
 
     const currentDate = new Date();
     const day = String(currentDate.getDate()).padStart(2, '0');
     const month = String(currentDate.getMonth() + 1).padStart(2, '0');
     const year = currentDate.getFullYear();
 
-    const reviewerFullName = evaluatorName || (isMentor ? m.fullName : evaluation?.evaluator?.fullName) || '';
+    const reviewerFullName = evaluatorName || evaluation?.lecturerSignature || (isMentor ? m.fullName : evaluation?.evaluator?.fullName) || '';
 
     return (
         <A4PageContainer id="bm04-print-sheet">
             {/* Header Quốc hiệu & Đơn vị */}
             <div className="flex justify-between items-start mb-6 text-center">
                 <div className="w-[45%]">
+                    <p className="font-normal text-[10.5pt] uppercase tracking-tight">TRƯỜNG ĐẠI HỌC THỦ DẦU MỘT</p>
                     <p className="font-bold text-[12pt] uppercase tracking-tight">VIỆN CÔNG NGHỆ SỐ</p>
-                    <p className="font-semibold text-[10.5pt] uppercase tracking-tight">CHƯƠNG TRÌNH: KTPM & HTTT</p>
+                    <p className="font-semibold text-[10pt] uppercase tracking-tight">BỘ MÔN: KỸ THUẬT PHẦN MỀM & HTTT</p>
                     <div className="w-24 h-[1px] bg-black mx-auto mt-1" />
                 </div>
                 <div className="w-[52%]">
@@ -73,8 +84,8 @@ export default function BM04PrintSheet({
                 <div className="space-y-1.5 pl-3">
                     <p>
                         1. Họ và tên sinh viên: <strong>{s.fullName || '...................................................'}</strong>
-                        &nbsp;&nbsp;&nbsp;&nbsp;MSSV: <strong>{s.code || s.studentCode || '..........................'}</strong>
-                        &nbsp;&nbsp;&nbsp;&nbsp;Lớp: <strong>{s.class || s.studentClass || 'D21KTPM02'}</strong>
+                        &nbsp;&nbsp;&nbsp;&nbsp;MSSV: <strong>{studentCode}</strong>
+                        &nbsp;&nbsp;&nbsp;&nbsp;Lớp: <strong>{studentClass}</strong>
                     </p>
                     <div className="pt-1">
                         <p>2. Tên đề tài:</p>

@@ -16,7 +16,7 @@ async function createAccounts(db, precomputedHashes) {
       : data.role === 'LECTURER'
         ? `0901000${String(idx).padStart(3, '0')}`
         : `0912000${String(idx - 12).padStart(3, '0')}`,
-    academicTitle: data.role === 'LECTURER' ? (idx <= 2 ? 'TIEN_SI' : 'THAC_SI') : null,
+    academicTitle: data.role === 'LECTURER' ? (data.academicTitle || (idx <= 2 ? 'TIEN_SI' : 'THAC_SI')) : null,
     passwordHash: precomputedHashes.get(password),
   }));
   await db.user.createMany({ data: accountsData });

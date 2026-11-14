@@ -10,14 +10,20 @@ import A4PageContainer from './A4PageContainer';
 export default function BM03PrintSheet({
     registration = {},
     progressRecords = [],
+    meetingLogs,
+    bm03Record,
     student = {},
     mentor = {},
     checkpoints = {},
 }) {
     const s = student?.fullName ? student : registration?.student || {};
-    const m = mentor?.fullName ? mentor : registration?.topic?.mentor || {};
+    const m = mentor?.fullName ? mentor : registration?.topic?.mentor || bm03Record?.advisorSignedBy || {};
     const topic = registration?.topic || {};
-    const title = registration?.adjustedTitle || registration?.bm01ApprovedTitleSnapshot || topic?.title || '................................................................................................................';
+    const title = registration?.adjustedTitle || registration?.bm01ApprovedTitleSnapshot || bm03Record?.effectiveTitleSnapshot || topic?.title || '................................................................................................................';
+
+    const studentClass = s.studentProfile?.className || s.className || s.class || s.studentClass || 'D22CNTT01';
+    const studentCode = s.code || s.studentCode || s.studentProfile?.studentCode || '..........................';
+    const studentMajor = s.studentProfile?.major || s.major || 'Công nghệ thông tin';
 
     // 10 default sample or real weeks
     const defaultMeetings = [
@@ -31,17 +37,32 @@ export default function BM03PrintSheet({
         { week: 8, date: '10/11/2025', plan: 'Kiểm thử toàn diện, viết báo cáo tổng kết và chuẩn bị nghiệm thu.', comment: 'Đủ điều kiện hoàn tất tiến độ đồ án.' },
     ];
 
-    const meetings = (progressRecords && progressRecords.length > 0)
-        ? progressRecords.map((r, idx) => ({
-            week: r.weekNumber || idx + 1,
-            date: r.meetingDate ? new Date(r.meetingDate).toLocaleDateString('vi-VN') : '...../...../202...',
-            plan: r.taskContent || r.plan || 'Làm việc theo kế hoạch phân công.',
-            comment: r.mentorFeedback || r.comment || 'Hoàn thành đạt yêu cầu.',
+    const rawList = (progressRecords && progressRecords.length > 0)
+        ? progressRecords
+        : (meetingLogs && meetingLogs.length > 0)
+            ? meetingLogs
+            : (bm03Record?.meetings && bm03Record.meetings.length > 0)
+                ? bm03Record.meetings
+                : null;
+
+    const meetings = rawList
+        ? rawList.map((r, idx) => ({
+            week: r.weekNumber || r.versionNumber || idx + 1,
+            date: r.meetingDate ? new Date(r.meetingDate).toLocaleDateString('vi-VN') : (r.date || '...../...../202...'),
+            plan: r.taskContent || r.plan || r.discussionContent || r.studentCompletedWork || 'Làm việc theo kế hoạch phân công.',
+            comment: r.mentorFeedback || r.comment || (r.progressRating ? `Đánh giá: ${r.progressRating === 'ON_TRACK' ? 'Đúng tiến độ' : r.progressRating}. ${r.remainingIssues || 'Hoàn thành tốt'}` : 'Hoàn thành đạt yêu cầu.'),
         }))
         : defaultMeetings;
 
-    const cp1Passed = checkpoints?.cp1Passed !== false;
-    const cp2Passed = checkpoints?.cp2Passed !== false;
+    const midtermEval = bm03Record?.midtermStageEvaluation || bm03Record?.stageEvaluations?.find(e => e.stage === 'MIDTERM');
+    const finalEval = bm03Record?.finalStageEvaluation || bm03Record?.stageEvaluations?.find(e => e.stage === 'FINAL');
+
+    const cp1Passed = checkpoints?.cp1Passed !== false && (midtermEval ? midtermEval.decision === 'CONTINUE' : true);
+    const cp2Passed = checkpoints?.cp2Passed !== false && (finalEval ? (finalEval.decision === 'CONTINUE' || finalEval.decision === 'CONTINUE_TO_BM04') : true);
+
+    const splitIndex = Math.max(1, Math.floor(meetings.length / 2));
+    const firstHalfMeetings = meetings.slice(0, splitIndex);
+    const secondHalfMeetings = meetings.slice(splitIndex);
 
     const currentDate = new Date();
     const day = String(currentDate.getDate()).padStart(2, '0');
@@ -55,7 +76,7 @@ export default function BM03PrintSheet({
                 <div className="w-[48%]">
                     <p className="font-normal text-[10.5pt] uppercase tracking-tight">TRƯỜNG ĐẠI HỌC THỦ DẦU MỘT</p>
                     <p className="font-bold text-[11.5pt] uppercase tracking-tight">VIỆN CÔNG NGHỆ SỐ</p>
-                    <p className="font-semibold text-[10pt] uppercase tracking-tight">BỘ MÔN: CÔNG NGHỆ THÔNG TIN</p>
+                    <p className="font-semibold text-[10pt] uppercase tracking-tight">BỘ MÔN: KỸ THUẬT PHẦN MỀM & HTTT</p>
                     <div className="w-24 h-[1px] bg-black mx-auto mt-1" />
                 </div>
                 <div className="w-[50%]">
@@ -83,8 +104,8 @@ export default function BM03PrintSheet({
             <div className="mb-3 text-[11pt] leading-relaxed pl-1 space-y-1">
                 <p>
                     Họ tên sinh viên: <strong>{s.fullName || '...................................................'}</strong>
-                    &nbsp;&nbsp;MSSV: <strong>{s.code || s.studentCode || '..........................'}</strong>
-                    &nbsp;&nbsp;Lớp: <strong>{s.class || s.studentClass || 'D22CNTT01'}</strong>
+                    &nbsp;&nbsp;MSSV: <strong>{studentCode}</strong>
+                    &nbsp;&nbsp;Lớp: <strong>{studentClass}</strong>
                 </p>
                 <p>
                     Điện thoại: <strong>{s.phone || '0909123456'}</strong>
@@ -110,7 +131,7 @@ export default function BM03PrintSheet({
                         </tr>
                     </thead>
                     <tbody>
-                        {meetings.slice(0, 4).map((mItem, idx) => (
+                        {firstHalfMeetings.map((mItem, idx) => (
                             <tr key={idx}>
                                 <td className="border border-black p-1 text-center font-medium">{mItem.week}</td>
                                 <td className="border border-black p-1 text-center">{mItem.date}</td>
@@ -134,8 +155,8 @@ export default function BM03PrintSheet({
                             </td>
                         </tr>
 
-                        {meetings.slice(4).map((mItem, idx) => (
-                            <tr key={idx + 4}>
+                        {secondHalfMeetings.map((mItem, idx) => (
+                            <tr key={idx + splitIndex}>
                                 <td className="border border-black p-1 text-center font-medium">{mItem.week}</td>
                                 <td className="border border-black p-1 text-center">{mItem.date}</td>
                                 <td className="border border-black p-1 text-justify">{mItem.plan}</td>

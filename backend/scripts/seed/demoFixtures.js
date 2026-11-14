@@ -93,6 +93,39 @@ function advisorEmailForStudentNumber(studentNumber) {
   return `lecturer${pad(Math.ceil(studentNumber / 10))}@university.edu.vn`;
 }
 
+const LECTURER_PROFILES = [
+  { fullName: 'TS. Nguyễn Văn Thắng', academicTitle: 'TIEN_SI' }, // Viện trưởng Viện Công nghệ số
+  { fullName: 'ThS. Trần Thị Mai Phương', academicTitle: 'THAC_SI' }, // Trưởng bộ môn KTPM & HTTT
+  { fullName: 'TS. Lê Hoàng Nam', academicTitle: 'TIEN_SI' },
+  { fullName: 'ThS. Phạm Quốc Bảo', academicTitle: 'THAC_SI' },
+  { fullName: 'TS. Đỗ Thị Thu Hà', academicTitle: 'TIEN_SI' },
+  { fullName: 'ThS. Vũ Hải Đăng', academicTitle: 'THAC_SI' },
+  { fullName: 'ThS. Bùi Minh Trí', academicTitle: 'THAC_SI' },
+  { fullName: 'TS. Huỳnh Thanh Tùng', academicTitle: 'TIEN_SI' },
+  { fullName: 'ThS. Nguyễn Ngọc Ánh', academicTitle: 'THAC_SI' },
+  { fullName: 'ThS. Trương Công Định', academicTitle: 'THAC_SI' },
+  { fullName: 'TS. Đặng Quốc Huy', academicTitle: 'TIEN_SI' },
+  { fullName: 'ThS. Hoàng Thị Kim Oanh', academicTitle: 'THAC_SI' },
+];
+
+const VIETNAMESE_SURNAMES = ['Nguyễn', 'Trần', 'Lê', 'Phạm', 'Hoàng', 'Huỳnh', 'Phan', 'Vũ', 'Võ', 'Đặng', 'Bùi', 'Đỗ', 'Hồ', 'Ngô', 'Dương', 'Lý'];
+const VIETNAMESE_MIDDLE_MALE = ['Văn', 'Đức', 'Thanh', 'Hữu', 'Minh', 'Ngọc', 'Quốc', 'Tuấn', 'Xuân', 'Gia', 'Trọng', 'Đình'];
+const VIETNAMESE_MIDDLE_FEMALE = ['Thị', 'Ngọc', 'Phương', 'Mai', 'Thanh', 'Thu', 'Kim', 'Bảo', 'Khánh', 'Diệu', 'Mỹ', 'Thùy'];
+const VIETNAMESE_GIVEN_MALE = ['An', 'Bình', 'Cường', 'Dũng', 'Đạt', 'Hải', 'Hậu', 'Hiếu', 'Hoàng', 'Huy', 'Khoa', 'Long', 'Minh', 'Nam', 'Nghĩa', 'Phát', 'Phúc', 'Quang', 'Sơn', 'Tài', 'Tâm', 'Thành', 'Thắng', 'Thịnh', 'Thuận', 'Tiến', 'Trí', 'Trung', 'Tuấn', 'Vinh', 'Vũ'];
+const VIETNAMESE_GIVEN_FEMALE = ['Anh', 'Chi', 'Dung', 'Hà', 'Hạnh', 'Hoa', 'Hương', 'Linh', 'Mai', 'My', 'Ngân', 'Ngọc', 'Nhung', 'Như', 'Oanh', 'Phương', 'Quỳnh', 'Thảo', 'Trang', 'Trâm', 'Tuyết', 'Uyên', 'Vân', 'Vy', 'Yến'];
+
+function generateStudentFullName(index) {
+  const isFemale = (index + 1) % 2 === 0;
+  const surname = VIETNAMESE_SURNAMES[index % VIETNAMESE_SURNAMES.length];
+  const middle = isFemale
+    ? VIETNAMESE_MIDDLE_FEMALE[(index * 3) % VIETNAMESE_MIDDLE_FEMALE.length]
+    : VIETNAMESE_MIDDLE_MALE[(index * 3) % VIETNAMESE_MIDDLE_MALE.length];
+  const given = isFemale
+    ? VIETNAMESE_GIVEN_FEMALE[(index * 7) % VIETNAMESE_GIVEN_FEMALE.length]
+    : VIETNAMESE_GIVEN_MALE[(index * 7) % VIETNAMESE_GIVEN_MALE.length];
+  return `${surname} ${middle} ${given}`;
+}
+
 function buildAccounts() {
   const admin = [{
     email: 'admin@university.edu.vn', code: 'ADMIN001', fullName: 'Quản trị hệ thống',
@@ -100,17 +133,21 @@ function buildAccounts() {
   }];
   const lecturers = Array.from({ length: 12 }, (_, index) => {
     const number = index + 1;
+    const profile = LECTURER_PROFILES[index] || {
+      fullName: `Giảng viên ${pad(number)}`,
+      academicTitle: number === 1 ? 'TIEN_SI' : 'THAC_SI',
+    };
     return {
       email: `lecturer${pad(number)}@university.edu.vn`, code: `GV${String(number).padStart(3, '0')}`,
-      fullName: `Giảng viên ${pad(number)}`, role: 'LECTURER', department: 'Viện Công nghệ số',
-      academicTitle: number === 1 ? 'TIEN_SI' : 'THAC_SI', password: 'lecturer123', isActive: true,
+      fullName: profile.fullName, role: 'LECTURER', department: 'Viện Công nghệ số',
+      academicTitle: profile.academicTitle, password: 'lecturer123', isActive: true,
     };
   });
   const students = Array.from({ length: 120 }, (_, index) => {
     const number = index + 1;
     return {
       email: `sv${studentPad(number)}@university.edu.vn`, code: `SV${String(number).padStart(4, '0')}`,
-      fullName: `Sinh viên ${studentPad(number)}`, role: 'STUDENT', department: 'Viện Công nghệ số',
+      fullName: generateStudentFullName(index), role: 'STUDENT', department: 'Viện Công nghệ số',
       password: 'student123', isActive: true,
     };
   });

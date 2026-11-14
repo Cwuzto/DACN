@@ -60,8 +60,8 @@ function buildStudentProfileData(studentNumber, studentUser = {}) {
   const day = ((idx * 3) % 27) + 1;
   const dateOfBirth = new Date(Date.UTC(year, month, day));
   const classIndex = (idx % 4) + 1;
-  const className = `D22CQCN0${classIndex}-N`;
-  const major = MAJORS[idx % MAJORS.length];
+  const className = `D22CNTT0${classIndex}`;
+  const major = 'Công nghệ thông tin';
   const placeOfBirth = PLACES_OF_BIRTH[idx % PLACES_OF_BIRTH.length];
   const cohort = 'D22';
 
@@ -106,10 +106,22 @@ const TOPIC_TITLES_PREFIX = [
   'Xây dựng ứng dụng xác thực chữ ký điện tử và quản lý văn bản số học thuật',
   'Phát triển hệ thống gợi ý lộ trình học tập cá nhân hóa dựa trên Knowledge Graph',
   'Nghiên cứu giải pháp phát hiện bất thường trong giao dịch tài chính số',
-  'Xây dựng nền tảng quản lý tiến độ đồ án tốt nghiệp tích hợp kiểm thử tự động',
+  'Xây dựng nền tảng quản lý tiến độ đồ án tốt nghiệp tích hợp quy chuẩn BM01-BM05',
   'Ứng dụng thị giác máy tính trong nhận diện và số hóa tài liệu lưu trữ',
   'Phát triển hệ thống điều phối tác vụ đám mây tối ưu hóa năng lượng',
   'Xây dựng cổng thông tin học thuật trực tuyến hỗ trợ đánh giá chuẩn đầu ra',
+  'Nghiên cứu mô hình phân tích cảm xúc người dùng mạng xã hội với Transformer',
+  'Phát triển hệ sinh thái IoT ứng dụng trong quản lý ký túc xá thông minh',
+  'Xây dựng hệ thống quản lý kho thông minh tích hợp nhận diện RFID và mã vạch 2D',
+  'Ứng dụng công nghệ Blockchain trong xác thực văn bằng và chứng chỉ học thuật',
+  'Thiết kế và triển khai hệ thống phát hiện xâm nhập mạng dựa trên AI thời gian thực',
+  'Xây dựng ứng dụng đặt xe và tối ưu lộ trình di chuyển cho đô thị thông minh',
+  'Nghiên cứu mô hình học tăng cường trong điều khiển robot tự hành trong nhà kho',
+  'Phát triển nền tảng học trực tuyến thích ứng với công nghệ phân tích hành vi học tập',
+  'Xây dựng hệ thống bệnh án điện tử và hỗ trợ chẩn đoán hình ảnh y khoa sử dụng CNN',
+  'Ứng dụng xử lý ngôn ngữ tự nhiên trong tự động tóm tắt bài báo khoa học',
+  'Phát triển hệ thống quản lý rủi ro tín dụng ngân hàng bằng mô hình Ensemble Learning',
+  'Xây dựng cổng thanh toán trực tuyến bảo mật cao tích hợp giải pháp phòng chống gian lận',
 ];
 
 function buildTopicTitleForStudent(number) {

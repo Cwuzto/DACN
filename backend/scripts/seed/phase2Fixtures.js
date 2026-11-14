@@ -724,42 +724,85 @@ async function seedPhase2AcademicFixtures({ prisma, accountsByEmail, baseDate = 
 
     const meetingConfigs = [
       {
-        daysAgo: 35,
+        week: 1,
+        daysAgo: 70,
         mode: 'IN_PERSON',
         loc: 'Phòng Lab A204',
-        discuss: 'Thống nhất kiến trúc chi tiết, phân tích yêu cầu hệ thống và thiết kế lược đồ CSDL.',
-        work: 'Hoàn thành tài liệu đặc tả yêu cầu và sơ đồ ERD chuẩn hóa.',
-        next: 'Xây dựng các API cốt lõi và kiểm thử đơn vị (Unit Test).',
+        discuss: 'Gặp mặt định hướng đề tài, xác định phạm vi nghiên cứu và thống nhất đề cương chi tiết.',
+        work: 'Khảo sát hiện trạng, thu thập yêu cầu người dùng và lập kế hoạch tổng thể.',
+        next: 'Phân tích thiết kế hệ thống, xây dựng sơ đồ Use Case và kiến trúc giải pháp.',
         rating: 'ON_TRACK',
       },
       {
+        week: 3,
+        daysAgo: 56,
+        mode: 'IN_PERSON',
+        loc: 'Phòng Lab A204',
+        discuss: 'Rà soát thiết kế kiến trúc hệ thống, mô hình cơ sở dữ liệu quan hệ và lược đồ ERD.',
+        work: 'Hoàn thiện sơ đồ thực thể liên kết chuẩn hóa 3NF và tài liệu đặc tả chức năng.',
+        next: 'Khởi tạo repository dự án, thiết lập kết nối CSDL và cấu hình môi trường phát triển.',
+        rating: 'ON_TRACK',
+      },
+      {
+        week: 5,
+        daysAgo: 42,
+        mode: 'MICROSOFT_TEAMS',
+        loc: 'Microsoft Teams (Trực tuyến)',
+        discuss: 'Đánh giá tiến độ triển khai API backend, kiểm tra cơ chế xác thực JWT và phân quyền vai trò.',
+        work: 'Hoàn thành các API quản lý danh mục, đề tài và phân quyền truy cập người dùng.',
+        next: 'Viết unit test cho các endpoint cốt lõi và chuẩn bị hồ sơ đánh giá tiến độ đợt 1.',
+        rating: 'ON_TRACK',
+      },
+      {
+        week: 7,
+        daysAgo: 28,
+        mode: 'IN_PERSON',
+        loc: 'Phòng Lab A204',
+        discuss: 'Rà soát tiến độ giữa kỳ (Checkpoint 1), đánh giá mức độ hoàn thiện sản phẩm và logic nghiệp vụ.',
+        work: 'Hoàn thành 65% khối lượng đề tài, tích hợp thành công mô-đun ký số và quản lý hồ sơ.',
+        next: 'Tiếp tục phát triển giao diện người dùng và hoàn thiện các chương 1, 2, 3 của báo cáo.',
+        rating: 'ON_TRACK',
+      },
+      {
+        week: 9,
         daysAgo: 21,
         mode: 'IN_PERSON',
         loc: 'Phòng Lab A204',
-        discuss: 'Rà soát tiến độ giữa kỳ, kiểm tra mô-đun nghiệp vụ chính và giao diện người dùng.',
-        work: 'Hoàn thành 65% chức năng cốt lõi, tích hợp xác thực và phân quyền.',
-        next: 'Hoàn thiện toàn bộ luồng nghiệp vụ và viết báo cáo chương 1, 2, 3.',
+        discuss: 'Kiểm tra giao diện web Frontend, tính tương thích đa thiết bị và tối ưu trải nghiệm người dùng.',
+        work: 'Xây dựng hoàn chỉnh các màn hình chức năng React/Tailwind kết nối API backend.',
+        next: 'Triển khai tính năng xuất biểu mẫu PDF A4 chuẩn hóa và xử lý luồng nộp lưu chiểu.',
         rating: 'ON_TRACK',
       },
       {
+        week: 11,
+        daysAgo: 14,
+        mode: 'MICROSOFT_TEAMS',
+        loc: 'Microsoft Teams (Trực tuyến)',
+        discuss: 'Rà soát kết quả kiểm thử hệ thống, xử lý các trường hợp biên và kiểm tra an toàn dữ liệu.',
+        work: 'Thực hiện kiểm thử tích hợp, kiểm thử hiệu năng và vá các lỗi bảo mật phát hiện được.',
+        next: 'Hoàn thiện thuyết minh đồ án 5 chương và chuẩn bị nghiệm thu sản phẩm cuối kỳ.',
+        rating: 'ON_TRACK',
+      },
+      {
+        week: 13,
         daysAgo: 7,
         mode: 'IN_PERSON',
         loc: 'Phòng bộ môn CNTT',
-        discuss: 'Nghiệm thu sản phẩm thực nghiệm cuối kỳ và rà soát bản thảo báo cáo toàn văn.',
-        work: 'Hoàn thành 100% chức năng, chạy kiểm thử tích hợp và hoàn thiện thuyết minh.',
-        next: 'Chuẩn bị hồ sơ lưu trữ trước bảo vệ và slide thuyết trình.',
+        discuss: 'Nghiệm thu toàn diện sản phẩm thực nghiệm, kiểm tra bản thảo báo cáo trước bảo vệ.',
+        work: 'Hoàn thành 100% chức năng, đóng gói hệ thống và hoàn thiện toàn bộ hồ sơ báo cáo.',
+        next: 'Chuẩn bị hồ sơ BM04, slide báo cáo và video demo sản phẩm trước Hội đồng bảo vệ.',
         rating: 'ON_TRACK',
       },
     ];
 
-    const midComments = 'Sinh viên thực hiện đúng tiến độ đề ra, nắm vững công nghệ và hoàn thành tốt mục tiêu giữa kỳ.';
+    const midComments = 'Sinh viên thực hiện đúng kế hoạch tiến độ, nắm vững kiến trúc kỹ thuật và hoàn thành tốt 65% khối lượng đề tài ở giai đoạn giữa kỳ. Đạt yêu cầu tiếp tục.';
     const midHash = computeCanonicalPayloadHash({
       registrationId: registration.id,
       stage: 'MIDTERM',
       comments: midComments,
       decision: 'CONTINUE',
     });
-    const finComments = 'Sinh viên hoàn thành đầy đủ nội dung nghiên cứu và sản phẩm thực nghiệm, đủ điều kiện chuyển sang bước đánh giá BM04.';
+    const finComments = 'Sinh viên hoàn thành xuất sắc 100% nội dung nghiên cứu và sản phẩm thực nghiệm, báo cáo đầy đủ đúng quy chuẩn học thuật. Đủ điều kiện chuyển sang bước đánh giá BM04.';
     const finHash = computeCanonicalPayloadHash({
       registrationId: registration.id,
       stage: 'FINAL',
@@ -769,20 +812,20 @@ async function seedPhase2AcademicFixtures({ prisma, accountsByEmail, baseDate = 
 
     const [, midEval, finEval] = await Promise.all([
       Promise.all(
-        meetingConfigs.map(async (cfg) => {
+        meetingConfigs.map(async (cfg, idx) => {
           const mDate = addDays(now, -cfg.daysAgo);
           const expDate = addDays(mDate, 10);
           const mEntry = await prisma.bM03MeetingEntry.create({
             data: {
               bm03RecordId: bm03Record.id,
               registrationId: registration.id,
-              versionNumber: 1,
+              versionNumber: cfg.week || (idx + 1),
               meetingDate: mDate,
               meetingMode: cfg.mode,
               locationOrLink: cfg.loc,
               discussionContent: cfg.discuss,
               studentCompletedWork: cfg.work,
-              remainingIssues: 'Không có vướng mắc nghiêm trọng.',
+              remainingIssues: 'Không có vướng mắc nghiêm trọng, tiến độ đảm bảo.',
               nextTasks: cfg.next,
               expectedDeadline: expDate,
               progressRating: cfg.rating,
@@ -792,7 +835,7 @@ async function seedPhase2AcademicFixtures({ prisma, accountsByEmail, baseDate = 
           const mHash = computeCanonicalPayloadHash({
             meetingId: mEntry.id,
             registrationId: registration.id,
-            versionNumber: 1,
+            versionNumber: cfg.week || (idx + 1),
             meetingDate: mEntry.meetingDate,
             meetingMode: mEntry.meetingMode,
             locationOrLink: mEntry.locationOrLink,
@@ -1823,14 +1866,14 @@ async function seedPhase2AcademicFixtures({ prisma, accountsByEmail, baseDate = 
             semesterId: semesterHK1Record.id,
             studentId: student.id,
             lecturerId: mentor.id,
-            thesisFormatScore: 'Bố cục báo cáo thuyết minh chặt chẽ, trình bày đúng chuẩn quy định của Viện Công nghệ số, tài liệu tham khảo trích dẫn chuẩn IEEE.',
-            researchContentScore: 'Hoàn thành 100% mục tiêu nghiên cứu trong đề cương, xây dựng thành công mô hình thực nghiệm và kiểm thử đầy đủ các kịch bản.',
-            applicabilityScore: 'Sản phẩm có khả năng triển khai thực tế cao, giao diện trực quan và đáp ứng tốt yêu cầu hiệu năng.',
-            attitudeScore: 'Sinh viên chủ động, nghiêm túc, tham gia đầy đủ các buổi hướng dẫn định kỳ và hoàn thành đúng hạn các nhiệm vụ.',
+            thesisFormatScore: 'Bố cục báo cáo thuyết minh 5 chương chặt chẽ, trình bày đúng chuẩn quy định của Viện Công nghệ số - ĐH Thủ Dầu Một, trích dẫn tài liệu tham khảo chuẩn IEEE.',
+            researchContentScore: 'Hoàn thành 100% mục tiêu nghiên cứu trong đề cương, xây dựng thành công kiến trúc hệ thống và kiểm thử đầy đủ các kịch bản thực nghiệm.',
+            applicabilityScore: 'Sản phẩm có tính ứng dụng thực tiễn cao, đáp ứng tốt yêu cầu hiệu năng và có tiềm năng triển khai thực tế tại trường.',
+            attitudeScore: 'Sinh viên chủ động, nghiêm túc, tham gia đầy đủ các buổi hướng dẫn định kỳ và hoàn thành xuất sắc mọi nhiệm vụ được giao.',
             conclusion: 'AGREED_FOR_DEFENSE',
             programOutcome: 'MEETS_PROGRAM_OUTCOMES',
             defenseRecommendation: 'APPROVE_FOR_DEFENSE',
-            generalNotes: 'Bản nháp nhận xét BM04 đã điền sẵn 4 tiêu chí, sẵn sàng để GVHD bấm Lưu nháp hoặc Ký và nộp.',
+            generalNotes: 'Bản nháp nhận xét BM04 đã điền sẵn 4 tiêu chí chuẩn đầu ra, sẵn sàng để GVHD bấm Lưu nháp hoặc Ký và nộp.',
             lecturerSignature: '',
             status: 'DRAFT',
             isLocked: false,
@@ -1947,14 +1990,14 @@ async function seedPhase2AcademicFixtures({ prisma, accountsByEmail, baseDate = 
         const bm04Payload = {
           registrationId: registration.id,
           effectiveTitleSnapshot: effectiveTitle,
-          thesisFormatScore: 'Hình thức trình bày chuẩn mực, cấu trúc rõ ràng, văn phong khoa học mạch lạc.',
-          researchContentScore: 'Nội dung nghiên cứu sâu sắc, giải quyết trọn vẹn bài toán đặt ra và có kết quả thực nghiệm tốt.',
-          applicabilityScore: 'Ứng dụng vận hành ổn định, có giá trị thực tiễn và khả năng mở rộng.',
-          attitudeScore: 'Thái độ làm việc nghiêm túc, chủ động sáng tạo trong suốt quá trình thực hiện đồ án.',
+          thesisFormatScore: 'Hình thức trình bày chuẩn mực, bố cục 5 chương cân đối và khoa học. Văn phong học thuật trong sáng, trích dẫn tài liệu tham khảo đúng chuẩn IEEE. Đầy đủ danh mục bảng biểu, hình vẽ và chữ viết tắt theo quy chuẩn của Viện Công nghệ số - ĐH Thủ Dầu Một.',
+          researchContentScore: 'Nội dung nghiên cứu sâu sắc, bám sát và giải quyết trọn vẹn mục tiêu đề ra trong đề cương BM02. Phương pháp tiếp cận phù hợp, xây dựng thành công kiến trúc hệ thống hiện đại với đầy đủ các mô-đun nghiệp vụ, phân quyền và kiểm soát dữ liệu chặt chẽ.',
+          applicabilityScore: 'Đề tài có tính ứng dụng thực tiễn rất cao, giải quyết trực tiếp bài toán số hóa quy trình quản lý học vụ tại trường. Sản phẩm chạy ổn định trên môi trường thực nghiệm, giao diện trực quan thân thiện và có tiềm năng nhân rộng chuyển giao cho các đơn vị đào tạo.',
+          attitudeScore: 'Sinh viên thể hiện tinh thần tự giác cao, thái độ làm việc nghiêm túc và cầu thị. Tham gia đầy đủ 100% các buổi sinh hoạt chuyên môn định kỳ với CBHD, chủ động tìm tòi giải pháp khi gặp khó khăn và hoàn thành đúng hạn mọi yêu cầu được giao.',
           programOutcome: 'MEETS_PROGRAM_OUTCOMES',
           defenseRecommendation: defenseRec,
           mismatchReason,
-          generalNotes: 'Sinh viên hoàn thành tốt đồ án tốt nghiệp, đủ điều kiện bảo vệ trước Hội đồng.',
+          generalNotes: 'Đề tài đáp ứng xuất sắc các tiêu chuẩn của đồ án tốt nghiệp đại học ngành Công nghệ thông tin. Đồng ý cho sinh viên bảo vệ trước Hội đồng chấm khóa luận tốt nghiệp.',
           advisorId: mentor.id,
         };
         const bm04Hash = computeCanonicalPayloadHash(bm04Payload);
