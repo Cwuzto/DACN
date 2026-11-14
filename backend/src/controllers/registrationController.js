@@ -429,8 +429,20 @@ const getMyRegistration = async (req, res, next) => {
         const restricted = await hasCompletedGraduationProject(studentId);
 
         if (!targetSemesterId) {
-            const defaultSemester = await getDefaultSemester({ id: true });
-            targetSemesterId = defaultSemester?.id || null;
+            const studentReg = await prisma.topicRegistration.findFirst({
+                where: {
+                    studentId,
+                    status: { not: 'REJECTED' },
+                },
+                orderBy: { createdAt: 'desc' },
+                select: { semesterId: true },
+            });
+            if (studentReg?.semesterId) {
+                targetSemesterId = studentReg.semesterId;
+            } else {
+                const defaultSemester = await getDefaultSemester({ id: true });
+                targetSemesterId = defaultSemester?.id || null;
+            }
         }
 
         if (!targetSemesterId) {
@@ -510,8 +522,20 @@ const getMyProjectEnrollments = async (req, res, next) => {
         const restricted = await hasCompletedGraduationProject(studentId);
 
         if (!targetSemesterId) {
-            const defaultSemester = await getDefaultSemester({ id: true });
-            targetSemesterId = defaultSemester?.id || null;
+            const studentReg = await prisma.topicRegistration.findFirst({
+                where: {
+                    studentId,
+                    status: { not: 'REJECTED' },
+                },
+                orderBy: { createdAt: 'desc' },
+                select: { semesterId: true },
+            });
+            if (studentReg?.semesterId) {
+                targetSemesterId = studentReg.semesterId;
+            } else {
+                const defaultSemester = await getDefaultSemester({ id: true });
+                targetSemesterId = defaultSemester?.id || null;
+            }
         }
 
         if (!targetSemesterId) {

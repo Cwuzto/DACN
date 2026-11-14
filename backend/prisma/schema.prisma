@@ -203,6 +203,7 @@ model Semester {
   academicDelegations    AcademicDelegation[]
   lecturerAssignments    LecturerProjectAssignment[]
   topicAssignmentDecisions TopicAssignmentDecision[]
+  registrations          TopicRegistration[]
 
   @@map("semesters")
 }
@@ -280,6 +281,7 @@ model TopicRegistration {
   updatedAt                  DateTime                     @updatedAt @map("updated_at")
   topic                      Topic                        @relation(fields: [topicId], references: [id])
   student                    User                         @relation(fields: [studentId], references: [id])
+  semester                   Semester                     @relation(fields: [semesterId], references: [id])
   council                    Council?                     @relation("CouncilLegacy", fields: [councilId], references: [id])
   outlineCouncil             Council?                     @relation("OutlineCouncil", fields: [outlineCouncilId], references: [id])
   defenseCouncil             Council?                     @relation("DefenseCouncil", fields: [defenseCouncilId], references: [id])
