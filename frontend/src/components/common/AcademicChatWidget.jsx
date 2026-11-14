@@ -60,6 +60,52 @@ export const renderRoleBadge = (role) => {
     }
 };
 
+const DB_STATUS_TRANSLATIONS = [
+    { pattern: /\bPASSED\b/g, replacement: 'hoàn tất' },
+    { pattern: /\bFAILED\b/g, replacement: 'chưa đạt' },
+    { pattern: /\bIN_PROGRESS\b/g, replacement: 'đang diễn ra' },
+    { pattern: /\bONGOING\b/g, replacement: 'đang diễn ra' },
+    { pattern: /\bDEFENSE_READY\b/g, replacement: 'sẵn sàng bảo vệ' },
+    { pattern: /\bREADY_FOR_DEFENSE\b/g, replacement: 'sẵn sàng bảo vệ' },
+    { pattern: /\bDEFENSE_PASSED\b/g, replacement: 'bảo vệ đạt' },
+    { pattern: /\bDEFENSE_FAILED\b/g, replacement: 'bảo vệ không đạt' },
+    { pattern: /\bAWAITING_SCORES\b/g, replacement: 'chờ đủ phiếu chấm' },
+    { pattern: /\bAWAITING_FINAL_APPROVAL\b/g, replacement: 'chờ phê duyệt kết quả' },
+    { pattern: /\bBM01_PASSED\b/g, replacement: 'đề cương đạt' },
+    { pattern: /\bBM01_SUBMITTED\b/g, replacement: 'chờ duyệt đề cương' },
+    { pattern: /\bBM01_NEEDS_REVISION\b/g, replacement: 'đề cương cần chỉnh sửa' },
+    { pattern: /\bBM02_SUBMITTED\b/g, replacement: 'chờ duyệt nhiệm vụ' },
+    { pattern: /\bBM03_PASSED\b/g, replacement: 'đạt đánh giá tiến độ' },
+    { pattern: /\bBM04_REVIEW\b/g, replacement: 'đang thẩm định phiếu nhận xét' },
+    { pattern: /\bDECISION_ISSUED\b/g, replacement: 'đã ban hành quyết định giao đề tài' },
+    { pattern: /\bREGISTERED\b/g, replacement: 'đã đăng ký đề tài' },
+    { pattern: /\bCOMPLETED\b/g, replacement: 'hoàn tất' },
+    { pattern: /\bAPPROVED\b/g, replacement: 'đã duyệt' },
+    { pattern: /\bREJECTED\b/g, replacement: 'bị từ chối' },
+    { pattern: /\bPENDING\b/g, replacement: 'đang chờ duyệt' },
+    { pattern: /\bSUBMITTED\b/g, replacement: 'đã nộp' },
+    { pattern: /\bDROPPED\b/g, replacement: 'đã dừng đề tài' },
+];
+
+export function sanitizeChatbotResponse(rawText = '') {
+    if (typeof rawText !== 'string') return '';
+    let cleaned = rawText
+        .replace(/<think>[\s\S]*?<\/think>/gi, '')
+        .replace(/<user_query>[\s\S]*?<\/user_query>/gi, '')
+        .replace(/&lt;user_query&gt;[\s\S]*?&lt;\/user_query&gt;/gi, '')
+        .replace(/<\/?user_query>/gi, '')
+        .replace(/&lt;\/?user_query&gt;/gi, '');
+
+    DB_STATUS_TRANSLATIONS.forEach(({ pattern, replacement }) => {
+        cleaned = cleaned.replace(pattern, replacement);
+    });
+
+    cleaned = cleaned.replace(/^[ \t]*\*[ \t]+/gm, '- ');
+    cleaned = cleaned.replace(/\*/g, '');
+
+    return cleaned.trim();
+}
+
 const INITIAL_MESSAGE = {
     id: 'welcome',
     sender: 'bot',
@@ -162,13 +208,7 @@ export default function AcademicChatWidget() {
 
             if (res?.success && res.data) {
                 const rawReply = String(res.data.reply || '');
-                const cleanReply = rawReply
-                    .replace(/<think>[\s\S]*?<\/think>/gi, '')
-                    .replace(/<user_query>[\s\S]*?<\/user_query>/gi, '')
-                    .replace(/&lt;user_query&gt;[\s\S]*?&lt;\/user_query&gt;/gi, '')
-                    .replace(/<\/?user_query>/gi, '')
-                    .replace(/&lt;\/?user_query&gt;/gi, '')
-                    .trim();
+                const cleanReply = sanitizeChatbotResponse(rawReply);
 
                 const botMsg = {
                     id: `bot-${Date.now()}`,

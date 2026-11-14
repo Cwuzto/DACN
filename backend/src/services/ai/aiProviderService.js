@@ -35,9 +35,44 @@ function getProviderMode() {
 }
 
 /**
+ * Canonical dictionary mapping raw database status keywords to natural Vietnamese phrases
+ */
+const DB_STATUS_TRANSLATIONS = [
+  { pattern: /\bPASSED\b/g, replacement: 'hoàn tất' },
+  { pattern: /\bFAILED\b/g, replacement: 'chưa đạt' },
+  { pattern: /\bIN_PROGRESS\b/g, replacement: 'đang diễn ra' },
+  { pattern: /\bONGOING\b/g, replacement: 'đang diễn ra' },
+  { pattern: /\bDEFENSE_READY\b/g, replacement: 'sẵn sàng bảo vệ' },
+  { pattern: /\bREADY_FOR_DEFENSE\b/g, replacement: 'sẵn sàng bảo vệ' },
+  { pattern: /\bDEFENSE_PASSED\b/g, replacement: 'bảo vệ đạt' },
+  { pattern: /\bDEFENSE_FAILED\b/g, replacement: 'bảo vệ không đạt' },
+  { pattern: /\bAWAITING_SCORES\b/g, replacement: 'chờ đủ phiếu chấm' },
+  { pattern: /\bAWAITING_FINAL_APPROVAL\b/g, replacement: 'chờ phê duyệt kết quả' },
+  { pattern: /\bBM01_PASSED\b/g, replacement: 'đề cương đạt' },
+  { pattern: /\bBM01_SUBMITTED\b/g, replacement: 'chờ duyệt đề cương' },
+  { pattern: /\bBM01_NEEDS_REVISION\b/g, replacement: 'đề cương cần chỉnh sửa' },
+  { pattern: /\bBM02_SUBMITTED\b/g, replacement: 'chờ duyệt nhiệm vụ' },
+  { pattern: /\bBM02_NEEDS_REVISION\b/g, replacement: 'nhiệm vụ cần chỉnh sửa' },
+  { pattern: /\bBM02_RESUBMITTED\b/g, replacement: 'nhiệm vụ đã nộp lại' },
+  { pattern: /\bBM03_PASSED\b/g, replacement: 'đạt đánh giá tiến độ' },
+  { pattern: /\bBM04_REVIEW\b/g, replacement: 'đang thẩm định phiếu nhận xét' },
+  { pattern: /\bDECISION_ISSUED\b/g, replacement: 'đã ban hành quyết định giao đề tài' },
+  { pattern: /\bREGISTERED\b/g, replacement: 'đã đăng ký đề tài' },
+  { pattern: /\bCOMPLETED\b/g, replacement: 'hoàn tất' },
+  { pattern: /\bAPPROVED\b/g, replacement: 'đã duyệt' },
+  { pattern: /\bREJECTED\b/g, replacement: 'bị từ chối' },
+  { pattern: /\bPENDING\b/g, replacement: 'đang chờ duyệt' },
+  { pattern: /\bSUBMITTED\b/g, replacement: 'đã nộp' },
+  { pattern: /\bDROPPED\b/g, replacement: 'đã dừng đề tài' },
+];
+
+/**
  * Sanitize AI generated response text:
  * - Strips internal reasoning chains (<think>...</think>)
  * - Strips echoed user query tags (<user_query>...</user_query> or standalone tags)
+ * - Translates raw database status keywords to natural Vietnamese (e.g. PASSED -> hoàn tất)
+ * - Converts bullet point asterisks (* item) to hyphens (- item)
+ * - Strips all markdown asterisks (*) so responses read as clean plain text
  * - Trims extraneous whitespace
  * @param {string} text
  * @returns {string}
@@ -60,6 +95,15 @@ function sanitizeAiReply(text = '') {
   // 3. Strip standalone unclosed tags
   cleaned = cleaned.replace(/<\/?user_query>/gi, '');
   cleaned = cleaned.replace(/&lt;\/?user_query&gt;/gi, '');
+
+  // 4. Translate raw database status keywords to natural Vietnamese
+  DB_STATUS_TRANSLATIONS.forEach(({ pattern, replacement }) => {
+    cleaned = cleaned.replace(pattern, replacement);
+  });
+
+  // 5. Convert bullet point asterisks to hyphens and strip all markdown asterisks
+  cleaned = cleaned.replace(/^[ \t]*\*[ \t]+/gm, '- ');
+  cleaned = cleaned.replace(/\*/g, '');
 
   return cleaned.trim();
 }

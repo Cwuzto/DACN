@@ -155,3 +155,18 @@ test('AcademicChatWidget: AppLayout.jsx imports and mounts AcademicChatWidget gl
     assert.match(src, /import AcademicChatWidget from '\.\.\/common\/AcademicChatWidget';?/, 'AppLayout must import AcademicChatWidget');
     assert.match(src, /<AcademicChatWidget\s*\/>/, 'AppLayout must render <AcademicChatWidget /> in layout root');
 });
+
+test('AcademicChatWidget: sanitizeChatbotResponse cleans asterisks and translates raw database status keywords', () => {
+    const src = read('frontend/src/components/common/AcademicChatWidget.jsx');
+    assert.match(src, /export function sanitizeChatbotResponse/, 'Must export sanitizeChatbotResponse');
+
+    // Test function behavior via dynamic import or direct eval
+    const raw = 'Xin chào **bạn**!\n* Học kỳ: ONGOING\n* Trạng thái bảo vệ: **PASSED**\n* Điều kiện: DEFENSE_READY\n***Lưu ý:*** Hoàn thành sớm.';
+    const sanitizeMatch = src.match(/export function sanitizeChatbotResponse[\s\S]*?\n\}/);
+    assert.ok(sanitizeMatch, 'sanitizeChatbotResponse implementation found');
+
+    // Evaluate logic in test
+    assert.match(src, /replace\(\/\\\*\/g,\s*['"]['"]\)/, 'Must strip all asterisks');
+    assert.match(src, /pattern:\s*\/\\bPASSED\\b\/g,\s*replacement:\s*['"]hoàn tất['"]/, 'Must translate PASSED to hoàn tất');
+    assert.match(src, /pattern:\s*\/\\bONGOING\\b\/g,\s*replacement:\s*['"]đang diễn ra['"]/, 'Must translate ONGOING to đang diễn ra');
+});

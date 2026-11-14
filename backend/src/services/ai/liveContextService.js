@@ -69,6 +69,68 @@ function formatDate(date) {
 }
 
 /**
+ * Canonical mapping from database status enums to natural Vietnamese phrases
+ */
+const ACADEMIC_STATUS_MAP = {
+  ACTIVE: 'Đang diễn ra',
+  ONGOING: 'Đang diễn ra',
+  UPCOMING: 'Sắp diễn ra',
+  REGISTRATION: 'Đang mở đăng ký',
+  DEFENSE: 'Giai đoạn bảo vệ',
+  DEFENSE_READY: 'Đủ điều kiện sẵn sàng bảo vệ',
+  READY_FOR_DEFENSE: 'Đủ điều kiện sẵn sàng bảo vệ',
+  PASSED: 'Hoàn tất (Đạt yêu cầu)',
+  FAILED: 'Chưa đạt',
+  IN_PROGRESS: 'Đang diễn ra',
+  IN_PROGRESS_BM03: 'Đang thực hiện đồ án',
+  SUBMITTED: 'Đã nộp',
+  DEFENDED: 'Đã bảo vệ xong',
+  DEFENSE_PASSED: 'Bảo vệ đạt yêu cầu',
+  DEFENSE_FAILED: 'Bảo vệ chưa đạt',
+  AWAITING_SCORES: 'Đang chờ đủ phiếu chấm',
+  AWAITING_FINAL_APPROVAL: 'Đang chờ phê duyệt kết quả',
+  PENDING_INSTITUTE_SIGNATURE: 'Chờ Viện trưởng ký hoàn thành',
+  ARCHIVE_INCOMPLETE: 'Hồ sơ lưu chiểu chưa hoàn tất',
+  ARCHIVE_REJECTED: 'Hồ sơ lưu chiểu không đạt',
+  ELIGIBLE_BY_INSTITUTE: 'Đủ điều kiện bảo vệ',
+  COMPLETED: 'Hoàn tất',
+  DROPPED: 'Đã dừng đồ án',
+  WITHDRAWN: 'Đã rút đồ án',
+  OPEN: 'Chưa nộp',
+  REVISION: 'Cần chỉnh sửa bổ sung',
+  OVERDUE: 'Quá hạn',
+  APPROVED: 'Đã được duyệt',
+  PENDING: 'Đang chờ duyệt',
+  REJECTED: 'Bị từ chối',
+  DECISION_ISSUED: 'Đã ban hành quyết định giao đề tài',
+  REGISTERED: 'Đã đăng ký đề tài',
+  BM01_SUBMITTED: 'Đang chờ duyệt đề cương',
+  BM01_NEEDS_REVISION: 'Đề cương cần chỉnh sửa',
+  BM01_PASSED: 'Đề cương đạt yêu cầu',
+  BM02_SUBMITTED: 'Đang chờ duyệt nhiệm vụ',
+  BM02_NEEDS_REVISION: 'Nhiệm vụ cần chỉnh sửa',
+  BM02_RESUBMITTED: 'Nhiệm vụ đã nộp lại',
+  BM02_EXCEPTION_REVIEW: 'Nhiệm vụ đang xét ngoại lệ',
+  BM03_SIGNATURE_PENDING: 'Chờ ký biên bản tiến độ',
+  BM03_PASSED: 'Đạt đánh giá tiến độ',
+  BM04_REVIEW: 'Đang thẩm định phiếu nhận xét',
+  TERMINATED_BM01: 'Dừng tại bước đề cương',
+  TERMINATED_BM02: 'Dừng tại bước giao nhiệm vụ',
+  TERMINATED_FAILED_PROGRESS: 'Dừng đề tài do không đạt tiến độ',
+  TERMINATED_BM04: 'Dừng đề tài do phiếu nhận xét chưa đạt',
+};
+
+/**
+ * Format academic / registration status into natural Vietnamese
+ * @param {string} status
+ * @returns {string}
+ */
+function formatAcademicStatus(status) {
+  if (!status) return 'Chưa cập nhật';
+  return ACADEMIC_STATUS_MAP[status] || status;
+}
+
+/**
  * Format semester status into Vietnamese human-readable string
  * @param {string} status
  * @returns {string}
@@ -77,16 +139,16 @@ function formatSemesterStatus(status) {
   switch (status) {
     case 'ACTIVE':
     case 'ONGOING':
-      return `Đang diễn ra (${status})`;
+      return 'Đang diễn ra';
     case 'UPCOMING':
     case 'REGISTRATION':
-      return `Sắp diễn ra (${status})`;
+      return 'Sắp diễn ra';
     case 'DEFENSE':
-      return `Giai đoạn bảo vệ (${status})`;
+      return 'Giai đoạn bảo vệ';
     case 'COMPLETED':
-      return `Đã kết thúc (${status})`;
+      return 'Đã kết thúc';
     default:
-      return status || 'N/A';
+      return status ? (ACADEMIC_STATUS_MAP[status] || status) : 'Chưa xác định';
   }
 }
 
@@ -576,10 +638,10 @@ function formatLiveContextString({ activeSemester, dean, lecturers, personalCont
       const lecturerName = formatFullNameWithTitle(l.academicTitle, l.fullName);
       const dept = l.department ? ` (${l.department})` : '';
       const email = l.email ? ` - ${l.email}` : '';
-      parts.push(`  * ${lecturerName}${dept}${email}`);
+      parts.push(`  - ${lecturerName}${dept}${email}`);
     });
   } else {
-    parts.push('  * Chưa có thông tin giảng viên hướng dẫn đợt này.');
+    parts.push('  - Chưa có thông tin giảng viên hướng dẫn đợt này.');
   }
 
   if (user) {
@@ -595,7 +657,9 @@ function formatLiveContextString({ activeSemester, dean, lecturers, personalCont
           ? `${formatFullNameWithTitle(personalContext.mentor.academicTitle, personalContext.mentor.fullName)}${personalContext.mentor.email ? ` (${personalContext.mentor.email})` : ''}`
           : 'Chưa phân công';
         parts.push(`- Giảng viên hướng dẫn: ${mentorText}`);
-        parts.push(`- Trạng thái đồ án hiện tại: ${personalContext.status || 'Chưa cập nhật'}`);
+        const statusDesc = formatAcademicStatus(personalContext.status);
+        const rawCode = personalContext.status ? ` (Mã hệ thống: ${personalContext.status})` : '';
+        parts.push(`- Trạng thái đồ án hiện tại: ${statusDesc}${rawCode}`);
       } else {
         parts.push('- Tình trạng đồ án: Chưa đăng ký đề tài hoặc chưa có đề tài được ghi nhận trong đợt này.');
       }
@@ -605,7 +669,9 @@ function formatLiveContextString({ activeSemester, dean, lecturers, personalCont
       if (personalContext?.advisedStudents && personalContext.advisedStudents.length > 0) {
         personalContext.advisedStudents.forEach((s) => {
           const code = s.studentCode ? `[${s.studentCode}] ` : '';
-          parts.push(`  * ${code}${s.studentName || 'Sinh viên'} - Đề tài: "${s.topicTitle || 'Chưa đặt tên'}" - Trạng thái: ${s.status || 'N/A'}`);
+          const sStatusDesc = formatAcademicStatus(s.status);
+          const sRaw = s.status ? ` (${s.status})` : '';
+          parts.push(`  - ${code}${s.studentName || 'Sinh viên'} - Đề tài: "${s.topicTitle || 'Chưa đặt tên'}" - Trạng thái: ${sStatusDesc}${sRaw}`);
         });
       }
     } else if (user.role === 'ADMIN') {

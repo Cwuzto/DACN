@@ -10,7 +10,39 @@ const DEFAULT_EMBED_MODEL = process.env.OLLAMA_EMBED_MODEL || 'embeddinggemma-2:
 const DEFAULT_TIMEOUT_MS = parseInt(process.env.OLLAMA_TIMEOUT_MS, 10) || 30000;
 
 /**
- * Strip reasoning chain (<think>...</think>) and echoed user query from model replies
+ * Canonical dictionary mapping raw database status keywords to natural Vietnamese phrases
+ */
+const DB_STATUS_TRANSLATIONS = [
+  { pattern: /\bPASSED\b/g, replacement: 'hoàn tất' },
+  { pattern: /\bFAILED\b/g, replacement: 'chưa đạt' },
+  { pattern: /\bIN_PROGRESS\b/g, replacement: 'đang diễn ra' },
+  { pattern: /\bONGOING\b/g, replacement: 'đang diễn ra' },
+  { pattern: /\bDEFENSE_READY\b/g, replacement: 'sẵn sàng bảo vệ' },
+  { pattern: /\bREADY_FOR_DEFENSE\b/g, replacement: 'sẵn sàng bảo vệ' },
+  { pattern: /\bDEFENSE_PASSED\b/g, replacement: 'bảo vệ đạt' },
+  { pattern: /\bDEFENSE_FAILED\b/g, replacement: 'bảo vệ không đạt' },
+  { pattern: /\bAWAITING_SCORES\b/g, replacement: 'chờ đủ phiếu chấm' },
+  { pattern: /\bAWAITING_FINAL_APPROVAL\b/g, replacement: 'chờ phê duyệt kết quả' },
+  { pattern: /\bBM01_PASSED\b/g, replacement: 'đề cương đạt' },
+  { pattern: /\bBM01_SUBMITTED\b/g, replacement: 'chờ duyệt đề cương' },
+  { pattern: /\bBM01_NEEDS_REVISION\b/g, replacement: 'đề cương cần chỉnh sửa' },
+  { pattern: /\bBM02_SUBMITTED\b/g, replacement: 'chờ duyệt nhiệm vụ' },
+  { pattern: /\bBM02_NEEDS_REVISION\b/g, replacement: 'nhiệm vụ cần chỉnh sửa' },
+  { pattern: /\bBM02_RESUBMITTED\b/g, replacement: 'nhiệm vụ đã nộp lại' },
+  { pattern: /\bBM03_PASSED\b/g, replacement: 'đạt đánh giá tiến độ' },
+  { pattern: /\bBM04_REVIEW\b/g, replacement: 'đang thẩm định phiếu nhận xét' },
+  { pattern: /\bDECISION_ISSUED\b/g, replacement: 'đã ban hành quyết định giao đề tài' },
+  { pattern: /\bREGISTERED\b/g, replacement: 'đã đăng ký đề tài' },
+  { pattern: /\bCOMPLETED\b/g, replacement: 'hoàn tất' },
+  { pattern: /\bAPPROVED\b/g, replacement: 'đã duyệt' },
+  { pattern: /\bREJECTED\b/g, replacement: 'bị từ chối' },
+  { pattern: /\bPENDING\b/g, replacement: 'đang chờ duyệt' },
+  { pattern: /\bSUBMITTED\b/g, replacement: 'đã nộp' },
+  { pattern: /\bDROPPED\b/g, replacement: 'đã dừng đề tài' },
+];
+
+/**
+ * Strip reasoning chain (<think>...</think>), echoed user query, raw DB statuses, and asterisks from model replies
  * @param {string} text
  * @returns {string}
  */
@@ -32,6 +64,15 @@ function stripThinking(text = '') {
   // 3. Strip standalone unclosed tags
   cleaned = cleaned.replace(/<\/?user_query>/gi, '');
   cleaned = cleaned.replace(/&lt;\/?user_query&gt;/gi, '');
+
+  // 4. Translate raw database status keywords to natural Vietnamese
+  DB_STATUS_TRANSLATIONS.forEach(({ pattern, replacement }) => {
+    cleaned = cleaned.replace(pattern, replacement);
+  });
+
+  // 5. Convert bullet point asterisks to hyphens and strip all markdown asterisks
+  cleaned = cleaned.replace(/^[ \t]*\*[ \t]+/gm, '- ');
+  cleaned = cleaned.replace(/\*/g, '');
 
   return cleaned.trim();
 }

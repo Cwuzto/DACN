@@ -335,5 +335,26 @@ describe('ollamaProvider.js - Local Ollama REST Provider', () => {
       const raw = '&lt;user_query&gt;Đề tài của em&lt;/user_query&gt;\nĐề tài của bạn là Hệ thống DACN.';
       expect(ollamaProvider.stripThinking(raw)).toBe('Đề tài của bạn là Hệ thống DACN.');
     });
+
+    it('should strip markdown asterisks and convert asterisk bullets to hyphens', () => {
+      const raw = 'Xin chào **bạn**!\n* Bước 1: **Nộp BM01**\n* Bước 2: *Tiến độ BM03*\n***Lưu ý:*** Thực hiện đúng hạn.';
+      const cleaned = ollamaProvider.stripThinking(raw);
+      expect(cleaned).not.toContain('*');
+      expect(cleaned).toContain('Xin chào bạn!');
+      expect(cleaned).toContain('- Bước 1: Nộp BM01');
+      expect(cleaned).toContain('- Bước 2: Tiến độ BM03');
+      expect(cleaned).toContain('Lưu ý: Thực hiện đúng hạn.');
+    });
+
+    it('should translate raw database status keywords to natural Vietnamese', () => {
+      const raw = 'Học kỳ đang ở trạng thái ONGOING. Điểm bảo vệ của bạn là 8.5, trạng thái: PASSED. Bạn đã DEFENSE_READY.';
+      const cleaned = ollamaProvider.stripThinking(raw);
+      expect(cleaned).not.toContain('PASSED');
+      expect(cleaned).not.toContain('ONGOING');
+      expect(cleaned).not.toContain('DEFENSE_READY');
+      expect(cleaned).toContain('đang diễn ra');
+      expect(cleaned).toContain('hoàn tất');
+      expect(cleaned).toContain('sẵn sàng bảo vệ');
+    });
   });
 });
