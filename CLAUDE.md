@@ -106,6 +106,23 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
      * Cập nhật `SubmissionPage.jsx`: Bọc `BMSubmissionViewer` bên trong `<Modal open={viewerVisible} onCancel={() => setViewerVisible(false)} ... destroyOnHidden>`, gán đầy đủ cả `onClose` và `onCancel` cho `AcademicFormPrintModal`.
      * Nâng cấp `BM01PrintSheet.jsx`: Nhận cả prop `outlineData` lẫn `outline`, linh hoạt hỗ trợ các trường dữ liệu `topicTitle`, `deliverables`, `objectives`.
    - *Xác thực*: Toàn bộ 286 contract tests, 118 runtime tests vitest và lệnh `vite build` đều vượt qua 100%.
+8. **Tích Hợp Trợ Lý AI Sinh Gợi Ý Nhận Xét BM04 Từ Minh Chứng Tiến Độ BM03**:
+   - *Mục tiêu*: Hỗ trợ Giảng viên hướng dẫn (GVHD) tự động phân tích toàn bộ dữ liệu nhật ký gặp định kỳ và 2 mốc Checkpoint ghi nhận trong BM03 để sinh gợi ý nhận xét chuẩn mực cho 4 tiêu chí Chuẩn đầu ra (CĐR) của phiếu BM04.
+   - *Backend AI Suite*:
+     * Thêm route `POST /api/ai/bm04-suggestion` có xác thực JWT và phân quyền chặt chẽ (chỉ GVHD hướng dẫn đề tài hoặc Quản trị viên/Giáo vụ mới được gọi).
+     * `aiController.js` (`bm04Suggestion`): Truy vấn dữ liệu thực tế từ `TopicRegistration` kèm `bm03Record` (gồm danh sách `meetings`, `stageEvaluations`), `meetingLogs`, và `checkpointEvaluations`, tích hợp cơ chế bộ nhớ đệm `aiCache`.
+     * `aiProviderService.js`: Điều hướng đến `geminiProvider.js` (khi cấu hình `GEMINI_API_KEY`) hoặc `localFallbackProvider.js` (chế độ Zero-Crash ngoại tuyến), tự động làm sạch văn bản qua `sanitizeAiReply`.
+     * Sinh chuẩn xác 4 nhóm tiêu chí: (1) Hình thức BCTN (`thesisFormatScore`), (2) Nội dung nghiên cứu (`researchContentScore`), (3) Tính ứng dụng & triển vọng (`applicabilityScore`), (4) Thái độ & ý thức làm việc (`attitudeScore`), kèm đề xuất chuẩn đầu ra (`programOutcome`) và ra bảo vệ (`defenseRecommendation`).
+   - *Frontend SPA*:
+     * `aiService.js`: Thêm phương thức `generateBM04Suggestions({ registrationId })`.
+     * `BM04EvaluationModal.jsx`: Thêm thanh tác vụ Trợ lý AI và nút bấm `<Button icon={<RobotOutlined />}>AI Gợi ý từ BM03</Button>`.
+     * `BM04AiSuggestionDrawer.jsx`: Ngăn kéo xem trước thông minh hiển thị thẻ thống kê minh chứng BM03 (số buổi gặp, kết quả Checkpoint 1 & 2), nội dung gợi ý 4 tiêu chí với nút "Áp dụng mục này" cho từng tiêu chí riêng lẻ hoặc "Áp dụng toàn bộ vào phiếu".
+     * Tuân thủ nghiêm ngặt **AGENTS.md**: 100% UTF-8 without BOM (Rule 2.4), không chèn raw emoji trong Button labels (Rule 2.6).
+   - *Kiểm thử*:
+     * Backend unit test `backend/tests/unit/bm04AiSuggestion.test.js`: PASS 6/6 test cases.
+     * Frontend contract test `frontend/tests/bm04AiSuggestionUiUx.test.js`: PASS 5/5 test cases (nâng tổng số test hợp đồng lên 291/291 PASS).
+     * Frontend runtime test: PASS 118/118 test cases.
+     * Đóng gói production `vite build`: Hoàn thành trong 14.93s, 0 lỗi.
 
 #### 2. Danh Sách Tài Khoản Demo Ngay (Cheatsheet)
 | Chức năng Demo | Tài khoản (Email) | Mật khẩu | Mô tả kịch bản kiểm thử |
