@@ -96,6 +96,16 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
    - *Nguyên nhân*: Trong `schema.prisma`, `TopicRegistration` trước đó chỉ có cột scalar `semesterId: Int` mà chưa khai báo quan hệ `@relation(fields: [semesterId], references: [id])` với `model Semester`. Khi `dashboardController.js` thực hiện truy vấn lùi học kỳ (`where: { semester: { status: ... } }`), Prisma runtime ném lỗi `Unknown argument semester`.
    - *Giải pháp*: Khai báo quan hệ `semester Semester @relation(fields: [semesterId], references: [id])` vào `TopicRegistration` và quan hệ đối ứng `registrations TopicRegistration[]` vào `Semester` trong `schema.prisma`, chạy `prisma generate`. Đồng thời tại `registrationController.js` (`getMyRegistration` và `getMyProjectEnrollments`), tự động phân giải `targetSemesterId` về học kỳ mà sinh viên thực tế đang thực hiện khi truy vấn không truyền tham số `?semesterId=...`.
    - *Xác thực*: Chạy kiểm thử E2E đăng nhập và gọi cả 3 API `/api/dashboard/student`, `/api/registrations/my-registration`, `/api/bm03/75` bằng tài khoản `sv075@university.edu.vn` đều trả về HTTP 200 OK và tải trọn vẹn thông tin đề tài.
+7. **Khắc Phục Lỗi Không Thể Đóng Modal BM01 / Biểu Mẫu Học Thuật (`AcademicFormPrintModal` & `BMSubmissionViewer`)**:
+   - *Hiện tượng*: Khi sinh viên hoặc giảng viên bấm mở "In Đề cương BM01" hoặc các biểu mẫu học vụ (BM01, BM02, BM03, BM04, BM02-A), người dùng không thể đóng hộp thoại in (nút "Đóng", nút "X" và phím ESC đều không hoạt động). Đồng thời khi bấm xem chi tiết bài nộp, component `BMSubmissionViewer` hiển thị trần không có hộp thoại Modal bao bọc.
+   - *Nguyên nhân*:
+     * Component `AcademicFormPrintModal.jsx` trước đó chỉ destructure prop `onClose`, nhưng các trang gọi (`SubmissionPage.jsx`, `BM04EvaluationModal.jsx`, `AcademicDossierDrawer.jsx`, `TitleAdjustmentModal.jsx`) lại truyền `onCancel`. Vì `onClose` là `undefined`, sự kiện `onCancel` của Ant Design `<Modal>` và sự kiện `onClick` của nút "Đóng" không thể kích hoạt đóng modal.
+     * `BMSubmissionViewer.jsx` là một view-content component trả về `<div>...</div>`, nhưng `SubmissionPage.jsx` lại render trực tiếp mà không bọc trong thẻ `<Modal>`.
+   - *Giải pháp*:
+     * Chuẩn hóa `AcademicFormPrintModal.jsx`: Nhận cả 2 props `onClose` và `onCancel`, tạo fallback an toàn `const handleClose = onClose || onCancel;`, gán cho cả `<Modal onCancel={handleClose}>` lẫn `<Button icon={<CloseOutlined />} onClick={handleClose}>Đóng</Button>`.
+     * Cập nhật `SubmissionPage.jsx`: Bọc `BMSubmissionViewer` bên trong `<Modal open={viewerVisible} onCancel={() => setViewerVisible(false)} ... destroyOnHidden>`, gán đầy đủ cả `onClose` và `onCancel` cho `AcademicFormPrintModal`.
+     * Nâng cấp `BM01PrintSheet.jsx`: Nhận cả prop `outlineData` lẫn `outline`, linh hoạt hỗ trợ các trường dữ liệu `topicTitle`, `deliverables`, `objectives`.
+   - *Xác thực*: Toàn bộ 286 contract tests, 118 runtime tests vitest và lệnh `vite build` đều vượt qua 100%.
 
 #### 2. Danh Sách Tài Khoản Demo Ngay (Cheatsheet)
 | Chức năng Demo | Tài khoản (Email) | Mật khẩu | Mô tả kịch bản kiểm thử |
