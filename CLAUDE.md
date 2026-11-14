@@ -2688,6 +2688,9 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
    - BM04 (Phiếu nhận xét của GVHD / GV phản biện) là văn bản pháp lý định tính nhằm xác nhận tính liêm chính, đáp ứng chuẩn đầu ra và đề nghị cho phép sinh viên được ra bảo vệ. Điểm số thang 10 hoàn toàn không xuất hiện ở giai đoạn này mà được cho độc lập bởi 3 ủy viên Hội đồng trong biên bản chấm BM05. Do đó việc loại bỏ "Điểm đánh giá quá trình 9.0 / 10" là hoàn toàn chuẩn xác theo quy chế đào tạo.
 2. **Cung cấp nút in ấn tại mọi ngữ cảnh liên quan**:
    - GVHD có thể muốn in BM03 khi đang xem lại các buổi gặp (Tab 2) hoặc khi đang thẩm định mốc giữa kỳ/cuối kỳ (Tab 3) hoặc ngay từ Header bar. Cung cấp nút in ấn theo ngữ cảnh giúp tối ưu trải nghiệm và thuận tiện cho giảng viên.
+3. **Triệt tiêu False-Positive cảnh báo trễ sau khi đã hoàn thành BM03**:
+   - Khi sinh viên đã hoàn thành cả 3 mốc gặp BM03 (24/8, 21/9, 19/10), GVHD đã ký đóng sổ BM03 (`advisorSignedAt`) và sinh viên đã xác nhận, chu kỳ gặp mặt định kỳ đã khép lại và chuyển sang giai đoạn thẩm định BM04. Hệ thống không được phép tính khoảng cách ngày từ buổi gặp cuối cùng (`daysSinceLastMeeting > 21`) để báo lỗi trễ tiến độ, mà phải cập nhật trạng thái `BM03_PASSED` và hiển thị nhãn `Chờ duyệt BM04`.
+
 
 
 
