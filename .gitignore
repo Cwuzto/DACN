@@ -54,6 +54,10 @@ PROJECT_OVERVIEW.md
 # Temporary isolated worktrees
 /.worktrees/
 
+# Playwright artifacts
+test-results/
+playwright-report/
+
 # Superpowers scratch & brainstorm
 .superpowers/
 
