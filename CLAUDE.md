@@ -92,6 +92,10 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
    - 286/286 contract tests frontend PASS.
    - 118/118 runtime tests vitest PASS.
    - Vite production build hoàn tất trong 15.90s, không lỗi.
+6. **Khắc Phục Triệt Để Lỗi Truy Cập Sinh Viên (`sv075`..`sv120`)**:
+   - *Nguyên nhân*: Trong `schema.prisma`, `TopicRegistration` trước đó chỉ có cột scalar `semesterId: Int` mà chưa khai báo quan hệ `@relation(fields: [semesterId], references: [id])` với `model Semester`. Khi `dashboardController.js` thực hiện truy vấn lùi học kỳ (`where: { semester: { status: ... } }`), Prisma runtime ném lỗi `Unknown argument semester`.
+   - *Giải pháp*: Khai báo quan hệ `semester Semester @relation(fields: [semesterId], references: [id])` vào `TopicRegistration` và quan hệ đối ứng `registrations TopicRegistration[]` vào `Semester` trong `schema.prisma`, chạy `prisma generate`. Đồng thời tại `registrationController.js` (`getMyRegistration` và `getMyProjectEnrollments`), tự động phân giải `targetSemesterId` về học kỳ mà sinh viên thực tế đang thực hiện khi truy vấn không truyền tham số `?semesterId=...`.
+   - *Xác thực*: Chạy kiểm thử E2E đăng nhập và gọi cả 3 API `/api/dashboard/student`, `/api/registrations/my-registration`, `/api/bm03/75` bằng tài khoản `sv075@university.edu.vn` đều trả về HTTP 200 OK và tải trọn vẹn thông tin đề tài.
 
 #### 2. Danh Sách Tài Khoản Demo Ngay (Cheatsheet)
 | Chức năng Demo | Tài khoản (Email) | Mật khẩu | Mô tả kịch bản kiểm thử |
