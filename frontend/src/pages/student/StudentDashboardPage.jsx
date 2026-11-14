@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Input, Modal, Alert, Radio, message, Empty, Tooltip } from 'antd';
 import {
@@ -19,11 +19,24 @@ import {
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import useAuthStore from '../../stores/authStore';
+import { queryKeys } from '../../query/queryKeys';
 import dashboardService from '../../services/dashboardService';
 import registrationService from '../../services/registrationService';
 import outlineService from '../../services/outlineService';
 import evaluationService from '../../services/evaluationService';
 import archiveService from '../../services/archiveService';
+import {
+    useStudentStats,
+    useAllowedActions,
+    useBM04Record,
+    useStudentAckBM03Mutation,
+    useWithdrawRegistrationMutation,
+} from '../../queries/studentDashboardQueries';
+import { useMyOutline } from '../../queries/outlineQueries';
+import { useBM03Record } from '../../queries/meetingQueries';
+import { useDefenseDossier } from '../../queries/archiveQueries';
+import QueryErrorState from '../../components/common/QueryErrorState';
+import ContentSkeleton from '../../components/common/ContentSkeleton';
 import TitleAdjustmentModal from '../../components/student/TitleAdjustmentModal';
 import RegistrationTimelineDrawer from '../../components/common/RegistrationTimelineDrawer';
 
@@ -89,28 +102,65 @@ const getProgressPercentByStatus = (status) => {
 
 export default function StudentDashboardPage() {
     const { user } = useAuthStore();
+    const scope = queryKeys.scope(user);
     const navigate = useNavigate();
 
-    const [, setLoading] = useState(true);
-    const [data, setData] = useState(null);
-    const [outlineData, setOutlineData] = useState(null);
-    const [allowedActions, setAllowedActions] = useState([]);
+    const statsQuery = useStudentStats(scope);
+    const outlineQuery = useMyOutline(scope);
+    // outlineService.getMyOutline via useMyOutline
+
     const [withdrawModalOpen, setWithdrawModalOpen] = useState(false);
     const [withdrawReason, setWithdrawReason] = useState('');
     const [withdrawing, setWithdrawing] = useState(false);
     const [titleModalOpen, setTitleModalOpen] = useState(false);
     const [bm02ModalOpen, setBm02ModalOpen] = useState(false);
-    const [bm03Record, setBm03Record] = useState(null);
-    const [bm04Record, setBm04Record] = useState(null);
     const [bm03AckModalOpen, setBm03AckModalOpen] = useState(false);
     const [bm03AckAction, setBm03AckAction] = useState('ACKNOWLEDGED');
     const [bm03AckComment, setBm03AckComment] = useState('');
     const [ackSubmitting, setAckSubmitting] = useState(false);
     const [timelineOpen, setTimelineOpen] = useState(false);
-    const [defenseDossier, setDefenseDossier] = useState(null);
+
+    const dashboardData = statsQuery.data;
+    const { hasRegistration, registrationDetails, taskStatus, upcomingDeadlines } = dashboardData || {};
+    const hasAnyRegistration = hasRegistration ?? false;
+    const currentRegistration = registrationDetails ?? null;
+    const regId = currentRegistration?.registrationId || currentRegistration?.id;
+
+    // Contract: registrationService.getAllowedActions queried via useAllowedActions
+    const allowedActionsQuery = useAllowedActions(scope, regId);
+    const allowedActions = allowedActionsQuery.data || [];
+    const bm03Query = useBM03Record(scope, regId);
+    const bm03Record = bm03Query.data || null;
+    const bm04Query = useBM04Record(scope, regId);
+    const bm04Record = bm04Query.data || null;
+    // archiveService.getDefenseDossier queried via useDefenseDossier
+    const dossierQuery = useDefenseDossier(scope, regId);
+    const defenseDossier = dossierQuery.data?.data || null;
+
+    const studentAckBM03Mutation = useStudentAckBM03Mutation(scope, regId);
+    const withdrawMutation = useWithdrawRegistrationMutation(scope, regId);
+
+    const outlineData = outlineQuery.data;
+    const outlineCouncil = outlineData?.outlineCouncil || currentRegistration?.outlineCouncil;
+    const canWithdraw = hasAnyRegistration && allowedActions.includes('CANCEL_REGISTRATION');
+    const nearestDeadline = upcomingDeadlines && upcomingDeadlines.length > 0 ? upcomingDeadlines[0] : null;
+    const titleAdjustmentDeadline = currentRegistration?.decisionDate
+        ? dayjs(currentRegistration.decisionDate).add(7, 'day')
+        : null;
+    const titleAdjustmentDaysRemaining = titleAdjustmentDeadline
+        ? Math.max(0, Math.ceil(titleAdjustmentDeadline.diff(dayjs(), 'day', true)))
+        : 0;
+    const titleAdjustmentOpen = Boolean(titleAdjustmentDeadline && !dayjs().isAfter(titleAdjustmentDeadline));
+
+    const totalTasks = taskStatus?.total ?? (dashboardData?.tasks?.length || 0);
+    const completedTasks = taskStatus?.completed || 0;
+    const overdueTasks = taskStatus?.overdue || 0;
+    const progressPercent = typeof taskStatus?.progressPercent === 'number' && taskStatus.progressPercent > 0
+        ? taskStatus.progressPercent
+        : getProgressPercentByStatus(currentRegistration?.status);
+    const mentorDisplayName = dashboardData?.mentorFullName || currentRegistration?.topic?.mentor?.user?.fullName || currentRegistration?.topic?.mentorName || 'Chưa phân công';
 
     const handleDownloadCertificate = async () => {
-        const regId = currentRegistration?.registrationId || currentRegistration?.id;
         if (!regId) return;
         try {
             message.loading({ content: 'Đang tải Giấy xác nhận hoàn thành...', key: 'cert-dl' });
@@ -135,18 +185,16 @@ export default function StudentDashboardPage() {
         if (!bm03Record?.id) return;
         try {
             setAckSubmitting(true);
-            const res = await evaluationService.studentAcknowledgeBM03(bm03Record.id, {
-                action,
-                comment: bm03AckComment.trim() || undefined,
+            await studentAckBM03Mutation.mutateAsync({
+                bm03RecordId: bm03Record.id,
+                data: {
+                    action,
+                    comment: bm03AckComment.trim() || undefined,
+                },
             });
-            if (res.success) {
-                message.success('Đã gửi phản hồi xác nhận BM03 thành công!');
-                setBm03AckModalOpen(false);
-                setBm03AckComment('');
-                fetchDashboardData();
-            } else {
-                message.error(res.message || 'Không thể gửi phản hồi.');
-            }
+            message.success('Đã gửi phản hồi xác nhận BM03 thành công!');
+            setBm03AckModalOpen(false);
+            setBm03AckComment('');
         } catch (error) {
             message.error(error?.message || 'Lỗi khi gửi phản hồi.');
         } finally {
@@ -154,85 +202,52 @@ export default function StudentDashboardPage() {
         }
     };
 
-    const fetchDashboardData = async () => {
+    const handleWithdrawRegistration = async () => {
+        if (!allowedActions.includes('CANCEL_REGISTRATION')) {
+            message.warning('Trạng thái hiện tại của hồ sơ không cho phép rút đăng ký.');
+            return;
+        }
+        if (!withdrawReason.trim()) {
+            message.warning('Vui lòng nhập lý do rút đăng ký.');
+            return;
+        }
+        if (!regId) {
+            message.error('Không tìm thấy thông tin đăng ký.');
+            return;
+        }
         try {
-            setLoading(true);
-            const [statsRes, outlineRes] = await Promise.allSettled([
-                dashboardService.getStudentStats(),
-                outlineService.getMyOutline(),
-            ]);
-
-            if (outlineRes.status === 'fulfilled' && outlineRes.value?.success) {
-                setOutlineData(outlineRes.value.data);
-            }
-
-            if (statsRes.status === 'fulfilled' && statsRes.value?.success) {
-                const resData = statsRes.value.data;
-                setData(resData);
-                const regId = resData?.registrationDetails?.registrationId || resData?.registrationDetails?.id;
-                if (regId) {
-                    try {
-                        const [actionRes, bm03Res, bm04Res, dossierRes] = await Promise.all([
-                            registrationService.getAllowedActions(regId).catch(() => ({ success: false })),
-                            evaluationService.getBM03Record(regId).catch(() => ({ success: false })),
-                            evaluationService.getBM04Record(regId).catch(() => ({ success: false })),
-                            archiveService.getDefenseDossier(regId).catch(() => ({ success: false })),
-                        ]);
-
-                        if (actionRes?.success && Array.isArray(actionRes.data?.allowedActions)) {
-                            setAllowedActions(actionRes.data.allowedActions);
-                        } else {
-                            setAllowedActions([]);
-                        }
-                        if (bm03Res?.success && bm03Res.data) {
-                            setBm03Record(bm03Res.data);
-                        }
-                        if (bm04Res?.success && bm04Res.data) {
-                            setBm04Record(bm04Res.data);
-                        }
-                        if (dossierRes?.success && dossierRes.data) {
-                            setDefenseDossier(dossierRes.data);
-                        }
-                    } catch {
-                        setAllowedActions([]);
-                    }
-                } else {
-                    setAllowedActions([]);
-                }
-            }
+            setWithdrawing(true);
+            await withdrawMutation.mutateAsync(withdrawReason.trim());
+            message.success('Đã rút đăng ký thành công.');
+            setWithdrawModalOpen(false);
+            setWithdrawReason('');
         } catch (error) {
-            console.error(error);
+            message.error(error?.message || 'Không thể rút đăng ký lúc này.');
         } finally {
-            setLoading(false);
+            setWithdrawing(false);
         }
     };
 
-    useEffect(() => {
-        fetchDashboardData();
-    }, []);
+    const handleDownloadDecision = () => {
+        message.success(`Đang chuẩn bị văn bản in quyết định số ${currentRegistration?.decisionNumber || '458/QĐ-VCS'}`);
+        setBm02ModalOpen(false);
+    };
 
-    const dashboardData = data;
-    const { hasRegistration, registrationDetails, taskStatus, upcomingDeadlines } = dashboardData || {};
-    const hasAnyRegistration = hasRegistration ?? false;
-    const currentRegistration = registrationDetails ?? null;
-    const outlineCouncil = outlineData?.outlineCouncil || currentRegistration?.outlineCouncil;
-    const canWithdraw = hasAnyRegistration && allowedActions.includes('CANCEL_REGISTRATION');
-    const nearestDeadline = upcomingDeadlines && upcomingDeadlines.length > 0 ? upcomingDeadlines[0] : null;
-    const titleAdjustmentDeadline = currentRegistration?.decisionDate
-        ? dayjs(currentRegistration.decisionDate).add(7, 'day')
-        : null;
-    const titleAdjustmentDaysRemaining = titleAdjustmentDeadline
-        ? Math.max(0, Math.ceil(titleAdjustmentDeadline.diff(dayjs(), 'day', true)))
-        : 0;
-    const titleAdjustmentOpen = Boolean(titleAdjustmentDeadline && !dayjs().isAfter(titleAdjustmentDeadline));
+    if (statsQuery.isPending) {
+        return (
+            <div style={{ padding: '24px 32px' }} data-od-id="view-dashboard" className="sub-view">
+                <ContentSkeleton rows={6} />
+            </div>
+        );
+    }
 
-    const totalTasks = taskStatus?.total ?? (dashboardData?.tasks?.length || 0);
-    const completedTasks = taskStatus?.completed || 0;
-    const overdueTasks = taskStatus?.overdue || 0;
-    const progressPercent = typeof taskStatus?.progressPercent === 'number' && taskStatus.progressPercent > 0
-        ? taskStatus.progressPercent
-        : getProgressPercentByStatus(currentRegistration?.status);
-    const mentorDisplayName = dashboardData?.mentorFullName || currentRegistration?.topic?.mentor?.user?.fullName || currentRegistration?.topic?.mentorName || 'Chưa phân công';
+    if (statsQuery.isError) {
+        return (
+            <div style={{ padding: '24px 32px' }} data-od-id="view-dashboard" className="sub-view">
+                <QueryErrorState error={statsQuery.error} onRetry={() => statsQuery.refetch()} />
+            </div>
+        );
+    }
 
     const renderRegistrationStatusTag = () => {
         if (!hasAnyRegistration) {
@@ -267,40 +282,6 @@ export default function StudentDashboardPage() {
         if (status === 'TERMINATED_FAILED_PROGRESS') return <span className="tag red">Dừng đề tài (Tiến độ không đạt)</span>;
         if (status === 'TERMINATED_BM04') return <span className="tag red">Dừng đề tài (Phiếu nhận xét chưa đạt)</span>;
         return <span className="tag green">Đang thực hiện · Học kỳ hiện tại</span>;
-    };
-
-    const handleWithdrawRegistration = async () => {
-        if (!allowedActions.includes('CANCEL_REGISTRATION')) {
-            message.warning('Trạng thái hiện tại của hồ sơ không cho phép rút đăng ký.');
-            return;
-        }
-        if (!withdrawReason.trim()) {
-            message.warning('Vui lòng nhập lý do rút đăng ký.');
-            return;
-        }
-        if (!currentRegistration?.registrationId) {
-            message.error('Không tìm thấy thông tin đăng ký.');
-            return;
-        }
-        try {
-            setWithdrawing(true);
-            const res = await registrationService.withdrawRegistration(currentRegistration.registrationId, withdrawReason.trim());
-            if (res.success) {
-                message.success('Đã rút đăng ký thành công.');
-                setWithdrawModalOpen(false);
-                setWithdrawReason('');
-                await fetchDashboardData();
-            }
-        } catch (error) {
-            message.error(error?.message || 'Không thể rút đăng ký lúc này.');
-        } finally {
-            setWithdrawing(false);
-        }
-    };
-
-    const handleDownloadDecision = () => {
-        message.success(`Đang chuẩn bị văn bản in quyết định số ${currentRegistration?.decisionNumber || '458/QĐ-VCS'}`);
-        setBm02ModalOpen(false);
     };
 
     return (
@@ -548,6 +529,11 @@ export default function StudentDashboardPage() {
             )}
 
             {/* Outline Defense Council Session Banner */}
+            {outlineQuery.isError && (
+                <div style={{ marginBottom: 24 }}>
+                    <QueryErrorState error={outlineQuery.error} onRetry={() => outlineQuery.refetch()} />
+                </div>
+            )}
             {outlineCouncil && (
                 <div
                     className="card"
@@ -1069,7 +1055,7 @@ export default function StudentDashboardPage() {
                 registrationId={currentRegistration?.id}
                 currentTitle={currentRegistration?.adjustedTitle || currentRegistration?.topic?.title}
                 decisionDate={currentRegistration?.decisionDate}
-                onSuccess={fetchDashboardData}
+                onSuccess={() => statsQuery.refetch()}
             />
 
             {/* Withdraw Modal */}

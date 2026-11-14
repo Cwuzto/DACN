@@ -21,6 +21,8 @@ import {
 import dayjs from 'dayjs';
 import evaluationService from '../../services/evaluationService';
 import useAuthStore from '../../stores/authStore';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '../../query/queryKeys';
 
 const { TextArea } = Input;
 const { Text } = Typography;
@@ -34,6 +36,8 @@ export default function CheckpointAppealReviewModal({
 }) {
     const authUser = useAuthStore((state) => state.user);
     const currentUserId = propCurrentUserId || authUser?.id;
+    const queryClient = useQueryClient();
+    const scope = queryKeys.scope(authUser);
 
     const [reviewNotes, setReviewNotes] = useState('');
     const [submitting, setSubmitting] = useState(false);
@@ -74,6 +78,7 @@ export default function CheckpointAppealReviewModal({
                         ? 'Đã chấp thuận gia hạn thời gian ký xác nhận tiến độ cho sinh viên.'
                         : 'Đã từ chối khiếu nại chữ ký. Đề tài chuyển sang dừng thực hiện.'
                 );
+                await queryClient.invalidateQueries({ queryKey: queryKeys.registrations.all(scope) });
                 if (onSuccess) onSuccess(res.data);
                 if (onClose) onClose();
             } else {

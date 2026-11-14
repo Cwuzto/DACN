@@ -1,3 +1,9 @@
+import { useSemesters } from '../../queries/semesterQueries';
+import { usePeriodRegistrations, usePeriodTopics, usePublicLecturers, usePeriodMutation } from '../../queries/periodQueries';
+import { useDelegations, useDelegationMutation } from '../../queries/delegationQueries';
+import { useDecisionAppendices, useBm02aQueue, useBm02aMutation } from '../../queries/bm02aQueries';
+import { queryKeys } from '../../query/queryKeys';
+import QueryPanel from '../../components/common/QueryPanel';
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
@@ -30,6 +36,7 @@ import {
     CalendarOutlined,
     CheckCircleOutlined,
     CloseOutlined,
+    ClockCircleOutlined,
     CopyOutlined,
     DeleteOutlined,
     EditOutlined,
@@ -42,15 +49,11 @@ import {
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
-import registrationService from '../../services/registrationService';
-import bm02aService from '../../services/bm02aService';
-import { semesterService } from '../../services/semesterService';
-import { topicService } from '../../services/topicService';
-import delegationService from '../../services/delegationService';
-import userService from '../../services/userService';
 import useAuthStore from '../../stores/authStore';
 import { PROJECT_NAME, buildSemesterName, buildSemesterCode, extractSemesterMeta, formatSemesterLabel } from '../../utils/semesterDisplay';
 import BM02ReviewDrawer from '../../components/admin/BM02ReviewDrawer';
+
+const EMPTY_LIST = [];
 
 const GRANTABLE_CAPABILITIES = [
     { value: 'OUTLINE_REVIEW', label: 'Thẩm định đề cương chi tiết' },
@@ -279,8 +282,83 @@ function ProjectPeriodPage() {
     );
 
     const [defaultSemesterId, setDefaultSemesterId] = useState(null);
-    const [periods, setPeriods] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const scope = queryKeys.scope(user);
+    const semestersQuery = useSemesters(scope);
+    const topicsQuery = usePeriodTopics(scope);
+    const registrationsQuery = usePeriodRegistrations(scope, { asInstituteDirector: 'true' });
+    const periodMutation = usePeriodMutation(scope);
+    const delegationMutation = useDelegationMutation(scope);
+    const loading = semestersQuery.isPending;
+    const allRegistrations = registrationsQuery.data || EMPTY_LIST;
+    const periods = useMemo(() => {
+        const topicData = topicsQuery.data || EMPTY_LIST;
+        const registrationData = registrationsQuery.data || EMPTY_LIST;
+            const topicsBySemester = topicData.reduce((acc, topic) => {
+                acc[topic.semesterId] = (acc[topic.semesterId] || 0) + 1;
+                return acc;
+            }, {});
+
+            const studentsBySemester = registrationData.reduce((acc, registration) => {
+                acc[registration.semesterId] = (acc[registration.semesterId] || 0) + 1;
+                return acc;
+            }, {});
+
+            const mapped = (semestersQuery.data || []).map((semester) => ({
+                ...extractSemesterMeta(semester),
+                key: semester.id.toString(),
+                id: semester.id,
+                name: formatSemesterLabel(semester),
+                code: semester.code || buildSemesterCode({
+                    projectCode: 'DATN',
+                    term: extractSemesterMeta(semester).term,
+                    academicYear: extractSemesterMeta(semester).academicYear,
+                }),
+                status: semester.status,
+                registrationOpen:
+                    typeof semester.registrationOpen === 'boolean' ? semester.registrationOpen : true,
+                topics: topicsQuery.data ? (topicsBySemester[semester.id] || 0) : '—',
+                students: registrationsQuery.data ? (studentsBySemester[semester.id] || 0) : '—',
+                milestones: [
+                    {
+                        title: 'Bắt đầu',
+                        date: semester.startDate
+                            ? new Date(semester.startDate).toLocaleDateString('vi-VN')
+                            : '',
+                    },
+                    {
+                        title: 'Hạn đăng ký',
+                        date: semester.registrationDeadline
+                            ? new Date(semester.registrationDeadline).toLocaleDateString('vi-VN')
+                            : '',
+                    },
+                    {
+                        title: 'Báo cáo giữa kỳ',
+                        date: semester.midtermReportDate
+                            ? new Date(semester.midtermReportDate).toLocaleDateString('vi-VN')
+                            : '',
+                    },
+                    {
+                        title: 'Bảo vệ',
+                        date: semester.defenseDate
+                            ? new Date(semester.defenseDate).toLocaleDateString('vi-VN')
+                            : '',
+                    },
+                    {
+                        title: 'Kết thúc',
+                        date: semester.endDate
+                            ? new Date(semester.endDate).toLocaleDateString('vi-VN')
+                            : '',
+                    },
+                ],
+                rawData: semester,
+            }));
+
+        return mapped;
+    }, [semestersQuery.data, topicsQuery.data, registrationsQuery.data]);
+    const fetchSemesters = () => Promise.all([semestersQuery.refetch(), topicsQuery.refetch(), registrationsQuery.refetch()]);
+    useEffect(() => {
+        setDefaultSemesterId(current => periods.some(period => period.id === current) ? current : periods[0]?.id || null);
+    }, [periods]);
     const [updatingToggle, setUpdatingToggle] = useState(false);
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [modalMode, setModalMode] = useState('add');
@@ -294,15 +372,11 @@ function ProjectPeriodPage() {
     // Appendix Manager State
     const [appendixModalVisible, setAppendixModalVisible] = useState(false);
     const [selectedAppendixPeriod, setSelectedAppendixPeriod] = useState(null);
-    const [appendicesList, setAppendicesList] = useState([]);
-    const [appendixLoading, setAppendixLoading] = useState(false);
     const [createAppendixModalVisible, setCreateAppendixModalVisible] = useState(false);
     const [appendixForm] = Form.useForm();
-    const [eligibleBm02aRequests, setEligibleBm02aRequests] = useState([]);
     const [selectedBm02aIds, setSelectedBm02aIds] = useState([]);
     const [appendixSubmitting, setAppendixSubmitting] = useState(false);
 
-    const [allRegistrations, setAllRegistrations] = useState([]);
     const [decisionListModalVisible, setDecisionListModalVisible] = useState(false);
     const [selectedPeriodForDecisions, setSelectedPeriodForDecisions] = useState(null);
     const openedDecisionsFromQueryRef = useRef(false);
@@ -319,7 +393,7 @@ function ProjectPeriodPage() {
             if (tabParam === 'delegations') return 'delegations';
             if (tabParam === 'bm02') return 'bm02Queue';
             if (tabParam === 'decisions') return 'periods';
-        } catch {}
+        } catch { /* Optional URL state. */ }
         return 'periods';
     });
 
@@ -344,55 +418,22 @@ function ProjectPeriodPage() {
     }, [searchParams, periods, handleOpenDecisionList]);
 
     // Academic Delegation state
-    const [delegations, setDelegations] = useState([]);
-    const [delegationsLoading, setDelegationsLoading] = useState(false);
     const [delegationModalOpen, setDelegationModalOpen] = useState(false);
     const [delegationSubmitting, setDelegationSubmitting] = useState(false);
-    const [departmentLecturers, setDepartmentLecturers] = useState([]);
     const [delegationForm] = Form.useForm();
 
-    const fetchDelegations = useCallback(async (showError = false) => {
-        if (!canViewDelegations) return;
-        setDelegationsLoading(true);
-        try {
-            const res = await delegationService.getDelegations();
-            if (res?.success && Array.isArray(res.data)) {
-                setDelegations(res.data);
-            } else {
-                setDelegations([]);
-                if (showError && res?.message) {
-                    message.error(res.message);
-                }
-            }
-        } catch (err) {
-            setDelegations([]);
-            if (showError) {
-                message.error(err?.message || 'Không thể tải danh sách ủy quyền chuyên môn');
-            }
-        } finally {
-            setDelegationsLoading(false);
-        }
-    }, [canViewDelegations]);
-
-    const fetchDepartmentLecturers = useCallback(async () => {
-        try {
-            const res = await userService.getPublicLecturers({
-                department: user?.department || undefined,
-            });
-            if (res?.success && Array.isArray(res.data)) {
-                setDepartmentLecturers(res.data.filter((lec) => lec.id !== user?.id));
-            }
-        } catch {}
-    }, [user?.department, user?.id]);
-
-    useEffect(() => {
-        if (canViewDelegations) {
-            fetchDelegations();
-        }
-        if (canAssignAcademic) {
-            fetchDepartmentLecturers();
-        }
-    }, [canViewDelegations, canAssignAcademic, fetchDelegations, fetchDepartmentLecturers]);
+    const delegationsQuery = useDelegations(scope, canViewDelegations);
+    const lecturersQuery = usePublicLecturers(scope, { department: user?.department || undefined }, canAssignAcademic);
+    const delegations = delegationsQuery.data || EMPTY_LIST;
+    const delegationsLoading = delegationsQuery.isFetching;
+    const departmentLecturers = (lecturersQuery.data || []).filter(lec => lec.id !== user?.id);
+    const fetchDelegations = () => delegationsQuery.refetch();
+    const decisionId = selectedAppendixPeriod?.assignmentDecisions?.[0]?.id || selectedAppendixPeriod?.topicAssignmentDecisions?.[0]?.id || selectedAppendixPeriod?.id;
+    const appendicesQuery = useDecisionAppendices(scope, decisionId, appendixModalVisible);
+    const queueQuery = useBm02aQueue(scope, createAppendixModalVisible);
+    const bm02aMutation = useBm02aMutation(scope, decisionId);
+    const appendicesList = appendicesQuery.data || EMPTY_LIST;
+    const eligibleBm02aRequests = (queueQuery.data || []).filter(r => ['APPROVED_PENDING_APPENDIX', 'ASSIGNED_TO_APPENDIX'].includes(r.status) || r.versions?.length > 0);
 
     const handleTabChange = (key) => {
         setActiveTab(key);
@@ -419,12 +460,11 @@ function ProjectPeriodPage() {
                 reason: values.reason?.trim(),
             };
             const idempotencyKey = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `delegation-${Date.now()}`;
-            const res = await delegationService.createDelegation(payload, idempotencyKey);
+            const res = await delegationMutation.mutateAsync({ action: 'createDelegation', args: [payload, idempotencyKey] });
             if (res?.success) {
                 message.success('Ủy quyền chuyên môn thành công');
                 setDelegationModalOpen(false);
                 delegationForm.resetFields();
-                fetchDelegations();
             } else {
                 message.error(res?.message || 'Không thể tạo ủy quyền chuyên môn');
             }
@@ -437,10 +477,9 @@ function ProjectPeriodPage() {
 
     const handleRevokeDelegation = async (id) => {
         try {
-            const res = await delegationService.revokeDelegation(id);
+            const res = await delegationMutation.mutateAsync({ action: 'revokeDelegation', args: [id] });
             if (res?.success) {
                 message.success('Thu hồi ủy quyền thành công');
-                fetchDelegations();
             } else {
                 message.error(res?.message || 'Không thể thu hồi ủy quyền');
             }
@@ -551,16 +590,15 @@ function ProjectPeriodPage() {
 
         try {
             setAmendmentSubmitting(true);
-            const res = await semesterService.createDecisionAmendment(decisionId, {
+            const res = await periodMutation.mutateAsync({ action: 'createDecisionAmendment', args: [decisionId, {
                 amendmentNumber: values.amendmentNumber.trim(),
                 reason: values.reason.trim(),
                 changes,
                 effectiveAt: values.effectiveAt ? values.effectiveAt.toISOString() : new Date().toISOString(),
-            });
+            }] });
             if (res.success || res.data) {
                 message.success('Đã ban hành Quyết định Điều chỉnh thành công!');
                 setAmendmentModalOpen(false);
-                fetchSemesters();
             } else {
                 message.error(res.message || 'Không thể tạo Quyết định Điều chỉnh');
             }
@@ -587,22 +625,19 @@ function ProjectPeriodPage() {
         try {
             setDecisionSubmitting(true);
             const pubDate = values.decisionPublishedAt ? values.decisionPublishedAt.toISOString() : new Date().toISOString();
-            const res = await semesterService.issuePeriodDecision(decisionPeriod.id, {
+            const res = await periodMutation.mutateAsync({ action: 'issuePeriodDecision', args: [decisionPeriod.id, {
                 decisionNumber: values.decisionNumber.trim(),
                 decisionDate: values.decisionDate.toISOString(),
                 decisionPublishedAt: pubDate,
                 decisionFileUrl: values.decisionFileUrl?.trim() || undefined,
-            });
+            }] });
             if (res.success) {
                 const decId = res.data?.id || res.id || decisionPeriod.assignmentDecisions?.[0]?.id;
                 if (decId) {
-                    try {
-                        await registrationService.publishTopicDecision(decId, { publishedAt: pubDate });
-                    } catch {}
+                    await periodMutation.mutateAsync({ action: 'publishTopicDecision', args: [decId, { publishedAt: pubDate }] });
                 }
                 message.success(res.message || 'Ban hành và công bố Quyết định giao đề tài thành công!');
                 setDecisionModalVisible(false);
-                fetchSemesters();
             }
         } catch (error) {
             message.error(error?.message || 'Không thể ban hành quyết định');
@@ -615,26 +650,6 @@ function ProjectPeriodPage() {
     const handleOpenAppendixManager = async (period) => {
         setSelectedAppendixPeriod(period);
         setAppendixModalVisible(true);
-        fetchPeriodAppendices(period);
-    };
-
-    const fetchPeriodAppendices = async (period) => {
-        try {
-            setAppendixLoading(true);
-            const decId = period?.assignmentDecisions?.[0]?.id
-                || period?.topicAssignmentDecisions?.[0]?.id
-                || period?.id;
-            const res = await bm02aService.getAppendices(decId);
-            if (res.success && Array.isArray(res.data)) {
-                setAppendicesList(res.data);
-            } else {
-                setAppendicesList([]);
-            }
-        } catch {
-            setAppendicesList([]);
-        } finally {
-            setAppendixLoading(false);
-        }
     };
 
     const handleOpenCreateAppendix = async () => {
@@ -644,18 +659,6 @@ function ProjectPeriodPage() {
             appendixNumber: `PL-${dayjs().year()}-${Date.now().toString().slice(-4)}/PL-VIEN`,
         });
         setSelectedBm02aIds([]);
-        try {
-            const queueRes = await bm02aService.getPendingQueue();
-            if (queueRes.success && Array.isArray(queueRes.data)) {
-                const eligible = queueRes.data.filter((r) =>
-                    ['APPROVED_PENDING_APPENDIX', 'ASSIGNED_TO_APPENDIX'].includes(r.status)
-                    || (r.versions && r.versions.length > 0)
-                );
-                setEligibleBm02aRequests(eligible);
-            }
-        } catch {
-            setEligibleBm02aRequests([]);
-        }
         setCreateAppendixModalVisible(true);
     };
 
@@ -667,17 +670,16 @@ function ProjectPeriodPage() {
                 || selectedAppendixPeriod?.assignmentDecisions?.[0]?.id
                 || selectedAppendixPeriod?.topicAssignmentDecisions?.[0]?.id
                 || selectedAppendixPeriod?.id;
-            const res = await bm02aService.createAppendix({
+            const res = await bm02aMutation.mutateAsync({ action: 'createAppendix', args: [{
                 decisionId: decId,
                 appendixNumber: values.appendixNumber.trim(),
                 signedDate: values.signedDate.toISOString(),
                 bm02aRequestIds: selectedBm02aIds,
-            });
+            }] });
 
             if (res.success) {
                 message.success('Tạo dự thảo phụ lục điều chỉnh tên đề tài thành công!');
                 setCreateAppendixModalVisible(false);
-                fetchPeriodAppendices(selectedAppendixPeriod);
             } else {
                 message.error(res.message || 'Không thể tạo phụ lục.');
             }
@@ -690,128 +692,18 @@ function ProjectPeriodPage() {
 
     const handleIssueAppendixAction = async (appendixId) => {
         try {
-            setAppendixLoading(true);
-            const res = await bm02aService.issueAppendix(appendixId, {
+            const res = await bm02aMutation.mutateAsync({ action: 'issueAppendix', args: [appendixId, {
                 signedDate: new Date().toISOString(),
-            });
+            }] });
             if (res.success) {
                 message.success('Ban hành phụ lục điều chỉnh tên đề tài thành công! Tên mới đã có hiệu lực chính thức.');
-                fetchPeriodAppendices(selectedAppendixPeriod);
             } else {
                 message.error(res.message || 'Không thể ban hành phụ lục.');
             }
         } catch (error) {
             message.error(error?.message || 'Lỗi khi ban hành phụ lục');
-        } finally {
-            setAppendixLoading(false);
         }
     };
-
-    const fetchSemesters = useCallback(async () => {
-        try {
-            setLoading(true);
-            const [semesterResult, topicResult, registrationResult] = await Promise.allSettled([
-                semesterService.getAll(),
-                topicService.getAll(),
-                registrationService.getAllRegistrations({ asInstituteDirector: 'true' }),
-            ]);
-
-            if (semesterResult.status !== 'fulfilled' || !semesterResult.value?.success) {
-                const errMsg = semesterResult.status === 'rejected'
-                    ? semesterResult.reason?.message
-                    : semesterResult.value?.message;
-                message.error(errMsg || 'Lỗi tải danh sách đợt đồ án');
-                return;
-            }
-
-            const semesterRes = semesterResult.value;
-            const topicData = (topicResult.status === 'fulfilled' && topicResult.value?.success && Array.isArray(topicResult.value?.data))
-                ? topicResult.value.data
-                : [];
-            const registrationData = (registrationResult.status === 'fulfilled' && registrationResult.value?.success && Array.isArray(registrationResult.value?.data))
-                ? registrationResult.value.data
-                : [];
-
-            setAllRegistrations(registrationData);
-
-            const topicsBySemester = topicData.reduce((acc, topic) => {
-                acc[topic.semesterId] = (acc[topic.semesterId] || 0) + 1;
-                return acc;
-            }, {});
-
-            const studentsBySemester = registrationData.reduce((acc, registration) => {
-                acc[registration.semesterId] = (acc[registration.semesterId] || 0) + 1;
-                return acc;
-            }, {});
-
-            const mapped = (semesterRes.data || []).map((semester) => ({
-                ...extractSemesterMeta(semester),
-                key: semester.id.toString(),
-                id: semester.id,
-                name: formatSemesterLabel(semester),
-                code: semester.code || buildSemesterCode({
-                    projectCode: 'DATN',
-                    term: extractSemesterMeta(semester).term,
-                    academicYear: extractSemesterMeta(semester).academicYear,
-                }),
-                status: semester.status,
-                registrationOpen:
-                    typeof semester.registrationOpen === 'boolean' ? semester.registrationOpen : true,
-                topics: topicsBySemester[semester.id] || 0,
-                students: studentsBySemester[semester.id] || 0,
-                milestones: [
-                    {
-                        title: 'Bắt đầu',
-                        date: semester.startDate
-                            ? new Date(semester.startDate).toLocaleDateString('vi-VN')
-                            : '',
-                    },
-                    {
-                        title: 'Hạn đăng ký',
-                        date: semester.registrationDeadline
-                            ? new Date(semester.registrationDeadline).toLocaleDateString('vi-VN')
-                            : '',
-                    },
-                    {
-                        title: 'Báo cáo giữa kỳ',
-                        date: semester.midtermReportDate
-                            ? new Date(semester.midtermReportDate).toLocaleDateString('vi-VN')
-                            : '',
-                    },
-                    {
-                        title: 'Bảo vệ',
-                        date: semester.defenseDate
-                            ? new Date(semester.defenseDate).toLocaleDateString('vi-VN')
-                            : '',
-                    },
-                    {
-                        title: 'Kết thúc',
-                        date: semester.endDate
-                            ? new Date(semester.endDate).toLocaleDateString('vi-VN')
-                            : '',
-                    },
-                ],
-                rawData: semester,
-            }));
-
-            setPeriods(mapped);
-            if (mapped.length > 0) {
-                setDefaultSemesterId((current) =>
-                    current && mapped.some((period) => period.id === current) ? current : mapped[0].id
-                );
-            } else {
-                setDefaultSemesterId(null);
-            }
-        } catch (error) {
-            message.error(error?.message || 'Lỗi tải danh sách đợt đồ án');
-        } finally {
-            setLoading(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        fetchSemesters();
-    }, [fetchSemesters]);
 
     const selectedPeriod = useMemo(
         () => periods.find((period) => period.id === defaultSemesterId) || null,
@@ -831,17 +723,10 @@ function ProjectPeriodPage() {
 
         try {
             setUpdatingToggle(true);
-            const response = await semesterService.toggleRegistration(selectedPeriod.id, checked);
+            const response = await periodMutation.mutateAsync({ action: 'toggleRegistration', args: [selectedPeriod.id, checked] });
             if (response.success) {
                 message.success(
                     checked ? 'Đã mở đăng ký đề tài cho học kỳ đã chọn.' : 'Đã đóng đăng ký đề tài cho học kỳ đã chọn.'
-                );
-                setPeriods((current) =>
-                    current.map((period) =>
-                        period.id === selectedPeriod.id
-                            ? { ...period, registrationOpen: checked, rawData: { ...period.rawData, registrationOpen: checked } }
-                            : period
-                    )
                 );
                 if (response.warning) {
                     message.warning(response.warning, 4);
@@ -931,11 +816,10 @@ function ProjectPeriodPage() {
             cancelText: 'Hủy',
             onOk: async () => {
                 try {
-                    const response = await semesterService.delete(id);
+                    const response = await periodMutation.mutateAsync({ action: 'delete', args: [id] });
                     if (response.success) {
                         message.success('Đã xóa đợt đồ án');
-                        fetchSemesters();
-                    }
+                            }
                 } catch (error) {
                     message.error(error?.message || 'Có lỗi xảy ra khi xóa');
                 }
@@ -969,13 +853,12 @@ function ProjectPeriodPage() {
 
             const response =
                 modalMode === 'add'
-                    ? await semesterService.create(payload)
-                    : await semesterService.update(values.id, payload);
+                    ? await periodMutation.mutateAsync({ action: 'create', args: [payload] })
+                    : await periodMutation.mutateAsync({ action: 'update', args: [values.id, payload] });
 
             if (response.success) {
                 message.success(modalMode === 'add' ? 'Khởi tạo đợt thành công' : 'Cập nhật đợt thành công');
                 setIsModalVisible(false);
-                fetchSemesters();
             }
         } catch (error) {
             message.error(error?.message || 'Có lỗi xảy ra');
@@ -985,6 +868,7 @@ function ProjectPeriodPage() {
     const activeCount = useMemo(() => periods.filter((p) => ['ONGOING', 'REGISTRATION'].includes(p.status)).length, [periods]);
 
     return (
+        <QueryPanel query={semestersQuery}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {/* Page Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 4, flexWrap: 'wrap', gap: 12 }}>
@@ -1019,10 +903,10 @@ function ProjectPeriodPage() {
                 <div className="card" style={{ padding: '14px 18px', cursor: 'pointer' }} onClick={() => handleTabChange('bm02Queue')}>
                     <span className="meta">Đơn BM02 chờ thẩm định</span>
                     <p className="h2 num" style={{ marginTop: 2, color: pendingBm02List.length > 0 ? '#E11D48' : '#0F766E' }}>
-                        {pendingBm02List.length}
+                        {registrationsQuery.data ? pendingBm02List.length : '—'}
                     </p>
                     <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--muted)' }}>
-                        {pendingBm02List.length > 0 ? 'Cần Viện trưởng thẩm định' : 'Không có hồ sơ tồn đọng'}
+                        {registrationsQuery.data ? (pendingBm02List.length > 0 ? 'Cần Viện trưởng thẩm định' : 'Không có hồ sơ tồn đọng') : 'Chưa tải được hồ sơ'}
                     </div>
                 </div>
                 <div className="card" style={{ padding: '14px 18px' }}>
@@ -1116,7 +1000,7 @@ function ProjectPeriodPage() {
                                     </span>
                                 </div>
 
-                                <Spin spinning={loading}>
+                                <QueryPanel query={topicsQuery}><QueryPanel query={registrationsQuery}>
                                     <div className="space-y-4 min-h-[160px]">
                                         {periods.length === 0 && !loading ? (
                                             <div className="bg-white rounded-xl border border-slate-200/80 p-12 text-center">
@@ -1144,7 +1028,7 @@ function ProjectPeriodPage() {
                                             ))
                                         )}
                                     </div>
-                                </Spin>
+                                </QueryPanel></QueryPanel>
                             </div>
                         ),
                     },
@@ -1155,7 +1039,7 @@ function ProjectPeriodPage() {
                                 <CheckCircleOutlined />
                                 <span>Hàng đợi Thẩm định Đơn đăng ký (BM02)</span>
                                 {pendingBm02List.length > 0 && (
-                                    <Badge count={pendingBm02List.length} overflowCount={99} />
+                                    <Badge count={registrationsQuery.data ? pendingBm02List.length : '—'} overflowCount={99} />
                                 )}
                             </span>
                         ),
@@ -1194,6 +1078,7 @@ function ProjectPeriodPage() {
                                     </Space>
                                 </div>
 
+                                <QueryPanel query={registrationsQuery}>
                                 <Table
                                     dataSource={bm02QueueList}
                                     rowKey="id"
@@ -1324,6 +1209,7 @@ function ProjectPeriodPage() {
                                         },
                                     ]}
                                 />
+                                </QueryPanel>
                             </div>
                         ),
                     },
@@ -1375,6 +1261,7 @@ function ProjectPeriodPage() {
                                             </Space>
                                         </div>
 
+                                        <QueryPanel query={delegationsQuery}>
                                         <Table
                                             dataSource={delegations}
                                             rowKey="id"
@@ -1498,6 +1385,7 @@ function ProjectPeriodPage() {
                                                 },
                                             ]}
                                         />
+                                        </QueryPanel>
                                     </div>
                                 ),
                             },
@@ -1729,6 +1617,7 @@ function ProjectPeriodPage() {
                 width={960}
                 destroyOnClose
             >
+                <QueryPanel query={registrationsQuery}>
                 <div className="py-2 space-y-4">
                     {periodDecisionList.length > 0 ? (
                         <div className="bg-purple-50/60 p-3.5 rounded-lg border border-purple-200/80 flex items-center justify-between text-xs">
@@ -1859,6 +1748,7 @@ function ProjectPeriodPage() {
                         ]}
                     />
                 </div>
+            </QueryPanel>
             </Modal>
 
             {/* Modal Ban hành Quyết định Điều chỉnh */}
@@ -2008,6 +1898,7 @@ function ProjectPeriodPage() {
                 width={620}
                 destroyOnClose
             >
+                <QueryPanel query={lecturersQuery}>
                 <div className="mb-4">
                     <Alert
                         type="info"
@@ -2100,6 +1991,7 @@ function ProjectPeriodPage() {
                         </Button>
                     </div>
                 </Form>
+            </QueryPanel>
             </Modal>
 
             {/* Modal Quản lý Phụ lục điều chỉnh tên đề tài */}
@@ -2140,7 +2032,7 @@ function ProjectPeriodPage() {
                         description="Các phiếu đổi tên BM02-A sau khi được Phụ trách bộ môn phê duyệt sẽ được gom thành các đợt Phụ lục điều chỉnh. Sau khi ban hành (ISSUED), tên đề tài mới sẽ chính thức có hiệu lực học vụ."
                     />
 
-                    <Spin spinning={appendixLoading}>
+                    <QueryPanel query={appendicesQuery}>
                         {appendicesList.length === 0 ? (
                             <div className="p-8 text-center bg-slate-50 rounded-lg border border-slate-200 text-slate-500">
                                 Chưa có phụ lục điều chỉnh tên đề tài nào cho đợt này.
@@ -2191,7 +2083,7 @@ function ProjectPeriodPage() {
                                 ))}
                             </div>
                         )}
-                    </Spin>
+                    </QueryPanel>
                 </div>
             </Modal>
 
@@ -2204,6 +2096,7 @@ function ProjectPeriodPage() {
                 width={650}
                 destroyOnClose
             >
+                <QueryPanel query={queueQuery}>
                 <Form form={appendixForm} layout="vertical" onFinish={handleCreateAppendixSubmit} className="pt-2">
                     <Form.Item
                         name="appendixNumber"
@@ -2280,6 +2173,7 @@ function ProjectPeriodPage() {
                         </Button>
                     </div>
                 </Form>
+            </QueryPanel>
             </Modal>
 
             {/* Drawer Thẩm định BM02 */}
@@ -2293,6 +2187,7 @@ function ProjectPeriodPage() {
                 onSuccess={handleBm02ReviewSuccess}
             />
         </div>
+        </QueryPanel>
     );
 }
 

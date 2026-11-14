@@ -8,42 +8,19 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../.
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 const readBuffer = (rel) => fs.readFileSync(path.join(root, rel));
 
-test('CouncilAssignmentPage: Implements fallback to getPublicLecturers when getUsers fails or returns 403', () => {
+test('CouncilAssignmentPage: shares the permission-aware lecturer directory query', () => {
     const src = read('frontend/src/pages/admin/CouncilAssignmentPage.jsx');
-
-    assert.match(src, /userService\.getUsers/, 'fetchLecturers must call userService.getUsers');
-    assert.match(src, /userService\.getPublicLecturers/, 'fetchLecturers must fallback to userService.getPublicLecturers');
-
-    // Extract fetchLecturers function body
-    const fetchLecturersMatch = src.match(/const fetchLecturers = useCallback\(async \(\) => \{([\s\S]*?)\}, \[\]\);/);
-    assert.ok(fetchLecturersMatch, 'Must define fetchLecturers with useCallback');
-    const fetchLecturersBody = fetchLecturersMatch[1];
-
-    assert.match(fetchLecturersBody, /userService\.getUsers/, 'Body must call getUsers');
-    assert.match(fetchLecturersBody, /getPublicLecturers/, 'Body must contain fallback to getPublicLecturers');
-
-    // Ensure error toast is only triggered when fallback also fails
-    const catchBlocks = fetchLecturersBody.match(/catch/g);
-    assert.ok(catchBlocks && catchBlocks.length >= 2, 'fetchLecturers must have nested try/catch for fallback');
-    assert.match(fetchLecturersBody, /message\.error\(['"]Lỗi khi tải danh sách giảng viên['"]\)/, 'Must display generic error only if both calls fail');
+    const queries = read('frontend/src/queries/councilQueries.js');
+    assert.match(src, /useCouncilLecturers\(scope\)/);
+    assert.match(queries, /useUsers\(scope,/);
+    assert.match(queries, /usePublicLecturers\(scope, \{\}, primary.isError\)/);
 });
 
-test('CouncilAssignmentPage: Uses Promise.allSettled instead of Promise.all in fetchCouncils', () => {
+test('CouncilAssignmentPage: council and registration resources have independent queries', () => {
     const src = read('frontend/src/pages/admin/CouncilAssignmentPage.jsx');
-
-    assert.match(src, /Promise\.allSettled/, 'fetchCouncils must use Promise.allSettled');
-    assert.doesNotMatch(src, /Promise\.all\(\[\s*councilService\.getCouncils/, 'Must not use fragile Promise.all');
-
-    // Extract fetchCouncils body
-    const fetchCouncilsMatch = src.match(/const fetchCouncils = useCallback\(async \(\) => \{([\s\S]*?)\}, \[selectedSemester\]\);/);
-    assert.ok(fetchCouncilsMatch, 'Must define fetchCouncils with useCallback');
-    const fetchCouncilsBody = fetchCouncilsMatch[1];
-
-    assert.match(fetchCouncilsBody, /Promise\.allSettled\(\[/, 'Must execute Promise.allSettled');
-    assert.match(fetchCouncilsBody, /councilsResult\.status === ['"]fulfilled['"]/, 'Must inspect councilsResult fulfilled status');
-    assert.match(fetchCouncilsBody, /regsResult\.status === ['"]fulfilled['"]/, 'Must inspect regsResult fulfilled status');
-    assert.match(fetchCouncilsBody, /councilsResult\.status === ['"]rejected['"]/, 'Must handle councilsResult rejection gracefully');
-    assert.match(fetchCouncilsBody, /regsResult\.status === ['"]rejected['"]/, 'Must handle regsResult rejection gracefully');
+    assert.match(src, /useCouncils\(scope, councilQueryParams\)/);
+    assert.match(src, /usePeriodRegistrations\(scope,/);
+    assert.doesNotMatch(src, /setCouncils|setAllRegistrations/);
 });
 
 test('GradingDefensePage: Imports and initializes useSearchParams for deep linking', () => {
@@ -60,20 +37,21 @@ test('GradingDefensePage: Handles tab=approvals by switching to activeTab("all")
     assert.match(src, /searchParams\.get\(['"]tab['"]\)/, 'Must inspect searchParams.get("tab")');
     assert.match(src, /tab === ['"]approvals['"][\s\S]*?setActiveTab\(['"]all['"]\)/, 'When tab=approvals, must setActiveTab to "all"');
 
-    // Filter logic in filteredData
-    assert.match(src, /currentTabParam === ['"]approvals['"]/, 'filteredData must check for approvals tab param');
-    assert.match(src, /r\.status !== ['"]AWAITING_FINAL_APPROVAL['"]/, 'filteredData must filter records to only AWAITING_FINAL_APPROVAL');
+    // Filtering is exercised by resultApprovals.spec.jsx against the real route.
+    assert.match(src, /useResultApprovals/, 'Must use the shared approval projection');
 
     // Tab button for approvals
     assert.match(src, /Chờ phê duyệt/, 'Must have a "Chờ phê duyệt" tab pill in UI');
     assert.match(src, /handleTabChange\(['"]approvals['"]\)/, 'Clicking approvals pill must invoke handleTabChange("approvals")');
 });
 
-test('GradingDefensePage: Handles tab=publish by opening publication modal when canPublishResult is true', () => {
+test('GradingDefensePage: Handles tab=publish for publication readers and canonical publishers', () => {
     const src = read('frontend/src/pages/admin/GradingDefensePage.jsx');
 
     assert.match(src, /tab === ['"]publish['"]/, 'Must check for tab=publish in URL');
-    assert.match(src, /canPublishResult[\s\S]*?setIsPublicationModalOpen\(true\)|canPublishResult[\s\S]*?handleOpenPublicationModal\(\)/, 'Must open publication modal when canPublishResult is true');
+    assert.match(src, /canViewPublications[\s\S]*?setIsPublicationModalOpen\(true\)/, 'Publication viewers must be able to open the preview');
+    assert.match(src, /RESULT_PUBLICATION_PUBLISH/, 'Publish controls must use the canonical permission');
+    assert.doesNotMatch(src, /['"]RESULT_PUBLISH['"]/, 'Legacy publisher permission must not enable controls');
 
     // Open & close modal helpers
     assert.match(src, /handleOpenPublicationModal/, 'Must define handleOpenPublicationModal');

@@ -3,9 +3,21 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { normalizeDefenseDossier } from '../../services/archiveService.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'utf8');
+
+test('linked legal records retain independent signature/PDF states and exclude sensitive fields', () => {
+    const dossier = normalizeDefenseDossier({
+        student: { passwordHash: 'secret' },
+        linkedBm03: { id: 3, advisorSignedAt: null, finalPdfFileUrl: '/bm03.pdf', student: { phone: 'private' } },
+        linkedBm04: { id: 4, signedAt: '2026-11-13', finalPdfFileUrl: null, token: 'private' },
+    });
+    assert.deepEqual(dossier.bm03Record, { id: 3, advisorSignedAt: null, finalPdfFileUrl: '/bm03.pdf' });
+    assert.deepEqual(dossier.bm04Record, { id: 4, signedAt: '2026-11-13', finalPdfFileUrl: null });
+    assert.equal(Object.hasOwn(dossier, 'student'), false);
+});
 
 test('Archival Cross-Check: aiService exports crossCheckArchive and calls /ai/cross-check-archive', () => {
     const src = read('frontend/src/services/aiService.js');

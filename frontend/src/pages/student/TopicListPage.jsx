@@ -1,13 +1,21 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     Modal,
+    Button,
     message,
 } from 'antd';
+import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import { topicService } from '../../services/topicService';
 import registrationService from '../../services/registrationService';
 import { semesterService } from '../../services/semesterService';
 import useAuthStore from '../../stores/authStore';
+import { queryKeys } from '../../query/queryKeys';
+import { useSemesters } from '../../queries/semesterQueries';
+import { useTopics, useMentors, useTopicMutation } from '../../queries/topicQueries';
+import { useStudentRegistration, useMyProjectEnrollments } from '../../queries/registrationQueries';
+import { useStudentRegistrationMutation } from '../../queries/studentDashboardQueries';
+import QueryPanel from '../../components/common/QueryPanel';
 
 const ACTIVE_STATUSES = ['REGISTRATION', 'ONGOING', 'DEFENSE'];
 
@@ -33,8 +41,8 @@ const formatRegistrationStatus = (status) => {
 export default function TopicListPage() {
     const navigate = useNavigate();
     const user = useAuthStore((s) => s.user);
-    const [topics, setTopics] = useState([]);
-    const [loading, setLoading] = useState(false);
+    const scope = queryKeys.scope(user);
+
     const [searchText, setSearchText] = useState('');
     const [filterMajor, setFilterMajor] = useState('ALL');
     const [filterStatus, setFilterStatus] = useState('ALL');
@@ -54,19 +62,71 @@ export default function TopicListPage() {
     const [confirmModalOpen, setConfirmModalOpen] = useState(false);
     const [topicToRegister, setTopicToRegister] = useState(null);
     const [proposeModalOpen, setProposeModalOpen] = useState(false);
-
-    const [myRegistration, setMyRegistration] = useState(null);
     const [registering, setRegistering] = useState(false);
-    const [currentSemesterId, setCurrentSemesterId] = useState(null);
-    const [currentSemester, setCurrentSemester] = useState(null);
-    const [myProjectEnrollments, setMyProjectEnrollments] = useState([]);
-    const [selectedProjectCatalogId, setSelectedProjectCatalogId] = useState(null);
-    const [accountRestricted, setAccountRestricted] = useState(false);
-    const [accountRestrictionReason, setAccountRestrictionReason] = useState('');
-    const [mentors, setMentors] = useState([]);
-
-    const [proposeForm, setProposeForm] = useState({ title: '', mentorId: '', description: '' });
     const [submittingPropose, setSubmittingPropose] = useState(false);
+    const [proposeForm, setProposeForm] = useState({ title: '', mentorId: '', description: '' });
+
+    // Semesters query
+    const semestersQuery = useSemesters(scope);
+    const semesters = semestersQuery.data || [];
+    const currentSemester = useMemo(() => {
+        return (
+            semesters.find((s) => s.registrationOpen && ACTIVE_STATUSES.includes(s.status)) ||
+            semesters.find((s) => ACTIVE_STATUSES.includes(s.status)) ||
+            semesters?.[0] ||
+            null
+        );
+    }, [semesters]);
+    const currentSemesterId = currentSemester?.id || null;
+
+    // Enrollments query
+    const enrollmentsQuery = useMyProjectEnrollments(scope, { semesterId: currentSemesterId }, Boolean(currentSemesterId));
+    const enrollData = enrollmentsQuery.data?.data || [];
+    const myProjectEnrollments = useMemo(() => {
+        return enrollData.filter((row) => row.status === 'ACTIVE' && row.projectCatalog?.isActive);
+    }, [enrollData]);
+    const accountRestricted = Boolean(enrollmentsQuery.data?.meta?.accountRestricted);
+    const accountRestrictionReason = enrollmentsQuery.data?.meta?.accountRestrictionReason || '';
+
+    // Selected catalog
+    const activeCatalogIds = useMemo(() => myProjectEnrollments.map((row) => row.projectCatalogId), [myProjectEnrollments]);
+    const [selectedProjectCatalogId, setSelectedProjectCatalogId] = useState(null);
+    const effectiveCatalogId = selectedProjectCatalogId && activeCatalogIds.includes(selectedProjectCatalogId)
+        ? selectedProjectCatalogId
+        : activeCatalogIds[0] || null;
+
+    // Topics query
+    const topicParams = useMemo(() => {
+        const p = {};
+        if (currentSemesterId) p.semesterId = currentSemesterId;
+        if (effectiveCatalogId) p.projectCatalogId = effectiveCatalogId;
+        return p;
+    }, [currentSemesterId, effectiveCatalogId]);
+
+    const topicsQuery = useTopics(scope, topicParams, Boolean(currentSemesterId));
+    const rawTopics = topicsQuery.data || [];
+    const topics = useMemo(() => {
+        return rawTopics.map((topic, index) => ({
+            ...topic,
+            key: topic.id,
+            stt: index + 1,
+        }));
+    }, [rawTopics]);
+
+    // Mentors query
+    const mentorsQuery = useMentors(scope, {
+        semesterId: currentSemesterId,
+        ...(effectiveCatalogId ? { projectCatalogId: effectiveCatalogId } : {}),
+    }, Boolean(currentSemesterId));
+    const mentors = mentorsQuery.data || [];
+
+    // Registration query
+    const registrationQuery = useStudentRegistration(scope, { semesterId: currentSemesterId }, Boolean(currentSemesterId));
+    const myRegistration = registrationQuery.data?.data || null;
+
+    // Mutations
+    const registrationMutation = useStudentRegistrationMutation(scope);
+    const topicMutation = useTopicMutation(scope);
 
     const getRegistrationWindowState = useCallback(() => {
         if (!currentSemester) {
@@ -84,96 +144,6 @@ export default function TopicListPage() {
         }
         return { canRegister: true, reason: '' };
     }, [currentSemester]);
-
-    const fetchContextData = useCallback(async () => {
-        try {
-            const [semesterRes, mentorRes] = await Promise.all([
-                semesterService.getAll(),
-                topicService.getMentors(),
-            ]);
-
-            if (semesterRes.success) {
-                const semesters = semesterRes.data || [];
-                const preferredSemester =
-                    semesters.find((s) => s.registrationOpen && ACTIVE_STATUSES.includes(s.status)) ||
-                    semesters.find((s) => ACTIVE_STATUSES.includes(s.status)) ||
-                    semesters?.[0] ||
-                    null;
-
-                setCurrentSemester(preferredSemester);
-                setCurrentSemesterId(preferredSemester?.id || null);
-            }
-
-            if (mentorRes.success) {
-                setMentors(mentorRes.data || []);
-            }
-        } catch (error) {
-            message.error(error?.message || 'Không thể tải dữ liệu ngữ cảnh đăng ký.');
-        }
-    }, []);
-
-    const fetchTopicsAndRegistration = useCallback(async () => {
-        if (!currentSemesterId) return;
-
-        setLoading(true);
-        try {
-            const params = { semesterId: currentSemesterId };
-            if (selectedProjectCatalogId) params.projectCatalogId = selectedProjectCatalogId;
-
-            const [topicRes, regRes, enrollRes, mentorRes] = await Promise.all([
-                topicService.getAll(params),
-                registrationService.getMyRegistration({ semesterId: currentSemesterId }),
-                registrationService.getMyProjectEnrollments({ semesterId: currentSemesterId }),
-                topicService.getMentors({
-                    semesterId: currentSemesterId,
-                    ...(selectedProjectCatalogId ? { projectCatalogId: selectedProjectCatalogId } : {}),
-                }),
-            ]);
-
-            if (mentorRes.success && Array.isArray(mentorRes.data) && mentorRes.data.length > 0) {
-                setMentors(mentorRes.data);
-            }
-
-            if (topicRes.success) {
-                setTopics((topicRes.data || []).map((topic, index) => ({
-                    ...topic,
-                    key: topic.id,
-                    stt: index + 1,
-                })));
-            }
-
-            if (regRes.success) {
-                setMyRegistration(regRes.data);
-            }
-
-            if (enrollRes.success) {
-                const activeEnrollments = (enrollRes.data || []).filter(
-                    (row) => row.status === 'ACTIVE' && row.projectCatalog?.isActive,
-                );
-                setMyProjectEnrollments(activeEnrollments);
-                setAccountRestricted(Boolean(enrollRes.meta?.accountRestricted));
-                setAccountRestrictionReason(enrollRes.meta?.accountRestrictionReason || '');
-
-                const activeCatalogIds = activeEnrollments.map((row) => row.projectCatalogId);
-                setSelectedProjectCatalogId((prev) => {
-                    if (prev && activeCatalogIds.includes(prev)) return prev;
-                    return activeCatalogIds[0] || null;
-                });
-            }
-        } catch (error) {
-            message.error(error?.message || 'Không thể tải danh sách đề tài.');
-        } finally {
-            setLoading(false);
-        }
-    }, [currentSemesterId, selectedProjectCatalogId]);
-
-    useEffect(() => {
-        fetchContextData();
-    }, [fetchContextData]);
-
-    useEffect(() => {
-        fetchTopicsAndRegistration();
-    }, [fetchTopicsAndRegistration]);
 
     // Filter logic
     const filteredTopics = useMemo(() => {
@@ -246,11 +216,8 @@ export default function TopicListPage() {
             cancelText: 'Quay lại',
             onOk: async () => {
                 try {
-                    const res = await topicService.delete(proposalId);
-                    if (res.success) {
-                        message.success('Đã hủy đề xuất đề tài thành công.');
-                        fetchTopicsAndRegistration();
-                    }
+                    await topicMutation.mutateAsync({ action: 'delete', args: [proposalId] });
+                    message.success('Đã hủy đề xuất đề tài thành công.');
                 } catch (err) {
                     message.error(err?.message || 'Không thể hủy đề xuất đề tài.');
                 }
@@ -279,12 +246,9 @@ export default function TopicListPage() {
         if (!topicToRegister || !currentSemesterId) return;
         try {
             setRegistering(true);
-            const response = await registrationService.registerTopic(topicToRegister.id, currentSemesterId);
-            if (response.success) {
-                message.success('Đăng ký đề tài thành công.');
-                setConfirmModalOpen(false);
-                fetchTopicsAndRegistration();
-            }
+            await registrationMutation.mutateAsync({ topicId: topicToRegister.id, semesterId: currentSemesterId });
+            message.success('Đăng ký đề tài thành công.');
+            setConfirmModalOpen(false);
         } catch (error) {
             message.error(error?.message || 'Lỗi khi đăng ký đề tài.');
         } finally {
@@ -317,15 +281,15 @@ export default function TopicListPage() {
                 description: proposeForm.description.trim(),
                 mentorId: proposeForm.mentorId,
                 semesterId: currentSemesterId,
-                projectCatalogId: selectedProjectCatalogId,
+                projectCatalogId: effectiveCatalogId,
             };
-            const res = await topicService.propose(payload);
-            if (res.success) {
-                message.success('Đã gửi đề xuất đề tài thành công!');
-                setProposeModalOpen(false);
-                setProposeForm({ title: '', mentorId: '', description: '' });
-                fetchTopicsAndRegistration();
-            }
+            await topicMutation.mutateAsync({
+                action: 'propose',
+                args: [payload],
+            });
+            message.success('Đã gửi đề xuất đề tài thành công!');
+            setProposeModalOpen(false);
+            setProposeForm({ title: '', mentorId: '', description: '' });
         } catch (err) {
             message.error(err?.message || 'Không thể đề xuất đề tài.');
         } finally {
@@ -393,21 +357,23 @@ export default function TopicListPage() {
                     </div>
                 </div>
                 {myPendingProposal ? (
-                    <button
-                        className="btn btn-secondary btn-sm"
-                        style={{ borderColor: '#F87171', color: '#DC2626', fontWeight: 600 }}
+                    <Button
+                        danger
+                        size="small"
+                        icon={<DeleteOutlined />}
                         onClick={() => handleCancelProposal(myPendingProposal.id)}
                     >
                         Hủy đề xuất đề tài
-                    </button>
+                    </Button>
                 ) : !hasExistingRegistration ? (
-                    <button className="btn btn-primary btn-sm" onClick={() => setProposeModalOpen(true)}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <line x1="12" y1="5" x2="12" y2="19" />
-                            <line x1="5" y1="12" x2="19" y2="12" />
-                        </svg>
-                        <span>Đề xuất đề tài tự do</span>
-                    </button>
+                    <Button
+                        type="primary"
+                        size="small"
+                        icon={<PlusOutlined />}
+                        onClick={() => setProposeModalOpen(true)}
+                    >
+                        Đề xuất đề tài tự do
+                    </Button>
                 ) : null}
             </div>
 
@@ -462,101 +428,103 @@ export default function TopicListPage() {
             </div>
 
             {/* Topics Grid */}
-            <div className="topic-grid">
-                {filteredTopics.length === 0 ? (
-                    <div style={{ gridColumn: '1 / -1', padding: '40px 0', textAlign: 'center', color: 'var(--muted)' }}>
-                        Không tìm thấy đề tài nào phù hợp với bộ lọc hiện tại.
-                    </div>
-                ) : (
-                    filteredTopics.map((topic) => {
-                        const isMine = myRegistration?.topicId === topic.id && myRegistration?.status !== 'REJECTED';
-                        const isMyRejectedTopic = myRegistration?.topicId === topic.id && myRegistration?.status === 'REJECTED';
-                        const isMyProposal = topic.proposedById === user?.id;
-                        const isPendingProposal = isMyProposal && topic.status === 'PENDING';
-                        const isSaved = savedIds.includes(topic.id);
-                        const regCount = topic._count?.registrations || 0;
-                        const isFull = regCount >= 1; // 1 SV / 1 đề tài
+            <QueryPanel query={topicsQuery}>
+                <div className="topic-grid">
+                    {filteredTopics.length === 0 ? (
+                        <div style={{ gridColumn: '1 / -1', padding: '40px 0', textAlign: 'center', color: 'var(--muted)' }}>
+                            Không tìm thấy đề tài nào phù hợp với bộ lọc hiện tại.
+                        </div>
+                    ) : (
+                        filteredTopics.map((topic) => {
+                            const isMine = myRegistration?.topicId === topic.id && myRegistration?.status !== 'REJECTED';
+                            const isMyRejectedTopic = myRegistration?.topicId === topic.id && myRegistration?.status === 'REJECTED';
+                            const isMyProposal = topic.proposedById === user?.id;
+                            const isPendingProposal = isMyProposal && topic.status === 'PENDING';
+                            const isSaved = savedIds.includes(topic.id);
+                            const regCount = topic._count?.registrations || 0;
+                            const isFull = regCount >= 1; // 1 SV / 1 đề tài
 
-                        return (
-                            <div className="topic-card" key={topic.id}>
-                                <div>
-                                    <div className="topic-card-header">
-                                        <span className="tag teal">
-                                            {topic.projectCatalog?.name || 'Kỹ thuật Phần mềm'}
-                                        </span>
-                                        {isMine ? (
-                                            <span className="tag green">Đề tài của bạn</span>
-                                        ) : isMyRejectedTopic ? (
-                                            <span className="tag red" style={{ background: '#FEE2E2', color: '#DC2626', border: '1px solid #FCA5A5' }}>
-                                                Đã bị từ chối
+                            return (
+                                <div className="topic-card" key={topic.id}>
+                                    <div>
+                                        <div className="topic-card-header">
+                                            <span className="tag teal">
+                                                {topic.projectCatalog?.name || 'Kỹ thuật Phần mềm'}
                                             </span>
-                                        ) : isPendingProposal ? (
-                                            <span className="tag orange" style={{ background: '#FEF3C7', color: '#B45309', border: '1px solid #FCD34D' }}>
-                                                Đề xuất chờ GVHD duyệt
-                                            </span>
-                                        ) : isFull ? (
-                                            <span className="tag gray">Đã đủ sinh viên</span>
-                                        ) : (
-                                            <span className="tag green">Còn nhận SV (0/1)</span>
-                                        )}
-                                    </div>
-                                    <h3 className="topic-card-title">{topic.title}</h3>
-                                    <p className="topic-card-desc">
-                                        {topic.description || 'Nghiên cứu ứng dụng công nghệ hiện đại, xây dựng kiến trúc hệ thống phân tán và hiện thực giải pháp kiểm thử tự động.'}
-                                    </p>
-                                    <div className="topic-tech-tags">
-                                        <span className="tech-tag">React / Next.js</span>
-                                        <span className="tech-tag">Node.js / Go</span>
-                                        <span className="tech-tag">PostgreSQL</span>
-                                        <span className="tech-tag">Docker</span>
-                                    </div>
-                                </div>
-
-                                <div className="topic-card-footer">
-                                    <div className="mentor-chip">
-                                        <div className="mentor-avatar">
-                                            {topic.mentor?.fullName ? topic.mentor.fullName.trim().split(' ').slice(-1)[0][0]?.toUpperCase() : 'GV'}
+                                            {isMine ? (
+                                                <span className="tag green">Đề tài của bạn</span>
+                                            ) : isMyRejectedTopic ? (
+                                                <span className="tag red" style={{ background: '#FEE2E2', color: '#DC2626', border: '1px solid #FCA5A5' }}>
+                                                    Đã bị từ chối
+                                                </span>
+                                            ) : isPendingProposal ? (
+                                                <span className="tag orange" style={{ background: '#FEF3C7', color: '#B45309', border: '1px solid #FCD34D' }}>
+                                                    Đề xuất chờ GVHD duyệt
+                                                </span>
+                                            ) : isFull ? (
+                                                <span className="tag gray">Đã đủ sinh viên</span>
+                                            ) : (
+                                                <span className="tag green">Còn nhận SV (0/1)</span>
+                                            )}
                                         </div>
-                                        <div>
-                                            <div className="mentor-name">{topic.mentor?.fullName || 'Chưa phân công'}</div>
-                                            <div style={{ fontSize: 11, color: 'var(--muted)' }}>
-                                                {isPendingProposal ? 'Đang chờ duyệt' : isFull ? '1/1 SV (Đủ)' : '0/1 SV (Còn 1)'}
+                                        <h3 className="topic-card-title">{topic.title}</h3>
+                                        <p className="topic-card-desc">
+                                            {topic.description || 'Nghiên cứu ứng dụng công nghệ hiện đại, xây dựng kiến trúc hệ thống phân tán và hiện thực giải pháp kiểm thử tự động.'}
+                                        </p>
+                                        <div className="topic-tech-tags">
+                                            <span className="tech-tag">React / Next.js</span>
+                                            <span className="tech-tag">Node.js / Go</span>
+                                            <span className="tech-tag">PostgreSQL</span>
+                                            <span className="tech-tag">Docker</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="topic-card-footer">
+                                        <div className="mentor-chip">
+                                            <div className="mentor-avatar">
+                                                {topic.mentor?.fullName ? topic.mentor.fullName.trim().split(' ').slice(-1)[0][0]?.toUpperCase() : 'GV'}
+                                            </div>
+                                            <div>
+                                                <div className="mentor-name">{topic.mentor?.fullName || 'Chưa phân công'}</div>
+                                                <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+                                                    {isPendingProposal ? 'Đang chờ duyệt' : isFull ? '1/1 SV (Đủ)' : '0/1 SV (Còn 1)'}
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                    <div style={{ display: 'flex', gap: 6 }}>
-                                        <button className="btn btn-secondary btn-sm" onClick={() => handleViewDetail(topic.id)}>
-                                            Chi tiết
-                                        </button>
-                                        {isPendingProposal ? (
+                                        <div style={{ display: 'flex', gap: 6 }}>
+                                            <button className="btn btn-secondary btn-sm" onClick={() => handleViewDetail(topic.id)}>
+                                                Chi tiết
+                                            </button>
+                                            {isPendingProposal ? (
+                                                <button
+                                                    className="btn btn-secondary btn-sm"
+                                                    style={{ borderColor: '#F87171', color: '#DC2626' }}
+                                                    onClick={() => handleCancelProposal(topic.id)}
+                                                >
+                                                    Hủy đề xuất
+                                                </button>
+                                            ) : !isMine && !isFull && !hasExistingRegistration && (
+                                                <button className="btn btn-primary btn-sm" onClick={() => confirmRegister(topic)}>
+                                                    Đăng ký
+                                                </button>
+                                            )}
                                             <button
-                                                className="btn btn-secondary btn-sm"
-                                                style={{ borderColor: '#F87171', color: '#DC2626' }}
-                                                onClick={() => handleCancelProposal(topic.id)}
+                                                className={`fav-btn ${isSaved ? 'active' : ''}`}
+                                                onClick={(e) => toggleSave(topic.id, e)}
+                                                title={isSaved ? 'Bỏ lưu' : 'Lưu đề tài'}
                                             >
-                                                Hủy đề xuất
+                                                <svg width="16" height="16" viewBox="0 0 24 24" fill={isSaved ? '#DC2626' : 'none'} stroke={isSaved ? '#DC2626' : 'currentColor'} strokeWidth="2">
+                                                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                                                </svg>
                                             </button>
-                                        ) : !isMine && !isFull && !hasExistingRegistration && (
-                                            <button className="btn btn-primary btn-sm" onClick={() => confirmRegister(topic)}>
-                                                Đăng ký
-                                            </button>
-                                        )}
-                                        <button
-                                            className={`fav-btn ${isSaved ? 'active' : ''}`}
-                                            onClick={(e) => toggleSave(topic.id, e)}
-                                            title={isSaved ? 'Bỏ lưu' : 'Lưu đề tài'}
-                                        >
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill={isSaved ? '#DC2626' : 'none'} stroke={isSaved ? '#DC2626' : 'currentColor'} strokeWidth="2">
-                                                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-                                            </svg>
-                                        </button>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        );
-                    })
-                )}
-            </div>
+                            );
+                        })
+                    )}
+                </div>
+            </QueryPanel>
 
             {/* DETAIL MODAL */}
             <Modal

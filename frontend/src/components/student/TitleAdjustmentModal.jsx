@@ -13,6 +13,9 @@ import {
 import dayjs from 'dayjs';
 import bm02aService from '../../services/bm02aService';
 import useAuthStore from '../../stores/authStore';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '../../query/queryKeys';
+import { useRegistrationBm02aRequests, bm02aKeys } from '../../queries/bm02aQueries';
 
 const { TextArea } = Input;
 
@@ -30,10 +33,16 @@ export default function TitleAdjustmentModal({
     const [form] = Form.useForm();
     const [revisionForm] = Form.useForm();
     const [submitting, setSubmitting] = useState(false);
-    const [loading, setLoading] = useState(false);
-    const [bm02aRequests, setBm02aRequests] = useState([]);
+
+    const user = useAuthStore((state) => state.user);
+    const scope = queryKeys.scope(user);
+    const queryClient = useQueryClient();
 
     const regId = registration?.id || propRegId;
+    const requestsQuery = useRegistrationBm02aRequests(scope, regId, Boolean(open && regId));
+    const bm02aRequests = requestsQuery.data || [];
+    const loading = requestsQuery.isPending && requestsQuery.fetchStatus !== 'idle';
+
     const studentInfo = registration?.student || currentUser || {};
     const studentProfile = studentInfo?.studentProfile || {};
 
@@ -56,28 +65,12 @@ export default function TitleAdjustmentModal({
     const remainingDays = remainingHours !== null ? Math.floor(remainingHours / 24) : null;
     const remainingHoursMod = remainingHours !== null ? remainingHours % 24 : null;
 
-    const fetchRequests = async () => {
-        if (!regId) return;
-        try {
-            setLoading(true);
-            const res = await bm02aService.getRequestsByRegistration(regId);
-            if (res.success && Array.isArray(res.data)) {
-                setBm02aRequests(res.data);
-            }
-        } catch {
-            // Non-blocking fallback
-        } finally {
-            setLoading(false);
-        }
-    };
-
     useEffect(() => {
         if (open && regId) {
-            fetchRequests();
             form.resetFields();
             revisionForm.resetFields();
         }
-    }, [open, regId]);
+    }, [open, regId, form, revisionForm]);
 
     const latestRequest = useMemo(() => {
         if (!bm02aRequests || bm02aRequests.length === 0) return null;
@@ -148,7 +141,10 @@ export default function TitleAdjustmentModal({
 
                 message.success('Đã nộp phiếu đề nghị điều chỉnh tên đề tài BM02-A thành công!');
                 form.resetFields();
-                await fetchRequests();
+                await Promise.all([
+                    queryClient.invalidateQueries({ queryKey: bm02aKeys.byRegistration(scope, regId) }),
+                    queryClient.invalidateQueries({ queryKey: queryKeys.registrations.all(scope) }),
+                ]);
                 onSuccess?.();
             } else {
                 message.error(createRes.message || 'Không thể tạo đơn điều chỉnh.');
@@ -185,7 +181,10 @@ export default function TitleAdjustmentModal({
 
                 message.success('Đã nộp lại phiếu BM02-A phiên bản v2 thành công!');
                 revisionForm.resetFields();
-                await fetchRequests();
+                await Promise.all([
+                    queryClient.invalidateQueries({ queryKey: bm02aKeys.byRegistration(scope, regId) }),
+                    queryClient.invalidateQueries({ queryKey: queryKeys.registrations.all(scope) }),
+                ]);
                 onSuccess?.();
             } else {
                 message.error(revRes.message || 'Không thể nộp lại bản sửa.');

@@ -64,6 +64,27 @@ import PageHeader from '../../components/common/PageHeader';
 import StatusBadge from '../../components/common/StatusBadge';
 import StatCard from '../../components/common/StatCard';
 import { STATUS_MAP } from '../../components/common/statusMap';
+import { queryKeys } from '../../query/queryKeys';
+import { useTopics } from '../../queries/topicQueries';
+import { useSemesters } from '../../queries/semesterQueries';
+import { useUsers } from '../../queries/userQueries';
+import { usePeriodRegistrations } from '../../queries/periodQueries';
+import {
+    useHealthRadarStats,
+    useArchives,
+    useArchiveMutation,
+} from '../../queries/oversightQueries';
+import {
+    useManualReviewCases,
+    useCheckpointAppeals,
+    useBm03StopReviews,
+    useBm04DefenseReviews,
+    useManualReviewMutation,
+} from '../../queries/manualReviewQueries';
+import { useRegistrationTasks } from '../../queries/taskQueries';
+import QueryPanel from '../../components/common/QueryPanel';
+import QueryErrorState from '../../components/common/QueryErrorState';
+import ContentSkeleton from '../../components/common/ContentSkeleton';
 
 const { Text } = Typography;
 
@@ -104,16 +125,25 @@ const computeSemesterClosestToNow = (list = []) => {
 
 function ProjectOversightPage() {
     const user = useAuthStore((state) => state.user);
+    const scope = queryKeys.scope(user);
     const canReviewArchive = (user?.permissions || []).includes('FINAL_DOCUMENT_REVIEW');
-    const [loading, setLoading] = useState(true);
-    const [topics, setTopics] = useState([]);
-    const [registrations, setRegistrations] = useState([]);
-    const [lecturers, setLecturers] = useState([]);
-    const [semesters, setSemesters] = useState([]);
+
     const [searchText, setSearchText] = useState('');
     const [statusFilter, setStatusFilter] = useState(null);
     const [semesterFilter, setSemesterFilter] = useState(null);
     const [projectNameFilter, setProjectNameFilter] = useState(null);
+
+    // Queries: Overview
+    const topicsQuery = useTopics(scope);
+    const registrationsQuery = usePeriodRegistrations(scope, { limit: 5000 });
+    const lecturersQuery = useUsers(scope, { role: 'LECTURER', status: 'active', limit: 1000 });
+    const semestersQuery = useSemesters(scope);
+
+    const topics = topicsQuery.data || [];
+    const registrations = registrationsQuery.data || [];
+    const lecturers = lecturersQuery.data?.data?.users || lecturersQuery.data?.data || lecturersQuery.data || [];
+    const semesters = semestersQuery.data || [];
+    const loading = topicsQuery.isPending || registrationsQuery.isPending || semestersQuery.isPending;
 
     const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
     const [auditTopic, setAuditTopic] = useState(null);
@@ -125,21 +155,30 @@ function ProjectOversightPage() {
     const [isProgressModalOpen, setIsProgressModalOpen] = useState(false);
     const [progressTopic, setProgressTopic] = useState(null);
     const [progressRegistrationId, setProgressRegistrationId] = useState(null);
-    const [progressTasks, setProgressTasks] = useState([]);
-    const [progressLoading, setProgressLoading] = useState(false);
+    const progressTasksQuery = useRegistrationTasks(scope, progressRegistrationId, Boolean(isProgressModalOpen && progressRegistrationId));
+    const progressTasks = progressTasksQuery.data || [];
+    const progressLoading = progressTasksQuery.isPending && progressTasksQuery.fetchStatus !== 'idle';
 
-    // Gói 2: Archive & Health Radar states
+    // Gói 2: Archive & Health Radar queries
     const [activeMainTab, setActiveMainTab] = useState('TOPIC_OVERSIGHT');
-    const [healthRadarStats, setHealthRadarStats] = useState(null);
-    const [, setHealthRadarLoading] = useState(false);
-    const [isHealthModalOpen, setIsHealthModalOpen] = useState(false);
-    const [archivesList, setArchivesList] = useState([]);
-    const [archivesLoading, setArchivesLoading] = useState(false);
     const [archiveStatusFilter, setArchiveStatusFilter] = useState('ALL');
     const [archiveSearchText, setArchiveSearchText] = useState('');
+    const [isHealthModalOpen, setIsHealthModalOpen] = useState(false);
     const [certModalOpen, setCertModalOpen] = useState(false);
     const [certificateData, setCertificateData] = useState(null);
-    const [, setCertLoading] = useState(false);
+    const [certLoading, setCertLoading] = useState(false);
+
+    const healthRadarQuery = useHealthRadarStats(scope, semesterFilter, canReviewArchive);
+    const archivesQuery = useArchives(scope, {
+        semesterId: semesterFilter || undefined,
+        status: archiveStatusFilter !== 'ALL' ? archiveStatusFilter : undefined,
+        limit: 100,
+    }, canReviewArchive);
+    const archiveMutation = useArchiveMutation(scope);
+
+    const healthRadarStats = healthRadarQuery.data || null;
+    const archivesList = archivesQuery.data?.items || (Array.isArray(archivesQuery.data) ? archivesQuery.data : []);
+    const archivesLoading = archivesQuery.isPending;
 
     // AI Archival Cross-Check state
     const [crossCheckModalOpen, setCrossCheckModalOpen] = useState(false);
@@ -167,46 +206,78 @@ function ProjectOversightPage() {
         }
     };
 
-    // Gói 3: Manual Review Queue states
-    const [manualReviewCases, setManualReviewCases] = useState([]);
-    const [manualReviewLoading, setManualReviewLoading] = useState(false);
+    // Gói 3: Manual Review & Appeals queries
     const [manualReviewStatusFilter, setManualReviewStatusFilter] = useState('OPEN');
     const [selectedCaseForReview, setSelectedCaseForReview] = useState(null);
     const [isManualReviewModalOpen, setIsManualReviewModalOpen] = useState(false);
-    const [manualReviewTotal, setManualReviewTotal] = useState(0);
-
-    // Danh sách checkpointSignatureAppeals liên kết trực tiếp với dữ liệu CheckpointSignatureAppeal
-    const [checkpointAppeals, setCheckpointAppeals] = useState([]);
-    const checkpointSignatureAppeals = checkpointAppeals;
-    const [appealsLoading, setAppealsLoading] = useState(false);
     const [appealStatusFilter, setAppealStatusFilter] = useState('ALL');
     const [isAppealReviewModalOpen, setIsAppealReviewModalOpen] = useState(false);
     const [selectedAppealForReview, setSelectedAppealForReview] = useState(null);
 
-    const fetchCheckpointAppeals = async (status = appealStatusFilter, semId = semesterFilter) => {
-        try {
-            setAppealsLoading(true);
-            const res = await evaluationService.getCheckpointAppeals({
-                status: status !== 'ALL' ? status : undefined,
-                semesterId: semId || undefined,
-            });
-            if (res.success) {
-                setCheckpointAppeals(res.data || []);
-            } else {
-                setCheckpointAppeals([]);
-            }
-        } catch {
-            setCheckpointAppeals([]);
-        } finally {
-            setAppealsLoading(false);
-        }
-    };
+    const manualReviewQuery = useManualReviewCases(scope, {
+        status: manualReviewStatusFilter !== 'ALL' ? manualReviewStatusFilter : undefined,
+        semesterId: semesterFilter || undefined,
+        limit: 100,
+    });
+    const appealsQuery = useCheckpointAppeals(scope, {
+        status: appealStatusFilter !== 'ALL' ? appealStatusFilter : undefined,
+        semesterId: semesterFilter || undefined,
+    });
+    const bm03StopQuery = useBm03StopReviews(scope);
+    const bm04DefenseQuery = useBm04DefenseReviews(scope);
+    const manualReviewMutation = useManualReviewMutation(scope);
 
-    // Hàng đợi Thẩm định Viện: BM03 Dừng đề tài & BM04 Từ chối bảo vệ
-    const [bm03StopReviews, setBm03StopReviews] = useState([]);
-    const [bm03StopLoading, setBm03StopLoading] = useState(false);
-    const [bm04DefenseReviews, setBm04DefenseReviews] = useState([]);
-    const [bm04DefenseLoading, setBm04DefenseLoading] = useState(false);
+    const manualReviewCases = manualReviewQuery.data?.cases || (Array.isArray(manualReviewQuery.data) ? manualReviewQuery.data : []);
+    const manualReviewTotal = manualReviewQuery.data?.pagination?.total || manualReviewCases.length;
+    const manualReviewLoading = manualReviewQuery.isPending;
+
+    const checkpointAppeals = appealsQuery.data || [];
+    const checkpointSignatureAppeals = checkpointAppeals;
+    const appealsLoading = appealsQuery.isPending;
+
+    const bm03StopLoading = bm03StopQuery.isPending;
+    const rawBm03 = bm03StopQuery.data;
+    const bm03StopReviews = useMemo(() => {
+        if (Array.isArray(rawBm03) && rawBm03.length > 0) return rawBm03;
+        return registrations
+            .filter((r) => r.status === 'STOP_REVIEW_PENDING')
+            .map((r) => ({
+                id: r.id,
+                registrationId: r.id,
+                stage: 'MIDTERM',
+                status: 'STOP_REVIEW_PENDING',
+                stopProposalSubmittedAt: r.updatedAt || r.createdAt,
+                stopReviewDeadline: r.updatedAt ? dayjs(r.updatedAt).add(168, 'hour').toISOString() : dayjs().add(168, 'hour').toISOString(),
+                extensionCount: 0,
+                registration: r,
+                stageEvaluation: {
+                    stopProposalReason: 'Đề nghị dừng từ Giảng viên hướng dẫn',
+                },
+            }));
+    }, [rawBm03, registrations]);
+
+    const bm04DefenseLoading = bm04DefenseQuery.isPending;
+    const rawBm04 = bm04DefenseQuery.data;
+    const bm04DefenseReviews = useMemo(() => {
+        if (Array.isArray(rawBm04) && rawBm04.length > 0) return rawBm04;
+        return registrations
+            .filter(
+                (r) =>
+                    r.status === 'PENDING_INSTITUTE_REVIEW' ||
+                    r.status === 'BM04_REVIEW' ||
+                    r.bm04Evaluation?.defenseRecommendation === 'NOT_APPROVE_FOR_DEFENSE'
+            )
+            .map((r) => ({
+                id: r.bm04Evaluation?.id || r.id,
+                registrationId: r.id,
+                status: 'PENDING_INSTITUTE_REVIEW',
+                submittedAt: r.bm04Evaluation?.updatedAt || r.updatedAt || r.createdAt,
+                reviewDeadlineAt: r.updatedAt ? dayjs(r.updatedAt).add(168, 'hour').toISOString() : dayjs().add(168, 'hour').toISOString(),
+                extensionCount: 0,
+                registration: r,
+                bm04Evaluation: r.bm04Evaluation,
+            }));
+    }, [rawBm04, registrations]);
 
     // Modal states cho BM03 Dừng đề tài
     const [isBm03MoreInfoModalOpen, setIsBm03MoreInfoModalOpen] = useState(false);
@@ -253,113 +324,17 @@ function ProjectOversightPage() {
         );
     };
 
-    const fetchBm03StopReviews = async () => {
-        try {
-            setBm03StopLoading(true);
-            const res = await evaluationService.listStopReviews?.();
-            if (res?.success && Array.isArray(res.data)) {
-                setBm03StopReviews(res.data);
-            } else {
-                const derived = (registrations || [])
-                    .filter((r) => r.status === 'STOP_REVIEW_PENDING')
-                    .map((r) => ({
-                        id: r.id,
-                        registrationId: r.id,
-                        stage: 'MIDTERM',
-                        status: 'STOP_REVIEW_PENDING',
-                        stopProposalSubmittedAt: r.updatedAt || r.createdAt,
-                        stopReviewDeadline: r.updatedAt ? dayjs(r.updatedAt).add(168, 'hour').toISOString() : dayjs().add(168, 'hour').toISOString(),
-                        extensionCount: 0,
-                        registration: r,
-                        stageEvaluation: {
-                            stopProposalReason: 'Đề nghị dừng từ Giảng viên hướng dẫn',
-                        },
-                    }));
-                setBm03StopReviews(derived);
-            }
-        } catch {
-            const derived = (registrations || [])
-                .filter((r) => r.status === 'STOP_REVIEW_PENDING')
-                .map((r) => ({
-                    id: r.id,
-                    registrationId: r.id,
-                    stage: 'MIDTERM',
-                    status: 'STOP_REVIEW_PENDING',
-                    stopProposalSubmittedAt: r.updatedAt || r.createdAt,
-                    stopReviewDeadline: r.updatedAt ? dayjs(r.updatedAt).add(168, 'hour').toISOString() : dayjs().add(168, 'hour').toISOString(),
-                    extensionCount: 0,
-                    registration: r,
-                    stageEvaluation: {
-                        stopProposalReason: 'Đề nghị dừng từ Giảng viên hướng dẫn',
-                    },
-                }));
-            setBm03StopReviews(derived);
-        } finally {
-            setBm03StopLoading(false);
-        }
-    };
-
-    const fetchBm04DefenseReviews = async () => {
-        try {
-            setBm04DefenseLoading(true);
-            const res = await evaluationService.listDefenseReviews?.();
-            if (res?.success && Array.isArray(res.data)) {
-                setBm04DefenseReviews(res.data);
-            } else {
-                const derived = (registrations || [])
-                    .filter(
-                        (r) =>
-                            r.status === 'PENDING_INSTITUTE_REVIEW' ||
-                            r.status === 'BM04_REVIEW' ||
-                            r.bm04Evaluation?.defenseRecommendation === 'NOT_APPROVE_FOR_DEFENSE'
-                    )
-                    .map((r) => ({
-                        id: r.bm04Evaluation?.id || r.id,
-                        registrationId: r.id,
-                        status: 'PENDING_INSTITUTE_REVIEW',
-                        submittedAt: r.bm04Evaluation?.updatedAt || r.updatedAt || r.createdAt,
-                        reviewDeadlineAt: r.updatedAt ? dayjs(r.updatedAt).add(168, 'hour').toISOString() : dayjs().add(168, 'hour').toISOString(),
-                        extensionCount: 0,
-                        registration: r,
-                        bm04Evaluation: r.bm04Evaluation,
-                    }));
-                setBm04DefenseReviews(derived);
-            }
-        } catch {
-            const derived = (registrations || [])
-                .filter(
-                    (r) =>
-                        r.status === 'PENDING_INSTITUTE_REVIEW' ||
-                        r.status === 'BM04_REVIEW' ||
-                        r.bm04Evaluation?.defenseRecommendation === 'NOT_APPROVE_FOR_DEFENSE'
-                )
-                .map((r) => ({
-                    id: r.bm04Evaluation?.id || r.id,
-                    registrationId: r.id,
-                    status: 'PENDING_INSTITUTE_REVIEW',
-                    submittedAt: r.bm04Evaluation?.updatedAt || r.updatedAt || r.createdAt,
-                    reviewDeadlineAt: r.updatedAt ? dayjs(r.updatedAt).add(168, 'hour').toISOString() : dayjs().add(168, 'hour').toISOString(),
-                    extensionCount: 0,
-                    registration: r,
-                    bm04Evaluation: r.bm04Evaluation,
-                }));
-            setBm04DefenseReviews(derived);
-        } finally {
-            setBm04DefenseLoading(false);
-        }
-    };
-
     const handleRequestMoreInfoBM03 = async () => {
         if (!selectedBm03StopReview) return;
         try {
-            await evaluationService.requestMoreInfoForStopReview(selectedBm03StopReview.id, {
-                note: bm03MoreInfoNote,
+            await manualReviewMutation.mutateAsync({
+                targetService: 'evaluation',
+                action: 'requestMoreInfoForStopReview',
+                args: [selectedBm03StopReview.id, { note: bm03MoreInfoNote }],
             });
             message.success('Đã gửi yêu cầu bổ sung thông tin (+72h SLA)');
             setIsBm03MoreInfoModalOpen(false);
             setBm03MoreInfoNote('');
-            fetchBm03StopReviews();
-            fetchData();
         } catch (error) {
             message.error(error?.message || 'Không thể gửi yêu cầu bổ sung');
         }
@@ -368,9 +343,10 @@ function ProjectOversightPage() {
     const handleDecideBM03Stop = async () => {
         if (!selectedBm03StopReview) return;
         try {
-            await evaluationService.decideStopReview(selectedBm03StopReview.id, {
-                decision: bm03DecisionType,
-                reason: bm03DecisionReason,
+            await manualReviewMutation.mutateAsync({
+                targetService: 'evaluation',
+                action: 'decideStopReview',
+                args: [selectedBm03StopReview.id, { decision: bm03DecisionType, reason: bm03DecisionReason }],
             });
             message.success(
                 bm03DecisionType === 'APPROVE_STOP'
@@ -379,8 +355,6 @@ function ProjectOversightPage() {
             );
             setIsBm03DecisionModalOpen(false);
             setBm03DecisionReason('');
-            fetchBm03StopReviews();
-            fetchData();
         } catch (error) {
             message.error(error?.message || 'Không thể cập nhật thẩm định dừng đề tài');
         }
@@ -389,14 +363,14 @@ function ProjectOversightPage() {
     const handleRequestMoreInfoBM04 = async () => {
         if (!selectedBm04DefenseReview) return;
         try {
-            await evaluationService.requestMoreInfoForDefenseReview(selectedBm04DefenseReview.id, {
-                note: bm04MoreInfoNote,
+            await manualReviewMutation.mutateAsync({
+                targetService: 'evaluation',
+                action: 'requestMoreInfoForDefenseReview',
+                args: [selectedBm04DefenseReview.id, { note: bm04MoreInfoNote }],
             });
             message.success('Đã gửi yêu cầu bổ sung thông tin (+72h SLA)');
             setIsBm04MoreInfoModalOpen(false);
             setBm04MoreInfoNote('');
-            fetchBm04DefenseReviews();
-            fetchData();
         } catch (error) {
             message.error(error?.message || 'Không thể gửi yêu cầu bổ sung');
         }
@@ -405,9 +379,10 @@ function ProjectOversightPage() {
     const handleDecideBM04Defense = async () => {
         if (!selectedBm04DefenseReview) return;
         try {
-            await evaluationService.decideDefenseReview(selectedBm04DefenseReview.id, {
-                decision: bm04DecisionType,
-                reason: bm04DecisionReason,
+            await manualReviewMutation.mutateAsync({
+                targetService: 'evaluation',
+                action: 'decideDefenseReview',
+                args: [selectedBm04DefenseReview.id, { decision: bm04DecisionType, reason: bm04DecisionReason }],
             });
             message.success(
                 bm04DecisionType === 'APPROVE_NOT_ELIGIBLE'
@@ -416,98 +391,8 @@ function ProjectOversightPage() {
             );
             setIsBm04DecisionModalOpen(false);
             setBm04DecisionReason('');
-            fetchBm04DefenseReviews();
-            fetchData();
         } catch (error) {
             message.error(error?.message || 'Không thể cập nhật thẩm định BM04');
-        }
-    };
-
-    const fetchHealthRadar = async (semId) => {
-        if (!canReviewArchive) {
-            setHealthRadarStats(null);
-            return;
-        }
-        try {
-            setHealthRadarLoading(true);
-            const res = await archiveService.getHealthRadarStats({ semesterId: semId || undefined });
-            if (res.success) {
-                setHealthRadarStats(res.data || null);
-            }
-        } catch {
-            setHealthRadarStats(null);
-        } finally {
-            setHealthRadarLoading(false);
-        }
-    };
-
-    const fetchArchives = async (semId, status) => {
-        if (!canReviewArchive) {
-            setArchivesList([]);
-            return;
-        }
-        try {
-            setArchivesLoading(true);
-            const res = await archiveService.getAllArchives({
-                semesterId: semId || undefined,
-                status: status !== 'ALL' ? status : undefined,
-                limit: 100,
-            });
-            if (res.success) {
-                setArchivesList(res.data?.items || []);
-            }
-        } catch {
-            setArchivesList([]);
-        } finally {
-            setArchivesLoading(false);
-        }
-    };
-
-    const fetchManualReviewCases = async (status = manualReviewStatusFilter, semId = semesterFilter) => {
-        try {
-            setManualReviewLoading(true);
-            const res = await manualReviewService.listCases({
-                status: status !== 'ALL' ? status : undefined,
-                semesterId: semId || undefined,
-                limit: 100,
-            });
-            if (res.success) {
-                setManualReviewCases(res.data?.cases || []);
-                setManualReviewTotal(res.data?.pagination?.total || 0);
-            }
-        } catch {
-            setManualReviewCases([]);
-            setManualReviewTotal(0);
-        } finally {
-            setManualReviewLoading(false);
-        }
-    };
-
-    const fetchData = async () => {
-        setLoading(true);
-        try {
-            const [topicsRes, regRes, lecturerRes, semesterRes] = await Promise.all([
-                topicService.getAll(),
-                registrationService.getAllRegistrations(),
-                userService.getUsers({ role: 'LECTURER', status: 'active', limit: 1000 }),
-                semesterService.getAll(),
-            ]);
-
-            if (topicsRes.success) setTopics(topicsRes.data || []);
-            if (regRes.success) setRegistrations(regRes.data || []);
-            if (lecturerRes.success) setLecturers(lecturerRes.data || []);
-            if (semesterRes.success) setSemesters(semesterRes.data || []);
-
-            fetchHealthRadar(semesterFilter);
-            fetchArchives(semesterFilter, archiveStatusFilter);
-            fetchManualReviewCases(manualReviewStatusFilter, semesterFilter);
-            fetchCheckpointAppeals(appealStatusFilter, semesterFilter);
-            fetchBm03StopReviews();
-            fetchBm04DefenseReviews();
-        } catch (error) {
-            message.error(error?.message || 'Không thể tải dữ liệu giám sát');
-        } finally {
-            setLoading(false);
         }
     };
 
@@ -528,15 +413,14 @@ function ProjectOversightPage() {
 
     const handleQuickApproveArchive = async (registrationId) => {
         try {
-            const res = await archiveService.reviewArchive(registrationId, {
-                decision: 'APPROVED',
-                reviewerNotes: 'Ban Quản trị / Khoa đã nghiệm thu lưu chiểu hoàn tất.',
+            await archiveMutation.mutateAsync({
+                action: 'reviewArchive',
+                args: [registrationId, {
+                    decision: 'APPROVED',
+                    reviewerNotes: 'Ban Quản trị / Khoa đã nghiệm thu lưu chiểu hoàn tất.',
+                }],
             });
-            if (res.success) {
-                message.success('Đã nghiệm thu lưu chiểu thành công! Đề tài chuyển sang COMPLETED.');
-                fetchArchives(semesterFilter, archiveStatusFilter);
-                fetchData();
-            }
+            message.success('Đã nghiệm thu lưu chiểu thành công! Đề tài chuyển sang COMPLETED.');
         } catch (error) {
             message.error(error?.message || 'Lỗi khi nghiệm thu lưu chiểu');
         }
@@ -544,17 +428,11 @@ function ProjectOversightPage() {
 
     const handleAcademicAffairsReview = async (archiveId, status, notes = '') => {
         try {
-            const res = await archiveService.reviewArchiveByAcademicAffairs(archiveId, {
-                status,
-                notes: notes || undefined,
+            await archiveMutation.mutateAsync({
+                action: 'reviewArchiveByAcademicAffairs',
+                args: [archiveId, { status, notes: notes || undefined }],
             });
-            if (res.success) {
-                message.success('Đã hoàn tất thẩm định thủ tục lưu chiểu (Giáo vụ)!');
-                fetchArchives(semesterFilter, archiveStatusFilter);
-                fetchData();
-            } else {
-                message.error(res.message || 'Không thể thẩm định lưu chiểu Giáo vụ');
-            }
+            message.success('Đã hoàn tất thẩm định thủ tục lưu chiểu (Giáo vụ)!');
         } catch (error) {
             message.error(error?.message || 'Lỗi khi thẩm định lưu chiểu Giáo vụ');
         }
@@ -562,28 +440,15 @@ function ProjectOversightPage() {
 
     const handleSignClearanceCertificate = async (archiveId) => {
         try {
-            const res = await archiveService.signClearanceCertificate(archiveId);
-            if (res.success) {
-                message.success('Viện trưởng đã ký số Giấy xác nhận hoàn thành thành công!');
-                fetchArchives(semesterFilter, archiveStatusFilter);
-                fetchData();
-            } else {
-                message.error(res.message || 'Không thể ký số Giấy xác nhận');
-            }
+            await archiveMutation.mutateAsync({
+                action: 'signClearanceCertificate',
+                args: [archiveId],
+            });
+            message.success('Viện trưởng đã ký số Giấy xác nhận hoàn thành thành công!');
         } catch (error) {
             message.error(error?.message || 'Lỗi khi ký số Giấy xác nhận');
         }
     };
-
-    useEffect(() => {
-        fetchData();
-    }, []);
-
-    useEffect(() => {
-        fetchHealthRadar(semesterFilter);
-        fetchArchives(semesterFilter, archiveStatusFilter);
-        fetchCheckpointAppeals(appealStatusFilter, semesterFilter);
-    }, [semesterFilter, archiveStatusFilter, appealStatusFilter]);
 
     const currentSemesters = useMemo(() => {
         const now = dayjs();
@@ -753,31 +618,12 @@ function ProjectOversightPage() {
         const firstRegistrationId = registrationEvents[0]?.id || null;
         setProgressTopic(record);
         setProgressRegistrationId(firstRegistrationId);
-        setProgressTasks([]);
         setIsProgressModalOpen(true);
     };
 
-    const loadProgressTasks = async (registrationId) => {
-        if (!registrationId) {
-            setProgressTasks([]);
-            return;
-        }
-        try {
-            setProgressLoading(true);
-            const res = await taskService.getTasksByRegistration(registrationId);
-            setProgressTasks(res?.data || []);
-        } catch (error) {
-            message.error(error?.message || 'Không thể tải chi tiết tiến độ');
-            setProgressTasks([]);
-        } finally {
-            setProgressLoading(false);
-        }
+    const loadProgressTasks = () => {
+        if (progressRegistrationId) progressTasksQuery.refetch();
     };
-
-    useEffect(() => {
-        if (!isProgressModalOpen) return;
-        loadProgressTasks(progressRegistrationId);
-    }, [isProgressModalOpen, progressRegistrationId]);
 
     const progressStats = useMemo(() => {
         const total = progressTasks.length;
@@ -1866,11 +1712,35 @@ function ProjectOversightPage() {
                 subtitle="Theo dõi vòng đời đề tài, tiến độ các mốc học vụ của sinh viên và điều phối xử lý ngoại lệ đào tạo."
                 tags={[{ label: 'Giám sát toàn diện', color: 'blue' }]}
                 actions={
-                    <Button icon={<ReloadOutlined />} onClick={fetchData}>
+                    <Button
+                        icon={<ReloadOutlined />}
+                        onClick={() => {
+                            topicsQuery.refetch();
+                            registrationsQuery.refetch();
+                            lecturersQuery.refetch();
+                            semestersQuery.refetch();
+                            healthRadarQuery.refetch();
+                            archivesQuery.refetch();
+                            manualReviewQuery.refetch();
+                            appealsQuery.refetch();
+                            bm03StopQuery.refetch();
+                            bm04DefenseQuery.refetch();
+                        }}
+                    >
                         Làm mới
                     </Button>
                 }
             />
+
+            {healthRadarQuery.isError && (
+                <div className="mb-4">
+                    <QueryErrorState
+                        error={healthRadarQuery.error}
+                        onRetry={() => healthRadarQuery.refetch()}
+                        retrying={healthRadarQuery.isFetching}
+                    />
+                </div>
+            )}
 
             {/* Health Radar Cảnh Báo Sớm Widget */}
             <div className="bg-[#0A2540] border border-teal-900/40 rounded-lg p-5 text-white shadow-xs relative overflow-hidden">
@@ -2095,15 +1965,16 @@ function ProjectOversightPage() {
 
                                     {/* Table */}
                                     <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
-                                        <Table
-                                            loading={loading}
-                                            dataSource={filteredTopics}
-                                            rowKey="id"
-                                            columns={columns}
-                                            scroll={{ x: 1280 }}
-                                            pagination={{ pageSize: 12, showSizeChanger: true, showTotal: (t) => `Tổng số ${t} đề tài` }}
-                                            size="middle"
-                                        />
+                                        <QueryPanel query={topicsQuery} variant="table">
+                                            <Table
+                                                dataSource={filteredTopics}
+                                                rowKey="id"
+                                                columns={columns}
+                                                scroll={{ x: 1280 }}
+                                                pagination={{ pageSize: 12, showSizeChanger: true, showTotal: (t) => `Tổng số ${t} đề tài` }}
+                                                size="middle"
+                                            />
+                                        </QueryPanel>
                                     </div>
                                 </div>
                             </div>
@@ -2182,15 +2053,16 @@ function ProjectOversightPage() {
 
                                     {/* Archive Table */}
                                     <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
-                                        <Table
-                                            loading={archivesLoading}
-                                            dataSource={filteredArchives}
-                                            rowKey="id"
-                                            columns={archiveColumns}
-                                            scroll={{ x: 1200 }}
-                                            pagination={{ pageSize: 12, showSizeChanger: true, showTotal: (t) => `Tổng cộng ${t} hồ sơ lưu chiểu` }}
-                                            size="middle"
-                                        />
+                                        <QueryPanel query={archivesQuery} variant="table">
+                                            <Table
+                                                dataSource={filteredArchives}
+                                                rowKey="id"
+                                                columns={archiveColumns}
+                                                scroll={{ x: 1200 }}
+                                                pagination={{ pageSize: 12, showSizeChanger: true, showTotal: (t) => `Tổng cộng ${t} hồ sơ lưu chiểu` }}
+                                                size="middle"
+                                            />
+                                        </QueryPanel>
                                     </div>
                                 </div>
                             </div>
@@ -2234,7 +2106,7 @@ function ProjectOversightPage() {
                                                             />
                                                             <Button
                                                                 icon={<ReloadOutlined />}
-                                                                onClick={() => fetchCheckpointAppeals(appealStatusFilter, semesterFilter)}
+                                                                onClick={() => appealsQuery.refetch()}
                                                             >
                                                                 Làm mới
                                                             </Button>
@@ -2245,15 +2117,16 @@ function ProjectOversightPage() {
                                                     </div>
 
                                                     <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
-                                                        <Table
-                                                            loading={appealsLoading}
-                                                            dataSource={checkpointSignatureAppeals}
-                                                            rowKey="id"
-                                                            columns={checkpointAppealColumns}
-                                                            scroll={{ x: 1100 }}
-                                                            pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (t) => `Tổng cộng ${t} đơn khiếu nại` }}
-                                                            size="middle"
-                                                        />
+                                                        <QueryPanel query={appealsQuery} variant="table">
+                                                            <Table
+                                                                dataSource={checkpointSignatureAppeals}
+                                                                rowKey="id"
+                                                                columns={checkpointAppealColumns}
+                                                                scroll={{ x: 1100 }}
+                                                                pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (t) => `Tổng cộng ${t} đơn khiếu nại` }}
+                                                                size="middle"
+                                                            />
+                                                        </QueryPanel>
                                                     </div>
                                                 </div>
                                             ),
@@ -2271,7 +2144,7 @@ function ProjectOversightPage() {
                                                         <div className="flex items-center gap-3">
                                                             <Button
                                                                 icon={<ReloadOutlined />}
-                                                                onClick={() => fetchBm03StopReviews()}
+                                                                onClick={() => bm03StopQuery.refetch()}
                                                             >
                                                                 Làm mới
                                                             </Button>
@@ -2282,15 +2155,16 @@ function ProjectOversightPage() {
                                                     </div>
 
                                                     <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
-                                                        <Table
-                                                            loading={bm03StopLoading}
-                                                            dataSource={bm03StopReviews}
-                                                            rowKey="id"
-                                                            columns={bm03StopReviewColumns}
-                                                            scroll={{ x: 1200 }}
-                                                            pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (t) => `Tổng cộng ${t} hồ sơ đề nghị dừng BM03` }}
-                                                            size="middle"
-                                                        />
+                                                        <QueryPanel query={bm03StopQuery} variant="table">
+                                                            <Table
+                                                                dataSource={bm03StopReviews}
+                                                                rowKey="id"
+                                                                columns={bm03StopReviewColumns}
+                                                                scroll={{ x: 1200 }}
+                                                                pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (t) => `Tổng cộng ${t} hồ sơ đề nghị dừng BM03` }}
+                                                                size="middle"
+                                                            />
+                                                        </QueryPanel>
                                                     </div>
                                                 </div>
                                             ),
@@ -2308,7 +2182,7 @@ function ProjectOversightPage() {
                                                         <div className="flex items-center gap-3">
                                                             <Button
                                                                 icon={<ReloadOutlined />}
-                                                                onClick={() => fetchBm04DefenseReviews()}
+                                                                onClick={() => bm04DefenseQuery.refetch()}
                                                             >
                                                                 Làm mới
                                                             </Button>
@@ -2319,15 +2193,16 @@ function ProjectOversightPage() {
                                                     </div>
 
                                                     <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
-                                                        <Table
-                                                            loading={bm04DefenseLoading}
-                                                            dataSource={bm04DefenseReviews}
-                                                            rowKey="id"
-                                                            columns={bm04DefenseReviewColumns}
-                                                            scroll={{ x: 1250 }}
-                                                            pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (t) => `Tổng cộng ${t} hồ sơ từ chối bảo vệ BM04` }}
-                                                            size="middle"
-                                                        />
+                                                        <QueryPanel query={bm04DefenseQuery} variant="table">
+                                                            <Table
+                                                                dataSource={bm04DefenseReviews}
+                                                                rowKey="id"
+                                                                columns={bm04DefenseReviewColumns}
+                                                                scroll={{ x: 1250 }}
+                                                                pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (t) => `Tổng cộng ${t} hồ sơ từ chối bảo vệ BM04` }}
+                                                                size="middle"
+                                                            />
+                                                        </QueryPanel>
                                                     </div>
                                                 </div>
                                             ),
@@ -2345,10 +2220,7 @@ function ProjectOversightPage() {
                                                         <div className="flex items-center gap-3">
                                                             <Select
                                                                 value={manualReviewStatusFilter}
-                                                                onChange={(val) => {
-                                                                    setManualReviewStatusFilter(val);
-                                                                    fetchManualReviewCases(val, semesterFilter);
-                                                                }}
+                                                                onChange={(val) => setManualReviewStatusFilter(val)}
                                                                 style={{ width: 220 }}
                                                                 options={[
                                                                     { label: 'Chờ thẩm định', value: 'OPEN' },
@@ -2358,7 +2230,7 @@ function ProjectOversightPage() {
                                                             />
                                                             <Button
                                                                 icon={<ReloadOutlined />}
-                                                                onClick={() => fetchManualReviewCases(manualReviewStatusFilter, semesterFilter)}
+                                                                onClick={() => manualReviewQuery.refetch()}
                                                             >
                                                                 Làm mới
                                                             </Button>
@@ -2369,15 +2241,16 @@ function ProjectOversightPage() {
                                                     </div>
 
                                                     <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
-                                                        <Table
-                                                            loading={manualReviewLoading}
-                                                            dataSource={manualReviewCases}
-                                                            rowKey="id"
-                                                            columns={manualReviewColumns}
-                                                            scroll={{ x: 1200 }}
-                                                            pagination={{ pageSize: 12, showSizeChanger: true, showTotal: (t) => `Tổng cộng ${t} hồ sơ thẩm định` }}
-                                                            size="middle"
-                                                        />
+                                                        <QueryPanel query={manualReviewQuery} variant="table">
+                                                            <Table
+                                                                dataSource={manualReviewCases}
+                                                                rowKey="id"
+                                                                columns={manualReviewColumns}
+                                                                scroll={{ x: 1200 }}
+                                                                pagination={{ pageSize: 12, showSizeChanger: true, showTotal: (t) => `Tổng cộng ${t} hồ sơ thẩm định` }}
+                                                                size="middle"
+                                                            />
+                                                        </QueryPanel>
                                                     </div>
                                                 </div>
                                             ),

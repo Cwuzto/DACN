@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
     Alert,
     Button,
@@ -32,7 +32,12 @@ import {
     WarningOutlined,
 } from '@ant-design/icons';
 import { reportService } from '../../services/reportService';
-import { semesterService } from '../../services/semesterService';
+import { useSemesters } from '../../queries/semesterQueries';
+import { useReportOverview, useLecturerWorkload } from '../../queries/reportQueries';
+import useAuthStore from '../../stores/authStore';
+import { queryKeys } from '../../query/queryKeys';
+import QueryPanel from '../../components/common/QueryPanel';
+import EmptyState from '../../components/common/EmptyState';
 
 const GRADE_BAND_COLORS = {
     EXCELLENT: '#10B981',
@@ -51,74 +56,44 @@ const GRADE_RANGES = {
 };
 
 export default function AcademicReportsPage() {
-    const [semesters, setSemesters] = useState([]);
+    const user = useAuthStore(state => state.user);
+    const scope = queryKeys.scope(user);
+    const semestersQuery = useSemesters(scope);
+    const semesters = semestersQuery.data || [];
     const [selectedSemesterId, setSelectedSemesterId] = useState(undefined);
     const [selectedMajor, setSelectedMajor] = useState('ALL');
     const [availableMajors, setAvailableMajors] = useState([]);
 
-    const [loading, setLoading] = useState(false);
     const [exporting, setExporting] = useState(false);
 
-    const [overviewData, setOverviewData] = useState(null);
-    const [workloadData, setWorkloadData] = useState([]);
-
+    const overviewQuery = useReportOverview(scope, {
+        semesterId: selectedSemesterId,
+        major: selectedMajor !== 'ALL' ? selectedMajor : undefined,
+    });
+    const workloadQuery = useLecturerWorkload(scope, selectedSemesterId);
+    const overviewData = overviewQuery.data;
+    const workloadData = workloadQuery.data || [];
+    const loading = overviewQuery.isPending;
     const [lecturerSearch, setLecturerSearch] = useState('');
 
-    // Tải danh sách học kỳ ban đầu
     useEffect(() => {
-        const fetchSemesters = async () => {
-            try {
-                const res = await semesterService.getAll();
-                const list = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
-                setSemesters(list);
+        if (selectedSemesterId || !semesters.length) return;
+        const active = semesters.find(s => s.status === 'ACTIVE' || s.status === 'ONGOING') || semesters[0];
+        setSelectedSemesterId(active.id);
+    }, [semesters, selectedSemesterId]);
 
-                if (list.length > 0) {
-                    const active = list.find((s) => s.status === 'ACTIVE' || s.status === 'ONGOING') || list[0];
-                    setSelectedSemesterId(active.id);
-                }
-            } catch (error) {
-                message.error(error?.message || 'Không thể tải danh sách học kỳ');
-            }
-        };
-
-        fetchSemesters();
-    }, []);
-
-    // Tải dữ liệu báo cáo khi thay đổi học kỳ hoặc chuyên ngành
-    const loadReportData = useCallback(async () => {
-        if (!selectedSemesterId) return;
-
-        setLoading(true);
-        try {
-            const majorParam = selectedMajor !== 'ALL' ? selectedMajor : undefined;
-            const [overviewRes, workloadRes] = await Promise.all([
-                reportService.getOverview({ semesterId: selectedSemesterId, major: majorParam }),
-                reportService.getLecturerWorkload({ semesterId: selectedSemesterId }),
-            ]);
-
-            const ovData = overviewRes?.data || overviewRes || null;
-            setOverviewData(ovData);
-
-            const wlData = workloadRes?.data || workloadRes || [];
-            setWorkloadData(Array.isArray(wlData) ? wlData : []);
-
-            // Cập nhật danh sách chuyên ngành khả dụng nếu đang ở chế độ xem tất cả
-            if (selectedMajor === 'ALL' && Array.isArray(ovData?.majors)) {
-                const majorsFromApi = ovData.majors.map((m) => m.major).filter(Boolean);
-                setAvailableMajors(Array.from(new Set(majorsFromApi)));
-            }
-        } catch (error) {
-            message.error(error?.message || 'Đã xảy ra lỗi khi tải dữ liệu báo cáo');
-        } finally {
-            setLoading(false);
+    useEffect(() => {
+        if (selectedMajor === 'ALL' && Array.isArray(overviewData?.majors)) {
+            setAvailableMajors(Array.from(new Set(overviewData.majors.map(m => m.major).filter(Boolean))));
         }
-    }, [selectedSemesterId, selectedMajor]);
+    }, [overviewData, selectedMajor]);
 
-    useEffect(() => {
-        loadReportData();
-    }, [loadReportData]);
+    const loadReportData = () => {
+        if (!selectedSemesterId) return;
+        overviewQuery.refetch();
+        workloadQuery.refetch();
+    };
 
-    // Xử lý xuất báo cáo Excel
     const handleExportExcel = async () => {
         if (!selectedSemesterId) {
             message.warning('Vui lòng chọn học kỳ để xuất báo cáo');
@@ -510,7 +485,8 @@ export default function AcademicReportsPage() {
                     <Button
                         icon={<ReloadOutlined />}
                         onClick={loadReportData}
-                        loading={loading}
+                        loading={overviewQuery.isFetching || workloadQuery.isFetching}
+                        disabled={!selectedSemesterId}
                     >
                         Làm mới
                     </Button>
@@ -529,9 +505,11 @@ export default function AcademicReportsPage() {
             </div>
 
             {/* 4 Thẻ KPI Tổng hợp */}
+            <QueryPanel query={semestersQuery} empty={semesters.length === 0} />
+            <QueryPanel query={overviewQuery}>
             <Row gutter={[16, 16]}>
                 <Col xs={24} sm={12} lg={6}>
-                    <Card bordered={false} className="shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
+                    <Card variant="borderless" className="shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-xs uppercase font-bold text-slate-400 tracking-wider">Tổng SV Tham Gia</p>
@@ -550,7 +528,7 @@ export default function AcademicReportsPage() {
                 </Col>
 
                 <Col xs={24} sm={12} lg={6}>
-                    <Card bordered={false} className="shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
+                    <Card variant="borderless" className="shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-xs uppercase font-bold text-slate-400 tracking-wider">Tỷ Lệ Hoàn Thành</p>
@@ -569,7 +547,7 @@ export default function AcademicReportsPage() {
                 </Col>
 
                 <Col xs={24} sm={12} lg={6}>
-                    <Card bordered={false} className="shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
+                    <Card variant="borderless" className="shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-xs uppercase font-bold text-slate-400 tracking-wider">Điểm Trung Bình Viện</p>
@@ -588,7 +566,7 @@ export default function AcademicReportsPage() {
                 </Col>
 
                 <Col xs={24} sm={12} lg={6}>
-                    <Card bordered={false} className="shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
+                    <Card variant="borderless" className="shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-xs uppercase font-bold text-slate-400 tracking-wider">Tỷ Lệ Xuất Sắc & Giỏi</p>
@@ -606,6 +584,7 @@ export default function AcademicReportsPage() {
                     </Card>
                 </Col>
             </Row>
+            </QueryPanel>
 
             {/* Hệ thống 4 Tabs Chuyên Sâu */}
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
@@ -615,7 +594,7 @@ export default function AcademicReportsPage() {
                         {
                             key: '1',
                             label: 'Phổ điểm & Xếp loại',
-                            children: (
+                            children: overviewData ? (
                                 <div className="space-y-6 pt-2">
                                     {/* Thanh phân bổ phổ điểm trực quan */}
                                     <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
@@ -672,17 +651,18 @@ export default function AcademicReportsPage() {
                                         dataSource={gradeDistribution}
                                         columns={gradeColumns}
                                         pagination={false}
+                                        locale={{ emptyText: <EmptyState /> }}
                                         loading={loading}
                                         bordered
                                         size="middle"
                                     />
                                 </div>
-                            ),
+                            ) : null,
                         },
                         {
                             key: '2',
                             label: 'Phễu tiến độ học vụ',
-                            children: (
+                            children: overviewData ? (
                                 <div className="space-y-6 pt-2">
                                     {/* Cảnh báo hao hụt nếu có */}
                                     {funnelDropoffAnalysis && (
@@ -761,12 +741,12 @@ export default function AcademicReportsPage() {
                                         })}
                                     </div>
                                 </div>
-                            ),
+                            ) : null,
                         },
                         {
                             key: '3',
                             label: 'So sánh Chuyên ngành',
-                            children: (
+                            children: overviewData ? (
                                 <div className="space-y-4 pt-2">
                                     <div className="flex justify-between items-center">
                                         <p className="text-slate-500 text-sm">
@@ -779,17 +759,19 @@ export default function AcademicReportsPage() {
                                         dataSource={majorsData}
                                         columns={majorColumns}
                                         pagination={false}
+                                        locale={{ emptyText: <EmptyState /> }}
                                         loading={loading}
                                         bordered
                                         size="middle"
                                     />
                                 </div>
-                            ),
+                            ) : null,
                         },
                         {
                             key: '4',
                             label: 'Tải GVHD & Độ lệch điểm',
                             children: (
+                                <QueryPanel query={workloadQuery} variant="table">
                                 <div className="space-y-4 pt-2">
                                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                                         <p className="text-slate-500 text-sm">
@@ -811,11 +793,13 @@ export default function AcademicReportsPage() {
                                         dataSource={filteredWorkload}
                                         columns={workloadColumns}
                                         pagination={{ pageSize: 15, showTotal: (total) => `Tổng cộng ${total} giảng viên` }}
-                                        loading={loading}
+                                        locale={{ emptyText: <EmptyState /> }}
+                                        loading={false}
                                         bordered
                                         size="middle"
                                     />
                                 </div>
+                                </QueryPanel>
                             ),
                         },
                     ]}

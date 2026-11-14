@@ -25,9 +25,16 @@ import { authService } from '../../services/authService';
 import uploadService from '../../services/uploadService';
 import { getUserDisplayRole, isInstituteDirector } from '../../utils/authRedirect';
 import PageHeader from '../../components/common/PageHeader';
+import { queryKeys } from '../../query/queryKeys';
+import { useCurrentUser } from '../../queries/userQueries';
+import { useQueryClient } from '@tanstack/react-query';
 
 function ProfilePage() {
-    const { user, updateUser } = useAuthStore();
+    const { user: authUser, updateUser } = useAuthStore();
+    const scope = queryKeys.scope(authUser);
+    const userQuery = useCurrentUser(scope, Boolean(authUser));
+    const user = userQuery.data || authUser;
+    const queryClient = useQueryClient();
     const isStudent = user?.role === 'STUDENT';
 
     const [editing, setEditing] = useState(false);
@@ -115,6 +122,7 @@ function ProfilePage() {
 
             if (res?.success && res?.data) {
                 updateUser({ ...user, ...res.data });
+                queryClient.invalidateQueries({ queryKey: queryKeys.users.detail(scope, 'me') });
                 setEditing(false);
                 message.success('Cập nhật thông tin thành công.');
                 return;

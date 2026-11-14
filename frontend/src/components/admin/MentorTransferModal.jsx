@@ -1,8 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Modal, Form, Select, Input, Alert, message, Divider } from 'antd';
 import { SwapOutlined } from '@ant-design/icons';
+import { useQueryClient } from '@tanstack/react-query';
 import registrationService from '../../services/registrationService';
-import userService from '../../services/userService';
+import useAuthStore from '../../stores/authStore';
+import { queryKeys } from '../../query/queryKeys';
+import { useUsers } from '../../queries/userQueries';
 
 const { TextArea } = Input;
 
@@ -14,32 +17,28 @@ export default function MentorTransferModal({
 }) {
     const [form] = Form.useForm();
     const [submitting, setSubmitting] = useState(false);
-    const [lecturers, setLecturers] = useState([]);
-    const [loadingLecturers, setLoadingLecturers] = useState(false);
+    const user = useAuthStore((state) => state.user);
+    const scope = queryKeys.scope(user);
+    const queryClient = useQueryClient();
+
+    const lecturersQuery = useUsers(scope, { role: 'LECTURER', limit: 100 }, Boolean(open));
+    const loadingLecturers = lecturersQuery.isPending && lecturersQuery.fetchStatus !== 'idle';
+
+    const lecturers = useMemo(() => {
+        const rawList = Array.isArray(lecturersQuery.data?.data)
+            ? lecturersQuery.data.data
+            : Array.isArray(lecturersQuery.data)
+            ? lecturersQuery.data
+            : [];
+        const currentMentorId = registration?.topic?.mentorId;
+        return rawList.filter((u) => u.id !== currentMentorId && u.isActive !== false);
+    }, [lecturersQuery.data, registration?.topic?.mentorId]);
 
     useEffect(() => {
         if (open) {
             form.resetFields();
-            fetchLecturers();
         }
     }, [open, form]);
-
-    const fetchLecturers = async () => {
-        try {
-            setLoadingLecturers(true);
-            const res = await userService.getAllUsers({ role: 'LECTURER', limit: 100 });
-            if (res.success && Array.isArray(res.data)) {
-                // Lọc bỏ GVHD hiện tại
-                const currentMentorId = registration?.topic?.mentorId;
-                const available = res.data.filter((u) => u.id !== currentMentorId && u.isActive !== false);
-                setLecturers(available);
-            }
-        } catch (error) {
-            message.error('Không thể tải danh sách giảng viên.');
-        } finally {
-            setLoadingLecturers(false);
-        }
-    };
 
     const handleSubmit = async (values) => {
         try {
@@ -52,13 +51,14 @@ export default function MentorTransferModal({
             if (res.success) {
                 message.success('Đã điều chuyển GVHD thành công!');
                 form.resetFields();
+                await queryClient.invalidateQueries({ queryKey: queryKeys.registrations.all(scope) });
                 onSuccess?.();
                 onClose?.();
             } else {
                 message.error(res.message || 'Không thể điều chuyển GVHD.');
             }
         } catch (error) {
-            message.error(error.message || 'Đã có lỗi xảy ra khi điều chuyển GVHD.');
+            message.error(error.message || 'Lỗi khi gửi yêu cầu điều chuyển GVHD.');
         } finally {
             setSubmitting(false);
         }
@@ -66,94 +66,95 @@ export default function MentorTransferModal({
 
     return (
         <Modal
+            open={open}
             title={
                 <div className="flex items-center gap-2 text-base font-semibold text-slate-800">
                     <SwapOutlined className="text-[#0F766E] text-lg" />
                     <span>Điều Chuyển Giảng Viên Hướng Dẫn</span>
                 </div>
             }
-            open={open}
-            onCancel={onClose}
-            footer={null}
+            onCancel={() => {
+                if (!submitting) {
+                    form.resetFields();
+                    onClose?.();
+                }
+            }}
+            onOk={() => form.submit()}
+            confirmLoading={submitting}
+            okText="Xác nhận điều chuyển"
+            cancelText="Hủy"
+            okButtonProps={{
+                className: '!bg-[#0F766E] hover:!bg-[#0D655E] text-white font-medium border-0 shadow-sm',
+            }}
             destroyOnClose
-            width={600}
+            width={560}
         >
             <div className="space-y-4 pt-2">
                 <Alert
+                    message="Cân nhắc kỹ trước khi thực hiện"
+                    description="Hành động này sẽ thay đổi toàn bộ quyền phê duyệt biểu mẫu, đánh giá tiến độ và nhận xét bảo vệ của đề tài sang GVHD mới."
                     type="warning"
                     showIcon
-                    message="Nguyên tắc điều chuyển GVHD"
-                    description="GVHD mới sẽ kế thừa quyền hướng dẫn và đánh giá các mốc học vụ tiếp theo. Mọi biên bản và nhật ký đã xác nhận trước thời điểm này sẽ được bảo toàn nguyên vẹn. Hệ thống tự động kiểm soát định mức tối đa 10 SV/GVHD."
+                    className="rounded-lg text-xs"
                 />
 
-                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
-                    <div>
-                        <span className="text-slate-500 font-medium">Sinh viên:</span>{' '}
-                        <b className="text-slate-800">{registration?.student?.fullName} ({registration?.student?.code})</b>
+                <div className="bg-slate-50 border border-slate-200/80 rounded-lg p-3 text-sm space-y-1">
+                    <div className="flex justify-between">
+                        <span className="text-slate-500">Đề tài:</span>
+                        <span className="font-semibold text-slate-800 text-right max-w-[340px] truncate">
+                            {registration?.effectiveTitleSnapshot || registration?.topic?.title || 'Chưa có tên'}
+                        </span>
                     </div>
-                    <div>
-                        <span className="text-slate-500 font-medium">GVHD hiện tại:</span>{' '}
-                        <b className="text-rose-600">{registration?.topic?.mentor?.fullName || registration?.topic?.mentor?.name || 'Chưa gán'}</b>
+                    <div className="flex justify-between">
+                        <span className="text-slate-500">Sinh viên thực hiện:</span>
+                        <span className="font-medium text-slate-700">
+                            {registration?.student?.fullName} ({registration?.student?.code})
+                        </span>
                     </div>
-                    <div className="md:col-span-2">
-                        <span className="text-slate-500 font-medium">Đề tài:</span>{' '}
-                        <b className="text-slate-800">{registration?.topic?.title}</b>
+                    <div className="flex justify-between">
+                        <span className="text-slate-500">GVHD Hiện tại:</span>
+                        <span className="font-semibold text-amber-700">
+                            {registration?.topic?.mentor?.user?.fullName || registration?.topic?.mentorName || 'Chưa gán'}
+                        </span>
                     </div>
                 </div>
 
-                <Form
-                    form={form}
-                    layout="vertical"
-                    onFinish={handleSubmit}
-                    requiredMark="optional"
-                >
+                <Divider className="my-2" />
+
+                <Form form={form} layout="vertical" onFinish={handleSubmit}>
                     <Form.Item
-                        label={<span className="font-semibold text-slate-700">Chọn GVHD Mới</span>}
                         name="newMentorId"
-                        rules={[{ required: true, message: 'Vui lòng chọn GVHD tiếp nhận' }]}
+                        label={<span className="font-medium text-slate-700">Chọn Giảng viên Hướng dẫn mới</span>}
+                        rules={[{ required: true, message: 'Vui lòng chọn giảng viên mới' }]}
                     >
                         <Select
-                            placeholder="Chọn giảng viên hướng dẫn thay thế..."
+                            placeholder="Tìm kiếm và chọn giảng viên tiếp nhận..."
                             loading={loadingLecturers}
                             showSearch
                             optionFilterProp="label"
-                            options={lecturers.map((l) => ({
-                                value: l.id,
-                                label: `${l.fullName} (${l.code}) - ${l.department || 'Bộ môn'}`,
+                            options={lecturers.map((lec) => ({
+                                value: lec.id,
+                                label: `${lec.fullName} (${lec.email || lec.code || 'GV'})`,
                             }))}
+                            className="w-full"
                         />
                     </Form.Item>
 
                     <Form.Item
-                        label={<span className="font-semibold text-slate-700">Lý Do Điều Chuyển</span>}
                         name="reason"
-                        rules={[{ required: true, message: 'Vui lòng nêu rõ lý do điều chuyển' }]}
+                        label={<span className="font-medium text-slate-700">Lý do điều chuyển</span>}
+                        rules={[
+                            { required: true, message: 'Vui lòng cung cấp lý do điều chuyển' },
+                            { min: 10, message: 'Lý do phải chi tiết ít nhất 10 ký tự' },
+                        ]}
                     >
                         <TextArea
                             rows={3}
-                            placeholder="Ví dụ: GVHD cũ đi công tác dài hạn theo quyết định của Viện..."
-                            className="text-xs"
+                            placeholder="Nhập lý do thay đổi (ví dụ: GVHD đi công tác dài hạn, nguyện vọng đề tài thay đổi...)"
+                            maxLength={500}
+                            showCount
                         />
                     </Form.Item>
-
-                    <Divider className="!my-3" />
-
-                    <div className="flex justify-end gap-2 pt-1">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-md transition"
-                        >
-                            Hủy bỏ
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={submitting}
-                            className="px-5 py-2 text-xs font-semibold text-white bg-[#0F766E] hover:bg-[#115E59] rounded-md transition shadow-sm"
-                        >
-                            {submitting ? 'Đang điều chuyển...' : 'Xác nhận điều chuyển'}
-                        </button>
-                    </div>
                 </Form>
             </div>
         </Modal>

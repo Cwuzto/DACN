@@ -1,33 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Table, Button, Tag, Space, Drawer, Input, message } from 'antd';
 import { HistoryOutlined, CheckOutlined, CloseOutlined, ReloadOutlined } from '@ant-design/icons';
 import registrationService from '../../services/registrationService';
 import RegistrationTimelineDrawer from '../../components/common/RegistrationTimelineDrawer';
 import StatusBadge from '../../components/common/StatusBadge';
+import useAuthStore from '../../stores/authStore';
+import { queryKeys } from '../../query/queryKeys';
+import { useRegistrations } from '../../queries/registrationQueries';
+import QueryPanel from '../../components/common/QueryPanel';
 
 export default function AdminTopicApprovalPage() {
-    const [loading, setLoading] = useState(false);
-    const [registrations, setRegistrations] = useState([]);
+    const user = useAuthStore((state) => state.user);
+    const scope = queryKeys.scope(user);
+    const registrationsQuery = useRegistrations(scope);
+
+    const registrations = registrationsQuery.data || [];
+    const loading = registrationsQuery.isPending && registrationsQuery.fetchStatus !== 'idle';
     const [timelineOpen, setTimelineOpen] = useState(false);
     const [selectedRegistration, setSelectedRegistration] = useState(null);
 
-    const fetchData = async () => {
-        try {
-            setLoading(true);
-            const res = await registrationService.getAllRegistrations();
-            if (res.success && Array.isArray(res.data)) {
-                setRegistrations(res.data);
-            }
-        } catch (error) {
-            message.error(error?.message || 'Không thể tải danh sách đăng ký đề tài');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchData();
-    }, []);
+    const fetchData = () => registrationsQuery.refetch();
 
     const columns = [
         {
@@ -60,32 +52,30 @@ export default function AdminTopicApprovalPage() {
             render: (status) => <StatusBadge status={status} />,
         },
         {
-            title: 'Thao tác',
-            key: 'actions',
+            title: 'Tiến trình',
+            key: 'timeline',
             render: (_, record) => (
-                <Space>
-                    <Button
-                        size="small"
-                        icon={<HistoryOutlined />}
-                        onClick={() => {
-                            setSelectedRegistration(record);
-                            setTimelineOpen(true);
-                        }}
-                    >
-                        Xem lịch sử
-                    </Button>
-                </Space>
+                <Button
+                    size="small"
+                    icon={<HistoryOutlined />}
+                    onClick={() => {
+                        setSelectedRegistration(record);
+                        setTimelineOpen(true);
+                    }}
+                >
+                    Lịch sử
+                </Button>
             ),
         },
     ];
 
     return (
         <div className="p-6">
-            <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
+            <div className="flex justify-between items-center mb-6">
                 <div>
-                    <h1 className="text-xl font-bold text-slate-900">Phê Duyệt & Quản Lý Đăng Ký Đề Tài</h1>
-                    <p className="text-xs text-slate-600 mt-1">
-                        Theo dõi tiến trình và thẩm định danh sách đăng ký đề tài của sinh viên.
+                    <h1 className="text-2xl font-bold text-slate-900">Quản lý Đăng ký & Phê duyệt</h1>
+                    <p className="text-slate-600 text-sm mt-1">
+                        Theo dõi danh sách sinh viên đăng ký đề tài và lịch sử thay đổi trạng thái
                     </p>
                 </div>
                 <Button icon={<ReloadOutlined />} onClick={fetchData} loading={loading}>
@@ -93,13 +83,15 @@ export default function AdminTopicApprovalPage() {
                 </Button>
             </div>
 
-            <Table
-                dataSource={registrations}
-                columns={columns}
-                rowKey="id"
-                loading={loading}
-                pagination={{ pageSize: 10, showSizeChanger: true }}
-            />
+            <QueryPanel query={registrationsQuery} empty={registrations.length === 0} emptyDescription="Không có hồ sơ đăng ký đề tài nào.">
+                <Table
+                    columns={columns}
+                    dataSource={registrations}
+                    rowKey="id"
+                    loading={loading}
+                    pagination={{ pageSize: 15 }}
+                />
+            </QueryPanel>
 
             <RegistrationTimelineDrawer
                 open={timelineOpen}

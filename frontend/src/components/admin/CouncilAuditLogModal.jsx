@@ -1,4 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useCouncilLogs } from '../../queries/councilQueries';
+import { queryKeys } from '../../query/queryKeys';
+import useAuthStore from '../../stores/authStore';
+import QueryPanel from '../common/QueryPanel';
+
 import {
     Modal,
     Tag,
@@ -24,7 +28,8 @@ import {
     SoundOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import councilService from '../../services/councilService';
+
+const EMPTY_LIST = [];
 
 const { Text } = Typography;
 
@@ -119,37 +124,13 @@ export default function CouncilAuditLogModal({
     onCancel,
     onClose,
     council,
-    logs: initialLogs,
 }) {
-    const [loading, setLoading] = useState(false);
-    const [logs, setLogs] = useState(initialLogs || []);
-
+    const user = useAuthStore(state => state.user);
+    const logsQuery = useCouncilLogs(queryKeys.scope(user), council?.id, open);
+    const logs = logsQuery.data || EMPTY_LIST;
+    const loading = logsQuery.isFetching;
+    const fetchLogs = () => logsQuery.refetch();
     const handleClose = onCancel || onClose;
-
-    const fetchLogs = useCallback(async () => {
-        if (!council?.id) return;
-        try {
-            setLoading(true);
-            const response = await councilService.getCouncilLogs(council.id);
-            if (response?.success) {
-                setLogs(response.data || []);
-            }
-        } catch {
-            setLogs([]);
-        } finally {
-            setLoading(false);
-        }
-    }, [council?.id]);
-
-    useEffect(() => {
-        if (open) {
-            if (initialLogs && initialLogs.length > 0) {
-                setLogs(initialLogs);
-            } else if (council?.id) {
-                fetchLogs();
-            }
-        }
-    }, [open, council?.id, initialLogs, fetchLogs]);
 
     const renderLogDetails = (item) => {
         const details = item?.details || {};
@@ -405,11 +386,11 @@ export default function CouncilAuditLogModal({
                     )}
                 </div>
                 <div className="text-slate-500 font-medium">
-                    Tổng số: <strong className="text-slate-800">{logs.length}</strong> bản ghi
+                    Tổng số: <strong className="text-slate-800">{logsQuery.data ? logs.length : '?'}</strong> bản ghi
                 </div>
             </div>
 
-            <Spin spinning={loading}>
+            <QueryPanel query={logsQuery}>
                 {logs.length === 0 ? (
                     <Empty
                         image={Empty.PRESENTED_IMAGE_SIMPLE}
@@ -482,7 +463,7 @@ export default function CouncilAuditLogModal({
                         }}
                     />
                 )}
-            </Spin>
+            </QueryPanel>
         </Modal>
     );
 }

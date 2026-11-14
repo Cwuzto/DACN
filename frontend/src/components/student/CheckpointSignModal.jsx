@@ -3,6 +3,9 @@ import { Modal, Form, Input, Alert, message, Divider, Tag } from 'antd';
 import { SafetyCertificateOutlined, CheckCircleOutlined, CloseCircleOutlined, ClockCircleOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import evaluationService from '../../services/evaluationService';
+import { useQueryClient } from '@tanstack/react-query';
+import useAuthStore from '../../stores/authStore';
+import { queryKeys } from '../../query/queryKeys';
 
 const { TextArea } = Input;
 
@@ -17,6 +20,9 @@ export default function CheckpointSignModal({
     const [appealForm] = Form.useForm();
     const [submitting, setSubmitting] = useState(false);
     const [isAppealMode, setIsAppealMode] = useState(false);
+    const user = useAuthStore((state) => state.user);
+    const scope = queryKeys.scope(user);
+    const queryClient = useQueryClient();
 
     const deadline = checkpointEvaluation?.studentSignDeadlineAt ? dayjs(checkpointEvaluation.studentSignDeadlineAt) : null;
     const isExpired = deadline ? dayjs().isAfter(deadline) : false;
@@ -43,6 +49,7 @@ export default function CheckpointSignModal({
             if (res.success) {
                 message.success('Đã ký xác nhận biên bản đánh giá tiến độ thành công!');
                 form.resetFields();
+                await queryClient.invalidateQueries({ queryKey: queryKeys.registrations.all(scope) });
                 onSuccess?.();
                 onClose?.();
             } else {
@@ -67,6 +74,7 @@ export default function CheckpointSignModal({
             if (res.success) {
                 message.success('Đã nộp đơn khiếu nại chữ ký biên bản thành công!');
                 appealForm.resetFields();
+                await queryClient.invalidateQueries({ queryKey: queryKeys.registrations.all(scope) });
                 onSuccess?.();
                 onClose?.();
             } else {

@@ -14,6 +14,9 @@ import {
 } from '@ant-design/icons';
 import registrationService from '../../services/registrationService';
 import aiService from '../../services/aiService';
+import { useQueryClient } from '@tanstack/react-query';
+import useAuthStore from '../../stores/authStore';
+import { queryKeys } from '../../query/queryKeys';
 
 const { TextArea } = Input;
 
@@ -27,6 +30,9 @@ export default function OutlineReviewModal({
     const [submitting, setSubmitting] = useState(false);
     const [selectedDecision, setSelectedDecision] = useState('PASSED');
     const [aiFeedbackLoading, setAiFeedbackLoading] = useState(false);
+    const user = useAuthStore((state) => state.user);
+    const scope = queryKeys.scope(user);
+    const queryClient = useQueryClient();
 
     const latestSubmission = registration?.submissions?.[0] || null;
     const fileUrl = latestSubmission?.fileUrl || registration?.outlineFileUrl || null;
@@ -98,6 +104,7 @@ export default function OutlineReviewModal({
                         ? 'Đã duyệt ĐẠT đề cương! Sinh viên có thể tiến hành nộp đơn đăng ký đề tài chính thức.'
                         : 'Đã gửi yêu cầu chỉnh sửa đề cương tới sinh viên.'
                 );
+                await queryClient.invalidateQueries({ queryKey: queryKeys.registrations.all(scope) });
                 onSuccess?.();
                 onClose?.();
             } else {

@@ -52,8 +52,8 @@ test('Task 4: CouncilDetailPage connects schedule adjustment logs and displays a
     // Call service
     assert.match(
         pageSrc,
-        /councilService\.getScheduleAdjustments/,
-        'CouncilDetailPage must call councilService.getScheduleAdjustments'
+        /useCouncilAdjustments\(scope, id, isAdjustmentsModalVisible\)/,
+        'CouncilDetailPage must use the enabled schedule-adjustment query'
     );
 
     // Modal or Drawer displaying table with required columns

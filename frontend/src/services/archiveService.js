@@ -1,8 +1,36 @@
-import api from './api';
+import api from './api.js';
+import { normalizeApiError } from '../utils/apiError.js';
 
 const wrapServiceError = (error, fallbackMessage) => {
-    if (error?.success === false) return error;
-    return { success: false, message: fallbackMessage };
+    const normalized = normalizeApiError(error);
+    return { ...normalized, message: error?.response?.data?.message || error?.message || fallbackMessage };
+};
+
+const DOCUMENT_TYPES = ['REPORT_WORD', 'REPORT_PDF', 'DEMO_VIDEO', 'SLIDE_PPTX'];
+const pick = (value, fields) => Object.fromEntries(fields.filter(field => Object.hasOwn(value, field)).map(field => [field, value[field]]));
+
+// Project only fields used by the dossier workflow; never cache the student
+// object or raw linked records returned by the API in this view.
+export const normalizeDefenseDossier = (data) => {
+    const source = data || {};
+    const currentFiles = Object.fromEntries(DOCUMENT_TYPES.map(documentType => {
+        const file = source.currentFiles?.[documentType];
+        return [documentType, file ? {
+            ...pick(file, ['id', 'fileUrl', 'fileName', 'versionNumber', 'checksum', 'uploadedAt', 'fileSizeBytes', 'advisorFeedback', 'academicAffairsFeedback']),
+            documentType,
+        } : null];
+    }));
+    return {
+        registrationId: source.registrationId,
+        timeWindows: source.windows || {},
+        currentFiles,
+        documents: Object.values(currentFiles).filter(Boolean),
+        bm03Record: source.linkedBm03 ? pick(source.linkedBm03, ['id', 'finalPdfFileUrl', 'advisorSignedAt']) : null,
+        bm04Record: source.linkedBm04 ? pick(source.linkedBm04, ['id', 'finalPdfFileUrl', 'signedAt']) : null,
+        isWindowClosed: Boolean(source.isWindowClosed),
+        isSoftDeadlinePast: Boolean(source.isSoftDeadlinePast),
+        missingTypes: DOCUMENT_TYPES.filter(type => !currentFiles[type]),
+    };
 };
 
 const archiveService = {

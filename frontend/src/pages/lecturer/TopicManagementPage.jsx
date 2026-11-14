@@ -1,13 +1,16 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Empty, message, Modal, Table } from 'antd';
-import { CopyOutlined, PlusOutlined, AuditOutlined } from '@ant-design/icons';
+import { CopyOutlined, PlusOutlined, AuditOutlined, CloseOutlined } from '@ant-design/icons';
 import { topicService } from '../../services/topicService';
-import { semesterService } from '../../services/semesterService';
 import aiService from '../../services/aiService';
 import TopicSimilarityModal from '../../components/topics/TopicSimilarityModal';
 import useAuthStore from '../../stores/authStore';
-import PageLoader from '../../components/common/PageLoader';
+import { queryKeys } from '../../query/queryKeys';
+import { useSemesters } from '../../queries/semesterQueries';
+import { useTopics, useTopicMutation, useCloneableTopics } from '../../queries/topicQueries';
+import QueryPanel from '../../components/common/QueryPanel';
+import ContentSkeleton from '../../components/common/ContentSkeleton';
 
 /**
  * TopicManagementPage — 100% OpenDesign Golden Standard
@@ -19,18 +22,23 @@ import PageLoader from '../../components/common/PageLoader';
  */
 export default function TopicManagementPage() {
     const user = useAuthStore((s) => s.user);
+    const scope = queryKeys.scope(user);
     const navigate = useNavigate();
 
-    const [topics, setTopics] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const semestersQuery = useSemesters(scope);
+    const semesters = semestersQuery.data || [];
+    const topicsQuery = useTopics(scope, { mentorId: user?.id });
+    const topicMutation = useTopicMutation(scope);
+
     const [searchText, setSearchText] = useState('');
     const [activeTab, setActiveTab] = useState('all'); // 'all' | 'approved' | 'open' | 'pending'
 
     // Modals
     const [newTopicModalOpen, setNewTopicModalOpen] = useState(false);
     const [cloneModalOpen, setCloneModalOpen] = useState(false);
-    const [cloneableTopics, setCloneableTopics] = useState([]);
-    const [loadingCloneable, setLoadingCloneable] = useState(false);
+    const cloneableQuery = useCloneableTopics(scope, undefined, cloneModalOpen);
+    const cloneableTopics = cloneableQuery.data || [];
+    const loadingCloneable = cloneableQuery.isFetching;
     const [selectedTopicIds, setSelectedTopicIds] = useState([]);
     const [cloning, setCloning] = useState(false);
     const [submitting, setSubmitting] = useState(false);
@@ -76,7 +84,6 @@ export default function TopicManagementPage() {
     };
 
     // Semesters State
-    const [semesters, setSemesters] = useState([]);
     const [selectedSemesterId, setSelectedSemesterId] = useState(null);
 
     // New Topic Form State
@@ -87,49 +94,22 @@ export default function TopicManagementPage() {
     const [description, setDescription] = useState('');
     const [requirements, setRequirements] = useState('');
 
-    // Fetch active semesters
     useEffect(() => {
-        let isMounted = true;
-        semesterService
-            .getAll()
-            .then((res) => {
-                if (isMounted && res?.success && Array.isArray(res.data)) {
-                    setSemesters(res.data);
-                    const active = res.data.find((s) => s.isActive || s.status === 'ACTIVE');
-                    const chosen = active || res.data[0];
-                    if (chosen) {
-                        setSelectedSemesterId(chosen.id);
-                    }
-                }
-            })
-            .catch(() => {});
-        return () => {
-            isMounted = false;
-        };
-    }, []);
-
-    const fetchTopics = useCallback(async () => {
-        if (!user?.id) {
-            setLoading(false);
-            return;
+        if (semesters.length > 0 && !selectedSemesterId) {
+            const active = semesters.find((s) => s.isActive || s.status === 'ACTIVE');
+            const chosen = active || semesters[0];
+            if (chosen) {
+                setSelectedSemesterId(chosen.id);
+            }
         }
-        setLoading(true);
-        try {
-            const res = await topicService.getAll({ mentorId: user.id });
-            const ownTopics = (res.data || []).filter(
-                (topic) => topic.proposedById === user.id || topic.proposedBy?.id === user.id || topic.mentorId === user.id || topic.mentor?.id === user.id,
-            );
-            setTopics(ownTopics);
-        } catch {
-            message.error('Không thể tải danh sách đề tài.');
-        } finally {
-            setLoading(false);
-        }
-    }, [user?.id]);
+    }, [semesters, selectedSemesterId]);
 
-    useEffect(() => {
-        fetchTopics();
-    }, [fetchTopics]);
+    const rawTopics = topicsQuery.data || [];
+    const topics = useMemo(() => {
+        return rawTopics.filter(
+            (topic) => topic.proposedById === user?.id || topic.proposedBy?.id === user?.id || topic.mentorId === user?.id || topic.mentor?.id === user?.id,
+        );
+    }, [rawTopics, user?.id]);
 
     // Computed Counts for Segmented Tabs
     const counts = useMemo(() => {
@@ -177,25 +157,25 @@ export default function TopicManagementPage() {
 
         try {
             setSubmitting(true);
-            const res = await topicService.create({
-                title: title.trim(),
-                englishTitle: englishTitle.trim() || undefined,
-                targetMajor,
-                description: description.trim() || undefined,
-                requirements: requirements.trim() || undefined,
-                semesterId: selectedSemesterId,
-                maxStudents: 1, // Rule 1: 1 SV / 1 đề tài
+            await topicMutation.mutateAsync({
+                action: 'create',
+                args: [{
+                    title: title.trim(),
+                    englishTitle: englishTitle.trim() || undefined,
+                    targetMajor,
+                    description: description.trim() || undefined,
+                    requirements: requirements.trim() || undefined,
+                    semesterId: selectedSemesterId,
+                    maxStudents: 1, // Rule 1: 1 SV / 1 đề tài
+                }],
             });
 
-            if (res.success) {
-                message.success('Đã gửi đề xuất đề tài mới thành công!');
-                setNewTopicModalOpen(false);
-                setTitle('');
-                setEnglishTitle('');
-                setDescription('');
-                setRequirements('');
-                fetchTopics();
-            }
+            message.success('Đã gửi đề xuất đề tài mới thành công!');
+            setNewTopicModalOpen(false);
+            setTitle('');
+            setEnglishTitle('');
+            setDescription('');
+            setRequirements('');
         } catch (error) {
             message.error(error?.message || 'Không thể tạo đề tài mới');
         } finally {
@@ -206,13 +186,13 @@ export default function TopicManagementPage() {
     const handleApproveTopic = async (topicId) => {
         try {
             setReviewSubmitting(true);
-            const res = await topicService.changeStatus(topicId, { status: 'APPROVED' });
-            if (res.success) {
-                message.success('Đã chấp thuận hướng dẫn đề tài của sinh viên!');
-                setReviewModalOpen(false);
-                setSelectedPendingTopic(null);
-                fetchTopics();
-            }
+            await topicMutation.mutateAsync({
+                action: 'changeStatus',
+                args: [topicId, { status: 'APPROVED' }],
+            });
+            message.success('Đã chấp thuận hướng dẫn đề tài của sinh viên!');
+            setReviewModalOpen(false);
+            setSelectedPendingTopic(null);
         } catch (error) {
             message.error(error?.message || 'Không thể chấp thuận đề tài.');
         } finally {
@@ -227,17 +207,17 @@ export default function TopicManagementPage() {
         }
         try {
             setReviewSubmitting(true);
-            const res = await topicService.changeStatus(topicId, {
-                status: 'REJECTED',
-                rejectReason: reviewRejectReason.trim(),
+            await topicMutation.mutateAsync({
+                action: 'changeStatus',
+                args: [topicId, {
+                    status: 'REJECTED',
+                    rejectReason: reviewRejectReason.trim(),
+                }],
             });
-            if (res.success) {
-                message.success('Đã từ chối đề xuất đề tài.');
-                setReviewModalOpen(false);
-                setSelectedPendingTopic(null);
-                setReviewRejectReason('');
-                fetchTopics();
-            }
+            message.success('Đã từ chối đề xuất đề tài.');
+            setReviewModalOpen(false);
+            setSelectedPendingTopic(null);
+            setReviewRejectReason('');
         } catch (error) {
             message.error(error?.message || 'Không thể từ chối đề tài.');
         } finally {
@@ -245,34 +225,7 @@ export default function TopicManagementPage() {
         }
     };
 
-    // Auto-fetch cloneable topics from previous semesters upon modal open
-    useEffect(() => {
-        if (cloneModalOpen) {
-            setSelectedTopicIds([]);
-            setLoadingCloneable(true);
-            topicService
-                .getCloneableTopics()
-                .then((res) => {
-                    if (res?.success && Array.isArray(res.data)) {
-                        setCloneableTopics(res.data);
-                    } else if (Array.isArray(res?.data)) {
-                        setCloneableTopics(res.data);
-                    } else if (Array.isArray(res)) {
-                        setCloneableTopics(res);
-                    } else {
-                        setCloneableTopics([]);
-                    }
-                })
-                .catch((err) => {
-                    message.error(err?.message || 'Không thể tải danh sách đề tài từ các học kỳ trước.');
-                    setCloneableTopics([]);
-                })
-                .finally(() => {
-                    setLoadingCloneable(false);
-                });
-        }
-    }, [cloneModalOpen]);
-
+    // Cloned topics via topicService.getCloneableTopics and topicService.cloneTopics
     const handleCloneTopics = async () => {
         if (!selectedTopicIds.length) {
             message.warning('Vui lòng chọn ít nhất một đề tài để sao chép.');
@@ -280,15 +233,13 @@ export default function TopicManagementPage() {
         }
         try {
             setCloning(true);
-            const res = await topicService.cloneTopics({ topicIds: selectedTopicIds });
-            if (res?.success) {
-                message.success(res.message || 'Đã sao chép đề tài thành công!');
-                setCloneModalOpen(false);
-                setSelectedTopicIds([]);
-                fetchTopics();
-            } else {
-                message.error(res?.message || 'Sao chép đề tài thất bại.');
-            }
+            const res = await topicMutation.mutateAsync({
+                action: 'cloneTopics',
+                args: [{ topicIds: selectedTopicIds }],
+            });
+            message.success(res?.message || 'Đã sao chép đề tài thành công!');
+            setCloneModalOpen(false);
+            setSelectedTopicIds([]);
         } catch (error) {
             message.error(error?.message || 'Không thể sao chép đề tài.');
         } finally {
@@ -333,8 +284,8 @@ export default function TopicManagementPage() {
         },
     };
 
-    if (loading) {
-        return <PageLoader />;
+    if (topicsQuery.isPending && !topicsQuery.data) {
+        return <ContentSkeleton variant="table" />;
     }
 
     return (
@@ -408,7 +359,8 @@ export default function TopicManagementPage() {
                     </div>
                 </div>
 
-                <div className="table-wrap">
+                <QueryPanel query={topicsQuery} variant="table">
+                    <div className="table-wrap">
                     <table id="topics-main-table">
                         <thead>
                             <tr>
@@ -525,6 +477,7 @@ export default function TopicManagementPage() {
                         </tbody>
                     </table>
                 </div>
+                </QueryPanel>
             </div>
 
             {/* MODAL 1: ĐỀ XUẤT ĐỀ TÀI MỚI */}
@@ -533,7 +486,7 @@ export default function TopicManagementPage() {
                     <div className="modal-box" style={{ maxWidth: 600 }}>
                         <div className="modal-head">
                             <div className="modal-title">Đề Xuất Đề Tài Nghiên Cứu Mới</div>
-                            <button type="button" className="modal-close" onClick={() => setNewTopicModalOpen(false)}>×</button>
+                            <button type="button" className="modal-close" onClick={() => setNewTopicModalOpen(false)} aria-label="Đóng"><CloseOutlined /></button>
                         </div>
                         <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                             <div>
@@ -713,7 +666,7 @@ export default function TopicManagementPage() {
                     <div className="modal-box" style={{ maxWidth: 620 }}>
                         <div className="modal-head">
                             <div className="modal-title">Xem Xét Đề Xuất Đề Tài Của Sinh Viên</div>
-                            <button type="button" className="modal-close" onClick={() => setReviewModalOpen(false)}>×</button>
+                            <button type="button" className="modal-close" onClick={() => setReviewModalOpen(false)} aria-label="Đóng"><CloseOutlined /></button>
                         </div>
                         <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                             <div style={{ background: '#F8FAFC', padding: 12, borderRadius: 8, border: '1px solid #E2E8F0' }}>

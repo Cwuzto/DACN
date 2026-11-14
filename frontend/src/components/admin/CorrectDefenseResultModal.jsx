@@ -20,6 +20,9 @@ import {
     SafetyCertificateOutlined,
 } from '@ant-design/icons';
 import evaluationService from '../../services/evaluationService';
+import { useQueryClient } from '@tanstack/react-query';
+import useAuthStore from '../../stores/authStore';
+import { queryKeys } from '../../query/queryKeys';
 
 export default function CorrectDefenseResultModal({
     open,
@@ -29,6 +32,9 @@ export default function CorrectDefenseResultModal({
 }) {
     const [form] = Form.useForm();
     const [loading, setLoading] = useState(false);
+    const user = useAuthStore((state) => state.user);
+    const scope = queryKeys.scope(user);
+    const queryClient = useQueryClient();
 
     if (!registration) return null;
 
@@ -49,6 +55,7 @@ export default function CorrectDefenseResultModal({
             if (res.success) {
                 message.success(res.message || 'Đã điều chỉnh kết quả bảo vệ thành công!');
                 form.resetFields();
+                await queryClient.invalidateQueries({ queryKey: queryKeys.grading.all(scope) });
                 onSuccess?.();
                 onClose();
             }

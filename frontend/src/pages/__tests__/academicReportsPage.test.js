@@ -48,15 +48,16 @@ test('AcademicReportsPage: Adheres strictly to Rule 2.6 (No raw emoji or symbols
 test('AcademicReportsPage: Integrates reportService and semesterService APIs (Zero Mock)', () => {
     const src = read('frontend/src/pages/admin/AcademicReportsPage.jsx');
 
-    // Must import both services
-    assert.match(src, /reportService/, 'Must import reportService');
-    assert.match(src, /semesterService/, 'Must import semesterService');
-
-    // Must call API methods
-    assert.match(src, /reportService\.getOverview/, 'Must call reportService.getOverview');
-    assert.match(src, /reportService\.getLecturerWorkload/, 'Must call reportService.getLecturerWorkload');
+    const reports = read('frontend/src/queries/reportQueries.js');
+    const semesters = read('frontend/src/queries/semesterQueries.js');
+    assert.match(src, /useReportOverview/);
+    assert.match(src, /useLecturerWorkload/);
+    assert.match(src, /useSemesters/);
+    assert.match(reports, /reportService\.getOverview/, 'Overview query must call the real API');
+    assert.match(reports, /reportService\.getLecturerWorkload/, 'Workload query must call the real API');
     assert.match(src, /reportService\.exportExcel/, 'Must call reportService.exportExcel');
-    assert.match(src, /semesterService\.getAll/, 'Must call semesterService.getAll');
+    assert.match(semesters, /semesterService\.getAll/, 'Semester query must call the real API');
+    assert.doesNotMatch(reports, /catch\s*\([^)]*\)\s*=>\s*\[\]/);
 
     // Must not contain setTimeout or fake data generator
     assert.strictEqual(src.includes('setTimeout('), false, 'Zero mock policy: No setTimeout mock delays allowed');

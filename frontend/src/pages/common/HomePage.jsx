@@ -2,13 +2,14 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getRoleHomePath, getUserDisplayRole } from '../../utils/authRedirect';
 import useAuthStore from '../../stores/authStore';
-import userService from '../../services/userService';
-import portalContentService from '../../services/portalContentService';
 import { getPublicPortalView } from '../../utils/portalContent';
-import { semesterService } from '../../services/semesterService';
 import { getClosestSemester } from '../../utils/semesterDisplay';
 import OpenModal from '../../components/common/OpenModal';
 import AuthModal from '../../components/auth/AuthModal';
+import { queryKeys } from '../../query/queryKeys';
+import { usePublicSemesters } from '../../queries/semesterQueries';
+import { usePublicLecturers } from '../../queries/userQueries';
+import { usePublicPortalContent } from '../../queries/portalQueries';
 
 // 6 Guided Academic Stages (Exact OpenDesign Prototype)
 const ROADMAP_STAGES = [
@@ -331,13 +332,38 @@ export default function HomePage() {
     const navigate = useNavigate();
     const { user, setAuth } = useAuthStore();
 
-    // Data State
-    const [lecturers, setLecturers] = useState([]);
-    const [announcements, setAnnouncements] = useState([]);
-    const [portalContent, setPortalContent] = useState({ configuration: null, links: [], templates: [] });
+    // Data State via Domain Queries
+    const scope = queryKeys.scope(user);
+    const publicSemestersQuery = usePublicSemesters(scope);
+    const publicLecturersQuery = usePublicLecturers(scope);
+    const publicPortalQuery = usePublicPortalContent(scope);
+
+    const lecturers = publicLecturersQuery.data || [];
+    const portalContent = useMemo(() => {
+        const raw = publicPortalQuery.data;
+        if (!raw) return { configuration: null, links: [], templates: [] };
+        return {
+            configuration: raw.configuration || null,
+            links: raw.links || [],
+            templates: raw.templates || [],
+        };
+    }, [publicPortalQuery.data]);
+    const announcements = useMemo(() => {
+        const raw = publicPortalQuery.data;
+        return raw?.announcements || [];
+    }, [publicPortalQuery.data]);
+
     const publicPortalView = useMemo(() => getPublicPortalView(portalContent), [portalContent]);
     const { configuration: portalConfiguration, linksByGroup } = publicPortalView;
-    const [currentSemester, setCurrentSemester] = useState(null);
+
+    const currentSemester = useMemo(() => {
+        const list = publicSemestersQuery.data;
+        if (Array.isArray(list) && list.length > 0) {
+            const active = list.find((s) => s.isActive || s.status === 'ACTIVE');
+            return active || getClosestSemester(list) || list[0];
+        }
+        return null;
+    }, [publicSemestersQuery.data]);
     const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
     const [selectedStage, setSelectedStage] = useState(null);
     const [previewModalFile, setPreviewModalFile] = useState(null);
@@ -552,48 +578,6 @@ export default function HomePage() {
             setToastMessage((current) => (current === msg ? null : current));
         }, 3500);
     };
-
-    // Load initial public data
-    useEffect(() => {
-        let isMounted = true;
-
-        // 1. Current Active Semester (Public)
-        semesterService.getPublic()
-            .then((res) => {
-                if (isMounted && res?.success && Array.isArray(res.data)) {
-                    const active = res.data.find((s) => s.isActive || s.status === 'ACTIVE');
-                    const chosen = active || getClosestSemester(res.data) || res.data[0];
-                    setCurrentSemester(chosen);
-                }
-            })
-            .catch(() => {});
-
-        // 2. Public Lecturers with research areas and quota
-        userService.getPublicLecturers()
-            .then((res) => {
-                if (isMounted && res?.success && Array.isArray(res.data)) {
-                    setLecturers(res.data);
-                }
-            })
-            .catch(() => {});
-
-        // 3. Published Portal CMS content only. There is intentionally no local sample-data fallback.
-        portalContentService.getPublicContent()
-            .then((res) => {
-                if (isMounted && res?.success) {
-                    const content = res.data || {};
-                    setPortalContent({ configuration: content.configuration || null, links: content.links || [], templates: content.templates || [] });
-                    setAnnouncements(content.announcements || []);
-                }
-            })
-            .catch(() => {
-                if (isMounted) setAnnouncements([]);
-            });
-
-        return () => {
-            isMounted = false;
-        };
-    }, []);
 
     // Sync URL Hash Routing for Announcements (#announcement-[id])
     useEffect(() => {

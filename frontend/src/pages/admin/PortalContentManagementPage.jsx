@@ -1,16 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
     Alert,
     Button,
     Card,
-    Empty,
     Form,
     List,
     Modal,
     Popconfirm,
     Space,
-    Spin,
     Tabs,
     Tag,
     Typography,
@@ -31,6 +29,10 @@ import LinkManager from './portal/LinkManager';
 import TemplateManager from './portal/TemplateManager';
 import PdfPreviewModal from '../../components/common/PdfPreviewModal';
 import { getPortalEmptyState, selectEditableRevision } from './portal/portalContentUtils';
+import useAuthStore from '../../stores/authStore';
+import { queryKeys } from '../../query/queryKeys';
+import { usePortalResources, usePortalMutation } from '../../queries/portalQueries';
+import QueryPanel from '../../components/common/QueryPanel';
 
 const RESOURCE_TABS = [
     { key: 'CONFIGURATION', label: 'Nhận diện & Hero' },
@@ -60,6 +62,9 @@ const initialPayload = (type) => {
 };
 
 export default function PortalContentManagementPage() {
+    const user = useAuthStore((state) => state.user);
+    const scope = queryKeys.scope(user);
+
     const [searchParams, setSearchParams] = useSearchParams();
     const tabParam = searchParams.get('tab');
     const [activeType, setActiveType] = useState(() => {
@@ -73,38 +78,17 @@ export default function PortalContentManagementPage() {
         setActiveType(key);
         setSearchParams({ tab: key });
     };
-    const [resourcesByType, setResourcesByType] = useState({});
-    const [loading, setLoading] = useState(true);
+
+    const resourcesQuery = usePortalResources(scope, activeType);
+    const portalMutation = usePortalMutation(scope);
+    const resources = resourcesQuery.data || [];
+    const emptyState = useMemo(() => getPortalEmptyState(activeType), [activeType]);
+
     const [saving, setSaving] = useState(false);
     const [editorOpen, setEditorOpen] = useState(false);
     const [editing, setEditing] = useState(null);
     const [previewUrl, setPreviewUrl] = useState(null);
     const [form] = Form.useForm();
-
-    const loadResources = useCallback(async () => {
-        setLoading(true);
-        try {
-            const responses = await Promise.all(
-                RESOURCE_TABS.map(({ key }) => portalContentService.listResources(key))
-            );
-            setResourcesByType(
-                Object.fromEntries(
-                    RESOURCE_TABS.map(({ key }, index) => [key, responses[index]?.data || []])
-                )
-            );
-        } catch (error) {
-            message.error(error?.message || 'Không thể tải nội dung Portal.');
-        } finally {
-            setLoading(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        loadResources();
-    }, [loadResources]);
-
-    const resources = resourcesByType[activeType] || [];
-    const emptyState = useMemo(() => getPortalEmptyState(activeType), [activeType]);
 
     const openEditor = (resource) => {
         const revision = selectEditableRevision(resource);
@@ -116,9 +100,11 @@ export default function PortalContentManagementPage() {
 
     const createAndEdit = async () => {
         try {
-            const response = await portalContentService.createResource(activeType);
+            const response = await portalMutation.mutateAsync({
+                action: 'createResource',
+                args: [activeType],
+            });
             const resource = response.data;
-            await loadResources();
             openEditor(resource);
         } catch (error) {
             message.error(error?.message || 'Không thể tạo nội dung Portal.');
@@ -129,14 +115,12 @@ export default function PortalContentManagementPage() {
         try {
             const values = await form.validateFields();
             setSaving(true);
-            const response = await portalContentService.createDraft(
-                activeType,
-                editing.resource.id,
-                values
-            );
+            const response = await portalMutation.mutateAsync({
+                action: 'createDraft',
+                args: [activeType, editing.resource.id, values],
+            });
             setEditing((current) => ({ ...current, revision: response.data }));
             message.success('Đã lưu bản nháp. Bạn có thể xem trước hoặc công bố khi sẵn sàng.');
-            await loadResources();
         } catch (error) {
             if (error?.errorFields) return;
             message.error(error?.message || 'Không thể lưu bản nháp.');
@@ -152,14 +136,12 @@ export default function PortalContentManagementPage() {
         }
         try {
             setSaving(true);
-            await portalContentService.publishDraft(
-                activeType,
-                editing.resource.id,
-                editing.revision.id
-            );
+            await portalMutation.mutateAsync({
+                action: 'publishDraft',
+                args: [activeType, editing.resource.id, editing.revision.id],
+            });
             message.success('Đã công bố nội dung Portal.');
             setEditorOpen(false);
-            await loadResources();
         } catch (error) {
             message.error(error?.message || 'Không thể công bố nội dung.');
         } finally {
@@ -169,9 +151,11 @@ export default function PortalContentManagementPage() {
 
     const archive = async (resource) => {
         try {
-            await portalContentService.archive(activeType, resource.id);
+            await portalMutation.mutateAsync({
+                action: 'archive',
+                args: [activeType, resource.id],
+            });
             message.success('Đã ẩn nội dung khỏi Portal công khai.');
-            await loadResources();
         } catch (error) {
             message.error(error?.message || 'Không thể lưu trạng thái archive.');
         }
@@ -241,21 +225,17 @@ export default function PortalContentManagementPage() {
                     className="mb-4"
                 />
 
-                {loading ? (
-                    <div className="py-16 text-center">
-                        <Spin size="large" />
-                    </div>
-                ) : resources.length === 0 ? (
-                    <Empty
-                        description={
-                            <span>
-                                <b>{emptyState.title}</b>
-                                <br />
-                                {emptyState.description}
-                            </span>
-                        }
-                    />
-                ) : (
+                <QueryPanel
+                    query={resourcesQuery}
+                    empty={resources.length === 0}
+                    emptyDescription={
+                        <span>
+                            <b>{emptyState.title}</b>
+                            <br />
+                            {emptyState.description}
+                        </span>
+                    }
+                >
                     <List
                         dataSource={resources}
                         renderItem={(resource) => {
@@ -335,7 +315,7 @@ export default function PortalContentManagementPage() {
                             );
                         }}
                     />
-                )}
+                </QueryPanel>
             </Card>
 
             {/* Edit / Draft Modal */}

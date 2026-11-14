@@ -585,7 +585,7 @@ describe('Package 2: State History, Audit Log, Real Cloning & Rule 2.6 Full Regr
 
             // Drawer uses Ant Design Timeline and fetches registration history
             expect(drawerSrc).toMatch(/<Timeline/);
-            expect(drawerSrc).toMatch(/registrationService\.getRegistrationHistory|topicService\.getRegistrationHistory/);
+            expect(drawerSrc).toMatch(/registrationService\.getRegistrationHistory|topicService\.getRegistrationHistory|useRegistrationHistory/);
             expect(drawerSrc).toMatch(/Chưa có lịch sử chuyển trạng thái/);
 
             // Integrated in all 3 dashboards
@@ -598,9 +598,9 @@ describe('Package 2: State History, Audit Log, Real Cloning & Rule 2.6 Full Regr
             const councilDetail = readSource('frontend/src/pages/admin/CouncilDetailPage.jsx');
             const gradingDefense = readSource('frontend/src/pages/admin/GradingDefensePage.jsx');
 
-            expect(councilDetail).toMatch(/councilService\.getScheduleAdjustments/);
+            expect(councilDetail).toMatch(/councilService\.getScheduleAdjustments|useCouncilAdjustments/);
             expect(councilDetail).toMatch(/Nhật ký đổi ca/);
-            expect(gradingDefense).toMatch(/evaluationService\.getScoreBookReturnLogs/);
+            expect(gradingDefense).toMatch(/evaluationService\.getScoreBookReturnLogs|useScoreBookReturnLogs/);
             expect(gradingDefense).toMatch(/Hội đồng có lượt hoàn trả sổ điểm/);
             expect(gradingDefense).toMatch(/Xem lịch sử trả/);
         });

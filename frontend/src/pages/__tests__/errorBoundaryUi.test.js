@@ -16,9 +16,9 @@ test('ErrorBoundary: component exists, handles errors, and adheres to Rule 2.6',
     assert.ok(!/[←→+🤖📋✓✏️👥🗑️🔓▾▴↗]/.test(src), 'Must strictly adhere to Rule 2.6 (no raw symbols in buttons)');
 });
 
-test('AppLayout & App: Integrates ErrorBoundary around routes and outlets', () => {
+test('AppLayout & App: isolate route failures inside content boundaries', () => {
     const appSrc = read('frontend/src/App.jsx');
     const layoutSrc = read('frontend/src/components/layout/AppLayout.jsx');
-    assert.match(appSrc, /ErrorBoundary/, 'App.jsx must import and use ErrorBoundary');
-    assert.match(layoutSrc, /ErrorBoundary/, 'AppLayout.jsx must import and wrap outlet with ErrorBoundary');
+    assert.match(appSrc, /StandaloneRouteContent/, 'App.jsx must provide a fallback for public and standalone routes');
+    assert.match(layoutSrc, /<RouteContentBoundary>\s*(?:\{\/\*[^]*?\*\/\}\s*)?<Suspense[^>]*fallback=\{<ContentSkeleton\s*\/>\}>\s*<Outlet\s*\/>/, 'AppLayout must contain errors and loading inside the Outlet region');
 });

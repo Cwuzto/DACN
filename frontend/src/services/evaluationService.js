@@ -1,8 +1,9 @@
-import api from './api';
+import api from './api.js';
+import { normalizeApiError } from '../utils/apiError.js';
 
 const wrapServiceError = (error, fallbackMessage) => {
-    if (error?.success === false) return error;
-    return { success: false, message: fallbackMessage };
+    const normalized = normalizeApiError(error);
+    return { ...normalized, message: error?.response?.data?.message || error?.message || fallbackMessage };
 };
 
 const idempotencyConfig = (idempotencyKey) => ({
@@ -29,9 +30,9 @@ const evaluationService = {
         }
     },
 
-    getAdminDefenseCenter: async (params = {}) => {
+    getAdminDefenseCenter: async (params = {}, { signal } = {}) => {
         try {
-            return await api.get('/evaluations/admin-defense-center', { params });
+            return await api.get('/evaluations/admin-defense-center', { params, signal });
         } catch (error) {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi tải dữ liệu trung tâm hội đồng');
         }
@@ -69,9 +70,9 @@ const evaluationService = {
         }
     },
 
-    previewResultPublication: async (semesterId) => {
+    previewResultPublication: async (semesterId, { signal } = {}) => {
         try {
-            return await api.get(`/evaluations/semesters/${semesterId}/result-publications/preview`);
+            return await api.get(`/evaluations/semesters/${semesterId}/result-publications/preview`, { signal });
         } catch (error) {
             throw wrapServiceError(error, 'Không thể xem trước dữ liệu công bố');
         }
@@ -85,9 +86,9 @@ const evaluationService = {
         }
     },
 
-    getResultPublicationHistory: async (semesterId) => {
+    getResultPublicationHistory: async (semesterId, { signal } = {}) => {
         try {
-            return await api.get(`/evaluations/semesters/${semesterId}/result-publications`);
+            return await api.get(`/evaluations/semesters/${semesterId}/result-publications`, { signal });
         } catch (error) {
             throw wrapServiceError(error, 'Không thể tải lịch sử công bố');
         }

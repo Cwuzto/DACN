@@ -131,11 +131,11 @@ test('CouncilDetailPage implements dedicated detail page contracts and App.jsx m
     const appSource = read('src/App.jsx');
 
     // Detail page required calls and actions
-    assert.match(detailSource, /councilService\.getCouncilById/);
+    assert.match(detailSource, /useCouncilDetail\(scope, id\)/);
     assert.match(detailSource, /Đổi thành viên HĐ/);
     assert.match(detailSource, /là GVHD của sinh viên HĐ này/);
     assert.doesNotMatch(detailSource, /0 Xung đột lợi ích với GVHD/);
-    assert.match(detailSource, /councilService\.removeRegistration/);
+    assert.match(detailSource, /action: 'removeRegistration'/);
     assert.match(detailSource, /Quay lại Danh sách HĐ/);
 
     // Dynamic conflict warning logic

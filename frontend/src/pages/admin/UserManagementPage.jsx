@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import {
     Table,
     Button,
@@ -38,7 +38,12 @@ import {
     CloseCircleOutlined,
 } from '@ant-design/icons';
 import userService from '../../services/userService';
-import permissionService from '../../services/permissionService';
+import { useUsers, useUserRoleCounts, useUserPermissions, useUserMutation } from '../../queries/userQueries';
+import { usePermissionGroups } from '../../queries/permissionQueries';
+import useAuthStore from '../../stores/authStore';
+import { queryKeys } from '../../query/queryKeys';
+import QueryPanel from '../../components/common/QueryPanel';
+import EmptyState from '../../components/common/EmptyState';
 import PageHeader from '../../components/common/PageHeader';
 import ExcelImportModal from '../../components/common/ExcelImportModal';
 
@@ -48,22 +53,17 @@ const roleMap = {
     STUDENT: { label: 'Sinh viên', color: 'green', badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
 };
 
-const roleSections = [
-    { role: 'LECTURER', label: 'Giảng viên', icon: 'school', color: 'text-teal-700', bg: 'bg-teal-50' },
-    { role: 'STUDENT', label: 'Sinh viên', icon: 'groups', color: 'text-emerald-700', bg: 'bg-emerald-50' },
-    { role: 'ADMIN', label: 'Quản trị viên', icon: 'admin_panel_settings', color: 'text-rose-700', bg: 'bg-rose-50' },
-];
-
 function UserManagementPage() {
-    const [users, setUsers] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 });
+    const user = useAuthStore(state => state.user);
+    const scope = queryKeys.scope(user);
+    const userMutation = useUserMutation(scope);
+    const [pageState, setPageState] = useState({ current: 1, pageSize: 10 });
     const [searchText, setSearchText] = useState('');
     const [activeRole, setActiveRole] = useState('LECTURER');
     const [departmentFilter, setDepartmentFilter] = useState(null);
     const [statusFilter, setStatusFilter] = useState(null);
     const [accountRestrictedFilter, setAccountRestrictedFilter] = useState(null);
-    const [roleCounts, setRoleCounts] = useState({ ADMIN: 0, LECTURER: 0, STUDENT: 0 });
+
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingUser, setEditingUser] = useState(null);
@@ -79,72 +79,44 @@ function UserManagementPage() {
 
     // Permission group modal
     const [permModal, setPermModal] = useState({ open: false, user: null });
-    const [allGroups, setAllGroups] = useState([]);
+    const groupsQuery = usePermissionGroups(scope, permModal.open);
+    const allGroups = groupsQuery.data || [];
+    const permissionsQuery = useUserPermissions(scope, permModal.open ? permModal.user?.id : null);
+    const [draftUserId, setDraftUserId] = useState(null);
     const [selectedGroupIds, setSelectedGroupIds] = useState([]);
     const [permSubmitting, setPermSubmitting] = useState(false);
 
-    const fetchRoleCounts = useCallback(async () => {
-        try {
-            const responses = await Promise.all(
-                roleSections.map((section) => userService.getUsers({ role: section.role, page: 1, limit: 1 }))
-            );
-            const nextCounts = { ADMIN: 0, LECTURER: 0, STUDENT: 0 };
-            responses.forEach((response, index) => {
-                const role = roleSections[index].role;
-                nextCounts[role] = response?.pagination?.total || 0;
-            });
-            setRoleCounts(nextCounts);
-        } catch {
-            // Keep UI usable if counting requests fail
-        }
-    }, []);
+    const usersQuery = useUsers(scope, {
+        page: pageState.current, limit: pageState.pageSize, role: activeRole,
+        ...(searchText ? { search: searchText } : {}),
+        ...(departmentFilter ? { department: departmentFilter } : {}),
+        ...(statusFilter ? { status: statusFilter } : {}),
+        ...(activeRole === 'STUDENT' && accountRestrictedFilter !== null ? { accountRestricted: accountRestrictedFilter } : {}),
+    });
+    const countsQuery = useUserRoleCounts(scope);
+    const users = usersQuery.data?.data || [];
+    const roleCounts = countsQuery.data || {};
+    const pagination = { ...pageState, total: usersQuery.data?.pagination?.total || 0 };
+    const resetPage = () => setPageState(prev => ({ ...prev, current: 1 }));
+    const fetchUsers = (page = pageState.current, limit = pageState.pageSize) => {
+        if (page !== pageState.current || limit !== pageState.pageSize) setPageState({ current: page, pageSize: limit });
+        else usersQuery.refetch();
+    };
+    const fetchRoleCounts = () => countsQuery.refetch();
 
-    const fetchGroups = useCallback(async () => {
-        try {
-            const res = await permissionService.listGroups();
-            if (res.success) setAllGroups(res.data);
-        } catch {
-            // silent
-        }
-    }, []);
+    useEffect(() => {
+        if (!permModal.open || !permissionsQuery.data || draftUserId === permModal.user?.id) return;
+        setSelectedGroupIds((permissionsQuery.data.groups || []).map(group => group.id));
+        setDraftUserId(permModal.user.id);
+    }, [permModal, permissionsQuery.data, draftUserId]);
 
-    const fetchUsers = useCallback(async (page = 1, limit = 10) => {
-        setLoading(true);
-        try {
-            const params = { page, limit, role: activeRole };
-            if (searchText) params.search = searchText;
-            if (departmentFilter) params.department = departmentFilter;
-            if (statusFilter) params.status = statusFilter;
-            if (activeRole === 'STUDENT' && accountRestrictedFilter !== null) {
-                params.accountRestricted = accountRestrictedFilter;
-            }
-
-            const response = await userService.getUsers(params);
-            if (response.success) {
-                setUsers(response.data);
-                setPagination({
-                    current: response.pagination.page,
-                    pageSize: response.pagination.limit,
-                    total: response.pagination.total,
-                });
-            }
-        } catch (error) {
-            message.error(error.message || 'Lỗi khi tải danh sách người dùng');
-        } finally {
-            setLoading(false);
-        }
-    }, [searchText, activeRole, departmentFilter, statusFilter, accountRestrictedFilter]);
-
-    useEffect(() => { fetchUsers(); }, [fetchUsers]);
-    useEffect(() => { fetchRoleCounts(); }, [fetchRoleCounts]);
-    useEffect(() => { fetchGroups(); }, [fetchGroups]);
     useEffect(() => {
         if (activeRole !== 'STUDENT') {
             setAccountRestrictedFilter(null);
         }
     }, [activeRole]);
 
-    const handleSearch = (value) => setSearchText(value);
+    const handleSearch = (value) => { resetPage(); setSearchText(value); };
 
     const handleAdd = () => {
         setEditingUser(null);
@@ -153,16 +125,9 @@ function UserManagementPage() {
         setIsModalOpen(true);
     };
 
-    const handleOpenPermModal = async (record) => {
-        try {
-            const res = await userService.getUserPermissions(record.id);
-            const currentGroupIds = res.success
-                ? (res.data.groups || []).map((g) => g.id)
-                : [];
-            setSelectedGroupIds(currentGroupIds);
-        } catch {
-            setSelectedGroupIds([]);
-        }
+    const handleOpenPermModal = (record) => {
+        setDraftUserId(null);
+        setSelectedGroupIds([]);
         setPermModal({ open: true, user: record });
     };
 
@@ -170,11 +135,10 @@ function UserManagementPage() {
         if (!permModal.user) return;
         setPermSubmitting(true);
         try {
-            const res = await userService.updateUserPermissionGroups(permModal.user.id, selectedGroupIds);
+            const res = await userMutation.mutateAsync({ action: 'permissionGroups', id: permModal.user.id, data: selectedGroupIds });
             if (res.success) {
                 message.success(res.message || 'Cập nhật nhóm quyền thành công');
                 setPermModal({ open: false, user: null });
-                fetchUsers(pagination.current, pagination.pageSize);
                 if (drawerUser?.id === permModal.user.id) {
                     setIsDrawerOpen(false);
                 }
@@ -232,12 +196,10 @@ function UserManagementPage() {
             }
 
             if (editingUser) {
-                const response = await userService.updateUser(editingUser.id, values);
+                const response = await userMutation.mutateAsync({ action: 'update', id: editingUser.id, data: values });
                 if (response.success) {
                     message.success(response.message);
                     setIsModalOpen(false);
-                    fetchUsers(pagination.current, pagination.pageSize);
-                    fetchRoleCounts();
                     if (drawerUser?.id === editingUser.id) {
                         setDrawerUser((prev) => ({
                             ...prev,
@@ -253,12 +215,11 @@ function UserManagementPage() {
                     }
                 }
             } else {
-                const response = await userService.createUser(values);
+                const response = await userMutation.mutateAsync({ action: 'create', data: values });
                 if (response.success) {
                     message.success(response.message);
                     setIsModalOpen(false);
-                    fetchUsers(1, pagination.pageSize);
-                    fetchRoleCounts();
+                    resetPage();
                 }
             }
         } catch (error) {
@@ -270,11 +231,9 @@ function UserManagementPage() {
 
     const handleDelete = async (record) => {
         try {
-            const response = await userService.deleteUser(record.id);
+            const response = await userMutation.mutateAsync({ action: 'delete', id: record.id });
             if (response.success) {
                 message.success(response.message);
-                fetchUsers(pagination.current, pagination.pageSize);
-                fetchRoleCounts();
                 if (drawerUser?.id === record.id) setIsDrawerOpen(false);
             }
         } catch (error) {
@@ -284,11 +243,9 @@ function UserManagementPage() {
 
     const handleToggleLock = async (record) => {
         try {
-            const response = await userService.toggleActive(record.id);
+            const response = await userMutation.mutateAsync({ action: 'toggleActive', id: record.id });
             if (response.success) {
                 message.success(response.message);
-                fetchUsers(pagination.current, pagination.pageSize);
-                fetchRoleCounts();
                 if (drawerUser?.id === record.id) {
                     setDrawerUser((prev) => ({ ...prev, isActive: !prev.isActive }));
                 }
@@ -300,7 +257,7 @@ function UserManagementPage() {
 
     const handleResetPassword = async (record) => {
         try {
-            const response = await userService.resetPassword(record.id);
+            const response = await userMutation.mutateAsync({ action: 'resetPassword', id: record.id });
             if (response.success) message.success(response.message);
         } catch (error) {
             message.error(error.message);
@@ -566,6 +523,7 @@ function UserManagementPage() {
                 }
             />
 
+            <QueryPanel query={countsQuery}>
             {/* 4 Top KPI Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
@@ -606,6 +564,7 @@ function UserManagementPage() {
                 </div>
             </div>
 
+            </QueryPanel>
             {/* Faceted Filter Toolbar & Data Table Container */}
             <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-4 lg:p-5 space-y-4">
                 {/* Segmented Role Tabs with Counters */}
@@ -616,12 +575,14 @@ function UserManagementPage() {
                                 ? 'bg-teal-50 text-teal-800 border border-teal-600 shadow-xs'
                                 : 'bg-slate-50 text-slate-600 border border-slate-200 hover:border-slate-300'
                         }`}
-                        onClick={() => setActiveRole('LECTURER')}
+                        onClick={() => { resetPage(); setActiveRole('LECTURER'); }}
                     >
                         <span>Giảng viên</span>
+                        {countsQuery.data && (
                         <span className="px-1.5 py-0.2 rounded-full bg-teal-100 text-teal-800 font-mono text-[11px]">
-                            {roleCounts.LECTURER || 0}
+                            {roleCounts.LECTURER}
                         </span>
+                        )}
                     </button>
                     <button
                         className={`inline-flex items-center gap-2 px-3.5 py-1.5 text-xs rounded-lg font-semibold transition-all cursor-pointer ${
@@ -629,12 +590,14 @@ function UserManagementPage() {
                                 ? 'bg-teal-50 text-teal-800 border border-teal-600 shadow-xs'
                                 : 'bg-slate-50 text-slate-600 border border-slate-200 hover:border-slate-300'
                         }`}
-                        onClick={() => setActiveRole('STUDENT')}
+                        onClick={() => { resetPage(); setActiveRole('STUDENT'); }}
                     >
                         <span>Sinh viên</span>
+                        {countsQuery.data && (
                         <span className="px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-800 font-mono text-[11px]">
-                            {roleCounts.STUDENT || 0}
+                            {roleCounts.STUDENT}
                         </span>
+                        )}
                     </button>
                     <button
                         className={`inline-flex items-center gap-2 px-3.5 py-1.5 text-xs rounded-lg font-semibold transition-all cursor-pointer ${
@@ -642,12 +605,14 @@ function UserManagementPage() {
                                 ? 'bg-teal-50 text-teal-800 border border-teal-600 shadow-xs'
                                 : 'bg-slate-50 text-slate-600 border border-slate-200 hover:border-slate-300'
                         }`}
-                        onClick={() => setActiveRole('ADMIN')}
+                        onClick={() => { resetPage(); setActiveRole('ADMIN'); }}
                     >
                         <span>Quản trị & Giáo vụ</span>
+                        {countsQuery.data && (
                         <span className="px-1.5 py-0.2 rounded-full bg-rose-100 text-rose-800 font-mono text-[11px]">
-                            {roleCounts.ADMIN || 0}
+                            {roleCounts.ADMIN}
                         </span>
+                        )}
                     </button>
                 </div>
 
@@ -667,7 +632,7 @@ function UserManagementPage() {
                             style={{ minWidth: 200 }}
                             allowClear
                             value={departmentFilter}
-                            onChange={(value) => setDepartmentFilter(value || null)}
+                            onChange={(value) => { resetPage(); setDepartmentFilter(value || null); }}
                             options={[
                                 { label: 'Tất cả Bộ môn', value: null },
                                 { label: 'Viện Công nghệ Số', value: 'Viện Công nghệ Số' },
@@ -682,7 +647,7 @@ function UserManagementPage() {
                             style={{ minWidth: 160 }}
                             allowClear
                             value={statusFilter}
-                            onChange={(value) => setStatusFilter(value || null)}
+                            onChange={(value) => { resetPage(); setStatusFilter(value || null); }}
                             options={[
                                 { label: 'Tất cả trạng thái', value: null },
                                 { label: 'Hoạt động', value: 'active' },
@@ -695,7 +660,7 @@ function UserManagementPage() {
                                 style={{ minWidth: 200 }}
                                 allowClear
                                 value={accountRestrictedFilter}
-                                onChange={(value) => setAccountRestrictedFilter(value ?? null)}
+                                onChange={(value) => { resetPage(); setAccountRestrictedFilter(value ?? null); }}
                                 options={[
                                     { label: 'SV đã hoàn thành đồ án', value: 'true' },
                                     { label: 'SV bình thường', value: 'false' },
@@ -714,13 +679,15 @@ function UserManagementPage() {
                     </Tooltip>
                 </div>
 
+                <QueryPanel query={usersQuery} variant="table">
                 {/* Table */}
                 <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
                     <Table
                         dataSource={users}
                         rowKey="id"
                         columns={columns}
-                        loading={loading}
+                        locale={{ emptyText: <EmptyState /> }}
+                        loading={false}
                         pagination={{
                             ...pagination,
                             showTotal: (total, range) => `${range[0]}-${range[1]} / ${total} tài khoản`,
@@ -731,6 +698,7 @@ function UserManagementPage() {
                         scroll={{ x: 1100 }}
                     />
                 </div>
+                </QueryPanel>
             </div>
 
             {/* USER PROFILE CONTEXT DRAWER */}
@@ -1083,6 +1051,7 @@ function UserManagementPage() {
                 okText="Lưu nhóm quyền"
                 cancelText="Hủy"
                 confirmLoading={permSubmitting}
+                okButtonProps={{ disabled: !groupsQuery.isSuccess || !permissionsQuery.isSuccess || draftUserId !== permModal.user?.id }}
                 width={560}
                 centered
                 destroyOnClose
@@ -1113,6 +1082,9 @@ function UserManagementPage() {
                             Tích chọn nhóm quyền cần cấp cho người dùng này. Các quyền hạn sẽ có hiệu lực ngay lập tức.
                         </p>
 
+                        <QueryPanel query={permissionsQuery} />
+                        <QueryPanel query={groupsQuery} empty={allGroups.length === 0 && permissionsQuery.data !== undefined}>
+                        {permissionsQuery.data !== undefined && (
                         <div className="space-y-2 max-h-[320px] overflow-y-auto">
                             {allGroups
                                 .filter((g) => {
@@ -1164,6 +1136,8 @@ function UserManagementPage() {
                                     );
                                 })}
                         </div>
+                        )}
+                        </QueryPanel>
                     </div>
                 )}
             </Modal>
@@ -1173,12 +1147,11 @@ function UserManagementPage() {
                 open={isExcelModalOpen}
                 onCancel={() => setIsExcelModalOpen(false)}
                 onSuccess={() => {
-                    fetchUsers(1, pagination.pageSize);
-                    fetchRoleCounts();
+                    resetPage();
                 }}
                 type={activeRole === 'LECTURER' ? 'LECTURER' : 'STUDENT'}
                 onDownloadTemplate={(targetRole) => userService.downloadTemplate(targetRole || (activeRole === 'LECTURER' ? 'LECTURER' : 'STUDENT'))}
-                onExecuteImport={(payload) => userService.importUsersExcel(payload)}
+                onExecuteImport={(payload) => userMutation.mutateAsync({ action: 'import', data: payload })}
             />
         </div>
     );

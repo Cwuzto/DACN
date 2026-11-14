@@ -1,4 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLecturerAssignments, useAvailableLecturers, useLecturerAssignmentMutation } from '../../queries/lecturerAssignmentQueries';
+import { useUsers } from '../../queries/userQueries';
+import { queryKeys } from '../../query/queryKeys';
+import QueryPanel from '../common/QueryPanel';
+import { useMemo, useState } from 'react';
 import {
     Table,
     Button,
@@ -28,8 +32,8 @@ import {
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
-import lecturerAssignmentService from '../../services/lecturerAssignmentService.js';
-import userService from '../../services/userService.js';
+
+const EMPTY_LIST = [];
 
 export function LecturerAssignmentTab({
     semesterId,
@@ -37,11 +41,7 @@ export function LecturerAssignmentTab({
     semesters = [],
     catalogs = [],
     user,
-    onRefreshOverview,
 }) {
-    const [loading, setLoading] = useState(false);
-    const [assignments, setAssignments] = useState([]);
-    const [lecturers, setLecturers] = useState([]);
     const [searchKeyword, setSearchKeyword] = useState('');
     const [statusFilter, setStatusFilter] = useState(null);
 
@@ -49,7 +49,7 @@ export function LecturerAssignmentTab({
     const canManage = useMemo(() => {
         if (!user) return false;
         if (user.role === 'ADMIN') return true;
-        const permissions = user.permissions || [];
+        const permissions = user.permissions || EMPTY_LIST;
         return (
             permissions.includes('PERMISSION_ASSIGN_ACADEMIC') ||
             permissions.includes('MENTOR_ASSIGN') ||
@@ -61,8 +61,6 @@ export function LecturerAssignmentTab({
     const [createModalOpen, setCreateModalOpen] = useState(false);
     const [creating, setCreating] = useState(false);
     const [createForm] = Form.useForm();
-    const [availableLecturers, setAvailableLecturers] = useState([]);
-    const [loadingAvailable, setLoadingAvailable] = useState(false);
 
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [editingItem, setEditingItem] = useState(null);
@@ -77,76 +75,20 @@ export function LecturerAssignmentTab({
     const [importing, setImporting] = useState(false);
     const [importPreviewRows, setImportPreviewRows] = useState([]);
 
-    // Fetch assignments for current semester & catalog
-    const fetchAssignments = useCallback(async () => {
-        if (!semesterId) {
-            setAssignments([]);
-            return;
-        }
-        setLoading(true);
-        try {
-            const res = await lecturerAssignmentService.getAll({
-                semesterId,
-                projectCatalogId: projectCatalogId || undefined,
-            });
-            if (res?.success) {
-                setAssignments(res.data || []);
-            }
-        } catch (error) {
-            message.error(error?.message || 'Không thể tải danh sách phân công giảng viên');
-        } finally {
-            setLoading(false);
-        }
-    }, [semesterId, projectCatalogId]);
-
-    // Fetch lecturers for select dropdown
-    const fetchLecturers = useCallback(async () => {
-        try {
-            const res = await userService.getUsers({
-                role: 'LECTURER',
-                status: 'active',
-                limit: 1000,
-            });
-            if (res?.success) {
-                setLecturers(res.data || []);
-            }
-        } catch {}
-    }, []);
-
-    // Fetch available lecturers specifically for target semester & catalog
-    const fetchAvailableLecturers = useCallback(async (semId, catId) => {
-        if (!semId) {
-            setAvailableLecturers([]);
-            return;
-        }
-        setLoadingAvailable(true);
-        try {
-            const res = await lecturerAssignmentService.getAvailableLecturers({
-                semesterId: semId,
-                projectCatalogId: catId || undefined,
-            });
-            if (res?.success) {
-                setAvailableLecturers(res.data || []);
-            }
-        } catch {
-            const assignedIds = new Set(
-                assignments
-                    .filter((a) => a.semesterId === Number(semId) && (!catId || a.projectCatalogId === Number(catId)))
-                    .map((a) => a.lecturerId)
-            );
-            setAvailableLecturers(lecturers.filter((l) => !assignedIds.has(l.id)));
-        } finally {
-            setLoadingAvailable(false);
-        }
-    }, [assignments, lecturers]);
-
-    useEffect(() => {
-        fetchAssignments();
-    }, [fetchAssignments]);
-
-    useEffect(() => {
-        fetchLecturers();
-    }, [fetchLecturers]);
+    const scope = queryKeys.scope(user);
+    const assignmentsQuery = useLecturerAssignments(scope, { semesterId, projectCatalogId: projectCatalogId || undefined });
+    const assignments = assignmentsQuery.data || EMPTY_LIST;
+    const loading = assignmentsQuery.isFetching;
+    const lecturersQuery = useUsers(scope, { role: 'LECTURER', status: 'active', limit: 1000 });
+    const lecturers = lecturersQuery.data?.data || EMPTY_LIST;
+    const [availableFilters, setAvailableFilters] = useState({ semesterId, projectCatalogId: projectCatalogId || undefined });
+    const availableQuery = useAvailableLecturers(scope, availableFilters, createModalOpen);
+    const availableLecturers = availableQuery.data || EMPTY_LIST;
+    const loadingAvailable = availableQuery.isFetching;
+    const fetchAvailableLecturers = (semId, catId) => setAvailableFilters({ semesterId: semId, projectCatalogId: catId || undefined });
+    const sourceQuery = useLecturerAssignments(scope, { semesterId: sourceSemesterId }, copyModalOpen && Boolean(sourceSemesterId));
+    const assignmentMutation = useLecturerAssignmentMutation(scope, semesterId);
+    const fetchAssignments = () => assignmentsQuery.refetch();
 
     // Filter assignments by keyword & status
     const filteredAssignments = useMemo(() => {
@@ -175,13 +117,11 @@ export function LecturerAssignmentTab({
                 plannedQuota: values.plannedQuota || 10,
                 status: values.status || 'ACTIVE',
             };
-            const res = await lecturerAssignmentService.create(payload);
+            const res = await assignmentMutation.mutateAsync({ action: 'create', args: [payload] });
             if (res?.success) {
                 message.success('Phân công giảng viên thành công');
                 setCreateModalOpen(false);
                 createForm.resetFields();
-                fetchAssignments();
-                if (onRefreshOverview) onRefreshOverview();
             }
         } catch (error) {
             message.error(error?.message || 'Lỗi khi phân công giảng viên');
@@ -205,16 +145,14 @@ export function LecturerAssignmentTab({
         if (!editingItem) return;
         setUpdating(true);
         try {
-            const res = await lecturerAssignmentService.update(editingItem.id, {
+            const res = await assignmentMutation.mutateAsync({ action: 'update', args: [editingItem.id, {
                 plannedQuota: values.plannedQuota,
                 status: values.status,
-            });
+            }] });
             if (res?.success) {
                 message.success('Cập nhật chỉ tiêu thành công');
                 setEditModalOpen(false);
                 setEditingItem(null);
-                fetchAssignments();
-                if (onRefreshOverview) onRefreshOverview();
             }
         } catch (error) {
             message.error(error?.message || 'Lỗi khi cập nhật chỉ tiêu');
@@ -226,13 +164,11 @@ export function LecturerAssignmentTab({
     // Delete / Close assignment handler
     const handleDeleteAssignment = async (item) => {
         try {
-            const res = await lecturerAssignmentService.deleteAssignment(item.id, {
+            const res = await assignmentMutation.mutateAsync({ action: 'deleteAssignment', args: [item.id, {
                 closeIfActive: true,
-            });
+            }] });
             if (res?.success) {
                 message.success(res.message || 'Đã xử lý phân công giảng viên');
-                fetchAssignments();
-                if (onRefreshOverview) onRefreshOverview();
             }
         } catch (error) {
             message.error(error?.message || 'Không thể xóa phân công giảng viên');
@@ -247,10 +183,7 @@ export function LecturerAssignmentTab({
         }
         setCopying(true);
         try {
-            const sourceRes = await lecturerAssignmentService.getAll({
-                semesterId: sourceSemesterId,
-            });
-            const sourceList = sourceRes?.data || [];
+            const sourceList = sourceQuery.data ?? (await sourceQuery.refetch({ throwOnError: true })).data ?? EMPTY_LIST;
             if (sourceList.length === 0) {
                 message.info('Đợt đồ án nguồn không có phân công giảng viên nào');
                 setCopying(false);
@@ -265,15 +198,13 @@ export function LecturerAssignmentTab({
                 status: 'ACTIVE',
             }));
 
-            const res = await lecturerAssignmentService.bulkUpsert(items);
+            const res = await assignmentMutation.mutateAsync({ action: 'bulkUpsert', args: [items] });
             if (res?.success) {
                 message.success(
                     `Đã sao chép ${res.data?.created || 0} mới, cập nhật ${res.data?.updated || 0} phân công`
                 );
                 setCopyModalOpen(false);
                 setSourceSemesterId(null);
-                fetchAssignments();
-                if (onRefreshOverview) onRefreshOverview();
             }
         } catch (error) {
             message.error(error?.message || 'Lỗi khi sao chép phân công');
@@ -341,7 +272,7 @@ export function LecturerAssignmentTab({
 
                 setImportPreviewRows(parsed);
                 setImportModalOpen(true);
-            } catch (err) {
+            } catch {
                 message.error('Không thể đọc file Excel. Vui lòng kiểm tra định dạng.');
             }
         };
@@ -367,15 +298,13 @@ export function LecturerAssignmentTab({
                 status: 'ACTIVE',
             }));
 
-            const res = await lecturerAssignmentService.bulkUpsert(items);
+            const res = await assignmentMutation.mutateAsync({ action: 'bulkUpsert', args: [items] });
             if (res?.success) {
                 message.success(
                     `Phân công thành công: Tạo mới ${res.data?.created || 0}, cập nhật ${res.data?.updated || 0}`
                 );
                 setImportModalOpen(false);
                 setImportPreviewRows([]);
-                fetchAssignments();
-                if (onRefreshOverview) onRefreshOverview();
             }
         } catch (error) {
             message.error(error?.message || 'Lỗi khi nhập phân công từ Excel');
@@ -574,6 +503,7 @@ export function LecturerAssignmentTab({
     ];
 
     return (
+        <QueryPanel query={assignmentsQuery}>
         <div className="space-y-4">
             {/* Toolbar */}
             <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200/90 shadow-xs">
@@ -669,6 +599,7 @@ export function LecturerAssignmentTab({
                 footer={null}
                 destroyOnClose
             >
+                <QueryPanel query={availableQuery}>
                 <Form
                     form={createForm}
                     layout="vertical"
@@ -763,6 +694,7 @@ export function LecturerAssignmentTab({
                         </Button>
                     </div>
                 </Form>
+            </QueryPanel>
             </Modal>
 
             {/* Modal 2: Sửa chỉ tiêu */}
@@ -820,6 +752,7 @@ export function LecturerAssignmentTab({
                 okText="Bắt đầu sao chép"
                 cancelText="Hủy"
             >
+                <QueryPanel query={sourceQuery} />
                 <div className="space-y-3 py-2">
                     <p className="text-xs text-slate-600 leading-relaxed">
                         Hệ thống sẽ lấy toàn bộ danh sách phân công và chỉ tiêu giảng viên từ đợt nguồn được chọn để thiết lập cho đợt hiện tại. Các phân công trùng lặp sẽ được cập nhật lại chỉ tiêu.
@@ -834,6 +767,7 @@ export function LecturerAssignmentTab({
                             .map((s) => ({ value: s.id, label: s.name }))}
                     />
                 </div>
+
             </Modal>
 
             {/* Modal 4: Import Excel Preview */}
@@ -850,6 +784,7 @@ export function LecturerAssignmentTab({
                 cancelText="Hủy"
                 width={720}
             >
+                <QueryPanel query={lecturersQuery}>
                 <div className="space-y-3 py-2">
                     <div className="flex justify-between items-center text-xs">
                         <span className="text-slate-600 font-medium">
@@ -888,8 +823,10 @@ export function LecturerAssignmentTab({
                         ]}
                     />
                 </div>
+            </QueryPanel>
             </Modal>
         </div>
+        </QueryPanel>
     );
 }
 

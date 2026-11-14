@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Avatar, Badge, Button, Tabs, message } from 'antd';
 import {
     BellOutlined,
@@ -12,9 +12,11 @@ import {
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
-import notificationService from '../../services/notificationService';
 import PageHeader from '../../components/common/PageHeader';
-import EmptyState from '../../components/common/EmptyState';
+import QueryPanel from '../../components/common/QueryPanel';
+import useAuthStore from '../../stores/authStore';
+import { queryKeys } from '../../query/queryKeys';
+import { useMyNotifications, useNotificationMutation } from '../../queries/notificationQueries';
 
 const typeIconMap = {
     SYSTEM: <SettingOutlined className="text-slate-500" />,
@@ -26,43 +28,13 @@ const typeIconMap = {
 };
 
 function NotificationsPage() {
-    const [notifications, setNotifications] = useState([]);
+    const user = useAuthStore((state) => state.user);
+    const scope = queryKeys.scope(user);
+    const notificationsQuery = useMyNotifications(scope);
+    const notificationMutation = useNotificationMutation(scope);
+
+    const notifications = notificationsQuery.data || [];
     const [activeTab, setActiveTab] = useState('all');
-    const [loading, setLoading] = useState(true);
-
-    const fetchNotifications = useCallback(async () => {
-        try {
-            setLoading(true);
-            const response = await notificationService.getMyNotifications();
-            if (response.success) setNotifications(response.data || []);
-        } catch (error) {
-            message.error(error?.message || 'Không thể tải thông báo');
-        } finally {
-            setLoading(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        fetchNotifications();
-    }, [fetchNotifications]);
-
-    useEffect(() => {
-        const intervalId = setInterval(() => {
-            fetchNotifications();
-        }, 30000);
-
-        const onVisibilityChange = () => {
-            if (document.visibilityState === 'visible') {
-                fetchNotifications();
-            }
-        };
-        document.addEventListener('visibilitychange', onVisibilityChange);
-
-        return () => {
-            clearInterval(intervalId);
-            document.removeEventListener('visibilitychange', onVisibilityChange);
-        };
-    }, [fetchNotifications]);
 
     const unreadCount = useMemo(() => notifications.filter((item) => !item.isRead).length, [notifications]);
 
@@ -71,8 +43,7 @@ function NotificationsPage() {
         if (!target || target.isRead) return;
 
         try {
-            await notificationService.markRead(id);
-            setNotifications((prev) => prev.map((item) => (item.id === id ? { ...item, isRead: true } : item)));
+            await notificationMutation.mutateAsync({ action: 'markRead', args: [id] });
         } catch (error) {
             message.error(error?.message || 'Không thể đánh dấu đã đọc');
         }
@@ -80,8 +51,7 @@ function NotificationsPage() {
 
     const markAllRead = async () => {
         try {
-            await notificationService.markAllRead();
-            setNotifications((prev) => prev.map((item) => ({ ...item, isRead: true })));
+            await notificationMutation.mutateAsync({ action: 'markAllRead', args: [] });
             message.success('Đã đánh dấu tất cả thông báo là đã đọc');
         } catch (error) {
             message.error(error?.message || 'Không thể đánh dấu tất cả đã đọc');
@@ -90,8 +60,7 @@ function NotificationsPage() {
 
     const deleteNotification = async (id) => {
         try {
-            await notificationService.deleteNotification(id);
-            setNotifications((prev) => prev.filter((item) => item.id !== id));
+            await notificationMutation.mutateAsync({ action: 'deleteNotification', args: [id] });
         } catch (error) {
             message.error(error?.message || 'Không thể xóa thông báo');
         }
@@ -140,16 +109,12 @@ function NotificationsPage() {
                 />
 
                 <div className="divide-y divide-slate-100 min-h-[400px]">
-                    {!loading && filteredNotifications.length === 0 ? (
-                        <div className="py-12">
-                            <EmptyState
-                                icon={<BellOutlined />}
-                                title="Không có thông báo"
-                                description="Bạn hiện không có thông báo nào trong mục này."
-                            />
-                        </div>
-                    ) : (
-                        filteredNotifications.map((notification) => (
+                    <QueryPanel
+                        query={notificationsQuery}
+                        empty={filteredNotifications.length === 0}
+                        emptyDescription="Bạn hiện không có thông báo nào trong mục này."
+                    >
+                        {filteredNotifications.map((notification) => (
                             <div
                                 key={notification.id}
                                 className={`p-5 cursor-pointer transition-colors hover:bg-slate-50 flex gap-4 ${
@@ -196,8 +161,8 @@ function NotificationsPage() {
                                     )}
                                 </div>
                             </div>
-                        ))
-                    )}
+                        ))}
+                    </QueryPanel>
                 </div>
             </div>
         </div>

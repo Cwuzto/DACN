@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import {
     Table, Button, Input, Select, Drawer, Tooltip, Modal, Form, Space,
     Popconfirm, message, Tag, Avatar,
@@ -9,14 +9,17 @@ import {
     UserOutlined, BookOutlined, ReloadOutlined, CheckOutlined, CloseOutlined,
     AuditOutlined,
 } from '@ant-design/icons';
-import { topicService } from '../../services/topicService';
-import { semesterService } from '../../services/semesterService';
-import userService from '../../services/userService';
 import aiService from '../../services/aiService';
 import StatusBadge from '../../components/common/StatusBadge';
 import { PROJECT_NAME, formatSemesterLabel } from '../../utils/semesterDisplay';
 import MentorTransferModal from '../../components/admin/MentorTransferModal';
 import TopicSimilarityModal from '../../components/topics/TopicSimilarityModal';
+import useAuthStore from '../../stores/authStore';
+import { queryKeys } from '../../query/queryKeys';
+import { useTopics, useTopicMutation } from '../../queries/topicQueries';
+import { useSemesters } from '../../queries/semesterQueries';
+import { useUsers } from '../../queries/userQueries';
+import QueryPanel from '../../components/common/QueryPanel';
 
 const { TextArea } = Input;
 
@@ -29,14 +32,42 @@ const STATUS_TABS = [
 ];
 
 function TopicManagementPage() {
-    const [topics, setTopics] = useState([]);
-    const [loading, setLoading] = useState(false);
+    const user = useAuthStore((state) => state.user);
+    const scope = queryKeys.scope(user);
+
     const [searchText, setSearchText] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
-    const [semesters, setSemesters] = useState([]);
-    const [activeSemesterId, setActiveSemesterId] = useState(null);
     const [semesterFilter, setSemesterFilter] = useState('all');
-    const [mentors, setMentors] = useState([]);
+
+    const topicsQuery = useTopics(scope, {
+        ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
+        ...(searchText ? { search: searchText } : {}),
+    });
+    const topicMutation = useTopicMutation(scope);
+    const semestersQuery = useSemesters(scope);
+    const mentorsQuery = useUsers(scope, { role: 'LECTURER', status: 'active', page: 1, limit: 200 });
+
+    const rawTopics = topicsQuery.data || [];
+    const topics = useMemo(() => rawTopics.map((t, i) => ({ ...t, key: t.id, stt: i + 1 })), [rawTopics]);
+
+    const semesters = useMemo(() => {
+        const data = semestersQuery.data || [];
+        return data.map((s) => ({ value: s.id, label: formatSemesterLabel(s) }));
+    }, [semestersQuery.data]);
+
+    const activeSemesterId = useMemo(() => {
+        const data = semestersQuery.data || [];
+        const active = data.find((s) => ['REGISTRATION', 'ONGOING', 'DEFENSE'].includes(s.status));
+        return active?.id || (data[0]?.id ?? null);
+    }, [semestersQuery.data]);
+
+    const mentors = useMemo(() => {
+        const users = mentorsQuery.data?.data?.users || mentorsQuery.data?.data || mentorsQuery.data || [];
+        return (Array.isArray(users) ? users : []).map((u) => ({
+            value: u.id,
+            label: `${u.fullName} (${u.code})`,
+        }));
+    }, [mentorsQuery.data]);
 
     const [formModalOpen, setFormModalOpen] = useState(false);
     const [editingTopic, setEditingTopic] = useState(null);
@@ -94,58 +125,6 @@ function TopicManagementPage() {
 
     const [form] = Form.useForm();
 
-    const fetchTopics = useCallback(async () => {
-        setLoading(true);
-        try {
-            const params = {};
-            if (statusFilter !== 'all') params.status = statusFilter;
-            if (searchText) params.search = searchText;
-            const res = await topicService.getAll(params);
-            setTopics((res.data || []).map((t, i) => ({ ...t, key: t.id, stt: i + 1 })));
-        } catch {
-            message.error('Không thể tải danh sách đề tài.');
-        } finally {
-            setLoading(false);
-        }
-    }, [statusFilter, searchText]);
-
-    const fetchSemesters = useCallback(async () => {
-        try {
-            const res = await semesterService.getAll();
-            if (res.success) {
-                const semesterOptions = (res.data || []).map((s) => ({ value: s.id, label: formatSemesterLabel(s) }));
-                setSemesters(semesterOptions);
-
-                const activeSemester = (res.data || []).find((s) =>
-                    ['REGISTRATION', 'ONGOING', 'DEFENSE'].includes(s.status)
-                );
-                setActiveSemesterId(activeSemester?.id || (res.data?.[0]?.id ?? null));
-            }
-        } catch {
-            // ignore
-        }
-    }, []);
-
-    const fetchMentors = useCallback(async () => {
-        try {
-            const res = await userService.getUsers({ role: 'LECTURER', status: 'active', page: 1, limit: 200 });
-            if (res.success) {
-                setMentors((res.data || []).map((u) => ({
-                    value: u.id,
-                    label: `${u.fullName} (${u.code})`,
-                })));
-            }
-        } catch {
-            message.error('Không thể tải danh sách giảng viên hướng dẫn.');
-        }
-    }, []);
-
-    useEffect(() => {
-        fetchTopics();
-        fetchSemesters();
-        fetchMentors();
-    }, [fetchTopics, fetchSemesters, fetchMentors]);
-
     const openFormModal = (topic = null) => {
         setEditingTopic(topic);
         if (topic) {
@@ -167,14 +146,13 @@ function TopicManagementPage() {
             const values = await form.validateFields();
             setSubmitting(true);
             if (editingTopic) {
-                await topicService.update(editingTopic.id, { ...values, status: 'DRAFT' });
+                await topicMutation.mutateAsync({ action: 'update', args: [editingTopic.id, { ...values, status: 'DRAFT' }] });
                 message.success('Đã cập nhật bản nháp.');
             } else {
-                await topicService.create({ ...values, status: 'DRAFT' });
+                await topicMutation.mutateAsync({ action: 'create', args: [{ ...values, status: 'DRAFT' }] });
                 message.success('Đã lưu bản nháp đề tài.');
             }
             setFormModalOpen(false);
-            fetchTopics();
         } catch (err) {
             if (err?.message) message.error(err.message);
         } finally {
@@ -187,14 +165,13 @@ function TopicManagementPage() {
             const values = await form.validateFields();
             setSubmitting(true);
             if (editingTopic) {
-                await topicService.update(editingTopic.id, { ...values, status: 'PENDING' });
+                await topicMutation.mutateAsync({ action: 'update', args: [editingTopic.id, { ...values, status: 'PENDING' }] });
                 message.success('Đã gửi đề tài đi phê duyệt.');
             } else {
-                await topicService.create({ ...values, status: 'APPROVED' });
+                await topicMutation.mutateAsync({ action: 'create', args: [{ ...values, status: 'APPROVED' }] });
                 message.success('Tạo đề tài thành công.');
             }
             setFormModalOpen(false);
-            fetchTopics();
         } catch (err) {
             if (err?.message) message.error(err.message);
         } finally {
@@ -205,10 +182,9 @@ function TopicManagementPage() {
     const handleApprove = async (id) => {
         try {
             setDrawerSubmitting(true);
-            await topicService.changeStatus(id, { status: 'APPROVED' });
+            await topicMutation.mutateAsync({ action: 'changeStatus', args: [id, { status: 'APPROVED' }] });
             message.success('Đã duyệt đề tài thành công.');
             setDrawerOpen(false);
-            fetchTopics();
         } catch (err) {
             message.error(err?.message || 'Không thể duyệt đề tài.');
         } finally {
@@ -223,11 +199,10 @@ function TopicManagementPage() {
         }
         try {
             setDrawerSubmitting(true);
-            await topicService.changeStatus(id, { status: 'REJECTED', rejectReason: drawerRejectReason.trim() });
+            await topicMutation.mutateAsync({ action: 'changeStatus', args: [id, { status: 'REJECTED', rejectReason: drawerRejectReason.trim() }] });
             message.success('Đã từ chối đề tài.');
             setDrawerOpen(false);
             setDrawerRejectReason('');
-            fetchTopics();
         } catch (err) {
             message.error(err?.message || 'Không thể từ chối đề tài.');
         } finally {
@@ -237,9 +212,8 @@ function TopicManagementPage() {
 
     const handleDelete = async (id) => {
         try {
-            await topicService.delete(id);
+            await topicMutation.mutateAsync({ action: 'delete', args: [id] });
             message.success('Xóa đề tài thành công.');
-            fetchTopics();
         } catch (err) {
             message.error(err?.message || 'Không thể xóa đề tài.');
         }
@@ -384,7 +358,7 @@ function TopicManagementPage() {
                     </h1>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                    <Button icon={<ReloadOutlined />} onClick={fetchTopics} className="font-medium text-xs">
+                    <Button icon={<ReloadOutlined />} onClick={() => topicsQuery.refetch()} className="font-medium text-xs">
                         Làm mới
                     </Button>
                     <Button
@@ -460,27 +434,28 @@ function TopicManagementPage() {
 
             {/* Table */}
             <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
-                <Table
-                    dataSource={filteredTopics}
-                    columns={columns}
-                    loading={loading}
-                    rowKey="id"
-                    pagination={{
-                        pageSize: 10,
-                        showTotal: (total, range) => `${range[0]}-${range[1]} của ${total} đề tài`,
-                        showSizeChanger: true,
-                        size: 'small',
-                    }}
-                    size="middle"
-                    locale={{
-                        emptyText: (
-                            <div className="py-12 text-center text-slate-500 font-medium">
-                                <BookOutlined className="text-4xl mb-2 text-slate-400 block" />
-                                <p className="text-sm font-medium">Không tìm thấy đề tài nào phù hợp với bộ lọc hiện tại.</p>
-                            </div>
-                        ),
-                    }}
-                />
+                <QueryPanel query={topicsQuery} variant="table">
+                    <Table
+                        dataSource={filteredTopics}
+                        columns={columns}
+                        rowKey="id"
+                        pagination={{
+                            pageSize: 10,
+                            showTotal: (total, range) => `${range[0]}-${range[1]} của ${total} đề tài`,
+                            showSizeChanger: true,
+                            size: 'small',
+                        }}
+                        size="middle"
+                        locale={{
+                            emptyText: (
+                                <div className="py-12 text-center text-slate-500 font-medium">
+                                    <BookOutlined className="text-4xl mb-2 text-slate-400 block" />
+                                    <p className="text-sm font-medium">Không tìm thấy đề tài nào phù hợp với bộ lọc hiện tại.</p>
+                                </div>
+                            ),
+                        }}
+                    />
+                </QueryPanel>
             </div>
 
             {/* Side Drawer: Thẩm định & Chi tiết đề tài */}
@@ -698,7 +673,7 @@ function TopicManagementPage() {
                     onSuccess={() => {
                         setTransferModalOpen(false);
                         setDrawerOpen(false);
-                        fetchTopics();
+                        topicsQuery.refetch();
                     }}
                 />
             )}

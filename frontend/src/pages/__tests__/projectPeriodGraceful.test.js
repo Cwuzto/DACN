@@ -18,13 +18,14 @@ test('ProjectPeriodPage: Imports and uses useSearchParams for bidirectional tab 
     assert.doesNotMatch(src, /window\.history\.replaceState/, 'Must not use raw window.history.replaceState for tab navigation');
 });
 
-test('ProjectPeriodPage: Uses Promise.allSettled and graceful fallback in fetchSemesters & fetchDelegations', () => {
+test('ProjectPeriodPage: owns independent query states without effect-driven server state', () => {
     const src = read('frontend/src/pages/admin/ProjectPeriodPage.jsx');
-    assert.match(src, /Promise\.allSettled/, 'fetchSemesters must use Promise.allSettled instead of Promise.all');
-    assert.doesNotMatch(src, /const\s*\[semesterRes,\s*topicRes,\s*registrationRes\]\s*=\s*await\s*Promise\.all/, 'Must not use fragile Promise.all');
-    assert.match(src, /registrationResult\.status === ['"]fulfilled['"]/, 'Must safely check registrationResult status');
-    assert.match(src, /topicResult\.status === ['"]fulfilled['"]/, 'Must safely check topicResult status');
-    assert.match(src, /const fetchDelegations = useCallback\(async \((?:showError = false)?\)/, 'fetchDelegations must handle errors gracefully without automatic toast on initial load');
+    assert.match(src, /useSemesters\(scope\)/);
+    assert.match(src, /usePeriodTopics\(scope\)/);
+    assert.match(src, /usePeriodRegistrations\(scope,/);
+    assert.match(src, /useDelegations\(scope, canViewDelegations\)/);
+    assert.match(src, /QueryPanel query=\{semestersQuery\}/);
+    assert.doesNotMatch(src, /setPeriods|setAllRegistrations|setDelegations\(/);
 });
 
 test('ProjectPeriodPage: Standardizes BM02 tab label and action button', () => {

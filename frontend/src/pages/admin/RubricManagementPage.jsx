@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     Button,
     Collapse,
@@ -21,6 +21,11 @@ import {
 } from '@ant-design/icons';
 import rubricService from '../../services/rubricService';
 import portalContentService from '../../services/portalContentService';
+import useAuthStore from '../../stores/authStore';
+import { queryKeys } from '../../query/queryKeys';
+import { useRubricVersions, useRubricDetail, useRubricMutation } from '../../queries/rubricQueries';
+import { usePublicPortalContent } from '../../queries/portalQueries';
+import QueryPanel from '../../components/common/QueryPanel';
 
 const round2 = (num) => Math.round((Number(num) || 0) * 100) / 100;
 
@@ -163,72 +168,30 @@ const DEFAULT_FORMS = [
 ];
 
 export default function RubricManagementPage() {
-    const [loading, setLoading] = useState(false);
-    const [versions, setVersions] = useState([]);
-    const [systemEditable, setSystemEditable] = useState(true);
-    const [systemEditableReason, setSystemEditableReason] = useState('');
+    const user = useAuthStore((state) => state.user);
+    const scope = queryKeys.scope(user);
+
+    const versionsQuery = useRubricVersions(scope);
+    const rubricMutation = useRubricMutation(scope);
+    // Queries portal templates via portalContentService.getPublicContent
+    const portalContentQuery = usePublicPortalContent(scope);
+
+    const versions = versionsQuery.data?.versions || [];
+    const systemEditable = versionsQuery.data?.systemEditable !== undefined ? Boolean(versionsQuery.data.systemEditable) : true;
+    const systemEditableReason = versionsQuery.data?.systemEditableReason || '';
 
     // Tab state: 'catalog' | 'rubric' | 'history'
     const [activeTab, setActiveTab] = useState('catalog');
 
     // Forms Catalog search & filter state
-    const [forms, setForms] = useState(DEFAULT_FORMS);
     const [formsSearch, setFormsSearch] = useState('');
     const [formsRoleFilter, setFormsRoleFilter] = useState('all');
     const [previewForm, setPreviewForm] = useState(null);
 
-    // Fetch published portal templates from backend
-    const fetchPortalTemplates = useCallback(async () => {
-        try {
-            const res = await portalContentService.getPublicContent();
-            if (res?.success && res.data?.templates) {
-                const dbTemplates = res.data.templates;
-                if (Array.isArray(dbTemplates) && dbTemplates.length > 0) {
-                    const merged = DEFAULT_FORMS.map((def) => {
-                        const matched = dbTemplates.find((t) => t.code === def.code || t.title === def.title);
-                        return matched ? { ...def, ...matched } : def;
-                    });
-                    dbTemplates.forEach((t) => {
-                        if (!merged.some((m) => m.code === t.code || m.id === t.id)) {
-                            merged.push({
-                                code: t.code || 'BM',
-                                title: t.title || 'Biểu mẫu',
-                                sub: t.description || '',
-                                role: t.role || 'Chung',
-                                roleCategory: t.roleCategory || 'student',
-                                period: t.period || 'Trong kỳ',
-                                version: t.version ? `v${t.version}` : 'v1.0',
-                                fileName: t.fileName || `${t.code || 'Bieu_mau'}.docx`,
-                                fileSize: t.fileSize || '',
-                                fileUrl: t.fileUrl,
-                                reviewCouncil: t.reviewCouncil || 'Giáo vụ',
-                                fields: Array.isArray(t.fields) ? t.fields : [],
-                                ...t,
-                            });
-                        }
-                    });
-                    setForms(merged);
-                } else {
-                    setForms(DEFAULT_FORMS);
-                }
-            }
-        } catch {
-            // Keep default forms on error
-        }
-    }, []);
-
-    useEffect(() => {
-        fetchPortalTemplates();
-    }, [fetchPortalTemplates]);
-
-    useEffect(() => {
-        if (activeTab === 'catalog') {
-            fetchPortalTemplates();
-        }
-    }, [activeTab, fetchPortalTemplates]);
-
     // Active Rubric Editing state (Tab 2)
     const [activeRubricId, setActiveRubricId] = useState(null);
+    const detailQuery = useRubricDetail(scope, activeRubricId, Boolean(activeRubricId));
+
     const [formTitle, setFormTitle] = useState('Barem đánh giá bảo vệ đồ án tốt nghiệp khóa mới');
     const [formDescription, setFormDescription] = useState('Barem đánh giá chuẩn hóa theo quy chế học vụ.');
     const [formCategories, setFormCategories] = useState([]);
@@ -241,56 +204,64 @@ export default function RubricManagementPage() {
     const [cloneTitle, setCloneTitle] = useState('');
     const [cloning, setCloning] = useState(false);
 
-    // Tải danh sách các phiên bản Rubric từ backend
-    const fetchRubrics = async () => {
-        try {
-            setLoading(true);
-            const res = await rubricService.getRubricVersions();
-            if (res.success && res.data) {
-                const verList = res.data.versions || [];
-                setVersions(verList);
-                setSystemEditable(res.data.systemEditable !== undefined ? Boolean(res.data.systemEditable) : true);
-                setSystemEditableReason(res.data.systemEditableReason || '');
-
-                // Tự động load active rubric vào builder nếu có
-                const currentActive = verList.find((v) => v.isActive) || verList[0];
-                if (currentActive && !activeRubricId) {
-                    loadRubricDetails(currentActive.id);
-                }
-            }
-        } catch (error) {
-            message.error(error.message || 'Không thể tải danh sách Rubric');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const loadRubricDetails = async (rubricId) => {
-        try {
-            setLoading(true);
-            const res = await rubricService.getRubricById(rubricId);
-            if (res.success && res.data) {
-                const r = res.data;
-                setActiveRubricId(r.id);
-                setFormTitle(r.title);
-                setFormDescription(r.description || '');
-                setFormCategories(
-                    (r.categories || []).map((cat) => ({
-                        ...cat,
-                        criteria: (cat.criteria || []).map((cri) => ({ ...cri })),
-                    }))
-                );
-            }
-        } catch (error) {
-            message.error(error.message || 'Không thể tải chi tiết phiên bản Rubric');
-        } finally {
-            setLoading(false);
-        }
-    };
-
+    // Auto pick active rubric when versions arrive and no rubric selected
     useEffect(() => {
-        fetchRubrics();
-    }, []);
+        if (versions.length > 0 && !activeRubricId) {
+            const currentActive = versions.find((v) => v.isActive) || versions[0];
+            if (currentActive) {
+                setActiveRubricId(currentActive.id);
+            }
+        }
+    }, [versions, activeRubricId]);
+
+    // Populate draft builder only when active rubric changes or first loaded, preserving edits across background refreshes
+    const lastLoadedRubricIdRef = useRef(null);
+    useEffect(() => {
+        if (detailQuery.data && detailQuery.data.id === activeRubricId && lastLoadedRubricIdRef.current !== activeRubricId) {
+            const r = detailQuery.data;
+            setFormTitle(r.title || '');
+            setFormDescription(r.description || '');
+            setFormCategories(
+                (r.categories || []).map((cat) => ({
+                    ...cat,
+                    criteria: (cat.criteria || []).map((cri) => ({ ...cri })),
+                }))
+            );
+            lastLoadedRubricIdRef.current = activeRubricId;
+        }
+    }, [detailQuery.data, activeRubricId]);
+
+    // Merge public portal templates with defaults
+    const forms = useMemo(() => {
+        const dbTemplates = portalContentQuery.data?.templates;
+        if (Array.isArray(dbTemplates) && dbTemplates.length > 0) {
+            const merged = DEFAULT_FORMS.map((def) => {
+                const matched = dbTemplates.find((t) => t.code === def.code || t.title === def.title);
+                return matched ? { ...def, ...matched } : def;
+            });
+            dbTemplates.forEach((t) => {
+                if (!merged.some((m) => m.code === t.code || m.id === t.id)) {
+                    merged.push({
+                        code: t.code || 'BM',
+                        title: t.title || 'Biểu mẫu',
+                        sub: t.description || '',
+                        role: t.role || 'Chung',
+                        roleCategory: t.roleCategory || 'student',
+                        period: t.period || 'Trong kỳ',
+                        version: t.version ? `v${t.version}` : 'v1.0',
+                        fileName: t.fileName || `${t.code || 'Bieu_mau'}.docx`,
+                        fileSize: t.fileSize || '',
+                        fileUrl: t.fileUrl,
+                        reviewCouncil: t.reviewCouncil || 'Giáo vụ',
+                        fields: Array.isArray(t.fields) ? t.fields : [],
+                        ...t,
+                    });
+                }
+            });
+            return merged;
+        }
+        return DEFAULT_FORMS;
+    }, [portalContentQuery.data]);
 
     // Active version summary
     const activeVersionObj = useMemo(() => {
@@ -390,17 +361,11 @@ export default function RubricManagementPage() {
             return;
         }
         try {
-            setLoading(true);
-            const res = await rubricService.lockRubric(targetId);
-            if (res.success) {
-                message.success('Đã khóa phiên bản Rubric cho đợt bảo vệ!');
-                fetchRubrics();
-                loadRubricDetails(targetId);
-            }
+            await rubricMutation.mutateAsync({ action: 'lockRubric', args: [targetId] });
+            message.success('Đã khóa phiên bản Rubric cho đợt bảo vệ!');
+            lastLoadedRubricIdRef.current = null;
         } catch (error) {
             message.error(error.message || 'Không thể khóa phiên bản Rubric');
-        } finally {
-            setLoading(false);
         }
     };
 
@@ -411,17 +376,11 @@ export default function RubricManagementPage() {
             return;
         }
         try {
-            setLoading(true);
-            const res = await rubricService.restoreDefault(targetId);
-            if (res.success) {
-                message.success('Đã khôi phục barem mẫu chuẩn 4 nhóm 14 mục (10.0đ)!');
-                fetchRubrics();
-                loadRubricDetails(targetId);
-            }
+            await rubricMutation.mutateAsync({ action: 'restoreDefault', args: [targetId] });
+            message.success('Đã khôi phục barem mẫu chuẩn 4 nhóm 14 mục (10.0đ)!');
+            lastLoadedRubricIdRef.current = null;
         } catch (error) {
             message.error(error.message || 'Không thể khôi phục barem mẫu chuẩn');
-        } finally {
-            setLoading(false);
         }
     };
 
@@ -497,18 +456,14 @@ export default function RubricManagementPage() {
             };
 
             if (activeRubricId) {
-                const res = await rubricService.updateRubric(activeRubricId, payload);
-                if (res.success) {
-                    message.success('Đã lưu cấu hình Rubric thành công!');
-                    fetchRubrics();
-                }
+                await rubricMutation.mutateAsync({ action: 'updateRubric', args: [activeRubricId, payload] });
+                message.success('Đã lưu cấu hình Rubric thành công!');
             } else {
                 payload.version = `v${versions.length + 1}`;
-                const res = await rubricService.createRubric(payload);
-                if (res.success) {
-                    message.success('Đã tạo phiên bản Rubric mới thành công!');
-                    fetchRubrics();
-                }
+                const res = await rubricMutation.mutateAsync({ action: 'createRubric', args: [payload] });
+                message.success('Đã tạo phiên bản Rubric mới thành công!');
+                lastLoadedRubricIdRef.current = null;
+                setActiveRubricId(res.data?.id);
             }
         } catch (error) {
             message.error(error.message || 'Lưu phiên bản Rubric thất bại');
@@ -632,19 +587,20 @@ export default function RubricManagementPage() {
         }
         try {
             setCloning(true);
-            const res = await rubricService.createRubric({
-                version: cloneVersionName.trim().toLowerCase(),
-                title: cloneTitle.trim(),
-                cloneFromId: cloneSourceId,
+            const res = await rubricMutation.mutateAsync({
+                action: 'createRubric',
+                args: [{
+                    version: cloneVersionName.trim().toLowerCase(),
+                    title: cloneTitle.trim(),
+                    cloneFromId: cloneSourceId,
+                }],
             });
 
-            if (res.success) {
-                message.success('Đã nhân bản phiên bản mới thành công!');
-                setCloneModalOpen(false);
-                fetchRubrics();
-                loadRubricDetails(res.data.id);
-                setActiveTab('rubric');
-            }
+            message.success('Đã nhân bản phiên bản mới thành công!');
+            setCloneModalOpen(false);
+            lastLoadedRubricIdRef.current = null;
+            setActiveRubricId(res.data?.id);
+            setActiveTab('rubric');
         } catch (error) {
             message.error(error.message || 'Nhân bản thất bại');
         } finally {
@@ -655,32 +611,24 @@ export default function RubricManagementPage() {
     // Activate rubric version
     const handleActivate = async (rubricId) => {
         try {
-            setLoading(true);
-            const res = await rubricService.activateRubric(rubricId);
-            if (res.success) {
-                message.success('Đã kích hoạt phiên bản làm Barem chính thức của hệ thống!');
-                fetchRubrics();
-            }
+            await rubricMutation.mutateAsync({ action: 'activateRubric', args: [rubricId] });
+            message.success('Đã kích hoạt phiên bản làm Barem chính thức của hệ thống!');
         } catch (error) {
             message.error(error.message || 'Kích hoạt thất bại');
-        } finally {
-            setLoading(false);
         }
     };
 
     // Delete rubric version
     const handleDelete = async (rubricId) => {
         try {
-            setLoading(true);
-            const res = await rubricService.deleteRubric(rubricId);
-            if (res.success) {
-                message.success('Đã xóa phiên bản nháp thành công');
-                fetchRubrics();
+            await rubricMutation.mutateAsync({ action: 'deleteRubric', args: [rubricId] });
+            message.success('Đã xóa phiên bản nháp thành công');
+            if (activeRubricId === rubricId) {
+                setActiveRubricId(null);
+                lastLoadedRubricIdRef.current = null;
             }
         } catch (error) {
             message.error(error.message || 'Xóa thất bại');
-        } finally {
-            setLoading(false);
         }
     };
 
@@ -826,71 +774,72 @@ export default function RubricManagementPage() {
 
             {/* TAB 1: DANH MỤC BIỂU MẪU */}
             {activeTab === 'catalog' && (
-                <div>
-                    {/* Search & Filter Controls */}
-                    <div
-                        style={{
-                            background: 'var(--surface)',
-                            border: '1px solid var(--border)',
-                            borderRadius: 'var(--radius-lg)',
-                            padding: '14px 18px',
-                            marginBottom: 18,
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            flexWrap: 'wrap',
-                            gap: 12,
-                        }}
-                    >
-                        <div style={{ display: 'flex', gap: 12, alignItems: 'center', flex: 1, minWidth: 260 }}>
-                            <div style={{ position: 'relative', flex: 1, maxWidth: 380 }}>
-                                <input
-                                    type="text"
-                                    className="input-field"
-                                    placeholder="Tìm theo mã BM, tên biểu mẫu, đối tượng..."
-                                    style={{ paddingLeft: 34, width: '100%' }}
-                                    value={formsSearch}
-                                    onChange={(e) => setFormsSearch(e.target.value)}
-                                />
-                                <svg
-                                    style={{ position: 'absolute', left: 10, top: 11, color: 'var(--muted)', pointerEvents: 'none' }}
-                                    width="15"
-                                    height="15"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2"
+                <QueryPanel query={portalContentQuery}>
+                    <div>
+                        {/* Search & Filter Controls */}
+                        <div
+                            style={{
+                                background: 'var(--surface)',
+                                border: '1px solid var(--border)',
+                                borderRadius: 'var(--radius-lg)',
+                                padding: '14px 18px',
+                                marginBottom: 18,
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                flexWrap: 'wrap',
+                                gap: 12,
+                            }}
+                        >
+                            <div style={{ display: 'flex', gap: 12, alignItems: 'center', flex: 1, minWidth: 260 }}>
+                                <div style={{ position: 'relative', flex: 1, maxWidth: 380 }}>
+                                    <input
+                                        type="text"
+                                        className="input-field"
+                                        placeholder="Tìm theo mã BM, tên biểu mẫu, đối tượng..."
+                                        style={{ paddingLeft: 34, width: '100%' }}
+                                        value={formsSearch}
+                                        onChange={(e) => setFormsSearch(e.target.value)}
+                                    />
+                                    <svg
+                                        style={{ position: 'absolute', left: 10, top: 11, color: 'var(--muted)', pointerEvents: 'none' }}
+                                        width="15"
+                                        height="15"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                    >
+                                        <circle cx="11" cy="11" r="8" />
+                                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                                    </svg>
+                                </div>
+                                <select
+                                    className="select-field"
+                                    value={formsRoleFilter}
+                                    onChange={(e) => setFormsRoleFilter(e.target.value)}
+                                    style={{ width: 180, padding: '7px 12px', borderRadius: 6, border: '1px solid var(--border)' }}
                                 >
-                                    <circle cx="11" cy="11" r="8" />
-                                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                                </svg>
+                                    <option value="all">Tất cả đối tượng</option>
+                                    <option value="student">Dành cho Sinh viên</option>
+                                    <option value="lecturer">Dành cho Giảng viên</option>
+                                    <option value="council">Dành cho Hội đồng</option>
+                                </select>
                             </div>
-                            <select
-                                className="select-field"
-                                value={formsRoleFilter}
-                                onChange={(e) => setFormsRoleFilter(e.target.value)}
-                                style={{ width: 180, padding: '7px 12px', borderRadius: 6, border: '1px solid var(--border)' }}
-                            >
-                                <option value="all">Tất cả đối tượng</option>
-                                <option value="student">Dành cho Sinh viên</option>
-                                <option value="lecturer">Dành cho Giảng viên</option>
-                                <option value="council">Dành cho Hội đồng</option>
-                            </select>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                                <Button
+                                    size="small"
+                                    icon={<ReloadOutlined />}
+                                    onClick={() => {
+                                        setFormsSearch('');
+                                        setFormsRoleFilter('all');
+                                        portalContentQuery.refetch();
+                                    }}
+                                >
+                                    Làm mới
+                                </Button>
+                            </div>
                         </div>
-                        <div style={{ display: 'flex', gap: 8 }}>
-                            <Button
-                                size="small"
-                                icon={<ReloadOutlined />}
-                                onClick={() => {
-                                    setFormsSearch('');
-                                    setFormsRoleFilter('all');
-                                    fetchPortalTemplates();
-                                }}
-                            >
-                                Làm mới
-                            </Button>
-                        </div>
-                    </div>
 
                     {/* Forms Cards Grid */}
                     <div className="forms-grid">
@@ -975,11 +924,14 @@ export default function RubricManagementPage() {
                         ))}
                     </div>
                 </div>
+                </QueryPanel>
             )}
 
             {/* TAB 2: BIÊN TẬP RUBRIC BUILDER */}
             {activeTab === 'rubric' && (
-                <div>
+                <QueryPanel query={versionsQuery}>
+                    <QueryPanel query={detailQuery}>
+                        <div>
                     {/* High Privilege Admin Notice Banner */}
                     <div
                         style={{
@@ -1342,11 +1294,14 @@ export default function RubricManagementPage() {
                         })}
                     </div>
                 </div>
+                    </QueryPanel>
+                </QueryPanel>
             )}
 
             {/* TAB 3: LỊCH SỬ PHIÊN BẢN */}
             {activeTab === 'history' && (
-                <div className="card" style={{ padding: 20 }}>
+                <QueryPanel query={versionsQuery}>
+                    <div className="card" style={{ padding: 20 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                         <h3 className="h3">Nhật Ký Ban Hành Biểu Mẫu & Cập Nhật Rubric</h3>
                         <span className="meta">{versions.length} phiên bản trong cơ sở dữ liệu</span>
@@ -1407,7 +1362,8 @@ export default function RubricManagementPage() {
                                                 <button
                                                     className="btn btn-secondary btn-sm"
                                                     onClick={() => {
-                                                        loadRubricDetails(ver.id);
+                                                        lastLoadedRubricIdRef.current = null;
+                                                        setActiveRubricId(ver.id);
                                                         setActiveTab('rubric');
                                                     }}
                                                 >
@@ -1450,6 +1406,7 @@ export default function RubricManagementPage() {
                         </table>
                     </div>
                 </div>
+                </QueryPanel>
             )}
 
             {/* PREVIEW FORM MODAL (A4 Layout) */}

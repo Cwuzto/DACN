@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Progress, Select, Spin, Tag, message } from 'antd';
+import { Button, Progress, Select, Tag } from 'antd';
 import {
     TeamOutlined,
     BookOutlined,
@@ -24,74 +24,35 @@ import 'dayjs/locale/vi';
 dayjs.extend(relativeTime);
 dayjs.locale('vi');
 
-import dashboardService from '../../services/dashboardService';
-import { semesterService } from '../../services/semesterService';
+import { useDashboardStats, useDashboardScores, useDashboardActivities, useDashboardOverview } from '../../queries/dashboardQueries';
+import { useSemesters } from '../../queries/semesterQueries';
+import useAuthStore from '../../stores/authStore';
+import { queryKeys } from '../../query/queryKeys';
+import QueryPanel from '../../components/common/QueryPanel';
 import { PROJECT_NAME, formatSemesterLabel } from '../../utils/semesterDisplay';
 
 function DashboardPage() {
     const navigate = useNavigate();
-    const [loading, setLoading] = useState(true);
-    const [stats, setStats] = useState(null);
-    const [scoreDistribution, setScoreDistribution] = useState([]);
-    const [activities, setActivities] = useState([]);
-    const [semesters, setSemesters] = useState([]);
-
+    const user = useAuthStore(state => state.user);
+    const scope = queryKeys.scope(user);
+    const statsQuery = useDashboardStats(scope);
+    const scoresQuery = useDashboardScores(scope);
+    const activitiesQuery = useDashboardActivities(scope);
+    const semestersQuery = useSemesters(scope);
+    const stats = statsQuery.data;
+    const scoreDistribution = scoresQuery.data || [];
+    const activities = activitiesQuery.data || [];
+    const semesters = semestersQuery.data || [];
     const [selectedSemesterId, setSelectedSemesterId] = useState(null);
     const [selectedProjectName, setSelectedProjectName] = useState(PROJECT_NAME);
-    const [semesterOverview, setSemesterOverview] = useState(null);
-    const [overviewLoading, setOverviewLoading] = useState(false);
+    const overviewQuery = useDashboardOverview(scope, selectedSemesterId);
+    const semesterOverview = overviewQuery.data;
 
     useEffect(() => {
-        const fetchDashboardData = async () => {
-            setLoading(true);
-            try {
-                const [statsRes, scoreRes, activityRes, allSemesterRes] = await Promise.all([
-                    dashboardService.getStats(),
-                    dashboardService.getScores(),
-                    dashboardService.getActivities(),
-                    semesterService.getAll(),
-                ]);
-
-                if (statsRes.success) setStats(statsRes.data);
-                if (scoreRes.success) setScoreDistribution(scoreRes.data || []);
-                if (activityRes.success) setActivities(activityRes.data || []);
-                if (allSemesterRes.success) {
-                    const list = allSemesterRes.data || [];
-                    setSemesters(list);
-                    if (list.length > 0) {
-                        const preferred = list.find((item) => ['REGISTRATION', 'ONGOING', 'DEFENSE'].includes(item.status));
-                        setSelectedSemesterId(preferred?.id || list[0].id);
-                    }
-                }
-            } catch (error) {
-                message.error(error?.message || 'Không thể tải dữ liệu dashboard');
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchDashboardData();
-    }, []);
-
-    useEffect(() => {
-        const fetchOverview = async () => {
-            try {
-                setOverviewLoading(true);
-                const res = await dashboardService.getSemesterOverview(
-                    selectedSemesterId ? { semesterId: selectedSemesterId } : {}
-                );
-                if (res.success) {
-                    setSemesterOverview(res.data || null);
-                }
-            } catch (error) {
-                message.error(error?.message || 'Không thể tải tổng quan học kỳ');
-            } finally {
-                setOverviewLoading(false);
-            }
-        };
-
-        fetchOverview();
-    }, [selectedSemesterId]);
+        if (selectedSemesterId || !semesters.length) return;
+        const preferred = semesters.find(item => ['REGISTRATION', 'ONGOING', 'DEFENSE'].includes(item.status));
+        setSelectedSemesterId(preferred?.id || semesters[0].id);
+    }, [semesters, selectedSemesterId]);
 
     const activeSemester = useMemo(() => {
         if (!semesters.length) return null;
@@ -136,7 +97,7 @@ function DashboardPage() {
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs text-slate-500 mr-2">
-                        Đợt: <strong className="text-slate-800">{activeSemester?.name || 'Học kỳ 1'}</strong> • <span className="font-mono">{stats?.totalStudents || 0} SV</span>
+                        Đợt: <strong className="text-slate-800">{activeSemester?.name || 'Học kỳ 1'}</strong> • <span className="font-mono">{stats?.totalStudents != null ? `${stats.totalStudents} SV` : 'Chưa có số liệu'}</span>
                     </span>
                     <Button
                         icon={<TeamOutlined />}
@@ -156,6 +117,7 @@ function DashboardPage() {
                 </div>
             </div>
 
+            <QueryPanel query={statsQuery}>
             {/* TRIAGE QUEUE: Hàng đợi khẩn cấp */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Triage 1: Đề tài chờ phê duyệt */}
@@ -289,6 +251,7 @@ function DashboardPage() {
                 </div>
             </div>
 
+            </QueryPanel>
             {/* TWO-COLUMN TACTICAL GRID (68% / 32%) */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 {/* Left 8 Cols (68%): Phân bổ & Đợt trọng tâm */}
@@ -305,6 +268,7 @@ function DashboardPage() {
                                 </h3>
                             </div>
                             <div className="flex items-center gap-2 flex-wrap">
+                                <QueryPanel query={semestersQuery} empty={semesters.length === 0} emptyDescription="Chưa có học kỳ">
                                 <Select
                                     value={selectedSemesterId}
                                     onChange={setSelectedSemesterId}
@@ -313,10 +277,11 @@ function DashboardPage() {
                                     placeholder="Chọn đợt đồ án"
                                     size="small"
                                 />
+                                </QueryPanel>
                             </div>
                         </div>
 
-                        <Spin spinning={overviewLoading}>
+                        <QueryPanel query={overviewQuery} empty={!semesterOverview} emptyDescription="Chưa có dữ liệu học kỳ này.">
                             {semesterOverview ? (
                                 <div className="space-y-4 pt-1">
                                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -377,7 +342,7 @@ function DashboardPage() {
                             ) : (
                                 <p className="text-xs text-slate-500 font-medium py-4 text-center">Chưa có dữ liệu học kỳ này.</p>
                             )}
-                        </Spin>
+                        </QueryPanel>
                     </div>
 
                     {/* Phân bổ Đề tài theo Chuyên ngành / Bộ môn */}
@@ -441,6 +406,7 @@ function DashboardPage() {
                             </Button>
                         </div>
 
+                        <QueryPanel query={scoresQuery} empty={scores.length === 0} emptyDescription="Chưa có dữ liệu phân bổ điểm cho đợt đồ án này.">
                         {scores.length > 0 ? (
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                 {scores.map((item, idx) => (
@@ -461,6 +427,7 @@ function DashboardPage() {
                                 Chưa có dữ liệu phân bổ điểm cho đợt đồ án này.
                             </div>
                         )}
+                        </QueryPanel>
                     </div>
                 </div>
 
@@ -519,6 +486,7 @@ function DashboardPage() {
                             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                         </div>
 
+                        <QueryPanel query={activitiesQuery} empty={activities.length === 0} emptyDescription="Chưa có hoạt động gần đây">
                         <div className="space-y-3">
                             {(activities || []).slice(0, 5).map((item) => {
                                 const badge = getActionBadge(item.action);
@@ -545,12 +513,8 @@ function DashboardPage() {
                                     </div>
                                 );
                             })}
-                            {(!activities || activities.length === 0) && (
-                                <div className="text-center py-6 text-slate-500 font-medium text-xs">
-                                    Chưa ghi nhận hoạt động nào gần đây.
-                                </div>
-                            )}
                         </div>
+                        </QueryPanel>
                     </div>
                 </div>
             </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { Suspense, useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { Badge } from 'antd';
 import useAuthStore from '../../stores/authStore';
@@ -13,7 +13,12 @@ import NavIcon from './NavIcon';
 import OpenDrawer from '../common/OpenDrawer';
 import QuotaMeter from '../common/QuotaMeter';
 import AcademicChatWidget from '../common/AcademicChatWidget';
-import ErrorBoundary from '../common/ErrorBoundary';
+import RouteContentBoundary from '../common/RouteContentBoundary';
+import ContentSkeleton from '../common/ContentSkeleton';
+import { queryKeys } from '../../query/queryKeys';
+import { useMyNotifications } from '../../queries/notificationQueries';
+import { useSemesters, usePublicSemesters } from '../../queries/semesterQueries';
+import { useRegistrations } from '../../queries/registrationQueries';
 
 /**
  * AppLayout - Dynamic 7-Group Academic Layout
@@ -33,22 +38,18 @@ function AppLayout({ role }) {
         }
     });
 
-    const [currentSemester, setCurrentSemester] = useState(null);
-    const [lecturerStudentCount, setLecturerStudentCount] = useState(0);
-    const [unreadCount, setUnreadCount] = useState(0);
+    const scope = queryKeys.scope(user);
+    const unreadQuery = useMyNotifications(scope, { unreadOnly: 'true' }, Boolean(user));
+    const unreadCount = unreadQuery.data?.length ?? 0;
 
     const fetchUnreadNotifications = useCallback(async () => {
         if (!user) return;
         try {
-            const res = await notificationService.getMyNotifications({ unreadOnly: 'true' });
-            if (res?.success) {
-                const count = Array.isArray(res.data) ? res.data.length : (res.data?.total || 0);
-                setUnreadCount(count);
-            }
+            await unreadQuery.refetch();
         } catch (_) {
             // Ignore polling errors silently
         }
-    }, [user]);
+    }, [user, unreadQuery]);
 
     useEffect(() => {
         if (!user) return;
@@ -146,41 +147,18 @@ function AppLayout({ role }) {
         };
     }, [refreshSession, updateUser]);
 
-    // Load active semester info
-    useEffect(() => {
-        let isMounted = true;
+    const semestersQuery = useSemesters(scope);
+    const publicSemestersQuery = usePublicSemesters(scope);
 
-        const loadSemester = async () => {
-            try {
-                let res = await semesterService.getAll();
-                if (!res?.success || !Array.isArray(res.data) || res.data.length === 0) {
-                    res = await semesterService.getPublic();
-                }
-                if (isMounted && res?.success && Array.isArray(res.data)) {
-                    const chosen = resolveCurrentSemester(res.data);
-                    if (chosen) {
-                        setCurrentSemester(chosen);
-                    }
-                }
-            } catch {
-                try {
-                    const pub = await semesterService.getPublic();
-                    if (isMounted && pub?.success && Array.isArray(pub.data)) {
-                        const chosen = resolveCurrentSemester(pub.data);
-                        if (chosen) {
-                            setCurrentSemester(chosen);
-                        }
-                    }
-                } catch {}
-            }
-        };
-
-        loadSemester();
-
-        return () => {
-            isMounted = false;
-        };
-    }, []);
+    const currentSemester = useMemo(() => {
+        const list = (semestersQuery.data && semestersQuery.data.length > 0)
+            ? semestersQuery.data
+            : publicSemestersQuery.data;
+        if (Array.isArray(list) && list.length > 0) {
+            return resolveCurrentSemester(list);
+        }
+        return null;
+    }, [semestersQuery.data, publicSemestersQuery.data]);
 
     // Resolve effective permissions
     const permissionSet = useMemo(() => new Set(user?.permissions || []), [user?.permissions]);
@@ -190,28 +168,15 @@ function AppLayout({ role }) {
         return permissionSet.has('TOPIC_CREATE') || permissionSet.has('MENTOR_REQUEST_REVIEW');
     }, [permissionSet]);
 
-    // Fetch lecturer mentored students count if quota meter is active
-    useEffect(() => {
-        let isMounted = true;
-        if (showQuotaMeter) {
-            registrationService
-                .getAllRegistrations()
-                .then((res) => {
-                    if (isMounted && res?.success && Array.isArray(res.data)) {
-                        const myCount = res.data.filter(
-                            (r) =>
-                                (r.topic?.lecturerId === user?.id || r.topic?.lecturer?.id === user?.id) &&
-                                !['REJECTED', 'DROPPED', 'WITHDRAWN'].includes(r.status)
-                        ).length;
-                        setLecturerStudentCount(myCount);
-                    }
-                })
-                .catch(() => {});
-        }
-        return () => {
-            isMounted = false;
-        };
-    }, [showQuotaMeter, user?.id]);
+    const registrationsQuery = useRegistrations(scope, {}, showQuotaMeter);
+    const lecturerStudentCount = useMemo(() => {
+        if (!showQuotaMeter || !Array.isArray(registrationsQuery.data)) return 0;
+        return registrationsQuery.data.filter(
+            (r) =>
+                (r.topic?.lecturerId === user?.id || r.topic?.lecturer?.id === user?.id) &&
+                !['REJECTED', 'DROPPED', 'WITHDRAWN'].includes(r.status)
+        ).length;
+    }, [showQuotaMeter, registrationsQuery.data, user?.id]);
 
     // Determine role and navigation endpoints
     const currentRole = role || user?.role || 'STUDENT';
@@ -468,9 +433,12 @@ function AppLayout({ role }) {
                 {/* Main Content Area */}
                 <main className="main-area">
                     <div className="content-container">
-                        <ErrorBoundary>
-                            <Outlet />
-                        </ErrorBoundary>
+                        <RouteContentBoundary>
+                            {/* A new pathname reveals its local fallback during router transitions. */}
+                            <Suspense key={location.pathname} fallback={<ContentSkeleton />}>
+                                <Outlet />
+                            </Suspense>
+                        </RouteContentBoundary>
                     </div>
                 </main>
             </div>

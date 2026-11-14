@@ -1,20 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import {
     Modal,
-    Form,
-    Input,
     Button,
     Upload,
     Alert,
-    Typography,
-    Space,
     Flex,
     Tag,
     Divider,
-    Table,
-    Tooltip,
     message,
-    Spin,
 } from 'antd';
 import {
     CloudUploadOutlined,
@@ -22,20 +15,21 @@ import {
     FileWordOutlined,
     FilePptOutlined,
     VideoCameraOutlined,
-    CheckCircleOutlined,
     ClockCircleOutlined,
     LockOutlined,
-    ExclamationCircleOutlined,
     DownloadOutlined,
     ReloadOutlined,
     ScanOutlined,
 } from '@ant-design/icons';
 import uploadService from '../../services/uploadService';
-import archiveService from '../../services/archiveService';
+import { useDefenseDossier, useUploadDefenseDocument, canUploadArchive } from '../../queries/archiveQueries';
+import useAuthStore from '../../stores/authStore';
+import { queryKeys } from '../../query/queryKeys';
+import QueryErrorState from '../common/QueryErrorState';
+import ContentSkeleton from '../common/ContentSkeleton';
+import ContentRefreshIndicator from '../common/ContentRefreshIndicator';
 import aiService from '../../services/aiService';
 import ArchivalCrossCheckModal from '../admin/ArchivalCrossCheckModal';
-
-const { Text, Title, Paragraph } = Typography;
 
 const DOCUMENT_TYPES = [
     {
@@ -79,15 +73,19 @@ export default function ArchiveSubmissionModal({
     onCancel,
     registration,
     registrationId,
-    initialArchive = null,
     onSuccess,
 }) {
     const isOpen = openProp !== undefined ? openProp : visible;
     const handleClose = onClose || onCancel;
     const regId = registration?.id || registrationId;
 
-    const [loading, setLoading] = useState(false);
-    const [dossier, setDossier] = useState(null);
+    const user = useAuthStore(state => state.user);
+    const scope = queryKeys.scope(user);
+    const dossierQuery = useDefenseDossier(scope, regId, { enabled: Boolean(isOpen) });
+    const uploadMutation = useUploadDefenseDocument(scope, regId);
+    const dossier = dossierQuery.data?.data;
+    const loading = dossierQuery.isFetching;
+    const fetchDossier = () => dossierQuery.refetch();
     const [uploadingType, setUploadingType] = useState(null);
 
     // AI Archival Cross-Check state
@@ -116,36 +114,16 @@ export default function ArchiveSubmissionModal({
         }
     };
 
-    const fetchDossier = useCallback(async () => {
-        if (!regId) return;
-        try {
-            setLoading(true);
-            const res = await archiveService.getDefenseDossier(regId);
-            if (res.success) {
-                setDossier(res.data);
-            }
-        } catch (err) {
-            message.error(err?.message || 'Không thể tải hồ sơ lưu chiểu');
-        } finally {
-            setLoading(false);
-        }
-    }, [regId]);
-
-    useEffect(() => {
-        if (isOpen && regId) {
-            fetchDossier();
-        }
-    }, [isOpen, regId, fetchDossier]);
-
     const isWindowClosed = Boolean(dossier?.isWindowClosed);
-    const timeWindows = dossier?.timeWindows || {};
+    const ineligible = !canUploadArchive(registration?.status);
+    const uploadDisabled = !regId || !dossier || dossierQuery.isError || dossierQuery.isFetching || isWindowClosed || ineligible;
     const docs = dossier?.documents || [];
-    const bm03Record = dossier?.bm03Record || registration?.bm03Record;
-    const bm04Record = dossier?.bm04Record || registration?.bm04Record;
+    const bm03Record = dossier?.bm03Record;
+    const bm04Record = dossier?.bm04Record;
 
     const handleUploadFile = async (documentType, file) => {
-        if (isWindowClosed) {
-            message.error('Cổng nộp lưu chiểu đã đóng vào lúc 00:00 ngày thứ 15 sau ngày bảo vệ. Không thể nộp thêm.');
+        if (uploadDisabled) {
+            message.error('Chưa thể nộp tài liệu. Vui lòng kiểm tra trạng thái đề tài và cửa sổ nộp hồ sơ.');
             return false;
         }
 
@@ -154,17 +132,17 @@ export default function ArchiveSubmissionModal({
             message.loading({ content: `Đang tải lên ${documentType}...`, key: documentType });
             const uploadRes = await uploadService.uploadFile(file, 'archives');
             const fileUrl = uploadRes?.data?.url || uploadRes?.url || '';
+            if (!fileUrl || uploadRes?.success === false) throw new Error(uploadRes?.message || 'Không thể tải tệp lên');
 
-            const res = await archiveService.uploadDefenseDocument(regId, {
+            const res = await uploadMutation.mutateAsync({
                 documentType,
                 fileUrl,
                 fileName: file.name,
-                fileSize: file.size,
+                fileSizeBytes: file.size,
             });
 
             if (res.success) {
                 message.success({ content: `Đã nộp thành công: ${file.name}`, key: documentType });
-                await fetchDossier();
                 if (onSuccess) onSuccess();
             } else {
                 message.error({ content: res.message || 'Lỗi khi ghi nhận tài liệu', key: documentType });
@@ -208,20 +186,27 @@ export default function ArchiveSubmissionModal({
                     icon={<ReloadOutlined />}
                     onClick={fetchDossier}
                     loading={loading}
+                    disabled={!regId}
                 >
                     Làm mới hồ sơ
                 </Button>,
             ]}
-            destroyOnClose
+            destroyOnHidden
         >
             <div className="py-2 space-y-4 max-h-[75vh] overflow-y-auto pr-1">
+                {dossierQuery.isError && <QueryErrorState error={dossierQuery.error} onRetry={fetchDossier} retrying={loading} />}
+                {!regId && <Alert type="warning" showIcon title="Chưa có đăng ký đề tài để nộp hồ sơ." />}
+                {regId && dossierQuery.isPending && <ContentSkeleton variant="form" rows={2} />}
+                {dossier && <>
+                <ContentRefreshIndicator refreshing={dossierQuery.isFetching} />
+                {ineligible && <Alert type="warning" showIcon title="Trạng thái đề tài chưa đủ điều kiện nộp hồ sơ lưu chiểu." />}
                 {/* Time Windows & Closing Notice */}
                 {isWindowClosed ? (
                     <Alert
                         type="error"
                         showIcon
                         icon={<LockOutlined />}
-                        message="Cổng nộp hồ sơ lưu chiểu đã đóng (00:00 ngày 15 sau ngày bảo vệ)"
+                        title="Cổng nộp hồ sơ lưu chiểu đã đóng (00:00 ngày 15 sau ngày bảo vệ)"
                         description="Thời hạn 14 ngày bổ sung và hoàn thiện hồ sơ lưu chiểu đã kết thúc. Bạn không thể nộp thêm hoặc sửa đổi tài liệu lưu chiểu."
                     />
                 ) : (
@@ -229,7 +214,7 @@ export default function ArchiveSubmissionModal({
                         type="info"
                         showIcon
                         icon={<ClockCircleOutlined />}
-                        message="Cửa sổ nộp hồ sơ lưu chiểu 14 ngày"
+                        title="Cửa sổ nộp hồ sơ lưu chiểu 14 ngày"
                         description={(
                             <div className="text-xs space-y-1 mt-1">
                                 <div>
@@ -316,14 +301,14 @@ export default function ArchiveSubmissionModal({
                                             beforeUpload={(file) => handleUploadFile(dt.key, file)}
                                             showUploadList={false}
                                             accept={dt.accept}
-                                            disabled={isWindowClosed || isCurrentlyUploading}
+                                            disabled={uploadDisabled || Boolean(uploadingType)}
                                         >
                                             <Button
                                                 size="small"
                                                 type="primary"
                                                 icon={<CloudUploadOutlined />}
                                                 loading={isCurrentlyUploading}
-                                                disabled={isWindowClosed}
+                                                disabled={uploadDisabled || Boolean(uploadingType)}
                                                 className="bg-teal-700 hover:bg-teal-800"
                                             >
                                                 {latestDoc ? 'Nộp version mới' : 'Tải tệp lên'}
@@ -348,30 +333,31 @@ export default function ArchiveSubmissionModal({
                         <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl text-xs space-y-1">
                             <div className="flex items-center justify-between">
                                 <span className="font-bold text-emerald-900">BM03: Nhật ký hướng dẫn & Tiến độ</span>
-                                <Tag color="success">Tự động liên kết</Tag>
+                                <Tag color={bm03Record?.advisorSignedAt ? 'success' : 'warning'}>{!bm03Record ? 'Chưa có bản ghi' : bm03Record.advisorSignedAt ? 'Đã ký số' : 'Chưa ký số'}</Tag>
                             </div>
                             <p className="text-slate-600 text-[11px]">
-                                Toàn bộ lịch họp lab, đánh giá 2 checkpoint và biên bản đã ký số của GVHD và sinh viên.
+                                Nhật ký hướng dẫn và tiến độ được liên kết từ hồ sơ BM03 trên hệ thống.
                             </p>
                             <div className="pt-1 font-semibold text-emerald-800">
-                                Trạng thái: Đã nghiệm thu học phần BM03
+                                {bm03Record?.finalPdfFileUrl ? <Button type="link" href={bm03Record.finalPdfFileUrl} target="_blank" rel="noopener noreferrer" icon={<DownloadOutlined aria-hidden="true" />}>Tải BM03</Button> : 'Chưa có bản PDF BM03'}
                             </div>
                         </div>
 
                         <div className="p-3 bg-teal-50/70 border border-teal-200 rounded-xl text-xs space-y-1">
                             <div className="flex items-center justify-between">
                                 <span className="font-bold text-teal-900">BM04: Phiếu nhận xét của GVHD</span>
-                                <Tag color="success">Tự động liên kết</Tag>
+                                <Tag color={bm04Record?.signedAt ? 'success' : 'warning'}>{!bm04Record ? 'Chưa có bản ghi' : bm04Record.signedAt ? 'Đã ký số' : 'Chưa ký số'}</Tag>
                             </div>
                             <p className="text-slate-600 text-[11px]">
-                                Phiếu nhận xét và kết luận ĐỒNG Ý CHO BẢO VỆ kèm chữ ký số của GVHD.
+                                Phiếu nhận xét của GVHD được liên kết từ hồ sơ BM04 trên hệ thống.
                             </p>
                             <div className="pt-1 font-semibold text-teal-800">
-                                Trạng thái: Đã ký số & Cho phép bảo vệ
+                                {bm04Record?.finalPdfFileUrl ? <Button type="link" href={bm04Record.finalPdfFileUrl} target="_blank" rel="noopener noreferrer" icon={<DownloadOutlined aria-hidden="true" />}>Tải BM04</Button> : 'Chưa có bản PDF BM04'}
                             </div>
                         </div>
                     </div>
                 </div>
+                </>}
             </div>
 
             {/* AI Archival Cross-Check Modal */}

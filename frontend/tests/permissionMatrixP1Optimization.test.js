@@ -94,3 +94,9 @@ test('PermissionGroupPage includes module accordion, filter dimensions, and alia
     );
 });
 
+test('PermissionGroupPage keeps unsaved matrix draft and accordion state independent of server refreshes', () => {
+    assert.match(pageSource, /if \(!data \|\| dirty \|\| appliedMatrixRef\.current === data\) return/);
+    assert.match(pageSource, /if \(!openedModulesRef\.current\)/);
+    assert.match(pageSource, /usePermissionMutation\(scope\)/);
+});
+

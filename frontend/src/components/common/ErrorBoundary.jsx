@@ -1,128 +1,72 @@
-import React, { Component } from 'react';
-import { Result, Button, Typography, Space } from 'antd';
-import { ReloadOutlined, HomeOutlined } from '@ant-design/icons';
-
-const { Paragraph, Text } = Typography;
+import { Component } from 'react';
+import { Button, Result, Space } from 'antd';
+import { ArrowLeftOutlined, ReloadOutlined } from '@ant-design/icons';
+import QueryErrorState from './QueryErrorState';
+import { isChunkLoadError } from '../../utils/chunkError';
 
 class ErrorBoundary extends Component {
-    constructor(props) {
-        super(props);
-        this.state = {
-            hasError: false,
-            error: null,
-        };
-    }
+    state = { hasError: false, error: null };
 
     static getDerivedStateFromError(error) {
-        return {
-            hasError: true,
-            error,
-        };
+        return { hasError: true, error };
     }
 
     componentDidCatch(error, errorInfo) {
         console.error('ErrorBoundary caught an unhandled error:', error, errorInfo);
     }
 
-    handleReload = () => {
-        window.location.reload();
-    };
-
-    handleGoHome = () => {
-        window.location.href = '/';
-    };
+    componentDidUpdate(previousProps) {
+        const keys = this.props.resetKeys || [];
+        const previousKeys = previousProps.resetKeys || [];
+        if (this.state.hasError && (keys.length !== previousKeys.length
+            || keys.some((value, index) => value !== previousKeys[index]))) {
+            this.handleReset();
+        }
+    }
 
     handleReset = () => {
         this.setState({ hasError: false, error: null });
     };
 
     render() {
-        if (this.state.hasError) {
-            if (this.props.fallbackComponent) {
-                return typeof this.props.fallbackComponent === 'function'
-                    ? this.props.fallbackComponent({ error: this.state.error, resetError: this.handleReset })
-                    : this.props.fallbackComponent;
-            }
+        if (!this.state.hasError) return this.props.children;
 
-            const errorMessage = this.state.error?.message || 'Đã có lỗi bất ngờ xảy ra trong quá trình hiển thị.';
-
-            return (
-                <div
-                    style={{
-                        minHeight: '60vh',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        padding: '24px',
-                    }}
-                >
-                    <div
-                        style={{
-                            maxWidth: 640,
-                            width: '100%',
-                            background: '#FFFFFF',
-                            borderRadius: 12,
-                            border: '1px solid #E2E8F0',
-                            boxShadow: '0 4px 6px -1px rgba(15, 23, 42, 0.08), 0 2px 4px -2px rgba(15, 23, 42, 0.08)',
-                            padding: '32px 24px',
-                        }}
-                    >
-                        <Result
-                            status="error"
-                            title={<span style={{ color: '#0F172A', fontWeight: 700 }}>Đã xảy ra sự cố hiển thị</span>}
-                            subTitle={
-                                <span style={{ color: '#475569' }}>
-                                    Hệ thống ghi nhận ngoại lệ khi dựng giao diện. Bạn có thể tải lại trang hoặc quay về trang chủ để tiếp tục làm việc.
-                                </span>
-                            }
-                            extra={
-                                <Space orientation="horizontal" size="middle">
-                                    <Button
-                                        type="primary"
-                                        icon={<ReloadOutlined />}
-                                        onClick={this.handleReload}
-                                        style={{ backgroundColor: '#0F766E', borderColor: '#0F766E' }}
-                                    >
-                                        Tải lại trang
-                                    </Button>
-                                    <Button
-                                        icon={<HomeOutlined />}
-                                        onClick={this.handleGoHome}
-                                    >
-                                        Về trang chủ
-                                    </Button>
-                                </Space>
-                            }
-                        >
-                            {process.env.NODE_ENV !== 'production' && this.state.error && (
-                                <div
-                                    style={{
-                                        textAlign: 'left',
-                                        background: '#F8FAFC',
-                                        borderRadius: 8,
-                                        border: '1px solid #CBD5E1',
-                                        padding: '12px 16px',
-                                        marginTop: 16,
-                                    }}
-                                >
-                                    <Text type="secondary" style={{ fontSize: 12, fontWeight: 600 }}>
-                                        Chi tiết lỗi kỹ thuật:
-                                    </Text>
-                                    <Paragraph
-                                        ellipsis={{ rows: 3, expandable: true, symbol: 'Xem thêm' }}
-                                        style={{ color: '#DC2626', fontFamily: 'monospace', fontSize: 12, margin: '8px 0 0 0' }}
-                                    >
-                                        {errorMessage}
-                                    </Paragraph>
-                                </div>
-                            )}
-                        </Result>
-                    </div>
-                </div>
-            );
+        if (this.props.fallbackComponent) {
+            return typeof this.props.fallbackComponent === 'function'
+                ? this.props.fallbackComponent({ error: this.state.error, resetError: this.handleReset })
+                : this.props.fallbackComponent;
         }
 
-        return this.props.children;
+        const chunkFailure = isChunkLoadError(this.state.error);
+        return (
+            <div className="min-h-[40vh] py-6">
+                {chunkFailure ? (
+                    <section role="alert" className="rounded-lg border border-slate-200 bg-white p-4">
+                        <Result status="error" title="Không thể tải phiên bản trang"
+                            subTitle="Vui lòng tải lại trang để tiếp tục."
+                            extra={(
+                                <Space wrap>
+                                    <Button type="primary" icon={<ReloadOutlined aria-hidden="true" />} onClick={() => window.location.reload()}>Tải lại trang</Button>
+                                    {this.props.onBack && <Button icon={<ArrowLeftOutlined aria-hidden="true" />} onClick={this.props.onBack}>Quay lại</Button>}
+                                </Space>
+                            )}
+                        />
+                    </section>
+                ) : (
+                    <QueryErrorState
+                        error={{ message: 'Đã xảy ra sự cố hiển thị. Bạn có thể thử lại hoặc quay lại trang trước.' }}
+                        onRetry={this.handleReset}
+                        onBack={this.props.onBack}
+                    />
+                )}
+                {!import.meta.env.PROD && this.state.error && (
+                    <details className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm">
+                        <summary>Chi tiết lỗi kỹ thuật</summary>
+                        <pre className="mt-2 whitespace-pre-wrap break-words text-red-700">{this.state.error.stack || this.state.error.message}</pre>
+                    </details>
+                )}
+            </div>
+        );
     }
 }
 

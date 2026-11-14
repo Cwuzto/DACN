@@ -220,6 +220,9 @@ test('Step 4: 409 PERMISSION_VERSION_STALE on mutation WITHOUT Idempotency-Key r
     } catch (err) {
         assert.equal(authMeCalled, 1, '/auth/me should be called to refresh token');
         assert.equal(mutationAttempts, 1, 'Mutation should NOT be replayed automatically');
+        assert.equal(err.status, 409);
+        assert.equal(err.success, false);
+        assert.equal(err.code, 'PERMISSION_VERSION_STALE');
         assert.equal(err.requiresUserConfirmation, true, 'Error must indicate requiresUserConfirmation: true');
         assert.match(err.message, /Vui lòng xác nhận để gửi lại thao tác/);
         assert.equal(localStorage.getItem('token'), 'new-token-666', 'Token should still be updated in storage');
@@ -252,6 +255,8 @@ test('Step 5: 403 Forbidden strictly preserves session and token (no logout redi
         await api.get('/evaluations/councils/c1/score-sheet');
         assert.fail('Should throw 403');
     } catch (err) {
+        assert.equal(err.status, 403);
+        assert.equal(err.success, false);
         assert.equal(err.message, 'Bạn không có quyền truy cập hội đồng này (COI).');
         assert.equal(localStorage.getItem('token'), 'valid-active-token-777', 'Token MUST be preserved on 403');
         assert.ok(localStorage.getItem('user'), 'User MUST be preserved on 403');
@@ -283,7 +288,9 @@ test('Step 6: 401 Unauthorized or ACCOUNT_DISABLED clears storage and redirects'
     try {
         await api.get('/student/profile');
         assert.fail('Should throw 401');
-    } catch {
+    } catch (err) {
+        assert.equal(err.status, 401);
+        assert.equal(err.code, 'ACCOUNT_DISABLED');
         assert.equal(localStorage.getItem('token'), null, 'Token should be cleared on 401');
         assert.equal(localStorage.getItem('user'), null, 'User should be cleared on 401');
         assert.equal(globalThis.window.location._replaced, '/', 'Should redirect to / on 401');
@@ -334,3 +341,118 @@ test('Step 8: AppLayout integrates window.focus, visibilitychange, and Broadcast
     assert.match(layoutSource, /dacn_auth_sync/, 'AppLayout should listen on dacn_auth_sync BroadcastChannel');
     assert.match(layoutSource, /PERMISSION_VERSION_UPDATED|PERMISSIONS_UPDATED/, 'AppLayout should handle permission update messages');
 });
+
+// Exercise the HTTP boundary without replacing the response interceptor itself.
+for (const status of [409, 500]) {
+    test(`HTTP ${status} rejection retains backend metadata`, async (t) => {
+        const originalAdapter = api.defaults.adapter;
+        t.after(() => { api.defaults.adapter = originalAdapter; });
+        api.defaults.adapter = async (config) => {
+            throw Object.assign(new Error('HTTP failure'), {
+                config, response: { status, data: { message: 'Backend failure', details: { id: 'r1' }, errors: ['invalid'] } },
+            });
+        };
+        await assert.rejects(api.get('/metadata'), (error) => {
+            assert.equal(error.success, false);
+            assert.equal(error.status, status);
+            assert.equal(error.message, 'Backend failure');
+            assert.deepEqual(error.details, { id: 'r1' });
+            assert.deepEqual(error.errors, ['invalid']);
+            return true;
+        });
+    });
+}
+
+test('HTTP success with success:false remains a rejected business failure', async (t) => {
+    const originalAdapter = api.defaults.adapter;
+    t.after(() => { api.defaults.adapter = originalAdapter; });
+    api.defaults.adapter = async (config) => ({
+        status: 200, headers: {}, config,
+        data: { success: false, message: 'Validation failed', errors: ['invalid'] },
+    });
+    await assert.rejects(api.get('/business-failure'), (error) => {
+        assert.equal(error.success, false);
+        assert.equal(error.status, 200);
+        assert.deepEqual(error.errors, ['invalid']);
+        return true;
+    });
+});
+
+test('network rejection retains its transport code', async (t) => {
+    const originalAdapter = api.defaults.adapter;
+    t.after(() => { api.defaults.adapter = originalAdapter; });
+    api.defaults.adapter = async (config) => {
+        throw Object.assign(new Error('Network Error'), { code: 'ERR_NETWORK', config });
+    };
+    await assert.rejects(api.get('/offline'), (error) => {
+        assert.equal(error.success, false);
+        assert.equal(error.code, 'ERR_NETWORK');
+        return true;
+    });
+});
+
+for (const [label, modulePath, method, args] of [
+    ['archive', '../src/services/archiveService.js', 'getArchiveByRegistration', ['r1']],
+    ['evaluation', '../src/services/evaluationService.js', 'getMyGrades', []],
+]) {
+    test(`${label} wrapper preserves error metadata and successful response contracts`, async (t) => {
+        const service = (await import(modulePath)).default;
+        const originalAdapter = api.defaults.adapter;
+        t.after(() => { api.defaults.adapter = originalAdapter; });
+        api.defaults.adapter = async (config) => {
+            throw Object.assign(new Error('HTTP failure'), {
+                config, response: { status: 503, data: { message: 'Unavailable', errors: ['retry later'] } },
+            });
+        };
+        await assert.rejects(service[method](...args), (error) => {
+            assert.equal(error.success, false);
+            assert.equal(error.status, 503);
+            assert.equal(error.message, 'Unavailable');
+            assert.deepEqual(error.errors, ['retry later']);
+            return true;
+        });
+        api.defaults.adapter = async (config) => ({ status: 200, headers: {}, config, data: { success: true, data: ['r1'] } });
+        assert.deepEqual(await service[method](...args), { success: true, data: ['r1'] });
+
+        const originalGet = api.get;
+        t.after(() => { api.get = originalGet; });
+        api.get = async () => {
+            throw Object.assign(new Error('Axios message'), {
+                response: { status: 422, data: { message: 'Validation failed', errors: ['invalid'] } },
+            });
+        };
+        await assert.rejects(service[method](...args), (error) => {
+            assert.equal(error.status, 422);
+            assert.equal(error.message, 'Validation failed');
+            assert.deepEqual(error.errors, ['invalid']);
+            return true;
+        });
+    });
+}
+
+for (const scenario of ['second stale response', 'refresh failure']) {
+    test(`${scenario} retains failure status after session refresh`, async (t) => {
+        const originalAdapter = api.defaults.adapter;
+        const originalAxiosGet = axios.get;
+        t.after(() => { api.defaults.adapter = originalAdapter; axios.get = originalAxiosGet; });
+        axios.get = async () => {
+            if (scenario === 'refresh failure') {
+                throw Object.assign(new Error('Refresh failed'), { response: { status: 500, data: { message: 'Refresh unavailable' } } });
+            }
+            return { data: { token: 'fresh-token', data: { id: 'u1' } } };
+        };
+        let attempts = 0;
+        api.defaults.adapter = async (config) => {
+            attempts++;
+            throw Object.assign(new Error('Stale session'), {
+                config, response: { status: 409, data: { error: 'PERMISSION_VERSION_STALE' } },
+            });
+        };
+        await assert.rejects(api.get('/stale-again'), (error) => {
+            assert.equal(error.success, false);
+            assert.equal(error.status, scenario === 'refresh failure' ? 500 : 409);
+            return true;
+        });
+        assert.equal(attempts, scenario === 'refresh failure' ? 1 : 2);
+    });
+}

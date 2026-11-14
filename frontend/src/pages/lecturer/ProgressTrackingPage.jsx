@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button, Tag, Alert, Select, Radio, Input, Space, Popconfirm, message } from 'antd';
 import {
     PlusOutlined,
@@ -14,20 +15,27 @@ import {
     ExclamationCircleOutlined,
     TeamOutlined,
     HistoryOutlined,
+    CloseOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
-import registrationService from '../../services/registrationService';
 import taskService from '../../services/taskService';
 import meetingLogService from '../../services/meetingLogService';
 import archiveService from '../../services/archiveService';
-import PageLoader from '../../components/common/PageLoader';
 import BM04EvaluationModal from '../../components/lecturer/BM04EvaluationModal';
 import CheckpointIssueModal from '../../components/lecturer/CheckpointIssueModal';
 import ClearanceCertificateModal from '../../components/forms/ClearanceCertificateModal';
 import RegistrationTimelineDrawer from '../../components/common/RegistrationTimelineDrawer';
 import evaluationService from '../../services/evaluationService';
 import useAuthStore from '../../stores/authStore';
+import { queryKeys } from '../../query/queryKeys';
+import { useRegistrations } from '../../queries/registrationQueries';
+import { useTasksByRegistration, useTaskMutation } from '../../queries/taskQueries';
+import { useMeetingLogs, useBM03Record, useMeetingMutation } from '../../queries/meetingQueries';
+import { useCheckpointEvaluations, useCheckpointMutation } from '../../queries/checkpointQueries';
+import { useStudentArchive } from '../../queries/archiveQueries';
+import QueryPanel from '../../components/common/QueryPanel';
+import ContentSkeleton from '../../components/common/ContentSkeleton';
 
 /**
  * ProgressTrackingPage — 100% OpenDesign Golden Standard
@@ -53,12 +61,23 @@ export default function ProgressTrackingPage() {
         return null;
     };
 
-    const [loading, setLoading] = useState(true);
-    const [students, setStudents] = useState([]);
+    const queryClient = useQueryClient();
+    const currentUser = useAuthStore((s) => s.user);
+    const scope = useMemo(() => queryKeys.scope(currentUser), [currentUser]);
+
+    const registrationsQuery = useRegistrations(scope);
+    const rawStudents = useMemo(
+        () => (Array.isArray(registrationsQuery.data) ? registrationsQuery.data : []),
+        [registrationsQuery.data]
+    );
+    const students = useMemo(
+        () => rawStudents.filter((r) => !['PENDING', 'REJECTED', 'WITHDRAWN', 'DROPPED'].includes(r.status)),
+        [rawStudents]
+    );
+
     const [selectedStudent, setSelectedStudent] = useState(null);
     const [studentSearch, setStudentSearch] = useState('');
     const [activeTab, setActiveTab] = useState(() => resolveTabKey(tabParam) || 'tasks'); // 'tasks' | 'meeting-logs' | 'checkpoints' | 'archive'
-    const currentUser = useAuthStore((s) => s.user);
 
     useEffect(() => {
         const resolved = resolveTabKey(tabParam);
@@ -80,11 +99,55 @@ export default function ProgressTrackingPage() {
         setSearchParams(nextParams, { replace: true });
     };
 
-    // Selected student data
-    const [tasks, setTasks] = useState([]);
-    const [meetingLogs, setMeetingLogs] = useState([]);
-    const [checkpoints, setCheckpoints] = useState([]);
-    const [archiveData, setArchiveData] = useState(null);
+    // Auto-select first matching student
+    useEffect(() => {
+        if (students.length > 0) {
+            setSelectedStudent((current) => {
+                if (paramRegId) {
+                    const found = students.find((s) => String(s.id) === String(paramRegId));
+                    if (found) return found;
+                }
+                if (current && students.some((s) => s.id === current.id)) {
+                    return students.find((s) => s.id === current.id);
+                }
+                return students[0];
+            });
+        } else {
+            setSelectedStudent(null);
+        }
+    }, [students, paramRegId]);
+
+    const selectedRegId = selectedStudent?.id || null;
+    const isStudentSelected = Boolean(selectedRegId);
+
+    // Queries gated on selected student
+    const tasksQuery = useTasksByRegistration(scope, selectedRegId, isStudentSelected);
+    const meetingLogsQuery = useMeetingLogs(scope, selectedRegId, isStudentSelected);
+    const bm03Query = useBM03Record(scope, selectedRegId, isStudentSelected);
+    const checkpointsQuery = useCheckpointEvaluations(scope, selectedRegId, isStudentSelected);
+    const archiveQuery = useStudentArchive(scope, selectedRegId, isStudentSelected);
+
+    const taskMutation = useTaskMutation(scope, selectedRegId);
+    const meetingMutation = useMeetingMutation(scope, selectedRegId);
+    const checkpointMutation = useCheckpointMutation(scope, selectedRegId);
+
+    // Selected student data derived from queries
+    const tasks = useMemo(() => (Array.isArray(tasksQuery.data) ? tasksQuery.data : []), [tasksQuery.data]);
+    const bm03Record = bm03Query.data || null;
+    const meetingLogs = useMemo(() => {
+        const meetings = bm03Record?.meetings || bm03Record?.meetingEntries || [];
+        if (meetings.length > 0) return meetings;
+        return Array.isArray(meetingLogsQuery.data) ? meetingLogsQuery.data : [];
+    }, [bm03Record, meetingLogsQuery.data]);
+    const checkpoints = useMemo(
+        () => (Array.isArray(checkpointsQuery.data) ? checkpointsQuery.data : []),
+        [checkpointsQuery.data]
+    );
+    const archiveData = useMemo(
+        () => archiveQuery.data?.archive || archiveQuery.data?.data?.archive || archiveQuery.data || null,
+        [archiveQuery.data]
+    );
+
     const [mentorReviewNotes, setMentorReviewNotes] = useState('');
     const [mentorReviewing, setMentorReviewing] = useState(false);
 
@@ -118,7 +181,6 @@ export default function ProgressTrackingPage() {
     const [signingMeetingId, setSigningMeetingId] = useState(null);
 
     // BM03 State & Stage Evaluations
-    const [bm03Record, setBm03Record] = useState(null);
     const [signingWholeBm03, setSigningWholeBm03] = useState(false);
     const [midtermDecision, setMidtermDecision] = useState('CONTINUE');
     const [midtermComments, setMidtermComments] = useState('');
@@ -128,82 +190,33 @@ export default function ProgressTrackingPage() {
     const [finalComments, setFinalComments] = useState('');
     const [finalSubmitting, setFinalSubmitting] = useState(false);
 
-    // Fetch initial student list
+    // Sync stage evaluation values from BM03 record
     useEffect(() => {
-        const fetchStudents = async () => {
-            try {
-                setLoading(true);
-                const res = await registrationService.getAllRegistrations();
-                if (res.success && Array.isArray(res.data)) {
-                    const active = res.data.filter(
-                        (r) => !['PENDING', 'REJECTED', 'WITHDRAWN', 'DROPPED'].includes(r.status)
-                    );
-                    setStudents(active);
-
-                    if (active.length > 0) {
-                        const target = paramRegId
-                            ? active.find((s) => String(s.id) === String(paramRegId)) || active[0]
-                            : active[0];
-                        setSelectedStudent(target);
-                    }
-                }
-            } catch {
-                message.error('Không thể tải danh sách sinh viên hướng dẫn');
-            } finally {
-                setLoading(false);
+        if (bm03Record) {
+            const stageEvals = bm03Record?.stageEvaluations || [];
+            const midterm = bm03Record.midtermStageEvaluation || stageEvals.find((e) => e.stage === 'MIDTERM');
+            if (midterm) {
+                setMidtermDecision(midterm.decision || 'CONTINUE');
+                setMidtermComments(midterm.comments || '');
             }
-        };
-
-        fetchStudents();
-    }, [paramRegId]);
+            const final = bm03Record.finalStageEvaluation || stageEvals.find((e) => e.stage === 'FINAL');
+            if (final) {
+                setFinalDecision(final.decision || 'CONTINUE_TO_BM04');
+                setFinalComments(final.comments || '');
+            }
+        }
+    }, [bm03Record]);
 
     const loadStudentDetails = useCallback(async () => {
-        if (!selectedStudent?.id) return;
-        try {
-            const [taskRes, logRes, arcRes, cpRes, bm03Res] = await Promise.all([
-                taskService.getTasksByRegistration(selectedStudent.id).catch(() => ({ success: false, data: [] })),
-                meetingLogService.getMeetingLogs(selectedStudent.id).catch(() => ({ success: false, data: [] })),
-                archiveService.getArchiveByRegistration(selectedStudent.id).catch(() => ({ success: false, data: null })),
-                evaluationService.getCheckpointEvaluations(selectedStudent.id).catch(() => ({ success: false, data: [] })),
-                evaluationService.getBM03Record(selectedStudent.id).catch(() => ({ success: false, data: null })),
-            ]);
-
-            if (taskRes.success) setTasks(taskRes.data || []);
-            if (arcRes.success) setArchiveData(arcRes.data?.archive || null);
-            if (cpRes.success) setCheckpoints(cpRes.data || []);
-
-            if (bm03Res?.success && bm03Res.data) {
-                setBm03Record(bm03Res.data);
-                const meetings = bm03Res.data?.meetings || bm03Res.data?.meetingEntries || [];
-                if (meetings.length > 0) {
-                    setMeetingLogs(meetings);
-                } else if (logRes.success) {
-                    setMeetingLogs(logRes.data || []);
-                }
-                const stageEvals = bm03Res.data?.stageEvaluations || [];
-                const midterm = bm03Res.data.midtermStageEvaluation || stageEvals.find((e) => e.stage === 'MIDTERM');
-                if (midterm) {
-                    setMidtermDecision(midterm.decision || 'CONTINUE');
-                    setMidtermComments(midterm.comments || '');
-                }
-                const final = bm03Res.data.finalStageEvaluation || stageEvals.find((e) => e.stage === 'FINAL');
-                if (final) {
-                    setFinalDecision(final.decision || 'CONTINUE_TO_BM04');
-                    setFinalComments(final.comments || '');
-                }
-            } else if (logRes.success) {
-                setMeetingLogs(logRes.data || []);
-            }
-        } catch {
-            // Ignore silent load errors
-        }
-    }, [selectedStudent?.id]);
-
-    // Fetch details for selected student
-    useEffect(() => {
-        if (!selectedStudent?.id) return;
-        loadStudentDetails();
-    }, [selectedStudent?.id, loadStudentDetails]);
+        if (!selectedRegId) return;
+        await Promise.all([
+            tasksQuery.refetch(),
+            meetingLogsQuery.refetch(),
+            bm03Query.refetch(),
+            checkpointsQuery.refetch(),
+            archiveQuery.refetch(),
+        ]);
+    }, [selectedRegId, tasksQuery, meetingLogsQuery, bm03Query, checkpointsQuery, archiveQuery]);
 
     const filteredStudents = useMemo(() => {
         if (!studentSearch.trim()) return students;
@@ -225,22 +238,20 @@ export default function ProgressTrackingPage() {
 
         try {
             setTaskSubmitting(true);
-            const res = await taskService.createTask({
-                registrationId: selectedStudent.id,
-                title: `Tuần ${taskWeek}: ${taskTitle.trim()}`,
-                description: taskDesc.trim() || undefined,
-                dueDate: new Date(taskDueDate),
-                taskType: 'PROGRESS_REPORT',
+            await taskMutation.mutateAsync({
+                action: 'createTask',
+                args: [{
+                    registrationId: selectedStudent.id,
+                    title: `Tuần ${taskWeek}: ${taskTitle.trim()}`,
+                    description: taskDesc.trim() || undefined,
+                    dueDate: new Date(taskDueDate),
+                    taskType: 'PROGRESS_REPORT',
+                }],
             });
-
-            if (res.success) {
-                message.success('Đã giao nhiệm vụ mới cho sinh viên!');
-                setNewTaskModalOpen(false);
-                setTaskTitle('');
-                setTaskDesc('');
-                const updatedTasks = await taskService.getTasksByRegistration(selectedStudent.id);
-                if (updatedTasks.success) setTasks(updatedTasks.data || []);
-            }
+            message.success('Đã giao nhiệm vụ mới cho sinh viên!');
+            setNewTaskModalOpen(false);
+            setTaskTitle('');
+            setTaskDesc('');
         } catch (error) {
             message.error(error?.message || 'Không thể tạo nhiệm vụ');
         } finally {
@@ -256,29 +267,26 @@ export default function ProgressTrackingPage() {
 
         try {
             setMeetingSubmitting(true);
-            const res = await evaluationService.createMeetingEntry(selectedStudent.id, {
-                meetingDate: new Date(meetingDate),
-                meetingMode: meetingLocation.includes('Meet') || meetingLocation.includes('Online') ? 'ONLINE' : meetingMode,
-                locationOrLink: meetingLocation.trim(),
-                discussionContent: meetingContent.trim(),
-                studentCompletedWork: studentCompletedWork.trim() || undefined,
-                remainingIssues: remainingIssues.trim() || undefined,
-                nextTasks: meetingNextTask.trim() || undefined,
-                expectedDeadline: expectedDeadline ? new Date(expectedDeadline) : undefined,
-                progressRating,
+            await meetingMutation.mutateAsync({
+                action: 'createMeetingEntry',
+                args: [selectedStudent.id, {
+                    meetingDate: new Date(meetingDate),
+                    meetingMode: meetingLocation.includes('Meet') || meetingLocation.includes('Online') ? 'ONLINE' : meetingMode,
+                    locationOrLink: meetingLocation.trim(),
+                    discussionContent: meetingContent.trim(),
+                    studentCompletedWork: studentCompletedWork.trim() || undefined,
+                    remainingIssues: remainingIssues.trim() || undefined,
+                    nextTasks: meetingNextTask.trim() || undefined,
+                    expectedDeadline: expectedDeadline ? new Date(expectedDeadline) : undefined,
+                    progressRating,
+                }],
             });
-
-            if (res.success) {
-                message.success('Đã ghi nhận nhật ký buổi hướng dẫn BM03 thành công!');
-                setMeetingModalOpen(false);
-                setMeetingContent('');
-                setStudentCompletedWork('');
-                setRemainingIssues('');
-                setMeetingNextTask('');
-                loadStudentDetails();
-            } else {
-                message.error(res.message || 'Không thể lưu nhật ký');
-            }
+            message.success('Đã ghi nhận nhật ký buổi hướng dẫn BM03 thành công!');
+            setMeetingModalOpen(false);
+            setMeetingContent('');
+            setStudentCompletedWork('');
+            setRemainingIssues('');
+            setMeetingNextTask('');
         } catch (error) {
             message.error(error?.message || 'Không thể lưu nhật ký');
         } finally {
@@ -289,15 +297,13 @@ export default function ProgressTrackingPage() {
     const handleSignMeetingEntry = async (meetingId) => {
         try {
             setSigningMeetingId(meetingId);
-            const res = await evaluationService.signMeetingEntry(meetingId, {
-                signatureImageId: currentUser?.signatureImageId || null,
+            await meetingMutation.mutateAsync({
+                action: 'signMeetingEntry',
+                args: [meetingId, {
+                    signatureImageId: currentUser?.signatureImageId || null,
+                }],
             });
-            if (res.success) {
-                message.success('Đã ký khóa buổi hướng dẫn thành công!');
-                loadStudentDetails();
-            } else {
-                message.error(res.message || 'Không thể ký khóa buổi hướng dẫn');
-            }
+            message.success('Đã ký khóa buổi hướng dẫn thành công!');
         } catch (error) {
             message.error(error?.message || 'Lỗi khi ký khóa buổi hướng dẫn');
         } finally {
@@ -312,17 +318,15 @@ export default function ProgressTrackingPage() {
         }
         try {
             setMidtermSubmitting(true);
-            const res = await evaluationService.submitStageEvaluation(selectedStudent.id, {
-                stage: 'MIDTERM',
-                decision: midtermDecision,
-                comments: midtermComments.trim(),
+            await meetingMutation.mutateAsync({
+                action: 'submitStageEvaluation',
+                args: [selectedStudent.id, {
+                    stage: 'MIDTERM',
+                    decision: midtermDecision,
+                    comments: midtermComments.trim(),
+                }],
             });
-            if (res.success) {
-                message.success('Đã lưu đánh giá giữa kỳ thành công!');
-                loadStudentDetails();
-            } else {
-                message.error(res.message || 'Không thể lưu đánh giá giữa kỳ');
-            }
+            message.success('Đã lưu đánh giá giữa kỳ thành công!');
         } catch (error) {
             message.error(error?.message || 'Lỗi khi lưu đánh giá giữa kỳ');
         } finally {
@@ -337,17 +341,15 @@ export default function ProgressTrackingPage() {
         }
         try {
             setFinalSubmitting(true);
-            const res = await evaluationService.submitStageEvaluation(selectedStudent.id, {
-                stage: 'FINAL',
-                decision: finalDecision,
-                comments: finalComments.trim(),
+            await meetingMutation.mutateAsync({
+                action: 'submitStageEvaluation',
+                args: [selectedStudent.id, {
+                    stage: 'FINAL',
+                    decision: finalDecision,
+                    comments: finalComments.trim(),
+                }],
             });
-            if (res.success) {
-                message.success('Đã lưu đánh giá cuối kỳ thành công!');
-                loadStudentDetails();
-            } else {
-                message.error(res.message || 'Không thể lưu đánh giá cuối kỳ');
-            }
+            message.success('Đã lưu đánh giá cuối kỳ thành công!');
         } catch (error) {
             message.error(error?.message || 'Lỗi khi lưu đánh giá cuối kỳ');
         } finally {
@@ -362,15 +364,13 @@ export default function ProgressTrackingPage() {
         }
         try {
             setSigningWholeBm03(true);
-            const res = await evaluationService.advisorSignWholeBM03(bm03Record.id, {
-                signatureImageId: currentUser?.signatureImageId || null,
+            await meetingMutation.mutateAsync({
+                action: 'advisorSignWholeBM03',
+                args: [bm03Record.id, {
+                    signatureImageId: currentUser?.signatureImageId || null,
+                }],
             });
-            if (res.success) {
-                message.success('Đã ký xác nhận toàn phiếu BM03 thành công! Sinh viên có 48 giờ để xác nhận.');
-                loadStudentDetails();
-            } else {
-                message.error(res.message || 'Không thể ký toàn phiếu BM03');
-            }
+            message.success('Đã ký xác nhận toàn phiếu BM03 thành công! Sinh viên có 48 giờ để xác nhận.');
         } catch (error) {
             message.error(error?.message || 'Lỗi khi ký toàn phiếu BM03');
         } finally {
@@ -391,7 +391,9 @@ export default function ProgressTrackingPage() {
             });
             if (res.success) {
                 message.success('Đã cập nhật đánh giá hồ sơ lưu chiểu thành công!');
-                loadStudentDetails();
+                await queryClient.invalidateQueries({
+                    queryKey: queryKeys.archives.detail(scope, selectedRegId),
+                });
             } else {
                 message.error(res.message || 'Thao tác không thành công.');
             }
@@ -401,10 +403,6 @@ export default function ProgressTrackingPage() {
             setMentorReviewing(false);
         }
     };
-
-    if (loading) {
-        return <PageLoader />;
-    }
 
     const reg = selectedStudent;
     const progress = reg?.progressPercent ?? (reg?.status === 'COMPLETED' || reg?.status === 'DEFENDED' ? 100 : 0);
@@ -455,45 +453,47 @@ export default function ProgressTrackingPage() {
                         />
                     </div>
 
-                    <div className="student-cards-scroll" id="student-select-list">
-                        {filteredStudents.length === 0 ? (
-                            <div style={{ padding: 24, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>
-                                Không tìm thấy sinh viên nào.
-                            </div>
-                        ) : (
-                            filteredStudents.map((s) => {
-                                const isSel = s.id === reg?.id;
-                                const sPassed = s.status === 'COMPLETED' || s.status === 'DEFENDED' || s.status === 'DEFENSE_READY';
-                                const sProgress = s.progressPercent ?? (sPassed ? 100 : 0);
-                                const sRisk = sProgress < 50;
-                                const logCount = s._count?.meetingLogs ?? s.meetingLogs?.length ?? 0;
+                    <QueryPanel query={registrationsQuery}>
+                        <div className="student-cards-scroll" id="student-select-list">
+                            {filteredStudents.length === 0 ? (
+                                <div style={{ padding: 24, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>
+                                    Không tìm thấy sinh viên nào.
+                                </div>
+                            ) : (
+                                filteredStudents.map((s) => {
+                                    const isSel = s.id === reg?.id;
+                                    const sPassed = s.status === 'COMPLETED' || s.status === 'DEFENDED' || s.status === 'DEFENSE_READY';
+                                    const sProgress = s.progressPercent ?? (sPassed ? 100 : 0);
+                                    const sRisk = sProgress < 50;
+                                    const logCount = s._count?.meetingLogs ?? s.meetingLogs?.length ?? 0;
 
-                                return (
-                                    <div
-                                        key={s.id}
-                                        className={`student-item-card ${isSel ? 'selected' : ''}`}
-                                        onClick={() => setSelectedStudent(s)}
-                                    >
-                                        <div className="student-card-top">
-                                            <span className="student-card-name">{s.student?.fullName}</span>
-                                            <span className={`tag ${sPassed ? 'green' : sRisk ? 'red' : 'blue'}`}>
-                                                {sPassed ? 'Đủ điều kiện BV' : sRisk ? 'Nguy cơ trễ' : 'Đang làm'}
-                                            </span>
+                                    return (
+                                        <div
+                                            key={s.id}
+                                            className={`student-item-card ${isSel ? 'selected' : ''}`}
+                                            onClick={() => setSelectedStudent(s)}
+                                        >
+                                            <div className="student-card-top">
+                                                <span className="student-card-name">{s.student?.fullName}</span>
+                                                <span className={`tag ${sPassed ? 'green' : sRisk ? 'red' : 'blue'}`}>
+                                                    {sPassed ? 'Đủ điều kiện BV' : sRisk ? 'Nguy cơ trễ' : 'Đang làm'}
+                                                </span>
+                                            </div>
+                                            <div className="student-card-topic">
+                                                {s.topic?.code || 'DT'}: {s.topic?.title}
+                                            </div>
+                                            <div className="student-card-foot">
+                                                <span>MSSV: {s.student?.code}</span>
+                                                <strong style={{ color: logCount >= 5 ? 'var(--primary)' : 'var(--warning)' }}>
+                                                    {logCount} buổi gặp
+                                                </strong>
+                                            </div>
                                         </div>
-                                        <div className="student-card-topic">
-                                            {s.topic?.code || 'DT'}: {s.topic?.title}
-                                        </div>
-                                        <div className="student-card-foot">
-                                            <span>MSSV: {s.student?.code}</span>
-                                            <strong style={{ color: logCount >= 5 ? 'var(--primary)' : 'var(--warning)' }}>
-                                                {logCount} buổi gặp
-                                            </strong>
-                                        </div>
-                                    </div>
-                                );
-                            })
-                        )}
-                    </div>
+                                    );
+                                })
+                            )}
+                        </div>
+                    </QueryPanel>
                 </div>
 
                 {/* Right Column: Detailed Supervision Workspace */}
@@ -619,57 +619,59 @@ export default function ProgressTrackingPage() {
                                     </Button>
                                 </div>
 
-                                <div className="table-wrap">
-                                    <table>
-                                        <thead>
-                                            <tr>
-                                                <th>Nhiệm vụ</th>
-                                                <th>Mô tả / Yêu cầu</th>
-                                                <th>Hạn nộp</th>
-                                                <th>Trạng thái</th>
-                                                <th style={{ textAlign: 'right' }}>Thao tác</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {tasks.length === 0 ? (
+                                <QueryPanel query={tasksQuery}>
+                                    <div className="table-wrap">
+                                        <table>
+                                            <thead>
                                                 <tr>
-                                                    <td colSpan={5} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--muted)' }}>
-                                                        Chưa có nhiệm vụ nào được giao cho sinh viên này. Nhấn "+ Thêm nhiệm vụ" để giao việc.
-                                                    </td>
+                                                    <th>Nhiệm vụ</th>
+                                                    <th>Mô tả / Yêu cầu</th>
+                                                    <th>Hạn nộp</th>
+                                                    <th>Trạng thái</th>
+                                                    <th style={{ textAlign: 'right' }}>Thao tác</th>
                                                 </tr>
-                                            ) : (
-                                                tasks.map((t) => {
-                                                    const isDone = t.status === 'COMPLETED' || t.status === 'SUBMITTED';
-                                                    return (
-                                                        <tr key={t.id}>
-                                                            <td><strong>{t.title}</strong></td>
-                                                            <td style={{ color: 'var(--muted)', fontSize: '11.5px' }}>
-                                                                {t.description || 'Theo dõi tiến độ theo kế hoạch đồ án'}
-                                                            </td>
-                                                            <td className="mono" style={{ fontSize: 12 }}>
-                                                                {t.dueDate ? dayjs(t.dueDate).format('DD/MM/YYYY') : '---'}
-                                                            </td>
-                                                            <td>
-                                                                <span className={`tag ${isDone ? 'green' : 'yellow'}`}>
-                                                                    {isDone ? 'Đã duyệt (Đạt)' : 'Đang làm'}
-                                                                </span>
-                                                            </td>
-                                                            <td style={{ textAlign: 'right' }}>
-                                                                <button
-                                                                    type="button"
-                                                                    className="btn btn-secondary btn-sm"
-                                                                    onClick={() => message.info(`Xem chi tiết bài nộp của nhiệm vụ: ${t.title}`)}
-                                                                >
-                                                                    Xem xét
-                                                                </button>
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })
-                                            )}
-                                        </tbody>
-                                    </table>
-                                </div>
+                                            </thead>
+                                            <tbody>
+                                                {tasks.length === 0 ? (
+                                                    <tr>
+                                                        <td colSpan={5} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--muted)' }}>
+                                                            Chưa có nhiệm vụ nào được giao cho sinh viên này. Nhấn "+ Thêm nhiệm vụ" để giao việc.
+                                                        </td>
+                                                    </tr>
+                                                ) : (
+                                                    tasks.map((t) => {
+                                                        const isDone = t.status === 'COMPLETED' || t.status === 'SUBMITTED';
+                                                        return (
+                                                            <tr key={t.id}>
+                                                                <td><strong>{t.title}</strong></td>
+                                                                <td style={{ color: 'var(--muted)', fontSize: '11.5px' }}>
+                                                                    {t.description || 'Theo dõi tiến độ theo kế hoạch đồ án'}
+                                                                </td>
+                                                                <td className="mono" style={{ fontSize: 12 }}>
+                                                                    {t.dueDate ? dayjs(t.dueDate).format('DD/MM/YYYY') : '---'}
+                                                                </td>
+                                                                <td>
+                                                                    <span className={`tag ${isDone ? 'green' : 'yellow'}`}>
+                                                                        {isDone ? 'Đã duyệt (Đạt)' : 'Đang làm'}
+                                                                    </span>
+                                                                </td>
+                                                                <td style={{ textAlign: 'right' }}>
+                                                                    <button
+                                                                        type="button"
+                                                                        className="btn btn-secondary btn-sm"
+                                                                        onClick={() => message.info(`Xem chi tiết bài nộp của nhiệm vụ: ${t.title}`)}
+                                                                    >
+                                                                        Xem xét
+                                                                    </button>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </QueryPanel>
                             </div>
                         )}
 
@@ -694,82 +696,84 @@ export default function ProgressTrackingPage() {
                                     </Button>
                                 </div>
 
-                                <div className="timeline" id="meeting-timeline-container">
-                                    {meetingLogs.length === 0 ? (
-                                        <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--muted)', fontSize: 13 }}>
-                                            Chưa có buổi gặp hướng dẫn nào được ghi nhận. Hãy nhấn "Ghi nhận buổi hướng dẫn mới" để lưu thông tin nhật ký.
-                                        </div>
-                                    ) : (
-                                        meetingLogs.map((log, index) => {
-                                            const ratingTag = log.progressRating === 'ON_TRACK'
-                                                ? <Tag color="success">Đúng tiến độ (ON_TRACK)</Tag>
-                                                : log.progressRating === 'AT_RISK'
-                                                ? <Tag color="warning">Có rủi ro (AT_RISK)</Tag>
-                                                : log.progressRating === 'BEHIND'
-                                                ? <Tag color="error">Chậm tiến độ (BEHIND)</Tag>
-                                                : log.progressRating === 'NO_PROGRESS'
-                                                ? <Tag color="default">Không có tiến độ (NO_PROGRESS)</Tag>
-                                                : <Tag color="processing">Tiến độ đạt yêu cầu</Tag>;
+                                <QueryPanel query={bm03Query}>
+                                    <div className="timeline" id="meeting-timeline-container">
+                                        {meetingLogs.length === 0 ? (
+                                            <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--muted)', fontSize: 13 }}>
+                                                Chưa có buổi gặp hướng dẫn nào được ghi nhận. Hãy nhấn "Ghi nhận buổi hướng dẫn mới" để lưu thông tin nhật ký.
+                                            </div>
+                                        ) : (
+                                            meetingLogs.map((log, index) => {
+                                                const ratingTag = log.progressRating === 'ON_TRACK'
+                                                    ? <Tag color="success">Đúng tiến độ (ON_TRACK)</Tag>
+                                                    : log.progressRating === 'AT_RISK'
+                                                    ? <Tag color="warning">Có rủi ro (AT_RISK)</Tag>
+                                                    : log.progressRating === 'BEHIND'
+                                                    ? <Tag color="error">Chậm tiến độ (BEHIND)</Tag>
+                                                    : log.progressRating === 'NO_PROGRESS'
+                                                    ? <Tag color="default">Không có tiến độ (NO_PROGRESS)</Tag>
+                                                    : <Tag color="processing">Tiến độ đạt yêu cầu</Tag>;
 
-                                            return (
-                                                <div key={log.id || index} className="timeline-node">
-                                                    <div className="timeline-dot done" />
-                                                    <div className="timeline-card">
-                                                        <div className="timeline-head flex-wrap gap-2">
-                                                            <div className="flex items-center gap-2 flex-wrap">
-                                                                <strong>Buổi {meetingLogs.length - index}: {log.meetingMode === 'ONLINE' ? 'Trực tuyến' : 'Trực tiếp tại Lab'}</strong>
-                                                                <span className="tag teal">
-                                                                    {log.locationOrLink || (log.meetingMode === 'ONLINE' ? 'Online Meet' : 'Lab H2-502')}
+                                                return (
+                                                    <div key={log.id || index} className="timeline-node">
+                                                        <div className="timeline-dot done" />
+                                                        <div className="timeline-card">
+                                                            <div className="timeline-head flex-wrap gap-2">
+                                                                <div className="flex items-center gap-2 flex-wrap">
+                                                                    <strong>Buổi {meetingLogs.length - index}: {log.meetingMode === 'ONLINE' ? 'Trực tuyến' : 'Trực tiếp tại Lab'}</strong>
+                                                                    <span className="tag teal">
+                                                                        {log.locationOrLink || (log.meetingMode === 'ONLINE' ? 'Online Meet' : 'Lab H2-502')}
+                                                                    </span>
+                                                                    {ratingTag}
+                                                                    {log.isLocked ? (
+                                                                        <Tag color="purple">Đã ký khóa</Tag>
+                                                                    ) : (
+                                                                        <Tag color="orange">Chưa khóa</Tag>
+                                                                    )}
+                                                                </div>
+                                                                <span className="mono" style={{ fontSize: '11.5px', color: 'var(--muted)' }}>
+                                                                    {dayjs(log.meetingDate).format('DD/MM/YYYY')}
                                                                 </span>
-                                                                {ratingTag}
-                                                                {log.isLocked ? (
-                                                                    <Tag color="purple">Đã ký khóa</Tag>
-                                                                ) : (
-                                                                    <Tag color="orange">Chưa khóa</Tag>
+                                                            </div>
+                                                            <div style={{ fontSize: '12.5px', color: 'var(--fg)', lineHeight: 1.5, marginTop: 8 }} className="space-y-1.5">
+                                                                <div><strong>Nội dung trao đổi:</strong> {log.discussionContent || log.meetingNote || log.summary || 'Sinh viên báo cáo kết quả và chạy thử nghiệm.'}</div>
+                                                                <div><strong>Kết quả sinh viên đã hoàn thành:</strong> {log.studentCompletedWork || 'Chưa ghi nhận'}</div>
+                                                                {log.remainingIssues && (
+                                                                    <div><strong>Vấn đề tồn đọng:</strong> {log.remainingIssues}</div>
+                                                                )}
+                                                                {(log.nextTasks || log.nextMilestone) && (
+                                                                    <div><strong>Nhiệm vụ kỳ tới:</strong> {log.nextTasks || log.nextMilestone}</div>
+                                                                )}
+                                                                {log.expectedDeadline && (
+                                                                    <div className="font-mono text-xs text-slate-500">
+                                                                        Hạn hoàn thành: {dayjs(log.expectedDeadline).format('DD/MM/YYYY')}
+                                                                    </div>
                                                                 )}
                                                             </div>
-                                                            <span className="mono" style={{ fontSize: '11.5px', color: 'var(--muted)' }}>
-                                                                {dayjs(log.meetingDate).format('DD/MM/YYYY')}
-                                                            </span>
-                                                        </div>
-                                                        <div style={{ fontSize: '12.5px', color: 'var(--fg)', lineHeight: 1.5, marginTop: 8 }} className="space-y-1.5">
-                                                            <div><strong>Nội dung trao đổi:</strong> {log.discussionContent || log.meetingNote || log.summary || 'Sinh viên báo cáo kết quả và chạy thử nghiệm.'}</div>
-                                                            <div><strong>Kết quả sinh viên đã hoàn thành:</strong> {log.studentCompletedWork || 'Chưa ghi nhận'}</div>
-                                                            {log.remainingIssues && (
-                                                                <div><strong>Vấn đề tồn đọng:</strong> {log.remainingIssues}</div>
-                                                            )}
-                                                            {(log.nextTasks || log.nextMilestone) && (
-                                                                <div><strong>Nhiệm vụ kỳ tới:</strong> {log.nextTasks || log.nextMilestone}</div>
-                                                            )}
-                                                            {log.expectedDeadline && (
-                                                                <div className="font-mono text-xs text-slate-500">
-                                                                    Hạn hoàn thành: {dayjs(log.expectedDeadline).format('DD/MM/YYYY')}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                        <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2">
-                                                            {log.isLocked ? (
-                                                                <span className="text-xs text-slate-500 font-mono">
-                                                                    Đã ký bởi GVHD {log.advisorSignedAt ? dayjs(log.advisorSignedAt).format('DD/MM/YYYY HH:mm') : ''}
-                                                                </span>
-                                                            ) : (
-                                                                <Button
-                                                                    size="small"
-                                                                    type="primary"
-                                                                    icon={<SafetyCertificateOutlined />}
-                                                                    loading={signingMeetingId === log.id}
-                                                                    onClick={() => handleSignMeetingEntry(log.id)}
-                                                                >
-                                                                    Ký khóa buổi hướng dẫn
-                                                                </Button>
-                                                            )}
+                                                            <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2">
+                                                                {log.isLocked ? (
+                                                                    <span className="text-xs text-slate-500 font-mono">
+                                                                        Đã ký bởi GVHD {log.advisorSignedAt ? dayjs(log.advisorSignedAt).format('DD/MM/YYYY HH:mm') : ''}
+                                                                    </span>
+                                                                ) : (
+                                                                    <Button
+                                                                        size="small"
+                                                                        type="primary"
+                                                                        icon={<SafetyCertificateOutlined />}
+                                                                        loading={signingMeetingId === log.id}
+                                                                        onClick={() => handleSignMeetingEntry(log.id)}
+                                                                    >
+                                                                        Ký khóa buổi hướng dẫn
+                                                                    </Button>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                </div>
-                                            );
-                                        })
-                                    )}
-                                </div>
+                                                );
+                                            })
+                                        )}
+                                    </div>
+                                </QueryPanel>
                             </div>
                         )}
 
@@ -781,7 +785,8 @@ export default function ProgressTrackingPage() {
 
                             return (
                                 <div id="tab-checkpoints" className="tab-pane-content">
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                    <QueryPanel query={checkpointsQuery}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                                         {/* Midterm Stage Evaluation Card */}
                                         <div className="card" style={{ marginBottom: 0, borderLeft: '4px solid #0F766E' }}>
                                             <div className="card-head flex-wrap gap-2">
@@ -982,14 +987,16 @@ export default function ProgressTrackingPage() {
                                             </div>
                                         </div>
                                     </div>
-                                </div>
-                            );
+                                </QueryPanel>
+                            </div>
+                        );
                         })()}
 
                         {/* TAB 4: BM04 & ARCHIVE */}
                         {activeTab === 'archive' && (
                             <div id="tab-archive" className="tab-pane-content">
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                                <QueryPanel query={archiveQuery}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                                     {/* BM04 Status Card */}
                                     <div className="card" style={{ marginBottom: 0, borderLeft: '4px solid var(--success)' }}>
                                         <div className="card-head flex-wrap gap-2">
@@ -1179,7 +1186,8 @@ export default function ProgressTrackingPage() {
                                             </div>
                                         </div>
                                     </div>
-                                </div>
+                                    </div>
+                                </QueryPanel>
                             </div>
                         )}
                     </div>
@@ -1192,7 +1200,7 @@ export default function ProgressTrackingPage() {
                     <div className="modal-box" style={{ maxWidth: 540 }}>
                         <div className="modal-head">
                             <div className="modal-title">Giao Nhiệm Vụ Tuần Cho Sinh Viên</div>
-                            <button type="button" className="modal-close" onClick={() => setNewTaskModalOpen(false)}>×</button>
+                            <button type="button" className="modal-close" onClick={() => setNewTaskModalOpen(false)} aria-label="Đóng"><CloseOutlined /></button>
                         </div>
                         <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -1261,7 +1269,7 @@ export default function ProgressTrackingPage() {
                     <div className="modal-box" style={{ maxWidth: 600 }}>
                         <div className="modal-head">
                             <div className="modal-title">Ghi Nhận Buổi Hướng Dẫn Mới (BM03)</div>
-                            <button type="button" className="modal-close" onClick={() => setMeetingModalOpen(false)}>×</button>
+                            <button type="button" className="modal-close" onClick={() => setMeetingModalOpen(false)} aria-label="Đóng"><CloseOutlined /></button>
                         </div>
                         <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                             <div style={{ padding: '10px 12px', background: '#F0FDFA', borderRadius: 'var(--radius-sm)', border: '1px solid #CCFBF1', fontSize: 13 }}>

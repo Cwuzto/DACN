@@ -1,4 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCoordinationOverview } from '../../queries/lecturerAssignmentQueries';
+import { queryKeys } from '../../query/queryKeys';
+import useAuthStore from '../../stores/authStore';
+import QueryPanel from '../common/QueryPanel';
+
 import { Card, Progress, Tag, Alert, Button, Spin, Row, Col } from 'antd';
 import {
     WarningOutlined,
@@ -12,7 +16,6 @@ import {
     AuditOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import lecturerAssignmentService from '../../services/lecturerAssignmentService.js';
 
 export function CoordinationOverviewTab({
     semesterId,
@@ -21,37 +24,11 @@ export function CoordinationOverviewTab({
     catalogs = [],
     onNavigateTab,
 }) {
-    const [loading, setLoading] = useState(false);
-    const [overviewData, setOverviewData] = useState(null);
-    const [error, setError] = useState(null);
-
-    const fetchOverview = useCallback(async () => {
-        if (!semesterId) {
-            setOverviewData(null);
-            return;
-        }
-        setLoading(true);
-        setError(null);
-        try {
-            const res = await lecturerAssignmentService.getOverview({
-                semesterId,
-                projectCatalogId: projectCatalogId || undefined,
-            });
-            if (res?.success) {
-                setOverviewData(res.data);
-            } else {
-                setError(res?.message || 'Không thể tải số liệu tổng quan');
-            }
-        } catch (err) {
-            setError(err?.message || 'Lỗi khi tải tổng quan điều phối');
-        } finally {
-            setLoading(false);
-        }
-    }, [semesterId, projectCatalogId]);
-
-    useEffect(() => {
-        fetchOverview();
-    }, [fetchOverview]);
+    const user = useAuthStore(state => state.user);
+    const overviewQuery = useCoordinationOverview(queryKeys.scope(user), { semesterId, projectCatalogId: projectCatalogId || undefined });
+    const overviewData = overviewQuery.data;
+    const loading = overviewQuery.isFetching;
+    const fetchOverview = () => overviewQuery.refetch();
 
     const activeSemester = semesters.find((s) => s.id === Number(semesterId)) || overviewData?.semester;
     const activeCatalog = catalogs.find((c) => c.id === Number(projectCatalogId));
@@ -71,14 +48,6 @@ export function CoordinationOverviewTab({
         }
     };
 
-    if (loading && !overviewData) {
-        return (
-            <div className="py-12 flex justify-center items-center">
-                <Spin tip="Đang tải dữ liệu tổng quan điều phối..." />
-            </div>
-        );
-    }
-
     const {
         totalEnrolledStudents = 0,
         totalAssignedStudents = 0,
@@ -93,17 +62,8 @@ export function CoordinationOverviewTab({
     const warningAlerts = overloadAlerts.filter((a) => a.severity !== 'CRITICAL');
 
     return (
+        <QueryPanel query={overviewQuery}>
         <div className="space-y-5">
-            {error && (
-                <Alert
-                    type="error"
-                    message="Lỗi tải dữ liệu"
-                    description={error}
-                    showIcon
-                    closable
-                />
-            )}
-
             {/* Header / Period Metadata Card */}
             <div className="bg-white rounded-xl border border-slate-200/90 p-5 shadow-xs flex flex-wrap items-center justify-between gap-4">
                 <div className="space-y-1">
@@ -365,6 +325,7 @@ export function CoordinationOverviewTab({
                 </div>
             )}
         </div>
+        </QueryPanel>
     );
 }
 

@@ -1,5 +1,5 @@
 import { Suspense, lazy } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { ConfigProvider } from 'antd';
 import viVN from 'antd/locale/vi_VN';
 import dayjs from 'dayjs';
@@ -89,7 +89,9 @@ import ProtectedRoute from './components/common/ProtectedRoute';
 import PublicOnlyRoute from './components/common/PublicOnlyRoute';
 import RoleDashboardRedirect from './components/common/RoleDashboardRedirect';
 import RouteFallbackHandler from './components/common/RouteFallbackHandler';
-import ErrorBoundary from './components/common/ErrorBoundary';
+import RouteContentBoundary from './components/common/RouteContentBoundary';
+import ContentSkeleton from './components/common/ContentSkeleton';
+import AppQueryProvider from './providers/AppQueryProvider';
 
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
 const ForgotPasswordPage = lazy(() => import('./pages/auth/ForgotPasswordPage'));
@@ -130,24 +132,28 @@ const GradeViewPage = lazy(() => import('./pages/student/GradeViewPage'));
 const NotificationsPage = lazy(() => import('./pages/common/NotificationsPage'));
 const ProfilePage = lazy(() => import('./pages/common/ProfilePage'));
 
-function RouteLoading() {
+function StandaloneRouteContent() {
+    const location = useLocation();
     return (
-        <div className="min-h-[40vh] flex items-center justify-center">
-            <div className="animate-spin rounded-full h-10 w-10 border-4 border-primary border-t-transparent" />
-        </div>
+        <RouteContentBoundary>
+            <Suspense key={location.pathname} fallback={<ContentSkeleton />}>
+                <Outlet />
+            </Suspense>
+        </RouteContentBoundary>
     );
 }
 
 function App() {
     return (
         <ConfigProvider locale={viVN} theme={academicPineTheme}>
-            <BrowserRouter>
-                <Suspense fallback={<RouteLoading />}>
-                    <ErrorBoundary>
-                        <Routes>
-                        <Route element={<PublicOnlyRoute />}>
-                            <Route path="/login" element={<Navigate to="/?login=true" replace />} />
-                            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <AppQueryProvider>
+                <BrowserRouter>
+                    <Routes>
+                        <Route element={<StandaloneRouteContent />}>
+                            <Route element={<PublicOnlyRoute />}>
+                                <Route path="/login" element={<Navigate to="/?login=true" replace />} />
+                                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                            </Route>
                         </Route>
 
                         {/* Authenticated Workspace Routes — Unified under AppLayout and Capability Guards */}
@@ -171,7 +177,7 @@ function App() {
                                 <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_PROJECT_OVERSIGHT', 'REPORT_VIEW', 'PROJECT_OVERSIGHT_MANAGE']} />}>
                                     <Route path="reports" element={<AcademicReportsPage />} />
                                 </Route>
-                                <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_DEFENSE_LOCK_LEDGER', 'DEFENSE_SCORE_VIEW', 'RESULT_LOCK', 'VIEW_DEFENSE_RESULT_APPROVALS', 'DEFENSE_RESULT_APPROVE', 'VIEW_RESULT_PUBLICATIONS', 'RESULT_PUBLICATION_MANAGE']} />}>
+                                <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_DEFENSE_LOCK_LEDGER', 'VIEW_RESULT_LOCKS', 'DEFENSE_SCORE_VIEW', 'RESULT_LOCK', 'VIEW_DEFENSE_RESULT_APPROVALS', 'VIEW_DEFENSE_RESULTS_APPROVAL', 'DEFENSE_RESULT_APPROVE', 'VIEW_RESULT_PUBLICATIONS', 'RESULT_PUBLICATION_PUBLISH']} />}>
                                     <Route path="grading" element={<GradingDefensePage />} />
                                 </Route>
                                 <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_RUBRIC_CONFIG', 'RUBRIC_MANAGE']} />}>
@@ -205,7 +211,9 @@ function App() {
 
                             {/* Lecturer Routes & Scoring Sheet */}
                             <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_DEFENSE_GRADING', 'DEFENSE_SCORE_VIEW', 'DEFENSE_SCORE_SUBMIT']} />}>
-                                <Route path="/lecturer/grading/sheet/:registrationId" element={<LecturerGradingSheetPage />} />
+                                <Route element={<StandaloneRouteContent />}>
+                                    <Route path="/lecturer/grading/sheet/:registrationId" element={<LecturerGradingSheetPage />} />
+                                </Route>
                             </Route>
                             <Route path="/lecturer" element={<AppLayout />}>
                                 <Route index element={<Navigate to="dashboard" replace />} />
@@ -258,13 +266,14 @@ function App() {
                             </Route>
                         </Route>
 
-                        <Route path="/dashboard" element={<RoleDashboardRedirect />} />
-                        <Route path="/" element={<HomePage />} />
-                        <Route path="*" element={<RouteFallbackHandler />} />
+                        <Route element={<StandaloneRouteContent />}>
+                            <Route path="/dashboard" element={<RoleDashboardRedirect />} />
+                            <Route path="/" element={<HomePage />} />
+                            <Route path="*" element={<RouteFallbackHandler />} />
+                        </Route>
                     </Routes>
-                    </ErrorBoundary>
-                </Suspense>
-            </BrowserRouter>
+                </BrowserRouter>
+            </AppQueryProvider>
         </ConfigProvider>
     );
 }

@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { Modal, Form, Input, Select, Tag, Alert, Button, message, Space, Descriptions, Divider } from 'antd';
 import { SafetyCertificateOutlined, CheckCircleOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
 import manualReviewService from '../../services/manualReviewService';
+import { useQueryClient } from '@tanstack/react-query';
+import useAuthStore from '../../stores/authStore';
+import { queryKeys } from '../../query/queryKeys';
 
 const REASON_LABELS = {
     LEGACY_BYPASS_EVIDENCE: 'Hồ sơ có dấu hiệu bypass nhiệm vụ học vụ cũ',
@@ -14,6 +17,9 @@ const REASON_LABELS = {
 const ManualReviewModal = ({ open, caseItem, onClose, onSuccess }) => {
     const [form] = Form.useForm();
     const [loading, setLoading] = useState(false);
+    const user = useAuthStore((state) => state.user);
+    const scope = queryKeys.scope(user);
+    const queryClient = useQueryClient();
 
     if (!caseItem) return null;
 
@@ -33,6 +39,10 @@ const ManualReviewModal = ({ open, caseItem, onClose, onSuccess }) => {
             });
             message.success('Đã giải quyết ca thẩm định và gán phiên bản chính sách thành công!');
             form.resetFields();
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey: queryKeys.registrations.all(scope) }),
+                queryClient.invalidateQueries({ queryKey: ['scope', user?.id, user?.permissionVersion, 'manual-review'] }),
+            ]);
             onSuccess?.();
             onClose();
         } catch (error) {

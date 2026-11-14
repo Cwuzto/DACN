@@ -26,9 +26,14 @@ import {
     FileTextOutlined,
     EyeOutlined,
     EyeInvisibleOutlined,
+    CloseOutlined,
 } from '@ant-design/icons';
 import { announcementService } from '../../services/announcementService';
 import uploadService from '../../services/uploadService';
+import useAuthStore from '../../stores/authStore';
+import { queryKeys } from '../../query/queryKeys';
+import { useAnnouncements, useAnnouncementMutation } from '../../queries/announcementQueries';
+import QueryPanel from '../../components/common/QueryPanel';
 
 const { TextArea } = Input;
 
@@ -39,11 +44,24 @@ const CATEGORY_OPTIONS = [
 
 function AnnouncementManagementPage() {
     const navigate = useNavigate();
-    const [announcements, setAnnouncements] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 });
+    const user = useAuthStore((state) => state.user);
+    const scope = queryKeys.scope(user);
+
+    const [pagination, setPagination] = useState({ current: 1, pageSize: 10 });
     const [searchText, setSearchText] = useState('');
     const [filterCategory, setFilterCategory] = useState(undefined);
+
+    const announcementsQuery = useAnnouncements(scope, {
+        page: pagination.current,
+        limit: pagination.pageSize,
+        all: 'true',
+        ...(searchText ? { search: searchText } : {}),
+        ...(filterCategory ? { category: filterCategory } : {}),
+    });
+    const announcementMutation = useAnnouncementMutation(scope);
+
+    const announcements = announcementsQuery.data?.data || [];
+    const total = announcementsQuery.data?.pagination?.total || 0;
 
     // Modal state
     const [modalVisible, setModalVisible] = useState(false);
@@ -55,39 +73,12 @@ function AnnouncementManagementPage() {
     const [uploading, setUploading] = useState(false);
     const [uploadedFile, setUploadedFile] = useState(null);
 
-    const fetchData = useCallback(async (page = 1, limit = 10) => {
-        setLoading(true);
-        try {
-            const params = { page, limit, all: 'true' };
-            if (searchText) params.search = searchText;
-            if (filterCategory) params.category = filterCategory;
-
-            const res = await announcementService.getAnnouncements(params);
-            if (res.success) {
-                setAnnouncements(res.data || []);
-                setPagination({
-                    current: res.pagination?.page || page,
-                    pageSize: res.pagination?.limit || limit,
-                    total: res.pagination?.total || 0,
-                });
-            }
-        } catch (err) {
-            message.error(err?.message || 'Không thể tải danh sách thông báo.');
-        } finally {
-            setLoading(false);
-        }
-    }, [searchText, filterCategory]);
-
-    useEffect(() => {
-        fetchData();
-    }, [fetchData]);
-
     const handleTableChange = (pag) => {
-        fetchData(pag.current, pag.pageSize);
+        setPagination({ current: pag.current, pageSize: pag.pageSize });
     };
 
     const handleSearch = () => {
-        fetchData(1, pagination.pageSize);
+        setPagination((prev) => ({ ...prev, current: 1 }));
     };
 
     const openCreateModal = () => {
@@ -127,15 +118,14 @@ function AnnouncementManagementPage() {
             };
 
             if (editingItem) {
-                await announcementService.updateAnnouncement(editingItem.id, payload);
+                await announcementMutation.mutateAsync({ action: 'updateAnnouncement', args: [editingItem.id, payload] });
                 message.success('Cập nhật thông báo thành công!');
             } else {
-                await announcementService.createAnnouncement(payload);
+                await announcementMutation.mutateAsync({ action: 'createAnnouncement', args: [payload] });
                 message.success('Tạo thông báo thành công!');
             }
 
             setModalVisible(false);
-            fetchData(pagination.current, pagination.pageSize);
         } catch (err) {
             if (err?.errorFields) return;
             message.error(err?.message || 'Đã xảy ra lỗi. Vui lòng thử lại.');
@@ -146,9 +136,8 @@ function AnnouncementManagementPage() {
 
     const handleDelete = async (id) => {
         try {
-            await announcementService.deleteAnnouncement(id);
+            await announcementMutation.mutateAsync({ action: 'deleteAnnouncement', args: [id] });
             message.success('Xóa thông báo thành công!');
-            fetchData(pagination.current, pagination.pageSize);
         } catch (err) {
             message.error(err?.message || 'Xóa thất bại.');
         }
@@ -156,9 +145,8 @@ function AnnouncementManagementPage() {
 
     const handleTogglePin = async (record) => {
         try {
-            await announcementService.updateAnnouncement(record.id, { isPinned: !record.isPinned });
+            await announcementMutation.mutateAsync({ action: 'updateAnnouncement', args: [record.id, { isPinned: !record.isPinned }] });
             message.success(record.isPinned ? 'Đã bỏ ghim thông báo.' : 'Đã ghim thông báo lên đầu trang!');
-            fetchData(pagination.current, pagination.pageSize);
         } catch (err) {
             message.error(err?.message || 'Cập nhật thất bại.');
         }
@@ -166,9 +154,8 @@ function AnnouncementManagementPage() {
 
     const handleTogglePublish = async (record) => {
         try {
-            await announcementService.updateAnnouncement(record.id, { isPublished: !record.isPublished });
+            await announcementMutation.mutateAsync({ action: 'updateAnnouncement', args: [record.id, { isPublished: !record.isPublished }] });
             message.success(record.isPublished ? 'Đã ẩn thông báo về bản nháp.' : 'Đã công khai thông báo!');
-            fetchData(pagination.current, pagination.pageSize);
         } catch (err) {
             message.error(err?.message || 'Cập nhật thất bại.');
         }
@@ -352,7 +339,7 @@ function AnnouncementManagementPage() {
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                     <button
                         className="btn btn-secondary"
-                        onClick={() => fetchData(pagination.current, pagination.pageSize)}
+                        onClick={() => announcementsQuery.refetch()}
                     >
                         <ReloadOutlined />
                         <span>Làm mới</span>
@@ -383,7 +370,7 @@ function AnnouncementManagementPage() {
                             onClick={() => navigate('/admin/portal?tab=TEMPLATE')}
                             className="bg-primary hover:bg-primary-hover text-white text-xs font-semibold shrink-0"
                         >
-                            Quản lý Biểu mẫu BM01–BM05 &rarr;
+                            Quản lý Biểu mẫu BM01–BM05
                         </Button>
                     </div>
                 }
@@ -432,27 +419,30 @@ function AnnouncementManagementPage() {
                         />
                     </div>
                     <span className="text-xs text-slate-500">
-                        Hiển thị: <b className="text-slate-800">{announcements.length}</b> / {pagination.total} bản ghi
+                        Hiển thị: <b className="text-slate-800">{announcements.length}</b> / {total} bản ghi
                     </span>
                 </div>
 
                 {/* Table */}
                 <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
-                    <Table
-                        columns={columns}
-                        dataSource={announcements}
-                        rowKey="id"
-                        loading={loading}
-                        pagination={{
-                            ...pagination,
-                            showSizeChanger: true,
-                            showTotal: (total) => `Tổng ${total} thông báo`,
-                            pageSizeOptions: ['5', '10', '20'],
-                        }}
-                        onChange={handleTableChange}
-                        scroll={{ x: 1000 }}
-                        size="middle"
-                    />
+                    <QueryPanel query={announcementsQuery} variant="table">
+                        <Table
+                            columns={columns}
+                            dataSource={announcements}
+                            rowKey="id"
+                            pagination={{
+                                current: pagination.current,
+                                pageSize: pagination.pageSize,
+                                total,
+                                showSizeChanger: true,
+                                showTotal: (tot) => `Tổng ${tot} thông báo`,
+                                pageSizeOptions: ['5', '10', '20'],
+                            }}
+                            onChange={handleTableChange}
+                            scroll={{ x: 1000 }}
+                            size="middle"
+                        />
+                    </QueryPanel>
                 </div>
             </div>
 
@@ -523,13 +513,13 @@ function AnnouncementManagementPage() {
                                 <div className="flex items-center gap-2 text-xs text-slate-700 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
                                     <FileTextOutlined className="text-primary" />
                                     <span className="max-w-[240px] truncate font-medium">{uploadedFile.name}</span>
-                                    <button
-                                        type="button"
+                                    <Button
+                                        type="text"
+                                        size="small"
+                                        icon={<CloseOutlined />}
                                         onClick={() => setUploadedFile(null)}
-                                        className="text-slate-500 hover:text-rose-600 ml-1 font-bold"
-                                    >
-                                        ✕
-                                    </button>
+                                        className="text-slate-500 hover:text-rose-600 ml-1"
+                                    />
                                 </div>
                             )}
                         </div>
