@@ -726,7 +726,7 @@ const getAllRegistrations = async (req, res, next) => {
                 },
                 defenseCouncil: { select: { id: true, name: true, councilType: true, defenseDate: true, location: true } },
                 submissions: { orderBy: { submittedAt: 'desc' }, take: 5 },
-                _count: { select: { submissions: true } },
+                _count: { select: { submissions: true, meetingLogs: true, bm03MeetingEntries: true } },
                 tasks: { select: { id: true, status: true, taskType: true } },
                 meetingLogs: { select: { id: true, meetingDate: true }, orderBy: { meetingDate: 'desc' } },
                 bm04Evaluation: true,
@@ -778,10 +778,14 @@ const getAllRegistrations = async (req, res, next) => {
                 daysSinceLastMeeting = Math.floor((now.getTime() - new Date(lastMeetingDate).getTime()) / (1000 * 60 * 60 * 24));
             }
 
+            const isFinishedThesis = ['DEFENSE_READY', 'DEFENDED', 'COMPLETED'].includes(reg.status);
+            const isMeetingWarning = !isFinishedThesis && daysSinceLastMeeting !== null && daysSinceLastMeeting > 21;
+
             return {
                 ...reg,
                 allowedActions: computeAllowedActions(reg, req.user),
                 progress,
+                progressPercent: progress,
                 overdueTaskCount,
                 hasOverdueTask: overdueTaskCount > 0,
                 isStalePending: reg.status === 'PENDING' && pendingDays > PENDING_REMINDER_DAYS,
@@ -789,7 +793,12 @@ const getAllRegistrations = async (req, res, next) => {
                 totalMeetings: meetingLogs.length,
                 lastMeetingDate,
                 daysSinceLastMeeting,
-                isMeetingWarning: daysSinceLastMeeting !== null && daysSinceLastMeeting > 21,
+                isMeetingWarning,
+                _count: {
+                    submissions: reg._count?.submissions ?? reg.submissions?.length ?? 0,
+                    meetingLogs: meetingLogs.length,
+                    bm03MeetingEntries: meetingLogs.length,
+                },
                 tasks: undefined,
                 meetingLogs: undefined,
             };

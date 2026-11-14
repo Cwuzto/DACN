@@ -405,9 +405,9 @@ export default function ProgressTrackingPage() {
     };
 
     const reg = selectedStudent;
-    const progress = reg?.progressPercent ?? (reg?.status === 'COMPLETED' || reg?.status === 'DEFENDED' ? 100 : 0);
     const bm04Status = reg?.status === 'COMPLETED' || reg?.status === 'DEFENDED' || reg?.status === 'DEFENSE_READY';
-    const isAtRisk = progress < 50;
+    const progress = reg?.progressPercent ?? reg?.progress ?? (bm04Status ? 100 : 0);
+    const isAtRisk = !bm04Status && (Boolean(reg?.isMeetingWarning) || progress < 50);
 
     return (
         <section id="view-progress" className="view-pane active" style={{ display: 'block' }}>
@@ -463,9 +463,9 @@ export default function ProgressTrackingPage() {
                                 filteredStudents.map((s) => {
                                     const isSel = s.id === reg?.id;
                                     const sPassed = s.status === 'COMPLETED' || s.status === 'DEFENDED' || s.status === 'DEFENSE_READY';
-                                    const sProgress = s.progressPercent ?? (sPassed ? 100 : 0);
-                                    const sRisk = sProgress < 50;
-                                    const logCount = s._count?.meetingLogs ?? s.meetingLogs?.length ?? 0;
+                                    const sProgress = s.progressPercent ?? s.progress ?? (sPassed ? 100 : 0);
+                                    const sRisk = !sPassed && (Boolean(s.isMeetingWarning) || sProgress < 50);
+                                    const logCount = s.totalMeetings ?? s._count?.meetingLogs ?? s.meetingLogs?.length ?? 0;
 
                                     return (
                                         <div
@@ -1019,7 +1019,7 @@ export default function ProgressTrackingPage() {
                                                 <div>
                                                     <span style={{ color: 'var(--muted)', fontSize: 12 }}>Tổng số buổi gặp:</span>
                                                     <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--primary)' }}>
-                                                        {meetingLogs.length || 7} buổi làm việc
+                                                        {meetingLogs.length || reg?.totalMeetings || reg?._count?.meetingLogs || 0} buổi làm việc
                                                     </div>
                                                 </div>
                                                 <div>

@@ -722,9 +722,9 @@ export default function LecturerDashboardPage() {
                                     </tr>
                                 ) : (
                                     supervisedStudents.map((r) => {
-                                        const pct = r.progressPercent ?? (r.status === 'COMPLETED' || r.status === 'DEFENDED' ? 100 : 75);
+                                        const pct = r.progressPercent ?? r.progress ?? (r.status === 'COMPLETED' || r.status === 'DEFENDED' || r.status === 'DEFENSE_READY' ? 100 : 75);
                                         const isComplete = pct >= 80;
-                                        const meetingsCount = r._count?.meetingLogs || r.meetingLogs?.length || (isComplete ? 7 : 4);
+                                        const meetingsCount = r.totalMeetings ?? r._count?.meetingLogs ?? r.meetingLogs?.length ?? (isComplete ? 7 : 4);
                                         const bm04Passed = r.status === 'COMPLETED' || r.status === 'DEFENDED' || r.status === 'DEFENSE_READY';
 
                                         return (
