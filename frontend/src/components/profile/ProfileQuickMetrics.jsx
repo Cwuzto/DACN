@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import PropTypes from 'prop-types';
 import { Tag, Progress } from 'antd';
 import {
     CheckCircleOutlined,
@@ -132,11 +131,5 @@ function ProfileQuickMetrics({ user, roleName, isStudent }) {
     );
 }
 
-ProfileQuickMetrics.propTypes = {
-    user: PropTypes.object,
-    roleName: PropTypes.string,
-    roleColor: PropTypes.string,
-    isStudent: PropTypes.bool,
-};
-
 export default ProfileQuickMetrics;
+

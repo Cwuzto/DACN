@@ -105,3 +105,4 @@ test('Profile Redesign: Tab 3 renders permission groups and council assignment s
     assert.match(source, /hasOutlineCouncilAssignment|OUTLINE_REVIEW/i, 'Tab 3 phải hiển thị trạng thái HĐ Đề cương');
     assert.match(source, /hasDefenseCouncilAssignment|DEFENSE_COUNCIL/i, 'Tab 3 phải hiển thị trạng thái HĐ Bảo vệ');
 });
+

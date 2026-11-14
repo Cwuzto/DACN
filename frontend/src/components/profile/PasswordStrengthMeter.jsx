@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import PropTypes from 'prop-types';
 import { Progress } from 'antd';
 import { CheckCircleFilled, CloseCircleFilled } from '@ant-design/icons';
 
@@ -124,8 +123,5 @@ function PasswordStrengthMeter({ password = '' }) {
     );
 }
 
-PasswordStrengthMeter.propTypes = {
-    password: PropTypes.string,
-};
-
 export default PasswordStrengthMeter;
+
