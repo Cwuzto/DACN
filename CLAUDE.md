@@ -70,6 +70,62 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 
 ## 6. Cập Nhật Phiên Làm Việc (Session Update)
 
+### Phiên 14/11/2026 (Hoàn Thành Toàn Diện 14 Tasks: Chuẩn Hóa Server-State Loading, Error Recovery, TanStack Query v5 & E2E Coverage)
+
+#### 1. Những phần đã hoàn thành
+1. **Chuẩn Hóa Quản Lý Trạng Thái Máy Chủ (TanStack Query v5 & Error Metadata)**:
+   - Tích hợp `@tanstack/react-query` v5 với `AppQueryProvider`, `queryKeys` phân cấp tenant an toàn `queryKeys.scope(user)` chống rò rỉ dữ liệu đa tài khoản.
+   - Chuẩn hóa chuẩn lỗi API qua `normalizeApiError` và `wrapServiceError`, bảo tồn mã HTTP, chi tiết lỗi và cờ `requiresUserConfirmation` khi gặp 409 stale version.
+2. **Kiến Trúc Shell Ứng Dụng Bền Vững & Phục Hồi Lỗi Điều Hướng**:
+   - `RouteContentBoundary`: Bọc Outlet bằng Suspense & ErrorBoundary nhận diện thay đổi URL (path, search, key) để tự động reset lỗi khi chuyển trang mà không reload toàn bộ trang HTML.
+   - `ContentSkeleton`, `QueryErrorState`, `QueryPanel`: Chuẩn hóa skeleton loading và giao diện lỗi có nút retry hỗ trợ phím Enter (keyboard accessibility).
+3. **Phân Quyền Đọc & Công Bố Kết Quả Bảo Vệ (RBAC & Defense Publication)**:
+   - Phân tách quyền `VIEW_DEFENSE_RESULT_APPROVALS` / `VIEW_RESULT_PUBLICATIONS` độc lập với quyền đột biến `DEFENSE_RESULT_APPROVE` / `RESULT_PUBLICATION_PUBLISH`.
+   - Chuẩn hóa deep link `/admin/grading?tab=approvals` và `/admin/grading?tab=publish`, ký ban hành kết quả có idempotency key và tra cứu lịch sử công bố snapshot.
+4. **Hồ Sơ Lưu Chiểu Sinh Viên (Student Archival Dossier)**:
+   - Chuẩn hóa `archiveService.getDossier`: ánh xạ chính xác trạng thái thực tế của hồ sơ lưu chiểu (`PENDING_SUBMISSION`, `SUBMITTED`, `VERIFIED`), phân tách trạng thái ký số và tính khả dụng của file PDF.
+   - Ngăn chặn lỗi hiển thị "thành công giả" khi hồ sơ chưa đủ chữ ký hoặc thiếu file.
+5. **Chuyển Đổi Toàn Bộ Các Trang Quản Trị, Giảng Viên & Sinh Viên**:
+   - **Admin Core**: Dashboard, Users, Permissions, Academic Reports.
+   - **Admin Coordination**: Project Period, Council Assignment, Council Detail, Project Enrollment, Coordination Overview, Lecturer Assignment.
+   - **Admin Workflow**: Topic Management, Rubric Management, Project Oversight, Announcement Management, Portal Content, Notification Center.
+   - **Lecturer Workflows**: Dashboard, Topic Approval, Topic Management, Progress Tracking, Grading, Lecturer Grading Sheet, BM04 Evaluation Modal, Outline Review Modal, Checkpoint Issue Modal.
+   - **Student Workflows**: Student Dashboard, Topic List, Submission Page, Grade View Page, Clearance Certificate, Title Adjustment Modal, Checkpoint Sign Modal.
+   - **Shared Common Pages & Components**: Notifications Page, Profile Page, Home Page, AppLayout (tối ưu badge count và đồng bộ đa tab qua BroadcastChannel).
+6. **Kiểm Toán Yêu Cầu (Query Migration Audit) & E2E Playwright**:
+   - `frontend/tests/queryMigrationAudit.test.js`: Quét cú pháp AST (`espree`) toàn bộ routed pages và fetching child components, chứng minh 0 vi phạm service gọi trực tiếp trong `useEffect`.
+   - `frontend/playwright.config.js`: Tích hợp Playwright E2E với Vite webServer tự động trên Chromium headless.
+   - `frontend/e2e/loading-error-navigation.spec.js` & `frontend/e2e/result-and-archive-flows.spec.js`: 6/6 tests PASS, kiểm thử toàn diện persistent shell, skeleton, route recovery, publication flow và dossier flow.
+7. **Hợp Nhất Nhánh & Dọn Dẹp Không Gian Làm Việc**:
+   - Hợp nhất an toàn 18 commits từ nhánh `feature/standardized-loading-error-query` vào nhánh chính `develop`.
+   - Tái xác thực toàn bộ test suites trên `develop`: 100% tests PASS (109 backend suites, 260 unit tests, 118 runtime tests, 6 E2E tests, Vite production build).
+   - Xóa bỏ an toàn worktree cách ly `standardized-loading-error-query` và nhánh feature tương ứng.
+
+#### 2. Trạng thái cập nhật của từng phần
+- **Backend**: 109/109 test suites PASS (1,112/1,112 tests, 100%).
+- **Frontend Unit / Contract**: 260/260 tests PASS (100%).
+- **Frontend Vitest Runtime**: 14/14 test files PASS (118/118 tests, 100%).
+- **Frontend Playwright E2E**: 6/6 tests PASS (100%).
+- **Frontend Production Build**: Vite build hoàn tất thành công trong 13.68s, 0 lỗi cú pháp/bundle.
+- **Tuân thủ quy chuẩn**:
+  * 100% tệp tin định dạng UTF-8 without BOM.
+  * 100% tuân thủ mô hình `TopicRegistration` (`maxStudents = 1`, tối đa 10 SV/GVHD), không phục hồi `group/groupMember`.
+  * Zero mock data trong mã nguồn frontend thực tế.
+  * 100% tuân thủ Rule 2.6 (không emoji thô trong nhãn `<Button>`, sử dụng component `@ant-design/icons` qua prop `icon={<Icon />}`).
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+1. Kiểm tra trải nghiệm thực tế người dùng (Manual smoke test) trên trình duyệt cho các luồng Admin, GVHD, SV.
+2. Tối ưu bundle size (chia nhỏ dynamic import cho một số vendor chunk > 500kB nếu cần thiết).
+3. Đẩy nhánh `develop` lên remote repository (`git push origin develop`).
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+- **Tập trung hóa State Máy Chủ vào TanStack Query v5**: Loại bỏ toàn bộ `useEffect` fetch dữ liệu thủ công phân tán trên các trang, khắc phục triệt để lỗi mất dữ liệu form khi component refresh ngầm và lỗi rò rỉ dữ liệu giữa các tài khoản khi đăng xuất/đăng nhập.
+- **Cô Lập Bộ Nhớ Đệm Theo Tenant (`queryKeys.scope(user)`)**: Mỗi query key đều gắn liền với định danh người dùng và vai trò hiện tại, đảm bảo an toàn đa người dùng tuyệt đối.
+- **Khai Thác `RouteContentBoundary` Bảo Toàn Shell**: Thay vì để lỗi component con làm trắng trang hoặc kích hoạt full page reload, ErrorBoundary cô lập tại vùng Outlet giúp thanh điều hướng và header luôn duy trì liên tục và cho phép người dùng ấn nút thử lại hoặc chuyển sang trang khác một cách trơn tru.
+- **Chặn Mạng Deterministic Cho E2E**: Các bài test Playwright chặn trực tiếp network request `/api/**` với fixtures chuẩn hóa, giúp test E2E chạy nhanh (~18s), ổn định, độc lập hoàn toàn với dữ liệu Supabase sống.
+
+---
+
 ### Phiên 13/11/2026 (Sửa Lỗi HĐ Bảo Vệ Khóa Luận, Đồng Bộ Phân Quyền & Menu Động Theo Phân Công)
 
 #### 1. Những phần đã hoàn thành
