@@ -70,6 +70,63 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 
 ## 6. Cập Nhật Phiên Làm Việc (Session Update)
 
+### Phiên 14/11/2026 (Hoàn Thành Chuẩn Hóa Bộ Biểu Mẫu A4 Học Vụ BM01-BM05, In Ngữ Cảnh & Ngăn Kéo Toàn Trình AcademicDossierDrawer)
+
+#### 1. Những phần đã hoàn thành
+1. **Tinh Chỉnh AI Chatbot & Thuật Ngữ Trạng Thái Học Vụ**:
+   - `backend/src/services/ai/academicPromptBuilder.js`: Bổ sung ràng buộc không sử dụng dấu `*` markdown (đậm/nghiêng) và không sử dụng mã trạng thái kỹ thuật thô.
+   - `backend/src/services/ai/liveContextService.js` & `aiProviderService.js` & `ollamaProvider.js`: Thiết lập bản đồ dịch thuật ngữ `DB_STATUS_TRANSLATIONS` sang tiếng Việt tự nhiên (`hoàn tất`, `đạt yêu cầu`, `đang diễn ra`, `sẵn sàng bảo vệ`, v.v.) và chuyển đổi gạch đầu dòng `*` thành `- `.
+   - `frontend/src/components/common/AcademicChatWidget.jsx`: Xử lý triệt để định dạng câu trả lời không còn ký tự `*` rối mắt.
+2. **Nền Tảng In Ấn Khổ A4 Chuẩn Hành Chính (`A4PageContainer`, `AcademicFormPrintModal`)**:
+   - `frontend/src/components/prints/A4PageContainer.jsx`: Định dạng chuẩn A4 (210mm x 297mm), font `Times New Roman`, CSS `@media print` và `@page` portrait chuẩn lề theo quy định hành chính (`15mm 10mm 15mm 20mm-25mm`).
+   - `frontend/src/components/prints/AcademicFormPrintModal.jsx`: Modal xem trước và in ấn A4 chuẩn hóa, tích hợp bộ điều khiển zoom (phóng to, thu nhỏ, đặt lại tỉ lệ) và nút in ấn tuân thủ 100% Rule 2.6.
+3. **6 Biểu Mẫu In Ấn A4 Chuẩn Hóa Theo Mẫu Gốc Nhà Trường (`BieuMau/`)**:
+   - `BM01PrintSheet.jsx`: Đề cương nghiên cứu chi tiết khóa luận (Khung tiêu đề chuẩn TDMU/Viện VCS, 7 phần nội dung, bảng kế hoạch tuần, 3 khối chữ ký).
+   - `BM02PrintSheet.jsx`: Nhiệm vụ khóa luận tốt nghiệp (Thông tin sinh viên, tên đề tài, nhiệm vụ, ngày giao và nộp, 3 khối chữ ký).
+   - `BM02APrintSheet.jsx`: Đơn đề nghị điều chỉnh tên đề tài (So sánh tên đề tài cũ vs tên đề xuất mới, lý do giải trình, 3 khối chữ ký).
+   - `BM03PrintSheet.jsx`: Sổ theo dõi tiến độ & hướng dẫn (Bảng nhật ký các buổi gặp Lab, 2 đợt Checkpoint với hộp kiểm tiêu chuẩn, kết luận cho phép bảo vệ).
+   - `BM04PrintSheet.jsx`: Phiếu nhận xét & thẩm định của người hướng dẫn (4 tiêu chí CĐR, 2 kết luận độc lập Đạt CĐR & Cho phép bảo vệ, chữ ký xác nhận của GVHD).
+   - `BM05PrintSheet.jsx`: Biên bản tổng hợp chấm bảo vệ khóa luận tốt nghiệp của Hội đồng (Bảng tổng hợp điểm 3 giám khảo, điểm trung bình làm tròn 1 số lẻ, xếp loại, chữ ký Chủ tịch và Thư ký Hội đồng).
+4. **Tích Hợp Nút In Ngữ Cảnh Tại Các Màn Hình**:
+   - `SubmissionPage.jsx`: Tích hợp các nút in `In Đề cương BM01`, `In Nhiệm vụ BM02`, `In Sổ tiến độ BM03`, `In Phiếu BM04` ngay tại từng giai đoạn học vụ.
+   - `TitleAdjustmentModal.jsx`: Tích hợp nút `In Đơn BM02-A`.
+   - `BM04EvaluationModal.jsx`: Tích hợp nút `Xem & In Phiếu BM04` cho phép GVHD xem trước hoặc in bản in ngay khi đang thẩm định.
+5. **Ngăn Kéo Hồ Sơ Toàn Trình (`AcademicDossierDrawer`)**:
+   - `AcademicDossierDrawer.jsx`: Drawer rộng 1040px điều hướng tabbed 6 biểu mẫu BM01 đến BM05. Hỗ trợ nút `In biểu mẫu này` và `In toàn bộ hồ sơ` (in liên hoàn toàn bộ hồ sơ có phân tách trang in tự động).
+   - Tích hợp nút `Hồ sơ BM` tại các bảng điều khiển quản trị:
+     * `GradingDefensePage.jsx` (Sổ điểm bảo vệ).
+     * `ProjectOversightPage.jsx` (Giám sát đề tài & Hồ sơ lưu chiểu).
+     * `LecturerDashboardPage.jsx` (Danh sách sinh viên hướng dẫn).
+6. **Kiểm Thử Toàn Diện & Tối Ưu Hóa Bundle Size**:
+   - Viết bộ kiểm thử đầy đủ: `a4Foundation.test.js`, `bm01AndBm02Print.test.js`, `bm02aAndBm03Print.test.js`, `bm04AndBm05Print.test.js`, `contextualPrintButtons.test.js`, `academicDossierDrawer.test.js`.
+   - 100% tests PASS: 109 backend test suites (1,117 tests), 278 frontend contract tests, 118 vitest runtime tests, 6 Playwright E2E tests.
+   - Vite production build hoàn tất trong 15.94s, main entry chunk `456.85 kB` (< 500 kB).
+
+#### 2. Trạng thái cập nhật của từng phần
+- **Backend API**: Hoạt động ổn định; 109/109 test suites PASS (1,117/1,117 tests, 100%).
+- **Frontend Unit / Contract**: 278/278 tests PASS (100%).
+- **Frontend Vitest Runtime**: 14/14 test files PASS (118/118 tests, 100%).
+- **Frontend Playwright E2E**: 6/6 tests PASS (100%).
+- **Frontend Production Build**: Vite build thành công trong 15.94s, main entry chunk `456.85 kB` (< 500 kB), 0 cảnh báo.
+- **Database (PostgreSQL / Supabase)**: Mô hình CSDL chuẩn hóa, kết nối Session Pooler (port 6543) hoạt động trơn tru.
+- **Git Repository**: Nhánh `develop` sạch sẽ, toàn bộ 8 tasks của kế hoạch đã được commit hoàn tất.
+- **Tuân thủ quy chuẩn `AGENTS.md`**:
+  * 100% tệp tin định dạng UTF-8 without BOM (Rule 2.4).
+  * 100% tuân thủ mô hình `TopicRegistration` (`maxStudents = 1`, tối đa 10 SV/GVHD).
+  * Zero mock data trong mã nguồn frontend thực tế.
+  * 100% tuân thủ Rule 2.6 (tuyệt đối không emoji/ký tự thô trong nhãn nút bấm, sử dụng `@ant-design/icons` qua prop `icon={<Icon />}`).
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+1. Thử nghiệm in thực tế trên các trình duyệt khác nhau (Chrome, Edge, Firefox) và xuất file PDF ("Save as PDF").
+2. Đánh giá nhu cầu xuất file Microsoft Word (.docx) động nếu đơn vị yêu cầu nộp file văn bản có thể chỉnh sửa.
+3. Chuẩn bị tài liệu hướng dẫn sử dụng in ấn và quản trị hồ sơ cho sinh viên và cán bộ giảng viên.
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+- **Phương Án 3 (Hybrid: In Ngữ Cảnh + Ngăn Kéo Hồ Sơ Toàn Trình)**: Cho phép sinh viên và giảng viên in ấn nhanh từng biểu mẫu ngay tại màn hình nộp/duyệt, đồng thời cung cấp cho Ban Quản trị một trung tâm hồ sơ (Dossier Hub) để xem và in trọn bộ biểu mẫu BM01 -> BM05 một cách tập trung.
+- **Sử Dụng CSS Native `@media print` Thay Vì Thư Viện PDF Bên Ngoài**: Không sử dụng `jspdf` hay `pdfmake` để tránh làm phình to bundle size (duy trì main chunk < 500 kB), tận dụng bộ kết xuất vector native của trình duyệt để có bản in và file PDF sắc nét 100%.
+
+---
+
 ### Phiên 14/11/2026 (Hoàn Thành Toàn Diện 14 Tasks: Chuẩn Hóa Server-State Loading, Error Recovery, TanStack Query v5 & E2E Coverage)
 
 #### 1. Những phần đã hoàn thành
