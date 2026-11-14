@@ -14,6 +14,7 @@ import {
 } from 'antd';
 import {
     CheckOutlined,
+    FileTextOutlined,
     HistoryOutlined,
     LockOutlined,
     PrinterOutlined,
@@ -33,6 +34,7 @@ import { PROJECT_NAME } from '../../utils/semesterDisplay';
 import useAuthStore from '../../stores/authStore';
 import DefenseResultPublicationModal from '../../components/admin/DefenseResultPublicationModal';
 import PublicationHistoryModal from '../../components/admin/PublicationHistoryModal';
+import DefenseSummaryRecordModal from '../../components/admin/DefenseSummaryRecordModal';
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
@@ -92,6 +94,8 @@ export default function GradingDefensePage() {
 
     // ScoreBook return logs state
     const [returnHistoryModalVisible, setReturnHistoryModalVisible] = useState(false);
+    const [summaryModalOpen, setSummaryModalOpen] = useState(false);
+    const [selectedRegForSummary, setSelectedRegForSummary] = useState(null);
     // Rubric Drawer state
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [drawerLoading, setDrawerLoading] = useState(false);
@@ -1054,6 +1058,17 @@ export default function GradingDefensePage() {
                                                 >
                                                     Mở Sổ Điểm
                                                 </button>
+                                                <Button
+                                                    size="small"
+                                                    icon={<FileTextOutlined />}
+                                                    onClick={() => {
+                                                        setSelectedRegForSummary(r);
+                                                        setSummaryModalOpen(true);
+                                                    }}
+                                                    title="Xem Biên bản tổng hợp BM05"
+                                                >
+                                                    BM05
+                                                </Button>
                                                 {canLockResult && (r.scoreLocked ? (
                                                     <button
                                                         className="btn btn-secondary btn-sm"
@@ -1402,6 +1417,15 @@ export default function GradingDefensePage() {
                         >
                             In Biên Bản BM05
                         </Button>
+                        <Button
+                            icon={<FileTextOutlined />}
+                            onClick={() => {
+                                setSelectedRegForSummary(scoreSheetRegistration);
+                                setSummaryModalOpen(true);
+                            }}
+                        >
+                            Xem Biên Bản BM05
+                        </Button>
                         {canSubmitScore && <button
                             className="btn btn-primary"
                             onClick={handleSaveScoreSheet}
@@ -1530,6 +1554,15 @@ export default function GradingDefensePage() {
                     />
                 )}
             </Modal>
+            {/* Modal Biên Bản Tổng Hợp BM05 */}
+            <DefenseSummaryRecordModal
+                open={summaryModalOpen}
+                onClose={() => {
+                    setSummaryModalOpen(false);
+                    setSelectedRegForSummary(null);
+                }}
+                registration={selectedRegForSummary}
+            />
         </div>
     );
 }
