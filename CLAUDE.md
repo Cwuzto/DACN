@@ -100,13 +100,19 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
    - Hợp nhất an toàn 18 commits từ nhánh `feature/standardized-loading-error-query` vào nhánh chính `develop`.
    - Tái xác thực toàn bộ test suites trên `develop`: 100% tests PASS (109 backend suites, 260 unit tests, 118 runtime tests, 6 E2E tests, Vite production build).
    - Xóa bỏ an toàn worktree cách ly `standardized-loading-error-query` và nhánh feature tương ứng.
+8. **Đồng Bộ & Triển Khai GitHub Remote (`push` & `merge vào main`)**:
+   - Đẩy toàn bộ 193 commits từ `develop` lên `origin/develop`.
+   - Hợp nhất fast-forward `develop` vào nhánh `main` và đẩy lên `origin/main` (`https://github.com/Cwuzto/DACN.git`).
+   - Cả hai nhánh `develop` và `main` đều đồng bộ ở trạng thái mới nhất tại commit `1a8e230`.
 
 #### 2. Trạng thái cập nhật của từng phần
-- **Backend**: 109/109 test suites PASS (1,112/1,112 tests, 100%).
+- **Backend**: Hoạt động ổn định; 109/109 test suites PASS (1,112/1,112 tests, 100%).
 - **Frontend Unit / Contract**: 260/260 tests PASS (100%).
 - **Frontend Vitest Runtime**: 14/14 test files PASS (118/118 tests, 100%).
 - **Frontend Playwright E2E**: 6/6 tests PASS (100%).
 - **Frontend Production Build**: Vite build hoàn tất thành công trong 13.68s, 0 lỗi cú pháp/bundle.
+- **Database (PostgreSQL / Supabase)**: Mô hình CSDL chuẩn hóa, kết nối Session Pooler (port 6543) vận hành ổn định.
+- **Git Remote & Workspace**: Cả 2 nhánh `develop` và `main` đã đồng bộ với `origin`, worktree sạch sẽ.
 - **Tuân thủ quy chuẩn**:
   * 100% tệp tin định dạng UTF-8 without BOM.
   * 100% tuân thủ mô hình `TopicRegistration` (`maxStudents = 1`, tối đa 10 SV/GVHD), không phục hồi `group/groupMember`.
@@ -116,7 +122,7 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 #### 3. Bước tiếp theo cần làm (Next Session Plan)
 1. Kiểm tra trải nghiệm thực tế người dùng (Manual smoke test) trên trình duyệt cho các luồng Admin, GVHD, SV.
 2. Tối ưu bundle size (chia nhỏ dynamic import cho một số vendor chunk > 500kB nếu cần thiết).
-3. Đẩy nhánh `develop` lên remote repository (`git push origin develop`).
+3. Đánh giá và triển khai các tính năng cải tiến tiếp theo theo lộ trình nghiệp vụ.
 
 #### 4. Quyết định quan trọng (Decisions & Rationale)
 - **Tập trung hóa State Máy Chủ vào TanStack Query v5**: Loại bỏ toàn bộ `useEffect` fetch dữ liệu thủ công phân tán trên các trang, khắc phục triệt để lỗi mất dữ liệu form khi component refresh ngầm và lỗi rò rỉ dữ liệu giữa các tài khoản khi đăng xuất/đăng nhập.
