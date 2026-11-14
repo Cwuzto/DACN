@@ -2641,6 +2641,55 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 2. **Bảo vệ độ rộng tối thiểu cho Tiêu đề (`min-w-[280px]`)**: Sử dụng Flexbox kết hợp `flex-1 min-w-[280px]` để ngăn chặn hoàn toàn việc các nút bấm bên phải chèn ép tiêu đề thành cột chữ 1 từ/dòng khi người dùng dùng màn hình độ phân giải trung bình hoặc mở sidebar.
 3. **Admin Role Bypass trong Route Guard**: `ADMIN` là vai trò quản trị tối cao của hệ thống. Cơ chế `getRouteRedirect` cần công nhận vai trò này cho toàn bộ không gian `/admin/*` để tránh tình trạng tài khoản Admin bị rào cản phân quyền của giáo vụ/viện trưởng chặn và đá về trang chủ.
 
+---
+
+### Phiên 14/11/2026 — Chuẩn Hóa BM03/BM04: Tích Hợp In Sổ Tiến Độ, Phiếu Nhận Xét & Triệt Tiêu Điểm Quá Trình
+
+#### 1. Những phần đã hoàn thành
+1. **Tích hợp Tính năng In Sổ Theo Dõi Tiến Độ BM03 tại Trang Theo Dõi Tiến Độ (`ProgressTrackingPage.jsx`)**:
+   - Tại **Tab 3 ("3. Đánh giá tiến độ")**:
+     * Bổ sung thanh công cụ trên cùng với nút `<Button icon={<PrinterOutlined />}>In Sổ tiến độ BM03</Button>`, cho phép GVHD xem và in sổ tiến độ bất kỳ lúc nào.
+     * Bổ sung nút *"In Sổ tiến độ BM03"* ngay tại card *"Ký toàn phiếu BM03 & Xác nhận sinh viên (48h)"*.
+   - Tại **Tab 2 ("Nhật ký trao đổi")**:
+     * Bổ sung nút `<Button icon={<PrinterOutlined />}>In Sổ tiến độ BM03</Button>` trên thanh tiêu đề cạnh nút *"Ghi nhận buổi hướng dẫn mới"*.
+   - Tại **Header Bar** (khu vực thao tác chung của sinh viên đang chọn):
+     * Bổ sung nút `<Button icon={<PrinterOutlined />}>In Sổ tiến độ BM03</Button>`.
+2. **Chuẩn hóa Triệt Để BM04 & Xóa Bỏ Hoàn Toàn "Điểm Đánh Giá Quá Trình"**:
+   - Khắc phục sự nhầm lẫn hiển thị `Điểm đánh giá quá trình: 9.0 / 10` trong card BM04 (vốn là text placeholder sót lại từ bản mẫu prototype cũ).
+   - Theo đúng quy chế của Viện Công nghệ Số & Trường ĐH Thủ Dầu Một: GVHD chỉ nhận xét định tính (4 tiêu chí CĐR: Bố cục, Nội dung, Khả năng ứng dụng, Thái độ) và đưa ra 2 kết luận độc lập (Đạt chuẩn đầu ra & Cho phép ra bảo vệ trước Hội đồng). **GVHD hoàn toàn không cho điểm số quá trình**; điểm số sẽ do 3 thành viên Hội đồng chấm trên BM05 sau đó.
+   - Chuyển đổi 3 cột thống kê trong thẻ BM04 thành:
+     * Cột 1: *Tổng số buổi gặp BM03*: `{count} buổi làm việc`
+     * Cột 2: *Chuẩn đầu ra (CĐR)*: `Đạt chuẩn đầu ra` / `Đang thẩm định`
+     * Cột 3: *Kết luận của GVHD*: `Đồng ý cho bảo vệ` / `Chưa thẩm định`
+   - Hiển thị động ý kiến nhận xét của GVHD từ `reg?.bm04Evaluation?.generalNotes` hoặc `attitudeScore`.
+   - Bổ sung nút `<Button icon={<PrinterOutlined />}>In Phiếu BM04</Button>` tại cả Header Bar và Tab 4 cạnh nút *"Xem / Sửa Phiếu nhận xét"*.
+3. **Gắn Kết Modal In Ấn Khổ Chuẩn A4**:
+   - Tích hợp 2 modal in ấn `AcademicFormPrintModal` tương ứng với `BM03PrintSheet` và `BM04PrintSheet` tại cuối trang `ProgressTrackingPage.jsx`, hỗ trợ thu phóng, xem trước và in ấn A4 chuẩn theo quy chuẩn học thuật.
+4. **Kiểm Thử & Đảm Bảo Chất Lượng**:
+   - Toàn bộ 291 frontend contract tests PASS (100%).
+   - Toàn bộ 118 frontend runtime tests (14 test files) PASS (100%).
+   - Production build Vite hoàn tất thành công trong 14.09s (0 lỗi).
+   - Tuân thủ nghiêm ngặt Quy tắc 2.4 (UTF-8 no BOM) và Quy tắc 2.6 trong `AGENTS.md` (chuẩn nút bấm Ant Design, không chèn emoji hay ký tự thô vào text nhãn).
+
+#### 2. Trạng thái cập nhật của từng phần
+- **Backend**: Cung cấp đầy đủ `bm04Evaluation` và `meetingLogs` trong danh sách `getAllRegistrations`.
+- **Frontend**: Trang Theo dõi tiến độ (`ProgressTrackingPage.jsx`) hiển thị đầy đủ các nút In Sổ tiến độ BM03 và In Phiếu BM04 ở tất cả các tab liên quan; thẻ BM04 đã xóa bỏ hoàn toàn điểm số quá trình theo đúng quy chế đào tạo.
+- **Biểu mẫu in ấn**: `BM03PrintSheet` và `BM04PrintSheet` hoạt động mượt mà, hỗ trợ xuất in A4 chuẩn.
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+1. Thử nghiệm trực tiếp trên trình duyệt với tài khoản GVHD:
+   - Vào mục **Theo dõi tiến độ** (`/lecturer/progress`), chọn sinh viên.
+   - Thử bấm nút **"In Sổ tiến độ BM03"** tại Header bar, Tab 2 và Tab 3 để kiểm tra bản in A4.
+   - Bấm nút **"In Phiếu BM04"** tại Header bar và Tab 4 để kiểm tra bản in Phiếu nhận xét của GVHD.
+2. Tiếp tục hoàn thiện các luồng chấm điểm hội đồng hoặc các yêu cầu tiếp theo từ người dùng.
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+1. **Quy chế không có điểm số quá trình cho GVHD trên BM04**:
+   - BM04 (Phiếu nhận xét của GVHD / GV phản biện) là văn bản pháp lý định tính nhằm xác nhận tính liêm chính, đáp ứng chuẩn đầu ra và đề nghị cho phép sinh viên được ra bảo vệ. Điểm số thang 10 hoàn toàn không xuất hiện ở giai đoạn này mà được cho độc lập bởi 3 ủy viên Hội đồng trong biên bản chấm BM05. Do đó việc loại bỏ "Điểm đánh giá quá trình 9.0 / 10" là hoàn toàn chuẩn xác theo quy chế đào tạo.
+2. **Cung cấp nút in ấn tại mọi ngữ cảnh liên quan**:
+   - GVHD có thể muốn in BM03 khi đang xem lại các buổi gặp (Tab 2) hoặc khi đang thẩm định mốc giữa kỳ/cuối kỳ (Tab 3) hoặc ngay từ Header bar. Cung cấp nút in ấn theo ngữ cảnh giúp tối ưu trải nghiệm và thuận tiện cho giảng viên.
+
+
 
 
 
