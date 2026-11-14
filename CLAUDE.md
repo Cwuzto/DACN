@@ -70,6 +70,52 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 
 ## 6. Cập Nhật Phiên Làm Việc (Session Update)
 
+### Phiên 14/11/2026 (Làm Mới Toàn Diện Bộ Dữ Liệu Demo Học Thuật Chuẩn TDMU / Viện CNS & Nâng Cấp Khả Năng In BM03, BM04 Ngay Lập Tức)
+
+#### 1. Những phần đã hoàn thành
+1. **Chuẩn Hóa Bộ Dữ Liệu Demo Toàn Diện (`backend/scripts/seed/`)**:
+   - `demoFixtures.js`: Danh sách 12 Giảng viên với học hàm/học vị và họ tên tiếng Việt thực tế: `TS. Nguyễn Văn Thắng` (Viện trưởng), `ThS. Trần Thị Mai Phương` (Trưởng bộ môn KTPM & HTTT), `TS. Lê Hoàng Nam`, `ThS. Phạm Quốc Bảo`, `TS. Đỗ Thị Thu Hà`, v.v.
+   - `demoFixtures.js`: Thuật toán sinh 120 họ tên sinh viên tiếng Việt tự nhiên, ngẫu nhiên có kiểm soát theo giới tính và họ phổ biến (Nguyễn, Trần, Lê, Phạm, Hoàng...).
+   - `phase1Fixtures.js`: Chuẩn hóa 100% dữ liệu hồ sơ sinh viên: Trường (*Đại học Thủ Dầu Một*), Đơn vị quản lý (*Viện Công nghệ số*), Ngành học (*Công nghệ thông tin*), Khóa (*D22 — nhập học 2022*), Lớp hành chính (*D22CNTT01..04*).
+   - `phase1Fixtures.js`: Danh mục 24 tên đề tài tốt nghiệp thực tế chuyên sâu (AI, Cloud, Microservices, IoT, LLM, Blockchain, Chữ ký số, v.v.).
+2. **Nâng Cấp Dữ Liệu Tiến Độ BM03 & Nhận Xét BM04 (`phase2Fixtures.js`)**:
+   - BM03: Mở rộng từ 3 buổi lên **7 buổi gặp định kỳ xuyên suốt học kỳ** (kèm hình thức `IN_PERSON` phòng Lab và `MICROSOFT_TEAMS` trực tuyến), nội dung thảo luận chi tiết, sản phẩm đã hoàn thành, nhiệm vụ tiếp theo, và đánh giá đạt cả 2 mốc Checkpoint 1 (Giữa kỳ) & Checkpoint 2 (Cuối kỳ).
+   - BM04: Đánh giá chi tiết 4 tiêu chí Chuẩn đầu ra (CĐR) chuyên nghiệp: Tiêu chí 1 (Hình thức IEEE), Tiêu chí 2 (Nội dung nghiên cứu & giải thuật), Tiêu chí 3 (Tính ứng dụng thực tiễn & khả năng chuyển giao), Tiêu chí 4 (Thái độ nghiên cứu & ý thức kỷ luật), kết luận `AGREED_FOR_DEFENSE` và `MEETS_PROGRAM_OUTCOMES`.
+3. **Hoàn Thiện Khả Năng Hiển Thị Khổ In A4 BM03 & BM04 (`frontend/src/components/prints/`)**:
+   - `BM03PrintSheet.jsx`: Hỗ trợ linh hoạt cả prop `meetingLogs`, `progressRecords` lẫn `bm03Record.meetings`. Tự động chia tách động danh sách buổi gặp giữa 2 đợt Checkpoint. Hiển thị chuẩn mã lớp `D22CNTT01`, MSSV, ngành học và chữ ký GVHD.
+   - `BM04PrintSheet.jsx`: Ánh xạ chuẩn xác các trường Prisma `thesisFormatScore`, `researchContentScore`, `applicabilityScore`, `attitudeScore`, `conclusion === 'AGREED_FOR_DEFENSE'`, `programOutcome === 'MEETS_PROGRAM_OUTCOMES'`. Hiển thị tiêu đề cơ quan: *Trường Đại học Thủ Dầu Một / Viện Công nghệ Số / Bộ môn: Kỹ thuật phần mềm & HTTT*.
+4. **Thực Thi Tái Tạo Cơ Sở Dữ Liệu (Phase 2 Re-Seed)**:
+   - Chạy lệnh `npm --prefix backend run db:seed:phase2` nạp thành công 100% 120 sinh viên, 12 giảng viên, 1 admin, 14 rubric criteria, 300 timeline tasks.
+   - 0 conflicts, 0 failedCompleted.
+5. **Kiểm Thử Toàn Trình & Bản Dựng Production**:
+   - 109/109 test suites backend PASS (1,117/1,117 tests).
+   - 286/286 contract tests frontend PASS.
+   - 118/118 runtime tests vitest PASS.
+   - Vite production build hoàn tất trong 15.90s, không lỗi.
+
+#### 2. Danh Sách Tài Khoản Demo Ngay (Cheatsheet)
+| Chức năng Demo | Tài khoản (Email) | Mật khẩu | Mô tả kịch bản kiểm thử |
+|---|---|---|---|
+| **In Sổ BM03** | `sv075@university.edu.vn` (hoặc `sv076`) | `student123` | Đã hoàn tất BM03 (`BM03_COMPLETED`), đủ 7 tuần nhật ký Lab & 2 Checkpoint, vào menu *Nộp đồ án & Khóa luận* $\rightarrow$ bấm nút **In Sổ tiến độ BM03**. |
+| **In Phiếu BM04** | `sv091@university.edu.vn` (hoặc `sv092`) | `student123` | Đã được GVHD thẩm định BM04 đạt (`DEFENSE_READY`), vào menu *Nộp đồ án & Khóa luận* $\rightarrow$ bấm nút **In Phiếu BM04**. |
+| **Chấm/Duyệt BM04** | `lecturer01@university.edu.vn` | `lecturer123` | TS. Nguyễn Văn Thắng (Viện trưởng kiêm GVHD). Có bản nháp BM04 cho sinh viên `sv079`..`sv084`. Bấm *Thẩm định BM04* để xem bản in trước hoặc ký duyệt. |
+| **In Cả Bộ BM01–BM05** | `admin@university.edu.vn` | `admin123` | Quản trị hệ thống. Vào *Giám sát đề tài* (`/admin/oversight`) hoặc *Hội đồng & Chấm điểm* (`/admin/grading`), tại sinh viên `sv115`..`sv120` (COMPLETED), bấm nút **Hồ sơ BM** để mở ngăn kéo xem và in liên hoàn 6 biểu mẫu BM01 đến BM05. |
+| **Theo Dõi Tiến Độ BM03** | `lecturer01@university.edu.vn` | `lecturer123` | Tại *Dashboard Giảng viên* (`/lecturer/dashboard`), sinh viên `sv063` đang chờ GVHD ký toàn phiếu BM03; sinh viên `sv069` đang trong cửa sổ 48h chờ SV xác nhận. |
+
+#### 3. Trạng thái cập nhật của từng phần
+- **Database (Supabase / PostgreSQL)**: Đã được làm sạch và nạp mới 100% dữ liệu thực tế.
+- **Frontend Print Engine**: Biểu mẫu BM03 và BM04 kết nối trực tiếp CSDL không cần dữ liệu giả.
+- **Tuân thủ quy chuẩn `AGENTS.md`**:
+  * 100% UTF-8 without BOM (Rule 2.4).
+  * 100% không chèn raw emoji trong Button labels (Rule 2.6).
+  * 100% tuân thủ mô hình `TopicRegistration` (Rule 2.1).
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+- **Cấu hình Kết nối Trực tiếp Port 5432 khi Seeding**: Thiết lập `DB_POOL_CONNECTION_TIMEOUT_MS = 60000` và `DB_POOL_MAX = 3` khi chạy seed script giúp loại bỏ hoàn toàn hiện tượng timeout/rớt socket khi thực hiện hàng ngàn truy vấn liên tiếp trên Supabase.
+- **Chia Tách Động Danh Sách Tuần Gặp Trên BM03**: Thay vì cắt cố định `slice(0, 4)` dễ làm hỏng bố cục nếu dữ liệu có số lượng tuần khác nhau, `BM03PrintSheet` chia tách động `Math.floor(meetings.length / 2)` giúp bảng tiến độ luôn cân đối giữa Checkpoint 1 và Checkpoint 2.
+
+---
+
 ### Phiên 14/11/2026 (Tái Thiết Kế Giao Diện Hồ Sơ Cá Nhân ProfilePage Chuẩn UI/UX Pro Max, Academic Hero Banner, Quick Metrics & 3 Tabs Chuyên Sâu)
 
 #### 1. Những phần đã hoàn thành
