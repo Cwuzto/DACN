@@ -294,6 +294,7 @@ export default function AcademicDossierDrawer({
             {/* Print Modal */}
             <AcademicFormPrintModal
                 open={printModalConfig.open}
+                onClose={() => setPrintModalConfig((prev) => ({ ...prev, open: false }))}
                 onCancel={() => setPrintModalConfig((prev) => ({ ...prev, open: false }))}
                 title={printModalConfig.title}
                 documentCode={printModalConfig.documentCode}

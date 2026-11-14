@@ -16,11 +16,13 @@ import {
 export default function AcademicFormPrintModal({
     open,
     onClose,
+    onCancel,
     title = 'Bản In Văn Bản Học Thuật',
     documentCode = 'A4',
     children,
     onPrint,
 }) {
+    const handleClose = onClose || onCancel;
     const [zoomScale, setZoomScale] = useState(1);
 
     const handleZoomIn = () => setZoomScale((prev) => Math.min(prev + 0.1, 1.4));
@@ -38,7 +40,7 @@ export default function AcademicFormPrintModal({
     return (
         <Modal
             open={open}
-            onCancel={onClose}
+            onCancel={handleClose}
             width={1020}
             destroyOnHidden
             title={
@@ -87,7 +89,7 @@ export default function AcademicFormPrintModal({
                         Mẹo: Trong hộp thoại in, chọn "Lưu dưới dạng PDF" (Save as PDF) để xuất tệp lưu trữ.
                     </span>
                     <Space>
-                        <Button icon={<CloseOutlined />} onClick={onClose}>
+                        <Button icon={<CloseOutlined />} onClick={handleClose}>
                             Đóng
                         </Button>
                         <Button

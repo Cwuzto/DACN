@@ -454,6 +454,7 @@ export default function TitleAdjustmentModal({
 
             <AcademicFormPrintModal
                 open={printModalOpen}
+                onClose={() => setPrintModalOpen(false)}
                 onCancel={() => setPrintModalOpen(false)}
                 title="ĐƠN ĐỀ NGHỊ ĐIỀU CHỈNH TÊN ĐỀ TÀI"
                 documentCode="BM02-A"

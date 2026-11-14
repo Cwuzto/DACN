@@ -404,6 +404,7 @@ export default function BM04EvaluationModal({
 
             <AcademicFormPrintModal
                 open={printModalOpen}
+                onClose={() => setPrintModalOpen(false)}
                 onCancel={() => setPrintModalOpen(false)}
                 title="PHIẾU NHẬN XÉT KHÓA LUẬN TỐT NGHIỆP CỦA NGƯỜI HƯỚNG DẪN"
                 documentCode="BM04"

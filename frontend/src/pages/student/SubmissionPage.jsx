@@ -14,6 +14,7 @@ import {
 import {
     CheckCircleOutlined,
     CloseCircleOutlined,
+    CloseOutlined,
     ClockCircleOutlined,
     ExclamationCircleOutlined,
     FileDoneOutlined,
@@ -1499,17 +1500,28 @@ export default function SubmissionPage() {
             />
 
             {/* Submission Viewer Modal */}
-            <BMSubmissionViewer
+            <Modal
+                title={viewerSubmission?.task?.title || 'Chi tiết bài nộp biểu mẫu'}
                 open={viewerVisible}
-                onClose={() => setViewerVisible(false)}
-                submission={viewerSubmission}
-            />
+                onCancel={() => setViewerVisible(false)}
+                footer={
+                    <Button icon={<CloseOutlined />} onClick={() => setViewerVisible(false)}>
+                        Đóng
+                    </Button>
+                }
+                width={760}
+                destroyOnHidden
+            >
+                <BMSubmissionViewer
+                    submission={viewerSubmission}
+                />
+            </Modal>
 
             <Modal
                 title="Phiếu Nhận Xét Của Người Hướng Dẫn Đã Ký"
                 open={bm04ViewerOpen}
                 onCancel={() => setBm04ViewerOpen(false)}
-                footer={<Button onClick={() => setBm04ViewerOpen(false)}>Đóng</Button>}
+                footer={<Button icon={<CloseOutlined />} onClick={() => setBm04ViewerOpen(false)}>Đóng</Button>}
                 width={720}
             >
                 {bm04Evaluation && (
@@ -1562,13 +1574,14 @@ export default function SubmissionPage() {
             {/* Academic Form Print Modal */}
             <AcademicFormPrintModal
                 open={printConfig.open}
+                onClose={() => setPrintConfig((prev) => ({ ...prev, open: false }))}
                 onCancel={() => setPrintConfig((prev) => ({ ...prev, open: false }))}
                 title={printConfig.title}
                 documentCode={printConfig.documentCode}
             >
                 {printConfig.type === 'BM01' && (
                     <BM01PrintSheet
-                        outline={outlineData || (() => {
+                        outlineData={outlineData || (() => {
                             const bm01Task = tasks.find((t) => t.taskType === 'BM01' || t.taskType === 'BM01_INITIAL_SUBMISSION' || t.taskType === 'BM01_RESUBMISSION');
                             const lastSub = bm01Task?.submissions?.[0];
                             if (lastSub?.content) {
@@ -1581,6 +1594,7 @@ export default function SubmissionPage() {
                             }
                             return null;
                         })()}
+                        outline={outlineData}
                         registration={registration}
                     />
                 )}

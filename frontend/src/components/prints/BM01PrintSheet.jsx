@@ -10,13 +10,15 @@ import A4PageContainer from './A4PageContainer';
 export default function BM01PrintSheet({
     registration = {},
     outlineData = {},
+    outline = {},
     student = {},
     mentor = {},
 }) {
+    const rawOutline = (outlineData && Object.keys(outlineData).length > 0) ? outlineData : (outline || {});
     const s = student?.fullName ? student : registration?.student || {};
     const m = mentor?.fullName ? mentor : registration?.topic?.mentor || {};
     const topic = registration?.topic || {};
-    const title = registration?.adjustedTitle || registration?.bm01ApprovedTitleSnapshot || outlineData?.title || topic?.title || '................................................................................................................';
+    const title = registration?.adjustedTitle || registration?.bm01ApprovedTitleSnapshot || rawOutline?.title || rawOutline?.topicTitle || topic?.title || '................................................................................................................';
 
     const defaultWeeks = [
         { week: 'Tuần 1-2', task: 'Khảo sát hiện trạng, thu thập yêu cầu và nghiên cứu tài liệu tổng quan.', output: 'Báo cáo tổng quan và đề cương chi tiết' },
@@ -26,14 +28,14 @@ export default function BM01PrintSheet({
         { week: 'Tuần 12-14', task: 'Hoàn thiện báo cáo khóa luận, chuẩn bị slide và hồ sơ nghiệm thu.', output: 'Quyển báo cáo tốt nghiệp hoàn chỉnh' },
     ];
 
-    const weeklySchedule = (outlineData?.weeklyPlan && Array.isArray(outlineData.weeklyPlan) && outlineData.weeklyPlan.length > 0)
-        ? outlineData.weeklyPlan
+    const weeklySchedule = (rawOutline?.weeklyPlan && Array.isArray(rawOutline.weeklyPlan) && rawOutline.weeklyPlan.length > 0)
+        ? rawOutline.weeklyPlan
         : defaultWeeks;
 
-    const objectives = outlineData?.objectives || 'Nghiên cứu và xây dựng hệ thống phần mềm giải quyết trọn vẹn bài toán thực tiễn của đề tài, đáp ứng các tiêu chuẩn kỹ thuật và chuẩn đầu ra của Chương trình đào tạo.';
-    const scope = outlineData?.scope || 'Tập trung vào phạm vi nghiệp vụ cốt lõi, kiến trúc bảo mật, giao diện người dùng và cơ sở dữ liệu phục vụ đối tượng thụ hưởng của đơn vị.';
-    const methodology = outlineData?.methodology || 'Phương pháp nghiên cứu kết hợp khảo sát thực tế, phân tích mô hình hóa UML, thiết kế phần mềm hiện đại và phương pháp phát triển Agile/Scrum.';
-    const expectedOutcomes = outlineData?.expectedOutcomes || 'Hệ thống phần mềm hoàn chỉnh có khả năng triển khai thực tế; trọn bộ mã nguồn sạch, tài liệu đặc tả kỹ thuật và quyển báo cáo khóa luận tốt nghiệp đạt chuẩn.';
+    const objectives = rawOutline?.objectives || 'Nghiên cứu và xây dựng hệ thống phần mềm giải quyết trọn vẹn bài toán thực tiễn của đề tài, đáp ứng các tiêu chuẩn kỹ thuật và chuẩn đầu ra của Chương trình đào tạo.';
+    const scope = rawOutline?.scope || 'Tập trung vào phạm vi nghiệp vụ cốt lõi, kiến trúc bảo mật, giao diện người dùng và cơ sở dữ liệu phục vụ đối tượng thụ hưởng của đơn vị.';
+    const methodology = rawOutline?.methodology || 'Phương pháp nghiên cứu kết hợp khảo sát thực tế, phân tích mô hình hóa UML, thiết kế phần mềm hiện đại và phương pháp phát triển Agile/Scrum.';
+    const expectedOutcomes = rawOutline?.expectedOutcomes || rawOutline?.deliverables || 'Hệ thống phần mềm hoàn chỉnh có khả năng triển khai thực tế; trọn bộ mã nguồn sạch, tài liệu đặc tả kỹ thuật và quyển báo cáo khóa luận tốt nghiệp đạt chuẩn.';
 
     const currentDate = new Date();
     const day = String(currentDate.getDate()).padStart(2, '0');
