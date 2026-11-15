@@ -3,6 +3,7 @@ const { auditLog } = require('./auditLogService');
 const {
   PERMISSION_CATALOG,
   DEFAULT_GROUPS,
+  STUDENT_BASE_PERMISSIONS,
   ACADEMIC_PROTECTED_PERMISSIONS,
   TECHNICAL_PERMISSIONS,
   GRANTABLE_PERMISSION_CODES,
@@ -11,10 +12,18 @@ const {
 const { clearAuthCache } = require('../middlewares/auth');
 const getRequestIp = (req) => req?.ip || req?.headers?.['x-forwarded-for'] || null;
 
-const listPermissions = async () => prisma.permission.findMany({ orderBy: [{ module: 'asc' }, { code: 'asc' }] });
+const listPermissions = async () =>
+  prisma.permission.findMany({
+    where: {
+      code: { notIn: Array.from(STUDENT_BASE_PERMISSIONS) },
+      module: { not: 'STUDENT' },
+    },
+    orderBy: [{ module: 'asc' }, { code: 'asc' }],
+  });
 
 const listGroups = async () =>
   prisma.permissionGroup.findMany({
+    where: { code: { not: 'SYSTEM_STUDENT_BASE' } },
     include: { permissions: { include: { permission: true } }, _count: { select: { users: true } } },
     orderBy: { id: 'asc' },
   });
@@ -267,10 +276,15 @@ const seedPermissionCatalog = async (db = prisma) => {
 const getPermissionMatrix = async () => {
   const [groups, permissions, groupPermissions] = await Promise.all([
     prisma.permissionGroup.findMany({
+      where: { code: { not: 'SYSTEM_STUDENT_BASE' } },
       orderBy: { id: 'asc' },
       select: { id: true, code: true, name: true, description: true, isSystem: true },
     }),
     prisma.permission.findMany({
+      where: {
+        code: { notIn: Array.from(STUDENT_BASE_PERMISSIONS) },
+        module: { not: 'STUDENT' },
+      },
       orderBy: [{ module: 'asc' }, { id: 'asc' }],
       select: { id: true, code: true, label: true, module: true },
     }),

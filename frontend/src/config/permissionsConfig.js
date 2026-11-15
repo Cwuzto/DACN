@@ -179,3 +179,29 @@ export const getCanonicalCode = (code) => CANONICAL_ALIAS_MAP[code] || code;
  */
 export const getAliasCode = (code) => REVERSE_ALIAS_MAP[code] || null;
 
+/**
+ * Danh mục quyền nội tại cố định của sinh viên (không cấu hình qua ma trận RBAC)
+ */
+export const STUDENT_BASE_PERMISSIONS = Object.freeze([
+    'VIEW_MY_REGISTRATION',
+    'VIEW_MY_SUBMISSIONS',
+    'VIEW_MY_ARCHIVE',
+    'VIEW_MY_GRADES',
+    'REGISTER_TOPIC',
+    'RENAME_TOPIC',
+    'REGISTRATION_CANCEL',
+    'SUBMIT_BM01',
+    'SUBMIT_BM02',
+    'SUBMIT_TASK',
+    'CHECKPOINT_SIGN',
+    'SIGNATURE_APPEAL_SUBMIT',
+    'SUBMIT_PRE_DEFENSE_ARCHIVE',
+    'SUBMIT_FINAL_ARCHIVE',
+]);
+
+/**
+ * Kiểm tra xem quyền có phải là quyền nội tại của sinh viên không
+ */
+export const isStudentPermission = (code) => STUDENT_BASE_PERMISSIONS.includes(code);
+
+

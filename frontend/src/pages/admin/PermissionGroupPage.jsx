@@ -60,6 +60,7 @@ import {
     isAliasPermission,
     getCanonicalCode,
     getAliasCode,
+    isStudentPermission,
 } from '../../config/permissionsConfig';
 
 function PermissionGroupPage() {
@@ -72,7 +73,25 @@ function PermissionGroupPage() {
     // Matrix states
     const scope = queryKeys.scope(currentUser);
     const matrixQuery = usePermissionMatrix(scope, activeTab === 'MATRIX');
-    const matrixData = matrixQuery.data || { roles: [], modules: [], role_permissions: {} };
+    const matrixData = useMemo(() => {
+        const raw = matrixQuery.data || { roles: [], modules: [], role_permissions: {} };
+        const filteredRoles = (raw.roles || []).filter(
+            (r) => r.code !== 'SYSTEM_STUDENT_BASE' && r.code !== 'STUDENT'
+        );
+        const filteredModules = (raw.modules || [])
+            .filter((m) => m.module_name !== 'STUDENT')
+            .map((m) => ({
+                ...m,
+                permissions: (m.permissions || []).filter((p) => !isStudentPermission(p.code)),
+            }))
+            .filter((m) => m.permissions.length > 0);
+
+        return {
+            ...raw,
+            roles: filteredRoles,
+            modules: filteredModules,
+        };
+    }, [matrixQuery.data]);
     const permissionMutation = usePermissionMutation(scope);
     const [localMatrix, setLocalMatrix] = useState({});
     const [savingMatrix, setSavingMatrix] = useState(false);
@@ -96,8 +115,16 @@ function PermissionGroupPage() {
 
     const groupsQuery = usePermissionGroups(scope, activeTab === 'GROUPS' || activeTab === 'AUDIT');
     const catalogQuery = usePermissionCatalog(scope, activeTab === 'CATALOG' || activeTab === 'AUDIT' || isModalOpen);
-    const groups = groupsQuery.data || [];
-    const allPermissions = catalogQuery.data || [];
+    const groups = useMemo(() => {
+        return (groupsQuery.data || []).filter(
+            (g) => g.code !== 'SYSTEM_STUDENT_BASE' && g.code !== 'STUDENT'
+        );
+    }, [groupsQuery.data]);
+    const allPermissions = useMemo(() => {
+        return (catalogQuery.data || []).filter(
+            (p) => p.module !== 'STUDENT' && !isStudentPermission(p.code)
+        );
+    }, [catalogQuery.data]);
     const appliedMatrixRef = useRef(null);
     const openedModulesRef = useRef(false);
 

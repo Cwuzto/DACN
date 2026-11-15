@@ -870,6 +870,14 @@ const updateUserPermissionGroups = async (req, res, next) => {
             return res.status(404).json({ success: false, message: 'Không tìm thấy người dùng.' });
         }
 
+        if (existing.role === 'STUDENT') {
+            return res.status(400).json({
+                success: false,
+                code: 'STUDENT_CANNOT_HAVE_PERMISSION_GROUPS',
+                message: 'Tài khoản Sinh viên không thể gán nhóm quyền chức vụ.',
+            });
+        }
+
         if (targetUserId === req.user?.id) {
             return res.status(403).json({
                 success: false,

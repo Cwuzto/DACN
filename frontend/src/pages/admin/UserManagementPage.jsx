@@ -427,7 +427,9 @@ function UserManagementPage() {
                         label: 'Xem hồ sơ chi tiết',
                     },
                     { key: 'edit', icon: <EditOutlined />, label: 'Chỉnh sửa thông tin' },
-                    { key: 'perm', icon: <SafetyCertificateOutlined />, label: 'Phân quyền nhóm' },
+                    ...(record.role !== 'STUDENT'
+                        ? [{ key: 'perm', icon: <SafetyCertificateOutlined />, label: 'Phân quyền nhóm' }]
+                        : []),
                     {
                         key: 'toggle',
                         icon: record.isActive ? <LockOutlined /> : <UnlockOutlined />,

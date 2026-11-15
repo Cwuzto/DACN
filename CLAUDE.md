@@ -101,6 +101,14 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
    - Toàn bộ 291/291 frontend component tests PASS.
    - Frontend production build `npm run build` PASS 100% (3.333 modules transformed, 0 lỗi cú pháp/bundle).
    - Kiểm tra mã hóa: 100% tệp tuân thủ UTF-8 without BOM; 100% tuân thủ UI Button standard Rule 2.6.
+6. **Tinh gọn Ma trận Phân quyền & Loại bỏ Role/Quyền Sinh viên khỏi RBAC Quản trị**:
+   - `permissions.js`: Định nghĩa và export `STUDENT_BASE_PERMISSIONS` (14 quyền nội tại cố định của sinh viên).
+   - `permissionService.js`: Lọc bỏ nhóm `SYSTEM_STUDENT_BASE` khỏi `listGroups` và `getPermissionMatrix`; loại bỏ các quyền nội tại sinh viên và module `STUDENT` khỏi `listPermissions` và bảng ma trận quản trị.
+   - `userController.js`: Chặn việc gán nhóm quyền chức vụ cho tài khoản có `role === 'STUDENT'` (HTTP 400 `STUDENT_CANNOT_HAVE_PERMISSION_GROUPS`).
+   - `PermissionGroupPage.jsx`: Lọc bỏ nhóm `SYSTEM_STUDENT_BASE` và các quyền cá nhân sinh viên khỏi Ma trận, Nhóm quyền và Cây danh mục quyền.
+   - `UserManagementPage.jsx`: Ẩn tùy chọn "Phân quyền nhóm" trong menu thao tác đối với người dùng có `role === 'STUDENT'`.
+   - Kiểm thử: Tạo mới `tests/integration/studentPermissionExclusion.test.js` (5/5 tests PASS).
+   - Backend `auth.js` duy trì cơ chế tự động cấp `studentBasePermissions` khi sinh viên đăng nhập, đảm bảo toàn bộ luồng học vụ sinh viên vận hành bình thường.
 
 #### 2. Trạng thái cập nhật của từng phần
 - **Cơ sở dữ liệu / Business Logic**: Toàn vẹn quy trình 10 sinh viên / GVHD, luồng BM02 -> Quyết định, và lưu chiểu 2 cấp được bảo vệ vững chắc.
