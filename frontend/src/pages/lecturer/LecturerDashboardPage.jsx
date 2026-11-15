@@ -726,6 +726,7 @@ export default function LecturerDashboardPage() {
                                         const isComplete = pct >= 80;
                                         const meetingsCount = r.totalMeetings ?? r._count?.meetingLogs ?? r.meetingLogs?.length ?? (isComplete ? 7 : 4);
                                         const bm04Passed = r.status === 'COMPLETED' || r.status === 'DEFENDED' || r.status === 'DEFENSE_READY';
+                                        const isMeetingSufficient = meetingsCount >= 3 || bm04Passed || isComplete;
 
                                         return (
                                             <tr key={r.id}>
@@ -752,11 +753,11 @@ export default function LecturerDashboardPage() {
                                                     </span>
                                                 </td>
                                                 <td>
-                                                    <strong style={{ color: meetingsCount >= 5 ? 'var(--primary)' : 'var(--warning)' }}>
+                                                    <strong style={{ color: isMeetingSufficient ? 'var(--primary)' : 'var(--warning)' }}>
                                                         {meetingsCount} buổi
                                                     </strong>{' '}
                                                     <span style={{ fontSize: 11, color: 'var(--muted)' }}>
-                                                        ({meetingsCount >= 5 ? 'Đầy đủ' : 'Cần thêm'})
+                                                        ({isMeetingSufficient ? 'Đầy đủ' : 'Cần thêm'})
                                                     </span>
                                                 </td>
                                                 <td>
