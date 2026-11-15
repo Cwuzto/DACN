@@ -70,6 +70,71 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 
 ## 6. Cập Nhật Phiên Làm Việc (Session Update)
 
+### Phiên 15/11/2026 (Audit Toàn Diện Theo 5 Vai Trò: Sinh Viên, Giảng Viên, Admin, Giáo Vụ, Viện Trưởng)
+
+#### 1. Những phần đã hoàn thành
+1. **Tổ chức audit độc lập theo 5 vai trò nghiệp vụ**:
+   - Rà soát xuyên suốt từ Prisma/CSDL -> Backend route/controller/service/RBAC -> Frontend route/menu/page/query/test.
+   - Phân loại phát hiện theo lỗ hổng quy trình, chức năng chưa triển khai, chức năng cần thiết còn thiếu, lỗi có bằng chứng và trang/route không truy cập được.
+   - Không thay đổi mã nguồn sản phẩm và không ghi dữ liệu live trong quá trình audit.
+2. **Xác nhận các lỗi P0 về bảo mật và toàn vẹn nghiệp vụ**:
+   - Import người dùng có thể nhận `role: ADMIN`, tạo tài khoản quản trị trái phép hoặc đổi tài khoản đặc quyền hiện hữu thành sinh viên khi cập nhật trùng.
+   - Các API BM02-A, BM03, BM04 và hồ sơ bảo vệ thiếu kiểm tra ownership/phân công, tạo IDOR giữa các hồ sơ.
+   - API đăng ký và Student Dashboard trả `defenseResult` trước khi kết quả được công bố.
+   - BM05 chưa bảo đảm bí mật chấm độc lập; filter `councilId` có thể ghi đè phạm vi hội đồng của giảng viên.
+   - Bộ đếm giới hạn 10 sinh viên/GVHD thiếu 6 trạng thái đang hoạt động, có thể cho phép đăng ký sinh viên thứ 11.
+   - Luồng BM02 -> ban hành Quyết định giao đề tài bị chặn vì hồ sơ đã duyệt ở `BM02_APPROVED` nhưng endpoint chỉ tìm `BM02_SUBMITTED`/`BM02_RESUBMITTED`.
+   - Endpoint lưu chiểu legacy có thể chuyển thẳng hồ sơ sang `COMPLETED`, bỏ qua tầng Giáo vụ và chữ ký Viện trưởng.
+   - Ủy quyền chuyên môn có `semesterId` trong CSDL nhưng middleware không giới hạn theo học kỳ.
+3. **Xác nhận các lỗi truy cập và UI theo vai trò**:
+   - Giáo vụ không truy cập được chức năng Điều phối & Gán sinh viên; quyền duyệt lưu chiểu chuyên biệt không được frontend nhận diện.
+   - Giáo vụ/Viện trưởng không thấy menu Giám sát tiến độ; người có `REPORT_VIEW` không thấy menu Báo cáo; Giáo vụ có quyền xem hội đồng nhưng không thấy menu hội đồng.
+   - Giáo vụ có quyền trả sổ điểm nhưng nút và lịch sử bị khóa sai theo `RESULT_LOCK`.
+   - Sinh viên gặp `ReferenceError` khi mở BM04 đã ký hoặc cập nhật lưu chiểu do `setBm04Record`, `fetchArchive`, `fetchGrades` không tồn tại.
+   - Trang chấm điểm giảng viên tham chiếu `fetchDefenseData` không tồn tại.
+   - Deep-link thông báo lưu chiểu dùng `/lecturer/progress-tracking` trong khi route thật là `/lecturer/progress`.
+4. **Xác nhận các thiếu sót P1 về quy trình**:
+   - Bản BM01 sửa lại đang do Chủ tịch hội đồng duyệt thay vì GVHD thẩm định lại theo quy trình đã chốt.
+   - Lưu chiểu chưa bắt buộc source code trước khi cấp giấy hoàn thành.
+   - Student Dashboard còn hạn nộp, thông báo, địa điểm và nhật ký giả dù đã có API thực; BM04 định tính bị trình bày thành điểm số GVHD.
+   - Mật khẩu tạo/import/reset mặc định là MSSV/MSGV và chưa có cơ chế bắt đổi mật khẩu.
+   - Hội đồng chưa có bước pháp lý phê duyệt/ban hành danh sách thành viên, số quyết định và người ký.
+   - Thời điểm công bố quyết định người dùng chọn chưa được backend sử dụng đúng cho cửa sổ 168 giờ.
+   - Nhóm Viện trưởng đồng thời có quyền GVHD, Giáo vụ và ký cuối, chưa bảo đảm phân tách nhiệm vụ.
+
+#### 2. Trạng thái cập nhật của từng phần
+- **Cơ sở dữ liệu/Prisma**: Không thay đổi schema. Tiếp tục dùng mô hình `TopicRegistration`; phát hiện thiếu ràng buộc DB chống race cho quy tắc 1 sinh viên/1 đề tài và dấu vết legacy `Task.isBypassed` cần được đánh giá ở phiên sau.
+- **Backend API/RBAC**: Audit `FAIL`; xác nhận các IDOR, rò điểm trước công bố, import privilege escalation, sai phạm vi ủy quyền và bypass lưu chiểu nêu trên.
+- **Frontend SPA**: Production build `PASS`; Playwright E2E hiện có `6/6 PASS`; route/navigation focused tests `68/68 PASS`. Tuy nhiên lint toàn dự án `FAIL` với **447 vấn đề (393 errors, 54 warnings)**, trong đó có các biến không tồn tại gây lỗi runtime.
+- **Kiểm thử theo vai trò**: Các focused suite của 5 subagent đều PASS, nhưng chưa bao phủ ownership IDOR, capability matrix riêng cho `GIAO_VU`/`VIEN_TRUONG`, trạng thái quota đầy đủ và luồng login thật theo từng nhóm quyền.
+- **Git/Workspace**: Audit không sửa mã nguồn. Giữ nguyên thay đổi có sẵn của người dùng tại `frontend/src/pages/lecturer/ProgressTrackingPage.jsx`; chỉ cập nhật và commit `CLAUDE.md` khi đóng phiên.
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+1. **[P0 — Bảo mật/Ownership]**:
+   - Chặn import `ADMIN`, bảo vệ cập nhật trùng không được đổi role tài khoản đặc quyền và bổ sung test chống privilege escalation.
+   - Bổ sung ownership/assignment guard cho BM02-A, BM03, BM04, defense dossier và BM05; che toàn bộ điểm trước công bố.
+2. **[P0 — Toàn vẹn quy trình CSDL/Backend]**:
+   - Hoàn thiện tập trạng thái quota 10 SV/GVHD và bổ sung khóa/ràng buộc chống race cho 1 sinh viên/1 đề tài.
+   - Sửa truy vấn ban hành quyết định nhận `BM02_APPROVED`; giới hạn ủy quyền theo `semesterId`.
+   - Vô hiệu hóa endpoint lưu chiểu legacy bypass; bắt buộc hai tầng duyệt, source code và chữ ký Viện trưởng trước `COMPLETED`.
+3. **[P0/P1 — RBAC và khả năng truy cập]**:
+   - Đồng bộ capability matrix của Giáo vụ/Viện trưởng giữa `permissions.js`, backend guards, `App.jsx`, `navigationRegistry.js` và điều kiện hiển thị nút/query.
+   - Bổ sung integration/E2E đăng nhập thật cho 5 vai trò, kiểm tra menu, deep-link, GET/POST và phản hồi 403 đúng phạm vi.
+4. **[P1 — Frontend Runtime & Dữ liệu thật]**:
+   - Sửa `setBm04Record`, `fetchArchive`, `fetchGrades`, `fetchDefenseData` và deep-link sai.
+   - Loại bỏ mock/hardcode khỏi Student Dashboard và sửa hiển thị BM04 định tính.
+   - Giảm toàn bộ lỗi lint về 0 trước khi tiếp tục phát triển tính năng mới.
+5. **[P1 — Quy trình pháp lý]**:
+   - Khôi phục bước GVHD duyệt bản BM01 sửa; bổ sung phê duyệt/ban hành danh sách Hội đồng và phân tách nhiệm vụ lưu chiểu.
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+1. **Ưu tiên đóng lỗ hổng bảo mật trước phát triển BM05/lưu chiểu mới**: Các IDOR, rò điểm, privilege escalation và bypass `COMPLETED` ảnh hưởng trực tiếp đến tính riêng tư, toàn vẹn học vụ và giá trị pháp lý của hệ thống.
+2. **Sửa gốc theo thứ tự CSDL -> Backend -> Frontend**: Ràng buộc trạng thái, ownership, academic scope và capability phải được chuẩn hóa ở backend/CSDL trước khi mở menu hoặc nút giao diện.
+3. **Không xem test xanh hiện tại là bằng chứng luồng vai trò đã an toàn**: Focused tests và E2E dùng interception vẫn PASS trong khi audit xác nhận lỗi P0; phiên sau bắt buộc bổ sung negative authorization tests và role-based E2E bằng tài khoản thực.
+4. **Giữ nguyên mô hình `TopicRegistration` và trần 10 SV/GVHD**: Không khôi phục `group/groupMember`; mọi sửa lỗi quota và uniqueness phải củng cố kiến trúc hiện tại.
+
+---
+
 ### Phiên 15/11/2026 (Khắc Phục Thuật Toán Phân Công Tự Động Hội Đồng Bảo Vệ Zero-COI & Chuẩn Hóa Tiêu Chí Đánh Giá Tiến Độ Hướng Dẫn)
 
 #### 1. Những phần đã hoàn thành
