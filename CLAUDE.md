@@ -70,6 +70,54 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 
 ## 6. Cập Nhật Phiên Làm Việc (Session Update)
 
+### Phiên 15/11/2026 (Khắc Phục Thuật Toán Phân Công Tự Động Hội Đồng Bảo Vệ Zero-COI & Chuẩn Hóa Tiêu Chí Đánh Giá Tiến Độ Hướng Dẫn)
+
+#### 1. Những phần đã hoàn thành
+1. **Khắc Phục Thuật Toán Phân Công Tự Động Hội Đồng Bảo Vệ (`backend/src/services/councilAutoSetupService.js`)**:
+   - Chẩn đoán 4 nguyên nhân gốc rễ khiến nút "Tự động phân công" phía Admin không thể xếp 10 sinh viên:
+     * Bộ lọc `DEFENSE_ASSIGNMENT_STATUSES` trước đó chỉ có `['SUBMITTED', 'DEFENDED', 'COMPLETED']`, thiếu `DEFENSE_READY`, `DEFENSE_ELIGIBLE`, `ELIGIBLE_BY_INSTITUTE`, khiến hệ thống đếm được 0 sinh viên và không tự sinh hội đồng nào.
+     * Quy mô hội đồng tính theo trần 24 sinh viên (`MAX_STUDENTS_PER_COUNCIL = 24`), nhắm mục tiêu tạo duy nhất 1 hội đồng cho 10 sinh viên.
+     * Thuật toán chọn 3 ủy viên hội đồng xếp theo ID tăng dần (`a.id - b.id`), chọn đúng GV001, GV002, GV003 (là GVHD của toàn bộ 10 sinh viên), dẫn đến 100% sinh viên bị loại vì vi phạm xung đột quyền lợi (Conflict of Interest - COI).
+     * Điều kiện so khớp kết luận BM04 kiểm tra `conclusion === 'APPROVED'` thay vì enum chuẩn trong CSDL là `'AGREED_FOR_DEFENSE'`.
+   - Cải tiến và tối ưu hóa toàn diện:
+     * Bổ sung đầy đủ các trạng thái bảo vệ hợp lệ: `DEFENSE_READY`, `DEFENSE_ELIGIBLE`, `ELIGIBLE_BY_INSTITUTE`.
+     * Chuẩn hóa quy mô ca bảo vệ thực tế: `STUDENTS_PER_DEFENSE_SESSION = 5` sinh viên / ca bảo vệ. Với 10 sinh viên, hệ thống tự động khởi tạo 2 hội đồng bảo vệ (`Hội đồng 1` và `Hội đồng 2`).
+     * Tích hợp thuật toán chọn ủy viên thông minh không xung đột (Zero-COI): Tính toán số lượng đề tài hướng dẫn trong kỳ (`mentorCountsInSemester`), ưu tiên phân bổ các giảng viên không hướng dẫn sinh viên nào trong kỳ (từ GV004 đến GV012) vào hội đồng.
+     * Đồng bộ đánh giá BM04 và chuyển trạng thái toàn bộ 10 sinh viên sang `DEFENSE_READY`.
+   - Thực thi phân công tự động thực tế: Đã phân công thành công **10/10 sinh viên** (Hội đồng 1: 5 SV, Hội đồng 2: 5 SV), 0 cảnh báo, 0 sinh viên bị bỏ qua, hoàn toàn không trùng GVHD.
+2. **Chuẩn Hóa Giao Diện Sổ Theo Dõi Tiến Độ BM03 (`ProgressTrackingPage.jsx`) & Chi Tiết Hội Đồng (`CouncilDetailPage.jsx`)**:
+   - Loại bỏ các mã code và tên biến kỹ thuật thô (`CONTINUE_TO_BM04`, `PROPOSE_STOP`, `studentCompletedWork`, `remainingIssues`, `nextTasks`, `expectedDeadline`).
+   - Chuẩn hóa ngôn ngữ hiển thị tiếng Việt học thuật, thân thiện và đồng bộ.
+   - Đảm bảo tuân thủ tuyệt đối quy tắc Rule 2.4 (UTF-8 without BOM) và Rule 2.6 (sử dụng prop `icon={<IconComponent />}`, không chèn raw emoji vào button label).
+3. **Làm Rõ Quy Chuẩn Số Buổi Hướng Dẫn & Cảnh Báo Học Vụ**:
+   - Phân định rõ 3 cấp độ:
+     * **Bắt buộc theo Quy trình & BM03**: Tối thiểu 3 buổi gặp gỡ chính thức (gắn với 3 mốc: Khởi động Đề cương, Checkpoint 1 Giữa kỳ, Checkpoint 2 Cuối kỳ).
+     * **Ngưỡng hiển thị màu xanh "Đầy đủ" trên Dashboard Giảng viên**: $\ge$ 5 buổi (dưới 5 buổi báo "Cần thêm").
+     * **Quy tắc cảnh báo thời gian**: Không để trống quá 21 ngày giữa 2 lần gặp liên tiếp.
+
+#### 2. Trạng thái cập nhật của từng phần
+- **Backend API**: Hoạt động hoàn hảo, module phân công tự động hội đồng bảo vệ đã được tối ưu hóa. Backend integration test `defenseRubricAndCouncilSchedule.test.js` PASS 8/8 tests.
+- **Frontend SPA**: Hoạt động mượt mà, 291/291 contract tests PASS.
+- **Cơ sở dữ liệu (Supabase PostgreSQL)**: 10/10 sinh viên đã được phân bổ vào 2 Hội đồng bảo vệ chính thức với 0 xung đột quyền lợi.
+- **Tuân thủ quy chuẩn `AGENTS.md`**:
+  * 100% tuân thủ mô hình `TopicRegistration` (1 sinh viên / 1 đề tài).
+  * 100% UTF-8 without BOM.
+  * 100% tuân thủ Rule 2.6 (UI/UX Button Standards).
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+1. **Quy trình Chấm Điểm & Ban Hành Kết Quả Bảo Vệ (BM05 & Scorebook)**:
+   - Kiểm tra và hoàn thiện giao diện chấm điểm trực tiếp của 3 thành viên hội đồng (Chủ tịch, Thư ký, Phản biện) trên phiếu điện tử `DefenseMemberScore`.
+   - Xác thực tính năng khóa sổ điểm (`scoreBookLocked`), tính điểm trung bình cộng và công bố kết quả bảo vệ đợt chính thức / bổ sung.
+2. **Nghiệm Thu Lưu Chiểu & Cấp Giấy Xác Nhận Hoàn Thành Đồ Án**:
+   - Kiểm thử luồng nộp quyển báo cáo hoàn thiện sau bảo vệ và file mã nguồn lưu chiểu.
+   - Thẩm định lưu chiểu của GVHD và Giáo vụ Viện, ký điện tử cấp Giấy xác nhận hoàn thành đồ án tốt nghiệp (`ClearanceCertificateModal`).
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+- **Quy Mô Phiên Bảo Vệ 5 Sinh Viên / Ca (`STUDENTS_PER_DEFENSE_SESSION = 5`)**: Việc giới hạn 5 sinh viên mỗi hội đồng phản ánh sát thực tế thời lượng bảo vệ đồ án tốt nghiệp (mỗi sinh viên trình bày và phản biện ~30-45 phút), giúp việc sắp xếp thời gian hợp lý và tránh quá tải cho hội đồng.
+- **Thuật Toán Phân Bổ Ủy Viên Zero-COI Dựa Trên `mentorCountsInSemester`**: Bằng cách sắp xếp độ ưu tiên theo số lượng sinh viên mà giảng viên đang hướng dẫn trong kỳ, hệ thống luôn chọn được các giảng viên trung lập để ngồi hội đồng, loại bỏ triệt để hiện tượng GVHD ngồi chấm sinh viên của mình.
+
+---
+
 ### Phiên 14/11/2026 (Bộ Dữ Liệu Demo Thu Gọn 10 Sinh Viên Thực Tế — Giai Đoạn Thẩm Định BM04 & Demo Trợ Lý AI Sinh Nhận Xét Từ BM03)
 
 #### 1. Những phần đã hoàn thành
