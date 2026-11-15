@@ -77,7 +77,10 @@ const extractCurrentSemesterId = async (req) => {
     if (typeof prisma.semester?.findFirst === 'function') {
         try {
             const activeSem = await prisma.semester.findFirst({
-                where: { status: 'ACTIVE' },
+                where: {
+                    status: { in: ['ONGOING', 'REGISTRATION', 'DEFENSE'] },
+                },
+                orderBy: { startDate: 'desc' },
                 select: { id: true },
             });
             if (activeSem?.id) {

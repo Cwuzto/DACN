@@ -778,7 +778,10 @@ const getCloneableTopics = async (req, res, next) => {
         }
 
         const activeSemester = await prisma.semester.findFirst({
-            where: { status: 'ACTIVE' },
+            where: {
+                status: { in: ['ONGOING', 'REGISTRATION', 'DEFENSE'] },
+            },
+            orderBy: { startDate: 'desc' },
         });
 
         const where = {
@@ -846,7 +849,10 @@ const cloneTopics = async (req, res, next) => {
         }
 
         const activeSemester = await prisma.semester.findFirst({
-            where: { status: 'ACTIVE' },
+            where: {
+                status: { in: ['ONGOING', 'REGISTRATION', 'DEFENSE'] },
+            },
+            orderBy: { startDate: 'desc' },
         });
 
         if (!activeSemester) {

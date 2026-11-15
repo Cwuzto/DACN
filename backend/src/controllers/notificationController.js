@@ -330,7 +330,7 @@ const sendLecturerBroadcast = async (req, res, next) => {
             activeSemester = await prisma.semester.findFirst({
                 where: {
                     OR: [
-                        { status: { in: ['ONGOING', 'REGISTRATION', 'DEFENSE', 'ACTIVE'] } },
+                        { status: { in: ['ONGOING', 'REGISTRATION', 'DEFENSE'] } },
                         {
                             startDate: { lte: now },
                             endDate: { gte: now },
