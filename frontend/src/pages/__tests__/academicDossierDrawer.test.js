@@ -64,3 +64,30 @@ test('AcademicDossierDrawer: Integration into GradingDefensePage, ProjectOversig
     assert.match(lecturerSrc, /AcademicDossierDrawer/, 'LecturerDashboardPage must import AcademicDossierDrawer');
 });
 
+test('AcademicDossierDrawer: Safe ID and topic code formatting without numeric slice crash', () => {
+    const drawerSrc = read('frontend/src/components/prints/AcademicDossierDrawer.jsx');
+    const gradingSrc = read('frontend/src/pages/admin/GradingDefensePage.jsx');
+    const oversightSrc = read('frontend/src/pages/admin/ProjectOversightPage.jsx');
+
+    assert.equal(
+        drawerSrc.includes('registration?.id?.slice'),
+        false,
+        'AcademicDossierDrawer must not call .slice on numeric registration id'
+    );
+    assert.equal(
+        gradingSrc.includes('r.id?.slice'),
+        false,
+        'GradingDefensePage must not call .slice on numeric id'
+    );
+    assert.match(
+        drawerSrc,
+        /padStart\(3,\s*['"]0['"]\)/,
+        'AcademicDossierDrawer must format topic code with padStart(3, "0")'
+    );
+    assert.match(
+        oversightSrc,
+        /disabled=\{!hasRegistration\}/,
+        'ProjectOversightPage must disable Dossier button when topic has no registered student'
+    );
+});
+

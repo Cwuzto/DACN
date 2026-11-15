@@ -47,13 +47,14 @@ export default function AcademicDossierDrawer({
 
     // Queries for dossier data
     const enabled = Boolean(open && regId);
+    const isStudent = user?.role === 'STUDENT';
     const tasksQuery = useRegistrationTasks(scope, regId, enabled);
     const meetingLogsQuery = useRegistrationMeetingLogs(scope, regId, enabled);
     const checkpointsQuery = useRegistrationCheckpoints(scope, regId, enabled);
     const bm03Query = useBM03Record(scope, regId, enabled);
     const bm04Query = useBM04Record(scope, regId, enabled);
     const bm02aQuery = useRegistrationBm02aRequests(scope, regId, enabled);
-    const outlineQuery = useMyOutline(scope, enabled);
+    const outlineQuery = useMyOutline(scope, Boolean(enabled && isStudent));
 
     const tasks = tasksQuery.data || [];
     const meetingLogs = meetingLogsQuery.data || [];
@@ -223,7 +224,7 @@ export default function AcademicDossierDrawer({
     const studentName = registration?.student?.fullName || 'Sinh viên';
     const studentCode = registration?.student?.code || '';
     const topicTitle = registration?.topic?.title || registration?.customTopicTitle || 'Khóa luận tốt nghiệp';
-    const topicCode = registration?.topic?.code || `DT-${registration?.id?.slice(0, 8) || '2026'}`;
+    const topicCode = registration?.topic?.code || `DT-${String(registration?.topic?.id || registration?.topicId || registration?.id || '2026').padStart(3, '0')}`;
     const mentorName = registration?.mentor?.fullName || registration?.topic?.mentor?.fullName || 'Chưa gán';
 
     return (

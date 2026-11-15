@@ -901,19 +901,35 @@ function ProjectOversightPage() {
                     }
                 };
 
+                const topicRegs = record.registrationEvents || [];
+                const firstReg = topicRegs[0] || null;
+                const hasRegistration = Boolean(firstReg);
+
+                const enrichedReg = firstReg ? {
+                    ...firstReg,
+                    topic: {
+                        ...record,
+                        ...(firstReg.topic || {}),
+                        code: record.code || `DT-${String(record.id).padStart(3, '0')}`,
+                    },
+                } : null;
+
                 return (
                     <div className="flex items-center justify-end gap-1">
-                        <Button
-                            size="small"
-                            icon={<FolderOpenOutlined />}
-                            onClick={() => {
-                                const reg = record.registrationEvents?.[0] || record;
-                                setSelectedRegForDossier(reg);
-                                setDossierDrawerOpen(true);
-                            }}
-                        >
-                            Hồ sơ BM
-                        </Button>
+                        <Tooltip title={!hasRegistration ? 'Đề tài chưa có sinh viên đăng ký để mở hồ sơ BM' : undefined}>
+                            <Button
+                                size="small"
+                                icon={<FolderOpenOutlined />}
+                                disabled={!hasRegistration}
+                                onClick={() => {
+                                    if (!enrichedReg) return;
+                                    setSelectedRegForDossier(enrichedReg);
+                                    setDossierDrawerOpen(true);
+                                }}
+                            >
+                                Hồ sơ BM
+                            </Button>
+                        </Tooltip>
                         <Dropdown menu={{ items: menuItems, onClick: onAction }} trigger={['click']} placement="bottomRight">
                             <Button size="small" className="text-xs font-semibold text-slate-700 hover:text-primary">
                                 Thao tác <MoreOutlined />

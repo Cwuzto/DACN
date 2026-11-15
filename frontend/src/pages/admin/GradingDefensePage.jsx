@@ -895,7 +895,7 @@ export default function GradingDefensePage() {
                                         </td>
                                         <td style={{ maxWidth: 280 }}>
                                             <div style={{ fontWeight: 700, color: 'var(--accent)', fontSize: 11.5, fontFamily: 'var(--font-mono)' }}>
-                                                {r.topic?.code || `DT-${r.id?.slice(0, 8) || '2026'}`}
+                                                {r.topic?.code || `DT-${String(r.topic?.id || r.topicId || r.id || '2026').padStart(3, '0')}`}
                                             </div>
                                             <div style={{ fontWeight: 600, color: 'var(--fg)', fontSize: 13, lineHeight: 1.4, marginTop: 2 }}>
                                                 {r.topic?.title || '—'}
