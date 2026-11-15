@@ -10,8 +10,12 @@ const readBuffer = (relativePath) => fs.readFileSync(path.join(root, relativePat
 
 const TARGET_FILES = [
     'src/pages/common/ProfilePage.jsx',
+    'src/components/profile/ProfileIdentityCard.jsx',
+    'src/components/profile/LecturerTopicList.jsx',
+    'src/components/profile/StudentThesisProgressCard.jsx',
+    'src/components/profile/LecturerAcademicInfoTab.jsx',
+    'src/components/profile/PasswordSecurityTab.jsx',
     'src/components/profile/PasswordStrengthMeter.jsx',
-    'src/components/profile/ProfileQuickMetrics.jsx',
 ];
 
 test('Profile Redesign: Files exist and adhere to UTF-8 without BOM (Rule 2.4)', () => {
@@ -25,7 +29,6 @@ test('Profile Redesign: Files exist and adhere to UTF-8 without BOM (Rule 2.4)',
 });
 
 test('Profile Redesign: Adheres strictly to Rule 2.6 (No raw emoji or symbols in button labels)', () => {
-    const rawEmojiPattern = /<Button\b[^>]*>[\s\S]*?[^\x00-\x7F\u00C0-\u024F\u1EA0-\u1EF9\s,.:;()\/_'"\-\[\]{}0-9a-zA-Z]/g;
     const forbiddenSymbols = ['←', '→', '+', '🤖', '📋', '✓', '✏️', '👥', '🗑️', '🔓', '▾', '▴', '↗', '⚡', '🔐', '🛡️', '📊'];
 
     TARGET_FILES.forEach((filePath) => {
@@ -44,72 +47,77 @@ test('Profile Redesign: Adheres strictly to Rule 2.6 (No raw emoji or symbols in
     });
 });
 
-test('Profile Redesign: Hero Profile Banner renders cover banner, avatar ring, and institutional badge', () => {
-    const source = read('src/pages/common/ProfilePage.jsx');
+test('Profile Redesign: Two-Column Split Layout & ProfileIdentityCard render cover banner, avatar, and institutional badges', () => {
+    const pageSource = read('src/pages/common/ProfilePage.jsx');
+    assert.match(pageSource, /ProfileIdentityCard/, 'ProfilePage phải tích hợp ProfileIdentityCard ở cột trái');
+    assert.match(pageSource, /lg:grid-cols-12/, 'ProfilePage phải dùng lưới 2 cột bất đối xứng');
 
-    // Cover banner and avatar ring
-    assert.match(source, /from-blue-600|bg-gradient-to-r|cover/i, 'Hero banner phải có gradient bìa học thuật');
-    assert.match(source, /ring-|border-white|shadow/i, 'Avatar phải có hiệu ứng viền nổi');
-    assert.match(source, /Viện CNS|Viện Công nghệ Số|Định danh chính thức/i, 'Phải có huy hiệu định danh Viện CNS');
-    assert.match(source, /Badge\s+status="success"|Badge\s+status='success'|Đang hoạt động/i, 'Phải có chỉ báo trạng thái hoạt động trực tuyến');
+    const cardSource = read('src/components/profile/ProfileIdentityCard.jsx');
+    assert.match(cardSource, /bg-gradient-to-r|cover/i, 'Phải có gradient bìa học thuật');
+    assert.match(cardSource, /ring-|border-white|shadow/i, 'Avatar phải có hiệu ứng viền nổi');
+    assert.match(cardSource, /Viện Công nghệ số/i, 'Phải có định danh Viện Công nghệ số');
+    assert.match(cardSource, /Trường Đại học Thủ Dầu Một/i, 'Phải có định danh Trường Đại học Thủ Dầu Một');
+    assert.match(cardSource, /Badge\s+status="success"|Đang hoạt động/i, 'Phải có chỉ báo trạng thái hoạt động');
 });
 
-test('Profile Redesign: Integrates ProfileQuickMetrics with 4 academic KPI cards', () => {
-    const source = read('src/pages/common/ProfilePage.jsx');
-    assert.match(source, /ProfileQuickMetrics/, 'ProfilePage phải tích hợp ProfileQuickMetrics');
+test('Profile Redesign: Lecturer Experience integrates LecturerTopicList with Semester Filter, Sorting, and Capacity Bar', () => {
+    const pageSource = read('src/pages/common/ProfilePage.jsx');
+    assert.match(pageSource, /LecturerTopicList/, 'ProfilePage phải tích hợp LecturerTopicList cho Giảng viên');
+    assert.match(pageSource, /teaching_info/, 'Phải có tab teaching_info');
+    assert.match(pageSource, /supervised_topics/, 'Phải có tab supervised_topics');
 
-    const metricsSource = read('src/components/profile/ProfileQuickMetrics.jsx');
-    assert.match(metricsSource, /Trạng thái tài khoản|Tài khoản/i);
-    assert.match(metricsSource, /Định danh học vụ|Chuyên ngành|Đơn vị/i);
-    assert.match(metricsSource, /Quyền hạn|Nhóm quyền/i);
-    assert.match(metricsSource, /Hoàn thiện hồ sơ|Mức độ hoàn thiện/i);
+    const topicListSource = read('src/components/profile/LecturerTopicList.jsx');
+    // Filters and Sorting
+    assert.match(topicListSource, /Đợt đồ án|Học kỳ|useSemesters/i, 'Phải có bộ lọc theo Đợt đồ án');
+    assert.match(topicListSource, /attention|latest|studentNameAsc|topicTitleAsc/, 'Phải có các tùy chọn sắp xếp');
+    assert.match(topicListSource, /SearchOutlined|Tìm tên đề tài/i, 'Phải có ô tìm kiếm tức thì');
+    // Capacity metrics
+    assert.match(topicListSource, /Tải lượng hướng dẫn|Chỉ tiêu/i, 'Phải có khối tóm tắt tải lượng');
+    assert.match(topicListSource, /Progress/, 'Phải có thanh tiến trình công suất');
+    // Topic status badge
+    assert.match(topicListSource, /IN_PROGRESS_BM03|Đang làm đồ án/i, 'Phải hiển thị tiến độ BM03');
+    assert.match(topicListSource, /STOP_REVIEW_PENDING|Cảnh báo/i, 'Phải hiển thị cảnh báo đề xuất dừng');
 });
 
-test('Profile Redesign: Defines 3 specialized tabs (personal_academic, security_password, roles_permissions)', () => {
-    const source = read('src/pages/common/ProfilePage.jsx');
-    assert.match(source, /personal_academic/, 'Phải có tab personal_academic');
-    assert.match(source, /security_password/, 'Phải có tab security_password');
-    assert.match(source, /roles_permissions/, 'Phải có tab roles_permissions');
-    assert.match(source, /Thông tin cá nhân & Học vụ|Thông tin cá nhân/i);
-    assert.match(source, /Bảo mật & Quản lý phiên|Bảo mật & Mật khẩu/i);
-    assert.match(source, /Vai trò & Quyền hạn/i);
+test('Profile Redesign: Student Experience integrates StudentThesisProgressCard with 5-Step Stepper & Mentor Contact', () => {
+    const pageSource = read('src/pages/common/ProfilePage.jsx');
+    assert.match(pageSource, /StudentThesisProgressCard/, 'ProfilePage phải tích hợp StudentThesisProgressCard cho Sinh viên');
+    assert.match(pageSource, /student_thesis/, 'Phải có tab student_thesis');
+    // Sinh viên không có tab quyền hạn quản trị thừa
+    assert.ok(!pageSource.includes("isStudent && 'roles_permissions'"), 'Sinh viên không được hiển thị tab quyền hạn quản trị');
+
+    const studentCardSource = read('src/components/profile/StudentThesisProgressCard.jsx');
+    // 5-Step Stepper
+    assert.match(studentCardSource, /Steps/, 'Phải dùng Ant Design Steps cho thanh tiến trình');
+    assert.match(studentCardSource, /Đề cương BM01/, 'Bước 1: Đề cương BM01');
+    assert.match(studentCardSource, /Giao đề tài BM02/, 'Bước 2: Giao đề tài BM02');
+    assert.match(studentCardSource, /Tiến độ BM03|Nhật ký BM03/, 'Bước 3: Tiến độ BM03');
+    assert.match(studentCardSource, /Đánh giá BM04/, 'Bước 4: Đánh giá BM04');
+    assert.match(studentCardSource, /Bảo vệ & Lưu chiểu/, 'Bước 5: Bảo vệ & Lưu chiểu');
+    // Mentor contact
+    assert.match(studentCardSource, /Giảng viên hướng dẫn|GVHD/i, 'Phải có thẻ liên hệ GVHD');
+    assert.match(studentCardSource, /mailto:|tel:/, 'Phải có liên kết email/SĐT liên hệ trực tiếp');
 });
 
-test('Profile Redesign: Tab 1 separates read-only academic data from editable contact data', () => {
-    const source = read('src/pages/common/ProfilePage.jsx');
-    // Institutional notice for academic data
-    assert.match(source, /đồng bộ|Quản lý Đào tạo|CSDL Nhà trường/i, 'Phải có chú thích dữ liệu đồng bộ từ CSDL Nhà trường');
-    // Class and major read-only references
-    assert.match(source, /className|studentProfile\?\.className/);
-    assert.match(source, /major|studentProfile\?\.major/);
-    assert.match(source, /Lớp/);
-    assert.match(source, /Ngành/);
-    // Student edit boundary
-    assert.match(source, /isStudent|user\?\.role === 'STUDENT'/);
-    assert.match(source, /!isStudent|user\?\.role !== 'STUDENT'/);
+test('Profile Redesign: Standardized Institutional Entities and Academic Boundaries', () => {
+    const cardSource = read('src/components/profile/ProfileIdentityCard.jsx');
+    assert.match(cardSource, /Trường Đại học Thủ Dầu Một/, 'Phải hiển thị Trường Đại học Thủ Dầu Một');
+    assert.match(cardSource, /Viện Công nghệ số/, 'Phải hiển thị Viện Công nghệ số');
+    assert.match(cardSource, /Khóa/, 'Phải hiển thị mục Khóa sinh viên');
+    assert.match(cardSource, /Lớp hành chính/, 'Phải hiển thị mục Lớp hành chính');
+    assert.match(cardSource, /Bộ môn/, 'Phải hiển thị mục Bộ môn');
 
-    // Standardized Institutional & Academic Entity Fields (Trường, Viện, Ngành, Khóa, Lớp hành chính, Bộ môn)
-    assert.match(source, /Trường Đại học Thủ Dầu Một/, 'Phải hiển thị Trường Đại học Thủ Dầu Một');
-    assert.match(source, /Viện Công nghệ số/, 'Phải hiển thị Viện Công nghệ số');
-    assert.match(source, /Khóa/, 'Phải hiển thị mục Khóa sinh viên');
-    assert.match(source, /Lớp hành chính/, 'Phải hiển thị mục Lớp hành chính');
-    assert.match(source, /Bộ môn/, 'Phải hiển thị mục Bộ môn');
+    const academicSource = read('src/components/profile/LecturerAcademicInfoTab.jsx');
+    assert.match(academicSource, /Hướng nghiên cứu & Lĩnh vực chuyên sâu|researchInterests/i, 'Phải có mục hướng nghiên cứu chuyên môn');
+    assert.match(academicSource, /Hội đồng Xét duyệt Đề cương|Hội đồng Chấm Bảo vệ/i, 'Phải có thông tin Hội đồng chuyên môn');
 });
 
-test('Profile Redesign: Tab 2 integrates PasswordStrengthMeter and session information', () => {
-    const source = read('src/pages/common/ProfilePage.jsx');
-    assert.match(source, /PasswordStrengthMeter/, 'ProfilePage phải tích hợp PasswordStrengthMeter');
-    assert.match(source, /Phiên làm việc|JWT|Thời hạn phiên|Ghi nhớ/i, 'Tab 2 phải có thông tin phiên làm việc');
+test('Profile Redesign: PasswordSecurityTab integrates PasswordStrengthMeter and session information', () => {
+    const securitySource = read('src/components/profile/PasswordSecurityTab.jsx');
+    assert.match(securitySource, /PasswordStrengthMeter/, 'PasswordSecurityTab phải tích hợp PasswordStrengthMeter');
+    assert.match(securitySource, /Phiên làm việc|JWT|Thời hạn phiên|Ghi nhớ/i, 'Phải có thông tin phiên làm việc JWT');
 
     const meterSource = read('src/components/profile/PasswordStrengthMeter.jsx');
     assert.match(meterSource, /Yếu|Trung bình|Mạnh/i, 'PasswordStrengthMeter phải hiển thị 3 cấp độ độ mạnh');
     assert.match(meterSource, /Progress/, 'PasswordStrengthMeter phải dùng Progress bar');
 });
-
-test('Profile Redesign: Tab 3 renders permission groups and council assignment status', () => {
-    const source = read('src/pages/common/ProfilePage.jsx');
-    assert.match(source, /permissionGroups/, 'Tab 3 phải hiển thị permissionGroups');
-    assert.match(source, /hasOutlineCouncilAssignment|OUTLINE_REVIEW/i, 'Tab 3 phải hiển thị trạng thái HĐ Đề cương');
-    assert.match(source, /hasDefenseCouncilAssignment|DEFENSE_COUNCIL/i, 'Tab 3 phải hiển thị trạng thái HĐ Bảo vệ');
-});
-

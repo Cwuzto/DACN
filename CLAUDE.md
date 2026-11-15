@@ -70,6 +70,60 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 
 ## 6. Cập Nhật Phiên Làm Việc (Session Update)
 
+### Phiên 15/11/2026 (Tái Thiết Kế Trang Hồ Sơ Cá Nhân Giảng Viên & Sinh Viên UI/UX Pro Max & Sửa Lỗi Enum Học Kỳ)
+
+#### 1. Những phần đã hoàn thành
+1. **Khắc phục lỗi Runtime Enum `SemesterStatus` trong Backend**:
+   - `auth.js`, `topicController.js`, `notificationController.js`: Sửa lỗi truy vấn `where: { status: 'ACTIVE' }` gây ném ngoại lệ Prisma `Invalid value for argument status. Expected SemesterStatus`. Thay thế bằng bộ lọc hợp lệ: `status: { in: ['ONGOING', 'REGISTRATION', 'DEFENSE'] }` kèm sắp xếp `startDate: 'desc'`.
+   - Kết quả: Server nodemon `npm run dev` chạy ổn định, không còn lỗi kết nối hoặc ngoại lệ truy vấn.
+2. **Tái thiết kế Hồ sơ cá nhân theo phong cách Swiss Modernism 2.0 (Two-Column Split Layout)**:
+   - `ProfileIdentityCard.jsx`: Cột trái cố định (~32%) hiển thị Avatar lớn, cover gradient học thuật, thẻ học hàm/học vị (`PGS.TS`, `TS`, `ThS`), mã cán bộ/MSSV, lớp/bộ môn, trạng thái hoạt động và các trường cho phép chỉnh sửa (SĐT, Ảnh đại diện, Bộ môn).
+   - Tuân thủ nghiêm ngặt **Rule 2.6**: 100% nút bấm dùng component icon từ `@ant-design/icons`, không chèn ký tự thô hay emoji vào label text.
+3. **Phân hóa sâu sắc trải nghiệm Phía Giảng viên (Lecturer Experience)**:
+   - `LecturerTopicList.jsx`: Quản lý danh sách đề tài và sinh viên hướng dẫn:
+     * **Bộ lọc Đợt đồ án (Semester Filter)**: Tự động chọn đợt hiện tại (`ONGOING`), cho phép chuyển đổi sang các đợt cũ hoặc xem tất cả.
+     * **Bộ lọc Loại đồ án (Project Catalog)**: Lọc theo `DATN`, `KLTN` hoặc tất cả.
+     * **Lọc trạng thái tiến độ**: `Đang làm (BM03)`, `Cần chú ý / Dừng`, `Đã hoàn thành`.
+     * **Sắp xếp linh hoạt (Smart Sort)**: `Cần chú ý trước (Mặc định)` $\rightarrow$ Đưa sinh viên có cảnh báo dừng / chậm tiến độ lên đầu để GVHD kịp thời xử lý; `Mới nhất`, `Tên SV: A → Z`, `Tên đề tài: A → Z`.
+     * **Thẻ tóm tắt tải lượng (Capacity Banner)**: Hiển thị tải lượng `X/10 SV`, chỉ tiêu còn trống, thanh tiến trình công suất trực quan.
+   - `LecturerAcademicInfoTab.jsx`: Tab công tác & chuyên môn, hướng nghiên cứu & lĩnh vực quan tâm (Research Interests tags), phân công Hội đồng chuyên môn.
+4. **Phân hóa trải nghiệm Phía Sinh viên (Student Experience)**:
+   - `StudentThesisProgressCard.jsx`: Hiển thị đồ án tốt nghiệp hiện tại của sinh viên:
+     * **Thanh tiến trình 5 chặng (Stepper)**: `Đề cương BM01` $\rightarrow$ `Giao đề tài BM02` $\rightarrow$ `Tiến độ BM03 (Checkpoint 1 & 2)` $\rightarrow$ `Đánh giá BM04` $\rightarrow$ `Bảo vệ & Lưu chiểu`.
+     * **Thẻ liên hệ GVHD trực tiếp**: Họ tên, học vị, email, số điện thoại liên lạc khẩn cấp.
+     * Cảnh báo nổi bật khi sinh viên bị rơi vào trạng thái đề xuất dừng đề tài (`STOP_REVIEW_PENDING`).
+     * **Loại bỏ tab Quyền hạn quản trị thừa**: Đảm bảo sinh viên chỉ tập trung vào học vụ và đề tài của mình.
+5. **Component dùng chung**:
+   - `PasswordSecurityTab.jsx`: Quản lý đổi mật khẩu có đo độ mạnh (`PasswordStrengthMeter`) + thông tin phiên làm việc JWT và nguyên tắc bảo mật.
+   - `registrationQueries.js`: Bổ sung export alias `useMyRegistration = useStudentRegistration` để đồng bộ truy vấn React Query.
+6. **Xác thực & Kiểm thử**:
+   - Cập nhật test UI/UX: `frontend/tests/profilePageUiUx.test.js` (7/7 tests PASS).
+   - Unit test Profile: `frontend/tests/profilePage.test.js` (3/3 tests PASS).
+   - Tổng cộng 10/10 tests PASS 100%.
+   - Frontend production build `npm run build` PASS 100% (3.337 modules transformed, không lỗi bundle).
+   - Mã hóa: 100% tệp tuân thủ UTF-8 without BOM.
+
+#### 2. Trạng thái cập nhật của từng phần
+- **Backend API**: Vá lỗi enum `SemesterStatus` trên 3 controller/middleware, nodemon dev server hoạt động ổn định.
+- **Frontend UI/UX**: Trang Profile Page lột xác hoàn toàn theo bố cục Two-Column Split hiện đại, phân luồng chức năng và bộ lọc/sắp xếp trực quan cho cả Giảng viên và Sinh viên.
+- **Database**: Bộ seed 3 đợt đồ án (321 users, 300 sinh viên, 20 giảng viên) hiển thị mượt mà trên giao diện mới.
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+1. **Kiểm tra Giao diện Thực tế theo các Tài khoản Seed Mới**:
+   - Đăng nhập `lecturer01` (Viện trưởng): Kiểm tra Profile, bộ lọc đợt đồ án 3 học kỳ, danh sách 5 SV hướng dẫn đợt này.
+   - Đăng nhập `lecturer03` (GVHD): Kiểm tra tải lượng đợt này (5/10 SV) và bộ lọc đề tài.
+   - Đăng nhập `sv201` (SV tiếp tục làm): Kiểm tra Stepper 5 bước hiển thị bước 3 đang làm.
+   - Đăng nhập `sv291` (SV bị đề xuất dừng): Kiểm tra cảnh báo đề xuất dừng trên Profile.
+2. **Triển khai Phiếu chấm điện tử BM05 & Khóa sổ điểm Hội đồng**:
+   - Hoàn thiện giao diện chấm điểm 4 nhóm tiêu chí Rubric cho 3 thành viên hội đồng (Chủ tịch, Thư ký, Phản biện).
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+- **Two-Column Split Layout Thay Vì 1 Cột Dài**: Đặt Identity Card cố định bên trái giúp người dùng luôn nắm bắt thông tin định danh và liên hệ nhanh, trong khi cột phải giải phóng không gian cho các công cụ học vụ chuyên sâu (bộ lọc đợt, sắp xếp, stepper tiến trình).
+- **Smart Sort Ưu Tiên Sinh Viên Cần Chú Ý**: Mặc định đưa sinh viên có cảnh báo dừng hoặc chậm tiến độ lên đầu danh sách giúp GVHD ngay lập tức nhận diện đối tượng cần đôn đốc/hỗ trợ mà không phải duyệt qua hàng chục đề tài.
+- **Loại Bỏ Tab Quyền Hạn Ở Sinh Viên**: Nhất quán với chính sách RBAC đã tinh gọn (sinh viên không có quyền quản trị), thay thế hoàn toàn bằng thẻ Đồ án tốt nghiệp 5 bước.
+
+---
+
 ### Phiên 15/11/2026 (Thiết Kế & Triển Khai Bộ Seed Mới 3 Đợt Đồ Án, 20 Giảng Viên, 300 Sinh Viên & Khảo Thí BM03)
 
 #### 1. Những phần đã hoàn thành

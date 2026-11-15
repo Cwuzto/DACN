@@ -20,6 +20,8 @@ export const useStudentRegistration = (scope, filters = {}, enabled = true) => u
     enabled,
 });
 
+export const useMyRegistration = useStudentRegistration;
+
 export const useMyProjectEnrollments = (scope, filters = {}, enabled = true) => useQuery({
     queryKey: registrationCustomKeys.projectEnrollments(scope, filters),
     queryFn: async () => {

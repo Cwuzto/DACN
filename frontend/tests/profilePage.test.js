@@ -8,7 +8,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'utf8');
 
 test('ProfilePage displays class and major as read-only information for student accounts', () => {
-    const source = read('src/pages/common/ProfilePage.jsx');
+    const source = read('src/pages/common/ProfilePage.jsx') + read('src/components/profile/ProfileIdentityCard.jsx');
 
     // Must reference className/Lớp and major/Ngành
     assert.match(source, /className|studentProfile\?\.className/);
