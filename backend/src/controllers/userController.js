@@ -963,7 +963,15 @@ const importUsersExcel = async (req, res, next) => {
             return res.status(400).json({ success: false, message: 'Danh sách import không được để trống.' });
         }
 
-        const validRole = ['STUDENT', 'LECTURER', 'ADMIN'].includes(role) ? role : 'STUDENT';
+        if (!['STUDENT', 'LECTURER'].includes(role)) {
+            return res.status(400).json({
+                success: false,
+                code: 'ADMIN_IMPORT_FORBIDDEN',
+                message: 'Không được phép import tài khoản Quản trị viên qua file Excel.',
+            });
+        }
+
+        const validRole = role;
 
         if (validRole === 'STUDENT') {
             const errorRows = [];
@@ -1041,7 +1049,7 @@ const importUsersExcel = async (req, res, next) => {
                               ...(allEmails.length > 0 ? [{ email: { in: allEmails } }] : []),
                           ],
                       },
-                      select: { id: true, code: true, email: true },
+                      select: { id: true, code: true, email: true, role: true },
                   })
                 : [];
 
@@ -1109,35 +1117,41 @@ const importUsersExcel = async (req, res, next) => {
                     const existing = existingByCodeMap.get(user.code) || existingByEmailMap.get(user.email);
 
                     if (existing && onDuplicate === 'UPDATE') {
+                        const isExistingAdmin = existing.role === 'ADMIN';
+
                         await tx.user.update({
                             where: { id: existing.id },
                             data: {
                                 fullName: user.fullName,
                                 email: user.email,
                                 code: user.code,
-                                role: 'STUDENT',
-                                department: null,
-                                academicTitle: null,
+                                ...(isExistingAdmin ? {} : {
+                                    role: 'STUDENT',
+                                    department: null,
+                                    academicTitle: null,
+                                }),
                                 phone: user.phone,
                             },
                         });
 
-                        await tx.studentProfile.upsert({
-                            where: { studentId: existing.id },
-                            create: {
-                                studentId: existing.id,
-                                gender: studentProfile.gender,
-                                dateOfBirth: studentProfile.dateOfBirth,
-                                className: studentProfile.className,
-                                major: studentProfile.major,
-                            },
-                            update: {
-                                gender: studentProfile.gender,
-                                dateOfBirth: studentProfile.dateOfBirth,
-                                className: studentProfile.className,
-                                major: studentProfile.major,
-                            },
-                        });
+                        if (!isExistingAdmin) {
+                            await tx.studentProfile.upsert({
+                                where: { studentId: existing.id },
+                                create: {
+                                    studentId: existing.id,
+                                    gender: studentProfile.gender,
+                                    dateOfBirth: studentProfile.dateOfBirth,
+                                    className: studentProfile.className,
+                                    major: studentProfile.major,
+                                },
+                                update: {
+                                    gender: studentProfile.gender,
+                                    dateOfBirth: studentProfile.dateOfBirth,
+                                    className: studentProfile.className,
+                                    major: studentProfile.major,
+                                },
+                            });
+                        }
 
                         updatedCount++;
                     } else {
@@ -1268,13 +1282,14 @@ const importUsersExcel = async (req, res, next) => {
 
                 if (existing) {
                     if (onDuplicate === 'UPDATE') {
+                        const isExistingAdmin = existing.role === 'ADMIN';
                         await tx.user.update({
                             where: { id: existing.id },
                             data: {
                                 fullName: row.fullName,
                                 phone: row.phone || existing.phone,
                                 department: row.department || existing.department,
-                                ...(validRole === 'LECTURER' && row.academicTitle ? { academicTitle: row.academicTitle } : {}),
+                                ...(!isExistingAdmin && validRole === 'LECTURER' && row.academicTitle ? { academicTitle: row.academicTitle } : {}),
                             },
                         });
                         updatedCount++;
@@ -1297,7 +1312,7 @@ const importUsersExcel = async (req, res, next) => {
                         },
                     });
 
-                    const defaultGroupCode = validRole === 'LECTURER' ? 'GVHD' : validRole === 'ADMIN' ? 'QUAN_TRI_VIEN' : null;
+                    const defaultGroupCode = validRole === 'LECTURER' ? 'GVHD' : null;
                     if (defaultGroupCode) {
                         const group = await tx.permissionGroup.findUnique({ where: { code: defaultGroupCode } });
                         if (group) {

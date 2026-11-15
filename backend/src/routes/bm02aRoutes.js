@@ -56,12 +56,14 @@ router.get(
     bm02aController.getPendingBM02AQueueController,
 );
 
+// GET /bm02a/requests/:id - Xem chi tiết yêu cầu BM02-A (kiểm tra ownership: Sinh viên sở hữu, GVHD hoặc có quyền duyệt)
 router.get(
     '/bm02a/requests/:id',
     authenticate,
     bm02aController.getBM02ARequestController,
 );
 
+// GET /bm02a/registrations/:registrationId - Xem danh sách yêu cầu BM02-A theo registration (kiểm tra ownership: Sinh viên sở hữu, GVHD hoặc có quyền duyệt)
 router.get(
     '/bm02a/registrations/:registrationId',
     authenticate,

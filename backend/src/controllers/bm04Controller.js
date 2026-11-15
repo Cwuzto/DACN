@@ -1,3 +1,4 @@
+const prisma = require('../config/database');
 const {
     getBM04Record,
     saveBM04Draft,
@@ -46,6 +47,55 @@ const getBM04RecordController = async (req, res, next) => {
     try {
         const { registrationId } = req.params;
         const record = await getBM04Record(registrationId);
+
+        // Check ownership & authorization
+        const user = req.user;
+        const registration = record.registration;
+        const studentId = registration?.studentId || registration?.student?.id;
+        const mentorId = registration?.topic?.mentorId || registration?.topic?.mentor?.id;
+        const permissions = user?.permissions || [];
+
+        const hasPrivilegedPermission = permissions.some((p) =>
+            ['BM04_REVIEW', 'BM04_REJECTION_REVIEW', 'VIEW_PROJECT_OVERSIGHT'].includes(p)
+        );
+
+        let isAuthorized = false;
+
+        if (user?.role === 'ADMIN' || hasPrivilegedPermission) {
+            isAuthorized = true;
+        } else if (user?.role === 'STUDENT') {
+            if (studentId && Number(studentId) === Number(user?.id)) {
+                isAuthorized = true;
+            }
+        } else {
+            // Giảng viên hoặc vai trò khác
+            if (mentorId && Number(mentorId) === Number(user?.id)) {
+                isAuthorized = true;
+            } else if (user?.id) {
+                const councilIds = [registration?.defenseCouncilId, registration?.councilId].filter(Boolean);
+                if (councilIds.length > 0) {
+                    const membership = await prisma.councilMember.findFirst({
+                        where: {
+                            councilId: { in: councilIds },
+                            lecturerId: Number(user.id),
+                            isActive: true,
+                        },
+                    });
+                    if (membership) {
+                        isAuthorized = true;
+                    }
+                }
+            }
+        }
+
+        if (!isAuthorized) {
+            return res.status(403).json({
+                success: false,
+                code: 'FORBIDDEN_RESOURCE',
+                message: 'Bạn không có quyền truy cập hồ sơ BM04 này.',
+            });
+        }
+
         return res.status(200).json({
             success: true,
             data: record,

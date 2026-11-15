@@ -172,7 +172,7 @@ export default function GradingPage() {
                         <OutlineCouncilGradingCard
                             key={council.id}
                             council={council}
-                            onRefreshParent={fetchDefenseData}
+                            onRefreshParent={refreshCouncils}
                         />
                     ))
                 ) : (

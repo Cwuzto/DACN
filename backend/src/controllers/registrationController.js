@@ -504,6 +504,11 @@ const getMyRegistration = async (req, res, next) => {
             return res.json({ success: true, data: null, message: 'Bạn chưa đăng ký đề tài nào.' });
         }
 
+        // Hide defenseResult if not published yet to prevent leaking grades/comments
+        if (registration.defenseResult && !registration.defenseResult.isPublished) {
+            registration.defenseResult = null;
+        }
+
         const allowedActions = computeAllowedActions(registration, req.user);
         res.json({ success: true, data: { ...registration, allowedActions } });
     } catch (error) {

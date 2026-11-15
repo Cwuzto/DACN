@@ -1,3 +1,4 @@
+const prisma = require('../config/database');
 const {
     createBM02ARequest,
     studentSignAndSubmitBM02A,
@@ -227,6 +228,34 @@ const reviseBM02AController = async (req, res, next) => {
 };
 
 /**
+ * Check ownership & authorization for accessing BM02-A request/registration
+ */
+const checkBM02AOwnership = (registration, user) => {
+    if (!registration || !user) return false;
+    if (user.role === 'ADMIN') return true;
+
+    if (user.role === 'STUDENT') {
+        const studentId = registration.studentId || registration.student?.id;
+        return studentId === user.id;
+    }
+
+    // Giảng viên: chỉ được xem nếu là GVHD hoặc có quyền xem/duyệt (cấp bộ môn / quản lý)
+    const mentorId = registration.topic?.mentorId || registration.topic?.mentor?.id || registration.mentorId;
+    const isMentor = mentorId === user.id;
+    if (isMentor) return true;
+
+    const allowedPermissions = [
+        'BM02A_FINAL_APPROVE',
+        'TITLE_ADJUSTMENT_APPENDIX_ISSUE',
+        'DECISION_AMENDMENT_SIGN',
+        'BM02_REVIEW',
+        'PROJECT_ASSIGNMENT_PUBLISH',
+    ];
+    const hasPermission = user.permissions?.some((p) => allowedPermissions.includes(p));
+    return Boolean(hasPermission);
+};
+
+/**
  * GET /api/bm02a/requests/:id
  */
 const getBM02ARequestController = async (req, res, next) => {
@@ -236,6 +265,15 @@ const getBM02ARequestController = async (req, res, next) => {
         if (!result) {
             return res.status(404).json({ success: false, message: 'Không tìm thấy yêu cầu BM02-A.' });
         }
+
+        if (result.registration && !checkBM02AOwnership(result.registration, req.user)) {
+            return res.status(403).json({
+                success: false,
+                code: 'FORBIDDEN_RESOURCE',
+                message: 'Bạn không có quyền truy cập yêu cầu BM02-A này.',
+            });
+        }
+
         return res.status(200).json({ success: true, data: result });
     } catch (error) {
         return handleWorkflowError(res, error, next);
@@ -248,6 +286,25 @@ const getBM02ARequestController = async (req, res, next) => {
 const getBM02ARequestsByRegistrationController = async (req, res, next) => {
     try {
         const registrationId = parseInt(req.params.registrationId, 10);
+        const registration = await prisma.topicRegistration.findUnique({
+            where: { id: registrationId },
+            include: {
+                topic: { select: { mentorId: true } },
+            },
+        });
+
+        if (!registration) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy hồ sơ đăng ký đề tài.' });
+        }
+
+        if (!checkBM02AOwnership(registration, req.user)) {
+            return res.status(403).json({
+                success: false,
+                code: 'FORBIDDEN_RESOURCE',
+                message: 'Bạn không có quyền truy cập yêu cầu BM02-A này.',
+            });
+        }
+
         const result = await getBM02ARequestsByRegistration(registrationId);
         return res.status(200).json({ success: true, data: result });
     } catch (error) {
@@ -393,4 +450,5 @@ module.exports = {
     issueAppendixController,
     getAppendixController,
     getAppendicesByDecisionController,
+    checkBM02AOwnership,
 };

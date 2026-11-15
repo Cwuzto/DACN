@@ -70,6 +70,58 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 
 ## 6. Cập Nhật Phiên Làm Việc (Session Update)
 
+### Phiên 15/11/2026 (Khắc Phục Toàn Diện 4 Nhóm Lỗ Hổng Bảo Mật, Quyền Truy Cập & Toàn Vẹn Quy Trình 5 Vai Trò)
+
+#### 1. Những phần đã hoàn thành
+1. **Khắc phục triệt để lỗ hổng Bảo mật & Leo thang đặc quyền Admin (Worker 1)**:
+   - `userController.js`: Chặn đứng yêu cầu import có `role: 'ADMIN'` (HTTP 400 `ADMIN_IMPORT_FORBIDDEN`). Khi cập nhật trùng lặp (`onDuplicate === 'UPDATE'`), bảo vệ tài khoản Admin hiện hữu không bị ghi đè thành sinh viên/giảng viên và không bị hạ cấp quyền hạn.
+   - `auth.js`: Lọc ủy quyền học vụ `academicDelegation` chặt chẽ theo `semesterId` hiện tại (`OR: [{ semesterId: null }, { semesterId: currentSemesterId }]`), loại bỏ hoàn toàn việc ủy quyền một học kỳ bị lây lan sang các học kỳ khác.
+   - `permissions.js`: Cấp mã quyền `VIEW_PROJECT_ENROLLMENTS` cho nhóm chức vụ mặc định `GIAO_VU`.
+   - Kiểm thử: Tạo mới `tests/integration/userImportSecurity.test.js` (7/7 tests pass). Toàn bộ 8 test suite auth/user security đạt 72/72 tests pass.
+2. **Khắc phục IDOR BM03/BM04, Chấm điểm BM05 & Quota Giảng viên (Worker 2)**:
+   - `mentorCapacity.js`: Bổ sung đầy đủ 13 trạng thái hoạt động thực tế vào `ACTIVE_REGISTRATION_STATUSES` (bao gồm `REGISTERED`, `PENDING`, `BM02_APPROVED`, `DEFENSE_ELIGIBLE`, v.v.), đảm bảo bộ đếm trần 10 SV/GVHD không bị vượt quá.
+   - `evaluationController.js`: Sửa `getGradingStudents`, dùng `where.AND = [...]` kết hợp điều kiện ủy viên của giảng viên với `councilId`, ngăn chặn triệt để việc giảng viên truyền `?councilId=...` để xem sinh viên của hội đồng khác.
+   - `bm03Controller.js` & `bm04Controller.js`: Bổ sung Ownership Guard cho các endpoint `GET /api/bm03/:id` và `GET /api/bm04/:id`. Sinh viên chỉ xem hồ sơ của mình; giảng viên chỉ xem hồ sơ mình hướng dẫn hoặc khi là thành viên hội đồng được phân công; từ chối 403 `FORBIDDEN_RESOURCE` với truy cập trái phép.
+   - `GradingPage.jsx`: Thay thế tham chiếu lỗi `fetchDefenseData` bằng hàm refetch `refreshCouncils`.
+   - Kiểm thử: Tạo mới `tests/integration/mentorOwnershipAndGradingScope.test.js` (17/17 tests pass).
+3. **Che giấu Điểm Bảo vệ Chưa Công bố, Chặn IDOR BM02-A & Sửa UI Sinh viên (Worker 3)**:
+   - `registrationController.js` & `dashboardController.js`: Tự động ẩn hoặc gán `null` cho `registration.defenseResult` khi `isPublished !== true`, ngăn chặn rò rỉ điểm số và nhận xét hội đồng trước thời điểm công bố chính thức.
+   - `bm02aController.js` & `bm02aRoutes.js`: Thêm kiểm tra quyền sở hữu cho các route GET đơn đổi tên BM02-A, trả về 403 khi sinh viên cố tình xem đơn của người khác.
+   - `SubmissionPage.jsx`: Xóa bỏ dòng gọi `setBm04Record` gây `ReferenceError` vỡ trang.
+   - `GradeViewPage.jsx`: Sửa các callback nạp lại dữ liệu sang `gradesQuery.refetch()` và `archiveQuery.refetch()`.
+   - Kiểm thử: Tạo mới `tests/integration/studentDefenseResultPrivacy.test.js` (11/11 tests pass).
+4. **Mở khóa Ban hành QĐ BM02, Chặn Bypass Lưu chiểu & Điều phối Giáo vụ / Viện trưởng (Worker 4)**:
+   - `semesterController.js`: Mở rộng query ban hành quyết định giao đề tài sang `status: { in: ['BM02_SUBMITTED', 'BM02_RESUBMITTED', 'BM02_APPROVED'] }`, giải phóng luồng bị nghẽn sau khi BM02 được phê duyệt.
+   - `archiveController.js` & `archiveRoutes.js`: Loại bỏ việc gán trực tiếp `status: 'COMPLETED'` tại `reviewArchive`; chuyển sang trạng thái chờ Giáo vụ thẩm định và Viện trưởng ký Giấy chứng nhận hoàn thành. Bổ sung guard kiểm tra thẩm quyền xem Defense Dossier (403 `FORBIDDEN_DOSSIER_ACCESS`). Sửa deep-link thông báo về `/lecturer/progress`.
+   - `ProjectOversightPage.jsx`: Cập nhật `canReviewArchive` nhận diện thêm quyền `ARCHIVE_ACADEMIC_AFFAIRS_REVIEW`.
+   - `navigationRegistry.js`: Hiển thị menu "Điều phối & Gán sinh viên" cho nhóm `GIAO_VU`.
+   - Kiểm thử: Tạo mới `tests/integration/decisionIssuanceAndArchiveIntegrity.test.js` (8/8 tests pass).
+5. **Tổng hợp QA & Xác minh Hệ thống (Task 5)**:
+   - 4 test suite tích hợp mới chạy đồng thời đạt **43/43 tests PASS**.
+   - Toàn bộ 291/291 frontend component tests PASS.
+   - Frontend production build `npm run build` PASS 100% (3.333 modules transformed, 0 lỗi cú pháp/bundle).
+   - Kiểm tra mã hóa: 100% tệp tuân thủ UTF-8 without BOM; 100% tuân thủ UI Button standard Rule 2.6.
+
+#### 2. Trạng thái cập nhật của từng phần
+- **Cơ sở dữ liệu / Business Logic**: Toàn vẹn quy trình 10 sinh viên / GVHD, luồng BM02 -> Quyết định, và lưu chiểu 2 cấp được bảo vệ vững chắc.
+- **Backend API & Security**: Toàn bộ các lỗ hổng P0 (Admin import escalation, IDOR BM02A/BM03/BM04/Dossier, rò rỉ defenseResult chưa công bố, đè scope councilId, delegation leakage) đã được vá triệt để với 43 tests tích hợp bảo vệ.
+- **Frontend SPA**: Đã loại bỏ các `ReferenceError`, nút reload dùng React Query chính quy, quyền và menu Giáo vụ/Viện trưởng đồng bộ với backend. Build xanh hoàn hảo.
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+1. **Triển khai Phiếu chấm điện tử BM05 & Khóa sổ điểm Hội đồng**:
+   - Hoàn thiện giao diện chấm điểm 4 nhóm tiêu chí Rubric cho 3 thành viên hội đồng (Chủ tịch, Thư ký, Phản biện).
+   - Xác thực tính năng tự động tính điểm trung bình cộng, khóa sổ điểm và công bố kết quả bảo vệ.
+2. **Ký số Giấy xác nhận hoàn thành đồ án tốt nghiệp (`ClearanceCertificateModal`)**:
+   - Hoàn thiện thẩm định 2 tầng hồ sơ lưu chiểu và chữ ký Viện trưởng trước khi đóng đề tài (`COMPLETED`).
+3. **Quy trình P1**:
+   - Thẩm định lại BM01 sửa đổi do GVHD thực hiện; bổ sung quy định nộp bắt buộc source code lưu chiểu.
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+- **Kiến trúc Thực thi Song song Zero File Collision**: Phân bổ 4 Worker Subagent phụ trách 4 tập tệp hoàn toàn tách biệt giúp giải quyết toàn bộ 4 nhóm lỗ hổng P0 một cách nhanh chóng, sạch sẽ, không hề có merge conflict.
+- **Nguyên tắc "Fail-Closed" cho Dữ liệu Học vụ Nhạy cảm**: Điểm bảo vệ khi chưa công bố bắt buộc phải là `null` đối với sinh viên; hồ sơ tiến độ và phiếu nhận xét chỉ người có trách nhiệm trực tiếp mới được xem.
+
+---
+
 ### Phiên 15/11/2026 (Audit Toàn Diện Theo 5 Vai Trò: Sinh Viên, Giảng Viên, Admin, Giáo Vụ, Viện Trưởng)
 
 #### 1. Những phần đã hoàn thành

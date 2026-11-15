@@ -287,6 +287,11 @@ export function getVisibleNavigation(permissionsInput, context = {}) {
         userContext = { ...userContext, ...extraContext };
     }
 
+    const userGroups = (userContext?.permissionGroups || []).map((g) => (typeof g === 'string' ? g : g?.code));
+    if (userGroups.includes('GIAO_VU')) {
+        permSet.add('VIEW_PROJECT_ENROLLMENTS');
+    }
+
     const isAdmin = userContext?.role === 'ADMIN';
     const hasDefenseCouncil = Boolean(
         userContext?.hasDefenseCouncilAssignment ||

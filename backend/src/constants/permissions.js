@@ -431,6 +431,7 @@ const DEFAULT_GROUPS = [
       'VIEW_RUBRIC_CONFIG',
       'VIEW_PROJECT_PERIODS',
       'VIEW_SEMESTERS',
+      'VIEW_PROJECT_ENROLLMENTS',
     ],
   },
   {

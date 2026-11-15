@@ -438,7 +438,7 @@ const issuePeriodDecision = async (req, res, next) => {
         const eligibleRegistrations = await prisma.topicRegistration.findMany({
             where: {
                 semesterId,
-                status: { in: ['BM02_SUBMITTED', 'BM02_RESUBMITTED'] },
+                status: { in: ['BM02_SUBMITTED', 'BM02_RESUBMITTED', 'BM02_APPROVED'] },
                 currentBM02Submission: { outcome: 'APPROVED' },
             },
             include: {
@@ -625,5 +625,6 @@ module.exports = {
     toggleSemesterRegistration,
     deleteSemester,
     issuePeriodDecision,
+    issueTopicAssignmentDecisions: issuePeriodDecision,
     amendAssignmentDecision,
 };

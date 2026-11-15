@@ -209,3 +209,4 @@ graph TD
 
 ## 5. Phê Duyệt & Chuyển Sang Kế Hoạch Thực Thi
 Tài liệu thiết kế kỹ thuật này đã khóa toàn bộ phạm vi và cơ chế phân bổ tệp. Bước tiếp theo là chuyển sang viết kế hoạch chi tiết (`writing-plans`) và kích hoạt 4 Worker Subagent song song.
+

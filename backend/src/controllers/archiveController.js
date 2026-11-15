@@ -350,41 +350,23 @@ const reviewArchive = async (req, res, next) => {
             const archive = await tx.projectArchive.update({
                 where: { registrationId },
                 data: {
-                    status: decision,
+                    status: isApproved ? 'MENTOR_APPROVED' : 'REVISION_REQUIRED',
                     reviewedBy: userId,
                     reviewedAt: new Date(),
                     reviewerNotes: reviewerNotes || null,
+                    mentorReviewStatus: isApproved ? 'APPROVED' : 'REVISION_REQUIRED',
+                    mentorReviewedById: userId,
+                    mentorReviewedAt: new Date(),
+                    mentorReviewNotes: reviewerNotes || null,
                 },
                 include: {
                     reviewer: { select: { id: true, fullName: true, code: true, role: true } },
                 },
             });
 
-            // Neu nghiem thu thanh cong -> TopicRegistration chuyen COMPLETED
-            if (isApproved) {
-                if (tx.topicRegistration.update) {
-                    await tx.topicRegistration.update({
-                        where: { id: registrationId },
-                        data: {
-                            status: 'COMPLETED',
-                            ...(registration.stateVersion !== undefined ? { stateVersion: { increment: 1 } } : {}),
-                        },
-                    });
-                }
-                if (tx.registrationStateHistory?.create) {
-                    await tx.registrationStateHistory.create({
-                        data: {
-                            registrationId,
-                            fromStatus: registration.status,
-                            toStatus: 'COMPLETED',
-                            fromStateVersion: registration.stateVersion || 0,
-                            toStateVersion: (registration.stateVersion || 0) + 1,
-                            actorId: userId,
-                            reason: 'Nghiệm thu hồ sơ lưu chiểu số thành công - Hoàn tất đồ án tốt nghiệp',
-                        },
-                    });
-                }
-            }
+            // TUYỆT ĐỐI KHÔNG gán trực tiếp status: 'COMPLETED'.
+            // Khi GVHD nghiệm thu đạt, chuyển tiếp hồ sơ sang bước thẩm định lưu chiểu Giáo vụ & ký Viện trưởng.
+            // Hồ sơ bảo vệ tiếp tục giữ nguyên DEFENSE_PASSED cho đến khi có chữ ký Viện trưởng.
 
             return archive;
         });
@@ -394,9 +376,9 @@ const reviewArchive = async (req, res, next) => {
             data: {
                 userId: registration.studentId,
                 type: 'APPROVAL',
-                title: isApproved ? 'Hồ sơ lưu chiểu đã được nghiệm thu' : 'Yêu cầu chỉnh sửa hồ sơ lưu chiểu',
+                title: isApproved ? 'Hồ sơ lưu chiểu đã được GVHD nghiệm thu' : 'Yêu cầu chỉnh sửa hồ sơ lưu chiểu',
                 message: isApproved
-                    ? `Chúc mừng! Hồ sơ lưu chiểu đề tài "${registration.topic.title}" đã được nghiệm thu chính thức. Bạn đã hoàn tất học phần đồ án tốt nghiệp.`
+                    ? `Chúc mừng! Hồ sơ lưu chiểu đề tài "${registration.topic.title}" đã được GVHD nghiệm thu chuyên môn và chuyển tiếp sang bước thẩm định lưu chiểu Giáo vụ & ký Viện trưởng để hoàn tất (COMPLETED).`
                     : `Hồ sơ lưu chiểu đề tài "${registration.topic.title}" cần chỉnh sửa: ${reviewerNotes || 'Vui lòng cập nhật lại tài liệu theo dặn dò của GVHD.'}`,
                 link: `/student/grades`,
             },
@@ -405,7 +387,7 @@ const reviewArchive = async (req, res, next) => {
         res.json({
             success: true,
             message: isApproved
-                ? 'Đã nghiệm thu hồ sơ lưu chiểu thành công! Đề tài đã chính thức HOÀN TẤT (COMPLETED).'
+                ? 'Đã nghiệm thu hồ sơ lưu chiểu thành công! Chuyển tiếp thẩm định Giáo vụ & ký Viện trưởng để hoàn tất (COMPLETED).'
                 : 'Đã gửi yêu cầu chỉnh sửa hồ sơ lưu chiểu cho sinh viên.',
             data: updatedArchive,
         });
@@ -811,7 +793,7 @@ const submitPreDefenseArchive = async (req, res, next) => {
                 type: 'SUBMISSION',
                 title: 'Sinh viên đã nộp hồ sơ lưu chiểu sơ bộ (Pre-defense)',
                 content: `Sinh viên đã nộp tài liệu lưu chiểu sơ bộ cho đề tài "${registration.topic.title}". Vui lòng kiểm tra và thẩm định BM04.`,
-                referenceUrl: '/lecturer/progress-tracking',
+                referenceUrl: '/lecturer/progress',
             }, 'archive_pre_defense_submit');
         }
 
@@ -899,6 +881,60 @@ const getDefenseDossier = async (req, res, next) => {
         const registrationId = parsePositiveInt(req.params.registrationId) || parsePositiveInt(req.query.registrationId);
         if (!registrationId) {
             return res.status(400).json({ success: false, code: 'INVALID_REGISTRATION_ID', message: 'registrationId không hợp lệ.' });
+        }
+
+        const userPermissions = req.user?.permissions || [];
+        const hasAdminOrAcademicScope = req.user?.role === 'ADMIN' || [
+            PERMISSIONS.ARCHIVE_ACADEMIC_AFFAIRS_REVIEW,
+            PERMISSIONS.FINAL_DOCUMENT_REVIEW,
+            PERMISSIONS.VIEW_PROJECT_OVERSIGHT,
+        ].some((p) => userPermissions.includes(p));
+
+        if (!hasAdminOrAcademicScope) {
+            const registration = await prisma.topicRegistration.findUnique({
+                where: { id: registrationId },
+                select: {
+                    id: true,
+                    studentId: true,
+                    topic: { select: { mentorId: true } },
+                    defenseCouncil: {
+                        select: {
+                            members: {
+                                where: { isActive: true },
+                                select: { lecturerId: true },
+                            },
+                        },
+                    },
+                    council: {
+                        select: {
+                            members: {
+                                where: { isActive: true },
+                                select: { lecturerId: true },
+                            },
+                        },
+                    },
+                },
+            });
+
+            if (!registration) {
+                return res.status(404).json({ success: false, code: 'REGISTRATION_NOT_FOUND', message: 'Không tìm thấy hồ sơ đăng ký.' });
+            }
+
+            const userId = req.user?.id;
+            const isStudentOwner = req.user?.role === 'STUDENT' && registration.studentId === userId;
+            const isMentor = registration.topic?.mentorId === userId;
+            const isCouncilMember = [
+                ...(registration.defenseCouncil?.members || []),
+                ...(registration.council?.members || []),
+            ].some((m) => m.lecturerId === userId);
+
+            if (!isStudentOwner && !isMentor && !isCouncilMember) {
+                return res.status(403).json({
+                    success: false,
+                    code: 'FORBIDDEN_DOSSIER_ACCESS',
+                    message: 'Bạn không có quyền truy cập hồ sơ tài liệu bảo vệ & lưu chiểu của đề tài này.',
+                });
+            }
         }
 
         const now = req.query.now ? new Date(req.query.now) : new Date();

@@ -779,6 +779,11 @@ const getStudentDashboard = async (req, res, next) => {
                 desc: task.content || task.description || 'Hoàn thành công việc được giao trên hệ thống',
             }));
 
+        // Hide defenseResult if not published yet to prevent leaking grades/comments
+        if (registration?.defenseResult && !registration.defenseResult.isPublished) {
+            registration.defenseResult = null;
+        }
+
         res.json({
             success: true,
             data: {

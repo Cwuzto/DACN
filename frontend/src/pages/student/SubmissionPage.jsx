@@ -248,7 +248,6 @@ export default function SubmissionPage() {
             const res = await evaluationService.getBM04Record(registration.id);
             if (res.success) {
                 setBm04Evaluation(res.data);
-                setBm04Record(res.data);
                 setBm04ViewerOpen(true);
             }
         } catch (error) {

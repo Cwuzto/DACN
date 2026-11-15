@@ -37,6 +37,16 @@ const clearAuthCache = (userId) => {
         inFlightUserLookups.delete(id);
         userAuthCache.delete(userId);
         inFlightUserLookups.delete(userId);
+        for (const key of userAuthCache.keys()) {
+            if (typeof key === 'string' && (key.startsWith(`${id}:`) || key.startsWith(`${userId}:`))) {
+                userAuthCache.delete(key);
+            }
+        }
+        for (const key of inFlightUserLookups.keys()) {
+            if (typeof key === 'string' && (key.startsWith(`${id}:`) || key.startsWith(`${userId}:`))) {
+                inFlightUserLookups.delete(key);
+            }
+        }
     } else {
         userAuthCache.clear();
         inFlightUserLookups.clear();
@@ -55,7 +65,32 @@ if (process.env.NODE_ENV === 'test' && typeof afterEach === 'function') {
     });
 }
 
-const fetchUserAndCapabilities = async (userId) => {
+const extractCurrentSemesterId = async (req) => {
+    if (!req) return null;
+    const rawSemesterId = req.query?.semesterId || req.headers?.['x-semester-id'] || req.body?.semesterId || req.params?.semesterId;
+    if (rawSemesterId !== undefined && rawSemesterId !== null && rawSemesterId !== '') {
+        const parsed = parseInt(rawSemesterId, 10);
+        if (Number.isInteger(parsed) && parsed > 0) {
+            return parsed;
+        }
+    }
+    if (typeof prisma.semester?.findFirst === 'function') {
+        try {
+            const activeSem = await prisma.semester.findFirst({
+                where: { status: 'ACTIVE' },
+                select: { id: true },
+            });
+            if (activeSem?.id) {
+                return activeSem.id;
+            }
+        } catch {
+            // ignore
+        }
+    }
+    return null;
+};
+
+const fetchUserAndCapabilities = async (userId, currentSemesterId = null) => {
     const user = await prisma.user.findUnique({
         where: { id: userId },
         select: {
@@ -105,12 +140,17 @@ const fetchUserAndCapabilities = async (userId) => {
     const now = new Date();
     let activeDelegations = [];
     if (prisma.academicDelegation?.findMany) {
+        const semesterFilter = currentSemesterId
+            ? { OR: [{ semesterId: null }, { semesterId: currentSemesterId }] }
+            : { semesterId: null };
+
         activeDelegations = await prisma.academicDelegation.findMany({
             where: {
                 delegateeId: user.id,
                 status: 'ACTIVE',
                 effectiveFrom: { lte: now },
                 effectiveTo: { gte: now },
+                ...semesterFilter,
             },
             select: { id: true, capabilityCode: true, department: true, effectiveFrom: true, effectiveTo: true, delegatorId: true },
         });
@@ -146,7 +186,8 @@ const fetchUserAndCapabilities = async (userId) => {
         hasOutlineCouncilAssignment: (user.councilMembers || []).some((m) => m.council?.councilType === 'OUTLINE_REVIEW'),
     };
 
-    userAuthCache.set(userId, {
+    const cacheKey = currentSemesterId ? `${userId}:${currentSemesterId}` : userId;
+    userAuthCache.set(cacheKey, {
         user: resolvedUser,
         data: resolvedUser,
         cachedAt: Date.now(),
@@ -156,13 +197,14 @@ const fetchUserAndCapabilities = async (userId) => {
     return resolvedUser;
 };
 
-const getUserLookedUp = async (userId) => {
-    let inFlight = inFlightUserLookups.get(userId);
+const getUserLookedUp = async (userId, currentSemesterId = null) => {
+    const lookupKey = currentSemesterId ? `${userId}:${currentSemesterId}` : userId;
+    let inFlight = inFlightUserLookups.get(lookupKey);
     if (!inFlight) {
-        inFlight = fetchUserAndCapabilities(userId).finally(() => {
-            inFlightUserLookups.delete(userId);
+        inFlight = fetchUserAndCapabilities(userId, currentSemesterId).finally(() => {
+            inFlightUserLookups.delete(lookupKey);
         });
-        inFlightUserLookups.set(userId, inFlight);
+        inFlightUserLookups.set(lookupKey, inFlight);
     }
     return inFlight;
 };
@@ -186,12 +228,15 @@ const authenticate = async (req, res, next) => {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const userId = decoded.userId;
 
+        const currentSemesterId = await extractCurrentSemesterId(req);
+        const cacheKey = currentSemesterId ? `${userId}:${currentSemesterId}` : userId;
+
         const isGetMe = req.method === 'GET' && Boolean((req.originalUrl && req.originalUrl.includes('/api/auth/me')) || req.path === '/me');
         const tokenVersion = decoded.permissionVersion;
         const nowMs = Date.now();
         const ttl = getAuthCacheTtl();
 
-        const cachedEntry = userAuthCache.get(userId);
+        const cachedEntry = userAuthCache.get(cacheKey);
         if (cachedEntry && (nowMs - cachedEntry.cachedAt < ttl)) {
             if (
                 typeof tokenVersion === 'number' &&
@@ -199,7 +244,7 @@ const authenticate = async (req, res, next) => {
                 tokenVersion > cachedEntry.permissionVersion
             ) {
                 // Token has newer version than cached DB user -> evict from cache and fall through to fresh DB query
-                userAuthCache.delete(userId);
+                userAuthCache.delete(cacheKey);
             } else {
                 cacheHits++;
                 if (
@@ -225,7 +270,7 @@ const authenticate = async (req, res, next) => {
         }
 
         cacheMisses++;
-        const resolvedUser = await getUserLookedUp(userId);
+        const resolvedUser = await getUserLookedUp(userId, currentSemesterId);
 
         if (!resolvedUser) {
             return res.status(401).json({
@@ -403,18 +448,24 @@ const optionalAuthenticate = async (req, res, next) => {
         });
         if (user && user.isActive) {
             const now = new Date();
+            const currentSemesterId = await extractCurrentSemesterId(req);
             let activeDelegations = [];
-        if (prisma.academicDelegation?.findMany) {
-            activeDelegations = await prisma.academicDelegation.findMany({
-                where: {
-                    delegateeId: user.id,
-                    status: 'ACTIVE',
-                    effectiveFrom: { lte: now },
-                    effectiveTo: { gte: now },
-                },
-                select: { capabilityCode: true },
-            });
-        }
+            if (prisma.academicDelegation?.findMany) {
+                const semesterFilter = currentSemesterId
+                    ? { OR: [{ semesterId: null }, { semesterId: currentSemesterId }] }
+                    : { semesterId: null };
+
+                activeDelegations = await prisma.academicDelegation.findMany({
+                    where: {
+                        delegateeId: user.id,
+                        status: 'ACTIVE',
+                        effectiveFrom: { lte: now },
+                        effectiveTo: { gte: now },
+                        ...semesterFilter,
+                    },
+                    select: { capabilityCode: true },
+                });
+            }
 
         const permissionSet = new Set();
             (user.permissionGroups || []).forEach(({ permissionGroup }) => {

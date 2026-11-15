@@ -128,7 +128,7 @@ const computeSemesterClosestToNow = (list = []) => {
 function ProjectOversightPage() {
     const user = useAuthStore((state) => state.user);
     const scope = queryKeys.scope(user);
-    const canReviewArchive = (user?.permissions || []).includes('FINAL_DOCUMENT_REVIEW');
+    const canReviewArchive = (user?.permissions || []).includes('FINAL_DOCUMENT_REVIEW') || (user?.permissions || []).includes('ARCHIVE_ACADEMIC_AFFAIRS_REVIEW');
 
     const [searchText, setSearchText] = useState('');
     const [statusFilter, setStatusFilter] = useState(null);

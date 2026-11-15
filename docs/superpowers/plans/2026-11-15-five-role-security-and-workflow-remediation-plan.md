@@ -146,3 +146,4 @@
   `npm --prefix frontend run build`
 - [ ] **Step 5.3**: Kiểm tra git status, đảm bảo tất cả các file chỉnh sửa đều tuân thủ UTF-8 without BOM và không có file nào bị xung đột.
 - [ ] **Step 5.4**: Cập nhật mục `Session Update` trong [CLAUDE.md](file:///d:/DACN/CLAUDE.md) và tạo commit hoàn tất phiên.
+

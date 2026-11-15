@@ -397,11 +397,15 @@ const getGradingStudents = async (req, res, next) => {
             status: { in: DEFENSE_ELIGIBLE_STATUSES },
         };
 
+        const andConditions = [];
+
         if (role === 'LECTURER') {
-            where.OR = [
-                { council: { members: { some: { lecturerId: userId } } } },
-                { defenseCouncil: { members: { some: { lecturerId: userId } } } },
-            ];
+            andConditions.push({
+                OR: [
+                    { council: { members: { some: { lecturerId: userId } } } },
+                    { defenseCouncil: { members: { some: { lecturerId: userId } } } },
+                ],
+            });
         }
 
         const parsedSemesterId = parsePositiveInt(semesterId);
@@ -409,10 +413,16 @@ const getGradingStudents = async (req, res, next) => {
 
         const parsedCouncilId = parsePositiveInt(councilId);
         if (parsedCouncilId) {
-            where.OR = [
-                { councilId: parsedCouncilId },
-                { defenseCouncilId: parsedCouncilId },
-            ];
+            andConditions.push({
+                OR: [
+                    { councilId: parsedCouncilId },
+                    { defenseCouncilId: parsedCouncilId },
+                ],
+            });
+        }
+
+        if (andConditions.length > 0) {
+            where.AND = andConditions;
         }
 
         const parsedProjectCatalogId = parsePositiveInt(projectCatalogId);

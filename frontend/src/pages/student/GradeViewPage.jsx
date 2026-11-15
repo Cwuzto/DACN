@@ -109,7 +109,7 @@ export default function GradeViewPage() {
             <div style={{ padding: '24px 32px' }} className="sub-view">
                 <div className="card" style={{ padding: '40px 20px', textAlign: 'center' }}>
                     <Empty description="Bạn chưa có đề tài đăng ký hoặc chưa được xếp lịch chấm điểm hội đồng trong hệ thống." />
-                    <Button type="primary" icon={<ReloadOutlined />} style={{ marginTop: 16 }} onClick={fetchGrades}>
+                    <Button type="primary" icon={<ReloadOutlined />} style={{ marginTop: 16 }} onClick={() => gradesQuery.refetch()}>
                         Tải lại dữ liệu
                     </Button>
                 </div>
@@ -437,7 +437,7 @@ export default function GradeViewPage() {
                 registration={selectedRegistration}
                 registrationId={selectedRegistration.id}
                 initialData={archiveData}
-                onSuccess={() => fetchArchive(selectedRegistration.id)}
+                onSuccess={() => archiveQuery.refetch()}
             />
 
             {/* Clearance Certificate Modal */}
