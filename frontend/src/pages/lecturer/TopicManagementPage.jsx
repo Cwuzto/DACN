@@ -1,7 +1,20 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Empty, message, Modal, Table } from 'antd';
-import { CopyOutlined, PlusOutlined, AuditOutlined, CloseOutlined } from '@ant-design/icons';
+import { Button, Empty, message, Modal, Table, Select, Progress, Tag, Tooltip } from 'antd';
+import {
+    CopyOutlined,
+    PlusOutlined,
+    AuditOutlined,
+    CloseOutlined,
+    SearchOutlined,
+    CalendarOutlined,
+    BookOutlined,
+    ExclamationCircleOutlined,
+    CheckCircleOutlined,
+    ClockCircleOutlined,
+    UserOutlined,
+    FilterOutlined,
+} from '@ant-design/icons';
 import { topicService } from '../../services/topicService';
 import aiService from '../../services/aiService';
 import TopicSimilarityModal from '../../components/topics/TopicSimilarityModal';
@@ -83,8 +96,11 @@ export default function TopicManagementPage() {
         message.success('Đã áp dụng tên đề tài gợi ý!');
     };
 
-    // Semesters State
+    // Semesters & Filter State
     const [selectedSemesterId, setSelectedSemesterId] = useState(null);
+    const [filterSemesterId, setFilterSemesterId] = useState('ALL');
+    const [filterCatalog, setFilterCatalog] = useState('ALL');
+    const [sortBy, setSortBy] = useState('attention');
 
     // New Topic Form State
     const [title, setTitle] = useState('');
@@ -94,15 +110,25 @@ export default function TopicManagementPage() {
     const [description, setDescription] = useState('');
     const [requirements, setRequirements] = useState('');
 
+    const ongoingSemester = useMemo(() => {
+        return (
+            semesters.find((s) => s.status === 'ONGOING' || s.isActive) ||
+            semesters.find((s) => s.status === 'REGISTRATION') ||
+            semesters[0] ||
+            null
+        );
+    }, [semesters]);
+
     useEffect(() => {
-        if (semesters.length > 0 && !selectedSemesterId) {
-            const active = semesters.find((s) => s.isActive || s.status === 'ACTIVE');
-            const chosen = active || semesters[0];
-            if (chosen) {
-                setSelectedSemesterId(chosen.id);
+        if (ongoingSemester) {
+            if (!selectedSemesterId) {
+                setSelectedSemesterId(ongoingSemester.id);
+            }
+            if (filterSemesterId === 'ALL') {
+                setFilterSemesterId(ongoingSemester.id);
             }
         }
-    }, [semesters, selectedSemesterId]);
+    }, [ongoingSemester, selectedSemesterId]);
 
     const rawTopics = topicsQuery.data || [];
     const topics = useMemo(() => {
@@ -111,27 +137,89 @@ export default function TopicManagementPage() {
         );
     }, [rawTopics, user?.id]);
 
-    // Computed Counts for Segmented Tabs
+    // Base topics filtered by selected Semester & Project Catalog
+    const periodBaseTopics = useMemo(() => {
+        let list = [...topics];
+        if (filterSemesterId !== 'ALL') {
+            list = list.filter((t) => t.semesterId === Number(filterSemesterId));
+        }
+        if (filterCatalog !== 'ALL') {
+            list = list.filter(
+                (t) =>
+                    t.projectCatalog?.code === filterCatalog ||
+                    t.projectCatalogId === Number(filterCatalog)
+            );
+        }
+        return list;
+    }, [topics, filterSemesterId, filterCatalog]);
+
+    // Computed Counts for Segmented Tabs (bám theo đợt đang lọc)
     const counts = useMemo(() => {
-        const approved = topics.filter((t) => t.status === 'APPROVED');
-        const open = topics.filter((t) => t.status === 'APPROVED' && (!t._count?.registrations || t._count.registrations === 0));
-        const pending = topics.filter((t) => t.status === 'PENDING');
+        const approved = periodBaseTopics.filter((t) => t.status === 'APPROVED');
+        const inProgress = periodBaseTopics.filter((t) => {
+            const regStatus = t.registrations?.[0]?.status;
+            return regStatus === 'IN_PROGRESS_BM03' || regStatus === 'IN_PROGRESS';
+        });
+        const open = periodBaseTopics.filter(
+            (t) => t.status === 'APPROVED' && (!t._count?.registrations || t._count.registrations === 0)
+        );
+        const warning = periodBaseTopics.filter((t) => {
+            const regStatus = t.registrations?.[0]?.status;
+            return (
+                regStatus === 'STOP_REVIEW_PENDING' ||
+                regStatus === 'AUTO_NOT_ELIGIBLE' ||
+                regStatus === 'TERMINATED_FAILED_PROGRESS'
+            );
+        });
+        const pending = periodBaseTopics.filter((t) => t.status === 'PENDING');
         return {
-            all: topics.length,
+            all: periodBaseTopics.length,
+            inProgress: inProgress.length,
             approved: approved.length,
             open: open.length,
+            warning: warning.length,
             pending: pending.length,
         };
-    }, [topics]);
+    }, [periodBaseTopics]);
 
-    // Filtered Topics
+    // Capacity metrics for the currently filtered semester
+    const capacityMetrics = useMemo(() => {
+        const activeCount = periodBaseTopics.length;
+        const maxSlots = 10;
+        const percent = Math.min(100, Math.round((activeCount / maxSlots) * 100));
+        const remainingSlots = Math.max(0, maxSlots - activeCount);
+        const warningCount = counts.warning;
+        return {
+            activeCount,
+            maxSlots,
+            remainingSlots,
+            percent,
+            warningCount,
+        };
+    }, [periodBaseTopics, counts]);
+
+    // Filtered & Sorted Topics for the table
     const filteredTopics = useMemo(() => {
-        let list = [...topics];
+        let list = [...periodBaseTopics];
 
         if (activeTab === 'approved') {
             list = list.filter((t) => t.status === 'APPROVED');
+        } else if (activeTab === 'in_progress') {
+            list = list.filter((t) => {
+                const regStatus = t.registrations?.[0]?.status;
+                return regStatus === 'IN_PROGRESS_BM03' || regStatus === 'IN_PROGRESS';
+            });
         } else if (activeTab === 'open') {
             list = list.filter((t) => t.status === 'APPROVED' && (!t._count?.registrations || t._count.registrations === 0));
+        } else if (activeTab === 'warning') {
+            list = list.filter((t) => {
+                const regStatus = t.registrations?.[0]?.status;
+                return (
+                    regStatus === 'STOP_REVIEW_PENDING' ||
+                    regStatus === 'AUTO_NOT_ELIGIBLE' ||
+                    regStatus === 'TERMINATED_FAILED_PROGRESS'
+                );
+            });
         } else if (activeTab === 'pending') {
             list = list.filter((t) => t.status === 'PENDING');
         }
@@ -142,12 +230,40 @@ export default function TopicManagementPage() {
                 (t.title && t.title.toLowerCase().includes(q)) ||
                 (t.code && t.code.toLowerCase().includes(q)) ||
                 (t.englishTitle && t.englishTitle.toLowerCase().includes(q)) ||
-                (t.targetMajor && t.targetMajor.toLowerCase().includes(q))
+                (t.targetMajor && t.targetMajor.toLowerCase().includes(q)) ||
+                (t.registrations?.[0]?.student?.fullName && t.registrations[0].student.fullName.toLowerCase().includes(q)) ||
+                (t.registrations?.[0]?.student?.code && t.registrations[0].student.code.toLowerCase().includes(q))
             );
         }
 
+        // Sorting
+        list.sort((a, b) => {
+            const regA = a.registrations?.[0];
+            const regB = b.registrations?.[0];
+            const studentNameA = regA?.student?.fullName || '';
+            const studentNameB = regB?.student?.fullName || '';
+
+            if (sortBy === 'attention') {
+                const isWarningA = regA?.status === 'STOP_REVIEW_PENDING' || a.status === 'PENDING';
+                const isWarningB = regB?.status === 'STOP_REVIEW_PENDING' || b.status === 'PENDING';
+                if (isWarningA && !isWarningB) return -1;
+                if (!isWarningA && isWarningB) return 1;
+                return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+            }
+            if (sortBy === 'latest') {
+                return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+            }
+            if (sortBy === 'studentNameAsc') {
+                return studentNameA.localeCompare(studentNameB, 'vi');
+            }
+            if (sortBy === 'topicTitleAsc') {
+                return (a.title || '').localeCompare(b.title || '', 'vi');
+            }
+            return 0;
+        });
+
         return list;
-    }, [topics, activeTab, searchText]);
+    }, [periodBaseTopics, activeTab, searchText, sortBy]);
 
     const handleCreateTopic = async () => {
         if (!title.trim()) {
@@ -291,13 +407,13 @@ export default function TopicManagementPage() {
     return (
         <section id="view-topics" className="view-pane active" style={{ display: 'block' }}>
             {/* Header Toolbar */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }} className="flex-wrap gap-4">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }} className="flex-wrap gap-4">
                 <div>
-                    <h1 style={{ fontSize: 22, fontWeight: 700 }} className="font-display text-slate-900">
+                    <h1 style={{ fontSize: 22, fontWeight: 700 }} className="font-display text-slate-900 m-0">
                         Quản Lý Đề Tài Của Tôi
                     </h1>
-                    <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 2 }}>
-                        Danh mục các đề tài do bạn đề xuất trong học kỳ hiện tại kèm chỉ tiêu sinh viên.
+                    <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 2, marginBottom: 0 }}>
+                        Danh mục các đề tài nghiên cứu do bạn phụ trách hướng dẫn qua các học kỳ.
                     </p>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }} className="flex-wrap">
@@ -317,15 +433,127 @@ export default function TopicManagementPage() {
                 </div>
             </div>
 
+            {/* Cohort & Filter Toolbar */}
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-4 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-3">
+                        {/* Semester Select */}
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                Đợt đồ án:
+                            </span>
+                            <Select
+                                value={filterSemesterId}
+                                onChange={(val) => setFilterSemesterId(val)}
+                                className="w-56"
+                                size="middle"
+                                options={[
+                                    { value: 'ALL', label: 'Tất cả các đợt đồ án' },
+                                    ...semesters.map((s) => ({
+                                        value: s.id,
+                                        label: `${s.name} ${s.status === 'ONGOING' ? '(Hiện tại)' : ''}`,
+                                    })),
+                                ]}
+                            />
+                        </div>
+
+                        {/* Project Catalog Select */}
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                Loại đồ án:
+                            </span>
+                            <Select
+                                value={filterCatalog}
+                                onChange={(val) => setFilterCatalog(val)}
+                                className="w-40"
+                                size="middle"
+                                options={[
+                                    { value: 'ALL', label: 'Tất cả loại' },
+                                    { value: 'DATN', label: 'Đồ án tốt nghiệp' },
+                                    { value: 'KLTN', label: 'Khóa luận tốt nghiệp' },
+                                ]}
+                            />
+                        </div>
+
+                        {/* Sort Select */}
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                Sắp xếp:
+                            </span>
+                            <Select
+                                value={sortBy}
+                                onChange={(val) => setSortBy(val)}
+                                className="w-48 text-xs"
+                                size="middle"
+                                options={[
+                                    { value: 'attention', label: 'Cần chú ý trước (Mặc định)' },
+                                    { value: 'latest', label: 'Mới nhất theo ngày tạo' },
+                                    { value: 'studentNameAsc', label: 'Tên sinh viên: A → Z' },
+                                    { value: 'topicTitleAsc', label: 'Tên đề tài: A → Z' },
+                                ]}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Search Input */}
+                    <div className="w-full sm:w-64">
+                        <input
+                            type="text"
+                            className="input-field"
+                            placeholder="Tìm tên đề tài, SV, MSSV..."
+                            style={{ width: '100%' }}
+                            value={searchText}
+                            onChange={(e) => setSearchText(e.target.value)}
+                        />
+                    </div>
+                </div>
+
+                {/* Capacity Summary Bar */}
+                <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                    <div className="flex flex-wrap items-center gap-4 text-slate-600">
+                        <span className="font-semibold text-slate-800 flex items-center gap-1.5">
+                            <CalendarOutlined className="text-blue-600" />
+                            Đợt đang xem: {filterSemesterId === 'ALL' ? 'Tất cả các đợt' : (semesters.find(s => s.id === Number(filterSemesterId))?.name || 'Đợt đồ án')}
+                        </span>
+                        <span>
+                            Tải lượng: <strong className="text-slate-900">{capacityMetrics.activeCount}</strong>/{capacityMetrics.maxSlots} sinh viên
+                        </span>
+                        <span>
+                            Chỉ tiêu còn lại: <strong className="text-emerald-600">{capacityMetrics.remainingSlots} chỗ</strong>
+                        </span>
+                        {capacityMetrics.warningCount > 0 && (
+                            <span className="text-red-600 font-semibold flex items-center gap-1">
+                                <ExclamationCircleOutlined />
+                                {capacityMetrics.warningCount} SV đề xuất dừng
+                            </span>
+                        )}
+                    </div>
+                    <div className="w-48">
+                        <Progress
+                            percent={capacityMetrics.percent}
+                            size="small"
+                            status={capacityMetrics.percent >= 100 ? 'exception' : 'active'}
+                            strokeColor={capacityMetrics.percent >= 100 ? '#ef4444' : capacityMetrics.percent >= 80 ? '#f59e0b' : '#2563eb'}
+                        />
+                    </div>
+                </div>
+            </div>
+
             {/* Main Topics Card */}
             <div className="card">
                 <div className="card-head flex-wrap gap-3">
-                    <div className="segmented-tabs">
+                    <div className="segmented-tabs flex-wrap">
                         <div
                             className={`seg-tab ${activeTab === 'all' ? 'active' : ''}`}
                             onClick={() => setActiveTab('all')}
                         >
                             Tất cả ({counts.all})
+                        </div>
+                        <div
+                            className={`seg-tab ${activeTab === 'in_progress' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('in_progress')}
+                        >
+                            Đang làm ({counts.inProgress})
                         </div>
                         <div
                             className={`seg-tab ${activeTab === 'approved' ? 'active' : ''}`}
@@ -339,23 +567,20 @@ export default function TopicManagementPage() {
                         >
                             Đang tuyển ({counts.open})
                         </div>
+                        {counts.warning > 0 && (
+                            <div
+                                className={`seg-tab ${activeTab === 'warning' ? 'active text-red-600 font-bold' : 'text-red-500'}`}
+                                onClick={() => setActiveTab('warning')}
+                            >
+                                Cảnh báo / Dừng ({counts.warning})
+                            </div>
+                        )}
                         <div
                             className={`seg-tab ${activeTab === 'pending' ? 'active' : ''}`}
                             onClick={() => setActiveTab('pending')}
                         >
                             Sinh viên đề xuất chờ duyệt ({counts.pending})
                         </div>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: 10 }}>
-                        <input
-                            type="text"
-                            className="input-field"
-                            placeholder="Tìm theo tên đề tài, công nghệ..."
-                            style={{ width: 260 }}
-                            value={searchText}
-                            onChange={(e) => setSearchText(e.target.value)}
-                        />
                     </div>
                 </div>
 
@@ -366,6 +591,7 @@ export default function TopicManagementPage() {
                             <tr>
                                 <th>Mã ĐT</th>
                                 <th>Tên Đề tài Nghiên cứu</th>
+                                <th>Đợt đồ án</th>
                                 <th>Lĩnh vực / Công nghệ</th>
                                 <th>Sinh viên thực hiện</th>
                                 <th>Chỉ tiêu hướng dẫn</th>
@@ -376,7 +602,7 @@ export default function TopicManagementPage() {
                         <tbody>
                             {filteredTopics.length === 0 ? (
                                 <tr>
-                                    <td colSpan={7} style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--muted)' }}>
+                                    <td colSpan={8} style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--muted)' }}>
                                         Không tìm thấy đề tài nào phù hợp với bộ lọc hiện tại.
                                     </td>
                                 </tr>
@@ -388,6 +614,10 @@ export default function TopicManagementPage() {
                                     const hasStudent = Boolean(studentName);
                                     const isApproved = topic.status === 'APPROVED';
                                     const isPending = topic.status === 'PENDING';
+                                    const regStatus = reg?.status;
+                                    const isWarning = regStatus === 'STOP_REVIEW_PENDING' || regStatus === 'AUTO_NOT_ELIGIBLE';
+                                    const isCompleted = regStatus === 'COMPLETED' || regStatus === 'DEFENDED' || regStatus === 'DEFENSE_PASSED';
+                                    const isInProgress = regStatus === 'IN_PROGRESS_BM03' || regStatus === 'IN_PROGRESS';
 
                                     return (
                                         <tr key={topic.id} data-status={topic.status?.toLowerCase()}>
@@ -401,6 +631,11 @@ export default function TopicManagementPage() {
                                                         {topic.englishTitle}
                                                     </div>
                                                 )}
+                                            </td>
+                                            <td>
+                                                <span className="tag blue text-[11px]">
+                                                    {topic.semester?.name || 'Học kỳ'}
+                                                </span>
                                             </td>
                                             <td>
                                                 <span className="tag gray">
@@ -427,7 +662,13 @@ export default function TopicManagementPage() {
                                                 </span>
                                             </td>
                                             <td>
-                                                {hasStudent ? (
+                                                {isWarning ? (
+                                                    <span className="tag red font-semibold">Cảnh báo đề xuất dừng</span>
+                                                ) : isCompleted ? (
+                                                    <span className="tag purple">Đã bảo vệ & Lưu chiểu</span>
+                                                ) : isInProgress ? (
+                                                    <span className="tag green font-semibold">Đang làm đồ án (BM03)</span>
+                                                ) : hasStudent ? (
                                                     <span className="tag green">Đã tiếp nhận sinh viên</span>
                                                 ) : isApproved ? (
                                                     <span className="tag teal">Sẵn sàng tuyển SV</span>
