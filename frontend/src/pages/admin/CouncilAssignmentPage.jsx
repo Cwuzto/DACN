@@ -151,8 +151,15 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
     const councilLogs = logsQuery.data;
     const councilMutation = useCouncilMutation(scope, selectedSemester);
     const loading = councilsQuery.isPending && councilsQuery.fetchStatus !== 'idle';
+
+    const currentSemesterObj = useMemo(() => semesters.find((s) => s.id === selectedSemester), [semesters, selectedSemester]);
+    const isSemesterCompleted = currentSemesterObj?.status === 'COMPLETED';
+
     useEffect(() => {
-        if (!selectedSemester && semesters.length) setSelectedSemester(semesters[0].id);
+        if (!selectedSemester && semesters.length) {
+            const activeSem = semesters.find((s) => s.status === 'ONGOING' || s.status === 'DEFENSE' || s.status === 'REGISTRATION' || s.isActive);
+            setSelectedSemester(activeSem ? activeSem.id : semesters[0].id);
+        }
     }, [selectedSemester, semesters]);
 
     const handleAutoAssign = async () => {
@@ -496,7 +503,10 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
         [],
     );
     const semesterOptions = useMemo(
-        () => semesters.map((semester) => ({ value: semester.id, label: formatSemesterLabel(semester) })),
+        () => semesters.map((semester) => ({
+            value: semester.id,
+            label: `${formatSemesterLabel(semester)}${semester.status === 'COMPLETED' ? ' (Đã kết thúc — Chỉ đọc)' : ''}`,
+        })),
         [semesters],
     );
 
@@ -722,46 +732,51 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                 const hasEnoughMembers = (record.members?.length || 0) === 3;
                 return (
                     <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                        <Tooltip title="Phân công 3 giảng viên vào hội đồng">
-                            <Button size="small" icon={<TeamOutlined />} onClick={() => showMemberModal(record)}>
+                        <Tooltip title={isSemesterCompleted ? 'Đợt đồ án đã kết thúc (Chỉ đọc)' : 'Phân công 3 giảng viên vào hội đồng'}>
+                            <Button size="small" icon={<TeamOutlined />} onClick={() => showMemberModal(record)} disabled={isSemesterCompleted}>
                                 Đổi thành viên HĐ
                             </Button>
                         </Tooltip>
-                        <Tooltip title={hasEnoughMembers ? 'Gán sinh viên vào hội đồng' : 'Cần đủ 3 giảng viên trước'}>
+                        <Tooltip title={isSemesterCompleted ? 'Đợt đồ án đã kết thúc (Chỉ đọc)' : hasEnoughMembers ? 'Gán sinh viên vào hội đồng' : 'Cần đủ 3 giảng viên trước'}>
                             <Button
                                 size="small"
                                 type="primary"
                                 icon={<LinkOutlined />}
                                 onClick={() => showAssignModal(record)}
-                                disabled={!hasEnoughMembers}
+                                disabled={!hasEnoughMembers || isSemesterCompleted}
                             >
                                 Gán SV
                             </Button>
                         </Tooltip>
                         <Button size="small" icon={<HistoryOutlined />} onClick={() => showLogModal(record)} />
-                        <Button size="small" icon={<EditOutlined />} onClick={() => showEditModal(record)} />
+                        <Tooltip title={isSemesterCompleted ? 'Đợt đồ án đã kết thúc (Chỉ đọc)' : 'Sửa thông tin hội đồng'}>
+                            <Button size="small" icon={<EditOutlined />} onClick={() => showEditModal(record)} disabled={isSemesterCompleted} />
+                        </Tooltip>
                         {record.councilType === 'OUTLINE_REVIEW' && (
-                            <Tooltip title="Mở khóa kết quả (Reopen)">
+                            <Tooltip title={isSemesterCompleted ? 'Đợt đồ án đã kết thúc' : 'Mở khóa kết quả (Reopen)'}>
                                 <Button
                                     size="small"
                                     icon={<UnlockOutlined />}
                                     onClick={() => handleOpenReopenModal(record)}
                                     style={{ color: '#d97706', borderColor: '#fcd34d' }}
+                                    disabled={isSemesterCompleted}
                                 >
                                     Mở khóa
                                 </Button>
                             </Tooltip>
                         )}
-                        <Popconfirm
-                            title="Xóa hội đồng này?"
-                            description="Chỉ xóa được nếu hội đồng chưa có sinh viên nào."
-                            onConfirm={() => handleDeleteCouncil(record.id)}
-                            okText="Xóa"
-                            cancelText="Hủy"
-                            okButtonProps={{ danger: true }}
-                        >
-                            <Button size="small" danger icon={<DeleteOutlined />} disabled={record._count?.registrations > 0} />
-                        </Popconfirm>
+                        {!isSemesterCompleted && (
+                            <Popconfirm
+                                title="Xóa hội đồng này?"
+                                description="Chỉ xóa được nếu hội đồng chưa có sinh viên nào."
+                                onConfirm={() => handleDeleteCouncil(record.id)}
+                                okText="Xóa"
+                                cancelText="Hủy"
+                                okButtonProps={{ danger: true }}
+                            >
+                                <Button size="small" danger icon={<DeleteOutlined />} disabled={record._count?.registrations > 0} />
+                            </Popconfirm>
+                        )}
                     </div>
                 );
             },
@@ -793,7 +808,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                 <Button
                                     onClick={handleAutoAssignOutline}
                                     loading={submitLoading}
-                                    disabled={!selectedSemester}
+                                    disabled={!selectedSemester || isSemesterCompleted}
                                     icon={<RobotOutlined />}
                                     type="primary"
                                     ghost
@@ -809,7 +824,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                             icon={<CheckCircleOutlined />}
                                             onClick={handlePublishEligibleDefenseList}
                                             loading={submitLoading}
-                                            disabled={!selectedSemester}
+                                            disabled={!selectedSemester || isSemesterCompleted}
                                         >
                                             Công bố DS đủ ĐK bảo vệ
                                         </Button>
@@ -817,7 +832,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                     <Button
                                         onClick={handleAutoAssign}
                                         loading={submitLoading}
-                                        disabled={!selectedSemester}
+                                        disabled={!selectedSemester || isSemesterCompleted}
                                         icon={<RobotOutlined />}
                                     >
                                         Tự động phân công
@@ -830,7 +845,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                 type="primary"
                                 icon={<PlusOutlined />}
                                 onClick={showCreateModal}
-                                disabled={!selectedSemester}
+                                disabled={!selectedSemester || isSemesterCompleted}
                             >
                                 Lập Hội đồng
                             </Button>
@@ -838,6 +853,25 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                     </div>
                 }
             />
+
+            {/* Read-only Alert Banner for Completed Semesters */}
+            {isSemesterCompleted && (
+                <Alert
+                    type="info"
+                    showIcon
+                    className="border border-blue-200 bg-blue-50/80 rounded-xl"
+                    message={
+                        <span className="font-bold text-slate-900 text-sm">
+                            Đợt đồ án đã kết thúc — Chế độ chỉ đọc (Read-only)
+                        </span>
+                    }
+                    description={
+                        <span className="text-slate-600 text-xs">
+                            Đợt đồ án này đã hoàn thành. Toàn bộ thông tin hội đồng, danh sách thành viên và phân công sinh viên được khóa cố định nhằm bảo toàn tính toàn vẹn của dữ liệu học vụ và hồ sơ lưu chiểu. Các thao tác lập hội đồng, gán sinh viên, gỡ sinh viên hoặc xóa hội đồng đã được vô hiệu hóa.
+                        </span>
+                    }
+                />
+            )}
 
             {/* Phase Switcher Navigation & Scope Controls */}
             {!forcedCouncilType ? (
@@ -1126,36 +1160,68 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                                             <CheckCircleOutlined />
                                                             {assignedCouncil?.name || 'Đã vào HĐ'}
                                                         </span>
-                                                        <Button
-                                                            size="small"
-                                                            danger
-                                                            type="text"
-                                                            className="text-xs font-bold"
-                                                            onClick={() => handleRemoveRegistration(assignedCouncilId, reg.id)}
-                                                        >
-                                                            Hủy ghép
-                                                        </Button>
+                                                        {(() => {
+                                                            const hasDefenseScore = Boolean(reg.defenseResult || (reg.defenseMemberScores && reg.defenseMemberScores.length > 0));
+                                                            const isDefended = ['DEFENDED', 'DEFENSE_PASSED', 'DEFENSE_FAILED', 'COMPLETED'].includes(reg.status);
+                                                            const hasOutlineEval = Boolean(reg.bM01Evaluations?.length || reg.outlineEvaluation);
+                                                            const isGradedOrEvaluated = (assignedCouncil?.councilType === 'DEFENSE_COUNCIL' || councilTypeFilter === 'DEFENSE_COUNCIL')
+                                                                ? (hasDefenseScore || isDefended)
+                                                                : hasOutlineEval;
+                                                            const isRemoveDisabled = isSemesterCompleted || isGradedOrEvaluated;
+                                                            const tooltipMsg = isSemesterCompleted
+                                                                ? 'Đợt đồ án đã kết thúc (Chỉ đọc)'
+                                                                : isGradedOrEvaluated
+                                                                    ? 'Sinh viên đã có điểm hoặc đã được hội đồng thẩm định'
+                                                                    : 'Hủy ghép khỏi hội đồng';
+
+                                                            return isRemoveDisabled ? (
+                                                                <Tooltip title={tooltipMsg}>
+                                                                    <Button
+                                                                        size="small"
+                                                                        danger
+                                                                        type="text"
+                                                                        className="text-xs font-bold"
+                                                                        disabled
+                                                                    >
+                                                                        Hủy ghép
+                                                                    </Button>
+                                                                </Tooltip>
+                                                            ) : (
+                                                                <Button
+                                                                    size="small"
+                                                                    danger
+                                                                    type="text"
+                                                                    className="text-xs font-bold"
+                                                                    onClick={() => handleRemoveRegistration(assignedCouncilId, reg.id)}
+                                                                >
+                                                                    Hủy ghép
+                                                                </Button>
+                                                            );
+                                                        })()}
                                                     </>
                                                 ) : (
                                                     <>
                                                         <span className="text-xs text-amber-800 font-bold">
                                                             Chưa gán HĐ
                                                         </span>
-                                                        <Button
-                                                            size="small"
-                                                            type="primary"
-                                                            icon={<UserAddOutlined />}
-                                                            className="text-xs font-bold"
-                                                            onClick={() => {
-                                                                if (filteredCouncils.length > 0) {
-                                                                    showAssignModal(filteredCouncils[0]);
-                                                                } else {
-                                                                    message.info('Vui lòng tạo một hội đồng trước.');
-                                                                }
-                                                            }}
-                                                        >
-                                                            Gán HĐ
-                                                        </Button>
+                                                        <Tooltip title={isSemesterCompleted ? 'Đợt đồ án đã kết thúc (Chỉ đọc)' : 'Gán vào hội đồng'}>
+                                                            <Button
+                                                                size="small"
+                                                                type="primary"
+                                                                icon={<UserAddOutlined />}
+                                                                className="text-xs font-bold"
+                                                                disabled={isSemesterCompleted}
+                                                                onClick={() => {
+                                                                    if (filteredCouncils.length > 0) {
+                                                                        showAssignModal(filteredCouncils[0]);
+                                                                    } else {
+                                                                        message.info('Vui lòng tạo một hội đồng trước.');
+                                                                    }
+                                                                }}
+                                                            >
+                                                                Gán HĐ
+                                                            </Button>
+                                                        </Tooltip>
                                                     </>
                                                 )}
                                             </div>
@@ -1290,6 +1356,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                                             size="small"
                                                             icon={<TeamOutlined />}
                                                             onClick={() => showMemberModal(council)}
+                                                            disabled={isSemesterCompleted}
                                                         >
                                                             Đổi thành viên HĐ
                                                         </Button>
@@ -1298,7 +1365,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                                             type="primary"
                                                             icon={<LinkOutlined />}
                                                             onClick={() => showAssignModal(council)}
-                                                            disabled={!isComplete}
+                                                            disabled={!isComplete || isSemesterCompleted}
                                                         >
                                                             Gán Sinh viên
                                                         </Button>
@@ -1323,6 +1390,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                                             onClick={() => handleOpenReopenModal(council)}
                                                             style={{ color: '#b45309', borderColor: '#f59e0b', fontWeight: 600 }}
                                                             title="Mở khóa kết quả (Reopen)"
+                                                            disabled={isSemesterCompleted}
                                                         />
                                                     )}
                                                     <Button
@@ -1338,23 +1406,26 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                                                 icon={<EditOutlined />}
                                                                 onClick={() => showEditModal(council)}
                                                                 title="Sửa thông tin"
+                                                                disabled={isSemesterCompleted}
                                                             />
-                                                            <Popconfirm
-                                                                title="Xóa hội đồng này?"
-                                                                description="Chỉ xóa được nếu hội đồng chưa có sinh viên nào."
-                                                                onConfirm={() => handleDeleteCouncil(council.id)}
-                                                                okText="Xóa"
-                                                                cancelText="Hủy"
-                                                                okButtonProps={{ danger: true }}
-                                                            >
-                                                                <Button
-                                                                    size="small"
-                                                                    danger
-                                                                    icon={<DeleteOutlined />}
-                                                                    disabled={assignedCount > 0}
-                                                                    title="Xóa hội đồng"
-                                                                />
-                                                            </Popconfirm>
+                                                            {!isSemesterCompleted && (
+                                                                <Popconfirm
+                                                                    title="Xóa hội đồng này?"
+                                                                    description="Chỉ xóa được nếu hội đồng chưa có sinh viên nào."
+                                                                    onConfirm={() => handleDeleteCouncil(council.id)}
+                                                                    okText="Xóa"
+                                                                    cancelText="Hủy"
+                                                                    okButtonProps={{ danger: true }}
+                                                                >
+                                                                    <Button
+                                                                        size="small"
+                                                                        danger
+                                                                        icon={<DeleteOutlined />}
+                                                                        disabled={assignedCount > 0}
+                                                                        title="Xóa hội đồng"
+                                                                    />
+                                                                </Popconfirm>
+                                                            )}
                                                         </>
                                                     )}
                                                 </div>
@@ -1516,16 +1587,41 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                     renderItem={(registration) => (
                         <List.Item
                             actions={[
-                                <Popconfirm
-                                    key="remove"
-                                    title="Gỡ sinh viên khỏi hội đồng?"
-                                    onConfirm={() => handleRemoveRegistration(detailCouncil.id, registration.id)}
-                                    okText="Gỡ"
-                                    cancelText="Hủy"
-                                    okButtonProps={{ danger: true }}
-                                >
-                                    <Button size="small" danger>Gỡ</Button>
-                                </Popconfirm>,
+                                (() => {
+                                    const hasDefenseScore = Boolean(registration.defenseResult || (registration.defenseMemberScores && registration.defenseMemberScores.length > 0));
+                                    const isDefended = ['DEFENDED', 'DEFENSE_PASSED', 'DEFENSE_FAILED', 'COMPLETED'].includes(registration.status);
+                                    const hasOutlineEval = Boolean(registration.bM01Evaluations?.length || registration.outlineEvaluation);
+                                    const isGradedOrEvaluated = detailCouncil?.councilType === 'DEFENSE_COUNCIL'
+                                        ? (hasDefenseScore || isDefended)
+                                        : hasOutlineEval;
+                                    const isRemoveDisabled = isSemesterCompleted || isGradedOrEvaluated;
+                                    const tooltipMsg = isSemesterCompleted
+                                        ? 'Đợt đồ án đã kết thúc (Chỉ đọc)'
+                                        : isGradedOrEvaluated
+                                            ? 'Sinh viên đã có điểm hoặc đã được hội đồng thẩm định'
+                                            : 'Gỡ sinh viên khỏi hội đồng';
+
+                                    if (isRemoveDisabled) {
+                                        return (
+                                            <Tooltip key="remove-disabled" title={tooltipMsg}>
+                                                <Button size="small" danger disabled>Gỡ</Button>
+                                            </Tooltip>
+                                        );
+                                    }
+
+                                    return (
+                                        <Popconfirm
+                                            key="remove"
+                                            title="Gỡ sinh viên khỏi hội đồng?"
+                                            onConfirm={() => handleRemoveRegistration(detailCouncil.id, registration.id)}
+                                            okText="Gỡ"
+                                            cancelText="Hủy"
+                                            okButtonProps={{ danger: true }}
+                                        >
+                                            <Button size="small" danger>Gỡ</Button>
+                                        </Popconfirm>
+                                    );
+                                })(),
                             ]}
                         >
                             <List.Item.Meta

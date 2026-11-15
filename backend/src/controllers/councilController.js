@@ -384,6 +384,21 @@ const createCouncil = async (req, res, next) => {
         }
 
         const semesterIdInt = parseInt(semesterId, 10);
+        const semester = await prisma.semester.findUnique({
+            where: { id: semesterIdInt },
+            select: { id: true, status: true },
+        });
+        if (!semester) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy đợt đồ án.' });
+        }
+        if (semester.status === 'COMPLETED') {
+            return res.status(400).json({
+                success: false,
+                code: 'SEMESTER_ALREADY_COMPLETED',
+                message: 'Đợt đồ án này đã hoàn thành, không thể tạo thêm hội đồng.',
+            });
+        }
+
         const defenseDateValue = defenseDate ? new Date(defenseDate) : null;
         const normalizedMembers = normalizeMemberInput(members || []);
         if (normalizedMembers.length) {
@@ -486,6 +501,7 @@ const updateCouncil = async (req, res, next) => {
         const existing = await prisma.council.findUnique({
             where: { id: councilId },
             include: {
+                semester: { select: { status: true } },
                 members: {
                     include: {
                         lecturer: {
@@ -497,6 +513,14 @@ const updateCouncil = async (req, res, next) => {
         });
         if (!existing) {
             return res.status(404).json({ success: false, message: 'Không tìm thấy hội đồng.' });
+        }
+
+        if (existing.semester?.status === 'COMPLETED') {
+            return res.status(400).json({
+                success: false,
+                code: 'SEMESTER_ALREADY_COMPLETED',
+                message: 'Đợt đồ án này đã hoàn thành. Toàn bộ thông tin hội đồng được khóa cố định để bảo toàn lịch sử học vụ.',
+            });
         }
 
         const defenseDateValue = defenseDate !== undefined
@@ -688,6 +712,7 @@ const assignRegistrationsToCouncil = async (req, res, next) => {
             const council = await tx.council.findUnique({
                 where: { id: councilId },
                 include: {
+                    semester: { select: { status: true } },
                     members: { select: { lecturerId: true, roleInCouncil: true } },
                     _count: { select: { registrations: true, outlineRegistrations: true, defenseRegistrations: true } },
                 },
@@ -695,6 +720,10 @@ const assignRegistrationsToCouncil = async (req, res, next) => {
 
             if (!council) {
                 throw createHttpError(404, 'Không tìm thấy hội đồng.');
+            }
+
+            if (council.semester?.status === 'COMPLETED') {
+                throw createHttpError(400, 'Đợt đồ án này đã hoàn thành. Toàn bộ thông tin hội đồng được khóa cố định để bảo toàn lịch sử học vụ.');
             }
 
             validateCouncilComposition(council.members, { allowFourthScoringMember: council.allowFourthScoringMember });
@@ -831,6 +860,18 @@ const autoAssignRegistrationsToCouncils = async (req, res, next) => {
             return res.status(400).json({ success: false, message: 'semesterId khong hop le.' });
         }
 
+        const sem = await prisma.semester.findUnique({
+            where: { id: semesterId },
+            select: { id: true, status: true },
+        });
+        if (sem?.status === 'COMPLETED') {
+            return res.status(400).json({
+                success: false,
+                code: 'SEMESTER_ALREADY_COMPLETED',
+                message: 'Đợt đồ án này đã hoàn thành, không thể tự động phân công hội đồng.',
+            });
+        }
+
         const result = await runAutoCouncilSetupForSemester(semesterId);
 
         await auditLog(
@@ -871,21 +912,74 @@ const removeRegistrationFromCouncil = async (req, res, next) => {
 
         const council = await prisma.council.findUnique({
             where: { id: councilId },
-            select: { id: true, councilType: true },
+            select: {
+                id: true,
+                councilType: true,
+                semesterId: true,
+                schedulePublishedAt: true,
+                scheduleConfirmedAt: true,
+                semester: { select: { status: true } },
+            },
         });
 
         if (!council) {
             return res.status(404).json({ success: false, message: 'Không tìm thấy hội đồng.' });
         }
 
+        if (council.semester?.status === 'COMPLETED') {
+            return res.status(400).json({
+                success: false,
+                code: 'SEMESTER_ALREADY_COMPLETED',
+                message: 'Đợt đồ án này đã hoàn thành. Toàn bộ thông tin hội đồng được khóa cố định để bảo toàn lịch sử học vụ.',
+            });
+        }
+
         const targetReg = await prisma.topicRegistration.findUnique({
             where: { id: registrationIdInt },
             select: {
                 id: true,
+                status: true,
                 student: { select: { fullName: true, code: true } },
                 topic: { select: { title: true } },
+                defenseResult: { select: { id: true } },
+                defenseMemberScores: { select: { id: true } },
+                bM01Evaluations: { select: { id: true, outlineCouncilId: true } },
             },
         });
+
+        if (!targetReg) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy hồ sơ đăng ký.' });
+        }
+
+        if (council.councilType === 'DEFENSE_COUNCIL') {
+            const hasDefenseScore = Boolean(targetReg.defenseResult || (targetReg.defenseMemberScores && targetReg.defenseMemberScores.length > 0));
+            const isDefendedStatus = ['DEFENDED', 'DEFENSE_PASSED', 'DEFENSE_FAILED', 'COMPLETED'].includes(targetReg.status);
+            if (hasDefenseScore || isDefendedStatus) {
+                return res.status(400).json({
+                    success: false,
+                    code: 'CANNOT_REMOVE_GRADED_STUDENT',
+                    message: `Không thể gỡ sinh viên ${targetReg.student?.fullName || ''} đã có điểm hoặc đã hoàn thành bảo vệ khỏi hội đồng.`,
+                });
+            }
+            if (council.schedulePublishedAt || council.scheduleConfirmedAt) {
+                return res.status(400).json({
+                    success: false,
+                    code: 'COUNCIL_SCHEDULE_ALREADY_PUBLISHED',
+                    message: 'Lịch bảo vệ của hội đồng đã được công bố hoặc xác nhận. Vui lòng hủy công bố lịch trước khi điều chỉnh danh sách sinh viên.',
+                });
+            }
+        } else if (council.councilType === 'OUTLINE_REVIEW') {
+            const hasOutlineEvaluation = (targetReg.bM01Evaluations || []).some(
+                (ev) => ev.outlineCouncilId === councilId
+            );
+            if (hasOutlineEvaluation) {
+                return res.status(400).json({
+                    success: false,
+                    code: 'CANNOT_REMOVE_EVALUATED_STUDENT',
+                    message: `Không thể gỡ sinh viên ${targetReg.student?.fullName || ''} đã được Hội đồng đánh giá đề cương BM01.`,
+                });
+            }
+        }
 
         const where = { id: registrationIdInt };
         const updateData = {};
@@ -903,7 +997,7 @@ const removeRegistrationFromCouncil = async (req, res, next) => {
             data: updateData,
         });
 
-        if (result.count > 0) {
+        if (result && result.count > 0) {
             await auditLog(
                 req.user.id,
                 'REMOVE_REGISTRATION_FROM_COUNCIL',
@@ -936,11 +1030,13 @@ const deleteCouncil = async (req, res, next) => {
         const existing = await prisma.council.findUnique({
             where: { id: parsedId },
             include: {
+                semester: { select: { status: true } },
                 _count: {
                     select: {
                         registrations: true,
                         outlineRegistrations: true,
                         defenseRegistrations: true,
+                        resultBatches: true,
                     },
                 },
             },
@@ -950,6 +1046,14 @@ const deleteCouncil = async (req, res, next) => {
             return res.status(404).json({ success: false, message: 'Không tìm thấy hội đồng.' });
         }
 
+        if (existing.semester?.status === 'COMPLETED') {
+            return res.status(400).json({
+                success: false,
+                code: 'SEMESTER_ALREADY_COMPLETED',
+                message: 'Đợt đồ án này đã hoàn thành. Toàn bộ thông tin hội đồng được khóa cố định để bảo toàn lịch sử học vụ.',
+            });
+        }
+
         const totalAssignedStudents = (existing._count?.registrations || 0)
             + (existing._count?.outlineRegistrations || 0)
             + (existing._count?.defenseRegistrations || 0);
@@ -957,7 +1061,29 @@ const deleteCouncil = async (req, res, next) => {
         if (totalAssignedStudents > 0) {
             return res.status(400).json({
                 success: false,
+                code: 'COUNCIL_HAS_STUDENTS',
                 message: 'Không thể xóa hội đồng đã có sinh viên được phân công.',
+            });
+        }
+
+        if ((existing._count?.resultBatches || 0) > 0) {
+            return res.status(400).json({
+                success: false,
+                code: 'COUNCIL_HAS_HISTORY',
+                message: 'Không thể xóa hội đồng đã có sổ điểm hoặc biên bản bảo vệ.',
+            });
+        }
+
+        const [hasDefenseResult, hasOutlineEval] = await Promise.all([
+            prisma.defenseResult.findFirst({ where: { councilId: parsedId } }),
+            prisma.bM01Evaluation.findFirst({ where: { outlineCouncilId: parsedId } }),
+        ]);
+
+        if (hasDefenseResult || hasOutlineEval) {
+            return res.status(400).json({
+                success: false,
+                code: 'COUNCIL_HAS_EVALUATIONS',
+                message: 'Không thể xóa hội đồng đã có lịch sử chấm điểm hoặc đánh giá đề tài.',
             });
         }
 
@@ -998,6 +1124,18 @@ const previewAutoAssignOutlineCouncils = async (req, res, next) => {
 const autoAssignOutlineCouncils = async (req, res, next) => {
     try {
         const semesterId = parseInt(req.body.semesterId, 10);
+        const sem = await prisma.semester.findUnique({
+            where: { id: semesterId },
+            select: { id: true, status: true },
+        });
+        if (sem?.status === 'COMPLETED') {
+            return res.status(400).json({
+                success: false,
+                code: 'SEMESTER_ALREADY_COMPLETED',
+                message: 'Đợt đồ án này đã hoàn thành, không thể tự động phân công hội đồng đề cương.',
+            });
+        }
+
         const result = await runAutoOutlineCouncilSetupForSemester(semesterId, {
             proposedCouncils: req.body.proposedCouncils,
             actorId: req.user.id,

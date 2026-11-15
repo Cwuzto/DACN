@@ -70,6 +70,69 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 
 ## 6. Cập Nhật Phiên Làm Việc (Session Update)
 
+### Phiên 15/11/2026 (Khóa Chặt Lỗ Hổng Toàn Vẹn Dữ Liệu Hội Đồng Bảo Vệ & Hội Đồng Xét Duyệt Đề Cương - Council Integrity Guards & Chế Độ Chỉ Đọc)
+
+#### 1. Những phần đã hoàn thành
+1. **Khóa chặt toàn vẹn dữ liệu Hội đồng ở tầng Backend (`councilController.js`)**:
+   - **Bảo vệ Đợt đồ án đã kết thúc (`SEMESTER_ALREADY_COMPLETED`)**:
+     * Ngăn chặn tuyệt đối mọi hành vi sửa đổi dữ liệu đối với các đợt đồ án có trạng thái `COMPLETED`:
+       - `createCouncil`: Chặn tạo mới hội đồng thuộc đợt đã kết thúc.
+       - `updateCouncil`: Chặn đổi thông tin hội đồng, phòng họp, ngày giờ, thành viên.
+       - `assignRegistrationsToCouncil`: Chặn phân công sinh viên/đề tài vào hội đồng.
+       - `removeRegistrationFromCouncil`: Chặn gỡ sinh viên ra khỏi hội đồng.
+       - `deleteCouncil`: Chặn xóa hội đồng thuộc đợt đã kết thúc.
+       - `autoAssignRegistrationsToCouncils` & `autoAssignOutlineCouncils`: Chặn thuật toán tự động phân công.
+   - **Khóa bảo vệ Gỡ sinh viên khỏi Hội đồng (`removeRegistrationFromCouncil`)**:
+     * Đối với Hội đồng bảo vệ (`DEFENSE_COUNCIL`):
+       - Chặn gỡ nếu sinh viên đã có điểm chấm từ thành viên hội đồng (`DefenseMemberScore`) hoặc đã có kết quả bảo vệ (`DefenseResult`). Mã lỗi: `CANNOT_REMOVE_GRADED_STUDENT`.
+       - Chặn gỡ nếu sinh viên có trạng thái học vụ đã qua bảo vệ (`DEFENDED`, `DEFENSE_PASSED`, `DEFENSE_FAILED`, `COMPLETED`).
+       - Chặn gỡ nếu lịch bảo vệ của hội đồng đã được công bố (`schedulePublishedAt`) hoặc xác nhận (`scheduleConfirmedAt`). Mã lỗi: `COUNCIL_SCHEDULE_ALREADY_PUBLISHED`.
+     * Đối với Hội đồng xét duyệt đề cương (`OUTLINE_REVIEW`):
+       - Chặn gỡ nếu sinh viên đã được hội đồng đánh giá đề cương BM01 (`bM01Evaluations.length > 0`). Mã lỗi: `CANNOT_REMOVE_EVALUATED_STUDENT`.
+   - **Khóa bảo vệ Xóa hội đồng (`deleteCouncil`)**:
+     * Chặn xóa nếu còn sinh viên trong hội đồng (`COUNCIL_HAS_STUDENTS`).
+     * Chặn xóa nếu hội đồng đã có lịch sử công bố kết quả (`resultBatches > 0`). Mã lỗi: `COUNCIL_HAS_HISTORY`.
+     * Chặn xóa nếu hội đồng đã phát sinh điểm chấm bảo vệ hoặc đánh giá đề cương BM01 (`COUNCIL_HAS_EVALUATIONS`).
+2. **Triển khai Chế độ Chỉ đọc (Read-Only Mode) trên Giao diện Frontend (Phương án A)**:
+   - **Trang Phân công Hội đồng (`CouncilAssignmentPage.jsx` - `/admin/defense-councils` & `/admin/outline-councils`)**:
+     * Nhận diện trạng thái đợt `isSemesterCompleted = currentSemesterObj?.status === 'COMPLETED'`.
+     * Tự động ưu tiên chọn đợt đồ án đang hoạt động (`ONGOING`, `DEFENSE`, `REGISTRATION`) khi vào trang; gắn nhãn rõ `(Đã kết thúc — Chỉ đọc)` trong dropdown chọn đợt.
+     * Hiển thị Alert banner màu xanh thông tin nổi bật: *"Đợt đồ án đã kết thúc — Chế độ chỉ đọc (Read-only). Toàn bộ dữ liệu hội đồng và kết quả phân công đã được khóa vĩnh viễn để lưu trữ và đối soát học vụ."*
+     * Vô hiệu hóa toàn bộ các nút hành động ở Header trang: "Lập hội đồng", "Tự động phân công", "Công bố DS đủ ĐK".
+     * Vô hiệu hóa thao tác kéo thả/ghép nối sinh viên trong chế độ Matcher và Table, ẩn nút xóa hội đồng.
+     * Nút "Gỡ" / "Hủy ghép" từng sinh viên được vô hiệu hóa có kèm `Tooltip` giải thích lý do cụ thể (đợt đã kết thúc hoặc sinh viên đã có điểm/đã đánh giá).
+   - **Trang Chi tiết Hội đồng (`CouncilDetailPage.jsx` - `/admin/defense-councils/:id` & `/admin/outline-councils/:id`)**:
+     * Hiển thị Alert banner chế độ chỉ đọc khi đợt đồ án kết thúc.
+     * Vô hiệu hóa các nút: "Công bố lịch bảo vệ", "Sửa thông tin HĐ", "Đổi thành viên HĐ", "Gán thêm Sinh viên", "Mở khóa kết quả".
+     * Vô hiệu hóa nút "Gỡ" sinh viên kèm Tooltip cảnh báo nếu sinh viên đã có kết quả chấm hoặc đợt đã đóng.
+   - Tuân thủ 100% **Rule 2.6**: Không sử dụng ký tự thô/emoji trong nhãn nút bấm; sử dụng Ant Design Icons.
+3. **Bộ Kiểm Thử & Xác Thực Toàn Diện**:
+   - Backend Integration Tests (`backend/tests/integration/councilIntegrityGuards.test.js`): 8/8 tests PASS.
+   - Frontend Unit/Integration Tests (`frontend/tests/councilReadOnlyMode.test.js`): 4/4 tests PASS.
+   - Toàn bộ Test Suite Frontend: 294/294 tests PASS.
+   - Build sản xuất: `npm --prefix frontend run build` PASS 100% (11.50s, 0 lỗi bundle).
+   - Mã hóa: 100% tệp tuân thủ UTF-8 without BOM (Rule 2.4).
+
+#### 2. Trạng thái cập nhật của từng phần
+- **Backend API (`councilController.js`)**: Được bảo vệ đa tầng chống xóa/gỡ/chỉnh sửa hội đồng hoặc sinh viên đối với đợt hoàn thành và sinh viên đã có điểm/đánh giá.
+- **Frontend SPA (`CouncilAssignmentPage.jsx`, `CouncilDetailPage.jsx`)**: Hỗ trợ xem lại lịch sử các đợt cũ trong Chế độ Chỉ đọc (Read-Only Mode), khóa toàn bộ nút chỉnh sửa/xóa/gỡ, giao diện thân thiện với banner thông báo.
+- **Tương thích 2 loại Hội đồng**: Áp dụng đồng bộ cho cả Hội đồng bảo vệ khóa luận (`DEFENSE_COUNCIL`) và Hội đồng xét duyệt đề cương (`OUTLINE_REVIEW`).
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+1. **Kiểm tra nghiệp vụ Phiếu chấm BM05 & Khóa sổ điểm**:
+   - Kiểm tra luồng chấm Rubric BM05 độc lập cho 3 thành viên hội đồng.
+   - Kiểm tra tính toán điểm trung bình và công bố kết quả bảo vệ (`DEFENDED`, `DEFENSE_PASSED`, `DEFENSE_FAILED`).
+2. **Kiểm tra luồng Lưu chiểu & Cấp chứng nhận hoàn thành**:
+   - Đối soát nộp quyển/file mềm và cấp chứng nhận hoàn thành đồ án tốt nghiệp.
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+- **Phương án A (Chế độ Chỉ đọc - Read-Only Mode)**: Cho phép Ban Giám hiệu, Giáo vụ và Giảng viên chọn các đợt đồ án cũ (`COMPLETED`) để tra cứu lịch sử hội đồng, xem danh sách sinh viên và biên bản bảo vệ mà không lo ngại việc vô tình bấm nhầm nút chỉnh sửa, xóa hội đồng hoặc gỡ sinh viên.
+- **Bảo toàn Sổ cái Điểm (Grade Ledger Preservation)**: Ngay cả trong đợt đang mở, nếu sinh viên đã được chấm điểm bảo vệ (`DefenseMemberScore`, `DefenseResult`) hoặc đã có đánh giá đề cương BM01, hệ thống từ chối gỡ sinh viên ra khỏi hội đồng để chống mồ côi dữ liệu điểm học vụ.
+
+---
+
+## 6. Cập Nhật Phiên Làm Việc (Session Update)
+
 ### Phiên 15/11/2026 (Tái Thiết Kế Hồ Sơ Cá Nhân & Bổ Sung Bộ Lọc Đợt/Loại/Sắp Xếp/Tải Lượng Cho Đề Tài Phụ Trách Giảng Viên)
 
 #### 1. Những phần đã hoàn thành

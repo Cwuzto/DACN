@@ -120,6 +120,8 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
         return [];
     }, [council]);
 
+    const isSemesterCompleted = council?.semester?.status === 'COMPLETED';
+
     // Dynamic conflict calculation
     const conflictNames = useMemo(() => {
         if (!council?.members?.length || !effectiveRegistrations?.length) return [];
@@ -643,6 +645,29 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                 if (!canManageCouncil) {
                     return <span className="text-xs text-slate-400">---</span>;
                 }
+                const hasDefenseScore = Boolean(reg.defenseResult || (reg.defenseMemberScores && reg.defenseMemberScores.length > 0));
+                const isDefended = ['DEFENDED', 'DEFENSE_PASSED', 'DEFENSE_FAILED', 'COMPLETED'].includes(reg.status);
+                const hasOutlineEval = (reg.bM01Evaluations || []).length > 0;
+                const isGradedOrEvaluated = effectiveCouncilType === 'DEFENSE_COUNCIL'
+                    ? (hasDefenseScore || isDefended)
+                    : hasOutlineEval;
+                const isRemoveDisabled = isSemesterCompleted || isGradedOrEvaluated;
+                const tooltipMsg = isSemesterCompleted
+                    ? 'Đợt đồ án đã kết thúc (Chỉ đọc)'
+                    : isGradedOrEvaluated
+                        ? (effectiveCouncilType === 'DEFENSE_COUNCIL' ? 'Sinh viên đã có điểm bảo vệ hoặc đã bảo vệ' : 'Sinh viên đã được hội đồng thẩm định đề cương')
+                        : 'Gỡ sinh viên khỏi hội đồng';
+
+                if (isRemoveDisabled) {
+                    return (
+                        <Tooltip title={tooltipMsg}>
+                            <Button size="small" danger disabled>
+                                Gỡ
+                            </Button>
+                        </Tooltip>
+                    );
+                }
+
                 return (
                     <Popconfirm
                         title="Gỡ sinh viên khỏi hội đồng?"
@@ -693,6 +718,25 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                     </Button>
                 </div>
 
+                {/* Read-only Alert Banner for Completed Semesters */}
+                {isSemesterCompleted && (
+                    <Alert
+                        type="info"
+                        showIcon
+                        className="border border-blue-200 bg-blue-50/80 rounded-xl mb-1"
+                        message={
+                            <span className="font-bold text-slate-900 text-sm">
+                                Đợt đồ án đã kết thúc — Chế độ chỉ đọc (Read-only)
+                            </span>
+                        }
+                        description={
+                            <span className="text-slate-600 text-xs">
+                                Đợt đồ án này đã hoàn thành. Toàn bộ thông tin hội đồng, danh sách thành viên và phân công sinh viên được khóa cố định nhằm bảo toàn tính toàn vẹn của dữ liệu học vụ. Các thao tác điều chỉnh đã được vô hiệu hóa.
+                            </span>
+                        }
+                    />
+                )}
+
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-300">
                     <div>
                         <div className="flex items-center gap-2.5 flex-wrap">
@@ -721,6 +765,7 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                                 icon={<CalendarOutlined />}
                                 onClick={handleConfirmAndPublishDefenseSchedule}
                                 loading={submitLoading}
+                                disabled={isSemesterCompleted}
                                 className="bg-emerald-700 hover:bg-emerald-800 font-semibold"
                             >
                                 Công bố lịch bảo vệ chia ca
@@ -736,16 +781,17 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                         </Button>
                         {canManageCouncil && (
                             <>
-                                <Button icon={<EditOutlined />} onClick={openEditModal}>
+                                <Button icon={<EditOutlined />} onClick={openEditModal} disabled={isSemesterCompleted}>
                                     Sửa thông tin HĐ
                                 </Button>
-                                <Button icon={<TeamOutlined />} onClick={openMemberModal}>
+                                <Button icon={<TeamOutlined />} onClick={openMemberModal} disabled={isSemesterCompleted}>
                                     Đổi thành viên HĐ
                                 </Button>
                                 <Button
                                     type="primary"
                                     icon={<UserAddOutlined />}
                                     onClick={openAssignModal}
+                                    disabled={isSemesterCompleted}
                                     className="bg-teal-700 hover:bg-teal-800 font-semibold"
                                 >
                                     Gán thêm Sinh viên
@@ -753,7 +799,7 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                             </>
                         )}
                         {effectiveCouncilType === 'OUTLINE_REVIEW' && canManageCouncil && (
-                            <Button danger icon={<UnlockOutlined />} onClick={openReopenModal}>
+                            <Button danger icon={<UnlockOutlined />} onClick={openReopenModal} disabled={isSemesterCompleted}>
                                 Mở khóa kết quả
                             </Button>
                         )}
