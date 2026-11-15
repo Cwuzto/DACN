@@ -106,8 +106,17 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
    - 290/290 frontend tests PASS.
    - Production build `npm --prefix frontend run build` PASS 100% (3.337 modules transformed, 0 lỗi bundle).
    - Mã hóa: 100% tệp tuân thủ UTF-8 without BOM.
+7. **Loại bỏ Mục Menu Trùng Lặp "Điều hành đợt & Quyết định" Khỏi Phân Hệ Admin (`navigationRegistry.js`)**:
+   - Đối với tài khoản `ADMIN`:
+     * Menu trên cùng đã có **"Tổng quan"** (`/admin/dashboard` - Bảng điều khiển Trung tâm & Thống kê KPI).
+     * Khối "Quản trị học vụ" đã có **"Đợt đồ án & Học kỳ"** (`/admin/project-periods` - Quản lý các đợt đồ án, ban hành quyết định và thẩm định BM02).
+     * Mục "Điều hành đợt & Quyết định" (`/lecturer/institute`) vốn là đường dẫn nghiệp vụ dành riêng cho Giảng viên kiêm Viện trưởng (`VIEN_TRUONG`), việc hiển thị ở Admin gây nhầm lẫn với "Tổng quan" và trùng lặp hoàn toàn với "Đợt đồ án & Học kỳ".
+   - Đã loại bỏ quyền `VIEW_PROJECT_PERIODS` khỏi `requiredAnyPermissions` của `institute-management` và thêm điều kiện ẩn đối với `isAdmin`.
+   - Giữ nguyên mục này cho tài khoản Viện trưởng (`VIEN_TRUONG`) và Giáo vụ (`GIAO_VU`) ở phía Giảng viên.
+   - Bổ sung kiểm thử trong `frontend/tests/navigationRegistry.test.js` (17/17 navigation tests PASS, 290/290 frontend tests PASS).
 
 #### 2. Trạng thái cập nhật của từng phần
+- **Menu Phân hệ Admin (`AppLayout.jsx` / `navigationRegistry.js`)**: Đã loại bỏ mục trùng lặp "Điều hành đợt & Quyết định", giữ thanh điều hướng của Admin gọn gàng, đúng nghiệp vụ.
 - **Trang Đề tài phụ trách (`/lecturer/topics`)**: Đã trang bị đầy đủ bộ lọc Đợt đồ án, Loại đề tài, Sắp xếp thông minh theo mức độ cần chú ý, Banner tải lượng 10 SV/đợt và bảng hiển thị đồng bộ.
 - **Trang Profile (`/profile`)**: Đã chuyển sang layout 2 cột Swiss Modernism 2.0 phân hóa sâu cho GV và SV.
 - **Backend API**: Đã vá lỗi enum `SemesterStatus`, nodemon chạy ổn định không còn lỗi.

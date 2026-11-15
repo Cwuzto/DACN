@@ -264,6 +264,18 @@ test('System administrator (QUAN_TRI_VIEN) sees "Quản trị học vụ" and "Q
         sysAdminGroup.items.map((i) => i.key),
         ['users', 'permissions', 'announcements', 'portal-content', 'notifications']
     );
+
+    // Verify 'Thẩm định & quyết định' is not leaked to system administrator
+    assert.ok(!groups.includes('Thẩm định & quyết định'), 'Admin must not see Thẩm định & quyết định group');
+
+    // Admin role must explicitly exclude institute-management (/lecturer/institute)
+    const adminUserNav = getVisibleNavigation({
+        role: 'ADMIN',
+        permissions: ['VIEW_ASSIGNMENT_DECISIONS', 'VIEW_PROJECT_PERIODS', 'VIEW_USERS'],
+    });
+    const adminAllItems = adminUserNav.flatMap((g) => g.items);
+    assert.ok(!adminAllItems.some((i) => i.key === 'institute-management'), 'Admin must not see institute-management item');
+    assert.ok(adminAllItems.some((i) => i.key === 'project-periods'), 'Admin retains project-periods under Quản trị học vụ');
 });
 
 test('Empty groups with 0 accessible items are completely excluded from results', () => {

@@ -96,7 +96,6 @@ export const NAVIGATION_REGISTRY = [
             'VIEW_ASSIGNMENT_DECISIONS',
             'VIEW_BM02_REVIEWS',
             'VIEW_ACADEMIC_DELEGATIONS',
-            'VIEW_PROJECT_PERIODS',
         ],
         route: '/lecturer/institute',
     },
@@ -305,6 +304,11 @@ export function getVisibleNavigation(permissionsInput, context = {}) {
     );
 
     const visibleItems = NAVIGATION_REGISTRY.filter((item) => {
+        // Loại bỏ mục 'institute-management' (/lecturer/institute) đối với vai trò ADMIN
+        // để tránh trùng lặp với 'Tổng quan' (/admin/dashboard) và 'Đợt đồ án & Học kỳ' (/admin/project-periods).
+        if (isAdmin && item.key === 'institute-management') {
+            return false;
+        }
         if (item.requiresDefenseCouncil && !hasDefenseCouncil) {
             return false;
         }
