@@ -70,6 +70,70 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 
 ## 6. Cập Nhật Phiên Làm Việc (Session Update)
 
+### Phiên 15/11/2026 (Thiết Kế & Triển Khai Bộ Seed Mới 3 Đợt Đồ Án, 20 Giảng Viên, 300 Sinh Viên & Khảo Thí BM03)
+
+#### 1. Những phần đã hoàn thành
+1. **Xóa sạch dữ liệu cũ và Khởi tạo Cơ sở Dữ liệu Đa Học Kỳ**:
+   - Sử dụng `resetApplicationData(prisma, { SEED_RESET_CONFIRM: 'RESET_DACN_DEMO' })` để dọn sạch toàn bộ các bảng ứng dụng bằng `TRUNCATE ... RESTART IDENTITY CASCADE`.
+   - Khởi tạo đầy đủ danh mục nhóm quyền chuẩn thông qua `seedPermissionCatalog`.
+2. **Khởi tạo Nhân sự & Tài khoản Người dùng Chuẩn**:
+   - 1 Quản trị viên: `admin@university.edu.vn`, mật khẩu `admin123`, gán nhóm quyền `QUAN_TRI_VIEN`.
+   - 20 Giảng viên (`lecturer01` .. `lecturer20`), mật khẩu `lecturer123`, phân bổ học vị thực tế (`TIEN_SI`, `THAC_SI`, `PHO_GIAO_SU`), bộ môn rõ ràng:
+     * `lecturer01`: PGS.TS. Nguyễn Văn Thắng (Viện trưởng Viện Công nghệ số), nhóm quyền `VIEN_TRUONG` + `GVHD`.
+     * `lecturer02`: ThS. Trần Thị Mai Phương (Giáo vụ Viện Công nghệ số), nhóm quyền `GIAO_VU` + `GVHD`.
+     * `lecturer03` đến `lecturer20`: Giảng viên hướng dẫn (`GVHD`).
+   - 300 Sinh viên (`sv001` .. `sv300`), mật khẩu `student123`:
+     * Role `STUDENT`, **tuyệt đối không gán bất kỳ PermissionGroup nào** (tuân thủ quy định loại bỏ quyền/nhóm quyền sinh viên).
+     * 300 `StudentProfile` hoàn chỉnh: MSSV từ `2200001` đến `2200300`, năm sinh 2004, chia đều 6 lớp (`D22CNTT01`..`D22CNTT03`, `D22KTPM01`, `D22HTTT01`, `D22ATTT01`) và 4 chuyên ngành (`Công nghệ thông tin`, `Kỹ thuật phần mềm`, `Hệ thống thông tin`, `An toàn thông tin`).
+3. **Tạo 3 Đợt đồ án (Semesters) và Phân bổ Cân đối**:
+   - Đợt 1 (Đã qua): `DATN-HK1-2025-26`, tên `Đồ án tốt nghiệp — HK1 2025–2026`, status `COMPLETED`.
+   - Đợt 2 (Đã qua): `DATN-HK2-2025-26`, tên `Đồ án tốt nghiệp — HK2 2025–2026`, status `COMPLETED`.
+   - Đợt 3 (Hiện tại): `DATN-HK1-2026-27`, tên `Đồ án tốt nghiệp — HK1 2026–2027`, status `ONGOING`.
+   - Mỗi đợt gồm đúng 100 sinh viên, chia đều cho 20 GVHD (mỗi GVHD đúng 5 SV/đợt, tuân thủ `maxStudents = 1` và giới hạn tối đa 10 SV/GVHD).
+   - 300 Đề tài `Topic` công nghệ hiện đại, độc lập, trạng thái `APPROVED`.
+4. **Hiện thực hóa Quy trình Đợt 3 (Hiện tại: `sv201` .. `sv300`)**:
+   - 100 SV đã duyệt đề cương `BM01Evaluation` (`PASSED`) và nộp/duyệt đơn `BM02Submission` (`APPROVED`).
+   - Có Quyết định giao đề tài của Viện trưởng (`TopicAssignmentDecision`) ban hành bởi `lecturer01` (số QĐ: `QĐ-ĐATN-2026-01/QĐ-VCNT`), kèm 100 `TopicAssignmentDecisionItem`.
+   - 100 SV có Sổ tiến độ `BM03ProgressRecord` và 2 biên bản họp hướng dẫn `BM03MeetingEntry` có GVHD ký duyệt.
+   - Đã qua chấm giữa đợt Checkpoint 1 (`BM03StageEvaluation` - `MIDTERM`):
+     * 90 SV (`sv201` .. `sv290`): `CONTINUE`, trạng thái hồ sơ `IN_PROGRESS_BM03` (được tiếp tục làm).
+     * 10 SV (`sv291` .. `sv300`): `PROPOSE_STOP`, trạng thái hồ sơ `STOP_REVIEW_PENDING`, kèm bản ghi `InstituteStopReview` (Viện trưởng xem xét quyết định dừng đồ án).
+5. **Hiện thực hóa Trọn vẹn 100% Quy trình Đợt 1 & Đợt 2 (Quá khứ: 200 SV)**:
+   - Đầy đủ Quyết định giao đề tài của Viện trưởng (`QĐ-ĐATN-2025-01/QĐ-VCNT` và `QĐ-ĐATN-2025-02/QĐ-VCNT`).
+   - Đầy đủ BM01, BM02, BM03 (3 buổi họp + 2 chặng đánh giá), BM04 nhận xét đủ điều kiện bảo vệ.
+   - 10 Hội đồng bảo vệ (`Council`, `CouncilMember`) độc lập, không trùng GVHD.
+   - Điểm bảo vệ `DefenseResult` (7.5 đến 9.8) kèm 3 `DefenseMemberScore` mỗi SV.
+   - Phê duyệt điểm `DefenseResultApproval`, công bố kết quả `ResultPublication`.
+   - Lưu chiểu `ProjectArchive` trạng thái `COMPLETED` có chữ ký số Viện trưởng và 4 file lưu chiểu hoàn chỉnh.
+6. **Xác thực & Kiểm thử Hệ thống**:
+   - Tạo mới `backend/scripts/seed/threeSemestersFixtures.js` và `backend/prisma/seedThreeSemesters.js`.
+   - Cập nhật `backend/prisma/seed.js` và `backend/package.json` với script `npm run db:seed:3semesters`.
+   - Seed thành công vào Supabase trong 61 giây, 100% dữ liệu toàn vẹn.
+   - Test `studentPermissionExclusion.test.js` PASS 5/5.
+   - Frontend production build `npm run build` PASS 100% (3.333 modules transformed).
+   - Mã hóa toàn bộ tệp tuân thủ UTF-8 without BOM.
+
+#### 2. Trạng thái cập nhật của từng phần
+- **Cơ sở dữ liệu (Supabase PostgreSQL)**: 321 Users, 300 StudentProfiles, 3 Semesters, 300 Topics, 300 Registrations, 3 TopicAssignmentDecisions, 300 BM03 Records, 200 DefenseResults, 200 ProjectArchives hoàn chỉnh.
+- **Backend API & Seeding**: Tích hợp module seed mới tối ưu chunking cho Supabase connection pooler, không nghẽn hay timeout kết nối.
+- **Frontend SPA**: Build sản xuất hoàn toàn sạch sẽ, sẵn sàng truy cập với các tài khoản mới.
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+1. **Kiểm tra Giao diện Thực tế theo các Tài khoản Seed Mới**:
+   - Đăng nhập `lecturer01` (Viện trưởng): Kiểm tra màn hình Giám sát tiến độ, phê duyệt dừng đề tài (10 SV đợt 3) và danh sách quyết định đã ban hành.
+   - Đăng nhập `lecturer02` (Giáo vụ): Kiểm tra menu Điều phối & Gán sinh viên, theo dõi tiến độ đồ án và thẩm định lưu chiểu.
+   - Đăng nhập Giảng viên hướng dẫn (`lecturer03`): Kiểm tra danh sách 5 SV đang hướng dẫn trong đợt 3.
+   - Đăng nhập Sinh viên được tiếp tục (`sv201`) và Sinh viên bị đề xuất dừng (`sv291`): Kiểm tra Student Dashboard hiển thị đúng trạng thái BM03.
+2. **Triển khai Phiếu chấm điện tử BM05 & Khóa sổ điểm Hội đồng**:
+   - Hoàn thiện giao diện chấm điểm 4 nhóm tiêu chí Rubric cho 3 thành viên hội đồng.
+   - Xác thực tính năng tự động tính điểm trung bình cộng, khóa sổ điểm và công bố kết quả bảo vệ.
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+- **Tối ưu Chunking Khi Seed Dữ liệu Lớn**: Với 300 sinh viên và hàng ngàn bản ghi liên quan (hồ sơ, tiến độ, điểm số, lưu chiểu), toàn bộ quá trình seed được chia nhỏ thành các batch với kích thước vừa phải (chunks 50-100 items), sử dụng kết nối pooler hạn chế số lượng transaction đồng thời để tránh lỗi `Max client connections reached` trên Supabase.
+- **Độc Lập Nghiệp Vụ Giữa 3 Học Kỳ**: Đợt 1 và Đợt 2 thể hiện đầy đủ chu trình lịch sử đã hoàn thành để phục vụ báo cáo/thống kê/lưu chiểu, trong khi Đợt 3 dừng chính xác ở thời điểm giữa kỳ (sau Checkpoint 1 BM03), cung cấp bối cảnh thực tế cho người dùng thử nghiệm luồng xử lý sinh viên tiếp tục và sinh viên bị dừng đề tài.
+
+---
+
 ### Phiên 15/11/2026 (Khắc Phục Toàn Diện 4 Nhóm Lỗ Hổng Bảo Mật, Quyền Truy Cập & Toàn Vẹn Quy Trình 5 Vai Trò)
 
 #### 1. Những phần đã hoàn thành
