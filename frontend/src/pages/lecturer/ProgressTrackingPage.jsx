@@ -737,13 +737,13 @@ export default function ProgressTrackingPage() {
                                         ) : (
                                             meetingLogs.map((log, index) => {
                                                 const ratingTag = log.progressRating === 'ON_TRACK'
-                                                    ? <Tag color="success">Đúng tiến độ (ON_TRACK)</Tag>
+                                                    ? <Tag color="success">Đúng tiến độ</Tag>
                                                     : log.progressRating === 'AT_RISK'
-                                                    ? <Tag color="warning">Có rủi ro (AT_RISK)</Tag>
+                                                    ? <Tag color="warning">Có rủi ro</Tag>
                                                     : log.progressRating === 'BEHIND'
-                                                    ? <Tag color="error">Chậm tiến độ (BEHIND)</Tag>
+                                                    ? <Tag color="error">Chậm tiến độ</Tag>
                                                     : log.progressRating === 'NO_PROGRESS'
-                                                    ? <Tag color="default">Không có tiến độ (NO_PROGRESS)</Tag>
+                                                    ? <Tag color="default">Không có tiến độ</Tag>
                                                     : <Tag color="processing">Tiến độ đạt yêu cầu</Tag>;
 
                                                 return (
