@@ -39,10 +39,7 @@ function TopicManagementPage() {
     const [statusFilter, setStatusFilter] = useState('all');
     const [semesterFilter, setSemesterFilter] = useState('all');
 
-    const topicsQuery = useTopics(scope, {
-        ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
-        ...(searchText ? { search: searchText } : {}),
-    });
+    const topicsQuery = useTopics(scope);
     const topicMutation = useTopicMutation(scope);
     const semestersQuery = useSemesters(scope);
     const mentorsQuery = useUsers(scope, { role: 'LECTURER', status: 'active', page: 1, limit: 200 });
@@ -225,17 +222,48 @@ function TopicManagementPage() {
         setDrawerOpen(true);
     };
 
-    const pendingCount = topics.filter((t) => t.status === 'PENDING').length;
-    const approvedCount = topics.filter((t) => t.status === 'APPROVED').length;
-    const draftCount = topics.filter((t) => t.status === 'DRAFT').length;
+    const baseTopics = useMemo(() => {
+        let list = topics;
+        if (semesterFilter !== 'all') {
+            const semId = Number(semesterFilter);
+            list = list.filter((t) => t.semesterId === semId || t.semesterId === semesterFilter);
+        }
+        return list;
+    }, [topics, semesterFilter]);
+
+    const counts = useMemo(() => {
+        return {
+            all: baseTopics.length,
+            PENDING: baseTopics.filter((t) => t.status === 'PENDING').length,
+            APPROVED: baseTopics.filter((t) => t.status === 'APPROVED').length,
+            DRAFT: baseTopics.filter((t) => t.status === 'DRAFT').length,
+            REJECTED: baseTopics.filter((t) => t.status === 'REJECTED').length,
+        };
+    }, [baseTopics]);
 
     const filteredTopics = useMemo(() => {
-        return topics.filter((topic) => {
+        const query = searchText.trim().toLowerCase();
+        return baseTopics.filter((topic) => {
             if (statusFilter !== 'all' && topic.status !== statusFilter) return false;
-            if (semesterFilter !== 'all' && topic.semesterId !== semesterFilter) return false;
-            return true;
+            if (!query) return true;
+            const codeStr = `dt-${String(topic.id).padStart(3, '0')}`;
+            const title = (topic.title || '').toLowerCase();
+            const desc = (topic.description || '').toLowerCase();
+            const mentorName = (topic.mentor?.fullName || '').toLowerCase();
+            const mentorCode = (topic.mentor?.code || '').toLowerCase();
+            const studentName = (topic.registrations?.[0]?.student?.fullName || '').toLowerCase();
+            const studentCode = (topic.registrations?.[0]?.student?.code || '').toLowerCase();
+            return (
+                codeStr.includes(query) ||
+                title.includes(query) ||
+                desc.includes(query) ||
+                mentorName.includes(query) ||
+                mentorCode.includes(query) ||
+                studentName.includes(query) ||
+                studentCode.includes(query)
+            );
         });
-    }, [topics, statusFilter, semesterFilter]);
+    }, [baseTopics, statusFilter, searchText]);
 
     const columns = [
         {
@@ -378,11 +406,7 @@ function TopicManagementPage() {
                 <div className="inline-flex bg-slate-100 p-1 rounded-lg gap-1 flex-wrap">
                     {STATUS_TABS.map((tab) => {
                         const isSelected = statusFilter === tab.key;
-                        let count = topics.length;
-                        if (tab.key === 'PENDING') count = pendingCount;
-                        else if (tab.key === 'APPROVED') count = approvedCount;
-                        else if (tab.key === 'DRAFT') count = draftCount;
-                        else if (tab.key === 'REJECTED') count = topics.filter((t) => t.status === 'REJECTED').length;
+                        const count = counts[tab.key] ?? 0;
 
                         return (
                             <button

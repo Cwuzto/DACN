@@ -65,16 +65,6 @@ const getAllTopics = async (req, res, next) => {
         if (role === 'ADMIN') {
             if (status) {
                 conditions.push({ status });
-                if (status === 'DRAFT') {
-                    conditions.push({ proposedById: userId });
-                }
-            } else {
-                conditions.push({
-                    OR: [
-                        { status: { not: 'DRAFT' } },
-                        { status: 'DRAFT', proposedById: userId },
-                    ],
-                });
             }
         }
 
