@@ -47,13 +47,14 @@ test('Profile Redesign: Adheres strictly to Rule 2.6 (No raw emoji or symbols in
     });
 });
 
-test('Profile Redesign: Two-Column Split Layout & ProfileIdentityCard render cover banner, avatar, and institutional badges', () => {
+test('Profile Redesign: Two-Column Split Layout & ProfileIdentityCard render avatar and institutional badges without gradient banner', () => {
     const pageSource = read('src/pages/common/ProfilePage.jsx');
     assert.match(pageSource, /ProfileIdentityCard/, 'ProfilePage phải tích hợp ProfileIdentityCard ở cột trái');
     assert.match(pageSource, /lg:grid-cols-12/, 'ProfilePage phải dùng lưới 2 cột bất đối xứng');
 
     const cardSource = read('src/components/profile/ProfileIdentityCard.jsx');
-    assert.match(cardSource, /bg-gradient-to-r|cover/i, 'Phải có gradient bìa học thuật');
+    assert.doesNotMatch(cardSource, /bg-gradient-to-r/, 'Đã loại bỏ gradient bìa');
+    assert.doesNotMatch(cardSource, /Xác thực CSDL/, 'Đã loại bỏ dòng Xác thực CSDL');
     assert.match(cardSource, /ring-|border-white|shadow/i, 'Avatar phải có hiệu ứng viền nổi');
     assert.match(cardSource, /Viện Công nghệ số/i, 'Phải có định danh Viện Công nghệ số');
     assert.match(cardSource, /Trường Đại học Thủ Dầu Một/i, 'Phải có định danh Trường Đại học Thủ Dầu Một');
@@ -112,10 +113,12 @@ test('Profile Redesign: Standardized Institutional Entities and Academic Boundar
     assert.match(academicSource, /Hội đồng Xét duyệt Đề cương|Hội đồng Chấm Bảo vệ/i, 'Phải có thông tin Hội đồng chuyên môn');
 });
 
-test('Profile Redesign: PasswordSecurityTab integrates PasswordStrengthMeter and session information', () => {
+test('Profile Redesign: PasswordSecurityTab integrates PasswordStrengthMeter without redundant session advisory', () => {
     const securitySource = read('src/components/profile/PasswordSecurityTab.jsx');
     assert.match(securitySource, /PasswordStrengthMeter/, 'PasswordSecurityTab phải tích hợp PasswordStrengthMeter');
-    assert.match(securitySource, /Phiên làm việc|JWT|Thời hạn phiên|Ghi nhớ/i, 'Phải có thông tin phiên làm việc JWT');
+    assert.doesNotMatch(securitySource, /Quản lý phiên làm việc & An toàn/, 'Đã loại bỏ khối Quản lý phiên làm việc');
+    assert.doesNotMatch(securitySource, /Phiên làm việc JWT an toàn/, 'Đã loại bỏ dòng Phiên làm việc JWT an toàn');
+    assert.doesNotMatch(securitySource, /Nguyên tắc an toàn học vụ/, 'Đã loại bỏ dòng Nguyên tắc an toàn học vụ');
 
     const meterSource = read('src/components/profile/PasswordStrengthMeter.jsx');
     assert.match(meterSource, /Yếu|Trung bình|Mạnh/i, 'PasswordStrengthMeter phải hiển thị 3 cấp độ độ mạnh');

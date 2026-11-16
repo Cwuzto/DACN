@@ -17,7 +17,6 @@ import {
     MailOutlined,
     IdcardOutlined,
     BankOutlined,
-    CheckCircleOutlined,
     SafetyCertificateOutlined,
 } from '@ant-design/icons';
 import { getUserDisplayRole, isInstituteDirector } from '../../utils/authRedirect';
@@ -75,20 +74,15 @@ function ProfileIdentityCard({
 
     return (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-            {/* Top Academic Gradient Cover */}
-            <div className="h-28 bg-gradient-to-r from-blue-700 via-indigo-700 to-slate-900 relative">
-                <div className="absolute inset-0 bg-[radial-gradient(#ffffff18_1px,transparent_1px)] [background-size:14px_14px] opacity-40" />
-            </div>
-
             {/* Profile Avatar & Primary Info */}
-            <div className="px-5 pb-5 pt-0 relative flex flex-col -mt-14">
+            <div className="p-6 relative flex flex-col">
                 <div className="flex items-end justify-between gap-3">
                     <div className="relative inline-block">
                         <Avatar
                             size={96}
                             icon={!tempProfile.avatarUrl && <UserOutlined />}
                             src={tempProfile.avatarUrl}
-                            className="bg-blue-600 text-white ring-4 ring-white shadow-md text-3xl"
+                            className="bg-blue-600 text-white ring-4 ring-slate-100 shadow-sm text-3xl"
                         />
                         {editing && (
                             <Upload customRequest={onUploadAvatar} showUploadList={false} accept="image/*">
@@ -261,12 +255,6 @@ function ProfileIdentityCard({
                             </div>
                         )}
                     </div>
-                </div>
-
-                {/* Institutional Advisory Note */}
-                <div className="mt-4 p-2.5 bg-blue-50/70 rounded-xl border border-blue-100 text-[11px] text-slate-600 leading-relaxed">
-                    <CheckCircleOutlined className="text-blue-600 mr-1" />
-                    <strong>Xác thực CSDL</strong>: Thông tin họ tên, mã số và chuyên ngành được bảo trợ bởi CSDL Đào tạo của Nhà trường.
                 </div>
             </div>
         </div>
