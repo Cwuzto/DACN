@@ -18,6 +18,8 @@
     "db:reset": "npx prisma migrate reset",
     "seed:rag": "node src/scripts/seedRagVectors.js",
     "ollama:start": "ollama serve",
+    "storage:cleanup": "node scripts/storage/runAssetCleanup.js",
+    "storage:reconcile": "node scripts/storage/reconcileAssets.js",
     "test": "jest --runInBand --forceExit",
     "test:watch": "jest --watch"
   },

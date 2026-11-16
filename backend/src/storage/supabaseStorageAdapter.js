@@ -86,6 +86,20 @@ class SupabaseStorageAdapter {
     }
 
     /**
+     * Lists objects in a bucket/folder.
+     */
+    async list({ bucket, folder = '', options = {} } = {}) {
+        const bucketRef = this._getBucketRef(bucket);
+        const { data, error } = await bucketRef.list(folder, options);
+
+        if (error) {
+            throw new StorageAdapterError(`Storage list failed: ${error.message}`, 'STORAGE_LIST_FAILED', 500);
+        }
+
+        return data || [];
+    }
+
+    /**
      * Retrieves metadata for an object.
      */
     async stat({ bucket, objectKey }) {
