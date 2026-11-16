@@ -67,7 +67,7 @@ import StatusBadge from '../../components/common/StatusBadge';
 import StatCard from '../../components/common/StatCard';
 import { STATUS_MAP } from '../../components/common/statusMap';
 import { queryKeys } from '../../query/queryKeys';
-import { useTopics } from '../../queries/topicQueries';
+import { useTopics, useProjectCatalogs } from '../../queries/topicQueries';
 import { useSemesters } from '../../queries/semesterQueries';
 import { useUsers } from '../../queries/userQueries';
 import { usePeriodRegistrations } from '../../queries/periodQueries';
@@ -140,11 +140,13 @@ function ProjectOversightPage() {
     const registrationsQuery = usePeriodRegistrations(scope, { limit: 5000 });
     const lecturersQuery = useUsers(scope, { role: 'LECTURER', status: 'active', limit: 1000 });
     const semestersQuery = useSemesters(scope);
+    const catalogsQuery = useProjectCatalogs(scope);
 
     const topics = topicsQuery.data || [];
     const registrations = registrationsQuery.data || [];
     const lecturers = lecturersQuery.data?.data?.users || lecturersQuery.data?.data || lecturersQuery.data || [];
     const semesters = semestersQuery.data || [];
+    const catalogs = catalogsQuery.data || [];
     const loading = topicsQuery.isPending || registrationsQuery.isPending || semestersQuery.isPending;
 
     const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
@@ -513,7 +515,7 @@ function ProjectOversightPage() {
             const matchStatus = statusFilter ? item.status === statusFilter : true;
             const matchSemester = semesterFilter ? item.semesterId === semesterFilter : true;
             const matchProjectName = projectNameFilter
-                ? (item.projectCatalog?.name || '') === projectNameFilter
+                ? (item.projectCatalog?.code === projectNameFilter || item.projectCatalog?.name === projectNameFilter)
                 : true;
             return matchSearch && matchStatus && matchSemester && matchProjectName;
         });
@@ -760,9 +762,11 @@ function ProjectOversightPage() {
                             <code className="text-[11px] font-mono bg-slate-100 text-primary font-bold px-1.5 py-0.5 rounded">
                                 {record.code}
                             </code>
-                            <span className="text-xs text-slate-500 font-medium">
-                                {record.projectCatalog?.name || 'Đồ án'}
-                            </span>
+                            <Tag color={record.projectCatalog?.code === 'DATN' ? 'purple' : 'cyan'} className="m-0 text-xs font-semibold">
+                                {record.projectCatalog?.code
+                                    ? `${record.projectCatalog.code} · ${record.projectCatalog.name}`
+                                    : (record.projectCatalog?.name || 'DACN · Đồ án chuyên ngành')}
+                            </Tag>
                         </div>
                     </div>
                 );
@@ -1685,12 +1689,17 @@ function ProjectOversightPage() {
         label: formatSemesterLabel(semester),
     }));
 
-    const projectNameOptions = Array.from(new Set(tableData.map((item) => item.projectCatalog?.name).filter(Boolean)))
-        .sort((a, b) => a.localeCompare(b, 'vi'))
-        .map((name) => ({
-            value: name,
-            label: name,
-        }));
+    const projectNameOptions = catalogs.length > 0
+        ? catalogs.map((cat) => ({
+            value: cat.code,
+            label: `${cat.code} · ${cat.name}`,
+        }))
+        : Array.from(new Set(tableData.map((item) => item.projectCatalog?.name).filter(Boolean)))
+            .sort((a, b) => a.localeCompare(b, 'vi'))
+            .map((name) => ({
+                value: name,
+                label: name,
+            }));
 
     const auditItems = useMemo(() => {
         if (!auditTopic) return [];
@@ -1967,7 +1976,7 @@ function ProjectOversightPage() {
                                         </div>
                                         <div className="lg:col-span-2">
                                             <Select
-                                                placeholder="Tên loại đồ án"
+                                                placeholder="Loại đồ án: DACN / DATN"
                                                 className="w-full"
                                                 allowClear
                                                 showSearch

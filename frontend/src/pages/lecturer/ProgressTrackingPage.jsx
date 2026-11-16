@@ -33,6 +33,8 @@ import BM04PrintSheet from '../../components/prints/BM04PrintSheet';
 import evaluationService from '../../services/evaluationService';
 import useAuthStore from '../../stores/authStore';
 import { queryKeys } from '../../query/queryKeys';
+import { useSemesters } from '../../queries/semesterQueries';
+import { useProjectCatalogs } from '../../queries/topicQueries';
 import { useRegistrations } from '../../queries/registrationQueries';
 import { useTasksByRegistration, useTaskMutation } from '../../queries/taskQueries';
 import { useMeetingLogs, useBM03Record, useMeetingMutation } from '../../queries/meetingQueries';
@@ -79,8 +81,15 @@ export default function ProgressTrackingPage() {
         [rawStudents]
     );
 
+    const semestersQuery = useSemesters(scope);
+    const semesters = Array.isArray(semestersQuery.data) ? semestersQuery.data : [];
+    const catalogsQuery = useProjectCatalogs(scope);
+    const catalogs = Array.isArray(catalogsQuery.data) ? catalogsQuery.data : [];
+
     const [selectedStudent, setSelectedStudent] = useState(null);
     const [studentSearch, setStudentSearch] = useState('');
+    const [filterSemesterId, setFilterSemesterId] = useState('ALL');
+    const [filterCatalog, setFilterCatalog] = useState('ALL');
     const [activeTab, setActiveTab] = useState(() => resolveTabKey(tabParam) || 'tasks'); // 'tasks' | 'meeting-logs' | 'checkpoints' | 'archive'
 
     useEffect(() => {
@@ -103,23 +112,53 @@ export default function ProgressTrackingPage() {
         setSearchParams(nextParams, { replace: true });
     };
 
+    const filteredStudents = useMemo(() => {
+        let list = students;
+
+        if (filterSemesterId !== 'ALL') {
+            list = list.filter((s) => s.semesterId === Number(filterSemesterId) || s.topic?.semesterId === Number(filterSemesterId));
+        }
+
+        if (filterCatalog !== 'ALL') {
+            list = list.filter((s) => {
+                const catCode = s.topic?.projectCatalog?.code;
+                const catName = s.topic?.projectCatalog?.name;
+                const catId = s.topic?.projectCatalogId || s.topic?.projectCatalog?.id;
+                return catCode === filterCatalog || catName === filterCatalog || String(catId) === String(filterCatalog);
+            });
+        }
+
+        if (studentSearch.trim()) {
+            const q = studentSearch.trim().toLowerCase();
+            list = list.filter(
+                (s) =>
+                    (s.student?.fullName && s.student.fullName.toLowerCase().includes(q)) ||
+                    (s.student?.code && s.student.code.toLowerCase().includes(q)) ||
+                    (s.topic?.title && s.topic.title.toLowerCase().includes(q)) ||
+                    (s.topic?.code && s.topic.code.toLowerCase().includes(q))
+            );
+        }
+
+        return list;
+    }, [students, studentSearch, filterSemesterId, filterCatalog]);
+
     // Auto-select first matching student
     useEffect(() => {
-        if (students.length > 0) {
+        if (filteredStudents.length > 0) {
             setSelectedStudent((current) => {
                 if (paramRegId) {
-                    const found = students.find((s) => String(s.id) === String(paramRegId));
+                    const found = filteredStudents.find((s) => String(s.id) === String(paramRegId));
                     if (found) return found;
                 }
-                if (current && students.some((s) => s.id === current.id)) {
-                    return students.find((s) => s.id === current.id);
+                if (current && filteredStudents.some((s) => s.id === current.id)) {
+                    return filteredStudents.find((s) => s.id === current.id);
                 }
-                return students[0];
+                return filteredStudents[0];
             });
         } else {
             setSelectedStudent(null);
         }
-    }, [students, paramRegId]);
+    }, [filteredStudents, paramRegId]);
 
     const selectedRegId = selectedStudent?.id || null;
     const isStudentSelected = Boolean(selectedRegId);
@@ -223,18 +262,6 @@ export default function ProgressTrackingPage() {
             archiveQuery.refetch(),
         ]);
     }, [selectedRegId, tasksQuery, meetingLogsQuery, bm03Query, checkpointsQuery, archiveQuery]);
-
-    const filteredStudents = useMemo(() => {
-        if (!studentSearch.trim()) return students;
-        const q = studentSearch.trim().toLowerCase();
-        return students.filter(
-            (s) =>
-                (s.student?.fullName && s.student.fullName.toLowerCase().includes(q)) ||
-                (s.student?.code && s.student.code.toLowerCase().includes(q)) ||
-                (s.topic?.title && s.topic.title.toLowerCase().includes(q)) ||
-                (s.topic?.code && s.topic.code.toLowerCase().includes(q))
-        );
-    }, [students, studentSearch]);
 
     const handleCreateTask = async () => {
         if (!taskTitle.trim()) {
@@ -449,15 +476,43 @@ export default function ProgressTrackingPage() {
             <div className="split-layout">
                 {/* Left Column: Student Cards List */}
                 <div className="student-list-col">
-                    <div className="student-search-box">
+                    <div className="student-search-box" style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '10px 12px' }}>
                         <input
                             type="text"
                             className="input-field"
-                            placeholder="Tìm sinh viên..."
+                            placeholder="Tìm sinh viên, MSSV, đề tài..."
                             style={{ width: '100%' }}
                             value={studentSearch}
                             onChange={(e) => setStudentSearch(e.target.value)}
                         />
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                            <Select
+                                size="small"
+                                className="w-full text-xs"
+                                value={filterSemesterId}
+                                onChange={(val) => setFilterSemesterId(val)}
+                                options={[
+                                    { value: 'ALL', label: 'Tất cả đợt' },
+                                    ...semesters.map((s) => ({
+                                        value: s.id,
+                                        label: s.name,
+                                    })),
+                                ]}
+                            />
+                            <Select
+                                size="small"
+                                className="w-full text-xs"
+                                value={filterCatalog}
+                                onChange={(val) => setFilterCatalog(val)}
+                                options={[
+                                    { value: 'ALL', label: 'Tất cả loại' },
+                                    ...catalogs.map((c) => ({
+                                        value: c.code,
+                                        label: c.code,
+                                    })),
+                                ]}
+                            />
+                        </div>
                     </div>
 
                     <QueryPanel query={registrationsQuery}>
@@ -483,9 +538,17 @@ export default function ProgressTrackingPage() {
                                         >
                                             <div className="student-card-top">
                                                 <span className="student-card-name">{s.student?.fullName}</span>
-                                                <span className={`tag ${sPassed ? 'green' : sRisk ? 'red' : sBm03Done ? 'blue' : 'yellow'}`}>
-                                                    {sPassed ? 'Đủ điều kiện BV' : sRisk ? 'Nguy cơ trễ' : sBm03Done ? 'Chờ duyệt BM04' : 'Đang làm'}
-                                                </span>
+                                                <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                                                    <span
+                                                        className={`tag ${s.topic?.projectCatalog?.code === 'DATN' ? 'purple' : 'teal'}`}
+                                                        style={{ fontSize: 10, padding: '1px 5px', fontWeight: 600 }}
+                                                    >
+                                                        {s.topic?.projectCatalog?.code || 'DACN'}
+                                                    </span>
+                                                    <span className={`tag ${sPassed ? 'green' : sRisk ? 'red' : sBm03Done ? 'blue' : 'yellow'}`}>
+                                                        {sPassed ? 'Đủ điều kiện BV' : sRisk ? 'Nguy cơ trễ' : sBm03Done ? 'Chờ duyệt BM04' : 'Đang làm'}
+                                                    </span>
+                                                </div>
                                             </div>
                                             <div className="student-card-topic">
                                                 {s.topic?.code || 'DT'}: {s.topic?.title}

@@ -586,7 +586,7 @@ export default function ExcelImportModal({
 
         if (effectiveType === 'PROJECT_ENROLLMENT') {
             if (!selectedSemesterId || !selectedCatalogId) {
-                message.error('Vui lòng chọn Học kỳ và Tên đồ án.');
+                message.error('Vui lòng chọn Học kỳ và Loại đồ án.');
                 return;
             }
         }
@@ -895,10 +895,10 @@ export default function ExcelImportModal({
                             />
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-slate-600 mb-1">Tên Đồ án (*)</label>
+                            <label className="block text-xs font-semibold text-slate-600 mb-1">Loại đồ án (*)</label>
                             <Select
                                 className="w-full"
-                                placeholder="Chọn tên đồ án"
+                                placeholder="Chọn loại đồ án"
                                 value={selectedCatalogId}
                                 onChange={(val) => setSelectedCatalogId(val)}
                                 options={catalogs.map((c) => ({ label: `${c.name} (${c.code})`, value: c.id }))}

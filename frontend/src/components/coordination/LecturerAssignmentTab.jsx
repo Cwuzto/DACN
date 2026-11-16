@@ -215,7 +215,7 @@ export function LecturerAssignmentTab({
 
     // Download Excel Template for Lecturer Assignment
     const handleDownloadTemplate = () => {
-        const headers = ['Mã Giảng Viên', 'Họ Và Tên (Tham khảo)', 'Mã Tên Đồ Án', 'Chỉ Tiêu Hướng Dẫn (1-10)'];
+        const headers = ['Mã Giảng Viên', 'Họ Và Tên (Tham khảo)', 'Mã Loại Đồ Án', 'Chỉ Tiêu Hướng Dẫn (1-10)'];
         const sampleRows = [
             ['GV001', 'Nguyễn Văn A', catalogs[0]?.code || 'DATN', 10],
             ['GV002', 'Trần Thị B', catalogs[0]?.code || 'DATN', 8],
@@ -655,7 +655,7 @@ export function LecturerAssignmentTab({
                         </Form.Item>
                         <Form.Item
                             name="projectCatalogId"
-                            label="Tên đồ án"
+                            label="Loại đồ án"
                             rules={[{ required: true, message: 'Vui lòng chọn loại đồ án' }]}
                         >
                             <Select
@@ -808,7 +808,7 @@ export function LecturerAssignmentTab({
                         columns={[
                             { title: 'Mã GV', dataIndex: 'lecturerCode', key: 'lecturerCode' },
                             { title: 'Tên GV', dataIndex: 'lecturerName', key: 'lecturerName' },
-                            { title: 'Tên Đồ án', dataIndex: 'catalogName', key: 'catalogName' },
+                            { title: 'Loại đồ án', dataIndex: 'catalogName', key: 'catalogName' },
                             { title: 'Chỉ tiêu hướng dẫn', dataIndex: 'plannedQuota', key: 'plannedQuota' },
                             {
                                 title: 'Trạng thái dòng',

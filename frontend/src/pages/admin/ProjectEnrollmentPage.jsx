@@ -193,7 +193,7 @@ export function ProjectEnrollmentPage() {
         const targetCatalogId = form.getFieldValue('projectCatalogId') || filterCatalogId;
 
         if (!targetSemesterId || !targetCatalogId) {
-            message.warning('Vui lòng chọn đợt đồ án và tên đồ án');
+            message.warning('Vui lòng chọn đợt đồ án và loại đồ án');
             return;
         }
 
@@ -233,14 +233,14 @@ export function ProjectEnrollmentPage() {
 
     const handleFixTopicCatalog = async () => {
         if (!topicToFix?.id || !topicFixCatalogId) {
-            message.warning('Vui lòng chọn Tên đồ án cần gán');
+            message.warning('Vui lòng chọn Loại đồ án cần gán');
             return;
         }
         setFixing(true);
         try {
             const res = await enrollmentMutation.mutateAsync({ action: 'updateTopic', args: [topicToFix.id, { projectCatalogId: topicFixCatalogId }] });
             if (res.success) {
-                message.success('Đã cập nhật Tên đồ án cho đề tài');
+                message.success('Đã cập nhật Loại đồ án cho đề tài');
                 setTopicFixModalOpen(false);
                 setTopicToFix(null);
                 setTopicFixCatalogId(null);
@@ -296,7 +296,7 @@ export function ProjectEnrollmentPage() {
             render: (_, row) => <span className="text-xs font-semibold text-slate-700">{row.semester?.name || 'N/A'}</span>,
         },
         {
-            title: 'Tên đồ án',
+            title: 'Loại đồ án',
             key: 'projectCatalog',
             render: (_, row) => (
                 <Tag color="blue" className="font-semibold text-xs">
@@ -429,7 +429,7 @@ export function ProjectEnrollmentPage() {
                                             onChange={updateFilterSemester}
                                         />
                                     </Form.Item>
-                                    <Form.Item name="projectCatalogId" label="Tên đồ án" rules={[{ required: true }]}>
+                                    <Form.Item name="projectCatalogId" label="Loại đồ án" rules={[{ required: true }]}>
                                         <Select
                                             options={catalogOptions}
                                             value={filterCatalogId}
@@ -585,9 +585,9 @@ export function ProjectEnrollmentPage() {
                         />
                     </div>
                     <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tên đồ án:</span>
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Loại đồ án:</span>
                         <Select
-                            placeholder="Tất cả tên đồ án"
+                            placeholder="Tất cả loại đồ án"
                             style={{ minWidth: 200 }}
                             value={filterCatalogId}
                             onChange={updateFilterCatalog}
@@ -609,7 +609,7 @@ export function ProjectEnrollmentPage() {
 
             {/* Modal Sửa Đề tài thiếu catalog */}
             <Modal
-                title="Gán tên đồ án cho đề tài"
+                title="Gán loại đồ án cho đề tài"
                 open={topicFixModalOpen}
                 onCancel={() => setTopicFixModalOpen(false)}
                 onOk={handleFixTopicCatalog}
@@ -624,7 +624,7 @@ export function ProjectEnrollmentPage() {
                     </div>
                     <Select
                         className="w-full"
-                        placeholder="Chọn Tên đồ án"
+                        placeholder="Chọn Loại đồ án"
                         value={topicFixCatalogId}
                         onChange={setTopicFixCatalogId}
                         options={catalogOptions}

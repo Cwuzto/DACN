@@ -16,7 +16,7 @@ import MentorTransferModal from '../../components/admin/MentorTransferModal';
 import TopicSimilarityModal from '../../components/topics/TopicSimilarityModal';
 import useAuthStore from '../../stores/authStore';
 import { queryKeys } from '../../query/queryKeys';
-import { useTopics, useTopicMutation } from '../../queries/topicQueries';
+import { useTopics, useTopicMutation, useProjectCatalogs } from '../../queries/topicQueries';
 import { useSemesters } from '../../queries/semesterQueries';
 import { useUsers } from '../../queries/userQueries';
 import QueryPanel from '../../components/common/QueryPanel';
@@ -37,15 +37,18 @@ function TopicManagementPage() {
 
     const [searchText, setSearchText] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
+    const [catalogFilter, setCatalogFilter] = useState('all');
     const [semesterFilter, setSemesterFilter] = useState('all');
 
     const topicsQuery = useTopics(scope);
     const topicMutation = useTopicMutation(scope);
     const semestersQuery = useSemesters(scope);
+    const catalogsQuery = useProjectCatalogs(scope);
     const mentorsQuery = useUsers(scope, { role: 'LECTURER', status: 'active', page: 1, limit: 200 });
 
     const rawTopics = topicsQuery.data || [];
     const topics = useMemo(() => rawTopics.map((t, i) => ({ ...t, key: t.id, stt: i + 1 })), [rawTopics]);
+    const catalogs = catalogsQuery.data || [];
 
     const semesters = useMemo(() => {
         const data = semestersQuery.data || [];
@@ -224,12 +227,16 @@ function TopicManagementPage() {
 
     const baseTopics = useMemo(() => {
         let list = topics;
+        if (catalogFilter !== 'all') {
+            const catId = Number(catalogFilter);
+            list = list.filter((t) => t.projectCatalogId === catId || t.projectCatalog?.code === catalogFilter);
+        }
         if (semesterFilter !== 'all') {
             const semId = Number(semesterFilter);
             list = list.filter((t) => t.semesterId === semId || t.semesterId === semesterFilter);
         }
         return list;
-    }, [topics, semesterFilter]);
+    }, [topics, catalogFilter, semesterFilter]);
 
     const counts = useMemo(() => {
         return {
@@ -269,12 +276,29 @@ function TopicManagementPage() {
         {
             title: 'Mã ĐT',
             key: 'code',
-            width: 110,
+            width: 100,
             render: (_, record) => (
                 <span className="font-mono font-semibold text-[#0F766E] text-xs bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
                     DT-{String(record.id).padStart(3, '0')}
                 </span>
             ),
+        },
+        {
+            title: 'Loại đồ án',
+            key: 'projectCatalog',
+            width: 140,
+            align: 'center',
+            render: (_, record) => {
+                const code = record.projectCatalog?.code;
+                const name = record.projectCatalog?.name;
+                if (code === 'DACN') {
+                    return <Tag color="blue" className="font-semibold">DACN · Chuyên ngành</Tag>;
+                }
+                if (code === 'DATN') {
+                    return <Tag color="purple" className="font-semibold">DATN · Tốt nghiệp</Tag>;
+                }
+                return <Tag color="default">{code || name || 'Chưa gán'}</Tag>;
+            },
         },
         {
             title: 'Tên đề tài nghiên cứu',
@@ -438,12 +462,22 @@ function TopicManagementPage() {
                             value={searchText}
                             onChange={(e) => setSearchText(e.target.value)}
                             allowClear
-                            className="w-full sm:w-80"
+                            className="w-full sm:w-72"
+                        />
+                        <Select
+                            value={catalogFilter}
+                            onChange={setCatalogFilter}
+                            style={{ minWidth: 190 }}
+                            placeholder="Tất cả loại đồ án"
+                            options={[
+                                { value: 'all', label: 'Tất cả loại đồ án' },
+                                ...catalogs.map((c) => ({ value: c.id, label: `${c.code} - ${c.name}` })),
+                            ]}
                         />
                         <Select
                             value={semesterFilter}
                             onChange={setSemesterFilter}
-                            style={{ width: 220 }}
+                            style={{ minWidth: 210 }}
                             options={[
                                 { value: 'all', label: 'Tất cả đợt đồ án' },
                                 ...semesters,
@@ -511,10 +545,18 @@ function TopicManagementPage() {
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                             <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
                                 <span className="text-slate-600 font-medium block text-[11px]">Trạng thái học vụ</span>
                                 <div className="mt-1"><StatusBadge status={drawerTopic.status} /></div>
+                            </div>
+                            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                                <span className="text-slate-600 font-medium block text-[11px]">Loại đồ án</span>
+                                <div className="mt-1">
+                                    <Tag color={drawerTopic.projectCatalog?.code === 'DACN' ? 'blue' : 'purple'} className="font-semibold text-xs">
+                                        {drawerTopic.projectCatalog?.code ? `${drawerTopic.projectCatalog.code} - ${drawerTopic.projectCatalog.name}` : 'Chưa phân loại'}
+                                    </Tag>
+                                </div>
                             </div>
                             <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
                                 <span className="text-slate-600 font-medium block text-[11px]">Đợt đồ án</span>
@@ -677,7 +719,13 @@ function TopicManagementPage() {
                     <Form.Item name="description" label="Mô tả mục tiêu nghiên cứu & phạm vi công nghệ">
                         <TextArea rows={4} placeholder="Mô tả chi tiết nội dung, mục tiêu nghiên cứu, công nghệ yêu cầu..." />
                     </Form.Item>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <Form.Item name="projectCatalogId" label="Loại đồ án" rules={[{ required: true, message: 'Chọn loại đồ án' }]}>
+                            <Select
+                                placeholder="Chọn loại đồ án"
+                                options={catalogs.map((c) => ({ value: c.id, label: `${c.code} - ${c.name}` }))}
+                            />
+                        </Form.Item>
                         <Form.Item name="semesterId" label="Đợt đồ án" rules={[{ required: true, message: 'Chọn đợt' }]}>
                             <Select placeholder="Chọn đợt" options={semesters} />
                         </Form.Item>

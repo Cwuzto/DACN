@@ -93,8 +93,17 @@ export const topicService = {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi sao chép đề tài');
         }
     },
+
+    getCatalogs: async () => {
+        try {
+            return await api.get('/topics/catalogs');
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi tải danh mục loại đồ án');
+        }
+    },
 };
 
 export const getCloneableTopics = topicService.getCloneableTopics;
 export const cloneTopics = topicService.cloneTopics;
+export const getTopicCatalogs = topicService.getCatalogs;
 export default topicService;

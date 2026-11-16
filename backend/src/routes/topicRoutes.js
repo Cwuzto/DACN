@@ -15,6 +15,7 @@ const {
     getRegistrationHistory,
     getCloneableTopics,
     cloneTopics,
+    getTopicCatalogs,
 } = require('../controllers/topicController');
 
 router.use(authenticate);
@@ -29,6 +30,7 @@ router.get(
 );
 
 router.get('/mentors', getAvailableMentors);
+router.get('/catalogs', getTopicCatalogs);
 router.get('/cloneable', getCloneableTopics);
 router.post('/clone', cloneTopics);
 

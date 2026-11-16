@@ -10,7 +10,7 @@ const projectEnrollmentService = {
         try {
             return await api.get('/project-enrollments/catalogs');
         } catch (error) {
-            throw wrapServiceError(error, 'Lỗi khi tải danh mục tên đồ án');
+            throw wrapServiceError(error, 'Lỗi khi tải danh mục loại đồ án');
         }
     },
 

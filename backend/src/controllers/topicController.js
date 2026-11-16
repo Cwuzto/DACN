@@ -919,6 +919,21 @@ const cloneTopics = async (req, res, next) => {
     }
 };
 
+const getTopicCatalogs = async (req, res, next) => {
+    try {
+        const catalogs = await prisma.projectCatalog.findMany({
+            where: { isActive: true },
+            orderBy: { code: 'asc' },
+        });
+        return res.status(200).json({
+            success: true,
+            data: catalogs,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     getAllTopics,
     getTopicById,
@@ -931,4 +946,5 @@ module.exports = {
     getRegistrationHistory,
     getCloneableTopics,
     cloneTopics,
+    getTopicCatalogs,
 };

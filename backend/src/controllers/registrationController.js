@@ -715,7 +715,7 @@ const getAllRegistrations = async (req, res, next) => {
                         title: true,
                         description: true,
                         mentorId: true,
-                        projectCatalog: { select: { id: true, name: true } },
+                        projectCatalog: { select: { id: true, code: true, name: true } },
                         mentor: { select: { id: true, fullName: true, email: true } },
                     },
                 },

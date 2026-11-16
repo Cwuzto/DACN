@@ -79,3 +79,4 @@ test('TopicApprovalPage uses getStatusTagConfig to avoid leaking raw database ke
         'TopicApprovalPage must not render raw record.status'
     );
 });
+

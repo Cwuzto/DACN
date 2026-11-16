@@ -51,3 +51,8 @@ export const useTopicMutation = (scope) => {
     });
 };
 
+export const useProjectCatalogs = (scope) => useQuery({
+    queryKey: [...scope, 'project-catalogs', 'list'],
+    queryFn: async () => requireSuccess(await topicService.getCatalogs()).data,
+});
+

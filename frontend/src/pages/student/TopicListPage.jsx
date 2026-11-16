@@ -12,7 +12,7 @@ import { semesterService } from '../../services/semesterService';
 import useAuthStore from '../../stores/authStore';
 import { queryKeys } from '../../query/queryKeys';
 import { useSemesters } from '../../queries/semesterQueries';
-import { useTopics, useMentors, useTopicMutation } from '../../queries/topicQueries';
+import { useTopics, useMentors, useTopicMutation, useProjectCatalogs } from '../../queries/topicQueries';
 import { useStudentRegistration, useMyProjectEnrollments } from '../../queries/registrationQueries';
 import { useStudentRegistrationMutation } from '../../queries/studentDashboardQueries';
 import QueryPanel from '../../components/common/QueryPanel';
@@ -79,6 +79,10 @@ export default function TopicListPage() {
     }, [semesters]);
     const currentSemesterId = currentSemester?.id || null;
 
+    // Catalogs query
+    const catalogsQuery = useProjectCatalogs(scope);
+    const catalogs = catalogsQuery.data || [];
+
     // Enrollments query
     const enrollmentsQuery = useMyProjectEnrollments(scope, { semesterId: currentSemesterId }, Boolean(currentSemesterId));
     const enrollData = enrollmentsQuery.data?.data || [];
@@ -88,22 +92,24 @@ export default function TopicListPage() {
     const accountRestricted = Boolean(enrollmentsQuery.data?.meta?.accountRestricted);
     const accountRestrictionReason = enrollmentsQuery.data?.meta?.accountRestrictionReason || '';
 
-    // Selected catalog
-    const activeCatalogIds = useMemo(() => myProjectEnrollments.map((row) => row.projectCatalogId), [myProjectEnrollments]);
-    const [selectedProjectCatalogId, setSelectedProjectCatalogId] = useState(null);
-    const effectiveCatalogId = selectedProjectCatalogId && activeCatalogIds.includes(selectedProjectCatalogId)
-        ? selectedProjectCatalogId
-        : activeCatalogIds[0] || null;
+    // Selected semester & catalog filters
+    const [selectedSemesterId, setSelectedSemesterId] = useState(null);
+    const [selectedProjectCatalogId, setSelectedProjectCatalogId] = useState('ALL');
+
+    const effectiveSemesterId = selectedSemesterId || currentSemesterId;
+    const effectiveCatalogId = selectedProjectCatalogId !== 'ALL'
+        ? Number(selectedProjectCatalogId)
+        : (catalogs[0]?.id || null);
 
     // Topics query
     const topicParams = useMemo(() => {
         const p = {};
-        if (currentSemesterId) p.semesterId = currentSemesterId;
-        if (effectiveCatalogId) p.projectCatalogId = effectiveCatalogId;
+        if (effectiveSemesterId) p.semesterId = effectiveSemesterId;
+        if (selectedProjectCatalogId !== 'ALL') p.projectCatalogId = Number(selectedProjectCatalogId);
         return p;
-    }, [currentSemesterId, effectiveCatalogId]);
+    }, [effectiveSemesterId, selectedProjectCatalogId]);
 
-    const topicsQuery = useTopics(scope, topicParams, Boolean(currentSemesterId));
+    const topicsQuery = useTopics(scope, topicParams, Boolean(effectiveSemesterId));
     const rawTopics = topicsQuery.data || [];
     const topics = useMemo(() => {
         return rawTopics.map((topic, index) => ({
@@ -115,13 +121,13 @@ export default function TopicListPage() {
 
     // Mentors query
     const mentorsQuery = useMentors(scope, {
-        semesterId: currentSemesterId,
+        semesterId: effectiveSemesterId,
         ...(effectiveCatalogId ? { projectCatalogId: effectiveCatalogId } : {}),
-    }, Boolean(currentSemesterId));
+    }, Boolean(effectiveSemesterId));
     const mentors = mentorsQuery.data || [];
 
     // Registration query
-    const registrationQuery = useStudentRegistration(scope, { semesterId: currentSemesterId }, Boolean(currentSemesterId));
+    const registrationQuery = useStudentRegistration(scope, { semesterId: effectiveSemesterId }, Boolean(effectiveSemesterId));
     const myRegistration = registrationQuery.data?.data || null;
 
     // Mutations
@@ -243,10 +249,11 @@ export default function TopicListPage() {
     };
 
     const executeRegister = async () => {
-        if (!topicToRegister || !currentSemesterId) return;
+        const targetSemesterId = effectiveSemesterId || currentSemesterId;
+        if (!topicToRegister || !targetSemesterId) return;
         try {
             setRegistering(true);
-            await registrationMutation.mutateAsync({ topicId: topicToRegister.id, semesterId: currentSemesterId });
+            await registrationMutation.mutateAsync({ topicId: topicToRegister.id, semesterId: targetSemesterId });
             message.success('Đăng ký đề tài thành công.');
             setConfirmModalOpen(false);
         } catch (error) {
@@ -276,12 +283,13 @@ export default function TopicListPage() {
         }
         try {
             setSubmittingPropose(true);
+            const targetCatalogId = proposeForm.projectCatalogId || effectiveCatalogId;
             const payload = {
                 title: proposeForm.title.trim(),
                 description: proposeForm.description.trim(),
                 mentorId: proposeForm.mentorId,
-                semesterId: currentSemesterId,
-                projectCatalogId: effectiveCatalogId,
+                semesterId: effectiveSemesterId || currentSemesterId,
+                projectCatalogId: targetCatalogId,
             };
             await topicMutation.mutateAsync({
                 action: 'propose',
@@ -289,7 +297,7 @@ export default function TopicListPage() {
             });
             message.success('Đã gửi đề xuất đề tài thành công!');
             setProposeModalOpen(false);
-            setProposeForm({ title: '', mentorId: '', description: '' });
+            setProposeForm({ title: '', mentorId: '', description: '', projectCatalogId: undefined });
         } catch (err) {
             message.error(err?.message || 'Không thể đề xuất đề tài.');
         } finally {
@@ -392,6 +400,35 @@ export default function TopicListPage() {
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                     <select
                         className="form-control"
+                        value={selectedSemesterId || currentSemesterId || ''}
+                        onChange={(e) => setSelectedSemesterId(Number(e.target.value))}
+                        style={{ width: 175 }}
+                        title="Đợt đồ án (Học kỳ)"
+                    >
+                        {semesters.map((s) => (
+                            <option key={s.id} value={s.id}>
+                                {s.name} {ACTIVE_STATUSES.includes(s.status) ? '(Hiện tại)' : ''}
+                            </option>
+                        ))}
+                    </select>
+
+                    <select
+                        className="form-control"
+                        value={selectedProjectCatalogId}
+                        onChange={(e) => setSelectedProjectCatalogId(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
+                        style={{ width: 185 }}
+                        title="Loại đồ án"
+                    >
+                        <option value="ALL">Tất cả loại đồ án</option>
+                        {catalogs.map((c) => (
+                            <option key={c.id} value={c.id}>
+                                {c.code} · {c.name}
+                            </option>
+                        ))}
+                    </select>
+
+                    <select
+                        className="form-control"
                         value={filterMajor}
                         onChange={(e) => setFilterMajor(e.target.value)}
                         style={{ width: 170 }}
@@ -448,8 +485,10 @@ export default function TopicListPage() {
                                 <div className="topic-card" key={topic.id}>
                                     <div>
                                         <div className="topic-card-header">
-                                            <span className="tag teal">
-                                                {topic.projectCatalog?.name || 'Kỹ thuật Phần mềm'}
+                                            <span className={`tag ${topic.projectCatalog?.code === 'DATN' ? 'purple' : 'teal'}`}>
+                                                {topic.projectCatalog
+                                                    ? `${topic.projectCatalog.code} · ${topic.projectCatalog.name}`
+                                                    : (topic.projectCatalog?.name || 'DACN · Đồ án chuyên ngành')}
                                             </span>
                                             {isMine ? (
                                                 <span className="tag green">Đề tài của bạn</span>
@@ -652,6 +691,23 @@ export default function TopicListPage() {
                             onChange={(e) => setProposeForm({ ...proposeForm, title: e.target.value })}
                             style={{ width: '100%' }}
                         />
+                    </div>
+                    <div>
+                        <label style={{ fontSize: 13, fontWeight: 700, display: 'block', marginBottom: 6 }}>
+                            Loại đồ án: <strong style={{ color: 'var(--danger)' }}>*</strong>
+                        </label>
+                        <select
+                            className="form-control"
+                            value={proposeForm.projectCatalogId || effectiveCatalogId || ''}
+                            onChange={(e) => setProposeForm({ ...proposeForm, projectCatalogId: Number(e.target.value) })}
+                            style={{ width: '100%' }}
+                        >
+                            {catalogs.map((c) => (
+                                <option key={c.id} value={c.id}>
+                                    {c.code} · {c.name}
+                                </option>
+                            ))}
+                        </select>
                     </div>
                     <div>
                         <label style={{ fontSize: 13, fontWeight: 700, display: 'block', marginBottom: 6 }}>

@@ -1441,7 +1441,7 @@ function ProjectPeriodPage() {
                             </Form.Item>
                         </Col>
                         <Col span={12}>
-                            <Form.Item name="projectName" label="Tên đồ án" initialValue={PROJECT_NAME}>
+                            <Form.Item name="projectName" label="Loại đồ án" initialValue={PROJECT_NAME}>
                                 <Input disabled />
                             </Form.Item>
                         </Col>

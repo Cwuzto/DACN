@@ -21,7 +21,7 @@ import TopicSimilarityModal from '../../components/topics/TopicSimilarityModal';
 import useAuthStore from '../../stores/authStore';
 import { queryKeys } from '../../query/queryKeys';
 import { useSemesters } from '../../queries/semesterQueries';
-import { useTopics, useTopicMutation, useCloneableTopics } from '../../queries/topicQueries';
+import { useTopics, useTopicMutation, useCloneableTopics, useProjectCatalogs } from '../../queries/topicQueries';
 import QueryPanel from '../../components/common/QueryPanel';
 import ContentSkeleton from '../../components/common/ContentSkeleton';
 
@@ -40,6 +40,8 @@ export default function TopicManagementPage() {
 
     const semestersQuery = useSemesters(scope);
     const semesters = semestersQuery.data || [];
+    const catalogsQuery = useProjectCatalogs(scope);
+    const catalogs = catalogsQuery.data || [];
     const topicsQuery = useTopics(scope, { mentorId: user?.id });
     const topicMutation = useTopicMutation(scope);
 
@@ -106,9 +108,16 @@ export default function TopicManagementPage() {
     const [title, setTitle] = useState('');
     const [englishTitle, setEnglishTitle] = useState('');
     const [targetMajor, setTargetMajor] = useState('Kỹ thuật Phần mềm');
+    const [selectedProjectCatalogId, setSelectedProjectCatalogId] = useState(null);
     const [tags, setTags] = useState('');
     const [description, setDescription] = useState('');
     const [requirements, setRequirements] = useState('');
+
+    useEffect(() => {
+        if (catalogs.length > 0 && !selectedProjectCatalogId) {
+            setSelectedProjectCatalogId(catalogs[0].id);
+        }
+    }, [catalogs, selectedProjectCatalogId]);
 
     const ongoingSemester = useMemo(() => {
         return (
@@ -282,6 +291,7 @@ export default function TopicManagementPage() {
                     description: description.trim() || undefined,
                     requirements: requirements.trim() || undefined,
                     semesterId: selectedSemesterId,
+                    projectCatalogId: selectedProjectCatalogId || catalogs[0]?.id,
                     maxStudents: 1, // Rule 1: 1 SV / 1 đề tài
                 }],
             });
@@ -292,6 +302,7 @@ export default function TopicManagementPage() {
             setEnglishTitle('');
             setDescription('');
             setRequirements('');
+            setSelectedProjectCatalogId(catalogs[0]?.id || null);
         } catch (error) {
             message.error(error?.message || 'Không thể tạo đề tài mới');
         } finally {
@@ -465,12 +476,14 @@ export default function TopicManagementPage() {
                             <Select
                                 value={filterCatalog}
                                 onChange={(val) => setFilterCatalog(val)}
-                                className="w-40"
+                                className="w-56"
                                 size="middle"
                                 options={[
-                                    { value: 'ALL', label: 'Tất cả loại' },
-                                    { value: 'DATN', label: 'Đồ án tốt nghiệp' },
-                                    { value: 'KLTN', label: 'Khóa luận tốt nghiệp' },
+                                    { value: 'ALL', label: 'Tất cả loại đồ án' },
+                                    ...catalogs.map((c) => ({
+                                        value: c.code,
+                                        label: `${c.code} · ${c.name}`,
+                                    })),
                                 ]}
                             />
                         </div>
@@ -591,6 +604,7 @@ export default function TopicManagementPage() {
                             <tr>
                                 <th>Mã ĐT</th>
                                 <th>Tên Đề tài Nghiên cứu</th>
+                                <th>Loại đồ án</th>
                                 <th>Đợt đồ án</th>
                                 <th>Lĩnh vực / Công nghệ</th>
                                 <th>Sinh viên thực hiện</th>
@@ -602,7 +616,7 @@ export default function TopicManagementPage() {
                         <tbody>
                             {filteredTopics.length === 0 ? (
                                 <tr>
-                                    <td colSpan={8} style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--muted)' }}>
+                                    <td colSpan={9} style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--muted)' }}>
                                         Không tìm thấy đề tài nào phù hợp với bộ lọc hiện tại.
                                     </td>
                                 </tr>
@@ -631,6 +645,11 @@ export default function TopicManagementPage() {
                                                         {topic.englishTitle}
                                                     </div>
                                                 )}
+                                            </td>
+                                            <td>
+                                                <span className={`tag ${topic.projectCatalog?.code === 'DATN' ? 'purple' : 'teal'} text-[11px]`}>
+                                                    {topic.projectCatalog ? `${topic.projectCatalog.code} · ${topic.projectCatalog.name}` : 'DACN · Đồ án chuyên ngành'}
+                                                </span>
                                             </td>
                                             <td>
                                                 <span className="tag blue text-[11px]">
@@ -744,6 +763,24 @@ export default function TopicManagementPage() {
                                     {semesters.map((s) => (
                                         <option key={s.id} value={s.id}>
                                             {s.name} ({s.academicYear || ''}) {s.isActive || s.status === 'ACTIVE' ? '· [Đang diễn ra]' : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>
+                                    Loại đồ án (*):
+                                </label>
+                                <select
+                                    className="input-field"
+                                    style={{ width: '100%' }}
+                                    value={selectedProjectCatalogId || ''}
+                                    onChange={(e) => setSelectedProjectCatalogId(parseInt(e.target.value, 10))}
+                                >
+                                    {catalogs.length === 0 && <option value="">Đang tải loại đồ án...</option>}
+                                    {catalogs.map((c) => (
+                                        <option key={c.id} value={c.id}>
+                                            {c.code} · {c.name}
                                         </option>
                                     ))}
                                 </select>
