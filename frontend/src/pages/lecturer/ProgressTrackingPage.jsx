@@ -185,8 +185,15 @@ export default function ProgressTrackingPage() {
     const bm03Record = bm03Query.data || null;
     const meetingLogs = useMemo(() => {
         const meetings = bm03Record?.meetings || bm03Record?.meetingEntries || [];
-        if (meetings.length > 0) return meetings;
-        return Array.isArray(meetingLogsQuery.data) ? meetingLogsQuery.data : [];
+        const raw = meetings.length > 0 ? meetings : (Array.isArray(meetingLogsQuery.data) ? meetingLogsQuery.data : []);
+        // Sắp xếp tăng dần theo thời gian để gán số thứ tự buổi gặp chuẩn xác (Buổi 1 là buổi sớm nhất)
+        const chronological = [...raw].sort((a, b) => new Date(a.meetingDate) - new Date(b.meetingDate));
+        const withIndex = chronological.map((item, idx) => ({
+            ...item,
+            meetingIndex: idx + 1,
+        }));
+        // Sắp xếp mới nhất lên đầu để hiển thị timeline trực quan
+        return withIndex.sort((a, b) => new Date(b.meetingDate) - new Date(a.meetingDate));
     }, [bm03Record, meetingLogsQuery.data]);
     const checkpoints = useMemo(
         () => (Array.isArray(checkpointsQuery.data) ? checkpointsQuery.data : []),
@@ -816,7 +823,7 @@ export default function ProgressTrackingPage() {
                                                         <div className="timeline-card">
                                                             <div className="timeline-head flex-wrap gap-2">
                                                                 <div className="flex items-center gap-2 flex-wrap">
-                                                                    <strong>Buổi {meetingLogs.length - index}: {log.meetingMode === 'ONLINE' ? 'Trực tuyến' : 'Trực tiếp tại Lab'}</strong>
+                                                                    <strong>Buổi {log.meetingIndex || (meetingLogs.length - index)}: {log.meetingMode === 'ONLINE' ? 'Trực tuyến' : 'Trực tiếp tại Lab'}</strong>
                                                                     <span className="tag teal">
                                                                         {log.locationOrLink || (log.meetingMode === 'ONLINE' ? 'Online Meet' : 'Lab H2-502')}
                                                                     </span>

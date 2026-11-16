@@ -465,19 +465,21 @@ async function runThreeSemestersSeed() {
     // G. Tạo BM03MeetingEntry
     const meetingEntriesData = [];
     if (isCurrent) {
-      // Đợt 3: 2 buổi họp (buổi 1: -30 ngày, buổi 2: -15 ngày)
+      // Đợt 3: 2 buổi họp (buổi 1: -30 ngày ~ 16/10, buổi 2: -15 ngày ~ 31/10)
       for (let i = 0; i < createdRegistrations.length; i++) {
         const reg = createdRegistrations[i];
         const record = progressRecordByRegId.get(reg.id);
         const mentorIndex = Math.floor(i / 5);
         const mentor = lecturerList[mentorIndex];
 
-        // Buổi 1: Khởi động đề tài
+        // Buổi 1 (16/10): Khởi động đề tài
+        const meeting1Date = addDays(baseDate, -30);
+        meeting1Date.setHours(8, 30, 0, 0);
         meetingEntriesData.push({
           bm03RecordId: record.id,
           registrationId: reg.id,
           versionNumber: 1,
-          meetingDate: addDays(baseDate, -30),
+          meetingDate: meeting1Date,
           meetingMode: 'IN_PERSON',
           locationOrLink: 'Văn phòng Viện B2.01',
           discussionContent: 'Giao nhiệm vụ đồ án, hướng dẫn sinh viên lập kế hoạch chi tiết và khảo sát tài liệu nghiên cứu.',
@@ -485,17 +487,19 @@ async function runThreeSemestersSeed() {
           nextTasks: 'Khảo sát hiện trạng công nghệ và phân tích yêu cầu nghiệp vụ.',
           progressRating: 'ON_TRACK',
           advisorSignedById: mentor.id,
-          advisorSignedAt: addDays(baseDate, -30),
+          advisorSignedAt: meeting1Date,
           payloadHash: checksum({ regId: reg.id, meeting: 1 }),
           isLocked: true,
         });
 
-        // Buổi 2: Thiết kế hệ thống
+        // Buổi 2 (31/10): Thiết kế hệ thống
+        const meeting2Date = addDays(baseDate, -15);
+        meeting2Date.setHours(14, 0, 0, 0);
         meetingEntriesData.push({
           bm03RecordId: record.id,
           registrationId: reg.id,
-          versionNumber: 1,
-          meetingDate: addDays(baseDate, -15),
+          versionNumber: 2,
+          meetingDate: meeting2Date,
           meetingMode: 'IN_PERSON',
           locationOrLink: 'Văn phòng Viện B2.01',
           discussionContent: 'Báo cáo khảo sát hiện trạng công nghệ, phân tích yêu cầu nghiệp vụ và thiết kế kiến trúc hệ thống.',
@@ -505,7 +509,7 @@ async function runThreeSemestersSeed() {
           nextTasks: i < 90 ? 'Bắt tay vào cài đặt module backend và kiểm thử API.' : 'Bổ sung thiết kế và báo cáo lại GVHD.',
           progressRating: i < 90 ? 'ON_TRACK' : 'BEHIND',
           advisorSignedById: mentor.id,
-          advisorSignedAt: addDays(baseDate, -15),
+          advisorSignedAt: meeting2Date,
           payloadHash: checksum({ regId: reg.id, meeting: 2 }),
           isLocked: true,
         });
@@ -518,11 +522,13 @@ async function runThreeSemestersSeed() {
         const mentorIndex = Math.floor(i / 5);
         const mentor = lecturerList[mentorIndex];
 
+        const m1Date = addDays(decisionDate, 10);
+        m1Date.setHours(8, 30, 0, 0);
         meetingEntriesData.push({
           bm03RecordId: record.id,
           registrationId: reg.id,
           versionNumber: 1,
-          meetingDate: addDays(decisionDate, 10),
+          meetingDate: m1Date,
           meetingMode: 'IN_PERSON',
           locationOrLink: 'Văn phòng Viện B2.01',
           discussionContent: 'Khởi động đồ án, thống nhất phương pháp luận và lập kế hoạch các mốc thời gian.',
@@ -530,16 +536,18 @@ async function runThreeSemestersSeed() {
           nextTasks: 'Phân tích yêu cầu và thiết kế kiến trúc hệ thống.',
           progressRating: 'ON_TRACK',
           advisorSignedById: mentor.id,
-          advisorSignedAt: addDays(decisionDate, 10),
+          advisorSignedAt: m1Date,
           payloadHash: checksum({ regId: reg.id, m: 1 }),
           isLocked: true,
         });
 
+        const m2Date = addDays(decisionDate, 40);
+        m2Date.setHours(14, 0, 0, 0);
         meetingEntriesData.push({
           bm03RecordId: record.id,
           registrationId: reg.id,
-          versionNumber: 1,
-          meetingDate: addDays(decisionDate, 40),
+          versionNumber: 2,
+          meetingDate: m2Date,
           meetingMode: 'IN_PERSON',
           locationOrLink: 'Văn phòng Viện B2.01',
           discussionContent: 'Thiết kế cơ sở dữ liệu, kiến trúc phần mềm và xây dựng module lõi.',
@@ -547,16 +555,18 @@ async function runThreeSemestersSeed() {
           nextTasks: 'Hoàn thiện các module còn lại và chuẩn bị tích hợp.',
           progressRating: 'ON_TRACK',
           advisorSignedById: mentor.id,
-          advisorSignedAt: addDays(decisionDate, 40),
+          advisorSignedAt: m2Date,
           payloadHash: checksum({ regId: reg.id, m: 2 }),
           isLocked: true,
         });
 
+        const m3Date = addDays(decisionDate, 75);
+        m3Date.setHours(9, 0, 0, 0);
         meetingEntriesData.push({
           bm03RecordId: record.id,
           registrationId: reg.id,
-          versionNumber: 1,
-          meetingDate: addDays(decisionDate, 75),
+          versionNumber: 3,
+          meetingDate: m3Date,
           meetingMode: 'IN_PERSON',
           locationOrLink: 'Văn phòng Viện B2.01',
           discussionContent: 'Kiểm thử toàn diện, đánh giá hiệu năng và hoàn thiện bản thảo luận văn.',
@@ -564,7 +574,7 @@ async function runThreeSemestersSeed() {
           nextTasks: 'Rà soát lỗi chính tả và in bản thảo nộp BM04.',
           progressRating: 'ON_TRACK',
           advisorSignedById: mentor.id,
-          advisorSignedAt: addDays(decisionDate, 75),
+          advisorSignedAt: m3Date,
           payloadHash: checksum({ regId: reg.id, m: 3 }),
           isLocked: true,
         });

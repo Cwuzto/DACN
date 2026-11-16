@@ -377,7 +377,7 @@ function StudentProgressDetailPanel({
                                                             <div className="flex items-center gap-2">
                                                                 <CalendarOutlined className="text-[#0F766E]" />
                                                                 <strong className="text-slate-800">
-                                                                    Buổi {meetingLogs.length - idx}: {dayjs(log.meetingDate).format('DD/MM/YYYY')}
+                                                                    Buổi {log.meetingIndex || (meetingLogs.length - idx)}: {dayjs(log.meetingDate).format('DD/MM/YYYY')}
                                                                 </strong>
                                                                 <Tag color={log.meetingType === 'LAB' ? 'green' : log.meetingType === 'ONLINE' ? 'blue' : 'orange'} className="text-[10px] m-0">
                                                                     {log.meetingType === 'LAB' ? 'Tại Lab' : log.meetingType === 'ONLINE' ? 'Online Meet' : 'Văn phòng'}
