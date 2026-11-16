@@ -500,6 +500,7 @@ async function departmentSignBM02A({
                 status: 'APPROVED_PENDING_APPENDIX',
                 finalPayloadHash: currentVersion.payloadHash,
                 finalPdfFileUrl: pdfResult.fileUrl,
+                finalPdfAssetId: pdfResult.assetId || null,
             },
             include: { versions: true },
         });

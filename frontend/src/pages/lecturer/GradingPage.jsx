@@ -13,6 +13,7 @@ import { useQueryClient } from '@tanstack/react-query';
 
 import evaluationService from '../../services/evaluationService';
 import archiveService from '../../services/archiveService';
+import { getAssetDownloadUrl } from '../../services/resumableUploadService';
 import useAuthStore from '../../stores/authStore';
 import { queryKeys } from '../../query/queryKeys';
 import { useCouncilDefenses, gradingCustomKeys } from '../../queries/gradingQueries';
@@ -427,12 +428,25 @@ export default function GradingPage() {
                                         <span className="font-bold text-slate-800">{doc.documentType}: </span>
                                         <span className="text-slate-600">{doc.fileName || doc.fileUrl}</span>
                                     </div>
-                                    {doc.fileUrl && (
+                                    {(doc.assetId || doc.fileUrl) && (
                                         <Button
                                             size="small"
                                             type="link"
                                             icon={<FilePdfOutlined />}
-                                            onClick={() => window.open(doc.fileUrl, '_blank')}
+                                            onClick={async () => {
+                                                if (doc.assetId) {
+                                                    try {
+                                                        const dl = await getAssetDownloadUrl(doc.assetId);
+                                                        window.open(dl.downloadUrl || dl.url, '_blank');
+                                                        return;
+                                                    } catch (err) {
+                                                        console.error('Failed to get asset download url:', err);
+                                                    }
+                                                }
+                                                if (doc.fileUrl) {
+                                                    window.open(doc.fileUrl, '_blank');
+                                                }
+                                            }}
                                         >
                                             Xem tài liệu
                                         </Button>

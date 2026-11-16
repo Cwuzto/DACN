@@ -1,5 +1,5 @@
 const path = require('path');
-const { supabase: defaultSupabase } = require('../config/supabase');
+const { getSupabaseClient } = require('../config/supabase');
 
 class StorageAdapterError extends Error {
     constructor(message, code = 'STORAGE_ADAPTER_ERROR', statusCode = 500) {
@@ -12,7 +12,18 @@ class StorageAdapterError extends Error {
 
 class SupabaseStorageAdapter {
     constructor({ supabaseClient } = {}) {
-        this.supabase = supabaseClient || defaultSupabase;
+        this._client = supabaseClient || null;
+    }
+
+    get supabase() {
+        if (!this._client) {
+            try {
+                this._client = getSupabaseClient();
+            } catch {
+                return null;
+            }
+        }
+        return this._client;
     }
 
     _getBucketRef(bucket) {

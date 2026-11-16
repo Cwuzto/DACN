@@ -431,6 +431,7 @@ async function signAndSubmitBM04(input, options = {}) {
 
         // Generate immutable academic PDF
         let finalPdfFileUrl = null;
+        let finalPdfAssetId = null;
         try {
             const sections = [
                 {
@@ -482,6 +483,7 @@ async function signAndSubmitBM04(input, options = {}) {
             }, { ...options, tx });
 
             finalPdfFileUrl = pdfResult?.fileUrl || null;
+            finalPdfAssetId = pdfResult?.assetId || null;
         } catch (pdfErr) {
             console.error('[signAndSubmitBM04] PDF generation error:', pdfErr.message);
         }
@@ -495,6 +497,7 @@ async function signAndSubmitBM04(input, options = {}) {
                 payloadHash,
                 signatureEventId: sigEvent?.id || null,
                 finalPdfFileUrl,
+                finalPdfAssetId,
             },
         });
 

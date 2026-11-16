@@ -191,6 +191,11 @@ describe('Task 3: 6-Document Defense Dossier, Multi-Version Uploads, 00:00 Defen
                 name: 'Hội đồng Khoa học 01',
                 defenseDate: new Date('2026-11-20T00:00:00+07:00'),
                 location: 'Phòng B.302',
+                members: [
+                    { lecturerId: 20, isActive: true },
+                    { lecturerId: 21, isActive: true },
+                    { lecturerId: 22, isActive: true },
+                ],
             },
             archive: null,
             bm03Record: {

@@ -36,6 +36,7 @@ import RegistrationTimelineDrawer from '../../components/common/RegistrationTime
 import AcademicFormPrintModal from '../../components/prints/AcademicFormPrintModal';
 import BM03PrintSheet from '../../components/prints/BM03PrintSheet';
 import BM04PrintSheet from '../../components/prints/BM04PrintSheet';
+import { getAssetDownloadUrl } from '../../services/resumableUploadService';
 import evaluationService from '../../services/evaluationService';
 import useAuthStore from '../../stores/authStore';
 import { queryKeys } from '../../query/queryKeys';
@@ -1253,12 +1254,24 @@ export default function ProgressTrackingPage() {
                                                                     ) : '—'}
                                                                 </td>
                                                                 <td style={{ textAlign: 'right' }}>
-                                                                    {doc?.fileUrl ? (
+                                                                    {doc?.fileUrl || doc?.assetId ? (
                                                                         <Button
                                                                             size="small"
                                                                             icon={<FilePdfOutlined />}
-                                                                            href={doc.fileUrl}
-                                                                            target="_blank"
+                                                                            onClick={async () => {
+                                                                                if (doc?.assetId) {
+                                                                                    try {
+                                                                                        const dl = await getAssetDownloadUrl(doc.assetId);
+                                                                                        window.open(dl.downloadUrl || dl.url, '_blank');
+                                                                                        return;
+                                                                                    } catch (err) {
+                                                                                        console.error('Failed to get asset download url:', err);
+                                                                                    }
+                                                                                }
+                                                                                if (doc?.fileUrl) {
+                                                                                    window.open(doc.fileUrl, '_blank');
+                                                                                }
+                                                                            }}
                                                                         >
                                                                             Xem tệp
                                                                         </Button>

@@ -933,6 +933,7 @@ async function studentAcknowledgeBM03(input, options = {}) {
                 studentComment: comment ? String(comment).trim() : null,
                 studentSignatureEventId: sigEvent.id,
                 finalPdfFileUrl: pdfResult?.fileUrl || null,
+                finalPdfAssetId: pdfResult?.assetId || null,
             },
         });
 

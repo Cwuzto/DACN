@@ -1,6 +1,7 @@
 const PDFDocument = require('pdfkit');
 const crypto = require('crypto');
 const UploadService = require('./uploadService');
+const { storedAssetService } = require('./storedAssetService');
 
 /**
  * Builds an immutable academic PDF document buffer using pdfkit.
@@ -146,25 +147,50 @@ async function generateImmutableAcademicPdf(input, options = {}) {
   const regPart = registrationId ? `-reg${registrationId}` : '';
   const fileName = `${String(docType).toLowerCase()}${regPart}-id${entityId}${vPart}-${timestamp}.pdf`;
 
-  const uploader = options.uploadService || UploadService;
+  let assetId = null;
   let fileUrl = null;
 
-  try {
-    const uploadResult = await uploader.uploadBuffer(
+  if (options.uploadService) {
+    const uploadResult = await options.uploadService.uploadBuffer(
       pdfBuffer,
       'academic-documents',
       'application/pdf',
       fileName
     );
-    fileUrl =
-      uploadResult?.secure_url ||
-      uploadResult?.url ||
-      `https://storage.local/academic-documents/${fileName}`;
-  } catch (err) {
-    fileUrl = `https://storage.local/academic-documents/${fileName}`;
+    fileUrl = uploadResult?.secure_url || uploadResult?.url;
+    if (!fileUrl) {
+      throw new Error('Upload service failed to return file URL');
+    }
+  } else {
+    let mappedDocType = 'COUNCIL_DOCUMENT';
+    const upper = String(docType).toUpperCase();
+    if (upper === 'BM02A' || upper === 'BM02_A') mappedDocType = 'BM02_A';
+    else if (upper === 'BM03') mappedDocType = 'BM03';
+    else if (upper === 'BM04') mappedDocType = 'BM04';
+    else if (upper === 'BM05') mappedDocType = 'BM05';
+    else if (upper === 'DECISION' || upper === 'ASSIGNMENT_DECISION') mappedDocType = 'ASSIGNMENT_DECISION';
+    else if (upper === 'APPENDIX' || upper === 'ADJUSTMENT_APPENDIX') mappedDocType = 'ADJUSTMENT_APPENDIX';
+    else if (upper === 'CERTIFICATE' || upper === 'CLEARANCE_CERTIFICATE') mappedDocType = 'CLEARANCE_CERTIFICATE';
+
+    const createdAsset = await storedAssetService.createStoredAssetFromBuffer({
+      buffer: pdfBuffer,
+      originalName: fileName,
+      declaredMime: 'application/pdf',
+      documentType: mappedDocType,
+      bucket: 'hoc-vu',
+      actor: input.actor || null,
+      resourceContext: {
+        registrationId: registrationId || null,
+        entityId: entityId || null,
+      },
+    });
+
+    assetId = createdAsset.id;
+    fileUrl = `/api/assets/${createdAsset.id}/download`;
   }
 
   return {
+    assetId,
     fileUrl,
     fileName,
     pdfHash,

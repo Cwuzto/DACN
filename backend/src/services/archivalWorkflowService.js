@@ -933,6 +933,7 @@ async function signClearanceCertificateByInstituteDirector(input, options = {}) 
                 certificateSignedById: directorUser.id,
                 certificateSignedAt: now,
                 certificatePdfUrl: pdfResult.fileUrl,
+                certificatePdfAssetId: pdfResult.assetId || null,
                 certificatePayloadHash: payloadHash,
                 certificateSignatureEventId: sigEvent.id,
                 certificateSnapshot: certPayload,

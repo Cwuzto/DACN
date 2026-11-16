@@ -603,6 +603,26 @@ class StoredAssetService {
             throw new StoredAssetServiceError('Authentication required to access private asset', 'AUTH_REQUIRED', 401);
         }
 
+        const isOwner = asset.ownerUserId === actor.id || asset.uploadedById === actor.id;
+        const isPrivileged = ['ADMIN', 'ACADEMIC_AFFAIRS', 'DEAN'].includes(actor.role);
+        if (!isOwner && !isPrivileged) {
+            let hasContextAccess = false;
+            if (asset.registrationId) {
+                const reg = await this.prisma.topicRegistration.findUnique({
+                    where: { id: asset.registrationId },
+                    include: { topic: true, council: { include: { members: true } } },
+                });
+                if (reg?.studentId === actor.id || reg?.topic?.mentorId === actor.id) {
+                    hasContextAccess = true;
+                } else if (reg?.council?.members?.some((m) => m.lecturerId === actor.id)) {
+                    hasContextAccess = true;
+                }
+            }
+            if (!hasContextAccess) {
+                throw new StoredAssetServiceError('Forbidden asset download', 'FORBIDDEN', 403);
+            }
+        }
+
         const bucketName = mapEnumToBucket(asset.bucket);
         const signed = await this.storageAdapter.createSignedUrl({
             bucket: bucketName,
