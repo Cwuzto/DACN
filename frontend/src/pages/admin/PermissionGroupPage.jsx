@@ -462,18 +462,18 @@ function PermissionGroupPage() {
             title: 'Tên nhóm vai trò',
             dataIndex: 'name',
             key: 'name',
-            width: 240,
+            width: 250,
             render: (name, record) => (
-                <div className="flex flex-col gap-0.5">
+                <div className="flex flex-col gap-1">
                     <div className="flex items-center gap-2">
                         {record.isSystem && (
                             <Tooltip title="Vai trò mặc định của hệ thống — Không thể xóa">
-                                <LockOutlined className="text-amber-500 text-xs" />
+                                <LockOutlined className="text-amber-600 text-xs" />
                             </Tooltip>
                         )}
                         <span className="font-bold text-slate-900 text-sm">{name}</span>
                     </div>
-                    <span className="text-[11px] font-mono text-slate-400">
+                    <span className="text-[11px] font-mono font-semibold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-300 w-fit">
                         {record.code}
                     </span>
                 </div>
@@ -484,7 +484,7 @@ function PermissionGroupPage() {
             dataIndex: 'description',
             key: 'description',
             width: 280,
-            render: (desc) => <span className="text-xs text-slate-600">{desc || 'Chưa thiết lập mô tả'}</span>,
+            render: (desc) => <span className="text-xs text-slate-700 font-medium">{desc || 'Chưa thiết lập mô tả'}</span>,
         },
         {
             title: 'Số chức năng',
@@ -494,7 +494,7 @@ function PermissionGroupPage() {
             render: (_, record) => (
                 <Badge
                     count={record.permissions?.length || 0}
-                    style={{ backgroundColor: '#0F766E' }}
+                    style={{ backgroundColor: '#0F766E', fontWeight: 700 }}
                     showZero
                 />
             ),
@@ -505,7 +505,7 @@ function PermissionGroupPage() {
             width: 150,
             align: 'center',
             render: (_, record) => (
-                <span className="text-xs font-semibold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-full">
+                <span className="text-xs font-bold text-slate-800 bg-slate-200/90 border border-slate-300 px-2.5 py-1 rounded-full">
                     {record._count?.users ?? 0} cán bộ
                 </span>
             ),
@@ -527,7 +527,7 @@ function PermissionGroupPage() {
                                 <Tag
                                     key={code}
                                     color={isProt ? 'volcano' : 'default'}
-                                    className="text-[11px] m-0"
+                                    className={`text-[11px] m-0 font-medium border ${isProt ? 'border-red-300' : 'border-slate-300 text-slate-800'}`}
                                 >
                                     {isProt && <LockOutlined className="mr-1 text-[9px]" />}
                                     {label}
@@ -538,7 +538,7 @@ function PermissionGroupPage() {
                             <Tooltip
                                 title={perms.slice(3).map((p) => p.permission?.label || p.label || p.permission?.code || p.code).join(', ')}
                             >
-                                <Tag className="text-[11px] m-0 cursor-pointer bg-slate-100 text-slate-600 font-semibold">
+                                <Tag className="text-[11px] m-0 cursor-pointer bg-slate-200 text-slate-800 border border-slate-300 font-bold">
                                     +{remaining} chức năng khác
                                 </Tag>
                             </Tooltip>
@@ -585,19 +585,19 @@ function PermissionGroupPage() {
             {/* Tiêu đề trang & Thanh công cụ chính */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 4, flexWrap: 'wrap', gap: 12 }}>
                 <div>
-                    <p className="eyebrow">QUẢN TRỊ HỆ THỐNG • PHÂN QUYỀN TRUY CẬP</p>
-                    <h1 className="h1">Phân Quyền &amp; Vai Trò Người Dùng</h1>
+                    <p className="eyebrow" style={{ color: '#0F766E', fontWeight: 700, letterSpacing: '0.06em' }}>QUẢN TRỊ HỆ THỐNG • PHÂN QUYỀN TRUY CẬP</p>
+                    <h1 className="h1" style={{ color: '#0F172A', fontWeight: 800 }}>Phân Quyền &amp; Vai Trò Người Dùng</h1>
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                         {canAssignAcademic ? (
-                            <Tag color="success" icon={<SafetyCertificateOutlined />} className="m-0 text-xs">
+                            <Tag color="success" icon={<SafetyCertificateOutlined />} className="m-0 text-xs font-semibold border border-emerald-400">
                                 Được ủy quyền điều chỉnh chức năng học vụ
                             </Tag>
                         ) : (
-                            <Tag color="warning" icon={<LockOutlined />} className="m-0 text-xs">
+                            <Tag color="warning" icon={<LockOutlined />} className="m-0 text-xs font-semibold border border-amber-400">
                                 Phân quyền quản trị vận hành
                             </Tag>
                         )}
-                        <span className="text-xs text-slate-500">
+                        <span className="text-xs text-slate-600 font-medium">
                             {canAssignAcademic
                                 ? 'Bạn có thẩm quyền phân bổ đầy đủ chức năng chuyên môn học thuật và vận hành hệ thống.'
                                 : 'Các chức năng chuyên môn học vụ được bảo vệ bởi quy chế đào tạo để đảm bảo an toàn học thuật.'}
@@ -642,6 +642,7 @@ function PermissionGroupPage() {
                                 style={{
                                     background: dirty ? '#0F766E' : undefined,
                                     borderColor: dirty ? '#0F766E' : undefined,
+                                    fontWeight: 700,
                                 }}
                             >
                                 {dirty ? 'Lưu thay đổi (*)' : 'Lưu thay đổi'}
@@ -653,7 +654,7 @@ function PermissionGroupPage() {
                             type="primary"
                             icon={<PlusOutlined />}
                             onClick={handleAdd}
-                            style={{ background: '#0F766E', borderColor: '#0F766E' }}
+                            style={{ background: '#0F766E', borderColor: '#0F766E', fontWeight: 700 }}
                         >
                             Tạo nhóm vai trò mới
                         </Button>
@@ -664,31 +665,31 @@ function PermissionGroupPage() {
             {/* Thẻ thống kê tổng quan phân quyền */}
             {matrixQuery.data && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-                <div className="card" style={{ padding: '14px 18px' }}>
-                    <span className="meta">Vị trí &amp; Nhóm vai trò</span>
-                    <p className="h2 num" style={{ marginTop: 2, color: '#0F766E' }}>{matrixStats.totalRoles}</p>
-                    <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--muted)' }}>
-                        Phân bổ trên {matrixStats.totalModules} lĩnh vực nghiệp vụ
+                <div className="card" style={{ padding: '16px 20px', background: '#FFFFFF', border: '1px solid #CBD5E1', boxShadow: '0 1px 3px rgba(15,23,42,0.06)' }}>
+                    <span className="meta" style={{ color: '#334155', fontWeight: 700, fontSize: 12 }}>Vị trí &amp; Nhóm vai trò</span>
+                    <p className="h2 num" style={{ marginTop: 2, color: '#0F766E', fontWeight: 800 }}>{matrixStats.totalRoles}</p>
+                    <div style={{ marginTop: 6, fontSize: '12px', color: '#475569', fontWeight: 500 }}>
+                        Phân bổ trên <b className="text-slate-900 font-bold">{matrixStats.totalModules}</b> lĩnh vực nghiệp vụ
                     </div>
                 </div>
-                <div className="card" style={{ padding: '14px 18px' }}>
-                    <span className="meta">Chức năng học vụ chuyên môn</span>
-                    <p className="h2 num" style={{ marginTop: 2, color: '#0F172A' }}>{matrixStats.protectedPerms}</p>
-                    <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--muted)' }}>
+                <div className="card" style={{ padding: '16px 20px', background: '#FFFFFF', border: '1px solid #CBD5E1', boxShadow: '0 1px 3px rgba(15,23,42,0.06)' }}>
+                    <span className="meta" style={{ color: '#334155', fontWeight: 700, fontSize: 12 }}>Chức năng học vụ chuyên môn</span>
+                    <p className="h2 num" style={{ marginTop: 2, color: '#0F172A', fontWeight: 800 }}>{matrixStats.protectedPerms}</p>
+                    <div style={{ marginTop: 6, fontSize: '12px', color: '#475569', fontWeight: 500 }}>
                         Đề tài, xét duyệt đề cương, tiến độ BM03, chấm bảo vệ
                     </div>
                 </div>
-                <div className="card" style={{ padding: '14px 18px' }}>
-                    <span className="meta">Chức năng quản trị vận hành</span>
-                    <p className="h2 num" style={{ marginTop: 2, color: '#0F172A' }}>{matrixStats.technicalPerms}</p>
-                    <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--muted)' }}>
+                <div className="card" style={{ padding: '16px 20px', background: '#FFFFFF', border: '1px solid #CBD5E1', boxShadow: '0 1px 3px rgba(15,23,42,0.06)' }}>
+                    <span className="meta" style={{ color: '#334155', fontWeight: 700, fontSize: 12 }}>Chức năng quản trị vận hành</span>
+                    <p className="h2 num" style={{ marginTop: 2, color: '#0F172A', fontWeight: 800 }}>{matrixStats.technicalPerms}</p>
+                    <div style={{ marginTop: 6, fontSize: '12px', color: '#475569', fontWeight: 500 }}>
                         Đợt đồ án, tài khoản cán bộ, thông báo và báo cáo
                     </div>
                 </div>
-                <div className="card" style={{ padding: '14px 18px' }}>
-                    <span className="meta">Quyền đang áp dụng</span>
-                    <p className="h2 num" style={{ marginTop: 2, color: '#0F766E' }}>{matrixStats.activeAssignments}</p>
-                    <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--muted)' }}>
+                <div className="card" style={{ padding: '16px 20px', background: '#FFFFFF', border: '1px solid #CBD5E1', boxShadow: '0 1px 3px rgba(15,23,42,0.06)' }}>
+                    <span className="meta" style={{ color: '#334155', fontWeight: 700, fontSize: 12 }}>Quyền đang áp dụng</span>
+                    <p className="h2 num" style={{ marginTop: 2, color: '#0F766E', fontWeight: 800 }}>{matrixStats.activeAssignments}</p>
+                    <div style={{ marginTop: 6, fontSize: '12px', color: '#475569', fontWeight: 500 }}>
                         Lượt phân quyền đang kích hoạt cho các vị trí công tác
                     </div>
                 </div>
@@ -700,11 +701,12 @@ function PermissionGroupPage() {
                 <Alert
                     type="warning"
                     showIcon
-                    icon={<ExclamationCircleOutlined />}
+                    icon={<ExclamationCircleOutlined className="text-amber-600 text-lg" />}
+                    className="border-amber-400 bg-amber-50"
                     message={
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-                            <span>
-                                <b>Bạn có thay đổi chưa lưu trên bảng phân quyền!</b> Vui lòng bấm <b>"Lưu thay đổi"</b> để cập nhật vào hệ thống.
+                            <span className="text-slate-900 font-medium">
+                                <b className="text-amber-900 font-bold">Bạn có thay đổi chưa lưu trên bảng phân quyền!</b> Vui lòng bấm <b>"Lưu thay đổi"</b> để cập nhật vào hệ thống.
                             </span>
                             <Space size="small">
                                 <Button size="small" onClick={handleResetMatrix}>Hủy thay đổi</Button>
@@ -713,7 +715,7 @@ function PermissionGroupPage() {
                                     type="primary"
                                     loading={savingMatrix}
                                     onClick={handleSaveMatrix}
-                                    style={{ background: '#0F766E', borderColor: '#0F766E' }}
+                                    style={{ background: '#0F766E', borderColor: '#0F766E', fontWeight: 700 }}
                                 >
                                     Lưu thay đổi
                                 </Button>
@@ -733,20 +735,20 @@ function PermissionGroupPage() {
                     {
                         key: 'MATRIX',
                         label: (
-                            <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600 }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 13.5 }}>
                                 <AppstoreOutlined />
                                 Bảng Phân Quyền Theo Vai Trò
                             </span>
                         ),
                         children: (
-                            <div className="bg-white rounded-xl border border-slate-200/90 shadow-sm p-4 lg:p-6 space-y-4">
+                            <div className="bg-white rounded-xl border border-slate-300 shadow-sm p-4 lg:p-6 space-y-4">
                                 {/* Thanh công cụ tìm kiếm và lọc chức năng */}
-                                <div className="flex flex-col gap-3 pb-2 border-b border-slate-200">
+                                <div className="flex flex-col gap-3 pb-3 border-b border-slate-300">
                                     <div className="flex flex-wrap items-center justify-between gap-3">
                                         <div className="flex flex-wrap items-center gap-3">
                                             <Input
                                                 placeholder="Tìm kiếm theo tên chức năng, nhiệm vụ..."
-                                                prefix={<SearchOutlined className="text-slate-400" />}
+                                                prefix={<SearchOutlined className="text-slate-500" />}
                                                 style={{ width: 320 }}
                                                 value={matrixSearchText}
                                                 onChange={(e) => setMatrixSearchText(e.target.value)}
@@ -755,7 +757,7 @@ function PermissionGroupPage() {
                                             <Select
                                                 value={matrixModuleFilter}
                                                 onChange={setMatrixModuleFilter}
-                                                style={{ width: 280 }}
+                                                style={{ width: 290 }}
                                                 options={[
                                                     { label: 'Tất cả lĩnh vực công tác', value: 'ALL' },
                                                     ...(matrixData.modules || []).map((m) => ({
@@ -766,8 +768,8 @@ function PermissionGroupPage() {
                                             />
                                         </div>
 
-                                        <div className="text-xs text-slate-500">
-                                            Hiển thị <b>{filteredModules.reduce((sum, m) => sum + m.permissions.length, 0)}</b> chức năng trong <b>{filteredModules.length}</b> lĩnh vực nghiệp vụ
+                                        <div className="text-xs text-slate-700 font-medium">
+                                            Hiển thị <b className="text-slate-900 font-bold">{filteredModules.reduce((sum, m) => sum + m.permissions.length, 0)}</b> chức năng trong <b className="text-slate-900 font-bold">{filteredModules.length}</b> lĩnh vực nghiệp vụ
                                         </div>
                                     </div>
 
@@ -775,7 +777,7 @@ function PermissionGroupPage() {
                                     <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
                                         <div className="flex flex-wrap items-center gap-4">
                                             <div className="flex items-center gap-2">
-                                                <span className="text-xs text-slate-500 font-medium">Loại chức năng:</span>
+                                                <span className="text-xs text-slate-800 font-bold">Loại chức năng:</span>
                                                 <Segmented
                                                     size="small"
                                                     value={permTypeFilter}
@@ -789,7 +791,7 @@ function PermissionGroupPage() {
                                             </div>
 
                                             <div className="flex items-center gap-2">
-                                                <span className="text-xs text-slate-500 font-medium">Tính chất phân quyền:</span>
+                                                <span className="text-xs text-slate-800 font-bold">Tính chất phân quyền:</span>
                                                 <Segmented
                                                     size="small"
                                                     value={protectionFilter}
@@ -815,24 +817,24 @@ function PermissionGroupPage() {
                                             return (
                                                 <div
                                                     key={mod.module_name}
-                                                    className="border border-slate-200 rounded-lg overflow-hidden transition-all shadow-xs"
+                                                    className="border border-slate-300 rounded-lg overflow-hidden transition-all shadow-xs"
                                                 >
                                                     {/* Tiêu đề nhóm lĩnh vực */}
                                                     <div
-                                                        className="flex items-center justify-between px-4 py-3 bg-slate-50/90 hover:bg-slate-100/90 cursor-pointer select-none border-b border-slate-200/80 transition-colors"
+                                                        className="flex items-center justify-between px-4 py-3 bg-slate-100/90 hover:bg-slate-200/90 cursor-pointer select-none border-b border-slate-300 transition-colors"
                                                         onClick={() => toggleModule(mod.module_name)}
                                                     >
                                                         <div className="flex items-center gap-3">
-                                                            <span className="text-slate-400 text-xs">
+                                                            <span className="text-slate-700 font-bold text-xs">
                                                                 {isOpen ? <DownOutlined /> : <RightOutlined />}
                                                             </span>
                                                             <Tag
                                                                 color={MODULE_COLORS[mod.module_name] || 'default'}
-                                                                className="m-0 font-medium text-xs px-2.5 py-0.5"
+                                                                className="m-0 font-bold text-xs px-2.5 py-0.5 border border-slate-300"
                                                             >
                                                                 {MODULE_TITLES[mod.module_name] || mod.module_name}
                                                             </Tag>
-                                                            <span className="text-xs font-semibold text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded-full">
+                                                            <span className="text-xs font-bold text-slate-700 bg-white border border-slate-300 px-2.5 py-0.5 rounded-full">
                                                                 {modPerms.length} chức năng
                                                             </span>
                                                         </div>
@@ -856,12 +858,12 @@ function PermissionGroupPage() {
                                                                             <button
                                                                                 type="button"
                                                                                 onClick={() => toggleRoleInModule(role.id, modPerms, !isFull)}
-                                                                                className={`text-[11px] px-2 py-0.5 rounded border transition-all ${
+                                                                                className={`text-[11px] px-2.5 py-0.5 rounded border transition-all ${
                                                                                     isFull
-                                                                                        ? 'bg-teal-50 border-teal-500 text-teal-800 font-bold'
+                                                                                        ? 'bg-teal-100 border-teal-600 text-teal-900 font-bold shadow-xs'
                                                                                         : countGranted > 0
-                                                                                        ? 'bg-blue-50 border-blue-300 text-blue-700'
-                                                                                        : 'bg-white border-slate-200 text-slate-400'
+                                                                                        ? 'bg-blue-100 border-blue-400 text-blue-900 font-semibold'
+                                                                                        : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50 font-medium'
                                                                                 }`}
                                                                             >
                                                                                 {role.name}: {countGranted}/{modPerms.length}
@@ -878,22 +880,22 @@ function PermissionGroupPage() {
                                                         <div style={{ overflowX: 'auto' }}>
                                                             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                                                                 <thead>
-                                                                    <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                                                                    <tr style={{ background: '#F1F5F9', borderBottom: '2px solid #CBD5E1' }}>
                                                                         {/* Cột trái: Tên chức năng */}
                                                                         <th
                                                                             style={{
                                                                                 position: 'sticky',
                                                                                 left: 0,
                                                                                 zIndex: 20,
-                                                                                background: '#F8FAFC',
-                                                                                padding: '10px 16px',
+                                                                                background: '#F1F5F9',
+                                                                                padding: '11px 16px',
                                                                                 textAlign: 'left',
                                                                                 width: 400,
                                                                                 minWidth: 320,
-                                                                                borderRight: '1px solid #E2E8F0',
+                                                                                borderRight: '2px solid #CBD5E1',
                                                                             }}
                                                                         >
-                                                                            <span style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>
+                                                                            <span style={{ fontSize: 11.5, fontWeight: 800, color: '#0F172A', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                                                                                 CHỨC NĂNG &amp; NHIỆM VỤ
                                                                             </span>
                                                                         </th>
@@ -906,15 +908,15 @@ function PermissionGroupPage() {
                                                                                     padding: '10px 12px',
                                                                                     textAlign: 'center',
                                                                                     minWidth: 140,
-                                                                                    borderRight: '1px solid #E2E8F0',
+                                                                                    borderRight: '1px solid #CBD5E1',
                                                                                     fontSize: 12,
                                                                                     color: '#0F172A',
                                                                                     fontWeight: 700,
                                                                                 }}
                                                                             >
                                                                                 <div className="flex flex-col items-center">
-                                                                                    <span className="font-semibold text-slate-800 text-xs sm:text-sm">{role.name}</span>
-                                                                                    <span className="text-[10px] text-slate-400 font-mono mt-0.5">
+                                                                                    <span className="font-bold text-slate-900 text-xs sm:text-sm">{role.name}</span>
+                                                                                    <span className="text-[11px] text-slate-600 font-mono font-semibold mt-0.5">
                                                                                         {role.code}
                                                                                     </span>
                                                                                 </div>
@@ -934,8 +936,8 @@ function PermissionGroupPage() {
                                                                         return (
                                                                             <tr
                                                                                 key={perm.id}
-                                                                                style={{ borderBottom: '1px solid #F1F5F9', transition: 'background-color 0.15s' }}
-                                                                                className="hover:bg-teal-50/40"
+                                                                                style={{ borderBottom: '1px solid #E2E8F0', transition: 'background-color 0.15s' }}
+                                                                                className="hover:bg-teal-50/70 transition-colors"
                                                                             >
                                                                                 {/* Cột trái: Tên chức năng và mô tả ngắn gọn */}
                                                                                 <td
@@ -944,8 +946,8 @@ function PermissionGroupPage() {
                                                                                         left: 0,
                                                                                         zIndex: 10,
                                                                                         background: '#FFFFFF',
-                                                                                        padding: '9px 16px',
-                                                                                        borderRight: '1px solid #E2E8F0',
+                                                                                        padding: '10px 16px',
+                                                                                        borderRight: '2px solid #CBD5E1',
                                                                                     }}
                                                                                 >
                                                                                     <div className="flex items-start gap-2.5">
@@ -958,39 +960,40 @@ function PermissionGroupPage() {
                                                                                                 disabled={!canAssignAcademic && isProt}
                                                                                                 style={{
                                                                                                     cursor: (!canAssignAcademic && isProt) ? 'not-allowed' : 'pointer',
-                                                                                                    width: 15,
-                                                                                                    height: 15,
-                                                                                                    marginTop: 3,
+                                                                                                    width: 16,
+                                                                                                    height: 16,
+                                                                                                    marginTop: 2,
+                                                                                                    accentColor: '#0F766E',
                                                                                                 }}
                                                                                             />
                                                                                         </Tooltip>
 
                                                                                         <div className="flex flex-col gap-1">
                                                                                             <div className="flex items-center gap-2 flex-wrap">
-                                                                                                <span style={{ fontWeight: 600, color: '#1E293B', fontSize: 13 }}>
+                                                                                                <span style={{ fontWeight: 700, color: '#0F172A', fontSize: 13.5 }}>
                                                                                                     {perm.label}
                                                                                                 </span>
                                                                                                 {isProt && (
                                                                                                     <Tooltip title="Chức năng chuyên môn học vụ được bảo vệ theo quy chế đào tạo.">
-                                                                                                        <Tag color="volcano" className="text-[10px] m-0 font-medium px-1.5 py-0 flex items-center gap-1">
+                                                                                                        <Tag color="volcano" className="text-[10px] m-0 font-bold px-1.5 py-0 border border-red-300 flex items-center gap-1">
                                                                                                             <LockOutlined className="text-[9px]" />
                                                                                                             Quy chế bảo vệ
                                                                                                         </Tag>
                                                                                                     </Tooltip>
                                                                                                 )}
                                                                                                 {isAct ? (
-                                                                                                    <Tag color="blue" className="text-[10px] m-0 px-1.5 py-0">
+                                                                                                    <Tag color="blue" className="text-[10px] m-0 font-semibold px-1.5 py-0 border border-blue-300">
                                                                                                         Thực hiện tác vụ
                                                                                                     </Tag>
                                                                                                 ) : (
-                                                                                                    <Tag color="cyan" className="text-[10px] m-0 px-1.5 py-0">
+                                                                                                    <Tag color="geekblue" className="text-[10px] m-0 font-semibold px-1.5 py-0 border border-indigo-300">
                                                                                                         Xem dữ liệu
                                                                                                     </Tag>
                                                                                                 )}
                                                                                             </div>
 
                                                                                             <div className="flex items-center gap-2">
-                                                                                                <span className="text-[11px] text-slate-400 font-mono">
+                                                                                                <span className="text-[11px] text-slate-700 font-mono font-semibold bg-slate-100 border border-slate-300 px-1.5 py-0.5 rounded">
                                                                                                     Mã hệ thống: {perm.code}
                                                                                                 </span>
                                                                                             </div>
@@ -1007,9 +1010,9 @@ function PermissionGroupPage() {
                                                                                         <td
                                                                                             key={role.id}
                                                                                             style={{
-                                                                                                padding: '7px 10px',
+                                                                                                padding: '8px 10px',
                                                                                                 textAlign: 'center',
-                                                                                                borderRight: '1px solid #F1F5F9',
+                                                                                                borderRight: '1px solid #E2E8F0',
                                                                                             }}
                                                                                         >
                                                                                             <Tooltip
@@ -1030,21 +1033,21 @@ function PermissionGroupPage() {
                                                                                                         alignItems: 'center',
                                                                                                         justifyContent: 'center',
                                                                                                         borderRadius: 8,
-                                                                                                        border: checked ? '1px solid #0F766E' : '1px solid #E2E8F0',
+                                                                                                        border: checked ? '1.5px solid #0D5D56' : isCellDisabled ? '1.5px solid #CBD5E1' : '1.5px solid #CBD5E1',
                                                                                                         background: checked ? '#0F766E' : isCellDisabled ? '#F1F5F9' : '#FFFFFF',
-                                                                                                        color: checked ? '#FFFFFF' : '#94A3B8',
+                                                                                                        color: checked ? '#FFFFFF' : '#475569',
                                                                                                         cursor: isCellDisabled ? 'not-allowed' : 'pointer',
                                                                                                         opacity: isCellDisabled ? 0.75 : 1,
                                                                                                         transition: 'all 0.15s ease',
-                                                                                                        boxShadow: checked ? '0 1px 2px rgba(15, 118, 110, 0.25)' : 'none',
+                                                                                                        boxShadow: checked ? '0 1px 3px rgba(15, 118, 110, 0.35)' : '0 1px 2px rgba(0,0,0,0.04)',
                                                                                                     }}
                                                                                                 >
                                                                                                     {checked ? (
-                                                                                                        <CheckOutlined style={{ fontSize: 14 }} />
+                                                                                                        <CheckOutlined style={{ fontSize: 14, strokeWidth: 3 }} />
                                                                                                     ) : isCellDisabled ? (
-                                                                                                        <LockOutlined style={{ fontSize: 11, color: '#94A3B8' }} />
+                                                                                                        <LockOutlined style={{ fontSize: 12, color: '#475569' }} />
                                                                                                     ) : (
-                                                                                                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#CBD5E1' }} />
+                                                                                                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#64748B' }} />
                                                                                                     )}
                                                                                                 </button>
                                                                                             </Tooltip>
@@ -1069,27 +1072,27 @@ function PermissionGroupPage() {
                     {
                         key: 'GROUPS',
                         label: (
-                            <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600 }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 13.5 }}>
                                 <UnorderedListOutlined />
                                 Nhóm Vai Trò &amp; Phân Cấp ({groups.length})
                             </span>
                         ),
                         children: (
                             <QueryPanel query={groupsQuery} variant="table">
-                            <div className="bg-white rounded-lg border border-slate-200 shadow-xs p-4 lg:p-6 space-y-4">
+                            <div className="bg-white rounded-lg border border-slate-300 shadow-sm p-4 lg:p-6 space-y-4">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
                                         <SafetyCertificateOutlined className="text-[#0F766E] text-lg" />
-                                        <span className="text-sm font-semibold text-slate-800">
+                                        <span className="text-sm font-bold text-slate-900">
                                             Danh sách Nhóm vai trò và Phân cấp chức năng
                                         </span>
                                     </div>
-                                    <span className="text-xs text-slate-500">
-                                        Tổng cộng: <b className="text-slate-800">{groups.length}</b> nhóm vai trò
+                                    <span className="text-xs text-slate-700 font-medium">
+                                        Tổng cộng: <b className="text-slate-900 font-bold">{groups.length}</b> nhóm vai trò
                                     </span>
                                 </div>
 
-                                <div className="border border-slate-200 rounded-lg overflow-hidden shadow-xs">
+                                <div className="border border-slate-300 rounded-lg overflow-hidden shadow-xs">
                                     <Table
                                         dataSource={groups}
                                         rowKey="id"
@@ -1108,18 +1111,18 @@ function PermissionGroupPage() {
                     {
                         key: 'CATALOG',
                         label: (
-                            <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600 }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 13.5 }}>
                                 <BookOutlined />
                                 Danh Mục Chức Năng Hệ Thống ({allPermissions.length})
                             </span>
                         ),
                         children: (
                             <QueryPanel query={catalogQuery} empty={allPermissions.length === 0}>
-                            <div className="bg-white rounded-lg border border-slate-200 shadow-xs p-4 lg:p-6 space-y-4">
+                            <div className="bg-white rounded-lg border border-slate-300 shadow-sm p-4 lg:p-6 space-y-4">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
                                         <SlidersOutlined className="text-[#0F766E] text-lg" />
-                                        <span className="text-sm font-semibold text-slate-800">
+                                        <span className="text-sm font-bold text-slate-900">
                                             Danh mục {allPermissions.length} chức năng nghiệp vụ được quản lý
                                         </span>
                                     </div>
@@ -1130,10 +1133,11 @@ function PermissionGroupPage() {
                                         <Card
                                             key={mod}
                                             size="small"
+                                            className="border border-slate-300 shadow-xs"
                                             title={
                                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                                    <Tag color={MODULE_COLORS[mod] || 'default'}>{MODULE_TITLES[mod] || mod}</Tag>
-                                                    <span style={{ fontSize: 11, color: '#334155', fontWeight: 600 }}>{perms.length} chức năng</span>
+                                                    <Tag color={MODULE_COLORS[mod] || 'default'} className="font-bold border border-slate-300">{MODULE_TITLES[mod] || mod}</Tag>
+                                                    <span style={{ fontSize: 12, color: '#0F172A', fontWeight: 700 }}>{perms.length} chức năng</span>
                                                 </div>
                                             }
                                         >
@@ -1143,28 +1147,28 @@ function PermissionGroupPage() {
                                                     const isAct = isActionPermission(p.code);
 
                                                     return (
-                                                        <div key={p.code} style={{ borderBottom: '1px solid #F1F5F9', paddingBottom: 6 }}>
+                                                        <div key={p.code} style={{ borderBottom: '1px solid #E2E8F0', paddingBottom: 8 }}>
                                                             <div className="flex items-center justify-between gap-2">
-                                                                <span style={{ fontWeight: 600, fontSize: 12.5, color: '#1E293B' }}>{p.label}</span>
+                                                                <span style={{ fontWeight: 700, fontSize: 13, color: '#0F172A' }}>{p.label}</span>
                                                                 <div className="flex items-center gap-1">
                                                                     {isProt && (
-                                                                        <Tag color="volcano" className="text-[9px] m-0 px-1 py-0">
+                                                                        <Tag color="volcano" className="text-[10px] m-0 font-bold px-1.5 py-0 border border-red-300">
                                                                             Quy chế bảo vệ
                                                                         </Tag>
                                                                     )}
                                                                     {isAct ? (
-                                                                        <Tag color="blue" className="text-[9px] m-0 px-1 py-0">
+                                                                        <Tag color="blue" className="text-[10px] m-0 font-semibold px-1.5 py-0 border border-blue-300">
                                                                             Thực hiện tác vụ
                                                                         </Tag>
                                                                     ) : (
-                                                                        <Tag color="cyan" className="text-[9px] m-0 px-1 py-0">
+                                                                        <Tag color="geekblue" className="text-[10px] m-0 font-semibold px-1.5 py-0 border border-indigo-300">
                                                                             Xem dữ liệu
                                                                         </Tag>
                                                                     )}
                                                                 </div>
                                                             </div>
                                                             <div className="flex items-center gap-2 mt-1">
-                                                                <span className="text-[11px] text-slate-400 font-mono">
+                                                                <span className="text-[11px] text-slate-700 font-mono font-semibold bg-slate-100 border border-slate-300 px-1.5 py-0.5 rounded">
                                                                     Mã hệ thống: {p.code}
                                                                 </span>
                                                             </div>
@@ -1215,7 +1219,7 @@ function PermissionGroupPage() {
                             <Input
                                 placeholder="VD: TRUONG_BO_MON"
                                 disabled={Boolean(editingGroup)}
-                                className="font-mono"
+                                className="font-mono font-bold"
                             />
                         </Form.Item>
                         <Form.Item
@@ -1255,10 +1259,10 @@ function PermissionGroupPage() {
                                                 label={`${p.label} ${p.code}`}
                                             >
                                                 <div className="flex items-center gap-2">
-                                                    <span className="text-xs font-medium text-slate-800">{p.label}</span>
-                                                    <span className="text-[10px] text-slate-400 font-mono">({p.code})</span>
+                                                    <span className="text-xs font-semibold text-slate-900">{p.label}</span>
+                                                    <span className="text-[11px] text-slate-600 font-mono font-medium">({p.code})</span>
                                                     {isProt && (
-                                                        <Tag color="volcano" className="text-[9px] m-0 ml-auto">
+                                                        <Tag color="volcano" className="text-[9px] m-0 ml-auto font-bold border border-red-300">
                                                             Quy chế bảo vệ
                                                         </Tag>
                                                     )}
@@ -1272,8 +1276,8 @@ function PermissionGroupPage() {
                     </Form.Item>
 
                     {!editingGroup && (
-                        <div className="text-xs text-slate-500 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-                            Mã định danh hệ thống dùng để liên kết vị trí công tác với chức năng nghiệp vụ và không thể thay đổi sau khi tạo (Ví dụ: <code className="bg-slate-200 px-1 py-0.5 rounded font-mono">HOI_DONG_KHOA_HOC</code>).
+                        <div className="text-xs text-slate-700 bg-slate-100 p-2.5 rounded-lg border border-slate-300">
+                            Mã định danh hệ thống dùng để liên kết vị trí công tác với chức năng nghiệp vụ và không thể thay đổi sau khi tạo (Ví dụ: <code className="bg-slate-200 text-slate-900 px-1 py-0.5 rounded font-mono font-bold">HOI_DONG_KHOA_HOC</code>).
                         </div>
                     )}
                 </Form>
