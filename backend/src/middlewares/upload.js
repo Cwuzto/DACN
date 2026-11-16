@@ -1,144 +1,158 @@
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
 const multer = require('multer');
+const { MAX_UPLOAD_BYTES } = require('../config/storageConfig');
+const { getTempUploadDir, cleanupRequestTempFiles, cleanupTempFile } = require('../storage/tempFileManager');
 
-// Cấu hình storage lưu vào RAM (Buffer)
-const storage = multer.memoryStorage();
+// Disk storage configuration saving to dedicated temp directory
+const diskStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, getTempUploadDir());
+    },
+    filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname || '').toLowerCase();
+        const safeName = `upload-${Date.now()}-${crypto.randomUUID()}${ext}`;
+        cb(null, safeName);
+    },
+});
 
-// Các định dạng an toàn được phép khai báo
+// Allowed declared MIME types (RAR is strictly prohibited)
 const ALLOWED_MIME_TYPES = [
-    'image/jpeg', 'image/png', 'image/jpg', 'image/webp', // Ảnh
-    'application/pdf', // PDF
-    'application/msword', // DOC
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // DOCX
-    'application/zip', // ZIP
-    'application/x-rar-compressed', // RAR
+    'image/jpeg', 'image/png', 'image/jpg', 'image/webp',
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'application/zip',
+    'application/x-zip-compressed',
 ];
 
-/**
- * Cấu hình filter loại file theo declared MIME type
- */
 const fileFilter = (req, file, cb) => {
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    if (ext === '.rar' || file.mimetype === 'application/x-rar-compressed') {
+        const err = new Error('Định dạng RAR không được hỗ trợ. Vui lòng sử dụng định dạng ZIP tiêu chuẩn.');
+        err.statusCode = 400;
+        return cb(err, false);
+    }
+
     if (ALLOWED_MIME_TYPES.includes(file.mimetype)) {
         cb(null, true);
     } else {
-        cb(new Error('Định dạng file không được hỗ trợ. Chỉ cho phép Ảnh, PDF, Word, ZIP, RAR.'), false);
+        const err = new Error(`Định dạng tệp '${file.mimetype}' không được hỗ trợ.`);
+        err.statusCode = 400;
+        cb(err, false);
     }
 };
 
 /**
- * Xác thực nhị phân magic bytes của buffer tải lên so với declared MIME type.
- * Trả về { valid: boolean, error?: string }
+ * Validates magic bytes directly from a disk file path.
  */
-const validateFileMagicBytes = (buffer, mimeType) => {
-    if (!buffer || !Buffer.isBuffer(buffer) || buffer.length === 0) {
-        return { valid: false, error: 'Dữ liệu tệp không hợp lệ hoặc rỗng.' };
+const validateFileMagicBytesOnDisk = (filePath, declaredMime) => {
+    if (!filePath || !fs.existsSync(filePath)) {
+        return { valid: false, error: 'Tệp tải lên không tồn tại trên đĩa.' };
     }
 
-    if (!mimeType || typeof mimeType !== 'string') {
-        return { valid: false, error: 'MIME type không hợp lệ.' };
+    const stat = fs.statSync(filePath);
+    if (stat.size === 0) {
+        return { valid: false, error: 'Tệp tải lên rỗng (0 bytes).' };
     }
 
-    const normalizedMime = mimeType.toLowerCase().trim();
+    const fd = fs.openSync(filePath, 'r');
+    const header = Buffer.alloc(Math.min(stat.size, 16));
+    fs.readSync(fd, header, 0, header.length, 0);
+    fs.closeSync(fd);
+
+    const normalizedMime = (declaredMime || '').toLowerCase().trim();
+
+    // Check executable
+    if (header.length >= 2 && header[0] === 0x4D && header[1] === 0x5A) {
+        return { valid: false, error: 'Tệp thực thi nhị phân bị nghiêm cấm tải lên.' };
+    }
+
+    // Check RAR
+    if (header.length >= 4 && header[0] === 0x52 && header[1] === 0x61 && header[2] === 0x72 && header[3] === 0x21) {
+        return { valid: false, error: 'Định dạng RAR không được hỗ trợ.' };
+    }
 
     switch (normalizedMime) {
         case 'application/pdf': {
-            if (buffer.length < 5) {
-                return { valid: false, error: 'Tệp PDF không đủ độ dài tối thiểu.' };
-            }
-            const header = buffer.subarray(0, 5).toString('ascii');
-            if (header !== '%PDF-') {
-                return { valid: false, error: 'Nội dung tệp không khớp với định dạng PDF (magic bytes mismatch).' };
+            if (header.length < 5 || header.subarray(0, 5).toString('ascii') !== '%PDF-') {
+                return { valid: false, error: 'Nội dung tệp không khớp với định dạng PDF.' };
             }
             return { valid: true };
         }
         case 'image/png': {
-            if (buffer.length < 8) {
-                return { valid: false, error: 'Tệp PNG không đủ độ dài tối thiểu.' };
-            }
-            const isPng = buffer[0] === 0x89 &&
-                          buffer[1] === 0x50 && // P
-                          buffer[2] === 0x4e && // N
-                          buffer[3] === 0x47 && // G
-                          buffer[4] === 0x0d && // \r
-                          buffer[5] === 0x0a && // \n
-                          buffer[6] === 0x1a &&
-                          buffer[7] === 0x0a;
+            const isPng = header.length >= 8 &&
+                          header[0] === 0x89 && header[1] === 0x50 &&
+                          header[2] === 0x4e && header[3] === 0x47;
             if (!isPng) {
-                return { valid: false, error: 'Nội dung tệp không khớp với định dạng PNG (magic bytes mismatch).' };
+                return { valid: false, error: 'Nội dung tệp không khớp với định dạng PNG.' };
             }
             return { valid: true };
         }
         case 'image/jpeg':
         case 'image/jpg': {
-            if (buffer.length < 3) {
-                return { valid: false, error: 'Tệp JPEG không đủ độ dài tối thiểu.' };
-            }
-            const isJpeg = buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+            const isJpeg = header.length >= 3 &&
+                           header[0] === 0xff && header[1] === 0xd8 && header[2] === 0xff;
             if (!isJpeg) {
-                return { valid: false, error: 'Nội dung tệp không khớp với định dạng JPEG (magic bytes mismatch).' };
+                return { valid: false, error: 'Nội dung tệp không khớp với định dạng JPEG.' };
             }
             return { valid: true };
         }
         case 'image/webp': {
-            if (buffer.length < 12) {
+            if (header.length < 12) {
                 return { valid: false, error: 'Tệp WEBP không đủ độ dài tối thiểu.' };
             }
-            const isRiff = buffer.subarray(0, 4).toString('ascii') === 'RIFF';
-            const isWebp = buffer.subarray(8, 12).toString('ascii') === 'WEBP';
+            const isRiff = header.subarray(0, 4).toString('ascii') === 'RIFF';
+            const isWebp = header.subarray(8, 12).toString('ascii') === 'WEBP';
             if (!isRiff || !isWebp) {
-                return { valid: false, error: 'Nội dung tệp không khớp với định dạng WEBP (magic bytes mismatch).' };
+                return { valid: false, error: 'Nội dung tệp không khớp với định dạng WEBP.' };
             }
             return { valid: true };
         }
         case 'application/zip':
-        case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': {
-            if (buffer.length < 4) {
-                return { valid: false, error: 'Tệp ZIP/DOCX không đủ độ dài tối thiểu.' };
-            }
-            const isZip = buffer[0] === 0x50 && buffer[1] === 0x4b &&
-                ((buffer[2] === 0x03 && buffer[3] === 0x04) ||
-                 (buffer[2] === 0x05 && buffer[3] === 0x06) ||
-                 (buffer[2] === 0x07 && buffer[3] === 0x08));
+        case 'application/x-zip-compressed':
+        case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+        case 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
+        case 'application/vnd.openxmlformats-officedocument.presentationml.presentation': {
+            const isZip = header.length >= 4 &&
+                          header[0] === 0x50 && header[1] === 0x4b &&
+                          ((header[2] === 0x03 && header[3] === 0x04) ||
+                           (header[2] === 0x05 && header[3] === 0x06) ||
+                           (header[2] === 0x07 && header[3] === 0x08));
             if (!isZip) {
-                return { valid: false, error: 'Nội dung tệp không khớp với định dạng ZIP/DOCX (magic bytes mismatch).' };
+                return { valid: false, error: 'Nội dung tệp không khớp với định dạng ZIP/Office XML.' };
             }
             return { valid: true };
         }
-        case 'application/msword': {
-            if (buffer.length < 8) {
-                return { valid: false, error: 'Tệp DOC không đủ độ dài tối thiểu.' };
-            }
-            const isDoc = buffer[0] === 0xd0 && buffer[1] === 0xcf && buffer[2] === 0x11 && buffer[3] === 0xe0;
+        case 'application/msword':
+        case 'application/vnd.ms-excel': {
+            const isDoc = header.length >= 8 &&
+                          header[0] === 0xd0 && header[1] === 0xcf &&
+                          header[2] === 0x11 && header[3] === 0xe0;
             if (!isDoc) {
-                return { valid: false, error: 'Nội dung tệp không khớp với định dạng DOC (magic bytes mismatch).' };
-            }
-            return { valid: true };
-        }
-        case 'application/x-rar-compressed': {
-            if (buffer.length < 4) {
-                return { valid: false, error: 'Tệp RAR không đủ độ dài tối thiểu.' };
-            }
-            const isRar = buffer[0] === 0x52 && buffer[1] === 0x61 && buffer[2] === 0x72 && buffer[3] === 0x21;
-            if (!isRar) {
-                return { valid: false, error: 'Nội dung tệp không khớp với định dạng RAR (magic bytes mismatch).' };
+                return { valid: false, error: 'Nội dung tệp không khớp với định dạng tài liệu Microsoft Office cũ.' };
             }
             return { valid: true };
         }
         default:
-            return { valid: false, error: `Định dạng MIME '${mimeType}' không được hỗ trợ.` };
+            return { valid: true };
     }
 };
 
-// Khởi tạo multer cơ bản (tối đa 20MB)
 const rawUpload = multer({
-    storage: storage,
+    storage: diskStorage,
     limits: {
-        fileSize: 20 * 1024 * 1024, // 20 MB
+        fileSize: MAX_UPLOAD_BYTES, // 50 MB
     },
     fileFilter: fileFilter,
 });
 
 /**
- * Kiểm tra tính hợp lệ nhị phân của tất cả các file đã parse
+ * Validates uploaded files after Multer writes to disk.
  */
 const validateUploadedFiles = (req) => {
     const files = [];
@@ -151,21 +165,40 @@ const validateUploadedFiles = (req) => {
     }
 
     for (const f of files) {
-        const check = validateFileMagicBytes(f.buffer, f.mimetype);
-        if (!check.valid) {
-            const error = new Error(check.error || 'Nội dung tệp không khớp với định dạng khai báo.');
-            error.statusCode = 400;
-            return error;
+        if (f.path) {
+            const check = validateFileMagicBytesOnDisk(f.path, f.mimetype);
+            if (!check.valid) {
+                const error = new Error(check.error || 'Nội dung tệp không khớp với định dạng khai báo.');
+                error.statusCode = 400;
+                return error;
+            }
         }
     }
     return null;
 };
 
 const wrapMiddleware = (multerHandler) => (req, res, next) => {
+    // Ensure cleanup hook on request completion or abort
+    const cleanupHook = () => {
+        // If route handler set keepTempFile = true, skip automatic request-finish cleanup
+        if (!req.keepTempFiles) {
+            cleanupRequestTempFiles(req);
+        }
+    };
+
+    res.once('finish', cleanupHook);
+    res.once('close', cleanupHook);
+
     multerHandler(req, res, (err) => {
-        if (err) return next(err);
+        if (err) {
+            cleanupRequestTempFiles(req);
+            return next(err);
+        }
         const validationErr = validateUploadedFiles(req);
-        if (validationErr) return next(validationErr);
+        if (validationErr) {
+            cleanupRequestTempFiles(req);
+            return next(validationErr);
+        }
         next();
     });
 };
@@ -180,5 +213,5 @@ const upload = {
 
 module.exports = upload;
 module.exports.upload = upload;
-module.exports.validateFileMagicBytes = validateFileMagicBytes;
+module.exports.validateFileMagicBytesOnDisk = validateFileMagicBytesOnDisk;
 module.exports.ALLOWED_MIME_TYPES = ALLOWED_MIME_TYPES;
