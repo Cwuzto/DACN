@@ -216,11 +216,11 @@
 - Produces: disk-backed Multer temp files capped at 50 MB and guaranteed request-finally cleanup.
 - Consumes: policies/path config from Tasks 1 and 3.
 
-- [ ] **Step 1: Write failing inspection and adapter tests**
+- [x] **Step 1: Write failing inspection and adapter tests**
 
   Test valid PDF/JPG/PNG/WEBP/DOC/DOCX/XLS/XLSX/PPTX/ZIP fixtures; declared MIME mismatch; disguised executable; macro-enabled Office; ZIP traversal; excessive entry count/uncompressed ratio; empty/truncated file; 50 MB boundary. Assert adapter never calls bucket creation/privacy update, always uses `upsert:false`, binds signed upload URLs to an explicit bucket/path, and can stat the staged TUS object before finalize.
 
-- [ ] **Step 2: Run tests and confirm failure**
+- [x] **Step 2: Run tests and confirm failure**
 
   Run:
 
@@ -230,17 +230,17 @@
 
   Expected: FAIL because inspection/storage abstractions do not exist and current upload uses memory/public URL.
 
-- [ ] **Step 3: Implement disk-backed parsing, inspection, and adapter**
+- [x] **Step 3: Implement disk-backed parsing, inspection, and adapter**
 
   Add only the ZIP-container inspection dependency required by tests; use Node `crypto` stream hashing. `tempFileManager` creates files inside a dedicated application temp directory with randomized names and rejects paths outside it.
 
-- [ ] **Step 4: Run security tests**
+- [x] **Step 4: Run security tests**
 
   Run the command from Step 2.
 
   Expected: PASS; rejected files never reach a final bucket and request temp files are removed.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   ```powershell
   git add backend/src/storage/fileInspector.js backend/src/storage/supabaseStorageAdapter.js backend/src/storage/tempFileManager.js backend/src/middlewares/upload.js backend/package.json backend/package-lock.json backend/tests/unit/fileInspector.test.js backend/tests/services/supabaseStorageAdapter.test.js backend/tests/integration/uploadSecurity.test.js
@@ -272,11 +272,11 @@
 - Produces: `replaceAsset`, `softDeleteAsset`, `enqueueCleanup`, and stable asset error codes from the spec.
 - Produces frontend `selectAssetUploadTransport(sizeBytes): 'multipart' | 'tus'`, `uploadAssetResumable({ file, session, onProgress, signal })`, `useAssetUpload()`, and `useAssetDownload()`.
 
-- [ ] **Step 1: Write failing lifecycle and route tests**
+- [x] **Step 1: Write failing lifecycle and route tests**
 
   Cover exact 6 MB multipart boundary, 6 MB + 1 byte TUS selection, 50 MB maximum, signed token bound to the server-generated `tam` path, 6 MB TUS chunk, pause/resume, expired/aborted/incomplete session, concurrent/double finalize, idempotent duplicate session, wrong owner/resource, successful temp→final promotion, upload succeeds/DB fails, DB succeeds/move fails, audit failure, signed download valid/forbidden/deleted/replaced, public asset response, 600-second expiry, no end-user URL for `tam`, and no fake fallback URL.
 
-- [ ] **Step 2: Run tests and confirm failure**
+- [x] **Step 2: Run tests and confirm failure**
 
   Run:
 
@@ -287,7 +287,7 @@
 
   Expected: FAIL because service/routes/TUS transport do not exist.
 
-- [ ] **Step 3: Implement asset state machine and APIs**
+- [x] **Step 3: Implement asset state machine and APIs**
 
   Route contract:
 
@@ -300,13 +300,13 @@
 
   Install `tus-js-client`; configure `uploadDataDuringCreation`, `removeFingerprintOnSuccess`, retry delays, exact 6 MB chunk size and backend-provided signed token/path. Persist cleanup jobs for cross-system partial failures and record audit after each successful state transition.
 
-- [ ] **Step 4: Run lifecycle tests**
+- [x] **Step 4: Run lifecycle tests**
 
   Run the command from Step 2.
 
   Expected: PASS; partial failures are recoverable and no inactive asset is downloadable.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   ```powershell
   git add backend/src/services/storedAssetService.js backend/src/controllers/storedAssetController.js backend/src/routes/storedAssetRoutes.js backend/src/routes/index.js backend/src/services/auditLogService.js backend/tests/services/storedAssetService.test.js backend/tests/integration/storedAsset.routes.test.js frontend/package.json frontend/package-lock.json frontend/src/services/resumableUploadService.js frontend/src/queries/assetQueries.js frontend/runtime-tests/assetUploadTransport.spec.jsx
