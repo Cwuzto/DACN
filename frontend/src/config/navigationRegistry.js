@@ -1,5 +1,5 @@
 /**
- * Navigation Registry Cố Định 26 Mục & 7 Khối Nghiệp Vụ
+ * Navigation Registry Cố Định 25 Mục & 7 Khối Nghiệp Vụ
  * Tuân thủ chuẩn 2-Tier Capability Matrix (Section 5.1 & Section 7.1 của Technical Spec).
  * 
  * Mỗi mục menu tương ứng quyền xem (requiredPermission hoặc requiredAnyPermissions).
@@ -77,7 +77,7 @@ export const NAVIGATION_REGISTRY = [
         route: '/lecturer/progress',
     },
 
-    // KHỐI 3: THẨM ĐỊNH & QUYẾT ĐỊNH (2 mục)
+    // KHỐI 3: THẨM ĐỊNH & QUYẾT ĐỊNH (1 mục)
     {
         key: 'outline-reviews',
         label: 'Thẩm định đề cương',
@@ -86,18 +86,6 @@ export const NAVIGATION_REGISTRY = [
         requiredPermission: 'VIEW_OUTLINE_REVIEWS',
         requiresOutlineCouncil: true,
         route: '/lecturer/approvals?tab=bm01',
-    },
-    {
-        key: 'institute-management',
-        label: 'Điều hành đợt & Quyết định',
-        icon: 'gavel',
-        group: 'Thẩm định & quyết định',
-        requiredAnyPermissions: [
-            'VIEW_ASSIGNMENT_DECISIONS',
-            'VIEW_BM02_REVIEWS',
-            'VIEW_ACADEMIC_DELEGATIONS',
-        ],
-        route: '/lecturer/institute',
     },
 
     // KHỐI 4: HỘI ĐỒNG & BẢO VỆ (4 mục)
@@ -304,11 +292,6 @@ export function getVisibleNavigation(permissionsInput, context = {}) {
     );
 
     const visibleItems = NAVIGATION_REGISTRY.filter((item) => {
-        // Loại bỏ mục 'institute-management' (/lecturer/institute) đối với vai trò ADMIN
-        // để tránh trùng lặp với 'Tổng quan' (/admin/dashboard) và 'Đợt đồ án & Học kỳ' (/admin/project-periods).
-        if (isAdmin && item.key === 'institute-management') {
-            return false;
-        }
         if (item.requiresDefenseCouncil && !hasDefenseCouncil) {
             return false;
         }

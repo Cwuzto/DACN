@@ -6,8 +6,8 @@ import {
     getVisibleNavigation,
 } from '../src/config/navigationRegistry.js';
 
-test('NAVIGATION_REGISTRY contains exactly 26 items with required keys and unique keys/permissions', () => {
-    assert.equal(NAVIGATION_REGISTRY.length, 26, 'Registry must contain exactly 26 entries');
+test('NAVIGATION_REGISTRY contains exactly 25 items with required keys and unique keys/permissions', () => {
+    assert.equal(NAVIGATION_REGISTRY.length, 25, 'Registry must contain exactly 25 entries');
 
     const expectedKeys = new Set([
         // Khối 1: Hồ sơ của tôi (5)
@@ -19,9 +19,8 @@ test('NAVIGATION_REGISTRY contains exactly 26 items with required keys and uniqu
         // Khối 2: Hướng dẫn & tiến độ (2)
         'mentored-students',
         'progress-checkpoints',
-        // Khối 3: Thẩm định & quyết định (2)
+        // Khối 3: Thẩm định & quyết định (1)
         'outline-reviews',
-        'institute-management',
         // Khối 4: Hội đồng & bảo vệ (4)
         'outline-councils',
         'defense-councils',
@@ -79,7 +78,7 @@ test('NAVIGATION_REGISTRY contains exactly 26 items with required keys and uniqu
         }
     }
 
-    assert.equal(seenKeys.size, 26);
+    assert.equal(seenKeys.size, 25);
     assert.equal(seenPermissions.size, 24);
 });
 
@@ -218,7 +217,7 @@ test('Institute leader (VIEN_TRUONG) sees "Thẩm định & quyết định", "H
     const decisionGroup = nav.find((n) => n.group === 'Thẩm định & quyết định');
     assert.deepEqual(
         decisionGroup.items.map((i) => i.key),
-        ['outline-reviews', 'institute-management']
+        ['outline-reviews']
     );
 
     const councilGroup = nav.find((n) => n.group === 'Hội đồng & bảo vệ');

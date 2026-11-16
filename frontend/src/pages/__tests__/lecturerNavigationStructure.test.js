@@ -220,7 +220,6 @@ test('Lecturer with management/Viện trưởng capabilities sees tiered governa
         decisionItems.map((item) => ({ key: item.key, route: item.route, label: item.label })),
         [
             { key: 'outline-reviews', route: '/lecturer/approvals?tab=bm01', label: 'Thẩm định đề cương' },
-            { key: 'institute-management', route: '/lecturer/institute', label: 'Điều hành đợt & Quyết định' },
         ]
     );
 
@@ -294,8 +293,8 @@ test('All items in NAVIGATION_REGISTRY strictly adhere to Rule 2.6 (No raw emoji
     }
 });
 
-test('NAVIGATION_REGISTRY maintains exactly 26 items, 7 groups, and valid routing structure', () => {
-    assert.equal(NAVIGATION_REGISTRY.length, 26, 'Registry must maintain exactly 26 items');
+test('NAVIGATION_REGISTRY maintains exactly 25 items, 7 groups, and valid routing structure', () => {
+    assert.equal(NAVIGATION_REGISTRY.length, 25, 'Registry must maintain exactly 25 items');
     assert.equal(NAVIGATION_GROUPS.length, 7, 'Must define exactly 7 business groups');
 
     for (const item of NAVIGATION_REGISTRY) {
