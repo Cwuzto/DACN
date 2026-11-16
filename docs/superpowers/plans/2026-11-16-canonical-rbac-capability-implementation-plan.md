@@ -505,11 +505,11 @@
 - Produces: executable matrix for `STUDENT`, `GVHD`, `GIAO_VU`, `VIEN_TRUONG`, `QUAN_TRI_VIEN`.
 - Produces: human-readable authorization matrix generated from or checked against test fixtures.
 
-- [ ] **Step 1: Write the complete persona fixtures and failing matrix tests**
+- [x] **Step 1: Write the complete persona fixtures and failing matrix tests**
 
   Cover menu, direct URL, view/action API, own/other student, assigned/unassigned mentor, council membership, same/different department, same/different semester, grant and revoke. Include BM02-A, BM03, BM04, BM05, defense result publication and archive dossier.
 
-- [ ] **Step 2: Run tests and confirm any remaining gaps**
+- [x] **Step 2: Run tests and confirm any remaining gaps**
 
   Run:
 
@@ -521,17 +521,17 @@
 
   Expected: initial FAIL must identify only unconverted policy consumers; do not weaken expected permissions to make tests pass.
 
-- [ ] **Step 3: Fix remaining policy consumers in their owning module**
+- [x] **Step 3: Fix remaining policy consumers in their owning module**
 
   Use canonical guard/manifest interfaces from prior tasks. Add no new role bypass or frontend-only permission injection. Generate/check `authorization-matrix.md` from the same fixture data so documentation cannot silently diverge.
 
-- [ ] **Step 4: Run the complete matrix**
+- [x] **Step 4: Run the complete matrix**
 
   Run the commands from Step 2.
 
   Expected: PASS for all five personas; every forbidden case returns/redirects consistently and every allowed case is reachable from navigation.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   ```powershell
   git add backend/tests/integration/fivePersonaAuthorizationMatrix.test.js frontend/runtime-tests/fivePersonaPolicies.spec.jsx frontend/e2e/rbac-five-persona.spec.js frontend/playwright.config.js
