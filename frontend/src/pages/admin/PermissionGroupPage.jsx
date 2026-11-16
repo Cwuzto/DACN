@@ -619,12 +619,6 @@ function PermissionGroupPage() {
                     </Button>
                     {activeTab === 'MATRIX' && (
                         <>
-                            <Button onClick={expandAllModules}>
-                                Mở tất cả
-                            </Button>
-                            <Button onClick={collapseAllModules}>
-                                Thu gọn
-                            </Button>
                             {dirty && (
                                 <Button
                                     icon={<UndoOutlined />}

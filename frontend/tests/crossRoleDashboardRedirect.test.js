@@ -113,3 +113,4 @@ test('getRouteRedirect redirects STUDENT away from /admin and /lecturer dashboar
     });
     assert.equal(lecturerRedirect, '/student/dashboard', 'STUDENT accessing /lecturer/dashboard must redirect to /student/dashboard');
 });
+
