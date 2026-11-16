@@ -781,6 +781,10 @@ describe('Task 3: Chặng 1B — BM02-A 3-Signature Workflow & Batch Appendices'
                 where: { id: 1 },
                 data: expect.objectContaining({ status: 'ADJUSTMENT_ISSUED' }),
             }));
+            expect(mockTopicRegistration.update).toHaveBeenCalledWith(expect.objectContaining({
+                where: { id: registrationId },
+                data: { adjustedTitle: 'Ứng dụng YOLOv8 nhận diện bệnh trên lá lúa' },
+            }));
 
             // 3. Verify resolveEffectiveTopicTitle returns new title after appendix signedDate
             mockTitleAdjustmentAppendixItem.findFirst.mockResolvedValue({

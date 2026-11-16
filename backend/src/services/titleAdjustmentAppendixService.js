@@ -295,6 +295,36 @@ async function issueAppendix({ appendixId, issuedById, signedDate, idempotencyKe
                 where: { id: item.bm02aRequestId },
                 data: { status: 'ADJUSTMENT_ISSUED' },
             });
+
+            // Synchronize official adjusted title to TopicRegistration, Topic, and BM03
+            if (item.registrationId && item.newTitle) {
+                if (tx.topicRegistration?.update) {
+                    await tx.topicRegistration.update({
+                        where: { id: item.registrationId },
+                        data: { adjustedTitle: item.newTitle },
+                    });
+                }
+
+                if (tx.topic?.update && tx.topicRegistration?.findUnique) {
+                    const reg = await tx.topicRegistration.findUnique({
+                        where: { id: item.registrationId },
+                        select: { topicId: true },
+                    });
+                    if (reg?.topicId) {
+                        await tx.topic.update({
+                            where: { id: reg.topicId },
+                            data: { title: item.newTitle },
+                        });
+                    }
+                }
+
+                if (tx.bM03ProgressRecord?.updateMany) {
+                    await tx.bM03ProgressRecord.updateMany({
+                        where: { registrationId: item.registrationId },
+                        data: { effectiveTitleSnapshot: item.newTitle },
+                    });
+                }
+            }
         }
 
         return updated;

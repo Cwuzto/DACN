@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, message } from 'antd';
+import { Button, message, Tag } from 'antd';
 import { ArrowRightOutlined, CloseOutlined, PlusOutlined, FolderOpenOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useQueryClient } from '@tanstack/react-query';
@@ -647,12 +647,17 @@ export default function LecturerDashboardPage() {
                         <QueryPanel query={titleAdjustmentsQuery} empty={pendingTitleAdjustments.length === 0} emptyDescription="Không có yêu cầu đổi tên đang chờ xử lý.">
                             {pendingTitleAdjustments.map((adjustment) => (
                                 <div key={adjustment.id} style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 12 }}>
-                                    <strong>{adjustment.registration?.student?.fullName || 'Sinh viên'}</strong>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <strong>{adjustment.registration?.student?.fullName || 'Sinh viên'}</strong>
+                                        {adjustment.isBm02a && (
+                                            <Tag color="purple">BM02-A</Tag>
+                                        )}
+                                    </div>
                                     <div style={{ color: 'var(--muted)', fontSize: 12, marginTop: 2 }}>
                                         {adjustment.originalTitle} → <strong style={{ color: 'var(--fg)' }}>{adjustment.newTitle}</strong>
                                     </div>
                                     <div style={{ fontSize: 12, marginTop: 6 }}>{adjustment.reason}</div>
-                                    <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                                    <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'center' }}>
                                         <button
                                             type="button"
                                             className="btn btn-primary btn-sm"
@@ -669,6 +674,16 @@ export default function LecturerDashboardPage() {
                                         >
                                             Từ chối
                                         </button>
+                                        {adjustment.isBm02a && (
+                                            <button
+                                                type="button"
+                                                className="btn btn-ghost btn-sm"
+                                                onClick={() => navigate('/lecturer/approvals?tab=bm02a')}
+                                                style={{ marginLeft: 'auto' }}
+                                            >
+                                                Chi tiết BM02-A
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             ))}

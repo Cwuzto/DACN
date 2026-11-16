@@ -1576,6 +1576,63 @@ const reviewTitleAdjustment = async (req, res, next) => {
         });
 
         if (!adjustment) {
+            // Check if this corresponds to a BM02AAdjustmentRequest
+            if (prisma.bM02AAdjustmentRequest?.findUnique) {
+                const bmReq = await prisma.bM02AAdjustmentRequest.findUnique({
+                    where: { id: adjustmentId },
+                    include: {
+                        registration: {
+                            include: { topic: true, student: true },
+                        },
+                        versions: {
+                            orderBy: { versionNumber: 'desc' },
+                            take: 1,
+                        },
+                    },
+                });
+
+                if (bmReq) {
+                    const isMentor = bmReq.registration?.topic?.mentorId === userId;
+                    const isAdmin = role === 'ADMIN';
+
+                    if (!isMentor && !isAdmin) {
+                        return res.status(403).json({ success: false, message: 'Chỉ giảng viên hướng dẫn của đề tài mới có quyền duyệt đơn này.' });
+                    }
+
+                    if (bmReq.status !== 'PENDING_ADVISOR') {
+                        return res.status(400).json({ success: false, message: `Đơn BM02-A không ở trạng thái chờ GVHD duyệt (trạng thái: ${bmReq.status}).` });
+                    }
+
+                    const { advisorSignBM02A, returnBM02A } = require('../services/bm02aWorkflowService');
+                    const latestVer = bmReq.versions?.[0];
+
+                    if (action === 'APPROVE') {
+                        const signedRes = await advisorSignBM02A({
+                            requestId: bmReq.id,
+                            advisorId: userId,
+                            payloadHash: latestVer?.payloadHash,
+                        });
+                        return res.json({
+                            success: true,
+                            message: 'Đã ký xác nhận đơn BM02-A thành công, chuyển Trưởng bộ môn phê duyệt.',
+                            data: signedRes,
+                        });
+                    } else {
+                        const returnedRes = await returnBM02A({
+                            requestId: bmReq.id,
+                            actorId: userId,
+                            actorRole: 'ADVISOR',
+                            reason: rejectionReason ? String(rejectionReason).trim() : 'GVHD không đồng ý điều chỉnh tên đề tài.',
+                        });
+                        return res.json({
+                            success: true,
+                            message: 'Đã trả lại đơn BM02-A yêu cầu sinh viên chỉnh sửa.',
+                            data: returnedRes,
+                        });
+                    }
+                }
+            }
+
             return res.status(404).json({ success: false, message: 'Không tìm thấy đơn xin điều chỉnh tên đề tài.' });
         }
 
@@ -1701,6 +1758,47 @@ const getPendingTitleAdjustments = async (req, res, next) => {
             },
             orderBy: { requestedAt: 'asc' },
         });
+
+        // Also include pending BM02-A requests (status: PENDING_ADVISOR)
+        if (prisma.bM02AAdjustmentRequest?.findMany) {
+            const bm02aWhere = { status: 'PENDING_ADVISOR' };
+            if (role !== 'ADMIN') {
+                bm02aWhere.registration = { topic: { mentorId: lecturerId } };
+            }
+
+            const bm02aList = await prisma.bM02AAdjustmentRequest.findMany({
+                where: bm02aWhere,
+                include: {
+                    registration: {
+                        include: {
+                            student: { select: { id: true, fullName: true, code: true, email: true } },
+                            topic: { select: { id: true, title: true } },
+                        },
+                    },
+                    versions: {
+                        orderBy: { versionNumber: 'desc' },
+                        take: 1,
+                    },
+                },
+                orderBy: { createdAt: 'asc' },
+            });
+
+            for (const bmReq of bm02aList) {
+                const latestVer = bmReq.versions?.[0];
+                adjustments.push({
+                    id: bmReq.id,
+                    isBm02a: true,
+                    registrationId: bmReq.registrationId,
+                    originalTitle: latestVer?.registeredTitleSnapshot || bmReq.registration?.topic?.title || 'Chưa xác định',
+                    newTitle: latestVer?.proposedTitle || '',
+                    reason: latestVer?.reason || '',
+                    deadline: bmReq.titleAdjustmentDeadline,
+                    requestedAt: bmReq.createdAt,
+                    status: 'PENDING',
+                    registration: bmReq.registration,
+                });
+            }
+        }
 
         res.json({ success: true, data: adjustments });
     } catch (error) {
