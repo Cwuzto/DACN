@@ -2,7 +2,7 @@
 
 **Ngày:** 17/11/2026
 
-**Trạng thái:** Chờ người dùng duyệt tài liệu
+**Trạng thái:** Đã được người dùng duyệt ngày 17/11/2026; cập nhật giới hạn upload theo quyết định cùng ngày
 
 ## 1. Bối cảnh
 
@@ -248,7 +248,7 @@ Frontend không gửi bucket, folder, object key hoặc public URL.
 1. Xác thực và authorize capability.
 2. Load resource từ CSDL và kiểm ownership/GVHD/hội đồng/đơn vị/học kỳ.
 3. Chọn policy theo `documentType`.
-4. Stream file vào `tam/cho-kiem-tra` thay vì giữ toàn bộ file lớn trong RAM.
+4. Nhận multipart upload qua backend và ghi theo luồng vào vùng tạm; không giữ toàn bộ file trong RAM.
 5. Kiểm extension, declared MIME, magic bytes, kích thước và cấu trúc container.
 6. Tính SHA-256 từ bytes.
 7. Quét nội dung/malware theo capability hạ tầng; trạng thái phải được lưu ngay cả khi scanner tạm lỗi.
@@ -269,11 +269,13 @@ Nếu Storage thành công nhưng DB thất bại, object được ghi vào outb
 | BM01/BM02/minh chứng | PDF, DOC, DOCX, JPG, PNG theo document type | 20 MB |
 | PDF hệ thống sinh | PDF | 20 MB |
 | Báo cáo lưu chiểu | DOCX, PDF | 50 MB |
-| Slide | PPTX, PDF | 100 MB |
-| Source code | ZIP | 200 MB |
+| Slide | PPTX, PDF | 50 MB |
+| Source code | ZIP | 50 MB |
 | Video demo | Không upload; HTTPS external URL | Không áp dụng |
 
 Không chấp nhận RAR, executable, file Office macro-enabled hoặc archive có cấu trúc nguy hiểm. DOCX/PPTX/XLSX phải được kiểm tra là ZIP container đúng cấu trúc và có giới hạn chống zip bomb.
+
+Giai đoạn này không triển khai TUS/resumable upload. Tất cả loại file đều có trần tuyệt đối 50 MB; nếu tương lai cần file lớn hơn phải có một thiết kế bổ sung riêng.
 
 ## 11. Download và authorization
 
@@ -429,5 +431,5 @@ Theo nguyên tắc sửa gốc trước:
 6. Avatar, logo, background cho phép thay thế và giữ bản cũ 7 ngày.
 7. Private signed URL có hạn 10 phút.
 8. `tam` không phát URL cho end user.
-9. Source ZIP tối đa 200 MB; không lưu video demo.
+9. Mọi upload tối đa 50 MB, bao gồm source ZIP và slide; không lưu video demo.
 10. Xóa file/URL legacy, chỉ giữ và chuyển logo/background; giữ external GitHub/YouTube.
