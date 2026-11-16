@@ -62,11 +62,11 @@
 - Produces: `assertStorageEnvironment(env): void` and `provisionStorageBuckets({ storage, dryRun }): Promise<ProvisionReport>`.
 - Preserves: lazy Supabase client creation; never exposes service-role credentials to frontend.
 
-- [ ] **Step 1: Write failing config and provisioning tests**
+- [x] **Step 1: Write failing config and provisioning tests**
 
   Assert exact bucket names/privacy, 600-second TTL, 6 MB threshold/chunk, 50 MB ceiling, direct Storage TUS endpoint, no fallback bucket name, idempotent provisioning, and rejection when the service-role key or project URL is missing. Assert provisioning reports privacy drift but does not silently change it in `dryRun`.
 
-- [ ] **Step 2: Run tests and confirm failure**
+- [x] **Step 2: Run tests and confirm failure**
 
   Run:
 
@@ -76,11 +76,11 @@
 
   Expected: FAIL because central storage config/provisioning does not exist and current upload helper forces one bucket public.
 
-- [ ] **Step 3: Implement config, provisioning, and operations checklist**
+- [x] **Step 3: Implement config, provisioning, and operations checklist**
 
   `provisionBuckets.js` defaults to `--dry-run`; `--apply` creates missing buckets and corrects only the four expected bucket configurations. Document manual rotation of Supabase service-role/database credentials as a required rollout prerequisite without printing or committing secret values.
 
-- [ ] **Step 4: Run focused tests and dry-run CLI**
+- [x] **Step 4: Run focused tests and dry-run CLI**
 
   Run:
 
@@ -91,7 +91,7 @@
 
   Expected: tests PASS; CLI prints a redacted plan and performs no write.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   ```powershell
   git add backend/src/config/storageConfig.js backend/src/services/storageProvisioningService.js backend/scripts/storage/provisionBuckets.js backend/.env.example backend/src/config/supabase.js backend/tests/unit/storageConfig.test.js backend/tests/services/storageProvisioningService.test.js
@@ -112,11 +112,11 @@
 - Produces unique constraints on `(bucket, objectKey)` and `uploadSessionId`; indexes on owner, registration, document type/status, retention, and checksum.
 - Preserves legacy URL columns as nullable compatibility fields until Task 10.
 
-- [ ] **Step 1: Write failing schema contract tests**
+- [x] **Step 1: Write failing schema contract tests**
 
   Assert required metadata fields, exact enum values, 64-character checksum contract, immutable version fields, self-relation `replacedById`, owner/uploader/registration/semester/catalog relations, cleanup-job retry fields, upload-session transport/state/expiry/resource-context/finalized-asset fields, and deletion behavior that never cascades from a user/registration into physical object deletion.
 
-- [ ] **Step 2: Run tests and confirm failure**
+- [x] **Step 2: Run tests and confirm failure**
 
   Run:
 
@@ -127,11 +127,11 @@
 
   Expected: test FAIL because registry models do not exist.
 
-- [ ] **Step 3: Add Prisma models and SQL migration**
+- [x] **Step 3: Add Prisma models and SQL migration**
 
   Use `BigInt` for `sizeBytes`; use JSON only for scanner/provider diagnostics, not core metadata. Migration creates empty registry tables and does not backfill/delete legacy data.
 
-- [ ] **Step 4: Validate schema and migration contract**
+- [x] **Step 4: Validate schema and migration contract**
 
   Run:
 
@@ -143,7 +143,7 @@
 
   Expected: Prisma validates and test PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   ```powershell
   git add backend/prisma/schema.prisma backend/prisma/migrations/20261117090000_add_stored_asset_registry/migration.sql backend/tests/integration/storedAssetSchema.test.js
@@ -166,11 +166,11 @@
 - Produces: `getAssetPolicy(documentType): { bucket, maxBytes, extensions, mimeTypes, visibility, retentionDays?, requireArchiveInspection }`.
 - Consumes: exact buckets/limits from Task 1 and `StoredDocumentType` semantics from Task 2.
 
-- [ ] **Step 1: Write failing slug/path/policy tests**
+- [x] **Step 1: Write failing slug/path/policy tests**
 
   Include NFC/NFD forms of `Đồ án tốt nghiệp`, repeated separators, `../`, slashes, control characters, empty names, reserved names, very long input, mixed case and duplicate descriptions. Assert exact path examples from the spec for BM01, BM05, archive source, public template, avatar and temp staging. Assert every `StoredDocumentType` has exactly one policy and no policy exceeds 50 MB.
 
-- [ ] **Step 2: Run tests and confirm failure**
+- [x] **Step 2: Run tests and confirm failure**
 
   Run:
 
@@ -180,17 +180,17 @@
 
   Expected: FAIL because modules do not exist.
 
-- [ ] **Step 3: Implement pure naming/path/policy modules**
+- [x] **Step 3: Implement pure naming/path/policy modules**
 
   Use `crypto.randomUUID()` supplied by the caller/test; do not use timestamp or `Math.random()` for identity. Path builder accepts only typed server-loaded context and never concatenates raw request folder/name.
 
-- [ ] **Step 4: Run unit tests**
+- [x] **Step 4: Run unit tests**
 
   Run the command from Step 2.
 
   Expected: PASS with deterministic paths for fixed UUID/context.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   ```powershell
   git add backend/src/storage/vietnameseSlug.js backend/src/storage/objectPathBuilder.js backend/src/storage/assetPolicyCatalog.js backend/tests/unit/vietnameseSlug.test.js backend/tests/unit/objectPathBuilder.test.js backend/tests/unit/assetPolicyCatalog.test.js
