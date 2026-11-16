@@ -19,7 +19,8 @@
 - `cong-khai` is the only public bucket; `hoc-vu`, `ca-nhan`, and `tam` remain private.
 - Private download URLs expire after exactly 600 seconds.
 - End users never receive a URL for objects in `tam`.
-- All uploads have an absolute 50 MB limit; no TUS/resumable upload is implemented in this plan.
+- Uploads up to and including 6 MB use backend multipart; uploads above 6 MB through 50 MB use TUS resumable upload with an exact 6 MB chunk size.
+- Backend creates and authorizes every TUS upload session, staging path, and signed upload token; frontend cannot choose bucket or object name.
 - Video demo is an HTTPS external URL, never a Storage object.
 - Source code is ZIP only, maximum 50 MB; RAR, executables, macro-enabled Office files, and unsafe archives are rejected.
 - Academic documents are immutable per version; `upsert` is always false.
@@ -36,8 +37,8 @@
 
 - Filename supplied as NFD Vietnamese, path traversal, reserved Windows name, or 300-character segment: normalize to one safe deterministic slug and never escape the server-chosen prefix; Task 3 pins this.
 - A valid ZIP MIME containing an executable, macro-enabled Office content, zip bomb, or wrong document container: reject before promotion and retain only the rejected staging object for the configured TTL; Task 4 pins this.
+- A TUS upload is paused, token/session expires, two clients resume the same upload, or finalize is called twice: resume only the authorized session, return stable conflict/expiry errors, and create at most one active asset; Task 5 pins this.
 - Storage upload/move succeeds but Prisma transaction or audit fails: do not return success, leave a resumable cleanup job, and never bind an active asset to the workflow; Tasks 4 and 5 pin this.
-- A signed URL was issued, then the asset is replaced/soft-deleted before its 10-minute expiry: new download requests must fail immediately, while the underlying old URL risk is documented and bounded by 600 seconds; Task 5 pins this.
 - Legacy cleanup sees an unknown URL, missing branding object, duplicate checksum, or is interrupted halfway: dry-run/apply must be resumable, fail closed on unresolved rows, and never delete outside the manifest; Task 10 pins this.
 
 ---
@@ -56,13 +57,14 @@
 
 **Interfaces:**
 - Produces: `STORAGE_BUCKETS = { PUBLIC:'cong-khai', ACADEMIC:'hoc-vu', PERSONAL:'ca-nhan', TEMP:'tam' }`.
-- Produces: `SIGNED_URL_TTL_SECONDS = 600`, `MAX_UPLOAD_BYTES = 52_428_800`.
+- Produces: `SIGNED_URL_TTL_SECONDS = 600`, `MAX_UPLOAD_BYTES = 52_428_800`, `TUS_THRESHOLD_BYTES = 6_291_456`, `TUS_CHUNK_BYTES = 6_291_456`.
+- Produces: direct Storage TUS endpoint derived from the configured Supabase project host, never from request input.
 - Produces: `assertStorageEnvironment(env): void` and `provisionStorageBuckets({ storage, dryRun }): Promise<ProvisionReport>`.
 - Preserves: lazy Supabase client creation; never exposes service-role credentials to frontend.
 
 - [ ] **Step 1: Write failing config and provisioning tests**
 
-  Assert exact bucket names/privacy, 600-second TTL, 50 MB ceiling, no fallback bucket name, idempotent provisioning, and rejection when the service-role key or project URL is missing. Assert provisioning reports privacy drift but does not silently change it in `dryRun`.
+  Assert exact bucket names/privacy, 600-second TTL, 6 MB threshold/chunk, 50 MB ceiling, direct Storage TUS endpoint, no fallback bucket name, idempotent provisioning, and rejection when the service-role key or project URL is missing. Assert provisioning reports privacy drift but does not silently change it in `dryRun`.
 
 - [ ] **Step 2: Run tests and confirm failure**
 
@@ -105,14 +107,14 @@
 - Create: `backend/tests/integration/storedAssetSchema.test.js`
 
 **Interfaces:**
-- Produces Prisma enums: `StorageBucket`, `AssetVisibility`, `AssetScanStatus`, `AssetStatus`, `StoredDocumentType`.
-- Produces models: `StoredAsset`, `StoredAssetCleanupJob`.
+- Produces Prisma enums: `StorageBucket`, `AssetVisibility`, `AssetScanStatus`, `AssetStatus`, `StoredDocumentType`, `AssetUploadTransport`, `AssetUploadSessionStatus`.
+- Produces models: `StoredAsset`, `StoredAssetUploadSession`, `StoredAssetCleanupJob`.
 - Produces unique constraints on `(bucket, objectKey)` and `uploadSessionId`; indexes on owner, registration, document type/status, retention, and checksum.
 - Preserves legacy URL columns as nullable compatibility fields until Task 10.
 
 - [ ] **Step 1: Write failing schema contract tests**
 
-  Assert required metadata fields, exact enum values, 64-character checksum contract, immutable version fields, self-relation `replacedById`, owner/uploader/registration/semester/catalog relations, cleanup-job retry fields, and deletion behavior that never cascades from a user/registration into physical object deletion.
+  Assert required metadata fields, exact enum values, 64-character checksum contract, immutable version fields, self-relation `replacedById`, owner/uploader/registration/semester/catalog relations, cleanup-job retry fields, upload-session transport/state/expiry/resource-context/finalized-asset fields, and deletion behavior that never cascades from a user/registration into physical object deletion.
 
 - [ ] **Step 2: Run tests and confirm failure**
 
@@ -210,13 +212,13 @@
 
 **Interfaces:**
 - Produces: `inspectFile({ path, originalName, declaredMime, policy }): Promise<InspectedFile>` with detected MIME, extension, size and SHA-256.
-- Produces: `StorageAdapter` methods `upload`, `move`, `copy`, `remove`, `exists`, `createSignedUrl`, `download` using explicit bucket/object key.
+- Produces: `StorageAdapter` methods `upload`, `move`, `copy`, `remove`, `exists`, `createSignedUrl`, `createSignedUploadUrl`, `download`, `stat` using explicit bucket/object key.
 - Produces: disk-backed Multer temp files capped at 50 MB and guaranteed request-finally cleanup.
 - Consumes: policies/path config from Tasks 1 and 3.
 
 - [ ] **Step 1: Write failing inspection and adapter tests**
 
-  Test valid PDF/JPG/PNG/WEBP/DOC/DOCX/XLS/XLSX/PPTX/ZIP fixtures; declared MIME mismatch; disguised executable; macro-enabled Office; ZIP traversal; excessive entry count/uncompressed ratio; empty/truncated file; 50 MB boundary. Assert adapter never calls bucket creation/privacy update and always uses `upsert:false`.
+  Test valid PDF/JPG/PNG/WEBP/DOC/DOCX/XLS/XLSX/PPTX/ZIP fixtures; declared MIME mismatch; disguised executable; macro-enabled Office; ZIP traversal; excessive entry count/uncompressed ratio; empty/truncated file; 50 MB boundary. Assert adapter never calls bucket creation/privacy update, always uses `upsert:false`, binds signed upload URLs to an explicit bucket/path, and can stat the staged TUS object before finalize.
 
 - [ ] **Step 2: Run tests and confirm failure**
 
@@ -245,26 +247,34 @@
   git commit -m "feat(storage): inspect files and isolate storage access"
   ```
 
-### Task 5: Asset Ingestion, Lifecycle, and Private Download API
+### Task 5: Asset Ingestion, TUS Sessions, Lifecycle, and Private Download API
 
 **Files:**
 - Create: `backend/src/services/storedAssetService.js`
 - Create: `backend/src/controllers/storedAssetController.js`
 - Create: `backend/src/routes/storedAssetRoutes.js`
 - Modify: `backend/src/routes/index.js`
-- Modify: `backend/src/services/auditLogService.js` only if new action constants are centralized there
+- Modify: `backend/src/services/auditLogService.js`
+- Modify: `frontend/package.json`
+- Modify: `frontend/package-lock.json`
+- Create: `frontend/src/services/resumableUploadService.js`
+- Create: `frontend/src/queries/assetQueries.js`
 - Create: `backend/tests/services/storedAssetService.test.js`
 - Create: `backend/tests/integration/storedAsset.routes.test.js`
+- Create: `frontend/runtime-tests/assetUploadTransport.spec.jsx`
 
 **Interfaces:**
 - Produces: `ingestAsset({ tempFile, documentType, resourceContext, actor, uploadSessionId }): Promise<StoredAssetDTO>`.
+- Produces: `createUploadSession({ documentType, resourceContext, actor, originalName, declaredMime, sizeBytes, idempotencyKey }): Promise<TusUploadSessionDTO>`.
+- Produces: `finalizeUploadSession({ sessionId, actor }): Promise<StoredAssetDTO>` and `abortUploadSession({ sessionId, actor }): Promise<void>`.
 - Produces: `createStoredAssetFromBuffer({ buffer, originalName, documentType, resourceContext, actor }): Promise<StoredAssetDTO>` for system-generated PDFs capped by policy.
 - Produces: `getAssetDownload({ assetId, actor }): Promise<{ url, expiresAt, fileName }>` with 600-second signed URL.
 - Produces: `replaceAsset`, `softDeleteAsset`, `enqueueCleanup`, and stable asset error codes from the spec.
+- Produces frontend `selectAssetUploadTransport(sizeBytes): 'multipart' | 'tus'`, `uploadAssetResumable({ file, session, onProgress, signal })`, `useAssetUpload()`, and `useAssetDownload()`.
 
 - [ ] **Step 1: Write failing lifecycle and route tests**
 
-  Cover idempotent duplicate upload session; wrong owner/resource; successful temp→final promotion; upload succeeds/DB fails; DB succeeds/move fails; audit failure; signed download valid/forbidden/deleted/replaced; public asset response; 600-second expiry; no URL for `tam`; no fake fallback URL.
+  Cover exact 6 MB multipart boundary, 6 MB + 1 byte TUS selection, 50 MB maximum, signed token bound to the server-generated `tam` path, 6 MB TUS chunk, pause/resume, expired/aborted/incomplete session, concurrent/double finalize, idempotent duplicate session, wrong owner/resource, successful temp→final promotion, upload succeeds/DB fails, DB succeeds/move fails, audit failure, signed download valid/forbidden/deleted/replaced, public asset response, 600-second expiry, no end-user URL for `tam`, and no fake fallback URL.
 
 - [ ] **Step 2: Run tests and confirm failure**
 
@@ -272,19 +282,23 @@
 
   ```powershell
   npm --prefix backend test -- --runTestsByPath tests/services/storedAssetService.test.js tests/integration/storedAsset.routes.test.js
+  npm --prefix frontend run test:runtime -- runtime-tests/assetUploadTransport.spec.jsx
   ```
 
-  Expected: FAIL because service/routes do not exist.
+  Expected: FAIL because service/routes/TUS transport do not exist.
 
 - [ ] **Step 3: Implement asset state machine and APIs**
 
   Route contract:
 
-  - `POST /api/assets` multipart: file, `documentType`, typed resource IDs, `Idempotency-Key` header.
+  - `POST /api/assets` multipart for files up to and including 6 MB; larger content returns `422 ASSET_TUS_REQUIRED`.
+  - `POST /api/assets/upload-sessions`: authorize metadata/resource, allocate exact `tam` path and return signed TUS configuration without persisting the token.
+  - `POST /api/assets/upload-sessions/:id/finalize`: verify staged object and session, inspect/hash/promote once.
+  - `DELETE /api/assets/upload-sessions/:id`: abort owned session and enqueue staging cleanup.
   - `GET /api/assets/:id/download`: authorize and return public URL metadata or a private signed URL.
   - No generic delete endpoint for end users; domain services call lifecycle methods.
 
-  Persist cleanup jobs for cross-system partial failures and record audit after each successful state transition.
+  Install `tus-js-client`; configure `uploadDataDuringCreation`, `removeFingerprintOnSuccess`, retry delays, exact 6 MB chunk size and backend-provided signed token/path. Persist cleanup jobs for cross-system partial failures and record audit after each successful state transition.
 
 - [ ] **Step 4: Run lifecycle tests**
 
@@ -295,8 +309,8 @@
 - [ ] **Step 5: Commit**
 
   ```powershell
-  git add backend/src/services/storedAssetService.js backend/src/controllers/storedAssetController.js backend/src/routes/storedAssetRoutes.js backend/src/routes/index.js backend/src/services/auditLogService.js backend/tests/services/storedAssetService.test.js backend/tests/integration/storedAsset.routes.test.js
-  git commit -m "feat(storage): add governed asset lifecycle APIs"
+  git add backend/src/services/storedAssetService.js backend/src/controllers/storedAssetController.js backend/src/routes/storedAssetRoutes.js backend/src/routes/index.js backend/src/services/auditLogService.js backend/tests/services/storedAssetService.test.js backend/tests/integration/storedAsset.routes.test.js frontend/package.json frontend/package-lock.json frontend/src/services/resumableUploadService.js frontend/src/queries/assetQueries.js frontend/runtime-tests/assetUploadTransport.spec.jsx
+  git commit -m "feat(storage): add governed multipart and TUS uploads"
   ```
 
 ### Task 6: Migrate BM01, BM02, Task, and Checkpoint Attachments
@@ -312,18 +326,18 @@
 - Modify: `frontend/src/components/forms/HybridBMFormModal.jsx`
 - Modify: `frontend/src/components/student/CheckpointSignModal.jsx`
 - Modify: `frontend/src/services/uploadService.js`
-- Create: `frontend/src/queries/assetQueries.js`
+- Modify: `frontend/src/queries/assetQueries.js`
 - Create: `backend/tests/integration/submissionAssetBinding.test.js`
 - Create: `frontend/runtime-tests/submissionAssets.spec.jsx`
 
 **Interfaces:**
 - Consumes: asset API/DTO from Task 5.
 - Produces: nullable `assetId` relations for `Submission`, `BM02Submission`, task submissions and checkpoint evidence while legacy URL columns remain read-only fallback.
-- Produces: `useAssetUpload()` and `useAssetDownload()` frontend hooks.
+- Reuses: `useAssetUpload()` and `useAssetDownload()` from Task 5 in academic submission UI.
 
 - [ ] **Step 1: Write failing binding and UI tests**
 
-  Assert asset must match actor, registration/task/checkpoint, document type and active status; another student's asset ID is rejected; legacy external URL cannot be submitted as an academic attachment. Runtime tests assert actual accept/size policy, progress/error preservation, and download via asset endpoint rather than direct `href` URL.
+  Assert asset must match actor, registration/task/checkpoint, document type and active status; another student's asset ID is rejected; legacy external URL cannot be submitted as an academic attachment. Runtime tests assert actual accept/size policy, multipart/TUS selection around 6 MB, resumable progress/error preservation, and download via asset endpoint rather than direct `href` URL.
 
 - [ ] **Step 2: Run tests and confirm failure**
 
@@ -612,7 +626,7 @@
 
 - [ ] **Step 1: Write failing retention/reconciliation tests**
 
-  Assert active/reference assets are never deleted; expired soft-deleted/replaced assets are removed once; locked jobs are not double-processed; transient Storage errors retry with bounded backoff; DB row/object missing cases are reported; unknown Storage object becomes ORPHANED before 30-day purge.
+  Assert active/reference assets are never deleted; expired soft-deleted/replaced assets are removed once; expired/incomplete TUS sessions enqueue staging cleanup; locked jobs are not double-processed; transient Storage errors retry with bounded backoff; DB row/object missing cases are reported; unknown Storage object becomes ORPHANED before 30-day purge.
 
 - [ ] **Step 2: Run tests and confirm failure**
 
@@ -662,7 +676,7 @@
 
 - [ ] **Step 1: Write actor-matrix and browser E2E tests**
 
-  Cover student own/other registration, assigned/unassigned GVHD, assigned/unassigned council member, Giáo vụ, Viện trưởng, public visitor, draft/published Portal asset, avatar replacement, upload validation, signed download, source ZIP 50 MB boundary, video external URL and stale/deleted asset.
+  Cover student own/other registration, assigned/unassigned GVHD, assigned/unassigned council member, Giáo vụ, Viện trưởng, public visitor, draft/published Portal asset, avatar replacement, multipart at exactly 6 MB, TUS at 6 MB + 1 byte, pause/resume and finalize, source ZIP 50 MB boundary, upload validation, signed download, video external URL and stale/deleted asset.
 
 - [ ] **Step 2: Run focused E2E and matrix tests**
 

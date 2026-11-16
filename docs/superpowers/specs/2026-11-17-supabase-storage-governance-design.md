@@ -2,7 +2,7 @@
 
 **Ngày:** 17/11/2026
 
-**Trạng thái:** Đã được người dùng duyệt ngày 17/11/2026; cập nhật giới hạn upload theo quyết định cùng ngày
+**Trạng thái:** Đã được người dùng duyệt ngày 17/11/2026; cập nhật TUS resumable upload theo quyết định cùng ngày
 
 ## 1. Bối cảnh
 
@@ -213,10 +213,14 @@ Các enum chính:
 - `AssetVisibility`: `PUBLIC`, `PRIVATE`.
 - `AssetScanStatus`: `PENDING`, `PASSED`, `REJECTED`, `FAILED`.
 - `AssetStatus`: `STAGED`, `ACTIVE`, `REPLACED`, `SOFT_DELETED`, `ORPHANED`, `PURGED`.
+- `AssetUploadTransport`: `MULTIPART`, `TUS`.
+- `AssetUploadSessionStatus`: `CREATED`, `UPLOADING`, `UPLOADED`, `FINALIZING`, `COMPLETED`, `ABORTED`, `EXPIRED`, `FAILED`.
 
 `documentType` dùng enum/catalog có kiểm soát, bao gồm BM01, BM02, BM02-A, BM03, checkpoint evidence, BM04, BM05, quyết định, phụ lục, tài liệu hội đồng, các loại lưu chiểu, avatar và tài nguyên Portal.
 
 Không lưu signed URL. URL public có thể được suy ra từ bucket/object key; signed URL private chỉ được tạo theo request.
+
+`StoredAssetUploadSession` quản lý cả multipart idempotency và TUS resumable upload, gồm `id`, `actorId`, `documentType`, resource context đã chuẩn hóa, bucket/path staging do server tạo, transport, declared size/MIME/name, TUS upload identifier, trạng thái, expiry, finalizedAssetId và timestamps. Signed upload token không được lưu nguyên văn trong CSDL hoặc log.
 
 ## 8. Liên kết nghiệp vụ
 
@@ -232,32 +236,33 @@ Trong giai đoạn chuyển đổi, trường URL cũ có thể tồn tại null
 
 ## 9. Upload pipeline
 
-### 9.1. Request contract
+### 9.1. Request contract và lựa chọn transport
 
-Frontend gửi multipart gồm:
+Frontend gửi metadata gồm `documentType`, ID tài nguyên nghiệp vụ cần thiết và idempotency key/upload session ID. Frontend không được tự chọn bucket, folder, object key hoặc public URL.
 
-- file;
-- `documentType`;
-- ID tài nguyên nghiệp vụ cần thiết, ví dụ `registrationId`, `taskId`, `announcementId`;
-- idempotency key/upload session ID.
+- File không quá 6 MB dùng multipart upload qua backend.
+- File lớn hơn 6 MB đến tối đa 50 MB dùng TUS resumable upload với chunk cố định 6 MB.
 
-Frontend không gửi bucket, folder, object key hoặc public URL.
+Với TUS, backend authorize resource trước, tự tạo upload session và object path chính xác trong `tam`, sau đó trả endpoint cùng signed upload token giới hạn cho path đó. Frontend chỉ sử dụng cấu hình session do backend trả; không được thay bucket hoặc object name.
 
 ### 9.2. Các bước xử lý
 
 1. Xác thực và authorize capability.
 2. Load resource từ CSDL và kiểm ownership/GVHD/hội đồng/đơn vị/học kỳ.
-3. Chọn policy theo `documentType`.
-4. Nhận multipart upload qua backend và ghi theo luồng vào vùng tạm; không giữ toàn bộ file trong RAM.
-5. Kiểm extension, declared MIME, magic bytes, kích thước và cấu trúc container.
-6. Tính SHA-256 từ bytes.
-7. Quét nội dung/malware theo capability hạ tầng; trạng thái phải được lưu ngay cả khi scanner tạm lỗi.
-8. Tạo object path đích bằng builder phía server.
-9. Copy/move sang bucket đích với `upsert: false`.
-10. Transaction ghi `StoredAsset` và gắn vào entity nghiệp vụ.
-11. Xóa object staging hoặc chuyển sang hàng đợi cleanup.
+3. Chọn policy theo `documentType`, kiểm tra kích thước khai báo và tạo path staging phía server.
+4. Với file không quá 6 MB, nhận multipart qua backend và ghi vào `tam`; với file lớn hơn 6 MB, tạo signed TUS session và upload theo chunk 6 MB trực tiếp vào đúng path staging.
+5. Khi multipart hoàn tất hoặc client gọi finalize TUS, backend xác minh object staging tồn tại, đúng session, đúng kích thước và chưa được finalize.
+6. Kiểm extension, declared MIME, magic bytes, kích thước và cấu trúc container.
+7. Tính SHA-256 từ bytes.
+8. Quét nội dung/malware theo capability hạ tầng; trạng thái phải được lưu ngay cả khi scanner tạm lỗi.
+9. Tạo object path đích bằng builder phía server.
+10. Copy/move sang bucket đích với `upsert: false`.
+11. Transaction ghi `StoredAsset` và gắn vào entity nghiệp vụ.
+12. Xóa object staging hoặc chuyển sang hàng đợi cleanup.
 
 Nếu Storage thành công nhưng DB thất bại, object được ghi vào outbox/orphan queue để cleanup; không trả URL giả và không đánh dấu workflow hoàn tất.
+
+Upload session có trạng thái `CREATED`, `UPLOADING`, `UPLOADED`, `FINALIZING`, `COMPLETED`, `ABORTED`, `EXPIRED`, `FAILED`. Finalize phải idempotent. Session chưa hoàn tất bị dọn theo TTL của bucket `tam`; token hết hạn hoặc session bị abort không được bind vào workflow.
 
 ## 10. Policy loại file và dung lượng
 
@@ -275,7 +280,7 @@ Nếu Storage thành công nhưng DB thất bại, object được ghi vào outb
 
 Không chấp nhận RAR, executable, file Office macro-enabled hoặc archive có cấu trúc nguy hiểm. DOCX/PPTX/XLSX phải được kiểm tra là ZIP container đúng cấu trúc và có giới hạn chống zip bomb.
 
-Giai đoạn này không triển khai TUS/resumable upload. Tất cả loại file đều có trần tuyệt đối 50 MB; nếu tương lai cần file lớn hơn phải có một thiết kế bổ sung riêng.
+TUS chỉ áp dụng cho file lớn hơn 6 MB đến 50 MB và dùng chunk 6 MB. Tất cả loại file vẫn có trần tuyệt đối 50 MB; file lớn hơn cần một thiết kế bổ sung riêng.
 
 ## 11. Download và authorization
 
@@ -350,6 +355,9 @@ Các lỗi có code ổn định:
 - `ASSET_NOT_FOUND`
 - `ASSET_DELETED`
 - `ASSET_UPLOAD_DUPLICATE`
+- `ASSET_UPLOAD_SESSION_EXPIRED`
+- `ASSET_UPLOAD_SESSION_ABORTED`
+- `ASSET_UPLOAD_INCOMPLETE`
 - `STORAGE_TEMPORARILY_UNAVAILABLE`
 
 Lỗi validation trả `400`/`422`; thiếu quyền trả `403`; không tồn tại trả `404`; duplicate/idempotency conflict trả `409`; hạ tầng Storage/scanner tạm lỗi trả `503` và không hoàn tất workflow.
@@ -376,6 +384,7 @@ Lỗi validation trả `400`/`422`; thiếu quyền trả `403`; không tồn t�
 - MIME + magic bytes + container validation.
 - SHA-256 từ bytes.
 - Idempotency và version allocator.
+- Lựa chọn multipart/TUS tại đúng ngưỡng 6 MB và cấu hình TUS chunk 6 MB.
 - Không có consumer mới ghi `fileUrl` trực tiếp.
 
 ### 16.2. Integration
@@ -383,6 +392,7 @@ Lỗi validation trả `400`/`422`; thiếu quyền trả `403`; không tồn t�
 - Upload hợp lệ tạo đúng object và `StoredAsset`.
 - Sai owner/resource/semester/council bị `403`.
 - DB rollback tạo cleanup record, không tạo URL giả.
+- TUS pause/resume, token/session hết hạn, finalize lặp và hai client finalize đồng thời.
 - Signed URL chỉ cấp cho actor hợp lệ và hết hạn sau 10 phút.
 - Public draft không xuất hiện trong `cong-khai` trước publish.
 - Soft-delete/retention/purge đúng lifecycle.
@@ -431,5 +441,5 @@ Theo nguyên tắc sửa gốc trước:
 6. Avatar, logo, background cho phép thay thế và giữ bản cũ 7 ngày.
 7. Private signed URL có hạn 10 phút.
 8. `tam` không phát URL cho end user.
-9. Mọi upload tối đa 50 MB, bao gồm source ZIP và slide; không lưu video demo.
+9. File không quá 6 MB dùng multipart; file trên 6 MB đến 50 MB dùng TUS chunk 6 MB; không lưu video demo.
 10. Xóa file/URL legacy, chỉ giữ và chuyển logo/background; giữ external GitHub/YouTube.
