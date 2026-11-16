@@ -144,6 +144,9 @@ model User {
   adjustedDefenseSchedules        DefenseScheduleAdjustmentLog[] @relation("DefenseScheduleAdjuster")
   uploadedDefenseDocuments        DefenseDocumentVersion[]      @relation("DefenseDocUploader")
   returnedDefenseScoreBooks       DefenseScoreBookReturnLog[]   @relation("DefenseScoreBookReturner")
+  ownedAssets                     StoredAsset[]                 @relation("AssetOwner")
+  uploadedAssets                  StoredAsset[]                 @relation("AssetUploader")
+  uploadSessions                  StoredAssetUploadSession[]    @relation("AssetUploadActor")
 
   @@map("users")
 }
@@ -204,6 +207,7 @@ model Semester {
   lecturerAssignments    LecturerProjectAssignment[]
   topicAssignmentDecisions TopicAssignmentDecision[]
   registrations          TopicRegistration[]
+  storedAssets           StoredAsset[]
 
   @@map("semesters")
 }
@@ -322,6 +326,7 @@ model TopicRegistration {
   documentSnapshots          DefenseDocumentSnapshot[]
   defenseScheduleAdjustmentLogs DefenseScheduleAdjustmentLog[]
   defenseScoreBookReturnLogs DefenseScoreBookReturnLog[]
+  storedAssets               StoredAsset[]
 
   @@unique([studentId, semesterId])
   @@index([semesterId, periodPolicyVersionId])
@@ -1025,6 +1030,7 @@ model ProjectCatalog {
   topics              Topic[]
   enrollments         StudentProjectEnrollment[]
   lecturerAssignments LecturerProjectAssignment[]
+  storedAssets        StoredAsset[]
 
   @@map("project_catalogs")
 }
@@ -2064,6 +2070,173 @@ model DefenseScoreBookReturnLog {
   @@index([councilId, registrationId])
   @@map("defense_score_book_return_logs")
 }
+
+enum StorageBucket {
+  CONG_KHAI
+  HOC_VU
+  CA_NHAN
+  TAM
+}
+
+enum AssetVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum AssetScanStatus {
+  PENDING
+  PASSED
+  REJECTED
+  FAILED
+}
+
+enum AssetStatus {
+  STAGED
+  ACTIVE
+  REPLACED
+  SOFT_DELETED
+  ORPHANED
+  PURGED
+}
+
+enum StoredDocumentType {
+  BM01
+  BM02
+  BM02_A
+  BM03
+  CHECKPOINT_EVIDENCE
+  BM04
+  BM05
+  ASSIGNMENT_DECISION
+  ADJUSTMENT_APPENDIX
+  COUNCIL_DOCUMENT
+  REPORT_WORD
+  REPORT_PDF
+  SLIDE_PPTX
+  SOURCE_ZIP
+  CLEARANCE_CERTIFICATE
+  USER_AVATAR
+  PORTAL_IMAGE
+  PORTAL_DOCUMENT
+  PORTAL_TEMPLATE
+}
+
+enum AssetUploadTransport {
+  MULTIPART
+  TUS
+}
+
+enum AssetUploadSessionStatus {
+  CREATED
+  UPLOADING
+  UPLOADED
+  FINALIZING
+  COMPLETED
+  ABORTED
+  EXPIRED
+  FAILED
+}
+
+model StoredAsset {
+  id                String                     @id @default(uuid())
+  provider          String                     @default("supabase")
+  bucket            StorageBucket
+  objectKey         String                     @map("object_key")
+  originalName      String                     @map("original_name")
+  normalizedName    String                     @map("normalized_name")
+  extension         String
+  declaredMime      String                     @map("declared_mime")
+  detectedMime      String                     @map("detected_mime")
+  sizeBytes         BigInt                     @map("size_bytes")
+  sha256            String                     @db.VarChar(64)
+  ownerUserId       Int?                       @map("owner_user_id")
+  ownerUser         User?                      @relation("AssetOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  uploadedById      Int                        @map("uploaded_by_id")
+  uploadedBy        User                       @relation("AssetUploader", fields: [uploadedById], references: [id])
+  registrationId    Int?                       @map("registration_id")
+  registration      TopicRegistration?         @relation(fields: [registrationId], references: [id], onDelete: SetNull)
+  semesterId        Int?                       @map("semester_id")
+  semester          Semester?                  @relation(fields: [semesterId], references: [id], onDelete: SetNull)
+  projectCatalogId  Int?                       @map("project_catalog_id")
+  projectCatalog    ProjectCatalog?            @relation(fields: [projectCatalogId], references: [id], onDelete: SetNull)
+  documentType      StoredDocumentType         @map("document_type")
+  version           Int                        @default(1)
+  visibility        AssetVisibility            @default(PRIVATE)
+  accessPolicy      String?                    @map("access_policy")
+  scanStatus        AssetScanStatus            @default(PENDING) @map("scan_status")
+  scanMessage       String?                    @map("scan_message")
+  scanDiagnostics   Json?                      @map("scan_diagnostics")
+  verifiedAt        DateTime?                  @map("verified_at")
+  status            AssetStatus                @default(STAGED)
+  retentionUntil    DateTime?                  @map("retention_until")
+  replacedById      String?                    @map("replaced_by_id")
+  replacedBy        StoredAsset?               @relation("AssetReplacement", fields: [replacedById], references: [id], onDelete: SetNull)
+  replaces          StoredAsset[]              @relation("AssetReplacement")
+  deletedAt         DateTime?                  @map("deleted_at")
+  createdAt         DateTime                   @default(now()) @map("created_at")
+  updatedAt         DateTime                   @updatedAt @map("updated_at")
+  finalizedSessions StoredAssetUploadSession[] @relation("FinalizedAsset")
+  cleanupJobs       StoredAssetCleanupJob[]
+
+  @@unique([bucket, objectKey])
+  @@index([ownerUserId])
+  @@index([registrationId])
+  @@index([semesterId])
+  @@index([documentType])
+  @@index([status])
+  @@index([sha256])
+  @@index([retentionUntil])
+  @@map("stored_assets")
+}
+
+model StoredAssetUploadSession {
+  id                String                   @id @default(uuid())
+  actorId           Int                      @map("actor_id")
+  actor             User                     @relation("AssetUploadActor", fields: [actorId], references: [id])
+  documentType      StoredDocumentType       @map("document_type")
+  resourceContext   Json                     @map("resource_context")
+  stagingBucket     StorageBucket            @default(TAM) @map("staging_bucket")
+  stagingPath       String                   @map("staging_path")
+  transport         AssetUploadTransport
+  declaredSizeBytes BigInt                   @map("declared_size_bytes")
+  declaredMime      String                   @map("declared_mime")
+  originalName      String                   @map("original_name")
+  tusUploadId       String?                  @map("tus_upload_id")
+  status            AssetUploadSessionStatus @default(CREATED)
+  expiresAt         DateTime                 @map("expires_at")
+  finalizedAssetId  String?                  @map("finalized_asset_id")
+  finalizedAsset    StoredAsset?             @relation("FinalizedAsset", fields: [finalizedAssetId], references: [id], onDelete: SetNull)
+  createdAt         DateTime                 @default(now()) @map("created_at")
+  updatedAt         DateTime                 @updatedAt @map("updated_at")
+
+  @@index([actorId])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("stored_asset_upload_sessions")
+}
+
+model StoredAssetCleanupJob {
+  id          String        @id @default(uuid())
+  bucket      StorageBucket
+  objectKey   String        @map("object_key")
+  assetId     String?       @map("asset_id")
+  asset       StoredAsset?  @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  reason      String
+  scheduledAt DateTime      @default(now()) @map("scheduled_at")
+  lockedAt    DateTime?     @map("locked_at")
+  lockedBy    String?       @map("locked_by")
+  attempts    Int           @default(0)
+  maxAttempts Int           @default(5) @map("max_attempts")
+  lastError   String?       @map("last_error")
+  completedAt DateTime?     @map("completed_at")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  @@index([scheduledAt, completedAt])
+  @@index([lockedAt])
+  @@map("stored_asset_cleanup_jobs")
+}
+
 
 
 
