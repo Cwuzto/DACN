@@ -753,7 +753,14 @@ export default function LecturerDashboardPage() {
                                     supervisedStudents.map((r) => {
                                         const pct = r.progressPercent ?? r.progress ?? (r.status === 'COMPLETED' || r.status === 'DEFENDED' || r.status === 'DEFENSE_READY' ? 100 : 75);
                                         const isComplete = pct >= 80;
-                                        const meetingsCount = r.totalMeetings ?? r._count?.meetingLogs ?? r.meetingLogs?.length ?? (isComplete ? 7 : 4);
+                                        const recordedMeetings = Math.max(
+                                            r.totalMeetings || 0,
+                                            r._count?.bm03MeetingEntries || 0,
+                                            r._count?.meetingLogs || 0,
+                                            r.bm03MeetingEntries?.length || 0,
+                                            r.meetingLogs?.length || 0
+                                        );
+                                        const meetingsCount = recordedMeetings > 0 ? recordedMeetings : (isComplete ? 7 : 4);
                                         const bm04Passed = r.status === 'COMPLETED' || r.status === 'DEFENDED' || r.status === 'DEFENSE_READY';
                                         const isMeetingSufficient = meetingsCount >= 3 || bm04Passed || isComplete;
 

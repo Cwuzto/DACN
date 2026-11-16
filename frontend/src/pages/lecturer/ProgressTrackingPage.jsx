@@ -1146,7 +1146,7 @@ export default function ProgressTrackingPage() {
                                                 <div>
                                                     <span style={{ color: 'var(--muted)', fontSize: 12 }}>Tổng số buổi gặp BM03:</span>
                                                     <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--primary)' }}>
-                                                        {meetingLogs.length || reg?.totalMeetings || reg?._count?.meetingLogs || 0} buổi làm việc
+                                                        {meetingLogs.length || reg?.totalMeetings || reg?._count?.bm03MeetingEntries || reg?._count?.meetingLogs || 0} buổi làm việc
                                                     </div>
                                                 </div>
                                                 <div>

@@ -734,6 +734,7 @@ const getAllRegistrations = async (req, res, next) => {
                 _count: { select: { submissions: true, meetingLogs: true, bm03MeetingEntries: true } },
                 tasks: { select: { id: true, status: true, taskType: true } },
                 meetingLogs: { select: { id: true, meetingDate: true }, orderBy: { meetingDate: 'desc' } },
+                bm03MeetingEntries: { select: { id: true, meetingDate: true }, orderBy: { meetingDate: 'desc' } },
                 bm03Record: { select: { id: true, advisorSignedAt: true, studentAckStatus: true, finalConclusion: true } },
                 bm04Evaluation: true,
                 titleAdjustments: { orderBy: { requestedAt: 'desc' } },
@@ -778,11 +779,23 @@ const getAllRegistrations = async (req, res, next) => {
                 : 0;
 
             const meetingLogs = reg.meetingLogs || [];
-            const lastMeetingDate = meetingLogs.length > 0 ? meetingLogs[0].meetingDate : null;
+            const bm03Entries = reg.bm03MeetingEntries || [];
+            const allMeetingDates = [
+                ...meetingLogs.map((m) => m.meetingDate),
+                ...bm03Entries.map((m) => m.meetingDate),
+            ].filter(Boolean).map((d) => new Date(d)).sort((a, b) => b.getTime() - a.getTime());
+
+            const lastMeetingDate = allMeetingDates.length > 0 ? allMeetingDates[0] : null;
             let daysSinceLastMeeting = null;
             if (lastMeetingDate) {
-                daysSinceLastMeeting = Math.floor((now.getTime() - new Date(lastMeetingDate).getTime()) / (1000 * 60 * 60 * 24));
+                daysSinceLastMeeting = Math.floor((now.getTime() - lastMeetingDate.getTime()) / (1000 * 60 * 60 * 24));
             }
+
+            const totalMeetings = Math.max(
+                (meetingLogs.length + bm03Entries.length),
+                reg._count?.bm03MeetingEntries || 0,
+                reg._count?.meetingLogs || 0,
+            );
 
             const isFinishedThesis = [
                 'BM03_PASSED',
@@ -808,17 +821,18 @@ const getAllRegistrations = async (req, res, next) => {
                 hasOverdueTask: overdueTaskCount > 0,
                 isStalePending: reg.status === 'PENDING' && pendingDays > PENDING_REMINDER_DAYS,
                 pendingDays,
-                totalMeetings: meetingLogs.length,
+                totalMeetings,
                 lastMeetingDate,
                 daysSinceLastMeeting,
                 isMeetingWarning,
                 _count: {
                     submissions: reg._count?.submissions ?? reg.submissions?.length ?? 0,
-                    meetingLogs: meetingLogs.length,
-                    bm03MeetingEntries: meetingLogs.length,
+                    meetingLogs: reg._count?.meetingLogs ?? meetingLogs.length,
+                    bm03MeetingEntries: reg._count?.bm03MeetingEntries ?? bm03Entries.length,
                 },
                 tasks: undefined,
                 meetingLogs: undefined,
+                bm03MeetingEntries: undefined,
             };
         });
 

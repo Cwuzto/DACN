@@ -180,7 +180,12 @@ function StudentProgressDetailPanel({
                                 <span className="px-2 py-0.5 rounded bg-red-50 text-red-700 font-bold">Quá hạn: {taskOverview.overdue}</span>
                             )}
                             <span className="px-2 py-0.5 rounded bg-teal-50 text-[#0F766E] font-bold">
-                                {meetingLogs.length} buổi gặp Lab
+                                {Math.max(
+                                    meetingLogs.length,
+                                    selectedRegistration?.totalMeetings || 0,
+                                    selectedRegistration?._count?.bm03MeetingEntries || 0,
+                                    selectedRegistration?._count?.meetingLogs || 0
+                                )} buổi gặp
                             </span>
                         </div>
                     </div>

@@ -38,13 +38,39 @@ const getMeetingLogs = async (req, res, next) => {
             return res.status(403).json({ success: false, message: 'Chỉ giảng viên hướng dẫn của đề tài mới có quyền truy cập.' });
         }
 
-        const meetingLogs = await prisma.meetingLog.findMany({
+        let meetingLogs = await prisma.meetingLog.findMany({
             where: { registrationId },
             include: {
                 creator: { select: { id: true, fullName: true, code: true, email: true } },
             },
             orderBy: { meetingDate: 'desc' },
         });
+
+        if (meetingLogs.length === 0 && typeof prisma.bM03MeetingEntry?.findMany === 'function') {
+            const bm03Entries = await prisma.bM03MeetingEntry.findMany({
+                where: { registrationId },
+                include: {
+                    advisorSignedBy: { select: { id: true, fullName: true, code: true, email: true } },
+                },
+                orderBy: { meetingDate: 'desc' },
+            });
+            if (bm03Entries.length > 0) {
+                meetingLogs = bm03Entries.map((e) => ({
+                    id: e.id,
+                    registrationId: e.registrationId,
+                    meetingDate: e.meetingDate,
+                    meetingType: e.meetingMode === 'ONLINE' ? 'ONLINE' : 'LAB',
+                    studentWorkSummary: e.studentCompletedWork || e.discussionContent,
+                    nextPlan: e.nextTasks,
+                    supervisorNotes: e.remainingIssues,
+                    createdBy: e.advisorSignedById,
+                    createdAt: e.createdAt,
+                    updatedAt: e.createdAt,
+                    creator: e.advisorSignedBy,
+                    isBm03Entry: true,
+                }));
+            }
+        }
 
         res.json({ success: true, data: meetingLogs });
     } catch (error) {
@@ -63,16 +89,29 @@ const getMeetingStats = async (req, res, next) => {
             return res.status(400).json({ success: false, message: 'registrationId không hợp lệ.' });
         }
 
-        const logs = await prisma.meetingLog.findMany({
-            where: { registrationId },
-            orderBy: { meetingDate: 'desc' },
-        });
+        const [logs, bm03Entries] = await Promise.all([
+            prisma.meetingLog.findMany({
+                where: { registrationId },
+                orderBy: { meetingDate: 'desc' },
+            }),
+            typeof prisma.bM03MeetingEntry?.findMany === 'function'
+                ? prisma.bM03MeetingEntry.findMany({
+                    where: { registrationId },
+                    orderBy: { meetingDate: 'desc' },
+                })
+                : Promise.resolve([]),
+        ]);
 
-        const totalMeetings = logs.length;
-        const labMeetings = logs.filter((l) => l.meetingType === 'LAB').length;
-        const onlineMeetings = logs.filter((l) => l.meetingType === 'ONLINE').length;
+        const allDates = [
+            ...logs.map((l) => l.meetingDate),
+            ...bm03Entries.map((b) => b.meetingDate),
+        ].filter(Boolean).map((d) => new Date(d)).sort((a, b) => b.getTime() - a.getTime());
+
+        const totalMeetings = Math.max(logs.length + bm03Entries.length, logs.length, bm03Entries.length);
+        const labMeetings = logs.filter((l) => l.meetingType === 'LAB').length + bm03Entries.filter((b) => b.meetingMode !== 'ONLINE').length;
+        const onlineMeetings = logs.filter((l) => l.meetingType === 'ONLINE').length + bm03Entries.filter((b) => b.meetingMode === 'ONLINE').length;
         const officeMeetings = logs.filter((l) => l.meetingType === 'OFFICE').length;
-        const lastMeeting = logs.length > 0 ? logs[0].meetingDate : null;
+        const lastMeeting = allDates.length > 0 ? allDates[0] : null;
 
         let daysSinceLastMeeting = null;
         if (lastMeeting) {

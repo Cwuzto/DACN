@@ -414,5 +414,56 @@ describe('registrationController', () => {
                 })
             );
         });
+
+        it('computes totalMeetings and _count properly from bm03MeetingEntries and meetingLogs', async () => {
+            const meetingDate1 = new Date('2026-10-01T08:00:00Z');
+            const meetingDate2 = new Date('2026-10-15T08:00:00Z');
+
+            prisma.topicRegistration.findMany.mockResolvedValueOnce([
+                {
+                    id: 10,
+                    topicId: 100,
+                    status: 'IN_PROGRESS_BM03',
+                    createdAt: new Date('2026-09-01'),
+                    tasks: [],
+                    meetingLogs: [],
+                    bm03MeetingEntries: [
+                        { id: 201, meetingDate: meetingDate1 },
+                        { id: 202, meetingDate: meetingDate2 },
+                    ],
+                    _count: {
+                        submissions: 0,
+                        meetingLogs: 0,
+                        bm03MeetingEntries: 2,
+                    },
+                },
+            ]);
+
+            const req = createMockReq({
+                query: { semesterId: '2' },
+                user: { id: 135, role: 'LECTURER', permissions: ['VIEW_MENTORED_STUDENTS'], permissionGroups: ['GVHD'] },
+            });
+            const res = createMockRes();
+            const next = createNext();
+
+            await getAllRegistrations(req, res, next);
+
+            expect(res.json).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    success: true,
+                    data: [
+                        expect.objectContaining({
+                            id: 10,
+                            totalMeetings: 2,
+                            lastMeetingDate: meetingDate2,
+                            _count: expect.objectContaining({
+                                bm03MeetingEntries: 2,
+                                meetingLogs: 0,
+                            }),
+                        }),
+                    ],
+                })
+            );
+        });
     });
 });
