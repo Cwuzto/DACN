@@ -16,6 +16,7 @@ import registrationService from '../../services/registrationService';
 import bm02aService from '../../services/bm02aService';
 import OutlineReviewModal from '../../components/lecturer/OutlineReviewModal';
 import RegistrationTimelineDrawer from '../../components/common/RegistrationTimelineDrawer';
+import { getStatusTagConfig } from '../../components/common/statusMap';
 import useAuthStore from '../../stores/authStore';
 import { queryKeys } from '../../query/queryKeys';
 import { useRegistrations, useRegistrationMutation } from '../../queries/registrationQueries';
@@ -434,7 +435,7 @@ export default function TopicApprovalPage() {
                                             </div>
                                             <div>
                                                 <span className={`tag ${isPendingReview ? 'blue' : 'green'}`}>
-                                                    {isPendingReview ? 'Chờ thẩm định' : record.status}
+                                                    {isPendingReview ? 'Chờ thẩm định' : getStatusTagConfig(record.status).label}
                                                 </span>
                                             </div>
                                         </div>

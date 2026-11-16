@@ -52,6 +52,7 @@ import dayjs from 'dayjs';
 import useAuthStore from '../../stores/authStore';
 import { PROJECT_NAME, buildSemesterName, buildSemesterCode, extractSemesterMeta, formatSemesterLabel } from '../../utils/semesterDisplay';
 import BM02ReviewDrawer from '../../components/admin/BM02ReviewDrawer';
+import { getStatusTagConfig } from '../../components/common/statusMap';
 
 const EMPTY_LIST = [];
 
@@ -1161,9 +1162,9 @@ function ProjectPeriodPage() {
                                                     BM02_RESUBMITTED: { label: 'Chờ duyệt nộp lại', color: 'purple' },
                                                     BM02_NEEDS_REVISION: { label: 'Yêu cầu chỉnh sửa', color: 'orange' },
                                                     APPROVED: { label: 'Đã duyệt đơn BM02', color: 'green' },
-                                                    DECISION_ISSUED: { label: 'Đã ban hành QĐ', color: 'cyan' },
+                                                    DECISION_ISSUED: { label: 'Đã ban hành QĐ', color: 'purple' },
                                                 };
-                                                const item = statusMap[statusValue] || { label: String(statusValue || 'N/A'), color: 'default' };
+                                                const item = statusMap[statusValue] || getStatusTagConfig(statusValue);
                                                 return <Tag color={item.color}>{item.label}</Tag>;
                                             },
                                         },
@@ -1709,13 +1710,14 @@ function ProjectPeriodPage() {
                                 title: 'Trạng thái',
                                 dataIndex: 'status',
                                 key: 'status',
-                                width: 130,
+                                width: 160,
                                 align: 'center',
                                 render: (status, record) => {
                                     const statusValue = typeof status === 'string' ? status : record?.status;
+                                    const item = getStatusTagConfig(statusValue);
                                     return (
-                                        <Tag color={statusValue === 'DECISION_ISSUED' ? 'purple' : 'blue'}>
-                                            {statusValue === 'DECISION_ISSUED' ? 'Đã ban hành QĐ' : String(statusValue || '')}
+                                        <Tag color={item.color}>
+                                            {item.label}
                                         </Tag>
                                     );
                                 },

@@ -52,3 +52,55 @@ export const STATUS_MAP = {
     active: { label: 'Hoạt động', tw: 'bg-emerald-50 text-emerald-700 border border-emerald-200' },
     inactive: { label: 'Vô hiệu', tw: 'bg-rose-50 text-rose-700 border border-rose-200' },
 };
+
+export const STATUS_ANTD_CONFIG = {
+    DECISION_ISSUED: { label: 'Đã ban hành QĐ', color: 'purple' },
+    IN_PROGRESS_BM03: { label: 'Đang thực hiện đồ án', color: 'cyan' },
+    IN_PROGRESS: { label: 'Đang thực hiện đồ án', color: 'cyan' },
+    BM03_SIGNATURE_PENDING: { label: 'Chờ ký biên bản tiến độ', color: 'orange' },
+    CHECKPOINT_SIGNATURE_APPEAL_OPEN: { label: 'Đang mở khiếu nại', color: 'orange' },
+    CHECKPOINT_SIGNATURE_APPEAL_SUBMITTED: { label: 'Đã nộp khiếu nại', color: 'volcano' },
+    CHECKPOINT_SIGNATURE_APPEAL_REVIEW: { label: 'Đang thẩm định khiếu nại', color: 'purple' },
+    SIGNATURE_APPEAL_RESOLVED: { label: 'Đã giải quyết khiếu nại', color: 'cyan' },
+    BM03_PASSED: { label: 'Đạt đánh giá tiến độ', color: 'green' },
+    BM04_REVIEW: { label: 'Đang thẩm định BM04', color: 'blue' },
+    DEFENSE_READY: { label: 'Sẵn sàng bảo vệ', color: 'green' },
+    READY_FOR_DEFENSE: { label: 'Sẵn sàng bảo vệ', color: 'green' },
+    DEFENDED: { label: 'Đã bảo vệ', color: 'geekblue' },
+    AWAITING_SCORES: { label: 'Chờ đủ phiếu chấm', color: 'orange' },
+    AWAITING_FINAL_APPROVAL: { label: 'Chờ duyệt kết quả', color: 'purple' },
+    DEFENSE_PASSED: { label: 'Bảo vệ đạt', color: 'green' },
+    DEFENSE_FAILED: { label: 'Bảo vệ không đạt', color: 'red' },
+    PENDING_INSTITUTE_SIGNATURE: { label: 'Chờ Viện trưởng ký hoàn thành', color: 'cyan' },
+    ARCHIVE_INCOMPLETE: { label: 'Chưa hoàn tất lưu chiểu', color: 'orange' },
+    ARCHIVE_REJECTED: { label: 'Lưu chiểu không đạt', color: 'red' },
+    COMPLETED: { label: 'Hoàn thành', color: 'green' },
+    STOP_REVIEW_PENDING: { label: 'Chờ xét dừng đề tài', color: 'red' },
+    TERMINATED_FAILED_PROGRESS: { label: 'Dừng tiến độ', color: 'red' },
+    TERMINATED_BM04: { label: 'Dừng đề tài do nhận xét không đạt', color: 'red' },
+    AUTO_TERMINATED: { label: 'Tự động dừng', color: 'red' },
+    DROPPED: { label: 'Đã dừng đồ án', color: 'red' },
+    WITHDRAWN: { label: 'Đã rút đề tài', color: 'default' },
+    BM01_SUBMITTED: { label: 'Chờ duyệt đề cương', color: 'blue' },
+    BM01_NEEDS_REVISION: { label: 'Đề cương cần chỉnh sửa', color: 'orange' },
+    BM01_PASSED: { label: 'Đề cương đạt', color: 'green' },
+    BM02_SUBMITTED: { label: 'Chờ duyệt đơn BM02', color: 'blue' },
+    BM02_RESUBMITTED: { label: 'Chờ duyệt nộp lại', color: 'purple' },
+    BM02_NEEDS_REVISION: { label: 'Yêu cầu chỉnh sửa đơn', color: 'orange' },
+    APPROVED: { label: 'Đã duyệt', color: 'green' },
+    PENDING: { label: 'Chờ duyệt', color: 'gold' },
+    REJECTED: { label: 'Từ chối', color: 'red' },
+    DRAFT: { label: 'Bản nháp', color: 'default' },
+};
+
+export const getStatusTagConfig = (status) => {
+    if (!status) return { label: 'Chưa cập nhật', color: 'default' };
+    const code = String(status).trim();
+    if (STATUS_ANTD_CONFIG[code]) {
+        return STATUS_ANTD_CONFIG[code];
+    }
+    if (STATUS_MAP[code]) {
+        return { label: STATUS_MAP[code].label, color: 'blue' };
+    }
+    return { label: code.replace(/_/g, ' '), color: 'default' };
+};
