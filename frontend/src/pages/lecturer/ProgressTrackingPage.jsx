@@ -17,6 +17,12 @@ import {
     HistoryOutlined,
     CloseOutlined,
     PrinterOutlined,
+    CalendarOutlined,
+    EnvironmentOutlined,
+    BookOutlined,
+    UserOutlined,
+    VideoCameraOutlined,
+    CheckOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
@@ -1389,109 +1395,370 @@ export default function ProgressTrackingPage() {
 
             {/* MODAL: GHI NHẬN BUỔI GẶP LAB (BM03) */}
             {meetingModalOpen && (
-                <div className="modal-overlay open" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <div className="modal-box" style={{ maxWidth: 600 }}>
-                        <div className="modal-head">
-                            <div className="modal-title">Ghi Nhận Buổi Hướng Dẫn Mới (BM03)</div>
-                            <button type="button" className="modal-close" onClick={() => setMeetingModalOpen(false)} aria-label="Đóng"><CloseOutlined /></button>
-                        </div>
-                        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                            <div style={{ padding: '10px 12px', background: '#F0FDFA', borderRadius: 'var(--radius-sm)', border: '1px solid #CCFBF1', fontSize: 13 }}>
-                                Sinh viên trao đổi: <strong>{reg?.student?.fullName}</strong> ({reg?.student?.code})
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div
+                    className="modal-overlay open"
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: 'rgba(15, 23, 42, 0.55)',
+                        backdropFilter: 'blur(4px)',
+                        zIndex: 1050,
+                    }}
+                >
+                    <div
+                        className="modal-box"
+                        style={{
+                            maxWidth: 640,
+                            width: '100%',
+                            borderRadius: 16,
+                            overflow: 'hidden',
+                            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+                            border: '1px solid #E2E8F0',
+                            padding: 0,
+                        }}
+                    >
+                        {/* Header with Teal Gradient */}
+                        <div
+                            style={{
+                                background: 'linear-gradient(135deg, #0F766E 0%, #0D9488 100%)',
+                                padding: '18px 24px',
+                                color: '#FFFFFF',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                            }}
+                        >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                <div
+                                    style={{
+                                        width: 40,
+                                        height: 40,
+                                        borderRadius: 10,
+                                        background: '#FFFFFF',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+                                    }}
+                                >
+                                    <TeamOutlined style={{ fontSize: 20, color: '#0F766E' }} />
+                                </div>
                                 <div>
-                                    <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Ngày gặp mặt:</label>
-                                    <input
+                                    <div style={{ fontSize: 17, fontWeight: 700, color: '#FFFFFF', lineHeight: 1.3 }}>
+                                        Ghi Nhận Buổi Hướng Dẫn Mới (BM03)
+                                    </div>
+                                    <div style={{ fontSize: 12, color: 'rgba(255, 255, 255, 0.85)', marginTop: 2 }}>
+                                        Nhật ký gặp mặt định kỳ & đánh giá kết quả thực hiện
+                                    </div>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setMeetingModalOpen(false)}
+                                aria-label="Đóng"
+                                style={{
+                                    background: 'rgba(255, 255, 255, 0.15)',
+                                    border: 'none',
+                                    borderRadius: '50%',
+                                    width: 32,
+                                    height: 32,
+                                    cursor: 'pointer',
+                                    color: '#FFFFFF',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    transition: 'background 0.2s',
+                                }}
+                            >
+                                <CloseOutlined style={{ fontSize: 13 }} />
+                            </button>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div
+                            className="modal-body"
+                            style={{
+                                maxHeight: 'calc(88vh - 130px)',
+                                overflowY: 'auto',
+                                padding: '20px 24px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 16,
+                                background: '#F8FAFC',
+                            }}
+                        >
+                            {/* Student Spotlight Summary Card */}
+                            {reg && (
+                                <div
+                                    style={{
+                                        background: '#FFFFFF',
+                                        border: '1px solid #E2E8F0',
+                                        borderRadius: 12,
+                                        padding: '12px 16px',
+                                        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: 6,
+                                    }}
+                                >
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                            <div
+                                                style={{
+                                                    width: 32,
+                                                    height: 32,
+                                                    borderRadius: '50%',
+                                                    background: 'linear-gradient(135deg, #CCFBF1 0%, #99F6E4 100%)',
+                                                    color: '#0F766E',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    fontWeight: 700,
+                                                    fontSize: 12,
+                                                }}
+                                            >
+                                                {reg.student?.fullName
+                                                    ? reg.student.fullName.split(' ').slice(-2).map((n) => n[0]).join('')
+                                                    : <UserOutlined />}
+                                            </div>
+                                            <div>
+                                                <span style={{ fontWeight: 600, fontSize: 13, color: '#0F172A' }}>
+                                                    {reg.student?.fullName}
+                                                </span>
+                                                <span
+                                                    style={{
+                                                        marginLeft: 8,
+                                                        fontSize: 11,
+                                                        fontFamily: 'monospace',
+                                                        background: '#F1F5F9',
+                                                        padding: '1px 6px',
+                                                        borderRadius: 4,
+                                                        color: '#475569',
+                                                    }}
+                                                >
+                                                    {reg.student?.code}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <span
+                                            className={`tag ${reg.topic?.projectCatalog?.code === 'DATN' ? 'purple' : 'teal'}`}
+                                            style={{ fontSize: 10, padding: '1px 8px', fontWeight: 600 }}
+                                        >
+                                            {reg.topic?.projectCatalog?.code || 'ĐACN'}
+                                        </span>
+                                    </div>
+                                    <div style={{ fontSize: 12, color: '#64748B', display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                                        <BookOutlined style={{ marginTop: 2, color: '#0D9488', flexShrink: 0 }} />
+                                        <span style={{ lineHeight: 1.4 }}>
+                                            {reg.topic?.title || reg.topic?.name || reg.effectiveTitle || 'Đề tài chưa cập nhật'}
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Timing & Modality Grid */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                                <div>
+                                    <label style={{ fontWeight: 600, fontSize: 13, color: '#334155', display: 'block', marginBottom: 6 }}>
+                                        Ngày gặp mặt:
+                                    </label>
+                                    <Input
                                         type="date"
-                                        className="input-field"
                                         value={meetingDate}
                                         onChange={(e) => setMeetingDate(e.target.value)}
-                                        style={{ width: '100%' }}
+                                        prefix={<CalendarOutlined style={{ color: '#0D9488', marginRight: 4 }} />}
+                                        style={{ width: '100%', borderRadius: 8, height: 38 }}
                                     />
                                 </div>
                                 <div>
-                                    <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Hình thức làm việc:</label>
-                                    <select
-                                        className="input-field"
+                                    <label style={{ fontWeight: 600, fontSize: 13, color: '#334155', display: 'block', marginBottom: 6 }}>
+                                        Hình thức làm việc:
+                                    </label>
+                                    <Select
                                         value={meetingMode}
-                                        onChange={(e) => setMeetingMode(e.target.value)}
-                                        style={{ width: '100%' }}
-                                    >
-                                        <option value="IN_PERSON">Trực tiếp tại Phòng (Offline)</option>
-                                        <option value="ONLINE">Trực tuyến (ONLINE)</option>
-                                    </select>
+                                        onChange={setMeetingMode}
+                                        style={{ width: '100%', height: 38 }}
+                                        options={[
+                                            { value: 'IN_PERSON', label: 'Trực tiếp tại Lab (Offline)' },
+                                            { value: 'ONLINE', label: 'Trực tuyến (Meet / Teams / Zoom)' },
+                                        ]}
+                                    />
                                 </div>
                             </div>
+
+                            {/* Location / Link */}
                             <div>
-                                <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Địa điểm / Link họp:</label>
-                                <input
-                                    type="text"
-                                    className="input-field"
+                                <label style={{ fontWeight: 600, fontSize: 13, color: '#334155', display: 'block', marginBottom: 6 }}>
+                                    Địa điểm / Link họp:
+                                </label>
+                                <Input
                                     value={meetingLocation}
                                     onChange={(e) => setMeetingLocation(e.target.value)}
                                     placeholder="Ví dụ: Lab H2-502 hoặc https://meet.google.com/xyz"
-                                    style={{ width: '100%' }}
+                                    prefix={meetingMode === 'ONLINE' ? <VideoCameraOutlined style={{ color: '#0D9488', marginRight: 4 }} /> : <EnvironmentOutlined style={{ color: '#0D9488', marginRight: 4 }} />}
+                                    style={{ width: '100%', borderRadius: 8, height: 38 }}
                                 />
                             </div>
+
+                            {/* Progress Rating */}
                             <div>
-                                <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Đánh giá tiến độ buổi gặp:</label>
+                                <label style={{ fontWeight: 600, fontSize: 13, color: '#334155', display: 'block', marginBottom: 6 }}>
+                                    Đánh giá tiến độ buổi gặp:
+                                </label>
                                 <Select
                                     value={progressRating}
                                     onChange={setProgressRating}
-                                    style={{ width: '100%' }}
+                                    style={{ width: '100%', height: 38 }}
                                     options={[
-                                        { value: 'ON_TRACK', label: 'Đúng tiến độ' },
-                                        { value: 'AT_RISK', label: 'Có rủi ro' },
-                                        { value: 'BEHIND', label: 'Chậm tiến độ' },
-                                        { value: 'NO_PROGRESS', label: 'Không có tiến độ' },
+                                        {
+                                            value: 'ON_TRACK',
+                                            label: (
+                                                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10B981', display: 'inline-block' }} />
+                                                    <strong style={{ color: '#047857' }}>Đúng tiến độ</strong>
+                                                    <span style={{ color: '#64748B', fontSize: 11 }}>(Đạt yêu cầu kế hoạch)</span>
+                                                </span>
+                                            ),
+                                        },
+                                        {
+                                            value: 'AT_RISK',
+                                            label: (
+                                                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#F59E0B', display: 'inline-block' }} />
+                                                    <strong style={{ color: '#B45309' }}>Có rủi ro</strong>
+                                                    <span style={{ color: '#64748B', fontSize: 11 }}>(Cần theo dõi sát)</span>
+                                                </span>
+                                            ),
+                                        },
+                                        {
+                                            value: 'BEHIND',
+                                            label: (
+                                                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#F97316', display: 'inline-block' }} />
+                                                    <strong style={{ color: '#C2410C' }}>Chậm tiến độ</strong>
+                                                    <span style={{ color: '#64748B', fontSize: 11 }}>(Cần tăng tốc thực hiện)</span>
+                                                </span>
+                                            ),
+                                        },
+                                        {
+                                            value: 'NO_PROGRESS',
+                                            label: (
+                                                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#EF4444', display: 'inline-block' }} />
+                                                    <strong style={{ color: '#B91C1C' }}>Không có tiến độ</strong>
+                                                    <span style={{ color: '#64748B', fontSize: 11 }}>(Chưa thực hiện công việc)</span>
+                                                </span>
+                                            ),
+                                        },
                                     ]}
                                 />
                             </div>
+
+                            {/* Meeting Content */}
                             <div>
-                                <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Nội dung trao đổi (*):</label>
-                                <textarea
-                                    className="input-field"
-                                    rows={2}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                    <label style={{ fontWeight: 600, fontSize: 13, color: '#334155' }}>
+                                        Nội dung trao đổi <span style={{ color: '#EF4444' }}>*</span>:
+                                    </label>
+                                    <span style={{ fontSize: 11, color: '#94A3B8' }}>
+                                        {meetingContent.length} ký tự
+                                    </span>
+                                </div>
+                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                                    {[
+                                        'Báo cáo tiến độ tuần',
+                                        'Thử nghiệm mô hình & thuật toán',
+                                        'Review tài liệu & báo cáo kỹ thuật',
+                                        'Sửa lỗi & hoàn thiện giao diện',
+                                    ].map((promptText) => (
+                                        <button
+                                            key={promptText}
+                                            type="button"
+                                            onClick={() => {
+                                                setMeetingContent((prev) =>
+                                                    prev ? `${prev}; ${promptText}` : promptText
+                                                );
+                                            }}
+                                            style={{
+                                                fontSize: 11,
+                                                padding: '2px 8px',
+                                                borderRadius: 12,
+                                                background: '#E0F2FE',
+                                                color: '#0369A1',
+                                                border: '1px solid #BAE6FD',
+                                                cursor: 'pointer',
+                                                transition: 'all 0.15s ease',
+                                            }}
+                                        >
+                                            {promptText}
+                                        </button>
+                                    ))}
+                                </div>
+                                <Input.TextArea
+                                    rows={3}
                                     value={meetingContent}
                                     onChange={(e) => setMeetingContent(e.target.value)}
-                                    placeholder="Sinh viên báo cáo công việc thực hiện, kết quả đạt được..."
-                                    style={{ width: '100%' }}
+                                    placeholder="Sinh viên báo cáo công việc thực hiện, kết quả đạt được, định hướng tuần tiếp theo..."
+                                    style={{ borderRadius: 8 }}
                                 />
                             </div>
+
+                            {/* Student Completed Work */}
                             <div>
-                                <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Kết quả sinh viên đã hoàn thành:</label>
-                                <textarea
-                                    className="input-field"
+                                <label style={{ fontWeight: 600, fontSize: 13, color: '#334155', display: 'block', marginBottom: 6 }}>
+                                    Kết quả sinh viên đã hoàn thành:
+                                </label>
+                                <Input.TextArea
                                     rows={2}
                                     value={studentCompletedWork}
                                     onChange={(e) => setStudentCompletedWork(e.target.value)}
                                     placeholder="Mô tả cụ thể module/tính năng/kết quả đã xong..."
-                                    style={{ width: '100%' }}
+                                    style={{ borderRadius: 8 }}
                                 />
                             </div>
+
+                            {/* Remaining Issues */}
                             <div>
-                                <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Vấn đề còn tồn đọng:</label>
-                                <textarea
-                                    className="input-field"
+                                <label style={{ fontWeight: 600, fontSize: 13, color: '#334155', display: 'block', marginBottom: 6 }}>
+                                    Vấn đề còn tồn đọng:
+                                </label>
+                                <Input.TextArea
                                     rows={2}
                                     value={remainingIssues}
                                     onChange={(e) => setRemainingIssues(e.target.value)}
                                     placeholder="Khó khăn, lỗi kỹ thuật hoặc vướng mắc cần giải quyết..."
-                                    style={{ width: '100%' }}
+                                    style={{ borderRadius: 8 }}
                                 />
                             </div>
                         </div>
-                        <div className="modal-foot flex justify-end gap-2">
-                            <Button onClick={() => setMeetingModalOpen(false)}>Hủy</Button>
-                            <Button
-                                type="primary"
-                                icon={<SaveOutlined />}
-                                loading={meetingSubmitting}
-                                onClick={handleCreateMeeting}
-                            >
-                                Lưu nhật ký buổi gặp
-                            </Button>
+
+                        {/* Modal Footer */}
+                        <div
+                            style={{
+                                padding: '14px 24px',
+                                background: '#FFFFFF',
+                                borderTop: '1px solid #E2E8F0',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                            }}
+                        >
+                            <div style={{ fontSize: 12, color: '#64748B' }}>
+                                BM03 Meeting Entry • Biên bản lưu trữ phục vụ bảo vệ đồ án
+                            </div>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                                <Button onClick={() => setMeetingModalOpen(false)}>Hủy</Button>
+                                <Button
+                                    type="primary"
+                                    icon={<SaveOutlined />}
+                                    loading={meetingSubmitting}
+                                    onClick={handleCreateMeeting}
+                                    style={{ background: '#0D9488', borderColor: '#0D9488' }}
+                                >
+                                    Lưu nhật ký buổi gặp
+                                </Button>
+                            </div>
                         </div>
                     </div>
                 </div>

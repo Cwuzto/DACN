@@ -1,7 +1,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, message, Tag } from 'antd';
-import { ArrowRightOutlined, CloseOutlined, PlusOutlined, FolderOpenOutlined } from '@ant-design/icons';
+import { Button, message, Tag, Select, Input } from 'antd';
+import {
+    ArrowRightOutlined,
+    CloseOutlined,
+    PlusOutlined,
+    FolderOpenOutlined,
+    TeamOutlined,
+    UserOutlined,
+    BookOutlined,
+    CalendarOutlined,
+    CheckOutlined,
+} from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -69,6 +79,10 @@ export default function LecturerDashboardPage() {
             (r) => r.status !== 'PENDING' && r.status !== 'REJECTED' && r.status !== 'WITHDRAWN' && r.status !== 'DROPPED'
         );
     }, [rawRegistrations]);
+
+    const selectedStudent = useMemo(() => {
+        return supervisedStudents.find((s) => String(s.id) === String(meetingStudentId)) || supervisedStudents[0] || null;
+    }, [supervisedStudents, meetingStudentId]);
 
     const pendingRegistrations = useMemo(() => {
         return rawRegistrations.filter((r) => r.status === 'PENDING');
@@ -811,88 +825,256 @@ export default function LecturerDashboardPage() {
                 </QueryPanel>
             </div>
 
-            {/* MODAL 1: GHI NHẬN BUỔI GẶP LAB (BM03) */}
+            {/* MODAL 1: GHI NHẬN BUỔI GẶP HƯỚNG DẪN MỚI (BM03) */}
             {meetingModalOpen && (
                 <div className="modal-overlay open" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <div className="modal-box" style={{ maxWidth: 540 }}>
-                        <div className="modal-head">
-                            <div className="modal-title">Ghi Nhận Buổi Gặp Hướng Dẫn Mới</div>
-                            <button type="button" className="modal-close" onClick={() => setMeetingModalOpen(false)} aria-label="Đóng"><CloseOutlined /></button>
-                        </div>
-                        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                            <div style={{ padding: '10px 12px', background: '#F0FDFA', borderRadius: 'var(--radius-sm)', border: '1px solid #CCFBF1', fontSize: 13 }}>
-                                Sinh viên trao đổi:{' '}
-                                <select
-                                    className="input-field"
-                                    value={meetingStudentId}
-                                    onChange={(e) => setMeetingStudentId(e.target.value)}
-                                    style={{ marginLeft: 8, fontWeight: 700 }}
+                    <div className="modal-box" style={{ maxWidth: 620, width: '92%', borderRadius: 16, overflow: 'hidden', padding: 0 }}>
+                        {/* Modal Head with Gradient Header */}
+                        <div
+                            style={{
+                                padding: '20px 24px',
+                                background: 'linear-gradient(135deg, #F0FDFA 0%, #E6FFFA 100%)',
+                                borderBottom: '1px solid #CCFBF1',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'flex-start',
+                            }}
+                        >
+                            <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+                                <div
+                                    style={{
+                                        width: 44,
+                                        height: 44,
+                                        borderRadius: 12,
+                                        background: '#0D9488',
+                                        color: 'white',
+                                        display: 'grid',
+                                        placeItems: 'center',
+                                        fontSize: 20,
+                                        boxShadow: '0 4px 12px rgba(13, 148, 136, 0.25)',
+                                    }}
                                 >
-                                    {supervisedStudents.map((s) => (
-                                        <option key={s.id} value={s.id}>
-                                            {s.student?.fullName} ({s.student?.code}) — {s.topic?.title?.slice(0, 35)}...
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                                    <TeamOutlined />
+                                </div>
                                 <div>
-                                    <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Ngày gặp mặt:</label>
-                                    <input
+                                    <div className="modal-title" style={{ fontSize: 17, fontWeight: 700, color: '#0F172A' }}>
+                                        Ghi Nhận Buổi Gặp Hướng Dẫn Mới
+                                    </div>
+                                    <div style={{ fontSize: 12.5, color: '#0F766E', marginTop: 2 }}>
+                                        Theo dõi tiến độ định kỳ & giao nhiệm vụ nghiên cứu (Mẫu BM03)
+                                    </div>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                className="modal-close"
+                                onClick={() => setMeetingModalOpen(false)}
+                                aria-label="Đóng"
+                                style={{ background: 'white', border: '1px solid #E2E8F0', borderRadius: 8, width: 32, height: 32, display: 'grid', placeItems: 'center' }}
+                            >
+                                <CloseOutlined />
+                            </button>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div className="modal-body" style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 18, maxHeight: '72vh', overflowY: 'auto' }}>
+                            {/* 1. Student Selector Card */}
+                            <div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                    <label style={{ fontWeight: 700, fontSize: 13, color: '#1E293B', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <UserOutlined style={{ color: '#0D9488' }} />
+                                        <span>Sinh viên trao đổi hướng dẫn:</span>
+                                    </label>
+                                    <span style={{ fontSize: 11.5, color: '#64748B' }}>
+                                        {supervisedStudents.length} sinh viên đang hướng dẫn
+                                    </span>
+                                </div>
+
+                                <Select
+                                    value={meetingStudentId}
+                                    onChange={(val) => setMeetingStudentId(val)}
+                                    style={{ width: '100%' }}
+                                    size="large"
+                                    options={supervisedStudents.map((s) => ({
+                                        value: String(s.id),
+                                        label: (
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '2px 0' }}>
+                                                <span>
+                                                    <strong>{s.student?.fullName || 'Sinh viên'}</strong>
+                                                    <span style={{ color: '#64748B', marginLeft: 6, fontFamily: 'var(--font-mono)' }}>({s.student?.code || '-'})</span>
+                                                </span>
+                                                <Tag color="cyan" style={{ fontSize: 11, margin: 0, maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                    {s.topic?.title || 'Đề tài'}
+                                                </Tag>
+                                            </div>
+                                        ),
+                                    }))}
+                                />
+
+                                {/* Selected Student Highlight Card */}
+                                {selectedStudent && (
+                                    <div
+                                        style={{
+                                            marginTop: 10,
+                                            padding: '10px 14px',
+                                            background: '#F8FAFC',
+                                            border: '1px solid #E2E8F0',
+                                            borderRadius: 10,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            gap: 12,
+                                        }}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, overflow: 'hidden' }}>
+                                            <div
+                                                style={{
+                                                    width: 34,
+                                                    height: 34,
+                                                    borderRadius: '50%',
+                                                    background: '#E0F2FE',
+                                                    color: '#0369A1',
+                                                    fontWeight: 700,
+                                                    fontSize: 12.5,
+                                                    display: 'grid',
+                                                    placeItems: 'center',
+                                                    flexShrink: 0,
+                                                }}
+                                            >
+                                                {selectedStudent.student?.fullName ? selectedStudent.student.fullName.trim().split(' ').slice(-1)[0][0]?.toUpperCase() : 'S'}
+                                            </div>
+                                            <div style={{ overflow: 'hidden' }}>
+                                                <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                    {selectedStudent.student?.fullName} · <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 500, color: '#64748B' }}>{selectedStudent.student?.code}</span>
+                                                </div>
+                                                <div style={{ fontSize: 11.5, color: '#475569', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
+                                                    <BookOutlined style={{ color: '#0D9488' }} />
+                                                    <span>Đề tài: {selectedStudent.topic?.title || 'Chưa cập nhật'}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <Tag color="purple" style={{ margin: 0, flexShrink: 0, fontWeight: 600 }}>
+                                            BM03
+                                        </Tag>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* 2. Timing & Modality Grid */}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
+                                <div>
+                                    <label style={{ fontWeight: 700, fontSize: 13, color: '#1E293B', display: 'block', marginBottom: 6 }}>
+                                        Ngày gặp mặt:
+                                    </label>
+                                    <Input
                                         type="date"
-                                        className="input-field"
                                         value={meetingDate}
                                         onChange={(e) => setMeetingDate(e.target.value)}
-                                        style={{ width: '100%' }}
+                                        prefix={<CalendarOutlined style={{ color: '#0D9488' }} />}
+                                        style={{ height: 40, borderRadius: 8 }}
                                     />
                                 </div>
                                 <div>
-                                    <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Hình thức làm việc:</label>
-                                    <select
-                                        className="input-field"
+                                    <label style={{ fontWeight: 700, fontSize: 13, color: '#1E293B', display: 'block', marginBottom: 6 }}>
+                                        Hình thức làm việc:
+                                    </label>
+                                    <Select
                                         value={meetingLocation}
-                                        onChange={(e) => setMeetingLocation(e.target.value)}
-                                        style={{ width: '100%' }}
-                                    >
-                                        <option>Tại Lab H2-502</option>
-                                        <option>Online Google Meet</option>
-                                        <option>Văn phòng Bộ môn</option>
-                                    </select>
+                                        onChange={setMeetingLocation}
+                                        style={{ width: '100%', height: 40 }}
+                                        options={[
+                                            { value: 'Tại Lab H2-502', label: 'Tại Lab H2-502 (Trực tiếp)' },
+                                            { value: 'Online Google Meet', label: 'Online Google Meet (Trực tuyến)' },
+                                            { value: 'Văn phòng Bộ môn', label: 'Văn phòng Bộ môn' },
+                                            { value: 'Phòng chuyên đề', label: 'Phòng chuyên đề khoa' },
+                                        ]}
+                                    />
                                 </div>
                             </div>
+
+                            {/* 3. Discussion Summary */}
                             <div>
-                                <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Tóm tắt nội dung sinh viên đã báo cáo:</label>
-                                <textarea
-                                    className="input-field"
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                    <label style={{ fontWeight: 700, fontSize: 13, color: '#1E293B' }}>
+                                        Tóm tắt nội dung sinh viên đã báo cáo: <span style={{ color: '#E11D48' }}>*</span>
+                                    </label>
+                                    <span style={{ fontSize: 11.5, color: '#64748B' }}>
+                                        {meetingContent.length}/500 ký tự
+                                    </span>
+                                </div>
+                                <Input.TextArea
                                     rows={3}
                                     value={meetingContent}
                                     onChange={(e) => setMeetingContent(e.target.value)}
-                                    placeholder="Ví dụ: Sinh viên báo cáo kết quả tối ưu hóa truy vấn cơ sở dữ liệu và hoàn thiện giao diện..."
-                                    style={{ width: '100%' }}
+                                    placeholder="Ví dụ: Sinh viên báo cáo kết quả tối ưu hóa truy vấn cơ sở dữ liệu, kiểm thử API và hoàn thiện giao diện người dùng..."
+                                    style={{ borderRadius: 8, padding: '10px 12px' }}
+                                    maxLength={500}
                                 />
+
+                                {/* Quick suggestion tags */}
+                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8, alignItems: 'center' }}>
+                                    <span style={{ fontSize: 11.5, color: '#64748B' }}>Gợi ý nhanh:</span>
+                                    {[
+                                        'Báo cáo tiến độ tuần',
+                                        'Thử nghiệm mô hình & thuật toán',
+                                        'Hoàn thiện API & Database',
+                                        'Soạn thảo thuyết minh báo cáo',
+                                    ].map((hint, i) => (
+                                        <Tag
+                                            key={i}
+                                            style={{ cursor: 'pointer', background: '#F1F5F9', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 11 }}
+                                            onClick={() => setMeetingContent((prev) => prev ? `${prev} · ${hint}` : hint)}
+                                        >
+                                            {hint}
+                                        </Tag>
+                                    ))}
+                                </div>
                             </div>
+
+                            {/* 4. Next Task Assignment */}
                             <div>
-                                <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Nhiệm vụ giao cho tuần tiếp theo:</label>
-                                <input
-                                    type="text"
-                                    className="input-field"
+                                <label style={{ fontWeight: 700, fontSize: 13, color: '#1E293B', display: 'block', marginBottom: 6 }}>
+                                    Nhiệm vụ giao cho tuần tiếp theo:
+                                </label>
+                                <Input
                                     value={meetingNextTask}
                                     onChange={(e) => setMeetingNextTask(e.target.value)}
-                                    placeholder="Ví dụ: Hoàn thiện slide thuyết trình và chạy thử demo kiểm thử tải..."
-                                    style={{ width: '100%' }}
+                                    placeholder="Ví dụ: Hoàn thiện slide thuyết trình, bổ sung test case và chạy thử demo kiểm thử tải..."
+                                    prefix={<CheckOutlined style={{ color: '#0D9488' }} />}
+                                    style={{ height: 40, borderRadius: 8 }}
                                 />
                             </div>
                         </div>
-                        <div className="modal-foot">
-                            <button type="button" className="btn btn-secondary" onClick={() => setMeetingModalOpen(false)}>Hủy</button>
-                            <button
-                                type="button"
-                                className="btn btn-primary"
-                                disabled={meetingSubmitting}
-                                onClick={handleCreateMeetingLog}
-                            >
-                                {meetingSubmitting ? 'Đang lưu...' : 'Lưu Nhật Ký Buổi Gặp'}
-                            </button>
+
+                        {/* Modal Foot */}
+                        <div
+                            className="modal-foot"
+                            style={{
+                                padding: '16px 24px',
+                                background: '#F8FAFC',
+                                borderTop: '1px solid #E2E8F0',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                            }}
+                        >
+                            <div style={{ fontSize: 12, color: '#64748B' }}>
+                                Nhật ký sẽ được lưu vào sổ theo dõi BM03 của sinh viên
+                            </div>
+                            <div style={{ display: 'flex', gap: 10 }}>
+                                <Button onClick={() => setMeetingModalOpen(false)}>
+                                    Hủy
+                                </Button>
+                                <Button
+                                    type="primary"
+                                    icon={<CheckOutlined />}
+                                    loading={meetingSubmitting}
+                                    onClick={handleCreateMeetingLog}
+                                    className="bg-teal-600 hover:bg-teal-700"
+                                >
+                                    Lưu Nhật Ký Buổi Gặp
+                                </Button>
+                            </div>
                         </div>
                     </div>
                 </div>
