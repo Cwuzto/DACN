@@ -549,7 +549,7 @@
 - Consumes: all prior tasks.
 - Produces: verified implementation with no remaining required work from this plan.
 
-- [ ] **Step 1: Run complete backend verification**
+- [x] **Step 1: Run complete backend verification**
 
   Run:
 
@@ -560,7 +560,7 @@
 
   Expected: all suites PASS and Prisma validates.
 
-- [ ] **Step 2: Run complete frontend verification**
+- [x] **Step 2: Run complete frontend verification**
 
   Run:
 
@@ -574,19 +574,19 @@
 
   Expected: all tests/lint PASS and production build succeeds.
 
-- [ ] **Step 3: Run repository-rule and authorization scans**
+- [x] **Step 3: Run repository-rule and authorization scans**
 
   Verify no legacy `group/groupMember`, mock workflow data, raw icon characters in button labels, UTF-8 BOM, unknown permission strings, new alias consumers, client-controlled scope authorization, page-local role bypasses, or unguarded mutation controls exist in changed scope.
 
-- [ ] **Step 4: Perform manual five-persona smoke test**
+- [x] **Step 4: Perform manual five-persona smoke test**
 
   Sign in with one real account per persona against a disposable/staging database. Confirm dashboard/menu, one allowed action, one forbidden direct URL, one cross-resource denial, grant, revoke and cross-tab refresh. Record evidence without storing credentials in the repository.
 
-- [ ] **Step 5: Cross-review security invariants**
+- [x] **Step 5: Cross-review security invariants**
 
   Review permission delta authority, transaction boundaries, audit rollback, resource-derived semester/department, publication privacy, independent BM05 grading, archive ownership, cache invalidation and frontend/backend policy parity.
 
-- [ ] **Step 6: Commit completion markers**
+- [x] **Step 6: Commit completion markers**
 
   ```powershell
   git add -f docs/superpowers/plans/2026-11-16-canonical-rbac-capability-implementation-plan.md

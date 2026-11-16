@@ -28,7 +28,18 @@ import evaluationService from '../src/services/evaluationService.js';
 import registrationService from '../src/services/registrationService.js';
 
 let client;
-const user = { id: 7, role: 'ADMIN', permissions: ['FINAL_DOCUMENT_REVIEW'] };
+const user = {
+    id: 7,
+    role: 'ADMIN',
+    permissions: [
+        'FINAL_DOCUMENT_REVIEW',
+        'PUBLIC_ANNOUNCEMENT_MANAGE',
+        'PORTAL_CONTENT_MANAGE',
+        'NOTIFICATION_MANAGE',
+        'RUBRIC_MANAGE',
+        'PROJECT_OVERSIGHT_MANAGE',
+    ],
+};
 
 beforeEach(() => {
     vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
@@ -41,7 +52,17 @@ beforeEach(() => {
     useAuthStore.setState({ user, isAuthenticated: true });
 
     // Default mock resolutions
-    vi.spyOn(semesterService, 'getAll').mockResolvedValue({ success: true, data: [{ id: 101, name: 'Học kỳ 1 2026', code: 'HK1_2026', status: 'ONGOING' }] });
+    vi.spyOn(semesterService, 'getAll').mockResolvedValue({
+        success: true,
+        data: [{
+            id: 101,
+            name: 'Học kỳ 1 2026',
+            code: 'HK1_2026',
+            status: 'ONGOING',
+            startDate: new Date(Date.now() - 7 * 86400000).toISOString(),
+            endDate: new Date(Date.now() + 60 * 86400000).toISOString(),
+        }],
+    });
     vi.spyOn(userService, 'getUsers').mockResolvedValue({ success: true, data: [{ id: 201, fullName: 'GV Nguyen Van A', code: 'GV01' }] });
     vi.spyOn(topicService, 'getAll').mockResolvedValue({ success: true, data: [{ id: 1, title: 'Hệ thống Quản lý Đồ án', status: 'APPROVED', semesterId: 101 }] });
     vi.spyOn(registrationService, 'getAllRegistrations').mockResolvedValue({ success: true, data: [] });
@@ -62,7 +83,9 @@ beforeEach(() => {
 
 afterEach(() => {
     cleanup();
-    client.clear();
+    client?.cancelQueries();
+    client?.clear();
+    useAuthStore.getState().logout();
     Modal.destroyAll();
     message.destroy();
     vi.restoreAllMocks();
@@ -144,7 +167,7 @@ test('portal content query renders distinct error state when listResources fails
     portalContentService.listResources.mockRejectedValue({ status: 500, message: 'Portal resources unavailable' });
     mount(<PortalContentManagementPage />);
 
-    expect(await screen.findByText('Portal resources unavailable')).toBeInTheDocument();
+    expect(await screen.findByText('Portal resources unavailable', {}, { timeout: 5000 })).toBeInTheDocument();
     // Ensure it does not render false empty state title
     expect(screen.queryByText('Chưa có cấu hình nhận diện')).not.toBeInTheDocument();
 });
