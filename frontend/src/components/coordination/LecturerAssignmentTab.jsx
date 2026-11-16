@@ -35,6 +35,29 @@ import * as XLSX from 'xlsx';
 
 const EMPTY_LIST = [];
 
+const ACADEMIC_TITLE_LABELS = {
+    THAC_SI: 'Thạc sĩ',
+    TIEN_SI: 'Tiến sĩ',
+    PHO_GIAO_SU: 'Phó Giáo sư',
+    GIAO_SU: 'Giáo sư',
+    KY_SU: 'Kỹ sư',
+    CU_NHAN: 'Cử nhân',
+    Thac_Si: 'Thạc sĩ',
+    Tien_Si: 'Tiến sĩ',
+    Pho_Giao_Su: 'Phó Giáo sư',
+    Giao_Su: 'Giáo sư',
+    Ky_Su: 'Kỹ sư',
+    Cu_Nhan: 'Cử nhân',
+};
+
+function formatAcademicTitle(title) {
+    if (!title) return 'Giảng viên';
+    const normalized = String(title).trim().toUpperCase();
+    if (ACADEMIC_TITLE_LABELS[title]) return ACADEMIC_TITLE_LABELS[title];
+    if (ACADEMIC_TITLE_LABELS[normalized]) return ACADEMIC_TITLE_LABELS[normalized];
+    return String(title).replace(/_/g, ' ');
+}
+
 export function LecturerAssignmentTab({
     semesterId,
     projectCatalogId,
@@ -363,7 +386,7 @@ export function LecturerAssignmentTab({
             width: 110,
             render: (_, row) => (
                 <Tag color="cyan" className="text-xs font-semibold">
-                    {row.lecturer?.academicTitle || 'Giảng viên'}
+                    {formatAcademicTitle(row.lecturer?.academicTitle)}
                 </Tag>
             ),
         },

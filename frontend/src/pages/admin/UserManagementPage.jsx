@@ -630,15 +630,14 @@ function UserManagementPage() {
                             allowClear
                         />
                         <Select
-                            placeholder="Khoa / Bộ môn"
+                            placeholder="Bộ môn"
                             style={{ minWidth: 200 }}
                             allowClear
                             value={departmentFilter}
                             onChange={(value) => { resetPage(); setDepartmentFilter(value || null); }}
                             options={[
                                 { label: 'Tất cả Bộ môn', value: null },
-                                { label: 'Viện Công nghệ Số', value: 'Viện Công nghệ Số' },
-                                { label: 'Bộ môn Kỹ thuật Phần mềm', value: 'Bộ môn Công nghệ Phần mềm' },
+                                { label: 'Bộ môn Công nghệ Phần mềm', value: 'Bộ môn Công nghệ Phần mềm' },
                                 { label: 'Bộ môn Hệ thống Thông tin', value: 'Bộ môn Hệ thống Thông tin' },
                                 { label: 'Bộ môn Mạng Máy tính', value: 'Bộ môn Mạng Máy tính' },
                                 { label: 'Bộ môn Khoa học Máy tính', value: 'Bộ môn Khoa học Máy tính' },
@@ -981,9 +980,8 @@ function UserManagementPage() {
                     ) : (
                         <>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <Form.Item label="Khoa / Bộ môn" name="department">
-                                    <Select placeholder="Chọn Khoa / Bộ môn" allowClear>
-                                        <Select.Option value="Viện Công nghệ Số">Viện Công nghệ Số</Select.Option>
+                                <Form.Item label="Bộ môn" name="department">
+                                    <Select placeholder="Chọn Bộ môn" allowClear>
                                         <Select.Option value="Bộ môn Công nghệ Phần mềm">Bộ môn Công nghệ Phần mềm</Select.Option>
                                         <Select.Option value="Bộ môn Hệ thống Thông tin">Bộ môn Hệ thống Thông tin</Select.Option>
                                         <Select.Option value="Bộ môn Mạng Máy tính">Bộ môn Mạng Máy tính</Select.Option>
