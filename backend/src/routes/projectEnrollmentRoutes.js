@@ -18,15 +18,55 @@ const router = express.Router();
 
 router.use(authenticate);
 
-router.get('/catalogs', authorizePermission(PERMISSIONS.PROJECT_CATALOG_MANAGE), listProjectCatalogs);
-router.get('/template', authorizePermission(PERMISSIONS.ENROLLMENT_MANAGE), downloadEnrollmentTemplate);
-router.post('/import-excel', authorizePermission(PERMISSIONS.ENROLLMENT_MANAGE), importEnrollmentsExcel);
-router.get('/export-excel', authorizePermission(PERMISSIONS.ENROLLMENT_MANAGE), exportEnrollmentsExcel);
+router.get(
+    '/catalogs',
+    authorizePermission(
+        PERMISSIONS.PROJECT_CATALOG_MANAGE,
+        PERMISSIONS.VIEW_PROJECT_CATALOGS,
+        PERMISSIONS.VIEW_PROJECT_ENROLLMENTS,
+        PERMISSIONS.ENROLLMENT_MANAGE,
+        PERMISSIONS.PERMISSION_ASSIGN_ACADEMIC,
+        PERMISSIONS.MENTOR_ASSIGN
+    ),
+    listProjectCatalogs
+);
+router.get(
+    '/template',
+    authorizePermission(
+        PERMISSIONS.ENROLLMENT_MANAGE,
+        PERMISSIONS.VIEW_PROJECT_ENROLLMENTS,
+        PERMISSIONS.PERMISSION_ASSIGN_ACADEMIC
+    ),
+    downloadEnrollmentTemplate
+);
+router.post(
+    '/import-excel',
+    authorizePermission(
+        PERMISSIONS.ENROLLMENT_MANAGE,
+        PERMISSIONS.PERMISSION_ASSIGN_ACADEMIC
+    ),
+    importEnrollmentsExcel
+);
+router.get(
+    '/export-excel',
+    authorizePermission(
+        PERMISSIONS.ENROLLMENT_MANAGE,
+        PERMISSIONS.VIEW_PROJECT_ENROLLMENTS,
+        PERMISSIONS.PERMISSION_ASSIGN_ACADEMIC,
+        PERMISSIONS.MENTOR_ASSIGN
+    ),
+    exportEnrollmentsExcel
+);
 
 router.get(
     '/',
     [
-        authorizePermission(PERMISSIONS.ENROLLMENT_MANAGE),
+        authorizePermission(
+            PERMISSIONS.ENROLLMENT_MANAGE,
+            PERMISSIONS.VIEW_PROJECT_ENROLLMENTS,
+            PERMISSIONS.PERMISSION_ASSIGN_ACADEMIC,
+            PERMISSIONS.MENTOR_ASSIGN
+        ),
         query('semesterId').optional().isInt({ min: 1 }).withMessage('semesterId phải là số nguyên dương.'),
         query('studentId').optional().isInt({ min: 1 }).withMessage('studentId phải là số nguyên dương.'),
         query('projectCatalogId').optional().isInt({ min: 1 }).withMessage('projectCatalogId phải là số nguyên dương.'),
@@ -40,7 +80,10 @@ router.get(
 router.post(
     '/bulk-upsert',
     [
-        authorizePermission(PERMISSIONS.ENROLLMENT_MANAGE),
+        authorizePermission(
+            PERMISSIONS.ENROLLMENT_MANAGE,
+            PERMISSIONS.PERMISSION_ASSIGN_ACADEMIC
+        ),
         body('items').isArray({ min: 1 }).withMessage('items phải là mảng không rỗng.'),
         body('items.*.studentId').isInt({ min: 1 }).withMessage('studentId không hợp lệ.'),
         body('items.*.semesterId').isInt({ min: 1 }).withMessage('semesterId không hợp lệ.'),
@@ -55,7 +98,12 @@ router.post(
 router.get(
     '/available-students',
     [
-        authorizePermission(PERMISSIONS.ENROLLMENT_MANAGE),
+        authorizePermission(
+            PERMISSIONS.ENROLLMENT_MANAGE,
+            PERMISSIONS.VIEW_PROJECT_ENROLLMENTS,
+            PERMISSIONS.PERMISSION_ASSIGN_ACADEMIC,
+            PERMISSIONS.MENTOR_ASSIGN
+        ),
         query('semesterId').isInt({ min: 1 }).withMessage('semesterId phải là số nguyên dương.'),
         query('projectCatalogId').optional().isInt({ min: 1 }).withMessage('projectCatalogId phải là số nguyên dương.'),
         validateRequest,
@@ -66,7 +114,10 @@ router.get(
 router.delete(
     '/:id',
     [
-        authorizePermission(PERMISSIONS.ENROLLMENT_MANAGE),
+        authorizePermission(
+            PERMISSIONS.ENROLLMENT_MANAGE,
+            PERMISSIONS.PERMISSION_ASSIGN_ACADEMIC
+        ),
         param('id').isInt({ min: 1 }).withMessage('id không hợp lệ.'),
         validateRequest,
     ],
