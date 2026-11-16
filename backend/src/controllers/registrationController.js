@@ -1363,7 +1363,7 @@ const updateOutlineReview = async (req, res, next) => {
 const submitBM02 = async (req, res, next) => {
     try {
         const studentId = req.user.id;
-        const { registrationId, officialTitle, bm02ProposedTitle, titleChangeReason, content, fileUrl, fileName } = req.body;
+        const { registrationId, officialTitle, bm02ProposedTitle, titleChangeReason, content, fileUrl, fileName, assetId } = req.body;
 
         const regIdInt = parseInt(registrationId, 10);
         if (!Number.isInteger(regIdInt) || regIdInt <= 0) {
@@ -1382,6 +1382,7 @@ const submitBM02 = async (req, res, next) => {
             content,
             fileUrl,
             fileName,
+            assetId: assetId || null,
             idempotencyKey: getIdempotencyKey(req),
         });
         await auditLog(studentId, 'SUBMIT_BM02', 'BM02Submission', commandSubmission.id, {

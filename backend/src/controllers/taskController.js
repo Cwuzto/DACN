@@ -3,6 +3,7 @@ const { MAX_LATE_DAYS } = require('../constants/deadlineLimits');
 const { MAX_SUBMISSIONS_PER_TASK } = require('../constants/taskLimits');
 const { auditLog } = require('../services/auditLogService');
 const { safeNotify } = require('../services/notificationService');
+const { storedAssetService, StoredAssetServiceError } = require('../services/storedAssetService');
 
 const getRequestIp = (req) => req.ip || req.headers['x-forwarded-for'] || null;
 const ACADEMIC_WORKFLOW_TASK_TYPES = new Set([
@@ -223,13 +224,13 @@ const submitTask = async (req, res, next) => {
     try {
         const taskId = parseInt(req.params.id, 10);
         const studentId = req.user.id;
-        const { content, fileUrl, fileName } = req.body;
+        const { content, fileUrl, fileName, assetId } = req.body;
 
         if (!Number.isInteger(taskId)) {
             return res.status(400).json({ success: false, message: 'Task không hợp lệ.' });
         }
 
-        if (!content && !fileUrl) {
+        if (!content && !fileUrl && !assetId) {
             return res.status(400).json({ success: false, message: 'Vui lòng nhập nội dung hoặc tải tệp trước khi nộp.' });
         }
 
@@ -332,6 +333,24 @@ const submitTask = async (req, res, next) => {
             }
         }
 
+        if (assetId) {
+            try {
+                await storedAssetService.assertAssetAccess({
+                    assetId,
+                    actorId: studentId,
+                });
+            } catch (err) {
+                if (err instanceof StoredAssetServiceError) {
+                    return res.status(err.statusCode || 400).json({
+                        success: false,
+                        code: err.code,
+                        message: err.message,
+                    });
+                }
+                throw err;
+            }
+        }
+
         const newSubmission = await prisma.submission.create({
             data: {
                 taskId,
@@ -340,6 +359,7 @@ const submitTask = async (req, res, next) => {
                 content: content || null,
                 fileUrl: fileUrl || null,
                 fileName: fileName || null,
+                assetId: assetId || null,
             },
         });
 

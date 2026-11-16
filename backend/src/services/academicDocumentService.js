@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const prisma = require('../config/database');
 const { transitionRegistration, WorkflowTransitionError } = require('./registrationTransitionService');
+const { storedAssetService, StoredAssetServiceError } = require('./storedAssetService');
 
 function commandKey(prefix, key) {
     if (!key || key.length < 8) throw new WorkflowTransitionError('IDEMPOTENCY_KEY_REQUIRED', 400);
@@ -11,7 +12,7 @@ function fingerprint(value) {
     return crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
 }
 
-async function submitBM02({ registrationId, studentId, bm02ProposedTitle, titleChangeReason, content, fileUrl, fileName, idempotencyKey }, options = {}) {
+async function submitBM02({ registrationId, studentId, bm02ProposedTitle, titleChangeReason, content, fileUrl, fileName, assetId, idempotencyKey }, options = {}) {
     const db = options.db || prisma;
     const now = options.now || new Date();
     const receiptScope = 'submit-bm02-command';
@@ -22,6 +23,7 @@ async function submitBM02({ registrationId, studentId, bm02ProposedTitle, titleC
         content: content || null,
         fileUrl: fileUrl || null,
         fileName: fileName || null,
+        assetId: assetId || null,
     };
     if (bm02ProposedTitle !== undefined) payloadToHash.bm02ProposedTitle = bm02ProposedTitle || null;
     if (titleChangeReason !== undefined) payloadToHash.titleChangeReason = titleChangeReason || null;
@@ -134,6 +136,21 @@ async function submitBM02({ registrationId, studentId, bm02ProposedTitle, titleC
             email: registration.topic.mentor.email,
         } : null;
 
+        if (assetId) {
+            try {
+                await storedAssetService.assertAssetAccess({
+                    assetId,
+                    actorId: studentId,
+                    expectedDocumentTypes: ['BM02'],
+                });
+            } catch (err) {
+                if (err instanceof StoredAssetServiceError) {
+                    throw new WorkflowTransitionError(err.code || 'INVALID_ASSET', err.statusCode || 400);
+                }
+                throw err;
+            }
+        }
+
         const submission = await tx.bM02Submission.create({
             data: {
                 registrationId,
@@ -143,6 +160,7 @@ async function submitBM02({ registrationId, studentId, bm02ProposedTitle, titleC
                 content: content || null,
                 fileUrl: fileUrl || null,
                 fileName: fileName || null,
+                assetId: assetId || null,
                 bm01ApprovedTitle: bm01ApprovedTitle || null,
                 bm02ProposedTitle: proposedTitle || null,
                 titleChangeReason: normalizedReason,

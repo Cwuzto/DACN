@@ -8,6 +8,7 @@ const {
     ConflictError,
     UnprocessableEntityError,
 } = require('../utils/errors');
+const { storedAssetService, StoredAssetServiceError } = require('./storedAssetService');
 
 /**
  * 1. Submit initial outline dossier (v1)
@@ -81,14 +82,31 @@ async function submitInitialOutline(registrationId, fileData, userId, options = 
             });
         }
 
+        if (fileData?.assetId) {
+            try {
+                await storedAssetService.assertAssetAccess({
+                    assetId: fileData.assetId,
+                    actorId: uId,
+                    expectedDocumentTypes: ['BM01'],
+                });
+            } catch (err) {
+                if (err instanceof StoredAssetServiceError) {
+                    if (err.statusCode === 403) throw new ForbiddenError(err.message);
+                    throw new BadRequestError(err.message);
+                }
+                throw err;
+            }
+        }
+
         // Create submission record
         const newSubmission = await tx.submission.create({
             data: {
                 registrationId: regId,
                 taskId: task.id,
                 submittedBy: uId,
-                fileUrl: fileData.fileUrl,
-                fileName: fileData.fileName,
+                fileUrl: fileData?.fileUrl || null,
+                fileName: fileData?.fileName || null,
+                assetId: fileData?.assetId || null,
                 submittedAt: now,
             },
         });
@@ -720,13 +738,30 @@ async function submitResubmissionOutline(registrationId, fileData, userId, optio
             });
         }
 
+        if (fileData?.assetId) {
+            try {
+                await storedAssetService.assertAssetAccess({
+                    assetId: fileData.assetId,
+                    actorId: uId,
+                    expectedDocumentTypes: ['BM01'],
+                });
+            } catch (err) {
+                if (err instanceof StoredAssetServiceError) {
+                    if (err.statusCode === 403) throw new ForbiddenError(err.message);
+                    throw new BadRequestError(err.message);
+                }
+                throw err;
+            }
+        }
+
         const newSubmission = await tx.submission.create({
             data: {
                 registrationId: regId,
                 taskId: task.id,
                 submittedBy: uId,
-                fileUrl: fileData?.fileUrl,
-                fileName: fileData?.fileName,
+                fileUrl: fileData?.fileUrl || null,
+                fileName: fileData?.fileName || null,
+                assetId: fileData?.assetId || null,
                 submittedAt: now,
             },
         });

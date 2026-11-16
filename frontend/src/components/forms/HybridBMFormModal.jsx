@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal, Form, Input, InputNumber, Radio, Upload, Button, message, Alert, Typography, Divider, Space } from 'antd';
 import { UploadOutlined, FilePdfOutlined, CheckCircleOutlined, InfoCircleOutlined, DeleteOutlined, RobotOutlined } from '@ant-design/icons';
 import uploadService from '../../services/uploadService';
+import { uploadGovernedAsset } from '../../services/resumableUploadService';
 import BM01CopilotDrawer from '../student/BM01CopilotDrawer';
 import aiService from '../../services/aiService';
 
@@ -226,20 +227,44 @@ export default function HybridBMFormModal({
     const handleCustomUpload = async ({ file, onSuccess, onError }) => {
         try {
             setUploading(true);
-            const res = await uploadService.uploadFile(file, 'submissions', { taskId: task?.id });
-            if (res.success && res.data?.url) {
+            let docType = 'REPORT_PDF';
+            if (taskType === 'BM02') docType = 'BM02';
+            else if (taskType?.startsWith('BM01')) docType = 'BM01';
+
+            let res;
+            try {
+                res = await uploadGovernedAsset({
+                    file,
+                    documentType: docType,
+                    resourceContext: { taskId: task?.id, registrationId: registration?.id },
+                });
+            } catch (err) {
+                // Fallback to uploadService if needed
+                const legacyRes = await uploadService.uploadFile(file, 'submissions', { taskId: task?.id });
+                if (legacyRes.success && legacyRes.data?.url) {
+                    res = {
+                        assetId: legacyRes.data.assetId || null,
+                        downloadUrl: legacyRes.data.url,
+                    };
+                } else {
+                    throw err;
+                }
+            }
+
+            if (res && (res.assetId || res.downloadUrl)) {
                 setUploadedFile({
-                    url: res.data.url,
+                    assetId: res.assetId || null,
+                    url: res.downloadUrl || null,
                     name: file.name,
                 });
-                onSuccess(res.data);
+                onSuccess?.(res);
                 message.success(`Đã tải lên tệp: ${file.name}`);
             } else {
-                throw new Error(res.message || 'Upload thất bại');
+                throw new Error('Upload thất bại');
             }
         } catch (error) {
             message.error(error.message || 'Không thể tải tệp lên');
-            onError(error);
+            onError?.(error);
         } finally {
             setUploading(false);
         }
@@ -280,6 +305,7 @@ export default function HybridBMFormModal({
             content: JSON.stringify(structuredData),
             fileUrl: uploadedFile?.url || null,
             fileName: uploadedFile?.name || null,
+            assetId: uploadedFile?.assetId || null,
         };
 
         if (taskType === 'BM02') {

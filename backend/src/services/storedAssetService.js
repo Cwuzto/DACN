@@ -661,6 +661,44 @@ class StoredAssetService {
             },
         });
     }
+
+    /**
+     * Verifies that an asset exists, is active, belongs to the actor, and matches expected policy.
+     */
+    async assertAssetAccess({ assetId, actorId, expectedDocumentTypes = null, expectedBucket = null }) {
+        if (!assetId) {
+            throw new StoredAssetServiceError('Asset ID is required', 'ASSET_ID_REQUIRED', 400);
+        }
+
+        const asset = await this.prisma.storedAsset.findUnique({
+            where: { id: assetId },
+        });
+
+        if (!asset) {
+            throw new StoredAssetServiceError('Asset not found', 'ASSET_NOT_FOUND', 404);
+        }
+
+        if (asset.status !== 'ACTIVE') {
+            throw new StoredAssetServiceError('Asset is not active', 'ASSET_NOT_ACTIVE', 400);
+        }
+
+        if (expectedBucket && asset.bucket !== expectedBucket) {
+            throw new StoredAssetServiceError('Invalid asset bucket', 'INVALID_ASSET_BUCKET', 400);
+        }
+
+        if (actorId && asset.ownerUserId !== actorId && asset.uploadedById !== actorId) {
+            throw new StoredAssetServiceError('Unauthorized asset access', 'FORBIDDEN', 403);
+        }
+
+        if (expectedDocumentTypes) {
+            const types = Array.isArray(expectedDocumentTypes) ? expectedDocumentTypes : [expectedDocumentTypes];
+            if (!types.includes(asset.documentType)) {
+                throw new StoredAssetServiceError('Invalid document type for this submission', 'INVALID_DOCUMENT_TYPE', 400);
+            }
+        }
+
+        return asset;
+    }
 }
 
 const defaultStoredAssetService = new StoredAssetService();

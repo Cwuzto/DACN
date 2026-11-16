@@ -20,10 +20,14 @@ const handleControllerError = (error, res, next) => {
 const submitOutline = async (req, res, next) => {
     try {
         const registrationId = parseInt(req.body.registrationId, 10);
-        const { fileData } = req.body;
+        const { fileData, assetId } = req.body;
         const userId = req.user.id;
+        const normalizedFileData = {
+            ...(fileData || {}),
+            assetId: assetId || fileData?.assetId || null,
+        };
 
-        const result = await outlineReviewService.submitInitialOutline(registrationId, fileData, userId);
+        const result = await outlineReviewService.submitInitialOutline(registrationId, normalizedFileData, userId);
 
         res.status(200).json({
             success: true,
@@ -42,10 +46,14 @@ const submitOutline = async (req, res, next) => {
 const submitResubmission = async (req, res, next) => {
     try {
         const registrationId = parseInt(req.body.registrationId, 10);
-        const { fileData } = req.body;
+        const { fileData, assetId } = req.body;
         const userId = req.user.id;
+        const normalizedFileData = {
+            ...(fileData || {}),
+            assetId: assetId || fileData?.assetId || null,
+        };
 
-        const result = await outlineReviewService.submitResubmissionOutline(registrationId, fileData, userId);
+        const result = await outlineReviewService.submitResubmissionOutline(registrationId, normalizedFileData, userId);
 
         res.status(200).json({
             success: true,
