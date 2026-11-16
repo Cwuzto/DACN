@@ -219,8 +219,6 @@ export default function ProgressTrackingPage() {
     const [meetingContent, setMeetingContent] = useState('');
     const [studentCompletedWork, setStudentCompletedWork] = useState('');
     const [remainingIssues, setRemainingIssues] = useState('');
-    const [meetingNextTask, setMeetingNextTask] = useState('');
-    const [expectedDeadline, setExpectedDeadline] = useState(dayjs().add(7, 'day').format('YYYY-MM-DD'));
     const [progressRating, setProgressRating] = useState('ON_TRACK');
     const [meetingSubmitting, setMeetingSubmitting] = useState(false);
     const [signingMeetingId, setSigningMeetingId] = useState(null);
@@ -309,8 +307,6 @@ export default function ProgressTrackingPage() {
                     discussionContent: meetingContent.trim(),
                     studentCompletedWork: studentCompletedWork.trim() || undefined,
                     remainingIssues: remainingIssues.trim() || undefined,
-                    nextTasks: meetingNextTask.trim() || undefined,
-                    expectedDeadline: expectedDeadline ? new Date(expectedDeadline) : undefined,
                     progressRating,
                 }],
             });
@@ -319,7 +315,6 @@ export default function ProgressTrackingPage() {
             setMeetingContent('');
             setStudentCompletedWork('');
             setRemainingIssues('');
-            setMeetingNextTask('');
         } catch (error) {
             message.error(error?.message || 'Không thể lưu nhật ký');
         } finally {
@@ -1485,29 +1480,6 @@ export default function ProgressTrackingPage() {
                                     placeholder="Khó khăn, lỗi kỹ thuật hoặc vướng mắc cần giải quyết..."
                                     style={{ width: '100%' }}
                                 />
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                                <div>
-                                    <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Nhiệm vụ cho kỳ tiếp theo:</label>
-                                    <input
-                                        type="text"
-                                        className="input-field"
-                                        value={meetingNextTask}
-                                        onChange={(e) => setMeetingNextTask(e.target.value)}
-                                        placeholder="Công việc kỳ tới..."
-                                        style={{ width: '100%' }}
-                                    />
-                                </div>
-                                <div>
-                                    <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Hạn hoàn thành:</label>
-                                    <input
-                                        type="date"
-                                        className="input-field"
-                                        value={expectedDeadline}
-                                        onChange={(e) => setExpectedDeadline(e.target.value)}
-                                        style={{ width: '100%' }}
-                                    />
-                                </div>
                             </div>
                         </div>
                         <div className="modal-foot flex justify-end gap-2">
