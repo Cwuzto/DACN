@@ -52,11 +52,11 @@
 - Produces: `isCanonicalPermissionCode(code: string): boolean`.
 - Preserves: `PERMISSIONS`, `DEFAULT_GROUPS`, `STUDENT_BASE_PERMISSIONS` exports during migration.
 
-- [ ] **Step 1: Write failing catalog metadata and source-scan tests**
+- [x] **Step 1: Write failing catalog metadata and source-scan tests**
 
   Assert every definition has valid `kind` (`VIEW|ACTION`), protected domain, eligible roles and at least one scope type. Scan backend/frontend authorization consumers and fail on unknown strings including the current `VIEW_TOPICS`, `TOPIC_APPROVE`, `PROJECT_PERIOD_MANAGE`, and `DEFENSE_COUNCIL_ASSIGN` references.
 
-- [ ] **Step 2: Run tests and confirm failure**
+- [x] **Step 2: Run tests and confirm failure**
 
   Run:
 
@@ -67,17 +67,17 @@
 
   Expected: FAIL because catalog metadata/normalizer do not exist and unknown permission strings are found.
 
-- [ ] **Step 3: Implement canonical catalog metadata and scanner allowlist**
+- [x] **Step 3: Implement canonical catalog metadata and scanner allowlist**
 
   Create `permissionCatalog.js` as the only normalization interface. Replace unknown strings with existing canonical permissions chosen from the approved catalog; do not add new synonyms merely to satisfy the scan. Keep `CANONICAL_ALIAS_MAP` read-compatible for later migration tasks.
 
-- [ ] **Step 4: Run focused tests**
+- [x] **Step 4: Run focused tests**
 
   Run the commands from Step 2.
 
   Expected: PASS; every authorization permission string resolves to a catalog entry and no new code consumes an alias.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   ```powershell
   git add backend/src/constants/permissions.js backend/src/auth/permissionCatalog.js backend/tests/contracts/permissionUsage.contract.test.js backend/tests/services/permissionCatalog.test.js frontend/src/config/permissionsConfig.js frontend/tests/permissionMatrixP1Optimization.test.js

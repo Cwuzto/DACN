@@ -717,8 +717,8 @@ const getRegistrationHistory = async (req, res, next) => {
             }
         } else if (
             role === 'ADMIN' ||
-            permissions.includes('VIEW_TOPICS') ||
-            permissions.includes('TOPIC_APPROVE') ||
+            permissions.includes('TOPIC_REVIEW') ||
+            permissions.includes('VIEW_TOPIC_REVIEWS') ||
             permissions.includes('PROJECT_OVERSIGHT_MANAGE')
         ) {
             // Quản trị viên/Giáo vụ được phép truy cập

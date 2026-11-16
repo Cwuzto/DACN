@@ -605,15 +605,14 @@ const getAllRegistrations = async (req, res, next) => {
             permissionGroups.includes('VIEN_TRUONG') ||
             permissions.includes('BM02_REVIEW') ||
             permissions.includes('VIEW_BM02_REVIEWS') ||
-            permissions.includes('PROJECT_PERIOD_MANAGE') ||
+            permissions.includes('SEMESTER_MANAGE') ||
             permissions.includes('VIEW_PROJECT_PERIODS') ||
             permissions.includes('PROJECT_ASSIGNMENT_PUBLISH') ||
             permissions.includes('VIEW_ASSIGNMENT_DECISIONS') ||
             permissions.includes('PERMISSION_ASSIGN_ACADEMIC') ||
             permissions.includes('OUTLINE_COUNCIL_MANAGE') ||
             permissions.includes('DEFENSE_COUNCIL_MANAGE') ||
-            permissions.includes('VIEW_COUNCIL_ASSIGNMENTS') ||
-            permissions.includes('DEFENSE_COUNCIL_ASSIGN');
+            permissions.includes('VIEW_COUNCIL_ASSIGNMENTS');
 
         const shouldViewInstituteScope =
             (asInstituteDirector === 'true' || scope === 'all' || scope === 'institute') && hasInstituteAuthority;

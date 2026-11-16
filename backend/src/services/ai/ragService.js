@@ -203,12 +203,14 @@ function filterChunksByRole(chunks, userRole) {
 
   if (userRole && typeof userRole === 'object') {
     const role = String(userRole.role || '').toUpperCase();
-    const permissions = Array.isArray(userRole.permissionGroups) ? userRole.permissionGroups : [];
+    const permissionGroups = Array.isArray(userRole.permissionGroups) ? userRole.permissionGroups : [];
+    const permissions = Array.isArray(userRole.permissions) ? userRole.permissions : [];
 
     const isAdminTier =
       role === 'ADMIN' ||
       role === 'VIEN_TRUONG' ||
-      permissions.includes('GIAO_VU') ||
+      permissionGroups.includes('GIAO_VU') ||
+      permissionGroups.includes('VIEN_TRUONG') ||
       permissions.includes('PROJECT_OVERSIGHT_MANAGE');
 
     if (isAdminTier) {

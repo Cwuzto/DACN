@@ -4,7 +4,18 @@ const {
     DEFAULT_GROUPS,
     grantablePermissionCodes,
     GRANTABLE_PERMISSION_CODES,
+    TECHNICAL_PERMISSIONS,
+    ACADEMIC_PROTECTED_PERMISSIONS,
+    STUDENT_BASE_PERMISSIONS,
+    CANONICAL_ALIAS_MAP,
 } = require('../../src/constants/permissions');
+
+const {
+    PERMISSION_DEFINITIONS,
+    normalizePermissionCode,
+    isCanonicalPermissionCode,
+    getPermissionDefinition,
+} = require('../../src/auth/permissionCatalog');
 
 describe('Permission catalog invariants & 2-tier capability foundation', () => {
     test('permission codes are unique and constants match the catalog', () => {
@@ -213,6 +224,111 @@ describe('Permission catalog invariants & 2-tier capability foundation', () => {
         ];
         for (const approval of requiredInstituteApprovals) {
             expect(leaderPerms.has(approval)).toBe(true);
+        }
+    });
+
+    test('PERMISSION_DEFINITIONS meets canonical metadata invariants', () => {
+        expect(Array.isArray(PERMISSION_DEFINITIONS)).toBe(true);
+        expect(Object.isFrozen(PERMISSION_DEFINITIONS)).toBe(true);
+        expect(PERMISSION_DEFINITIONS.length).toBe(93);
+
+        const allowedKinds = new Set(['VIEW', 'ACTION']);
+        const allowedDomains = new Set(['TECHNICAL', 'ACADEMIC', 'STUDENT_BASE']);
+        const allowedRoles = new Set(['ADMIN', 'LECTURER', 'STUDENT']);
+        const allowedScopes = new Set(['GLOBAL', 'DEPARTMENT', 'SEMESTER', 'RESOURCE']);
+
+        const codes = new Set();
+        for (const def of PERMISSION_DEFINITIONS) {
+            expect(typeof def.code).toBe('string');
+            expect(def.code.length).toBeGreaterThan(0);
+            expect(codes.has(def.code)).toBe(false);
+            codes.add(def.code);
+
+            expect(typeof def.label).toBe('string');
+            expect(def.label.length).toBeGreaterThan(0);
+
+            expect(typeof def.module).toBe('string');
+            expect(def.module.length).toBeGreaterThan(0);
+
+            expect(allowedKinds.has(def.kind)).toBe(true);
+            expect(allowedDomains.has(def.protectedDomain)).toBe(true);
+
+            expect(Array.isArray(def.eligibleRoles)).toBe(true);
+            expect(def.eligibleRoles.length).toBeGreaterThan(0);
+            for (const r of def.eligibleRoles) {
+                expect(allowedRoles.has(r)).toBe(true);
+            }
+
+            expect(Array.isArray(def.scopeTypes)).toBe(true);
+            expect(def.scopeTypes.length).toBeGreaterThan(0);
+            for (const s of def.scopeTypes) {
+                expect(allowedScopes.has(s)).toBe(true);
+            }
+
+            // Student base invariants
+            if (def.protectedDomain === 'STUDENT_BASE') {
+                expect(def.eligibleRoles).toEqual(['STUDENT']);
+            }
+
+            // Academic invariants
+            if (def.protectedDomain === 'ACADEMIC') {
+                expect(def.eligibleRoles).toEqual(['LECTURER']);
+            }
+        }
+    });
+
+    test('normalizePermissionCode and isCanonicalPermissionCode handle canonical, alias, and unknown codes', () => {
+        // Canonical codes
+        expect(isCanonicalPermissionCode('TOPIC_REVIEW')).toBe(true);
+        expect(normalizePermissionCode('TOPIC_REVIEW')).toBe('TOPIC_REVIEW');
+        expect(isCanonicalPermissionCode('VIEW_MY_REGISTRATION')).toBe(true);
+        expect(normalizePermissionCode('VIEW_MY_REGISTRATION')).toBe('VIEW_MY_REGISTRATION');
+
+        // Aliases
+        expect(isCanonicalPermissionCode('VIEW_MENTORED_STUDENTS')).toBe(false);
+        expect(normalizePermissionCode('VIEW_MENTORED_STUDENTS')).toBe('VIEW_MENTOR_STUDENTS');
+        expect(isCanonicalPermissionCode('VIEW_ALL_TOPICS')).toBe(false);
+        expect(normalizePermissionCode('VIEW_ALL_TOPICS')).toBe('TOPIC_REVIEW');
+        expect(isCanonicalPermissionCode('VIEW_RUBRIC_CONFIG')).toBe(false);
+        expect(normalizePermissionCode('VIEW_RUBRIC_CONFIG')).toBe('RUBRIC_MANAGE');
+        expect(isCanonicalPermissionCode('TOPIC_ASSIGNMENT_DECISION_ISSUE')).toBe(false);
+        expect(normalizePermissionCode('TOPIC_ASSIGNMENT_DECISION_ISSUE')).toBe('PROJECT_ASSIGNMENT_PUBLISH');
+
+        // Unknown / invalid
+        expect(isCanonicalPermissionCode('VIEW_TOPICS')).toBe(false);
+        expect(normalizePermissionCode('VIEW_TOPICS')).toBeNull();
+        expect(isCanonicalPermissionCode('NON_EXISTENT')).toBe(false);
+        expect(normalizePermissionCode('NON_EXISTENT')).toBeNull();
+        expect(normalizePermissionCode(null)).toBeNull();
+        expect(normalizePermissionCode(undefined)).toBeNull();
+        expect(normalizePermissionCode('')).toBeNull();
+    });
+
+    test('getPermissionDefinition returns definition for canonical codes and aliases, undefined for unknown', () => {
+        const canonicalDef = getPermissionDefinition('TOPIC_REVIEW');
+        expect(canonicalDef).toBeDefined();
+        expect(canonicalDef.code).toBe('TOPIC_REVIEW');
+        expect(canonicalDef.module).toBe('TOPIC');
+
+        const aliasDef = getPermissionDefinition('VIEW_ALL_TOPICS');
+        expect(aliasDef).toBeDefined();
+        expect(aliasDef.code).toBe('TOPIC_REVIEW');
+
+        expect(getPermissionDefinition('VIEW_TOPICS')).toBeUndefined();
+        expect(getPermissionDefinition('UNKNOWN')).toBeUndefined();
+    });
+
+    test('PERMISSION_CATALOG in permissions.js has normalized metadata on each entry', () => {
+        for (const item of PERMISSION_CATALOG) {
+            expect(item.code).toBeDefined();
+            expect(item.label).toBeDefined();
+            expect(item.module).toBeDefined();
+            expect(['VIEW', 'ACTION']).toContain(item.kind);
+            expect(['TECHNICAL', 'ACADEMIC', 'STUDENT_BASE']).toContain(item.protectedDomain);
+            expect(Array.isArray(item.eligibleRoles)).toBe(true);
+            expect(item.eligibleRoles.length).toBeGreaterThan(0);
+            expect(Array.isArray(item.scopeTypes)).toBe(true);
+            expect(item.scopeTypes.length).toBeGreaterThan(0);
         }
     });
 });

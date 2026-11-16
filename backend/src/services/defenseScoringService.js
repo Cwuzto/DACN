@@ -860,7 +860,7 @@ async function lockDefenseScoreBookByChairman(input, options = {}) {
                 });
                 for (const g of userGroups) {
                     for (const p of g.permissionGroup?.permissions || []) {
-                        if (['RESULT_LOCK', 'DEFENSE_SCORE_LOCK'].includes(p.permission?.code)) {
+                        if (p.permission?.code === 'RESULT_LOCK') {
                             isAuthorized = true;
                             break;
                         }
@@ -1211,7 +1211,7 @@ async function lockDefenseScores(input, options = {}) {
         }
 
         const hasLockCapability = Array.isArray(permissions) && (
-            permissions.includes('RESULT_LOCK') || permissions.includes('DEFENSE_SCORE_LOCK')
+            permissions.includes('RESULT_LOCK')
         );
 
         if (actorRole === 'ADMIN' && !hasLockCapability) {

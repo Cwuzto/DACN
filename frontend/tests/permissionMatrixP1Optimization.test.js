@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+    PERMISSION_DEFINITIONS,
     ACADEMIC_PROTECTED_PERMISSIONS,
     TECHNICAL_PERMISSIONS,
     CANONICAL_ALIAS_MAP,
@@ -15,14 +16,21 @@ import {
     isAliasPermission,
     getCanonicalCode,
     getAliasCode,
+    normalizePermissionCode,
+    isCanonicalPermissionCode,
+    getPermissionDefinition,
 } from '../src/config/permissionsConfig.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const pageSource = fs.readFileSync(path.join(root, 'src/pages/admin/PermissionGroupPage.jsx'), 'utf8');
 
 test('permissionsConfig accurately classifies protected, technical and alias permissions', () => {
-    // 48 Academic Protected
-    assert.equal(ACADEMIC_PROTECTED_PERMISSIONS.length, 48);
+    // 93 Canonical Definitions
+    assert.equal(Array.isArray(PERMISSION_DEFINITIONS), true);
+    assert.equal(PERMISSION_DEFINITIONS.length, 93);
+
+    // 58 Academic Protected (synchronized with backend)
+    assert.equal(ACADEMIC_PROTECTED_PERMISSIONS.length, 58);
     assert.equal(isAcademicProtected('TOPIC_REVIEW'), true);
     assert.equal(isAcademicProtected('DEFENSE_SCORE_SUBMIT'), true);
     assert.equal(isAcademicProtected('BM04_SUBMIT'), true);
@@ -31,20 +39,21 @@ test('permissionsConfig accurately classifies protected, technical and alias per
     assert.equal(isAcademicProtected('CHECKPOINT_ISSUE'), true);
     assert.equal(isAcademicProtected('USER_MANAGE'), false);
 
-    // 26 Technical Permissions
-    assert.equal(TECHNICAL_PERMISSIONS.length, 26);
+    // 32 Technical Permissions (synchronized with backend)
+    assert.equal(TECHNICAL_PERMISSIONS.length, 32);
     assert.equal(isTechnical('USER_MANAGE'), true);
     assert.equal(isTechnical('PERMISSION_GROUP_MANAGE'), true);
     assert.equal(isTechnical('TOPIC_REVIEW'), false);
 
-    // 10 Canonical Aliases
+    // 11 Canonical Aliases (synchronized with backend)
     const aliases = Object.keys(CANONICAL_ALIAS_MAP);
-    assert.equal(aliases.length, 10);
+    assert.equal(aliases.length, 11);
     assert.equal(CANONICAL_ALIAS_MAP['VIEW_MENTORED_STUDENTS'], 'VIEW_MENTOR_STUDENTS');
     assert.equal(CANONICAL_ALIAS_MAP['VIEW_ASSIGNMENT_DECISIONS'], 'VIEW_TOPIC_ASSIGNMENT_DECISIONS');
     assert.equal(CANONICAL_ALIAS_MAP['VIEW_COUNCIL_ASSIGNMENTS'], 'VIEW_DEFENSE_ASSIGNMENTS');
     assert.equal(CANONICAL_ALIAS_MAP['VIEW_DEFENSE_LOCK_LEDGER'], 'VIEW_RESULT_LOCKS');
     assert.equal(CANONICAL_ALIAS_MAP['VIEW_DEFENSE_RESULT_APPROVALS'], 'VIEW_DEFENSE_RESULTS_APPROVAL');
+    assert.equal(CANONICAL_ALIAS_MAP['TOPIC_ASSIGNMENT_DECISION_ISSUE'], 'PROJECT_ASSIGNMENT_PUBLISH');
 
     // Classification helpers
     assert.equal(isViewPermission('VIEW_MY_TOPICS'), true);
@@ -55,6 +64,18 @@ test('permissionsConfig accurately classifies protected, technical and alias per
     assert.equal(isAliasPermission('VIEW_MENTOR_STUDENTS'), false);
     assert.equal(getCanonicalCode('VIEW_MENTORED_STUDENTS'), 'VIEW_MENTOR_STUDENTS');
     assert.equal(getAliasCode('VIEW_MENTOR_STUDENTS'), 'VIEW_MENTORED_STUDENTS');
+
+    // Canonical & Normalization helpers
+    assert.equal(isCanonicalPermissionCode('TOPIC_REVIEW'), true);
+    assert.equal(isCanonicalPermissionCode('VIEW_MENTORED_STUDENTS'), false);
+    assert.equal(isCanonicalPermissionCode('UNKNOWN'), false);
+    assert.equal(normalizePermissionCode('TOPIC_REVIEW'), 'TOPIC_REVIEW');
+    assert.equal(normalizePermissionCode('VIEW_MENTORED_STUDENTS'), 'VIEW_MENTOR_STUDENTS');
+    assert.equal(normalizePermissionCode('UNKNOWN'), null);
+
+    const def = getPermissionDefinition('TOPIC_REVIEW');
+    assert.equal(def?.code, 'TOPIC_REVIEW');
+    assert.equal(def?.module, 'TOPIC');
 });
 
 test('PermissionGroupPage includes module accordion, filter dimensions, and alias grouping', () => {
@@ -99,4 +120,3 @@ test('PermissionGroupPage keeps unsaved matrix draft and accordion state indepen
     assert.match(pageSource, /if \(!openedModulesRef\.current\)/);
     assert.match(pageSource, /usePermissionMutation\(scope\)/);
 });
-

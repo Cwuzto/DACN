@@ -30,8 +30,8 @@ describe('Package 2 Task 1: History, Schedule Adjustment & ScoreBook Return Log 
             permissionGroup: {
                 code: 'ADMIN_GROUP',
                 permissions: [
-                    { permission: { code: 'VIEW_TOPICS' } },
-                    { permission: { code: 'TOPIC_APPROVE' } },
+                    { permission: { code: 'VIEW_TOPIC_REVIEWS' } },
+                    { permission: { code: 'TOPIC_REVIEW' } },
                     { permission: { code: 'PROJECT_OVERSIGHT_MANAGE' } },
                     { permission: { code: 'VIEW_COUNCIL_ASSIGNMENTS' } },
                     { permission: { code: 'VIEW_DEFENSE_ASSIGNMENTS' } },
