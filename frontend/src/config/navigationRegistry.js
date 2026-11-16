@@ -168,6 +168,7 @@ export const NAVIGATION_REGISTRY = [
         icon: 'playlist_add_check',
         group: 'Quản trị học vụ',
         requiredPermission: 'VIEW_PROJECT_ENROLLMENTS',
+        requiredAnyPermissions: ['VIEW_PROJECT_ENROLLMENTS', 'MENTOR_ASSIGN', 'PERMISSION_ASSIGN_ACADEMIC', 'ENROLLMENT_MANAGE'],
         route: '/admin/project-enrollments',
     },
     {
