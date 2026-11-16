@@ -354,11 +354,11 @@
 - Produces: `canPerformFeatureAction(user, featureKey, actionKey, context?): boolean`.
 - Produces: `getVisibleNavigation(user)` derived from the same manifest.
 
-- [ ] **Step 1: Write failing parity and five-persona navigation tests**
+- [x] **Step 1: Write failing parity and five-persona navigation tests**
 
   Assert every protected application route maps to one feature policy; every menu item uses that policy; `GIAO_VU` does not receive synthetic permissions; archive menu/route agree; `REPORT_VIEW`, action-only and view-only cases behave consistently for all five personas.
 
-- [ ] **Step 2: Run tests and confirm failure**
+- [x] **Step 2: Run tests and confirm failure**
 
   Run:
 
@@ -368,17 +368,17 @@
 
   Expected: FAIL because route and navigation currently duplicate different permission lists and frontend injects a Giáo vụ permission.
 
-- [ ] **Step 3: Implement manifest and migrate routing/navigation**
+- [x] **Step 3: Implement manifest and migrate routing/navigation**
 
   Preserve current URLs. Remove group-based permission injection and Admin role bypass from navigation evaluation. Scoped delegations are effective in UI only when their semester/department matches the current context. `ProtectedRoute` accepts `featureKey` and evaluates the same policy; temporary legacy props may remain only for public/standalone routes and must be covered by an explicit test allowlist.
 
-- [ ] **Step 4: Run policy tests**
+- [x] **Step 4: Run policy tests**
 
   Run the command from Step 2.
 
   Expected: PASS; no visible menu leads to a permission redirect for the same user state.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   ```powershell
   git add frontend/src/auth/featurePolicies.js frontend/src/auth/policyEvaluator.js frontend/src/config/navigationRegistry.js frontend/src/components/common/ProtectedRoute.jsx frontend/src/App.jsx frontend/tests/featurePolicyParity.test.js frontend/tests/navigationRegistry.test.js frontend/tests/crossRoleDashboardRedirect.test.js
@@ -405,11 +405,11 @@
 - Produces: `AuthorizedAction({ feature, action, context?, mode='hide', children, reason? })`.
 - Preserves: existing page read-only data/query behavior.
 
-- [ ] **Step 1: Write failing view-only/action tests**
+- [x] **Step 1: Write failing view-only/action tests**
 
   Mount the real pages for view-only and action-capable users. Assert create/import/edit/delete/assign/publish controls are absent or disabled according to policy; Admin role alone does not enable actions; allowed action remains keyboard accessible and calls the mutation once.
 
-- [ ] **Step 2: Run tests and confirm failure**
+- [x] **Step 2: Run tests and confirm failure**
 
   Run:
 
@@ -419,11 +419,11 @@
 
   Expected: FAIL because several pages currently render mutations whenever the page itself is visible or when role is `ADMIN`.
 
-- [ ] **Step 3: Implement `AuthorizedAction` and migrate listed pages**
+- [x] **Step 3: Implement `AuthorizedAction` and migrate listed pages**
 
   Use `mode='hide'` for unavailable primary mutations and `mode='disable'` only where seeing the locked action teaches the workflow; disabled controls must expose a Vietnamese reason via accessible tooltip/help text. Remove page-local `role === 'ADMIN'` action bypasses.
 
-- [ ] **Step 4: Run runtime and legacy UI tests**
+- [x] **Step 4: Run runtime and legacy UI tests**
 
   Run:
 
@@ -434,7 +434,7 @@
 
   Expected: PASS; view-only pages remain usable and no unauthorized mutation control is enabled.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   ```powershell
   git add frontend/src/components/common/AuthorizedAction.jsx frontend/src/pages/admin/UserManagementPage.jsx frontend/src/pages/admin/AnnouncementManagementPage.jsx frontend/src/pages/admin/RubricManagementPage.jsx frontend/src/pages/admin/PermissionGroupPage.jsx frontend/src/pages/admin/CouncilAssignmentPage.jsx frontend/src/pages/admin/CouncilDetailPage.jsx frontend/src/pages/admin/ProjectEnrollmentPage.jsx frontend/src/components/coordination/LecturerAssignmentTab.jsx frontend/src/pages/lecturer/TopicManagementPage.jsx frontend/runtime-tests/actionAuthorization.spec.jsx

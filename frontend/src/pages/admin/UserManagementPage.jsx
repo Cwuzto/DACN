@@ -46,6 +46,8 @@ import QueryPanel from '../../components/common/QueryPanel';
 import EmptyState from '../../components/common/EmptyState';
 import PageHeader from '../../components/common/PageHeader';
 import ExcelImportModal from '../../components/common/ExcelImportModal';
+import AuthorizedAction from '../../components/common/AuthorizedAction';
+import { canPerformFeatureAction } from '../../auth/policyEvaluator';
 
 const roleMap = {
     ADMIN: { label: 'Quản trị viên', color: 'error', badgeBg: 'bg-rose-50 text-rose-700 border-rose-200' },
@@ -420,25 +422,30 @@ function UserManagementPage() {
             width: 130,
             align: 'right',
             render: (_, record) => {
+                const canManageUser = canPerformFeatureAction(user, 'users', 'edit');
                 const items = [
                     {
                         key: 'detail',
                         icon: <UserOutlined />,
                         label: 'Xem hồ sơ chi tiết',
                     },
-                    { key: 'edit', icon: <EditOutlined />, label: 'Chỉnh sửa thông tin' },
-                    ...(record.role !== 'STUDENT'
-                        ? [{ key: 'perm', icon: <SafetyCertificateOutlined />, label: 'Phân quyền nhóm' }]
+                    ...(canManageUser
+                        ? [
+                            { key: 'edit', icon: <EditOutlined />, label: 'Chỉnh sửa thông tin' },
+                            ...(record.role !== 'STUDENT'
+                                ? [{ key: 'perm', icon: <SafetyCertificateOutlined />, label: 'Phân quyền nhóm' }]
+                                : []),
+                            {
+                                key: 'toggle',
+                                icon: record.isActive ? <LockOutlined /> : <UnlockOutlined />,
+                                label: record.isActive ? 'Khóa tài khoản' : 'Mở khóa',
+                                danger: record.isActive,
+                            },
+                            { key: 'reset', icon: <KeyOutlined />, label: 'Reset mật khẩu mặc định' },
+                            { type: 'divider' },
+                            { key: 'delete', icon: <DeleteOutlined />, label: 'Xóa tài khoản', danger: true },
+                        ]
                         : []),
-                    {
-                        key: 'toggle',
-                        icon: record.isActive ? <LockOutlined /> : <UnlockOutlined />,
-                        label: record.isActive ? 'Khóa tài khoản' : 'Mở khóa',
-                        danger: record.isActive,
-                    },
-                    { key: 'reset', icon: <KeyOutlined />, label: 'Reset mật khẩu mặc định' },
-                    { type: 'divider' },
-                    { key: 'delete', icon: <DeleteOutlined />, label: 'Xóa tài khoản', danger: true },
                 ];
 
                 const onMenuClick = ({ key }) => {
@@ -501,12 +508,14 @@ function UserManagementPage() {
                 subtitle="Quản lý tài khoản Giảng viên, Sinh viên, Quản trị viên, phân quyền RBAC và hạn mức hướng dẫn đồ án"
                 actions={
                     <Space>
-                        <Button
-                            icon={<UploadOutlined />}
-                            onClick={() => setIsExcelModalOpen(true)}
-                        >
-                            Nhập từ Excel
-                        </Button>
+                        <AuthorizedAction feature="users" action="import">
+                            <Button
+                                icon={<UploadOutlined />}
+                                onClick={() => setIsExcelModalOpen(true)}
+                            >
+                                Nhập từ Excel
+                            </Button>
+                        </AuthorizedAction>
                         <Button
                             icon={<DownloadOutlined />}
                             loading={exporting}
@@ -514,13 +523,15 @@ function UserManagementPage() {
                         >
                             Xuất Excel
                         </Button>
-                        <Button
-                            type="primary"
-                            icon={<PlusOutlined />}
-                            onClick={handleAdd}
-                        >
-                            Thêm Người Dùng
-                        </Button>
+                        <AuthorizedAction feature="users" action="create">
+                            <Button
+                                type="primary"
+                                icon={<PlusOutlined />}
+                                onClick={handleAdd}
+                            >
+                                Thêm Người Dùng
+                            </Button>
+                        </AuthorizedAction>
                     </Space>
                 }
             />
@@ -812,56 +823,58 @@ function UserManagementPage() {
                         </div>
 
                         {/* Quick Actions */}
-                        <div className="space-y-2 pt-4 border-t border-slate-200">
-                            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Thao tác nhanh</h4>
-                            <div className="grid grid-cols-2 gap-2">
-                                <Button
-                                    icon={<EditOutlined />}
-                                    onClick={() => handleEdit(drawerUser)}
-                                    className="text-xs"
-                                >
-                                    Sửa thông tin
-                                </Button>
-                                <Button
-                                    icon={<SafetyCertificateOutlined />}
-                                    onClick={() => handleOpenPermModal(drawerUser)}
-                                    className="text-xs"
-                                >
-                                    Phân quyền RBAC
-                                </Button>
-                                <Button
-                                    icon={<KeyOutlined />}
-                                    onClick={() => {
-                                        Modal.confirm({
-                                            title: 'Reset mật khẩu?',
-                                            content: `Mật khẩu mới sẽ quay về mã số người dùng: ${drawerUser.code}`,
-                                            okText: 'Reset',
-                                            cancelText: 'Hủy',
-                                            onOk: () => handleResetPassword(drawerUser),
-                                        });
-                                    }}
-                                    className="text-xs"
-                                >
-                                    Reset mật khẩu
-                                </Button>
-                                <Button
-                                    danger={drawerUser.isActive}
-                                    icon={drawerUser.isActive ? <LockOutlined /> : <UnlockOutlined />}
-                                    onClick={() => {
-                                        Modal.confirm({
-                                            title: drawerUser.isActive ? 'Khóa tài khoản?' : 'Mở khóa?',
-                                            content: `Xác nhận ${drawerUser.isActive ? 'khóa' : 'mở khóa'} tài khoản "${drawerUser.fullName}"?`,
-                                            okText: 'Đồng ý',
-                                            cancelText: 'Hủy',
-                                            onOk: () => handleToggleLock(drawerUser),
-                                        });
-                                    }}
-                                    className="text-xs"
-                                >
-                                    {drawerUser.isActive ? 'Khóa tài khoản' : 'Mở khóa'}
-                                </Button>
+                        {canPerformFeatureAction(user, 'users', 'edit') && (
+                            <div className="space-y-2 pt-4 border-t border-slate-200">
+                                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Thao tác nhanh</h4>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <Button
+                                        icon={<EditOutlined />}
+                                        onClick={() => handleEdit(drawerUser)}
+                                        className="text-xs"
+                                    >
+                                        Sửa thông tin
+                                    </Button>
+                                    <Button
+                                        icon={<SafetyCertificateOutlined />}
+                                        onClick={() => handleOpenPermModal(drawerUser)}
+                                        className="text-xs"
+                                    >
+                                        Phân quyền RBAC
+                                    </Button>
+                                    <Button
+                                        icon={<KeyOutlined />}
+                                        onClick={() => {
+                                            Modal.confirm({
+                                                title: 'Reset mật khẩu?',
+                                                content: `Mật khẩu mới sẽ quay về mã số người dùng: ${drawerUser.code}`,
+                                                okText: 'Reset',
+                                                cancelText: 'Hủy',
+                                                onOk: () => handleResetPassword(drawerUser),
+                                            });
+                                        }}
+                                        className="text-xs"
+                                    >
+                                        Reset mật khẩu
+                                    </Button>
+                                    <Button
+                                        danger={drawerUser.isActive}
+                                        icon={drawerUser.isActive ? <LockOutlined /> : <UnlockOutlined />}
+                                        onClick={() => {
+                                            Modal.confirm({
+                                                title: drawerUser.isActive ? 'Khóa tài khoản?' : 'Mở khóa?',
+                                                content: `Xác nhận ${drawerUser.isActive ? 'khóa' : 'mở khóa'} tài khoản "${drawerUser.fullName}"?`,
+                                                okText: 'Đồng ý',
+                                                cancelText: 'Hủy',
+                                                onOk: () => handleToggleLock(drawerUser),
+                                            });
+                                        }}
+                                        className="text-xs"
+                                    >
+                                        {drawerUser.isActive ? 'Khóa tài khoản' : 'Mở khóa'}
+                                    </Button>
+                                </div>
                             </div>
-                        </div>
+                        )}
                     </div>
                 )}
             </Drawer>

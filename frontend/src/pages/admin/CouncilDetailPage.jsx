@@ -3,6 +3,8 @@ import { useCouncilDetail, useCouncilLogs, useCouncilAdjustments, useCouncilLect
 import { usePeriodRegistrations } from '../../queries/periodQueries';
 import { queryKeys } from '../../query/queryKeys';
 import QueryPanel from '../../components/common/QueryPanel';
+import AuthorizedAction from '../../components/common/AuthorizedAction';
+import { canPerformFeatureAction } from '../../auth/policyEvaluator';
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
@@ -52,8 +54,8 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
     const navigate = useNavigate();
     const user = useAuthStore((state) => state.user);
 
-    const canManageOutline = (user?.permissions || []).includes('OUTLINE_COUNCIL_MANAGE') || user?.role === 'ADMIN' || user?.role === 'QUAN_TRI_VIEN';
-    const canManageDefense = (user?.permissions || []).includes('DEFENSE_COUNCIL_MANAGE') || user?.role === 'ADMIN' || user?.role === 'QUAN_TRI_VIEN';
+    const canManageOutline = canPerformFeatureAction(user, 'outline-councils', 'manage');
+    const canManageDefense = canPerformFeatureAction(user, 'defense-councils', 'manage');
     const scope = queryKeys.scope(user);
     const councilQuery = useCouncilDetail(scope, id);
     const council = councilQuery.data;

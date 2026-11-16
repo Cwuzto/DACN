@@ -2,6 +2,8 @@ import { useLecturerAssignments, useAvailableLecturers, useLecturerAssignmentMut
 import { useUsers } from '../../queries/userQueries';
 import { queryKeys } from '../../query/queryKeys';
 import QueryPanel from '../common/QueryPanel';
+import AuthorizedAction from '../common/AuthorizedAction';
+import { getEffectivePermissions } from '../../auth/policyEvaluator';
 import { useEffect, useMemo, useState } from 'react';
 import {
     Table,
@@ -71,12 +73,11 @@ export function LecturerAssignmentTab({
     // Permissions
     const canManage = useMemo(() => {
         if (!user) return false;
-        if (user.role === 'ADMIN') return true;
-        const permissions = user.permissions || EMPTY_LIST;
+        const perms = getEffectivePermissions(user);
         return (
-            permissions.includes('PERMISSION_ASSIGN_ACADEMIC') ||
-            permissions.includes('MENTOR_ASSIGN') ||
-            permissions.includes('ENROLLMENT_MANAGE')
+            perms.has('PERMISSION_ASSIGN_ACADEMIC') ||
+            perms.has('MENTOR_ASSIGN') ||
+            perms.has('ENROLLMENT_MANAGE')
         );
     }, [user]);
 
@@ -560,42 +561,44 @@ export function LecturerAssignmentTab({
                 </div>
 
                 {canManage && (
-                    <div className="flex items-center gap-2 flex-wrap">
-                        <Button
-                            type="primary"
-                            icon={<PlusOutlined />}
-                            onClick={() => {
-                                const targetCatId = projectCatalogId ? Number(projectCatalogId) : catalogs[0]?.id;
-                                createForm.resetFields();
-                                createForm.setFieldsValue({
-                                    semesterId: Number(semesterId),
-                                    projectCatalogId: targetCatId,
-                                    plannedQuota: 10,
-                                    status: 'ACTIVE',
-                                });
-                                fetchAvailableLecturers(semesterId, targetCatId);
-                                setCreateModalOpen(true);
-                            }}
-                        >
-                            Phân công Giảng viên
-                        </Button>
-                        <Upload
-                            beforeUpload={handleFileUpload}
-                            showUploadList={false}
-                            accept=".xlsx, .xls"
-                        >
-                            <Button icon={<UploadOutlined />}>Import Excel GVHD</Button>
-                        </Upload>
-                        <Button
-                            icon={<CopyOutlined />}
-                            onClick={() => {
-                                setSourceSemesterId(null);
-                                setCopyModalOpen(true);
-                            }}
-                        >
-                            Sao chép phân công
-                        </Button>
-                    </div>
+                    <AuthorizedAction feature="project-enrollments" action="assignMentor">
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <Button
+                                type="primary"
+                                icon={<PlusOutlined />}
+                                onClick={() => {
+                                    const targetCatId = projectCatalogId ? Number(projectCatalogId) : catalogs[0]?.id;
+                                    createForm.resetFields();
+                                    createForm.setFieldsValue({
+                                        semesterId: Number(semesterId),
+                                        projectCatalogId: targetCatId,
+                                        plannedQuota: 10,
+                                        status: 'ACTIVE',
+                                    });
+                                    fetchAvailableLecturers(semesterId, targetCatId);
+                                    setCreateModalOpen(true);
+                                }}
+                            >
+                                Phân công Giảng viên
+                            </Button>
+                            <Upload
+                                beforeUpload={handleFileUpload}
+                                showUploadList={false}
+                                accept=".xlsx, .xls"
+                            >
+                                <Button icon={<UploadOutlined />}>Import Excel GVHD</Button>
+                            </Upload>
+                            <Button
+                                icon={<CopyOutlined />}
+                                onClick={() => {
+                                    setSourceSemesterId(null);
+                                    setCopyModalOpen(true);
+                                }}
+                            >
+                                Sao chép phân công
+                            </Button>
+                        </div>
+                    </AuthorizedAction>
                 )}
             </div>
 

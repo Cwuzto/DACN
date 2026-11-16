@@ -34,6 +34,8 @@ import useAuthStore from '../../stores/authStore';
 import { queryKeys } from '../../query/queryKeys';
 import { useAnnouncements, useAnnouncementMutation } from '../../queries/announcementQueries';
 import QueryPanel from '../../components/common/QueryPanel';
+import AuthorizedAction from '../../components/common/AuthorizedAction';
+import { canPerformFeatureAction } from '../../auth/policyEvaluator';
 
 const { TextArea } = Input;
 
@@ -272,60 +274,64 @@ function AnnouncementManagementPage() {
                 </span>
             ),
         },
-        {
-            title: 'Thao tác',
-            key: 'actions',
-            width: 160,
-            align: 'right',
-            render: (_, record) => (
-                <Space size="small">
-                    <Tooltip title={record.isPinned ? 'Bỏ ghim' : 'Ghim lên đầu'}>
-                        <Button
-                            type="text"
-                            size="small"
-                            icon={<PushpinOutlined />}
-                            className={record.isPinned ? 'text-amber-500 bg-amber-50' : 'text-slate-400 hover:text-amber-500'}
-                            onClick={() => handleTogglePin(record)}
-                        />
-                    </Tooltip>
-                    <Tooltip title={record.isPublished ? 'Ẩn thông báo' : 'Công khai thông báo'}>
-                        <Button
-                            type="text"
-                            size="small"
-                            icon={record.isPublished ? <EyeOutlined /> : <EyeInvisibleOutlined />}
-                            className={record.isPublished ? 'text-emerald-600 bg-emerald-50' : 'text-slate-400 hover:text-emerald-600'}
-                            onClick={() => handleTogglePublish(record)}
-                        />
-                    </Tooltip>
-                    <Tooltip title="Chỉnh sửa">
-                        <Button
-                            type="text"
-                            size="small"
-                            icon={<EditOutlined />}
-                            className="text-slate-600 hover:text-primary"
-                            onClick={() => openEditModal(record)}
-                        />
-                    </Tooltip>
-                    <Popconfirm
-                        title="Xác nhận xóa thông báo?"
-                        description="Hành động này không thể hoàn tác."
-                        onConfirm={() => handleDelete(record.id)}
-                        okText="Xóa"
-                        cancelText="Hủy"
-                        okButtonProps={{ danger: true }}
-                    >
-                        <Tooltip title="Xóa thông báo">
-                            <Button
-                                type="text"
-                                size="small"
-                                icon={<DeleteOutlined />}
-                                danger
-                            />
-                        </Tooltip>
-                    </Popconfirm>
-                </Space>
-            ),
-        },
+        ...(canPerformFeatureAction(user, 'announcements', 'edit')
+            ? [
+                {
+                    title: 'Thao tác',
+                    key: 'actions',
+                    width: 160,
+                    align: 'right',
+                    render: (_, record) => (
+                        <Space size="small">
+                            <Tooltip title={record.isPinned ? 'Bỏ ghim' : 'Ghim lên đầu'}>
+                                <Button
+                                    type="text"
+                                    size="small"
+                                    icon={<PushpinOutlined />}
+                                    className={record.isPinned ? 'text-amber-500 bg-amber-50' : 'text-slate-400 hover:text-amber-500'}
+                                    onClick={() => handleTogglePin(record)}
+                                />
+                            </Tooltip>
+                            <Tooltip title={record.isPublished ? 'Ẩn thông báo' : 'Công khai thông báo'}>
+                                <Button
+                                    type="text"
+                                    size="small"
+                                    icon={record.isPublished ? <EyeOutlined /> : <EyeInvisibleOutlined />}
+                                    className={record.isPublished ? 'text-emerald-600 bg-emerald-50' : 'text-slate-400 hover:text-emerald-600'}
+                                    onClick={() => handleTogglePublish(record)}
+                                />
+                            </Tooltip>
+                            <Tooltip title="Chỉnh sửa">
+                                <Button
+                                    type="text"
+                                    size="small"
+                                    icon={<EditOutlined />}
+                                    className="text-slate-600 hover:text-primary"
+                                    onClick={() => openEditModal(record)}
+                                />
+                            </Tooltip>
+                            <Popconfirm
+                                title="Xác nhận xóa thông báo?"
+                                description="Hành động này không thể hoàn tác."
+                                onConfirm={() => handleDelete(record.id)}
+                                okText="Xóa"
+                                cancelText="Hủy"
+                                okButtonProps={{ danger: true }}
+                            >
+                                <Tooltip title="Xóa thông báo">
+                                    <Button
+                                        type="text"
+                                        size="small"
+                                        icon={<DeleteOutlined />}
+                                        danger
+                                    />
+                                </Tooltip>
+                            </Popconfirm>
+                        </Space>
+                    ),
+                },
+            ]
+            : []),
     ];
 
     return (
@@ -337,20 +343,21 @@ function AnnouncementManagementPage() {
                     <h1 className="h1">Bản Tin &amp; Quyết Định Học Vụ Portal</h1>
                 </div>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                    <button
-                        className="btn btn-secondary"
+                    <Button
+                        icon={<ReloadOutlined />}
                         onClick={() => announcementsQuery.refetch()}
                     >
-                        <ReloadOutlined />
-                        <span>Làm mới</span>
-                    </button>
-                    <button
-                        className="btn btn-primary"
-                        onClick={openCreateModal}
-                    >
-                        <PlusOutlined />
-                        <span>Soạn bản tin Portal</span>
-                    </button>
+                        Làm mới
+                    </Button>
+                    <AuthorizedAction feature="announcements" action="create">
+                        <Button
+                            type="primary"
+                            icon={<PlusOutlined />}
+                            onClick={openCreateModal}
+                        >
+                            Soạn bản tin Portal
+                        </Button>
+                    </AuthorizedAction>
                 </div>
             </div>
 

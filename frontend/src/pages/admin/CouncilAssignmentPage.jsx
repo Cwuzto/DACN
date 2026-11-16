@@ -3,6 +3,8 @@ import { useSemesters } from '../../queries/semesterQueries';
 import { usePeriodRegistrations } from '../../queries/periodQueries';
 import { queryKeys } from '../../query/queryKeys';
 import QueryPanel from '../../components/common/QueryPanel';
+import AuthorizedAction from '../../components/common/AuthorizedAction';
+import { canPerformFeatureAction } from '../../auth/policyEvaluator';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -841,14 +843,19 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                             )
                         )}
                         {canManageCouncil && (
-                            <Button
-                                type="primary"
-                                icon={<PlusOutlined />}
-                                onClick={showCreateModal}
-                                disabled={!selectedSemester || isSemesterCompleted}
+                            <AuthorizedAction
+                                feature={effectiveCouncilType === 'OUTLINE_REVIEW' ? 'outline-councils' : 'defense-councils'}
+                                action="manage"
                             >
-                                Lập Hội đồng
-                            </Button>
+                                <Button
+                                    type="primary"
+                                    icon={<PlusOutlined />}
+                                    onClick={showCreateModal}
+                                    disabled={!selectedSemester || isSemesterCompleted}
+                                >
+                                    Lập Hội đồng
+                                </Button>
+                            </AuthorizedAction>
                         )}
                     </div>
                 }

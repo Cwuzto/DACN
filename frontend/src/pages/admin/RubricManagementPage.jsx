@@ -26,6 +26,8 @@ import { queryKeys } from '../../query/queryKeys';
 import { useRubricVersions, useRubricDetail, useRubricMutation } from '../../queries/rubricQueries';
 import { usePublicPortalContent } from '../../queries/portalQueries';
 import QueryPanel from '../../components/common/QueryPanel';
+import AuthorizedAction from '../../components/common/AuthorizedAction';
+import { canPerformFeatureAction } from '../../auth/policyEvaluator';
 
 const round2 = (num) => Math.round((Number(num) || 0) * 100) / 100;
 
@@ -644,33 +646,34 @@ export default function RubricManagementPage() {
                     </p>
                 </div>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                    <button
-                        className="btn btn-primary"
-                        onClick={() => {
-                            setActiveRubricId(null);
-                            setFormTitle('Barem đánh giá bảo vệ đồ án tốt nghiệp khóa mới');
-                            handleResetToDefault();
-                            setActiveTab('rubric');
-                        }}
-                    >
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <line x1="12" y1="5" x2="12" y2="19" />
-                            <line x1="5" y1="12" x2="19" y2="12" />
-                        </svg>
-                        <span>Thêm Phiên Bản Mới</span>
-                    </button>
-                    <button
-                        className="btn btn-secondary"
-                        onClick={() => {
-                            if (activeRubricId) {
-                                handleActivate(activeRubricId);
-                            } else {
-                                message.info('Vui lòng chọn một phiên bản để ban hành.');
-                            }
-                        }}
-                    >
-                        <span>Ban Hành Phiên Bản</span>
-                    </button>
+                    <AuthorizedAction feature="rubric-config" action="manage">
+                        <Button
+                            type="primary"
+                            icon={<PlusOutlined />}
+                            onClick={() => {
+                                setActiveRubricId(null);
+                                setFormTitle('Barem đánh giá bảo vệ đồ án tốt nghiệp khóa mới');
+                                handleResetToDefault();
+                                setActiveTab('rubric');
+                            }}
+                        >
+                            Thêm Phiên Bản Mới
+                        </Button>
+                    </AuthorizedAction>
+                    <AuthorizedAction feature="rubric-config" action="lock">
+                        <Button
+                            icon={<CheckCircleOutlined />}
+                            onClick={() => {
+                                if (activeRubricId) {
+                                    handleActivate(activeRubricId);
+                                } else {
+                                    message.info('Vui lòng chọn một phiên bản để ban hành.');
+                                }
+                            }}
+                        >
+                            Ban Hành Phiên Bản
+                        </Button>
+                    </AuthorizedAction>
                 </div>
             </div>
 
@@ -973,26 +976,32 @@ export default function RubricManagementPage() {
                             </div>
                         </div>
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                            <Button
-                                type="primary"
-                                icon={<SaveOutlined />}
-                                onClick={handleSaveRubric}
-                                loading={saving}
-                            >
-                                {saving ? 'Đang lưu...' : 'Lưu Cấu Hình Rubric'}
-                            </Button>
-                            <Button
-                                icon={<ReloadOutlined />}
-                                onClick={() => handleRestoreDefaultRubric(activeRubricId)}
-                            >
-                                Khôi phục mẫu chuẩn
-                            </Button>
-                            <Button
-                                icon={<LockOutlined />}
-                                onClick={() => handleLockRubric(activeRubricId)}
-                            >
-                                Khóa Rubric đợt bảo vệ
-                            </Button>
+                            <AuthorizedAction feature="rubric-config" action="manage">
+                                <Button
+                                    type="primary"
+                                    icon={<SaveOutlined />}
+                                    onClick={handleSaveRubric}
+                                    loading={saving}
+                                >
+                                    {saving ? 'Đang lưu...' : 'Lưu Cấu Hình Rubric'}
+                                </Button>
+                            </AuthorizedAction>
+                            <AuthorizedAction feature="rubric-config" action="manage">
+                                <Button
+                                    icon={<ReloadOutlined />}
+                                    onClick={() => handleRestoreDefaultRubric(activeRubricId)}
+                                >
+                                    Khôi phục mẫu chuẩn
+                                </Button>
+                            </AuthorizedAction>
+                            <AuthorizedAction feature="rubric-config" action="lock">
+                                <Button
+                                    icon={<LockOutlined />}
+                                    onClick={() => handleLockRubric(activeRubricId)}
+                                >
+                                    Khóa Rubric đợt bảo vệ
+                                </Button>
+                            </AuthorizedAction>
                         </div>
                     </div>
 
@@ -1044,13 +1053,15 @@ export default function RubricManagementPage() {
                                         : `⚠ Chênh lệch: ${(totalScore - 10).toFixed(2)}đ so với thang chuẩn 10.0đ`}
                                 </div>
                             </div>
-                            <Button
-                                size="small"
-                                icon={<PlusOutlined />}
-                                onClick={handleAddCategory}
-                            >
-                                Thêm nhóm tiêu chí
-                            </Button>
+                            <AuthorizedAction feature="rubric-config" action="manage">
+                                <Button
+                                    size="small"
+                                    icon={<PlusOutlined />}
+                                    onClick={handleAddCategory}
+                                >
+                                    Thêm nhóm tiêu chí
+                                </Button>
+                            </AuthorizedAction>
                         </div>
                     </div>
 

@@ -40,6 +40,8 @@ import { usePermissionMatrix, usePermissionGroups, usePermissionCatalog, usePerm
 import { queryKeys } from '../../query/queryKeys';
 import QueryPanel from '../../components/common/QueryPanel';
 import EmptyState from '../../components/common/EmptyState';
+import AuthorizedAction from '../../components/common/AuthorizedAction';
+import { canPerformFeatureAction } from '../../auth/policyEvaluator';
 import useAuthStore from '../../stores/authStore';
 import {
     ACADEMIC_PROTECTED_PERMISSIONS,
@@ -547,37 +549,41 @@ function PermissionGroupPage() {
                 );
             },
         },
-        {
-            title: 'Thao tác',
-            key: 'actions',
-            width: 100,
-            align: 'right',
-            render: (_, record) => (
-                <Space size="small">
-                    <Tooltip title="Chỉnh sửa nhóm vai trò">
-                        <Button
-                            size="small"
-                            icon={<EditOutlined />}
-                            onClick={() => handleEdit(record)}
-                        />
-                    </Tooltip>
-                    {!record.isSystem && (
-                        <Popconfirm
-                            title="Xác nhận xóa nhóm vai trò?"
-                            description={`Nhóm "${record.name}" sẽ bị gỡ bỏ khỏi hệ thống.`}
-                            okText="Xóa nhóm"
-                            cancelText="Hủy"
-                            okButtonProps={{ danger: true }}
-                            onConfirm={() => handleDelete(record)}
-                        >
-                            <Tooltip title="Xóa nhóm vai trò">
-                                <Button size="small" icon={<DeleteOutlined />} danger />
+        ...(canPerformFeatureAction(currentUser, 'permissions', 'manageGroups')
+            ? [
+                {
+                    title: 'Thao tác',
+                    key: 'actions',
+                    width: 100,
+                    align: 'right',
+                    render: (_, record) => (
+                        <Space size="small">
+                            <Tooltip title="Chỉnh sửa nhóm vai trò">
+                                <Button
+                                    size="small"
+                                    icon={<EditOutlined />}
+                                    onClick={() => handleEdit(record)}
+                                />
                             </Tooltip>
-                        </Popconfirm>
-                    )}
-                </Space>
-            ),
-        },
+                            {!record.isSystem && (
+                                <Popconfirm
+                                    title="Xác nhận xóa nhóm vai trò?"
+                                    description={`Nhóm "${record.name}" sẽ bị gỡ bỏ khỏi hệ thống.`}
+                                    okText="Xóa nhóm"
+                                    cancelText="Hủy"
+                                    okButtonProps={{ danger: true }}
+                                    onConfirm={() => handleDelete(record)}
+                                >
+                                    <Tooltip title="Xóa nhóm vai trò">
+                                        <Button size="small" icon={<DeleteOutlined />} danger />
+                                    </Tooltip>
+                                </Popconfirm>
+                            )}
+                        </Space>
+                    ),
+                },
+            ]
+            : []),
     ];
 
     return (
@@ -627,31 +633,35 @@ function PermissionGroupPage() {
                                     Khôi phục
                                 </Button>
                             )}
-                            <Button
-                                type="primary"
-                                icon={<SaveOutlined />}
-                                loading={savingMatrix}
-                                disabled={!matrixQuery.data}
-                                onClick={handleSaveMatrix}
-                                style={{
-                                    background: dirty ? '#0F766E' : undefined,
-                                    borderColor: dirty ? '#0F766E' : undefined,
-                                    fontWeight: 700,
-                                }}
-                            >
-                                {dirty ? 'Lưu thay đổi (*)' : 'Lưu thay đổi'}
-                            </Button>
+                            <AuthorizedAction feature="permissions" action="manageGroups">
+                                <Button
+                                    type="primary"
+                                    icon={<SaveOutlined />}
+                                    loading={savingMatrix}
+                                    disabled={!matrixQuery.data}
+                                    onClick={handleSaveMatrix}
+                                    style={{
+                                        background: dirty ? '#0F766E' : undefined,
+                                        borderColor: dirty ? '#0F766E' : undefined,
+                                        fontWeight: 700,
+                                    }}
+                                >
+                                    {dirty ? 'Lưu thay đổi (*)' : 'Lưu thay đổi'}
+                                </Button>
+                            </AuthorizedAction>
                         </>
                     )}
                     {activeTab === 'GROUPS' && (
-                        <Button
-                            type="primary"
-                            icon={<PlusOutlined />}
-                            onClick={handleAdd}
-                            style={{ background: '#0F766E', borderColor: '#0F766E', fontWeight: 700 }}
-                        >
-                            Tạo nhóm vai trò mới
-                        </Button>
+                        <AuthorizedAction feature="permissions" action="manageGroups">
+                            <Button
+                                type="primary"
+                                icon={<PlusOutlined />}
+                                onClick={handleAdd}
+                                style={{ background: '#0F766E', borderColor: '#0F766E', fontWeight: 700 }}
+                            >
+                                Tạo nhóm vai trò mới
+                            </Button>
+                        </AuthorizedAction>
                     )}
                 </div>
             </div>
@@ -704,15 +714,17 @@ function PermissionGroupPage() {
                             </span>
                             <Space size="small">
                                 <Button size="small" onClick={handleResetMatrix}>Hủy thay đổi</Button>
-                                <Button
-                                    size="small"
-                                    type="primary"
-                                    loading={savingMatrix}
-                                    onClick={handleSaveMatrix}
-                                    style={{ background: '#0F766E', borderColor: '#0F766E', fontWeight: 700 }}
-                                >
-                                    Lưu thay đổi
-                                </Button>
+                                <AuthorizedAction feature="permissions" action="manageGroups">
+                                    <Button
+                                        size="small"
+                                        type="primary"
+                                        loading={savingMatrix}
+                                        onClick={handleSaveMatrix}
+                                        style={{ background: '#0F766E', borderColor: '#0F766E', fontWeight: 700 }}
+                                    >
+                                        Lưu thay đổi
+                                    </Button>
+                                </AuthorizedAction>
                             </Space>
                         </div>
                     }

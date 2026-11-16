@@ -24,6 +24,7 @@ import { useSemesters } from '../../queries/semesterQueries';
 import { useTopics, useTopicMutation, useCloneableTopics, useProjectCatalogs } from '../../queries/topicQueries';
 import QueryPanel from '../../components/common/QueryPanel';
 import ContentSkeleton from '../../components/common/ContentSkeleton';
+import AuthorizedAction from '../../components/common/AuthorizedAction';
 
 /**
  * TopicManagementPage — 100% OpenDesign Golden Standard
@@ -428,19 +429,23 @@ export default function TopicManagementPage() {
                     </p>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }} className="flex-wrap">
-                    <Button
-                        icon={<CopyOutlined />}
-                        onClick={() => setCloneModalOpen(true)}
-                    >
-                        Sao chép từ kỳ trước
-                    </Button>
-                    <Button
-                        type="primary"
-                        icon={<PlusOutlined />}
-                        onClick={() => setNewTopicModalOpen(true)}
-                    >
-                        Đề xuất Đề tài mới
-                    </Button>
+                    <AuthorizedAction feature="my-topics" action="create">
+                        <Button
+                            icon={<CopyOutlined />}
+                            onClick={() => setCloneModalOpen(true)}
+                        >
+                            Sao chép từ kỳ trước
+                        </Button>
+                    </AuthorizedAction>
+                    <AuthorizedAction feature="my-topics" action="create">
+                        <Button
+                            type="primary"
+                            icon={<PlusOutlined />}
+                            onClick={() => setNewTopicModalOpen(true)}
+                        >
+                            Đề xuất Đề tài mới
+                        </Button>
+                    </AuthorizedAction>
                 </div>
             </div>
 

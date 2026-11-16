@@ -17,6 +17,8 @@ import {
 } from '@ant-design/icons';
 
 import ExcelImportModal from '../../components/common/ExcelImportModal';
+import AuthorizedAction from '../../components/common/AuthorizedAction';
+import { getEffectivePermissions, canPerformFeatureAction } from '../../auth/policyEvaluator';
 import projectEnrollmentService from '../../services/projectEnrollmentService';
 
 import useAuthStore from '../../stores/authStore';
@@ -34,34 +36,31 @@ export function ProjectEnrollmentPage() {
     // Tab-level RBAC
     const canAccessLecturers = useMemo(() => {
         if (!user) return false;
-        if (user.role === 'ADMIN') return true;
-        const permissions = user.permissions || EMPTY_LIST;
+        const perms = getEffectivePermissions(user);
         return (
-            permissions.includes('PERMISSION_ASSIGN_ACADEMIC') ||
-            permissions.includes('MENTOR_ASSIGN') ||
-            permissions.includes('ENROLLMENT_MANAGE')
+            perms.has('PERMISSION_ASSIGN_ACADEMIC') ||
+            perms.has('MENTOR_ASSIGN') ||
+            perms.has('ENROLLMENT_MANAGE')
         );
     }, [user]);
 
     const canAccessOverview = useMemo(() => {
         if (!user) return false;
-        if (user.role === 'ADMIN') return true;
-        const permissions = user.permissions || EMPTY_LIST;
+        const perms = getEffectivePermissions(user);
         return (
-            permissions.includes('VIEW_PROJECT_ENROLLMENTS') ||
-            permissions.includes('PERMISSION_ASSIGN_ACADEMIC') ||
-            permissions.includes('MENTOR_ASSIGN')
+            perms.has('VIEW_PROJECT_ENROLLMENTS') ||
+            perms.has('PERMISSION_ASSIGN_ACADEMIC') ||
+            perms.has('MENTOR_ASSIGN')
         );
     }, [user]);
 
     const canAccessStudents = useMemo(() => {
         if (!user) return false;
-        if (user.role === 'ADMIN') return true;
-        const permissions = user.permissions || EMPTY_LIST;
+        const perms = getEffectivePermissions(user);
         return (
-            permissions.includes('VIEW_PROJECT_ENROLLMENTS') ||
-            permissions.includes('ENROLLMENT_MANAGE') ||
-            permissions.includes('PROJECT_CATALOG_MANAGE')
+            perms.has('VIEW_PROJECT_ENROLLMENTS') ||
+            perms.has('ENROLLMENT_MANAGE') ||
+            perms.has('PROJECT_CATALOG_MANAGE')
         );
     }, [user]);
 
@@ -334,24 +333,28 @@ export function ProjectEnrollmentPage() {
                 return <Tag className="text-[11px]">{source || 'Khác'}</Tag>;
             },
         },
-        {
-            title: 'Hành động',
-            key: 'actions',
-            width: 90,
-            align: 'center',
-            render: (_, row) => (
-                <Popconfirm
-                    title="Gỡ sinh viên này khỏi đợt đồ án?"
-                    description="Sinh viên sẽ không còn trong danh sách đủ điều kiện đăng ký đợt này."
-                    onConfirm={() => handleDelete(row.id)}
-                    okText="Gỡ"
-                    cancelText="Hủy"
-                    okButtonProps={{ danger: true }}
-                >
-                    <Button danger type="text" size="small" icon={<DeleteOutlined />} />
-                </Popconfirm>
-            ),
-        },
+        ...(canPerformFeatureAction(user, 'project-enrollments', 'manageEnrollment')
+            ? [
+                {
+                    title: 'Hành động',
+                    key: 'actions',
+                    width: 90,
+                    align: 'center',
+                    render: (_, row) => (
+                        <Popconfirm
+                            title="Gỡ sinh viên này khỏi đợt đồ án?"
+                            description="Sinh viên sẽ không còn trong danh sách đủ điều kiện đăng ký đợt này."
+                            onConfirm={() => handleDelete(row.id)}
+                            okText="Gỡ"
+                            cancelText="Hủy"
+                            okButtonProps={{ danger: true }}
+                        >
+                            <Button danger type="text" size="small" icon={<DeleteOutlined />} />
+                        </Popconfirm>
+                    ),
+                },
+            ]
+            : []),
     ];
 
     // Tab Items definition with RBAC Guards
@@ -391,19 +394,23 @@ export function ProjectEnrollmentPage() {
                             </span>
                         </div>
                         <div className="flex items-center gap-2 flex-wrap">
-                            <Button
-                                type={showAssignPanel ? 'primary' : 'default'}
-                                icon={<UserAddOutlined />}
-                                onClick={() => setShowAssignPanel((prev) => !prev)}
-                            >
-                                {showAssignPanel ? 'Ẩn form gán' : 'Gán thủ công'}
-                            </Button>
-                            <Button
-                                icon={<UploadOutlined />}
-                                onClick={() => setIsExcelModalOpen(true)}
-                            >
-                                Gán bằng Excel
-                            </Button>
+                            <AuthorizedAction feature="project-enrollments" action="manageEnrollment">
+                                <Button
+                                    type={showAssignPanel ? 'primary' : 'default'}
+                                    icon={<UserAddOutlined />}
+                                    onClick={() => setShowAssignPanel((prev) => !prev)}
+                                >
+                                    {showAssignPanel ? 'Ẩn form gán' : 'Gán thủ công'}
+                                </Button>
+                            </AuthorizedAction>
+                            <AuthorizedAction feature="project-enrollments" action="manageEnrollment">
+                                <Button
+                                    icon={<UploadOutlined />}
+                                    onClick={() => setIsExcelModalOpen(true)}
+                                >
+                                    Gán bằng Excel
+                                </Button>
+                            </AuthorizedAction>
                             <Button
                                 icon={<DownloadOutlined />}
                                 onClick={handleExport}
