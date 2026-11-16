@@ -31,7 +31,7 @@ const hasInstituteArchiveScope = (user) => (
 
 const canAccessRegistrationArchive = (user, registration) => {
     const registrationStudentId = registration.studentId ?? registration.student?.id;
-    const isOwner = user.role === 'STUDENT' && registrationStudentId === user.id;
+    const isOwner = Boolean(user?.id && registrationStudentId === user.id && (user.role === 'STUDENT' || hasPermission(user, PERMISSIONS.VIEW_MY_REGISTRATION)));
     const isMentor = registration.topic?.mentorId === user.id
         && hasPermission(user, PERMISSIONS.FINAL_DOCUMENT_REVIEW);
     return isOwner || isMentor || hasInstituteArchiveScope(user);
@@ -116,7 +116,7 @@ const getArchiveByRegistration = async (req, res, next) => {
         }
 
         const registrationStudentId = registration.studentId ?? registration.student?.id;
-        const isOwner = req.user.role === 'STUDENT' && registrationStudentId === req.user.id;
+        const isOwner = Boolean(req.user?.id && registrationStudentId === req.user.id && (req.user.role === 'STUDENT' || hasPermission(req.user, PERMISSIONS.VIEW_MY_REGISTRATION)));
 
         // C04, SEC-12: Mask defenseResult for student until result is officially promulgated
         const responseRegistration = { ...registration };

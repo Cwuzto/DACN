@@ -2,7 +2,7 @@ const express = require('express');
 const { body, query } = require('express-validator');
 const {
     authenticateToken,
-    authorizeRoleOrPermission,
+    authorizePermission,
 } = require('../middlewares/auth');
 const { PERMISSIONS } = require('../constants/permissions');
 const { validateRequest } = require('../middlewares/validate');
@@ -15,7 +15,7 @@ router.use(authenticateToken);
 // Sinh viên nộp đề cương v1
 router.post(
     '/submissions',
-    authorizeRoleOrPermission(['STUDENT'], [PERMISSIONS.SUBMIT_BM01]),
+    authorizePermission(PERMISSIONS.SUBMIT_BM01),
     [
         body('registrationId')
             .isInt({ min: 1 })
@@ -41,7 +41,7 @@ router.post(
 // Sinh viên nộp lại đề cương v2
 router.post(
     '/resubmissions',
-    authorizeRoleOrPermission(['STUDENT'], [PERMISSIONS.SUBMIT_BM01]),
+    authorizePermission(PERMISSIONS.SUBMIT_BM01),
     [
         body('registrationId')
             .isInt({ min: 1 })
@@ -67,9 +67,9 @@ router.post(
 // Sinh viên xem thông tin đề cương của mình
 router.get(
     '/my-outline',
-    authorizeRoleOrPermission(
-        ['STUDENT'],
-        [PERMISSIONS.VIEW_MY_REGISTRATION, PERMISSIONS.VIEW_OUTLINE_REVIEWS]
+    authorizePermission(
+        PERMISSIONS.VIEW_MY_REGISTRATION,
+        PERMISSIONS.VIEW_OUTLINE_REVIEWS
     ),
     [
         query('semesterId')

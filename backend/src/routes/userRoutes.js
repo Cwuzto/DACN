@@ -20,7 +20,7 @@ router.put('/:id', authorizePermission(PERMISSIONS.USER_MANAGE), userController.
 router.delete('/:id', authorizePermission(PERMISSIONS.USER_MANAGE), userController.deleteUser);
 
 // Permission groups
-router.get('/:id/permissions', authorizePermission(PERMISSIONS.PERMISSION_GROUP_MANAGE), userController.getUserPermissions);
+router.get('/:id/permissions', authorizePermission(PERMISSIONS.VIEW_PERMISSIONS, PERMISSIONS.VIEW_PERMISSION_GROUPS, PERMISSIONS.PERMISSION_GROUP_MANAGE), userController.getUserPermissions);
 router.post('/:id/permission-groups', authorizePermission(PERMISSIONS.PERMISSION_GROUP_MANAGE), userController.updateUserPermissionGroups);
 
 // Lock/Unlock

@@ -1,6 +1,14 @@
 const jwt = require('jsonwebtoken');
 const prisma = require('../config/database');
 const { PERMISSION_CATALOG, DEFAULT_GROUPS } = require('../constants/permissions');
+const { normalizePermissionCode } = require('../auth/permissionCatalog');
+
+const userHasPermission = (userPermissions, code) => {
+    if (!userPermissions || !code) return false;
+    if (userPermissions.includes(code)) return true;
+    const canonical = normalizePermissionCode(code);
+    return Boolean(canonical && userPermissions.includes(canonical));
+};
 const {
     resolveUserCapabilities,
     getEffectivePermissions,
@@ -10,6 +18,7 @@ const {
     userAuthCache,
     inFlightUserLookups,
 } = require('../auth/capabilityResolver');
+const { authorizeScopedPermission } = require('./authorizeScopedPermission');
 
 const studentBaseGroup = DEFAULT_GROUPS.find((group) => group.code === 'SYSTEM_STUDENT_BASE');
 const studentBasePermissions = studentBaseGroup ? studentBaseGroup.permissions : [];
@@ -156,7 +165,7 @@ const authorizePermission = (...permissionCodes) => {
             return res.status(401).json({ success: false, message: 'Chưa xác thực.' });
         }
         const permissions = req.user.permissions || [];
-        if (!permissionCodes.some((code) => permissions.includes(code))) {
+        if (!permissionCodes.some((code) => userHasPermission(permissions, code))) {
             return res.status(403).json({ success: false, message: 'Bạn không có quyền thực hiện thao tác này.' });
         }
         next();
@@ -172,7 +181,7 @@ const authorizeAllPermissions = (...permissionCodes) => {
             return res.status(401).json({ success: false, message: 'Chưa xác thực.' });
         }
         const permissions = req.user.permissions || [];
-        if (!permissionCodes.every((code) => permissions.includes(code))) {
+        if (!permissionCodes.every((code) => userHasPermission(permissions, code))) {
             return res.status(403).json({ success: false, message: 'Bạn không có quyền thực hiện thao tác này.' });
         }
         next();
@@ -188,7 +197,7 @@ const assertPermission = (user, permissionCode) => {
         error.statusCode = 401;
         throw error;
     }
-    if (!(user.permissions || []).includes(permissionCode)) {
+    if (!userHasPermission(user.permissions, permissionCode)) {
         const error = new Error('Bạn không có quyền thực hiện thao tác này.');
         error.statusCode = 403;
         throw error;
@@ -317,7 +326,7 @@ const authorizeRoleOrPermission = (roles = [], permissionCodes = []) => {
             return next();
         }
         const permissions = req.user.permissions || [];
-        if (permissionCodes.some((code) => permissions.includes(code))) {
+        if (permissionCodes.some((code) => userHasPermission(permissions, code))) {
             return next();
         }
         return res.status(403).json({ success: false, message: 'Bạn không có quyền thực hiện thao tác này.' });
@@ -407,5 +416,6 @@ module.exports = {
     getAuthCacheTtl,
     resolveUserCapabilities,
     getEffectivePermissions,
+    authorizeScopedPermission,
 };
 

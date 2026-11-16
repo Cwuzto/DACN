@@ -497,7 +497,9 @@ const changeTopicStatus = async (req, res, next) => {
             return res.status(400).json({ success: false, message: `Chỉ duyệt/từ chối đề tài ở trạng thái PENDING. Hiện: ${existing.status}.` });
         }
 
-        if (req.user.role === 'LECTURER' && existing.mentorId !== req.user.id) {
+        const userPerms = req.user.permissions || [];
+        const hasInstituteReview = userPerms.includes('TOPIC_REVIEW') || userPerms.includes('MENTOR_REQUEST_REVIEW');
+        if (!hasInstituteReview && existing.mentorId !== req.user.id) {
             return res.status(403).json({ success: false, message: 'Bạn chỉ có quyền duyệt đề tài do mình hướng dẫn.' });
         }
 

@@ -1606,9 +1606,10 @@ const reviewTitleAdjustment = async (req, res, next) => {
 
                 if (bmReq) {
                     const isMentor = bmReq.registration?.topic?.mentorId === userId;
-                    const isAdmin = role === 'ADMIN';
+                    const canManage = (req.user.permissions || []).includes('BM02A_FINAL_APPROVE')
+                        || (req.user.permissions || []).includes('RENAME_TOPIC');
 
-                    if (!isMentor && !isAdmin) {
+                    if (!isMentor && !canManage) {
                         return res.status(403).json({ success: false, message: 'Chỉ giảng viên hướng dẫn của đề tài mới có quyền duyệt đơn này.' });
                     }
 
@@ -1654,9 +1655,10 @@ const reviewTitleAdjustment = async (req, res, next) => {
         }
 
         const isMentor = adjustment.registration.topic?.mentorId === userId;
-        const isAdmin = role === 'ADMIN';
+        const canManage = (req.user.permissions || []).includes('BM02A_FINAL_APPROVE')
+            || (req.user.permissions || []).includes('RENAME_TOPIC');
 
-        if (!isMentor && !isAdmin) {
+        if (!isMentor && !canManage) {
             return res.status(403).json({ success: false, message: 'Chỉ giảng viên hướng dẫn của đề tài mới có quyền duyệt đơn này.' });
         }
 
@@ -1752,10 +1754,11 @@ const getMyTitleAdjustments = async (req, res, next) => {
 const getPendingTitleAdjustments = async (req, res, next) => {
     try {
         const lecturerId = req.user.id;
-        const role = req.user.role;
+        const canViewAll = (req.user.permissions || []).includes('BM02A_FINAL_APPROVE')
+            || (req.user.permissions || []).includes('RENAME_TOPIC');
 
         const whereClause = { status: 'PENDING' };
-        if (role !== 'ADMIN') {
+        if (!canViewAll) {
             whereClause.registration = { topic: { mentorId: lecturerId } };
         }
 

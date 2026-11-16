@@ -4,7 +4,12 @@ const { PERMISSIONS } = require('../constants/permissions');
 const controller = require('../controllers/portalContentController');
 
 router.get('/public', controller.getPublicContent);
-router.get('/admin/:resourceType', authenticate, authorizePermission(PERMISSIONS.PORTAL_CONTENT_MANAGE), controller.listResources);
+router.get(
+    '/admin/:resourceType',
+    authenticate,
+    authorizePermission(PERMISSIONS.VIEW_PORTAL_CONTENT, PERMISSIONS.PORTAL_CONTENT_MANAGE),
+    controller.listResources
+);
 router.post('/:resourceType', authenticate, authorizePermission(PERMISSIONS.PORTAL_CONTENT_MANAGE), controller.createResource);
 router.post('/:resourceType/:resourceId/drafts', authenticate, authorizePermission(PERMISSIONS.PORTAL_CONTENT_MANAGE), controller.createDraft);
 router.post('/:resourceType/:resourceId/revisions/:revisionId/publish', authenticate, authorizePermission(PERMISSIONS.PORTAL_CONTENT_MANAGE), controller.publishDraft);

@@ -170,9 +170,9 @@ router.post(
             .withMessage('semesterId phải là số nguyên dương.'),
         validateRequest,
     ],
-    authorizeRoleOrPermission(
-        ['ADMIN'],
-        [PERMISSIONS.OUTLINE_COUNCIL_MANAGE, PERMISSIONS.DEFENSE_COUNCIL_MANAGE]
+    authorizePermission(
+        PERMISSIONS.OUTLINE_COUNCIL_MANAGE,
+        PERMISSIONS.DEFENSE_COUNCIL_MANAGE
     ),
     councilController.previewAutoAssignOutlineCouncils
 );
@@ -189,9 +189,9 @@ router.post(
             .withMessage('proposedCouncils phải là một mảng.'),
         validateRequest,
     ],
-    authorizeRoleOrPermission(
-        ['ADMIN'],
-        [PERMISSIONS.OUTLINE_COUNCIL_MANAGE, PERMISSIONS.DEFENSE_COUNCIL_MANAGE]
+    authorizePermission(
+        PERMISSIONS.OUTLINE_COUNCIL_MANAGE,
+        PERMISSIONS.DEFENSE_COUNCIL_MANAGE
     ),
     councilController.autoAssignOutlineCouncils
 );
@@ -207,7 +207,10 @@ router.post(
             .withMessage('reason bắt buộc phải là chuỗi không rỗng.'),
         validateRequest,
     ],
-    authorizeRole('ADMIN'),
+    authorizePermission(
+        PERMISSIONS.OUTLINE_COUNCIL_MANAGE,
+        PERMISSIONS.DEFENSE_COUNCIL_MANAGE
+    ),
     councilController.reopenCouncilResults
 );
 
