@@ -161,7 +161,9 @@ function App() {
                             {/* Admin & Academic Governance Routes */}
                             <Route path="/admin" element={<AppLayout />}>
                                 <Route index element={<Navigate to="dashboard" replace />} />
-                                <Route path="dashboard" element={<DashboardPage />} />
+                                <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
+                                    <Route path="dashboard" element={<DashboardPage />} />
+                                </Route>
                                 <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_USERS', 'USER_MANAGE', 'PERMISSION_GROUP_MANAGE']} />}>
                                     <Route path="users" element={<UserManagementPage />} />
                                 </Route>
@@ -217,7 +219,9 @@ function App() {
                             </Route>
                             <Route path="/lecturer" element={<AppLayout />}>
                                 <Route index element={<Navigate to="dashboard" replace />} />
-                                <Route path="dashboard" element={<LecturerDashboardPage />} />
+                                <Route element={<ProtectedRoute allowedRoles={['LECTURER']} />}>
+                                    <Route path="dashboard" element={<LecturerDashboardPage />} />
+                                </Route>
                                 <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_CHECKPOINTS', 'VIEW_BM04_EVALUATIONS', 'BM03_REVIEW']} />}>
                                     <Route path="progress" element={<ProgressTrackingPage />} />
                                 </Route>
@@ -249,20 +253,22 @@ function App() {
                             </Route>
 
                             {/* Student Routes */}
-                            <Route path="/student" element={<AppLayout />}>
-                                <Route index element={<Navigate to="dashboard" replace />} />
-                                <Route path="dashboard" element={<StudentDashboardPage />} />
-                                <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_MY_REGISTRATION', 'REGISTER_TOPIC']} />}>
-                                    <Route path="topics" element={<TopicListPage />} />
+                            <Route element={<ProtectedRoute allowedRoles={['STUDENT']} />}>
+                                <Route path="/student" element={<AppLayout />}>
+                                    <Route index element={<Navigate to="dashboard" replace />} />
+                                    <Route path="dashboard" element={<StudentDashboardPage />} />
+                                    <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_MY_REGISTRATION', 'REGISTER_TOPIC']} />}>
+                                        <Route path="topics" element={<TopicListPage />} />
+                                    </Route>
+                                    <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_MY_SUBMISSIONS', 'SUBMIT_BM01', 'SUBMIT_BM02', 'SUBMIT_TASK']} />}>
+                                        <Route path="submissions" element={<SubmissionPage />} />
+                                    </Route>
+                                    <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_MY_GRADES']} />}>
+                                        <Route path="grades" element={<GradeViewPage />} />
+                                    </Route>
+                                    <Route path="notifications" element={<NotificationsPage />} />
+                                    <Route path="profile" element={<ProfilePage />} />
                                 </Route>
-                                <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_MY_SUBMISSIONS', 'SUBMIT_BM01', 'SUBMIT_BM02', 'SUBMIT_TASK']} />}>
-                                    <Route path="submissions" element={<SubmissionPage />} />
-                                </Route>
-                                <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_MY_GRADES']} />}>
-                                    <Route path="grades" element={<GradeViewPage />} />
-                                </Route>
-                                <Route path="notifications" element={<NotificationsPage />} />
-                                <Route path="profile" element={<ProfilePage />} />
                             </Route>
                         </Route>
 
