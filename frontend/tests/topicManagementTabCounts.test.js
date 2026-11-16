@@ -96,3 +96,4 @@ test('Admin Topic Management: simulate tab count stability across status selecti
     assert.equal(counts.APPROVED, 3);
     assert.equal(counts.PENDING, 0);
 });
+
