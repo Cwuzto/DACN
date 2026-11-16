@@ -25,8 +25,10 @@ const delegationRoutes = require('./delegationRoutes');
 const lecturerAssignmentRoutes = require('./lecturerAssignmentRoutes');
 const outlineRoutes = require('./outlineRoutes');
 const reportRoutes = require('./reportRoutes');
+const storedAssetRoutes = require('./storedAssetRoutes');
 
 // Đăng ký routes
+router.use('/assets', storedAssetRoutes);
 router.use('/auth', authRoutes);
 router.use('/topics', topicRoutes);
 router.use('/semesters', semesterRoutes);
