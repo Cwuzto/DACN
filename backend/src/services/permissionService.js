@@ -10,6 +10,7 @@ const {
   CANONICAL_ALIAS_MAP,
 } = require('../constants/permissions');
 const { clearAuthCache } = require('../middlewares/auth');
+const { normalizePermissionCode } = require('../auth/permissionCatalog');
 const getRequestIp = (req) => req?.ip || req?.headers?.['x-forwarded-for'] || null;
 
 const listPermissions = async () =>
@@ -67,6 +68,21 @@ const updateGroup = async (id, data, actor) => {
       const error = new Error('Không tìm thấy nhóm quyền.');
       error.statusCode = 404;
       throw error;
+    }
+
+    if (existingGroup.isSystem) {
+      if (data.code !== undefined && data.code !== existingGroup.code) {
+        const error = new Error('Không được phép sửa mã của nhóm quyền hệ thống.');
+        error.statusCode = 403;
+        error.code = 'FORBIDDEN_SYSTEM_GROUP_CODE_MODIFICATION';
+        throw error;
+      }
+      if (data.isSystem !== undefined && !data.isSystem) {
+        const error = new Error('Không được phép hạ cờ hệ thống của nhóm quyền.');
+        error.statusCode = 403;
+        error.code = 'FORBIDDEN_SYSTEM_GROUP_FLAG_MODIFICATION';
+        throw error;
+      }
     }
 
     if (permissionCodes !== undefined) {
@@ -244,10 +260,12 @@ const seedPermissionCatalog = async (db = prisma) => {
   }
   for (const group of DEFAULT_GROUPS) {
     const existing = await db.permissionGroup.findUnique({ where: { code: group.code } });
+    const canonicalCodes = [...new Set((group.permissions || []).map((code) => normalizePermissionCode(code) || code))];
     const permissionIds = await db.permission.findMany({
-      where: { code: { in: group.permissions } },
+      where: { code: { in: canonicalCodes } },
       select: { id: true },
     });
+    const isSystem = group.isSystem ?? true;
     if (existing) {
       await db.permissionGroupPermission.deleteMany({ where: { permissionGroupId: existing.id } });
       await db.permissionGroup.update({
@@ -255,7 +273,7 @@ const seedPermissionCatalog = async (db = prisma) => {
         data: {
           name: group.name,
           description: group.description,
-          isSystem: false,
+          isSystem,
           permissions: { create: permissionIds.map((permission) => ({ permissionId: permission.id })) },
         },
       });
@@ -265,7 +283,7 @@ const seedPermissionCatalog = async (db = prisma) => {
           code: group.code,
           name: group.name,
           description: group.description,
-          isSystem: false,
+          isSystem,
           permissions: { create: permissionIds.map((permission) => ({ permissionId: permission.id })) },
         },
       });
