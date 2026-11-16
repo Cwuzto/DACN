@@ -70,6 +70,71 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 
 ## 6. Cập Nhật Phiên Làm Việc (Session Update)
 
+### Phiên 16/11/2026 (Bổ Sung Danh Mục Loại Đồ Án DACN/DATN, Chuẩn Hóa Phân Loại "Loại Đồ Án - Đợt Đồ Án", Lọc Option Khả Dụng Khi Gán Đồ Án & Đơn Giản Hóa Modal Buổi Gặp)
+
+#### 1. Những phần đã hoàn thành
+1. **Khởi tạo và Quản trị 2 Loại Đồ Án (DACN & DATN) trong CSDL & Backend**:
+   - Thêm 2 bản ghi `ProjectCatalog` vào CSDL: `DACN` (id: 1, "Đồ án chuyên ngành") và `DATN` (id: 2, "Đồ án tốt nghiệp").
+   - Cập nhật toàn bộ 300 đề tài hiện hữu trong CSDL (chia 50% DACN, 50% DATN), tạo đồng bộ 300 bản ghi `student_project_enrollments` và 168 bản ghi `lecturer_project_assignments` tương ứng để đảm bảo tính toàn vẹn học vụ.
+   - Cập nhật kịch bản seed tự động `backend/prisma/seedThreeSemesters.js` để mọi lần chạy seed đều khởi tạo đầy đủ 2 loại đồ án và liên kết dữ liệu mẫu.
+   - Thêm API `GET /api/topics/catalogs` trong `topicController.js` và `topicRoutes.js` cho phép tất cả các vai trò truy xuất danh mục đồ án đang hoạt động.
+   - Thêm API `GET /api/project-enrollments/available-students` trong `projectEnrollmentController.js` và `projectEnrollmentRoutes.js`, tự động lọc loại trừ sinh viên đã có ghi danh trong đợt và sinh viên đã hoàn thành đồ án (`accountRestricted`).
+2. **Chuẩn hóa Phân Loại 2 Tầng "Loại đồ án - Đợt đồ án" trên Tất Cả Các Trang Chức Năng**:
+   - **Quản lý đề tài Admin (`TopicManagementPage.jsx`)**: Bổ sung bộ lọc Loại đồ án, cột Loại đồ án với Tag nhận diện màu teal/purple, và bắt buộc chọn Loại đồ án khi tạo đề tài mới.
+   - **Quản lý đề tài Giảng viên (`TopicManagementPage.jsx`)**: Tích hợp danh mục Loại đồ án động từ CSDL, bổ sung cột Loại đồ án, trường chọn Loại đồ án trong modal đề xuất đề tài mới và cập nhật `colSpan` bảng.
+   - **Đăng ký đề tài Sinh viên (`TopicListPage.jsx`)**: Bổ sung 2 dropdown chọn Đợt đồ án và Loại đồ án trên thanh công cụ `catalog-bar`, hiển thị badge Loại đồ án trên từng thẻ đề tài, cho phép chọn Loại đồ án khi gửi đề xuất đề tài tự do.
+   - **Theo dõi tiến độ Giảng viên (`ProgressTrackingPage.jsx`)**: Bổ sung bộ lọc 2 tầng Đợt đồ án và Loại đồ án phía trên danh sách sinh viên bên trái, hiển thị Tag Loại đồ án trên từng thẻ sinh viên.
+   - **Giám sát đề tài Admin (`ProjectOversightPage.jsx`)**: Chuẩn hóa options hiển thị `${code} · ${name}` và Tag phân loại trong bảng dữ liệu.
+3. **Khắc phục Triệt Để Sai Lệch Thuật Ngữ "Tên đồ án" $\rightarrow$ "Loại đồ án"**:
+   - Thay thế toàn bộ chuỗi dịch sai gây nhầm lẫn "Tên đồ án" thành "Loại đồ án" tại `ProjectEnrollmentPage.jsx`, `LecturerAssignmentTab.jsx`, `ExcelImportModal.jsx`, `ProjectPeriodPage.jsx`, và `projectEnrollmentService.js`.
+4. **Loại Bỏ Từ Khóa Kỹ Thuật DB `IN_PROGRESS_BM03` trong Giao Diện**:
+   - Chuyển đổi trạng thái `IN_PROGRESS_BM03` thành nhãn chuẩn `Đang thực hiện đồ án` (Tag cyan) trong danh sách quyết định và hàng đợi BM02 qua `getStatusTagConfig`.
+5. **Tối Ưu Dropdown Gán Thủ Công: Chỉ Hiển Thị Các Option Khả Dụng (Available Options)**:
+   - Thêm phương thức `getAvailableStudents` trong `projectEnrollmentService.js` và hook `useAvailableStudents` trong `enrollmentQueries.js`.
+   - Cập nhật `ProjectEnrollmentPage.jsx`: Cả 2 dropdown (gán lẻ 1 bạn và gán hàng loạt) chỉ hiển thị sinh viên khả dụng, có loading state, placeholder, empty-state rõ ràng và hiển thị counter thời gian thực. Tự động invalidate danh sách khi gán thành công.
+   - Cập nhật `LecturerAssignmentTab.jsx`: Đồng bộ hóa `availableFilters` theo props `semesterId` và `projectCatalogId` qua `useEffect`.
+6. **Đơn Giản Hóa Modal Ghi Nhận Buổi Hướng Dẫn Mới (BM03)**:
+   - Trong `ProgressTrackingPage.jsx`, loại bỏ hoàn toàn 2 trường input "Nhiệm vụ cho kỳ tiếp theo" và "Hạn hoàn thành" khỏi modal *Ghi Nhận Buổi Hướng Dẫn Mới (BM03)*.
+   - Dọn sạch các biến state thừa (`meetingNextTask`, `expectedDeadline`) và payload gửi đi trong `handleCreateMeeting`.
+7. **Kiểm Thử & Xác Thực Toàn Diện**:
+   - **Frontend Test Suite**: **318/318 tests PASS** 100% (bổ sung `projectCatalogClassification.test.js` và `progressTrackingMeetingModal.test.js`).
+   - **Backend Test Suite**: Toàn bộ unit/integration tests PASS (10/10 registration/topic tests, 19/19 enrollment/auth tests).
+   - **Production Build**: `npm run build` hoàn thành không lỗi trong 16s.
+   - **Quy Chuẩn Mã Hóa & UI/UX**: 100% tệp lưu chuẩn UTF-8 (no BOM), Rule 2.1 (1 SV / 1 đề tài), Rule 2.6 (icon Ant Design chính quy qua prop `icon`, không emoji trong text nút bấm).
+
+#### 2. Trạng thái cập nhật của từng phần
+- **Backend API**:
+  * `topicController.js` & `topicRoutes.js`: Bổ sung endpoint `GET /api/topics/catalogs` (sẵn sàng).
+  * `projectEnrollmentController.js` & `projectEnrollmentRoutes.js`: Bổ sung endpoint `GET /api/project-enrollments/available-students` (sẵn sàng, có đầy đủ unit tests).
+  * `registrationController.js`: Đồng bộ `code` của `projectCatalog` trong response đăng ký (sẵn sàng).
+- **Frontend SPA**:
+  * Các trang Quản lý đề tài (Admin, Giảng viên), Đăng ký đề tài (Sinh viên), Theo dõi tiến độ (Giảng viên), Giám sát (Admin) đều đã hỗ trợ đầy đủ bộ lọc phân cấp `Loại đồ án - Đợt đồ án`.
+  * Trang Điều phối đợt đồ án & Phân công (`ProjectEnrollmentPage.jsx`): Dropdown gán thủ công chỉ hiển thị sinh viên khả dụng, không còn nạp toàn bộ danh sách.
+  * Trang Theo dõi tiến độ (`ProgressTrackingPage.jsx`): Modal ghi nhận buổi gặp gọn gàng, loại bỏ các trường không cần thiết.
+- **Cơ sở dữ liệu (Supabase PostgreSQL)**:
+  * Đã kích hoạt 2 danh mục `ProjectCatalog`: `DACN` (id: 1) và `DATN` (id: 2).
+  * 300 đề tài, 300 ghi danh sinh viên và 168 chỉ tiêu giảng viên đã được liên kết chính xác sang 2 loại đồ án này.
+- **Kiểm thử (Tests)**:
+  * Backend: 100% pass.
+  * Frontend: 318/318 pass (tăng 24 tests so với phiên 15/11).
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+1. **Kiểm tra luồng Đổi Tên Đề Tài & Phiếu Điều Chỉnh Tên Đề Tài**:
+   - Kiểm tra nghiệp vụ sinh viên đề xuất đổi tên đề tài trong 7 ngày đầu, GVHD duyệt và cập nhật quyết định.
+2. **Kiểm tra nghiệp vụ Phiếu chấm BM05 & Khóa sổ điểm**:
+   - Kiểm tra luồng chấm Rubric BM05 độc lập cho 3 thành viên hội đồng.
+   - Kiểm tra tính toán điểm trung bình và công bố kết quả bảo vệ (`DEFENDED`, `DEFENSE_PASSED`, `DEFENSE_FAILED`).
+3. **Kiểm tra luồng Lưu chiểu & Cấp chứng nhận hoàn thành**:
+   - Đối soát nộp quyển/file mềm và cấp chứng nhận hoàn thành đồ án tốt nghiệp.
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+- **Chuẩn hóa Phân cấp "Loại đồ án - Đợt đồ án"**: Sinh viên và giảng viên tại trường luôn làm việc theo phân cấp: Học phần đồ án (DACN hay DATN) trước, sau đó là Đợt đồ án (Học kỳ 1, 2, hè). Việc đồng bộ hóa bộ lọc 2 tầng này trên tất cả các trang giúp loại bỏ hoàn toàn sự nhầm lẫn giữa đề tài và loại đồ án.
+- **Sửa sai lệch "Tên đồ án" thành "Loại đồ án"**: Thuật ngữ "Tên đồ án" trước đây dễ gây hiểu nhầm thành "Tên đề tài nghiên cứu" (Topic Title). Việc đổi thành "Loại đồ án" (Project Catalog) phản ánh đúng bản chất là học phần Đồ án chuyên ngành / Đồ án tốt nghiệp.
+- **Lọc triệt để Danh sách Khả dụng (Available Candidates Only)**: Khi gán thủ công, việc dropdown hiển thị toàn bộ sinh viên (kể cả những bạn đã gán hoặc đã bảo vệ xong) gây rối mắt và dễ dẫn đến thao tác thừa/lỗi. Lọc sinh viên khả dụng từ tầng Backend kết hợp client-side defense đảm bảo trải nghiệm nhanh chóng và chính xác.
+- **Đơn giản hóa Form BM03 Buổi Gặp**: Các buổi gặp định kỳ tập trung vào việc đánh giá công việc đã làm và ghi nhận khó khăn tồn đọng; nhiệm vụ tiếp theo được quản lý thông qua tính năng Giao việc độc lập (`Task Management`) thay vì ép buộc nhập trong từng biên bản buổi gặp.
+
+---
+
 ### Phiên 15/11/2026 (Khóa Chặt Lỗ Hổng Toàn Vẹn Dữ Liệu Hội Đồng Bảo Vệ & Hội Đồng Xét Duyệt Đề Cương - Council Integrity Guards & Chế Độ Chỉ Đọc)
 
 #### 1. Những phần đã hoàn thành
