@@ -941,6 +941,11 @@ async function lockDefenseScoreBookByChairman(input, options = {}) {
             roundedFinalScore = roundDefenseScoreOneDecimal(rawAverageScore);
         }
 
+        const maxScore = !isAbsent && validScores.length > 0 ? Math.max(...validScores) : 0;
+        const minScore = !isAbsent && validScores.length > 0 ? Math.min(...validScores) : 0;
+        const scoreDelta = maxScore - minScore;
+        const discrepancyNote = scoreDelta >= 1.5 ? `, Độ lệch GK: ${scoreDelta.toFixed(1)}đ (HĐ đã họp thống nhất)` : '';
+
         const targetStatus = 'AWAITING_FINAL_APPROVAL';
         const expectedStatus = registration.status;
 
@@ -952,7 +957,7 @@ async function lockDefenseScoreBookByChairman(input, options = {}) {
             actorId,
             reason: isAbsent
                 ? 'Chủ tịch Hội đồng khóa sổ điểm cho sinh viên vắng mặt'
-                : `Chủ tịch Hội đồng khóa sổ điểm (Điểm TB: ${roundedFinalScore})`,
+                : `Chủ tịch Hội đồng khóa sổ điểm (Điểm TB: ${roundedFinalScore}${discrepancyNote})`,
             idempotencyKey: idempotencyKey || `lock-defense-${registration.id}-${registration.stateVersion || 0}`,
         }, { tx });
 

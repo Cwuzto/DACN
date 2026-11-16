@@ -22,6 +22,19 @@ const buildA4ScoreSheetHtml = ({ registration, defenseResult, scorerInfo = {} })
     const totalRaw = criteria.reduce((sum, row) => sum + (Number(row.score) || 0), 0);
 
     let html = template;
+    const defenseDate = registration?.council?.defenseDate
+        || registration?.defenseCouncil?.defenseDate
+        || new Date();
+    const d = new Date(defenseDate);
+    const dayStr = String(d.getDate()).padStart(2, '0');
+    const monthStr = String(d.getMonth() + 1).padStart(2, '0');
+    const yearStr = d.getFullYear();
+    const signDateLocation = `Bình Dương, ngày ${dayStr} tháng ${monthStr} năm ${yearStr}`;
+
+    const programName = registration?.student?.studentProfile?.major
+        ? `CHƯƠNG TRÌNH ${registration.student.studentProfile.major.toUpperCase()}`
+        : 'CHƯƠNG TRÌNH CÔNG NGHỆ THÔNG TIN';
+
     const tokenMap = {
         EVALUATOR_NAME: scorerInfo.name || '',
         COUNCIL_ROLE: roleLabelMap[scorerInfo.roleInCouncil] || scorerInfo.roleInCouncil || '',
@@ -31,6 +44,8 @@ const buildA4ScoreSheetHtml = ({ registration, defenseResult, scorerInfo = {} })
         STUDENT_COHORT: registration?.student?.course || registration?.student?.cohort || '',
         STUDENT_DEPARTMENT: registration?.student?.department || '',
         TOPIC_TITLE: registration?.topic?.title || '',
+        SIGN_DATE_LOCATION: signDateLocation,
+        PROGRAM_NAME: programName,
     };
     for (const [key, value] of Object.entries(tokenMap)) {
         html = html.split(`{{${key}}}`).join(escapeHtml(value));

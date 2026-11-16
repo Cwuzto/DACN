@@ -14,6 +14,7 @@ import {
 } from 'antd';
 import {
     CheckOutlined,
+    ExclamationCircleOutlined,
     FileTextOutlined,
     HistoryOutlined,
     LockOutlined,
@@ -998,12 +999,13 @@ export default function GradingDefensePage() {
                                             </div>
                                             {hasDiscrepancy && (
                                                 <div style={{ marginTop: 4 }}>
-                                                    <span
-                                                        className="badge badge-rejected"
-                                                        style={{ fontSize: 10, padding: '1px 6px' }}
+                                                    <Tag
+                                                        color="error"
+                                                        icon={<ExclamationCircleOutlined />}
+                                                        style={{ fontSize: 10, padding: '0 6px', margin: 0 }}
                                                     >
-                                                        ⚠ Lệch {delta.toFixed(1)}đ
-                                                    </span>
+                                                        Lệch {delta.toFixed(1)}đ
+                                                    </Tag>
                                                 </div>
                                             )}
                                         </td>
@@ -1442,13 +1444,11 @@ export default function GradingDefensePage() {
                             Xem Biên Bản BM05
                         </Button>
                         {canSubmitScore && <button
+                            type="button"
                             className="btn btn-primary"
                             onClick={handleSaveScoreSheet}
                             disabled={scoreSaving}
                         >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <polyline points="20 6 9 17 4 12" />
-                            </svg>
                             <span>{scoreSaving ? 'Đang lưu...' : 'Lưu & Ký Biên Bản Điểm'}</span>
                         </button>}
                     </div>

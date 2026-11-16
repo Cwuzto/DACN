@@ -7,6 +7,7 @@ import {
     QuestionCircleOutlined,
     CopyOutlined,
     CloseOutlined,
+    PrinterOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import evaluationService from '../../services/evaluationService';
@@ -718,8 +719,8 @@ export default function LecturerGradingSheetPage() {
                             </div>
                         </div>
                         <div className="modal-foot">
-                            <button className="btn btn-secondary" onClick={() => setIsPrintModalOpen(false)} type="button">Đóng</button>
-                            <button className="btn btn-primary" onClick={() => window.print()} type="button">In Phiếu Điểm</button>
+                            <Button onClick={() => setIsPrintModalOpen(false)}>Đóng</Button>
+                            <Button type="primary" icon={<PrinterOutlined />} onClick={() => window.print()}>In Phiếu Điểm</Button>
                         </div>
                     </div>
                 </div>
