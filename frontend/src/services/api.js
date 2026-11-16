@@ -13,6 +13,46 @@ if (authSyncChannel?.unref) {
 }
 export const authChannel = authSyncChannel;
 
+/**
+ * Broadcast permission update event across all open tabs.
+ * Payload includes canonical { type: 'PERMISSIONS_UPDATED', userId, permissionVersion, reason }.
+ */
+export const broadcastPermissionsUpdated = ({ userId, permissionVersion, reason } = {}) => {
+    if (!authSyncChannel) return;
+    try {
+        authSyncChannel.postMessage({
+            type: 'PERMISSIONS_UPDATED',
+            userId,
+            permissionVersion,
+            reason,
+        });
+    } catch {}
+};
+
+// Cross-tab broadcast receiver for automatic permission refresh
+if (authSyncChannel) {
+    authSyncChannel.onmessage = (event) => {
+        const data = event?.data;
+        const type = data?.type;
+        if (type === 'PERMISSIONS_UPDATED' || type === 'PERMISSION_VERSION_UPDATED') {
+            try {
+                const store = useAuthStore.getState();
+                const currentUserId = store?.user?.id;
+                if (!data?.userId || data.userId === currentUserId) {
+                    if (typeof store.refreshPermissions === 'function') {
+                        store.refreshPermissions({
+                            reason: data?.reason || 'broadcast_sync',
+                            expectedVersion: data?.permissionVersion,
+                        }).catch(() => {});
+                    } else if (typeof store.refreshSession === 'function') {
+                        store.refreshSession().catch(() => {});
+                    }
+                }
+            } catch {}
+        }
+    };
+}
+
 // Single-flight refresh token mutex
 let refreshingPromise = null;
 
@@ -118,7 +158,11 @@ api.interceptors.response.use(
                             } catch {}
 
                             try {
-                                authSyncChannel?.postMessage({ type: 'PERMISSION_VERSION_UPDATED' });
+                                broadcastPermissionsUpdated({
+                                    userId: newUser?.id,
+                                    permissionVersion: newUser?.permissionVersion,
+                                    reason: 'permission_version_stale',
+                                });
                             } catch {}
 
                             return newToken;

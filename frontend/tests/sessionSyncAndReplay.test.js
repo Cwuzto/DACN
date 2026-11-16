@@ -456,3 +456,129 @@ for (const scenario of ['second stale response', 'refresh failure']) {
         assert.equal(attempts, scenario === 'refresh failure' ? 1 : 2);
     });
 }
+
+test('Step 9: authStore implements refreshPermissions with single-flight request coalescing', async () => {
+    assert.equal(typeof useAuthStore.getState().refreshPermissions, 'function', 'authStore must have refreshPermissions');
+
+    localStorage.setItem('token', 'token-sf-001');
+    localStorage.setItem('user', JSON.stringify({ id: 'u-sf', permissionVersion: 1, permissions: ['VIEW_USERS'] }));
+    useAuthStore.setState({ token: 'token-sf-001', user: { id: 'u-sf', permissionVersion: 1, permissions: ['VIEW_USERS'] }, isAuthenticated: true });
+
+    let authMeCalls = 0;
+    const originalAdapter = api.defaults.adapter;
+    api.defaults.adapter = async (config) => {
+        if (config.url?.includes('/auth/me')) {
+            authMeCalls++;
+            // Simulate brief latency
+            await new Promise((resolve) => setTimeout(resolve, 20));
+            return {
+                status: 200,
+                data: {
+                    success: true,
+                    data: { id: 'u-sf', fullName: 'User SingleFlight', permissionVersion: 2, permissions: ['VIEW_USERS', 'USER_MANAGE'] },
+                    token: 'token-sf-refreshed',
+                },
+                headers: {},
+                config,
+            };
+        }
+        return { status: 200, data: { success: true }, headers: {}, config };
+    };
+
+    try {
+        // Fire 3 concurrent refreshPermissions calls
+        const [res1, res2, res3] = await Promise.all([
+            useAuthStore.getState().refreshPermissions({ reason: 'concurrent_call_1' }),
+            useAuthStore.getState().refreshPermissions({ reason: 'concurrent_call_2' }),
+            useAuthStore.getState().refreshPermissions({ reason: 'concurrent_call_3' }),
+        ]);
+
+        assert.equal(authMeCalls, 1, 'Concurrent calls to refreshPermissions MUST coalesce into exactly one /auth/me request');
+        assert.equal(res1?.id, 'u-sf');
+        assert.equal(res1?.permissionVersion, 2);
+        assert.deepEqual(res1?.permissions, ['VIEW_USERS', 'USER_MANAGE']);
+        assert.equal(res2, res1);
+        assert.equal(res3, res1);
+        assert.equal(useAuthStore.getState().user?.permissionVersion, 2);
+        assert.equal(localStorage.getItem('token'), 'token-sf-refreshed');
+    } finally {
+        api.defaults.adapter = originalAdapter;
+    }
+});
+
+test('Step 10: refreshPermissions respects expectedVersion and avoids redundant calls', async () => {
+    useAuthStore.setState({
+        token: 'token-v3',
+        user: { id: 'u-v3', permissionVersion: 3, permissions: ['VIEW_USERS'] },
+        isAuthenticated: true,
+    });
+
+    let networkCalled = false;
+    const originalAdapter = api.defaults.adapter;
+    api.defaults.adapter = async (config) => {
+        if (config.url?.includes('/auth/me')) {
+            networkCalled = true;
+            return {
+                status: 200,
+                data: {
+                    success: true,
+                    data: { id: 'u-v3', permissionVersion: 4, permissions: ['VIEW_USERS', 'TOPIC_CREATE'] },
+                    token: 'token-v4',
+                },
+                headers: {},
+                config,
+            };
+        }
+        return { status: 200, data: { success: true }, headers: {}, config };
+    };
+
+    try {
+        // expectedVersion: 3 is already satisfied by user.permissionVersion: 3
+        const result1 = await useAuthStore.getState().refreshPermissions({ expectedVersion: 3, reason: 'test_skip' });
+        assert.equal(networkCalled, false, 'Network call should be skipped when expectedVersion <= current version');
+        assert.equal(result1?.permissionVersion, 3);
+
+        // expectedVersion: 4 is greater, so it must fetch
+        const result2 = await useAuthStore.getState().refreshPermissions({ expectedVersion: 4, reason: 'test_fetch' });
+        assert.equal(networkCalled, true, 'Network call should be made when expectedVersion > current version');
+        assert.equal(result2?.permissionVersion, 4);
+    } finally {
+        api.defaults.adapter = originalAdapter;
+    }
+});
+
+test('Step 11: broadcastPermissionsUpdated broadcasts { type: "PERMISSIONS_UPDATED", userId, permissionVersion, reason }', async () => {
+    const { broadcastPermissionsUpdated } = await import('../src/services/api.js');
+    assert.equal(typeof broadcastPermissionsUpdated, 'function', 'broadcastPermissionsUpdated must be exported from api.js');
+
+    const receiverChannel = new BroadcastChannel('dacn_auth_sync');
+    let receivedMessage = null;
+    receiverChannel.onmessage = (event) => {
+        receivedMessage = event.data;
+    };
+
+    try {
+        broadcastPermissionsUpdated({
+            userId: 'user-broadcast-1',
+            permissionVersion: 5,
+            reason: 'matrix_updated',
+        });
+
+        // Small delay for BroadcastChannel delivery
+        await new Promise((resolve) => setTimeout(resolve, 30));
+        assert.ok(receivedMessage, 'Broadcast message should be received on dacn_auth_sync');
+        assert.equal(receivedMessage.type, 'PERMISSIONS_UPDATED');
+        assert.equal(receivedMessage.userId, 'user-broadcast-1');
+        assert.equal(receivedMessage.permissionVersion, 5);
+        assert.equal(receivedMessage.reason, 'matrix_updated');
+    } finally {
+        receiverChannel.close();
+    }
+});
+
+test('Step 12: AppLayout integrates refreshPermissions on broadcast and visibility', () => {
+    const layoutSource = read('src/components/layout/AppLayout.jsx');
+    assert.match(layoutSource, /refreshPermissions/, 'AppLayout should invoke refreshPermissions');
+    assert.match(layoutSource, /dacn_auth_sync/, 'AppLayout should listen to dacn_auth_sync');
+    assert.match(layoutSource, /PERMISSIONS_UPDATED/, 'AppLayout should handle PERMISSIONS_UPDATED');
+});

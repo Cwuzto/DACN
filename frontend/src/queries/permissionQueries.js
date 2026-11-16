@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import permissionService from '../services/permissionService';
 import { queryKeys } from '../query/queryKeys';
 import { requireSuccess } from './semesterQueries';
+import { broadcastPermissionsUpdated } from '../services/api';
+import useAuthStore from '../stores/authStore';
 
 export const permissionKeys = {
     groups: scope => queryKeys.permissions.list(scope, { resource: 'groups' }),
@@ -35,10 +37,20 @@ export const usePermissionMutation = scope => {
             }[action];
             return requireSuccess(await request());
         },
-        onSuccess: async (_, { id }) => {
+        onSuccess: async (_, { action, id }) => {
             const keys = [permissionKeys.groups(scope), permissionKeys.matrix(scope)];
             if (id) keys.push(queryKeys.permissions.detail(scope, id));
             await Promise.all(keys.map(queryKey => client.invalidateQueries({ queryKey, exact: true })));
+
+            // Broadcast permission update event across all open tabs
+            broadcastPermissionsUpdated({
+                reason: `permission_${action || 'mutation'}`,
+            });
+
+            // Proactively refresh current user permissions in this tab
+            if (typeof useAuthStore.getState().refreshPermissions === 'function') {
+                useAuthStore.getState().refreshPermissions({ reason: `permission_${action || 'mutation'}` }).catch(() => {});
+            }
         },
     });
 };

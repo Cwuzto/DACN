@@ -3,6 +3,8 @@ import userService from '../services/userService';
 import authService from '../services/authService';
 import { queryKeys } from '../query/queryKeys';
 import { requireSuccess } from './semesterQueries';
+import { broadcastPermissionsUpdated } from '../services/api';
+import useAuthStore from '../stores/authStore';
 
 export const userKeys = {
     counts: scope => [...queryKeys.users.all(scope), 'counts'],
@@ -61,6 +63,17 @@ export const useUserMutation = scope => {
             if (id) keys.push(queryKeys.users.detail(scope, id));
             if (action === 'permissionGroups') keys.push(queryKeys.permissions.list(scope, { resource: 'groups' }));
             await Promise.all(keys.map(queryKey => client.invalidateQueries({ queryKey })));
+
+            if (action === 'permissionGroups') {
+                broadcastPermissionsUpdated({
+                    userId: id,
+                    reason: 'user_permission_groups_updated',
+                });
+                const currentUser = useAuthStore.getState().user;
+                if (currentUser?.id === id && typeof useAuthStore.getState().refreshPermissions === 'function') {
+                    useAuthStore.getState().refreshPermissions({ reason: 'user_permission_groups_updated' }).catch(() => {});
+                }
+            }
         },
     });
 };

@@ -28,7 +28,7 @@ import { useRegistrations } from '../../queries/registrationQueries';
 function AppLayout({ role }) {
     const navigate = useNavigate();
     const location = useLocation();
-    const { user, logout, updateUser, refreshSession } = useAuthStore();
+    const { user, logout, updateUser, refreshSession, refreshPermissions } = useAuthStore();
     const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
     const [collapsed, setCollapsed] = useState(() => {
         try {
@@ -82,13 +82,15 @@ function AppLayout({ role }) {
         let isMounted = true;
         let lastSyncTime = 0;
 
-        const handleSync = (force = false) => {
+        const handleSync = (force = false, { reason = 'layout_sync', expectedVersion } = {}) => {
             const now = Date.now();
             if (!force && now - lastSyncTime < 2000) {
                 return;
             }
             lastSyncTime = now;
-            if (typeof refreshSession === 'function') {
+            if (typeof refreshPermissions === 'function') {
+                refreshPermissions({ reason, expectedVersion }).catch(() => {});
+            } else if (typeof refreshSession === 'function') {
                 refreshSession().catch(() => {});
             } else {
                 authService
@@ -103,16 +105,16 @@ function AppLayout({ role }) {
         };
 
         // Initial sync on mount
-        handleSync(true);
+        handleSync(true, { reason: 'mount_sync' });
 
         const handleVisibilityChange = () => {
             if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-                handleSync();
+                handleSync(false, { reason: 'visibility_change' });
             }
         };
 
         if (typeof window !== 'undefined') {
-            window.addEventListener('focus', handleSync);
+            window.addEventListener('focus', () => handleSync(false, { reason: 'window_focus' }));
         }
         if (typeof document !== 'undefined') {
             document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -123,9 +125,23 @@ function AppLayout({ role }) {
             try {
                 channel = new BroadcastChannel('dacn_auth_sync');
                 channel.onmessage = (event) => {
-                    const type = event?.data?.type;
+                    const data = event?.data;
+                    const type = data?.type;
                     if (type === 'PERMISSION_VERSION_UPDATED' || type === 'PERMISSIONS_UPDATED') {
-                        handleSync(true);
+                        const currentUserId = useAuthStore.getState().user?.id;
+                        if (!data?.userId || data.userId === currentUserId) {
+                            if (typeof refreshPermissions === 'function') {
+                                refreshPermissions({
+                                    reason: data?.reason || 'broadcast_sync',
+                                    expectedVersion: data?.permissionVersion,
+                                }).catch(() => {});
+                            } else {
+                                handleSync(true, {
+                                    reason: data?.reason || 'broadcast_sync',
+                                    expectedVersion: data?.permissionVersion,
+                                });
+                            }
+                        }
                     }
                 };
             } catch {}
@@ -145,7 +161,7 @@ function AppLayout({ role }) {
                 } catch {}
             }
         };
-    }, [refreshSession, updateUser]);
+    }, [refreshSession, refreshPermissions, updateUser]);
 
     const semestersQuery = useSemesters(scope);
     const publicSemestersQuery = usePublicSemesters(scope);

@@ -459,11 +459,11 @@
 - Produces: one `PERMISSIONS_UPDATED` broadcast payload `{ userId, permissionVersion?, reason }`.
 - Consumes: identity-scoped query keys and `PERMISSION_VERSION_STALE` backend contract.
 
-- [ ] **Step 1: Write failing grant/revoke cross-tab tests**
+- [x] **Step 1: Write failing grant/revoke cross-tab tests**
 
   Simulate two tabs, a successful permission mutation and a stale `409`. Assert one refresh per tab, old identity-scoped queries are canceled/removed, new menu is rendered, and unsafe mutations are not automatically replayed after permission loss.
 
-- [ ] **Step 2: Run tests and confirm failure**
+- [x] **Step 2: Run tests and confirm failure**
 
   Run:
 
@@ -474,17 +474,17 @@
 
   Expected: FAIL because successful matrix/group mutations do not proactively broadcast and refresh.
 
-- [ ] **Step 3: Implement single-flight refresh and proactive broadcast**
+- [x] **Step 3: Implement single-flight refresh and proactive broadcast**
 
   Mutation success emits the event after backend commit. Receiving tabs refresh `/auth/me`, replace token/user atomically, then clear prior permission-version query scope. Keep existing unsafe-mutation confirmation semantics.
 
-- [ ] **Step 4: Run session tests**
+- [x] **Step 4: Run session tests**
 
   Run the command from Step 2.
 
   Expected: PASS; grant and revoke are reflected without waiting for focus or an unrelated failed request.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   ```powershell
   git add frontend/src/services/api.js frontend/src/stores/authStore.js frontend/src/providers/AppQueryProvider.jsx frontend/src/components/layout/AppLayout.jsx frontend/src/queries/permissionQueries.js frontend/src/queries/userQueries.js frontend/tests/sessionSyncAndReplay.test.js frontend/runtime-tests/AuthQueryIsolation.spec.jsx frontend/runtime-tests/permissionRefresh.spec.jsx

@@ -5,6 +5,7 @@ import AppQueryProvider from '../src/providers/AppQueryProvider.jsx';
 import { createAppQueryClient } from '../src/query/queryClient.js';
 import { queryKeys } from '../src/query/queryKeys.js';
 import useAuthStore from '../src/stores/authStore.js';
+import api from '../src/services/api.js';
 
 let client;
 const userA = { id: 'account-a', permissionVersion: 1 };
@@ -81,4 +82,49 @@ test('token and profile refreshes keep cache when identity and permission versio
     client.setQueryData(key, 'same scope');
     act(() => useAuthStore.getState().setAuth('refreshed-token', { ...userA, fullName: 'New name' }));
     await waitFor(() => expect(client.getQueryData(key)).toBe('same scope'));
+});
+
+test('refreshPermissions with new permissionVersion aborts active queries and clears query cache', async () => {
+    render(<AppQueryProvider client={client}><div>Workspace</div></AppQueryProvider>);
+    const scope = queryKeys.scope(userA);
+    const key = queryKeys.topics.list(scope);
+    client.setQueryData(queryKeys.grading.list(scope), 'private grades');
+
+    let signal;
+    let finish;
+    const pending = client.fetchQuery({
+        queryKey: key,
+        queryFn: (context) => {
+            signal = context.signal;
+            return new Promise((resolve) => { finish = resolve; });
+        },
+    }).catch(() => undefined);
+
+    expect(signal.aborted).toBe(false);
+
+    const originalApiGet = api.get;
+    api.get = async (url) => {
+        if (url.includes('/auth/me')) {
+            return {
+                success: true,
+                data: { ...userA, permissionVersion: 2 },
+                token: 'token-refreshed',
+            };
+        }
+        return { success: true };
+    };
+
+    try {
+        await act(async () => {
+            await useAuthStore.getState().refreshPermissions({ reason: 'bump_version' });
+        });
+
+        expect(signal.aborted).toBe(true);
+        expect(client.getQueryCache().getAll()).toHaveLength(0);
+        finish?.('late data');
+        await pending;
+        expect(client.getQueryData(key)).toBeUndefined();
+    } finally {
+        api.get = originalApiGet;
+    }
 });

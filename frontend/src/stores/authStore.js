@@ -1,5 +1,7 @@
 import { create } from 'zustand';
-import api from '../services/api.js';
+import api, { broadcastPermissionsUpdated } from '../services/api.js';
+
+let refreshPermissionsPromise = null;
 
 /**
  * Auth Store (Zustand)
@@ -37,7 +39,7 @@ const getStoredToken = () => {
     }
 };
 
-const useAuthStore = create((set) => ({
+const useAuthStore = create((set, get) => ({
     user: getStoredUser(),
     token: getStoredToken(),
     isAuthenticated: !!getStoredToken(),
@@ -90,37 +92,67 @@ const useAuthStore = create((set) => ({
         set({ user: updatedUser });
     },
 
-    // Làm mới session từ backend /auth/me
+    // Làm mới quyền hạn từ backend /auth/me với cơ chế single-flight
+    refreshPermissions: async ({ reason, expectedVersion } = {}) => {
+        const currentUser = get().user;
+        if (expectedVersion != null && currentUser?.permissionVersion != null && currentUser.permissionVersion >= expectedVersion) {
+            return currentUser;
+        }
+
+        if (refreshPermissionsPromise) {
+            const user = await refreshPermissionsPromise;
+            if (expectedVersion != null && (!user || user.permissionVersion < expectedVersion)) {
+                return get().refreshPermissions({ reason, expectedVersion });
+            }
+            return user;
+        }
+
+        refreshPermissionsPromise = (async () => {
+            try {
+                const res = await api.get('/auth/me');
+                const user = res?.data || (res?.id ? res : null);
+                const token = res?.token;
+                if (user) {
+                    const hasLocal = typeof localStorage !== 'undefined' && (localStorage.getItem('token') || localStorage.getItem('user'));
+                    const hasSession = typeof sessionStorage !== 'undefined' && (sessionStorage.getItem('token') || sessionStorage.getItem('user'));
+
+                    if (hasSession && !hasLocal) {
+                        if (token && typeof sessionStorage !== 'undefined') sessionStorage.setItem('token', token);
+                        if (typeof sessionStorage !== 'undefined') sessionStorage.setItem('user', JSON.stringify(user));
+                    } else {
+                        if (token && typeof localStorage !== 'undefined') localStorage.setItem('token', token);
+                        if (typeof localStorage !== 'undefined') localStorage.setItem('user', JSON.stringify(user));
+                    }
+
+                    set((state) => ({
+                        user,
+                        token: token || state.token,
+                        isAuthenticated: true,
+                    }));
+                    return user;
+                }
+                return null;
+            } catch {
+                return null;
+            } finally {
+                refreshPermissionsPromise = null;
+            }
+        })();
+
+        return refreshPermissionsPromise;
+    },
+
+    // Làm mới session từ backend /auth/me (uỷ quyền cho refreshPermissions)
     refreshSession: async () => {
         try {
-            const res = await api.get('/auth/me');
-            const user = res?.data || (res?.id ? res : null);
-            const token = res?.token;
-            if (user) {
-                const hasLocal = typeof localStorage !== 'undefined' && (localStorage.getItem('token') || localStorage.getItem('user'));
-                const hasSession = typeof sessionStorage !== 'undefined' && (sessionStorage.getItem('token') || sessionStorage.getItem('user'));
-
-                if (hasSession && !hasLocal) {
-                    if (token && typeof sessionStorage !== 'undefined') sessionStorage.setItem('token', token);
-                    if (typeof sessionStorage !== 'undefined') sessionStorage.setItem('user', JSON.stringify(user));
-                } else {
-                    if (token && typeof localStorage !== 'undefined') localStorage.setItem('token', token);
-                    if (typeof localStorage !== 'undefined') localStorage.setItem('user', JSON.stringify(user));
-                }
-
-                set((state) => ({
-                    user,
-                    token: token || state.token,
-                    isAuthenticated: true,
-                }));
-                return user;
-            }
-            return null;
+            return await get().refreshPermissions({ reason: 'session_refresh' });
         } catch {
             return null;
         }
     },
 }));
+
+export { broadcastPermissionsUpdated };
 
 export const hasPermission = (code) => {
     const user = useAuthStore.getState().user;
