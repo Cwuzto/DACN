@@ -199,11 +199,11 @@
 - Produces: `authorizeScopedPermission({ anyOf, resourceType, idFromRequest })` Express middleware.
 - Produces stable errors: `CAPABILITY_REQUIRED`, `RESOURCE_SCOPE_FORBIDDEN`, `DELEGATION_SCOPE_FORBIDDEN`.
 
-- [ ] **Step 1: Write failing scope-attack tests**
+- [x] **Step 1: Write failing scope-attack tests**
 
   Cover the five Review Focus inputs: forged query/header/body semester, resource in another semester, actor with null department, cross-department list/revoke, and global delegation. Assert the resource-derived semester wins over every client hint.
 
-- [ ] **Step 2: Run tests and confirm failure**
+- [x] **Step 2: Run tests and confirm failure**
 
   Run:
 
@@ -213,17 +213,17 @@
 
   Expected: FAIL on forged semester and null-department fail-closed cases.
 
-- [ ] **Step 3: Implement authoritative scope resolution**
+- [x] **Step 3: Implement authoritative scope resolution**
 
   `idFromRequest(req)` may identify the resource, but scope values must be loaded from Prisma relations. Delegation list/create/revoke must require a department whenever the capability scope is departmental; global capabilities must be explicitly declared by catalog metadata.
 
-- [ ] **Step 4: Run delegation and scope tests**
+- [x] **Step 4: Run delegation and scope tests**
 
   Run the command from Step 2.
 
   Expected: PASS; no client-controlled scope expands permissions.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   ```powershell
   git add backend/src/auth/resourceScopeResolver.js backend/src/middlewares/authorizeScopedPermission.js backend/src/controllers/delegationController.js backend/src/routes/delegationRoutes.js backend/tests/integration/academicDelegation.test.js backend/tests/integration/delegationResourceScope.test.js
@@ -253,11 +253,11 @@
 - Produces: GET routes guarded by view capability; mutation routes guarded by action capability plus scope.
 - Produces: no implicit Admin/Student/Lecturer mutation bypass outside declared base capabilities.
 
-- [ ] **Step 1: Write failing route matrix tests**
+- [x] **Step 1: Write failing route matrix tests**
 
   For reports, permission groups, portal content, outline submission, councils, users and grading, assert: no token `401`; view-only GET `2xx`; view-only mutation `403`; action with wrong scope `403`; action with correct scope `2xx`. Include `REPORT_VIEW`, `VIEW_PERMISSIONS`, `VIEW_PERMISSION_GROUPS`, and `VIEW_PORTAL_CONTENT` cases currently returning incorrect results.
 
-- [ ] **Step 2: Run tests and confirm failure**
+- [x] **Step 2: Run tests and confirm failure**
 
   Run:
 
@@ -267,11 +267,11 @@
 
   Expected: FAIL on read/write mismatches and role bypass cases.
 
-- [ ] **Step 3: Replace route/controller bypasses with canonical guards**
+- [x] **Step 3: Replace route/controller bypasses with canonical guards**
 
   Declare any truly mandatory student base action in the catalog/default group instead of checking `role === 'STUDENT'`. Split router-wide management guards so permitted GET endpoints accept their view permission without broadening mutations.
 
-- [ ] **Step 4: Run authorization and sensitive-resource regressions**
+- [x] **Step 4: Run authorization and sensitive-resource regressions**
 
   Run:
 
@@ -281,7 +281,7 @@
 
   Expected: PASS; privacy and IDOR protections remain intact.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   ```powershell
   git add backend/src/middlewares/auth.js backend/src/routes backend/src/controllers backend/src/services backend/tests/integration/canonicalAuthorization.routes.test.js backend/tests/integration/platformAuthorization.routes.test.js backend/tests/integration/studentDefenseResultPrivacy.test.js backend/tests/integration/mentorOwnershipAndGradingScope.test.js backend/tests/integration/decisionIssuanceAndArchiveIntegrity.test.js
@@ -305,11 +305,11 @@
 - Produces: `assertPermissionMutationAuthority({ actor, addedCodes, removedCodes, targetGroups })`.
 - Preserves: audit log and last-manager protection.
 
-- [ ] **Step 1: Write failing protected-matrix and grant/revoke tests**
+- [x] **Step 1: Write failing protected-matrix and grant/revoke tests**
 
   Assert technical manager can modify only technical permissions; academic assigner can modify protected academic permissions within allowed group/scope; unauthorized actor receives `403 PROTECTED_PERMISSION_MODIFICATION_FORBIDDEN`. Assert group/matrix changes increment every affected user's `permissionVersion`, while unrelated users are unchanged.
 
-- [ ] **Step 2: Run tests and confirm failure**
+- [x] **Step 2: Run tests and confirm failure**
 
   Run:
 
@@ -319,17 +319,17 @@
 
   Expected: FAIL because bulk matrix rejects all protected deltas and group/matrix mutations do not bump affected users.
 
-- [ ] **Step 3: Implement transactional invalidation and shared authority checks**
+- [x] **Step 3: Implement transactional invalidation and shared authority checks**
 
   Compute permission deltas before writing. Resolve affected users through `UserPermissionGroup`; increment versions in the same transaction. Publish/clear cache only after a successful commit so rollback cannot advertise a change.
 
-- [ ] **Step 4: Run lifecycle tests**
+- [x] **Step 4: Run lifecycle tests**
 
   Run the command from Step 2.
 
   Expected: PASS; stale token receives `409`, refresh removes revoked permission, and audit failure rolls back the change.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   ```powershell
   git add backend/src/services/permissionInvalidationService.js backend/src/services/permissionService.js backend/src/controllers/userController.js backend/src/controllers/delegationController.js backend/src/controllers/permissionController.js backend/tests/integration/permissionMatrix.routes.test.js backend/tests/integration/permissionGrantRevokeLifecycle.test.js backend/tests/middlewares/authCapabilityAndStaleVersion.test.js

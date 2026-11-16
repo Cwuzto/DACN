@@ -11,6 +11,11 @@ const {
 } = require('../constants/permissions');
 const { clearAuthCache } = require('../middlewares/auth');
 const { normalizePermissionCode } = require('../auth/permissionCatalog');
+const {
+  assertPermissionMutationAuthority,
+  invalidatePermissions,
+} = require('./permissionInvalidationService');
+
 const getRequestIp = (req) => req?.ip || req?.headers?.['x-forwarded-for'] || null;
 
 const listPermissions = async () =>
@@ -38,13 +43,7 @@ const getGroupById = async (id) =>
 const createGroup = async (data, actor) => {
   const { code, name, description, permissionCodes = [] } = data;
 
-  const violating = (permissionCodes || []).filter((c) => ACADEMIC_PROTECTED_PERMISSIONS.includes(c));
-  if (violating.length > 0) {
-    const error = new Error(`Quản trị viên kỹ thuật không được phép tạo nhóm chứa quyền học thuật/nghiệp vụ được bảo vệ: ${violating.join(', ')}.`);
-    error.statusCode = 403;
-    error.code = 'FORBIDDEN_ACADEMIC_PERMISSION_MODIFICATION';
-    throw error;
-  }
+  assertPermissionMutationAuthority({ actor, addedCodes: permissionCodes });
 
   const result = await prisma.$transaction(async (tx) => {
     const group = await tx.permissionGroup.create({
@@ -92,13 +91,13 @@ const updateGroup = async (id, data, actor) => {
       const nextCodes = Array.isArray(permissionCodes) ? permissionCodes : [];
       const addedCodes = nextCodes.filter((c) => !currentCodes.includes(c));
       const removedCodes = currentCodes.filter((c) => !nextCodes.includes(c));
-      const deltaProtected = [...addedCodes, ...removedCodes].filter((c) => ACADEMIC_PROTECTED_PERMISSIONS.includes(c));
-      if (deltaProtected.length > 0) {
-        const error = new Error(`Không được phép thêm hoặc bớt quyền học thuật/nghiệp vụ trong nhóm quyền: ${deltaProtected.join(', ')}.`);
-        error.statusCode = 403;
-        error.code = 'FORBIDDEN_ACADEMIC_PERMISSION_MODIFICATION';
-        throw error;
-      }
+
+      assertPermissionMutationAuthority({
+        actor,
+        addedCodes,
+        removedCodes,
+        targetGroups: [existingGroup],
+      });
     }
 
     const updateData = {};
@@ -107,6 +106,15 @@ const updateGroup = async (id, data, actor) => {
     if (permissionCodes !== undefined) {
       await tx.permissionGroupPermission.deleteMany({ where: { permissionGroupId: idInt } });
       updateData.permissions = { create: await mapPermissions(tx, permissionCodes) };
+
+      if (tx.userPermissionGroup?.findMany) {
+        const affectedUserGroups = await tx.userPermissionGroup.findMany({
+          where: { permissionGroupId: idInt },
+          select: { userId: true },
+        });
+        const affectedUserIds = [...new Set(affectedUserGroups.map((ug) => ug.userId))];
+        await invalidatePermissions({ userIds: affectedUserIds, actor, reason: 'UPDATE_PERMISSION_GROUP', tx });
+      }
     }
     return tx.permissionGroup.update({ where: { id: idInt }, data: updateData });
   });
@@ -127,12 +135,24 @@ const deleteGroup = async (id, actor) => {
       error.statusCode = 404;
       throw error;
     }
-    if (existing.isSystem || existing.permissions.some((p) => ACADEMIC_PROTECTED_PERMISSIONS.includes(p.permission.code))) {
-      const error = new Error('Không được phép xóa nhóm quyền chứa các quyền học thuật/nghiệp vụ được bảo vệ.');
+    if (existing.isSystem) {
+      const error = new Error('Không được phép xóa nhóm quyền hệ thống.');
       error.statusCode = 403;
-      error.code = 'FORBIDDEN_ACADEMIC_GROUP_DELETION';
+      error.code = 'FORBIDDEN_SYSTEM_GROUP_DELETION';
       throw error;
     }
+
+    assertPermissionMutationAuthority({ actor, targetGroups: [existing] });
+
+    if (tx.userPermissionGroup?.findMany) {
+      const affectedUserGroups = await tx.userPermissionGroup.findMany({
+        where: { permissionGroupId: idInt },
+        select: { userId: true },
+      });
+      const affectedUserIds = [...new Set(affectedUserGroups.map((ug) => ug.userId))];
+      await invalidatePermissions({ userIds: affectedUserIds, actor, reason: 'DELETE_PERMISSION_GROUP', tx });
+    }
+
     return tx.permissionGroup.delete({ where: { id: idInt } });
   });
   await auditLog(actor?.id, 'DELETE_PERMISSION_GROUP', 'PermissionGroup', idInt, { code: deleted.code }, getRequestIp(actor));
@@ -197,15 +217,13 @@ const setUserGroups = async (userId, groupIds, actor) => {
 
     const addedCodes = [...nextPermCodes].filter((c) => !currentPermCodes.has(c));
     const removedCodes = [...currentPermCodes].filter((c) => !nextPermCodes.has(c));
-    const deltaProtected = [...addedCodes, ...removedCodes].filter((c) => ACADEMIC_PROTECTED_PERMISSIONS.includes(c));
 
-    const hasAcademicDelegation = (actor?.permissions || []).includes('PERMISSION_ASSIGN_ACADEMIC');
-    if (deltaProtected.length > 0 && !hasAcademicDelegation) {
-      const error = new Error('Quản trị viên kỹ thuật không được phép gán nhóm quyền học thuật (VIEN_TRUONG, GVHD).');
-      error.statusCode = 403;
-      error.code = 'FORBIDDEN_ACADEMIC_GROUP_ASSIGNMENT';
-      throw error;
-    }
+    assertPermissionMutationAuthority({
+      actor,
+      addedCodes,
+      removedCodes,
+      targetGroups: selectedGroups,
+    });
 
     await tx.userPermissionGroup.deleteMany({ where: { userId: userIdInt } });
     if (groupIdsInt.length) {
@@ -213,10 +231,8 @@ const setUserGroups = async (userId, groupIds, actor) => {
         data: groupIdsInt.map((permissionGroupId) => ({ userId: userIdInt, permissionGroupId })),
       });
     }
-    await tx.user.update({
-      where: { id: userIdInt },
-      data: { permissionVersion: { increment: 1 } },
-    });
+
+    await invalidatePermissions({ userIds: [userIdInt], actor, reason: 'SET_USER_PERMISSION_GROUPS', tx });
   });
   clearAuthCache(userIdInt);
   await auditLog(actor?.id, 'SET_USER_PERMISSION_GROUPS', 'User', userIdInt, { groupIds: groupIdsInt }, getRequestIp(actor));
@@ -347,9 +363,10 @@ const getPermissionMatrix = async () => {
   };
 };
 
-const createMatrixError = (statusCode, message) => {
+const createMatrixError = (statusCode, message, code) => {
   const error = new Error(message);
   error.statusCode = statusCode;
+  if (code) error.code = code;
   return error;
 };
 
@@ -424,17 +441,18 @@ const bulkUpdatePermissionMatrix = async (payload, actor) => {
       }),
     ]);
 
-    if (existingGroups.length !== groupIds.length) {
-      const existingIds = new Set(existingGroups.map(({ id }) => id));
-      const missingIds = groupIds.filter((id) => !existingIds.has(id));
-      throw createMatrixError(400, `Nhóm quyền không tồn tại: ${missingIds.join(', ')}.`);
+    const existingGroupIds = new Set(existingGroups.map(({ id }) => id));
+    const missingGroupIds = groupIds.filter((id) => !existingGroupIds.has(id));
+    if (missingGroupIds.length > 0) {
+      throw createMatrixError(400, `Nhóm quyền không tồn tại: ${missingGroupIds.join(', ')}.`);
     }
 
-    if (existingPermissions.length !== permissionIds.length) {
-      const existingIds = new Set(existingPermissions.map(({ id }) => id));
-      const missingIds = permissionIds.filter((id) => !existingIds.has(id));
-      throw createMatrixError(400, `Quyền không tồn tại: ${missingIds.join(', ')}.`);
+    const existingPermissionIds = new Set(existingPermissions.map(({ id }) => id));
+    const missingPermissionIds = permissionIds.filter((id) => !existingPermissionIds.has(id));
+    if (missingPermissionIds.length > 0) {
+      throw createMatrixError(400, `Quyền không tồn tại: ${missingPermissionIds.join(', ')}.`);
     }
+
     if (!managePermission) {
       throw createMatrixError(409, 'Catalog thiếu quyền tối quan trọng PERMISSION_GROUP_MANAGE.');
     }
@@ -456,31 +474,26 @@ const bulkUpdatePermissionMatrix = async (payload, actor) => {
     const allPermsInDb = await tx.permission.findMany({ select: { id: true, code: true } });
     const permIdToCode = new Map((allPermsInDb || []).map((p) => [p.id, p.code]).filter(([, code]) => Boolean(code)));
 
-    const violatingChanges = [];
+    const allAddedCodes = [];
+    const allRemovedCodes = [];
     for (const { groupId, permissionIds: nextPermissionIds } of updates) {
       const currentCodes = currentGroupCodesMap.get(groupId) || new Set();
       const nextCodes = new Set((nextPermissionIds || []).map((id) => permIdToCode.get(id)).filter(Boolean));
 
-      if (currentCodes.size > 0 || nextCodes.size > 0) {
-        const added = [...nextCodes].filter((code) => !currentCodes.has(code));
-        const removed = [...currentCodes].filter((code) => !nextCodes.has(code));
-        const delta = [...added, ...removed];
-        const deltaProtected = delta.filter((code) => ACADEMIC_PROTECTED_PERMISSIONS.includes(code));
-        if (deltaProtected.length > 0) {
-          violatingChanges.push(...deltaProtected);
-        }
-      }
+      const added = [...nextCodes].filter((code) => !currentCodes.has(code));
+      const removed = [...currentCodes].filter((code) => !nextCodes.has(code));
+      allAddedCodes.push(...added);
+      allRemovedCodes.push(...removed);
     }
 
-    if (violatingChanges.length > 0) {
-      throw createMatrixError(
-        403,
-        `Ma trận chứa thay đổi trái phép đối với quyền học thuật/nghiệp vụ được bảo vệ: ${[...new Set(violatingChanges)].join(', ')}.`,
-      );
-    }
+    assertPermissionMutationAuthority({
+      actor,
+      addedCodes: allAddedCodes,
+      removedCodes: allRemovedCodes,
+      targetGroups: existingGroups,
+    });
 
     for (const { groupId, permissionIds: nextPermissionIds } of updates) {
-
       await tx.permissionGroupPermission.deleteMany({
         where: { permissionGroupId: groupId },
       });
@@ -503,6 +516,15 @@ const bulkUpdatePermissionMatrix = async (payload, actor) => {
         409,
         'Không thể gỡ PERMISSION_GROUP_MANAGE khỏi tất cả nhóm quyền.',
       );
+    }
+
+    if (tx.userPermissionGroup?.findMany) {
+      const affectedUsers = await tx.userPermissionGroup.findMany({
+        where: { permissionGroupId: { in: groupIds } },
+        select: { userId: true },
+      });
+      const affectedUserIds = [...new Set(affectedUsers.map((u) => u.userId))];
+      await invalidatePermissions({ userIds: affectedUserIds, actor, reason: 'BULK_UPDATE_PERMISSION_MATRIX', tx });
     }
 
     await tx.auditLog.create({

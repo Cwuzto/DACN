@@ -50,6 +50,14 @@ const createNewGroup = async (req, res, next) => {
     const group = await createGroup({ code, name, description, permissionCodes }, req.user);
     res.status(201).json({ success: true, message: 'Tạo nhóm quyền thành công.', data: group });
   } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        success: false,
+        error: error.errorCode || error.code || 'PROTECTED_PERMISSION_MODIFICATION_FORBIDDEN',
+        code: error.code,
+        message: error.message,
+      });
+    }
     next(error);
   }
 };
@@ -67,7 +75,8 @@ const updateExistingGroup = async (req, res, next) => {
     if (error.statusCode) {
       return res.status(error.statusCode).json({
         success: false,
-        error: error.code,
+        error: error.errorCode || error.code || 'PROTECTED_PERMISSION_MODIFICATION_FORBIDDEN',
+        code: error.code,
         message: error.message,
       });
     }
@@ -87,7 +96,8 @@ const deleteExistingGroup = async (req, res, next) => {
     if (error.statusCode) {
       return res.status(error.statusCode).json({
         success: false,
-        error: error.code,
+        error: error.errorCode || error.code || 'PROTECTED_PERMISSION_MODIFICATION_FORBIDDEN',
+        code: error.code,
         message: error.message,
       });
     }
@@ -114,6 +124,14 @@ const bulkUpdateMatrix = async (req, res, next) => {
     });
     res.json(result);
   } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        success: false,
+        error: error.errorCode || error.code || 'PROTECTED_PERMISSION_MODIFICATION_FORBIDDEN',
+        code: error.code,
+        message: error.message,
+      });
+    }
     next(error);
   }
 };
