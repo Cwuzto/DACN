@@ -2,7 +2,7 @@
 
 **Ngày:** 16/11/2026
 
-**Trạng thái:** Chờ người dùng duyệt
+**Trạng thái:** Đã được người dùng duyệt ngày 16/11/2026
 
 **Phạm vi:** CSDL/Prisma, backend authorization, cấp và thu hồi quyền, frontend route/menu/action, kiểm thử RBAC 5 persona
 
