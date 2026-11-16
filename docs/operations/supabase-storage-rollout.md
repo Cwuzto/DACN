@@ -75,3 +75,36 @@ Sau khi chạy lệnh với cờ `--apply`, thực hiện xác minh:
   - Tệp thông thường: tối đa 20 MB.
   - Báo cáo, slide, mã nguồn ZIP: tối đa 50 MB.
   - Ngưỡng chuyển sang upload TUS: trên 6 MB (sử dụng chunk cố định 6 MB).
+
+---
+
+## 6. Kiểm Kê và Dọn Dẹp Tài Nguyên Cũ (Legacy Storage Inventory & Cleanup)
+
+Nhằm đảm bảo an toàn tuyệt đối và bảo tồn tài nguyên thương hiệu (logo/background), quy trình dọn dẹp dữ liệu cũ bắt buộc chia thành 2 giai đoạn:
+
+### 6.1. Giai đoạn 1: Quét kiểm kê và sinh Manifest (Inventory)
+Tập lệnh `backend/scripts/storage/inventoryLegacyAssets.js` quét toàn bộ cơ sở dữ liệu và lưu trữ, phân loại thành 4 nhóm:
+- `KEEP_BRANDING`: Logo và background được sao chép sang `cong-khai/thuong-hieu/`, băm SHA-256 và xác thực toàn vẹn trước khi hủy bản cũ.
+- `KEEP_EXTERNAL`: Đường dẫn ngoài hợp lệ (GitHub, GitLab, YouTube, Vimeo) được giữ nguyên vẹn trong DB.
+- `NULL_AND_DELETE`: Các URL Supabase Storage cũ hoặc đường dẫn cục bộ `/uploads/` được null hóa trong DB và xóa khỏi bucket cũ.
+- `UNRESOLVED`: Các chuỗi URL không rõ nguồn gốc hoặc sai định dạng. Nếu có dù chỉ 1 mục `UNRESOLVED`, hệ thống sẽ chặn không cho thực thi lệnh xóa.
+
+Chạy kiểm kê ở chế độ Dry-Run:
+```powershell
+node backend/scripts/storage/inventoryLegacyAssets.js --dry-run --output "$env:TEMP\legacy-storage-manifest.json"
+```
+
+### 6.2. Giai đoạn 2: Dọn dẹp an toàn có kiểm chứng (Cleanup)
+Tập lệnh `backend/scripts/storage/cleanupLegacyAssets.js` yêu cầu chỉ định đường dẫn tệp manifest và xác nhận snapshot CSDL:
+
+1. **Chạy thử nghiệm (Dry-Run)**:
+```powershell
+node backend/scripts/storage/cleanupLegacyAssets.js --dry-run --manifest "$env:TEMP\legacy-storage-manifest.json"
+```
+
+2. **Thực thi dọn dẹp chính thức (Apply Mode)**:
+Chỉ thực hiện trong cửa sổ bảo trì (maintenance window) sau khi đã sao lưu (snapshot) cơ sở dữ liệu:
+```powershell
+node backend/scripts/storage/cleanupLegacyAssets.js --apply --confirm-snapshot --manifest "$env:TEMP\legacy-storage-manifest.json"
+```
+
