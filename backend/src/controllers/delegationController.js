@@ -2,6 +2,7 @@ const prisma = require('../config/database');
 const { auditLog } = require('../services/auditLogService');
 const { grantablePermissionCodes } = require('../constants/permissions');
 const { clearAuthCache } = require('../middlewares/auth');
+const { invalidatePermissions } = require('../services/permissionInvalidationService');
 
 /**
  * GET /api/delegations
@@ -9,12 +10,18 @@ const { clearAuthCache } = require('../middlewares/auth');
  */
 const getDelegations = async (req, res, next) => {
     try {
-        const { status, semesterId } = req.query;
-        const where = {};
-
-        if (req.user.department) {
-            where.department = req.user.department;
+        if (!req.user.department) {
+            return res.status(403).json({
+                success: false,
+                error: 'DEPARTMENT_REQUIRED',
+                message: 'Tài khoản chưa được cấu hình đơn vị khoa/viện.',
+            });
         }
+
+        const { status, semesterId } = req.query;
+        const where = {
+            department: req.user.department,
+        };
 
         if (status) {
             where.status = status;
@@ -183,9 +190,11 @@ const createDelegation = async (req, res, next) => {
                 },
             });
 
-            await tx.user.update({
-                where: { id: delegatee.id },
-                data: { permissionVersion: { increment: 1 } },
+            await invalidatePermissions({
+                userIds: [delegatee.id],
+                actor: req.user,
+                reason: 'CREATE_ACADEMIC_DELEGATION',
+                tx,
             });
 
             return created;
@@ -253,6 +262,14 @@ const revokeDelegation = async (req, res, next) => {
             });
         }
 
+        if (!req.user.department) {
+            return res.status(403).json({
+                success: false,
+                error: 'DEPARTMENT_REQUIRED',
+                message: 'Tài khoản chưa được cấu hình đơn vị khoa/viện.',
+            });
+        }
+
         const delegation = await prisma.academicDelegation.findUnique({
             where: { id },
         });
@@ -264,7 +281,7 @@ const revokeDelegation = async (req, res, next) => {
             });
         }
 
-        if (req.user.department && delegation.department !== req.user.department) {
+        if (delegation.department !== req.user.department) {
             return res.status(403).json({
                 success: false,
                 error: 'DEPARTMENT_MISMATCH',
@@ -285,9 +302,11 @@ const revokeDelegation = async (req, res, next) => {
                 data: { status: 'REVOKED' },
             });
 
-            await tx.user.update({
-                where: { id: delegation.delegateeId },
-                data: { permissionVersion: { increment: 1 } },
+            await invalidatePermissions({
+                userIds: [delegation.delegateeId],
+                actor: req.user,
+                reason: 'REVOKE_ACADEMIC_DELEGATION',
+                tx,
             });
 
             return rev;
