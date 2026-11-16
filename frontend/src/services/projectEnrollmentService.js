@@ -22,6 +22,14 @@ const projectEnrollmentService = {
         }
     },
 
+    getAvailableStudents: async (params = {}) => {
+        try {
+            return await api.get('/project-enrollments/available-students', { params });
+        } catch (error) {
+            throw wrapServiceError(error, 'Lỗi khi tải danh sách sinh viên khả dụng');
+        }
+    },
+
     bulkUpsert: async (items) => {
         try {
             return await api.post('/project-enrollments/bulk-upsert', { items });

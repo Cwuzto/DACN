@@ -2,7 +2,7 @@ import { useLecturerAssignments, useAvailableLecturers, useLecturerAssignmentMut
 import { useUsers } from '../../queries/userQueries';
 import { queryKeys } from '../../query/queryKeys';
 import QueryPanel from '../common/QueryPanel';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
     Table,
     Button,
@@ -82,6 +82,9 @@ export function LecturerAssignmentTab({
     const lecturersQuery = useUsers(scope, { role: 'LECTURER', status: 'active', limit: 1000 });
     const lecturers = lecturersQuery.data?.data || EMPTY_LIST;
     const [availableFilters, setAvailableFilters] = useState({ semesterId, projectCatalogId: projectCatalogId || undefined });
+    useEffect(() => {
+        setAvailableFilters({ semesterId, projectCatalogId: projectCatalogId || undefined });
+    }, [semesterId, projectCatalogId]);
     const availableQuery = useAvailableLecturers(scope, availableFilters, createModalOpen);
     const availableLecturers = availableQuery.data || EMPTY_LIST;
     const loadingAvailable = availableQuery.isFetching;

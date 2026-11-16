@@ -1,6 +1,5 @@
 import { useSemesters } from '../../queries/semesterQueries';
-import { useUsers } from '../../queries/userQueries';
-import { useProjectCatalogs, useEnrollments, useEnrollmentAudit, useEnrollmentMutation } from '../../queries/enrollmentQueries';
+import { useProjectCatalogs, useEnrollments, useEnrollmentAudit, useEnrollmentMutation, useAvailableStudents } from '../../queries/enrollmentQueries';
 import { queryKeys } from '../../query/queryKeys';
 import QueryPanel from '../../components/common/QueryPanel';
 import { useEffect, useMemo, useState } from 'react';
@@ -126,10 +125,15 @@ export function ProjectEnrollmentPage() {
     const scope = queryKeys.scope(user);
     const semestersQuery = useSemesters(scope);
     const catalogsQuery = useProjectCatalogs(scope);
-    const studentsQuery = useUsers(scope, { role: 'STUDENT', status: 'active', limit: 2000 });
+    const availableStudentsQuery = useAvailableStudents(
+        scope,
+        { semesterId: filterSemesterId, projectCatalogId: filterCatalogId || undefined },
+        canAccessStudents && showAssignPanel && Boolean(filterSemesterId)
+    );
+    const availableStudents = availableStudentsQuery.data || EMPTY_LIST;
+    const loadingAvailableStudents = availableStudentsQuery.isFetching;
     const semesters = semestersQuery.data || EMPTY_LIST;
     const catalogs = catalogsQuery.data || EMPTY_LIST;
-    const students = studentsQuery.data?.data || EMPTY_LIST;
     const enrollmentFilters = { semesterId: filterSemesterId };
     if (filterCatalogId) enrollmentFilters.projectCatalogId = filterCatalogId;
     const rowsQuery = useEnrollments(scope, enrollmentFilters, canAccessStudents);
@@ -262,13 +266,15 @@ export function ProjectEnrollmentPage() {
         [catalogs]
     );
 
-    const studentOptions = useMemo(
-        () => students.map((s) => ({
-            value: s.id,
-            label: `${s.fullName} (${s.code || 'Chưa có mã'})`,
-        })),
-        [students]
-    );
+    const studentOptions = useMemo(() => {
+        const existingStudentIds = new Set(rows.map((r) => r.studentId));
+        return availableStudents
+            .filter((s) => !s.accountRestricted && (!filterCatalogId || !existingStudentIds.has(s.id)))
+            .map((s) => ({
+                value: s.id,
+                label: `${s.fullName} (${s.code || 'Chưa có mã'})${s.major ? ` - ${s.major}` : ''}`,
+            }));
+    }, [availableStudents, rows, filterCatalogId]);
 
     const studentColumns = [
         {
@@ -410,14 +416,14 @@ export function ProjectEnrollmentPage() {
 
                     {/* Manual Assign Panel (Expandable) */}
                     {showAssignPanel && (
-                        <QueryPanel query={studentsQuery}>
+                        <QueryPanel query={availableStudentsQuery}>
                         <div className="bg-white rounded-lg border border-teal-200 bg-teal-50/20 p-5 shadow-xs space-y-4">
                             <div className="flex items-center justify-between">
                                 <h4 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
                                     <UserAddOutlined className="text-teal-700" />
                                     Gán Sinh viên Thủ công vào Đợt Đồ Án
                                 </h4>
-                                <span className="text-xs text-slate-600 font-medium">Chọn 1 hoặc nhiều sinh viên</span>
+                                <span className="text-xs text-slate-600 font-medium">Hiện có {availableStudents.length} sinh viên khả dụng</span>
                             </div>
 
                             <Form form={form} layout="vertical" onFinish={handleAssignSingle}>
@@ -439,10 +445,16 @@ export function ProjectEnrollmentPage() {
                                     <Form.Item name="studentId" label="Sinh viên (gán lẻ 1 bạn)">
                                         <Select
                                             showSearch
+                                            loading={loadingAvailableStudents}
                                             optionFilterProp="label"
                                             options={studentOptions}
                                             allowClear
-                                            placeholder="Tìm tên hoặc MSSV..."
+                                            placeholder="Chọn sinh viên khả dụng (MSSV hoặc tên)..."
+                                            notFoundContent={
+                                                <div className="py-2 text-center text-xs text-slate-500">
+                                                    Không có sinh viên khả dụng (đã được gán vào đợt hoặc đã hoàn thành đồ án)
+                                                </div>
+                                            }
                                         />
                                     </Form.Item>
                                     <div className="flex items-end gap-2 pb-1">
@@ -467,12 +479,18 @@ export function ProjectEnrollmentPage() {
                                 <Select
                                     mode="multiple"
                                     className="w-full"
-                                    placeholder="Gõ mã số hoặc tên để chọn thêm sinh viên vào danh sách gán..."
+                                    loading={loadingAvailableStudents}
+                                    placeholder="Chọn sinh viên khả dụng (MSSV hoặc tên)..."
                                     options={studentOptions}
                                     value={selectedStudentIds}
                                     onChange={setSelectedStudentIds}
                                     showSearch
                                     optionFilterProp="label"
+                                    notFoundContent={
+                                        <div className="py-2 text-center text-xs text-slate-500">
+                                            Không có sinh viên khả dụng (đã được gán vào đợt hoặc đã hoàn thành đồ án)
+                                        </div>
+                                    }
                                 />
                             </div>
                         </div>

@@ -357,6 +357,103 @@ const exportEnrollmentsExcel = async (req, res, next) => {
     }
 };
 
+const getAvailableStudents = async (req, res, next) => {
+    try {
+        const semesterId = parsePositiveInt(req.query.semesterId);
+        const projectCatalogId = parsePositiveInt(req.query.projectCatalogId);
+
+        if (!semesterId) {
+            return res.status(400).json({ success: false, message: 'semesterId là bắt buộc.' });
+        }
+
+        const targetSemester = await prisma.semester.findUnique({
+            where: { id: semesterId },
+            select: { id: true },
+        });
+
+        if (!targetSemester) {
+            return res.status(404).json({ success: false, message: 'Đợt đồ án không tồn tại.' });
+        }
+
+        // 1. Lấy tất cả sinh viên role: 'STUDENT', isActive: true
+        const allStudents = await prisma.user.findMany({
+            where: {
+                role: 'STUDENT',
+                isActive: true,
+            },
+            select: {
+                id: true,
+                fullName: true,
+                code: true,
+                email: true,
+                department: true,
+                studentProfile: {
+                    select: {
+                        major: true,
+                        className: true,
+                    },
+                },
+            },
+            orderBy: [{ code: 'asc' }, { fullName: 'asc' }],
+        });
+
+        if (allStudents.length === 0) {
+            return res.json({ success: true, data: [] });
+        }
+
+        // 2. Lấy danh sách các sinh viên đã được gán (active enrollment) trong đợt này
+        const enrollmentWhere = {
+            semesterId,
+            status: 'ACTIVE',
+        };
+        if (projectCatalogId) {
+            enrollmentWhere.projectCatalogId = projectCatalogId;
+        }
+
+        const activeEnrollments = await prisma.studentProjectEnrollment.findMany({
+            where: enrollmentWhere,
+            select: { studentId: true },
+        });
+        const enrolledStudentIds = new Set(activeEnrollments.map((e) => e.studentId));
+
+        // 3. Lấy danh sách sinh viên đã bảo vệ xong / hoàn thành đồ án (accountRestricted)
+        const restrictedRegistrations = await prisma.topicRegistration.findMany({
+            where: {
+                status: { in: ['COMPLETED', 'DEFENDED', 'DEFENSE_PASSED'] },
+            },
+            select: { studentId: true },
+            distinct: ['studentId'],
+        });
+        const restrictedStudentIds = new Set(restrictedRegistrations.map((r) => r.studentId));
+
+        // 4. Lọc chỉ giữ lại các sinh viên khả dụng: không nằm trong danh sách đã gán trong đợt và không bị accountRestricted
+        const availableStudents = allStudents
+            .filter((s) => !enrolledStudentIds.has(s.id) && !restrictedStudentIds.has(s.id))
+            .map((s) => ({
+                id: s.id,
+                fullName: s.fullName,
+                code: s.code,
+                email: s.email,
+                department: s.department,
+                major: s.studentProfile?.major || null,
+                className: s.studentProfile?.className || null,
+            }));
+
+        // Sắp xếp theo mã sinh viên (code) và họ tên
+        availableStudents.sort((a, b) => {
+            const codeA = a.code || '';
+            const codeB = b.code || '';
+            const codeComp = codeA.localeCompare(codeB);
+            if (codeComp !== 0) return codeComp;
+            return (a.fullName || '').localeCompare(b.fullName || '');
+        });
+
+        return res.json({ success: true, data: availableStudents });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     listProjectCatalogs,
     listStudentProjectEnrollments,
@@ -365,6 +462,7 @@ module.exports = {
     downloadEnrollmentTemplate,
     importEnrollmentsExcel,
     exportEnrollmentsExcel,
+    getAvailableStudents,
 };
 
 

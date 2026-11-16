@@ -13,6 +13,34 @@ test('projectEnrollmentService defines all methods consumed by ProjectEnrollment
     assert.equal(typeof projectEnrollmentService.downloadTemplate, 'function');
     assert.equal(typeof projectEnrollmentService.importEnrollmentsExcel, 'function');
     assert.equal(typeof projectEnrollmentService.exportEnrollmentsExcel, 'function');
+    assert.equal(typeof projectEnrollmentService.getAvailableStudents, 'function');
+});
+
+test('getAvailableStudents calls GET /project-enrollments/available-students with params', async () => {
+    let capturedUrl = null;
+    let capturedConfig = null;
+    const originalGet = api.get;
+    api.get = async (url, config) => {
+        capturedUrl = url;
+        capturedConfig = config;
+        return { success: true, data: [{ id: 1, fullName: 'SV A', code: 'SV001' }] };
+    };
+
+    try {
+        const res = await projectEnrollmentService.getAvailableStudents({
+            semesterId: 10,
+            projectCatalogId: 2,
+        });
+
+        assert.equal(res.success, true);
+        assert.equal(capturedUrl, '/project-enrollments/available-students');
+        assert.deepEqual(capturedConfig.params, {
+            semesterId: 10,
+            projectCatalogId: 2,
+        });
+    } finally {
+        api.get = originalGet;
+    }
 });
 
 test('createEnrollment calls bulkUpsert with a single formatted item', async () => {

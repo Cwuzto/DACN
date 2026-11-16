@@ -10,6 +10,8 @@ export const enrollmentKeys = {
     lists: scope => [...scope, 'enrollments', 'list'],
     list: (scope, filters = {}) => [...scope, 'enrollments', 'list', filters],
     catalogs: scope => [...scope, 'project-catalogs', 'list'],
+    availableStudents: (scope, filters = {}) => [...scope, 'enrollments', 'availableStudents', filters],
+    allAvailableStudents: (scope) => [...scope, 'enrollments', 'availableStudents'],
 };
 export const useProjectCatalogs = scope => useQuery({
     queryKey: enrollmentKeys.catalogs(scope),
@@ -18,6 +20,11 @@ export const useProjectCatalogs = scope => useQuery({
 export const useEnrollments = (scope, filters = {}, enabled = true) => useQuery({
     queryKey: enrollmentKeys.list(scope, filters),
     queryFn: async () => requireSuccess(await projectEnrollmentService.getEnrollments(filters)).data,
+    enabled: Boolean(filters.semesterId) && enabled,
+});
+export const useAvailableStudents = (scope, filters = {}, enabled = true) => useQuery({
+    queryKey: enrollmentKeys.availableStudents(scope, filters),
+    queryFn: async () => requireSuccess(await projectEnrollmentService.getAvailableStudents(filters)).data,
     enabled: Boolean(filters.semesterId) && enabled,
 });
 export const useEnrollmentAudit = (scope, semesterId, enabled = true) => {
@@ -71,7 +78,13 @@ export const useEnrollmentMutation = (scope, semesterId) => {
         mutationFn: async ({ action, args }) => requireSuccess(await (action === 'updateTopic' ? topicService.update(...args) : projectEnrollmentService[action](...args))),
         onSuccess: async (_, { action, args }) => {
             const affectedSemesterId = args[0]?.semesterId || semesterId;
-            const keys = action === 'updateTopic' ? [queryKeys.topics.lists(scope), queryKeys.registrations.lists(scope)] : [enrollmentKeys.lists(scope), lecturerAssignmentKeys.overviews(scope)];
+            const keys = action === 'updateTopic'
+                ? [queryKeys.topics.lists(scope), queryKeys.registrations.lists(scope)]
+                : [
+                    enrollmentKeys.lists(scope),
+                    enrollmentKeys.allAvailableStudents(scope),
+                    lecturerAssignmentKeys.overviews(scope),
+                ];
             await Promise.all(keys.map(queryKey => client.invalidateQueries({ queryKey, predicate: query => !query.queryKey.at(-1)?.semesterId || String(query.queryKey.at(-1)?.semesterId) === String(affectedSemesterId) })));
         },
     });

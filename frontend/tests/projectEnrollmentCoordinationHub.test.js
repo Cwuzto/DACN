@@ -287,3 +287,27 @@ test('LecturerAssignmentTab renders assignment table, editable quota, and toolba
     // Delete / Close logic
     assert.match(tabSource, /closeIfActive/);
 });
+
+test('ProjectEnrollmentPage uses useAvailableStudents and configures available student dropdowns', () => {
+    const pageSource = read('src/pages/admin/ProjectEnrollmentPage.jsx');
+
+    // Query hook integration
+    assert.match(pageSource, /useAvailableStudents/);
+    assert.match(pageSource, /availableStudentsQuery\s*=\s*useAvailableStudents/);
+
+    // Dropdown loading and text
+    assert.match(pageSource, /loadingAvailableStudents/);
+    assert.match(pageSource, /Chọn sinh viên khả dụng \(MSSV hoặc tên\)\.\.\./);
+    assert.match(pageSource, /Không có sinh viên khả dụng \(đã được gán vào đợt hoặc đã hoàn thành đồ án\)/);
+    assert.match(pageSource, /Hiện có\s*\{availableStudents\.length\}\s*sinh viên khả dụng/);
+
+    // Queries hook definition
+    const queriesSource = read('src/queries/enrollmentQueries.js');
+    assert.match(queriesSource, /availableStudents/);
+    assert.match(queriesSource, /allAvailableStudents/);
+    assert.match(queriesSource, /useAvailableStudents/);
+
+    // LecturerAssignmentTab useEffect sync
+    const lecturerTabSource = read('src/components/coordination/LecturerAssignmentTab.jsx');
+    assert.match(lecturerTabSource, /setAvailableFilters\(\{\s*semesterId,\s*projectCatalogId:\s*projectCatalogId\s*\|\|\s*undefined\s*\}\)/);
+});

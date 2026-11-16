@@ -8,6 +8,7 @@ const {
     downloadEnrollmentTemplate,
     importEnrollmentsExcel,
     exportEnrollmentsExcel,
+    getAvailableStudents,
 } = require('../controllers/projectEnrollmentController');
 const { authenticate, authorizePermission } = require('../middlewares/auth');
 const { PERMISSIONS } = require('../constants/permissions');
@@ -49,6 +50,17 @@ router.post(
         validateRequest,
     ],
     bulkUpsertStudentProjectEnrollments,
+);
+
+router.get(
+    '/available-students',
+    [
+        authorizePermission(PERMISSIONS.ENROLLMENT_MANAGE),
+        query('semesterId').isInt({ min: 1 }).withMessage('semesterId phải là số nguyên dương.'),
+        query('projectCatalogId').optional().isInt({ min: 1 }).withMessage('projectCatalogId phải là số nguyên dương.'),
+        validateRequest,
+    ],
+    getAvailableStudents,
 );
 
 router.delete(

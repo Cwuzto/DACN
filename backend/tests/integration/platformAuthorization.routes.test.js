@@ -55,6 +55,7 @@ jest.mock('../../src/controllers/projectEnrollmentController', () => {
         downloadEnrollmentTemplate: ok,
         importEnrollmentsExcel: ok,
         exportEnrollmentsExcel: ok,
+        getAvailableStudents: ok,
     };
 });
 jest.mock('../../src/controllers/dashboardController', () => {
