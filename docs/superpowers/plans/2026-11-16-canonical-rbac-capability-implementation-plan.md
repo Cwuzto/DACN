@@ -99,11 +99,11 @@
 - Produces: canonical permission/group associations with no duplicate alias grants.
 - Produces: `DEFAULT_GROUPS[*].isSystem` and seed behavior that preserve system-group protection.
 
-- [ ] **Step 1: Write failing migration and seed tests**
+- [x] **Step 1: Write failing migration and seed tests**
 
   Assert `SYSTEM_STUDENT_BASE`, `GVHD`, `GIAO_VU`, `VIEN_TRUONG`, and `QUAN_TRI_VIEN` retain their declared `isSystem` value after repeated seed. Assert alias associations migrate to canonical IDs without losing user-group assignments and protected system groups cannot be deleted.
 
-- [ ] **Step 2: Run tests and confirm failure**
+- [x] **Step 2: Run tests and confirm failure**
 
   Run:
 
@@ -113,11 +113,11 @@
 
   Expected: FAIL because seed currently writes default groups as non-system and stored alias associations are not canonicalized.
 
-- [ ] **Step 3: Add the idempotent migration and correct seed semantics**
+- [x] **Step 3: Add the idempotent migration and correct seed semantics**
 
   Migration order: create/verify canonical permission rows, move `permission_group_permissions` to canonical IDs with conflict-safe inserts, delete obsolete alias associations, then remove obsolete alias permission rows only when no consumer remains. Do not modify user roles or `TopicRegistration` data.
 
-- [ ] **Step 4: Verify migration and tests**
+- [x] **Step 4: Verify migration and tests**
 
   Run:
 
@@ -128,7 +128,7 @@
 
   Expected: Prisma schema valid; tests PASS; migration is safe to run twice in a disposable test database.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   ```powershell
   git add backend/src/constants/permissions.js backend/src/services/permissionService.js backend/prisma/schema.prisma backend/prisma/migrations backend/tests/integration/permissionCatalogMigration.test.js backend/tests/integration/permissionMatrix.routes.test.js
@@ -152,11 +152,11 @@
 - Produces: `getEffectivePermissions(identity, { semesterId?, department? }) -> Set<string>`; only this scope-aware set may authorize a request.
 - Preserves: `clearAuthCache(userId?)`, stale-token `409`, JWT refresh and current `/auth/me` response shape.
 
-- [ ] **Step 1: Write failing resolver parity tests**
+- [x] **Step 1: Write failing resolver parity tests**
 
   Assert login, `/auth/me`, and authenticated requests resolve the same permission set for the same user/scope; expired/revoked delegation is excluded; aliases normalize to canonical; student/GVHD fallback is explicit and identical across entry points.
 
-- [ ] **Step 2: Run tests and confirm failure**
+- [x] **Step 2: Run tests and confirm failure**
 
   Run:
 
@@ -166,17 +166,17 @@
 
   Expected: FAIL because auth controller and middleware currently use different delegation resolution paths.
 
-- [ ] **Step 3: Implement and adopt `resolveUserCapabilities`**
+- [x] **Step 3: Implement and adopt `resolveUserCapabilities`**
 
   Move group/delegation/council resolution out of both consumers. Cache the full resolved identity by user; never flatten a semester/department delegation into globally effective backend permissions. Retain single-flight lookup and TTL behavior.
 
-- [ ] **Step 4: Run focused auth tests**
+- [x] **Step 4: Run focused auth tests**
 
   Run the command from Step 2.
 
   Expected: PASS; login/me/request permission arrays are equal for the same authoritative scope.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   ```powershell
   git add backend/src/auth/capabilityResolver.js backend/src/middlewares/auth.js backend/src/controllers/authController.js backend/tests/unit/capabilityResolver.test.js backend/tests/middlewares/authCapabilityAndStaleVersion.test.js backend/tests/middlewares/authCacheAndDeduplication.test.js

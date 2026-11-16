@@ -1,6 +1,15 @@
 const jwt = require('jsonwebtoken');
 const prisma = require('../config/database');
 const { PERMISSION_CATALOG, DEFAULT_GROUPS } = require('../constants/permissions');
+const {
+    resolveUserCapabilities,
+    getEffectivePermissions,
+    clearAuthCache,
+    getAuthCacheStats,
+    getAuthCacheTtl,
+    userAuthCache,
+    inFlightUserLookups,
+} = require('../auth/capabilityResolver');
 
 const studentBaseGroup = DEFAULT_GROUPS.find((group) => group.code === 'SYSTEM_STUDENT_BASE');
 const studentBasePermissions = studentBaseGroup ? studentBaseGroup.permissions : [];
@@ -15,201 +24,6 @@ const validatePermissionCodes = (permissionCodes) => {
     if (unknownCodes.length > 0) {
         throw new Error(`Permission không tồn tại trong catalog: ${unknownCodes.join(', ')}.`);
     }
-};
-
-/**
- * In-memory capability cache and single-flight lookup map
- */
-const userAuthCache = new Map();
-const inFlightUserLookups = new Map();
-let cacheHits = 0;
-let cacheMisses = 0;
-
-const getAuthCacheTtl = () => {
-    const val = Number(process.env.AUTH_CACHE_TTL_MS);
-    return Number.isFinite(val) && val > 0 ? val : 15000;
-};
-
-const clearAuthCache = (userId) => {
-    if (userId !== undefined && userId !== null) {
-        const id = Number(userId);
-        userAuthCache.delete(id);
-        inFlightUserLookups.delete(id);
-        userAuthCache.delete(userId);
-        inFlightUserLookups.delete(userId);
-        for (const key of userAuthCache.keys()) {
-            if (typeof key === 'string' && (key.startsWith(`${id}:`) || key.startsWith(`${userId}:`))) {
-                userAuthCache.delete(key);
-            }
-        }
-        for (const key of inFlightUserLookups.keys()) {
-            if (typeof key === 'string' && (key.startsWith(`${id}:`) || key.startsWith(`${userId}:`))) {
-                inFlightUserLookups.delete(key);
-            }
-        }
-    } else {
-        userAuthCache.clear();
-        inFlightUserLookups.clear();
-    }
-};
-
-const getAuthCacheStats = () => ({
-    size: userAuthCache.size,
-    hits: cacheHits,
-    misses: cacheMisses,
-});
-
-if (process.env.NODE_ENV === 'test' && typeof afterEach === 'function') {
-    afterEach(() => {
-        clearAuthCache();
-    });
-}
-
-const extractCurrentSemesterId = async (req) => {
-    if (!req) return null;
-    const rawSemesterId = req.query?.semesterId || req.headers?.['x-semester-id'] || req.body?.semesterId || req.params?.semesterId;
-    if (rawSemesterId !== undefined && rawSemesterId !== null && rawSemesterId !== '') {
-        const parsed = parseInt(rawSemesterId, 10);
-        if (Number.isInteger(parsed) && parsed > 0) {
-            return parsed;
-        }
-    }
-    if (typeof prisma.semester?.findFirst === 'function') {
-        try {
-            const activeSem = await prisma.semester.findFirst({
-                where: {
-                    status: { in: ['ONGOING', 'REGISTRATION', 'DEFENSE'] },
-                },
-                orderBy: { startDate: 'desc' },
-                select: { id: true },
-            });
-            if (activeSem?.id) {
-                return activeSem.id;
-            }
-        } catch {
-            // ignore
-        }
-    }
-    return null;
-};
-
-const fetchUserAndCapabilities = async (userId, currentSemesterId = null) => {
-    const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-            id: true,
-            email: true,
-            fullName: true,
-            code: true,
-            role: true,
-            department: true,
-            phone: true,
-            avatarUrl: true,
-            isActive: true,
-            permissionVersion: true,
-            studentProfile: {
-                select: {
-                    studentId: true,
-                    gender: true,
-                    dateOfBirth: true,
-                    className: true,
-                    major: true,
-                    createdAt: true,
-                    updatedAt: true,
-                },
-            },
-            permissionGroups: {
-                include: {
-                    permissionGroup: {
-                        include: { permissions: { include: { permission: true } } },
-                    },
-                },
-            },
-            councilMembers: {
-                select: {
-                    id: true,
-                    council: {
-                        select: { councilType: true },
-                    },
-                },
-            },
-        },
-    });
-
-    if (!user || !user.isActive) {
-        return null;
-    }
-
-    const now = new Date();
-    let activeDelegations = [];
-    if (prisma.academicDelegation?.findMany) {
-        const semesterFilter = currentSemesterId
-            ? { OR: [{ semesterId: null }, { semesterId: currentSemesterId }] }
-            : { semesterId: null };
-
-        activeDelegations = await prisma.academicDelegation.findMany({
-            where: {
-                delegateeId: user.id,
-                status: 'ACTIVE',
-                effectiveFrom: { lte: now },
-                effectiveTo: { gte: now },
-                ...semesterFilter,
-            },
-            select: { id: true, capabilityCode: true, department: true, effectiveFrom: true, effectiveTo: true, delegatorId: true },
-        });
-    }
-
-    const permissionSet = new Set();
-    (user.permissionGroups || []).forEach(({ permissionGroup }) => {
-        (permissionGroup?.permissions || []).forEach(({ permission }) => {
-            if (permission?.code) permissionSet.add(permission.code);
-        });
-    });
-    (activeDelegations || []).forEach(({ capabilityCode }) => {
-        if (capabilityCode) permissionSet.add(capabilityCode);
-    });
-    if (user.role === 'STUDENT' && permissionSet.size === 0) {
-        studentBasePermissions.forEach((code) => permissionSet.add(code));
-    } else if (user.role === 'LECTURER' && permissionSet.size === 0) {
-        const gvhdGroup = DEFAULT_GROUPS.find((group) => group.code === 'GVHD');
-        if (gvhdGroup) {
-            gvhdGroup.permissions.forEach((code) => permissionSet.add(code));
-        }
-    }
-
-    const resolvedUser = {
-        ...user,
-        permissionVersion: user.permissionVersion,
-        permissionGroups: (user.permissionGroups || [])
-            .map(({ permissionGroup }) => permissionGroup?.code)
-            .filter(Boolean),
-        permissions: [...permissionSet],
-        activeDelegations: activeDelegations || [],
-        hasDefenseCouncilAssignment: (user.councilMembers || []).some((m) => m.council?.councilType === 'DEFENSE_COUNCIL'),
-        hasOutlineCouncilAssignment: (user.councilMembers || []).some((m) => m.council?.councilType === 'OUTLINE_REVIEW'),
-    };
-
-    const cacheKey = currentSemesterId ? `${userId}:${currentSemesterId}` : userId;
-    userAuthCache.set(cacheKey, {
-        user: resolvedUser,
-        data: resolvedUser,
-        cachedAt: Date.now(),
-        permissionVersion: resolvedUser.permissionVersion,
-    });
-
-    return resolvedUser;
-};
-
-const getUserLookedUp = async (userId, currentSemesterId = null) => {
-    const lookupKey = currentSemesterId ? `${userId}:${currentSemesterId}` : userId;
-    let inFlight = inFlightUserLookups.get(lookupKey);
-    if (!inFlight) {
-        inFlight = fetchUserAndCapabilities(userId, currentSemesterId).finally(() => {
-            inFlightUserLookups.delete(lookupKey);
-        });
-        inFlightUserLookups.set(lookupKey, inFlight);
-    }
-    return inFlight;
 };
 
 /**
@@ -231,25 +45,20 @@ const authenticate = async (req, res, next) => {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const userId = decoded.userId;
 
-        const currentSemesterId = await extractCurrentSemesterId(req);
-        const cacheKey = currentSemesterId ? `${userId}:${currentSemesterId}` : userId;
-
         const isGetMe = req.method === 'GET' && Boolean((req.originalUrl && req.originalUrl.includes('/api/auth/me')) || req.path === '/me');
         const tokenVersion = decoded.permissionVersion;
         const nowMs = Date.now();
         const ttl = getAuthCacheTtl();
 
-        const cachedEntry = userAuthCache.get(cacheKey);
+        const cachedEntry = userAuthCache.get(Number(userId));
         if (cachedEntry && (nowMs - cachedEntry.cachedAt < ttl)) {
             if (
                 typeof tokenVersion === 'number' &&
                 typeof cachedEntry.permissionVersion === 'number' &&
                 tokenVersion > cachedEntry.permissionVersion
             ) {
-                // Token has newer version than cached DB user -> evict from cache and fall through to fresh DB query
-                userAuthCache.delete(cacheKey);
+                clearAuthCache(userId);
             } else {
-                cacheHits++;
                 if (
                     !isGetMe &&
                     typeof tokenVersion === 'number' &&
@@ -272,8 +81,7 @@ const authenticate = async (req, res, next) => {
             }
         }
 
-        cacheMisses++;
-        const resolvedUser = await getUserLookedUp(userId, currentSemesterId);
+        const resolvedUser = await resolveUserCapabilities({ userId, db: prisma });
 
         if (!resolvedUser) {
             return res.status(401).json({
@@ -596,5 +404,8 @@ module.exports = {
     requireCouncilRole,
     clearAuthCache,
     getAuthCacheStats,
+    getAuthCacheTtl,
+    resolveUserCapabilities,
+    getEffectivePermissions,
 };
 

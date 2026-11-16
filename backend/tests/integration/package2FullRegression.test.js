@@ -35,9 +35,9 @@ describe('Package 2: State History, Audit Log, Real Cloning & Rule 2.6 Full Regr
             permissionGroup: {
                 code: 'ADMIN_GROUP',
                 permissions: [
-                    { permission: { code: 'VIEW_TOPICS' } },
+                    { permission: { code: 'VIEW_TOPIC_REVIEWS' } },
                     { permission: { code: 'TOPIC_CREATE' } },
-                    { permission: { code: 'TOPIC_APPROVE' } },
+                    { permission: { code: 'TOPIC_REVIEW' } },
                     { permission: { code: 'PROJECT_OVERSIGHT_MANAGE' } },
                     { permission: { code: 'VIEW_COUNCIL_ASSIGNMENTS' } },
                     { permission: { code: 'VIEW_DEFENSE_ASSIGNMENTS' } },

@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const prisma = require('../config/database');
+const { resolveUserCapabilities } = require('../auth/capabilityResolver');
 
 /**
  * POST /api/auth/login
@@ -21,22 +22,7 @@ const login = async (req, res, next) => {
         // 2. Tìm user theo email
         const user = await prisma.user.findUnique({
             where: { email },
-            include: {
-                studentProfile: true,
-                permissionGroups: {
-                    include: {
-                        permissionGroup: { include: { permissions: { include: { permission: true } } } },
-                    },
-                },
-                councilMembers: {
-                    select: {
-                        id: true,
-                        council: {
-                            select: { councilType: true },
-                        },
-                    },
-                },
-            },
+            select: { id: true, email: true, passwordHash: true, isActive: true },
         });
 
         if (!user) {
@@ -63,15 +49,24 @@ const login = async (req, res, next) => {
             });
         }
 
-        // 5. Tạo JWT token với thời hạn linh hoạt theo lựa chọn Ghi nhớ
+        // 5. Phân giải capabilities thống nhất qua capabilityResolver
+        const identity = await resolveUserCapabilities({ userId: user.id, db: prisma });
+        if (!identity) {
+            return res.status(401).json({
+                success: false,
+                message: 'Tài khoản không tồn tại hoặc đã bị vô hiệu hoá.',
+            });
+        }
+
+        // 6. Tạo JWT token với thời hạn linh hoạt theo lựa chọn Ghi nhớ
         const isRemembered = Boolean(remember);
         const expiresIn = isRemembered
             ? (process.env.JWT_REMEMBER_EXPIRES_IN || '30d')
             : (process.env.JWT_EXPIRES_IN || '1d');
 
-        const tokenPayload = { userId: user.id, role: user.role };
-        if (typeof user.permissionVersion === 'number') {
-            tokenPayload.permissionVersion = user.permissionVersion;
+        const tokenPayload = { userId: identity.id, role: identity.role };
+        if (typeof identity.permissionVersion === 'number') {
+            tokenPayload.permissionVersion = identity.permissionVersion;
         }
         const token = jwt.sign(
             tokenPayload,
@@ -79,46 +74,25 @@ const login = async (req, res, next) => {
             { expiresIn }
         );
 
-        // 6. Trả kết quả (không trả passwordHash)
-        let activeDelegations = [];
-        if (prisma.academicDelegation?.findMany) {
-            const now = new Date();
-            activeDelegations = await prisma.academicDelegation.findMany({
-                where: {
-                    delegateeId: user.id,
-                    status: 'ACTIVE',
-                    effectiveFrom: { lte: now },
-                    effectiveTo: { gte: now },
-                },
-                select: { capabilityCode: true },
-            });
-        }
-        const permissions = (user.permissionGroups || []).flatMap((group) =>
-            (group.permissionGroup?.permissions || []).map((item) => item.permission?.code).filter(Boolean)
-        );
-        (activeDelegations || []).forEach(({ capabilityCode }) => {
-            if (capabilityCode) permissions.push(capabilityCode);
-        });
-        const groupCodes = (user.permissionGroups || [])
-            .map((group) => group.permissionGroup?.code)
-            .filter(Boolean);
+        // 7. Trả kết quả (không trả passwordHash)
         res.json({
             success: true,
             message: 'Đăng nhập thành công.',
             data: {
                 token,
                 user: {
-                    id: user.id,
-                    email: user.email,
-                    fullName: user.fullName,
-                    code: user.code,
-                    role: user.role,
-                    department: user.department,
-                    avatarUrl: user.avatarUrl,
-                    permissionGroups: groupCodes,
-                    permissions: [...new Set(permissions)],
-                    hasDefenseCouncilAssignment: (user.councilMembers || []).some((m) => m.council?.councilType === 'DEFENSE_COUNCIL'),
-                    hasOutlineCouncilAssignment: (user.councilMembers || []).some((m) => m.council?.councilType === 'OUTLINE_REVIEW'),
+                    id: identity.id,
+                    email: identity.email,
+                    fullName: identity.fullName,
+                    code: identity.code,
+                    role: identity.role,
+                    department: identity.department,
+                    avatarUrl: identity.avatarUrl,
+                    permissionGroups: identity.permissionGroups,
+                    permissions: identity.permissions,
+                    hasDefenseCouncilAssignment: identity.hasDefenseCouncilAssignment,
+                    hasOutlineCouncilAssignment: identity.hasOutlineCouncilAssignment,
+                    permissionVersion: identity.permissionVersion,
                 },
             },
         });

@@ -29,9 +29,9 @@ describe('Package 2 Task 2: Topic Cloning API Integration Tests', () => {
             permissionGroup: {
                 code: 'ADMIN_GROUP',
                 permissions: [
-                    { permission: { code: 'VIEW_TOPICS' } },
+                    { permission: { code: 'VIEW_TOPIC_REVIEWS' } },
                     { permission: { code: 'TOPIC_CREATE' } },
-                    { permission: { code: 'TOPIC_APPROVE' } },
+                    { permission: { code: 'TOPIC_REVIEW' } },
                 ],
             },
         },
