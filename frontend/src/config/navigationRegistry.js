@@ -6,15 +6,8 @@
  * Client lọc menu theo effectivePermissions mà không rẽ nhánh role cứng.
  */
 
-export const NAVIGATION_GROUPS = [
-    'Hồ sơ của tôi',
-    'Hướng dẫn & tiến độ',
-    'Thẩm định & quyết định',
-    'Hội đồng & bảo vệ',
-    'Kết quả & công bố',
-    'Quản trị học vụ',
-    'Quản trị hệ thống',
-];
+import { NAVIGATION_GROUPS } from '../auth/featurePolicies.js';
+export { NAVIGATION_GROUPS };
 
 export const NAVIGATION_REGISTRY = [
     // KHỐI 1: HỒ SƠ CỦA TÔI (5 mục)
@@ -40,6 +33,7 @@ export const NAVIGATION_REGISTRY = [
         icon: 'cloud_upload',
         group: 'Hồ sơ của tôi',
         requiredPermission: 'VIEW_MY_SUBMISSIONS',
+        requiredAnyPermissions: ['VIEW_MY_SUBMISSIONS', 'VIEW_MY_ARCHIVE', 'SUBMIT_BM01', 'SUBMIT_BM02', 'SUBMIT_TASK'],
         route: '/student/submissions',
     },
     {
@@ -193,6 +187,7 @@ export const NAVIGATION_REGISTRY = [
         icon: 'bar_chart',
         group: 'Quản trị học vụ',
         requiredPermission: 'VIEW_PROJECT_OVERSIGHT',
+        requiredAnyPermissions: ['REPORT_VIEW', 'VIEW_PROJECT_OVERSIGHT', 'PROJECT_OVERSIGHT_MANAGE'],
         route: '/admin/reports',
     },
 
@@ -239,84 +234,4 @@ export const NAVIGATION_REGISTRY = [
     },
 ];
 
-/**
- * Lọc danh sách menu khả dụng dựa trên tập quyền (permissions) và ngữ cảnh người dùng (userContext).
- * Gom các mục thỏa mãn quyền xem theo thứ tự NAVIGATION_GROUPS và loại trừ nhóm rỗng.
- *
- * @param {Array<string> | Set<string> | { permissions?: Array<string> | Set<string>, role?: string, hasDefenseCouncilAssignment?: boolean, hasOutlineCouncilAssignment?: boolean }} permissionsInput
- * @param {object} [context]
- * @returns {Array<{ group: string, title: string, items: Array<object> }>}
- */
-export function getVisibleNavigation(permissionsInput, context = {}) {
-    let permSet;
-    let userContext = {};
-
-    if (permissionsInput && typeof permissionsInput === 'object' && !(permissionsInput instanceof Set) && !Array.isArray(permissionsInput)) {
-        userContext = { ...permissionsInput };
-        if (Array.isArray(permissionsInput.permissions)) {
-            permSet = new Set(permissionsInput.permissions);
-        } else if (permissionsInput.permissions instanceof Set) {
-            permSet = permissionsInput.permissions;
-        } else {
-            permSet = new Set();
-        }
-    } else {
-        if (permissionsInput instanceof Set) {
-            permSet = permissionsInput;
-        } else if (Array.isArray(permissionsInput)) {
-            permSet = new Set(permissionsInput);
-        } else {
-            permSet = new Set();
-        }
-    }
-
-    if (context && typeof context === 'object') {
-        const extraContext = context.user || context;
-        userContext = { ...userContext, ...extraContext };
-    }
-
-    const userGroups = (userContext?.permissionGroups || []).map((g) => (typeof g === 'string' ? g : g?.code));
-    if (userGroups.includes('GIAO_VU')) {
-        permSet.add('VIEW_PROJECT_ENROLLMENTS');
-    }
-
-    const isAdmin = userContext?.role === 'ADMIN';
-    const hasDefenseCouncil = Boolean(
-        userContext?.hasDefenseCouncilAssignment ||
-        isAdmin ||
-        permSet.has('DEFENSE_COUNCIL_MANAGE')
-    );
-    const hasOutlineCouncil = Boolean(
-        userContext?.hasOutlineCouncilAssignment ||
-        isAdmin ||
-        permSet.has('OUTLINE_COUNCIL_MANAGE')
-    );
-
-    const visibleItems = NAVIGATION_REGISTRY.filter((item) => {
-        if (item.requiresDefenseCouncil && !hasDefenseCouncil) {
-            return false;
-        }
-        if (item.requiresOutlineCouncil && !hasOutlineCouncil) {
-            return false;
-        }
-        if (Array.isArray(item.requiredAnyPermissions) && item.requiredAnyPermissions.length > 0) {
-            return item.requiredAnyPermissions.some((p) => permSet.has(p));
-        }
-        if (!item.requiredPermission) return true;
-        return permSet.has(item.requiredPermission);
-    });
-
-    const groups = [];
-    for (const groupName of NAVIGATION_GROUPS) {
-        const items = visibleItems.filter((item) => item.group === groupName);
-        if (items.length > 0) {
-            groups.push({
-                group: groupName,
-                title: groupName,
-                items,
-            });
-        }
-    }
-
-    return groups;
-}
+export { getVisibleNavigation } from '../auth/policyEvaluator.js';

@@ -20,14 +20,14 @@ test('App.jsx strictly guards /student workspace and role dashboards against cro
     // 2. /admin dashboard is protected with allowedRoles={['ADMIN']}
     assert.match(
         appSource,
-        /<Route\s+element=\{<ProtectedRoute\s+allowedRoles=\{\['ADMIN'\]\}\s*\/>\}>[\s\S]*?<Route\s+path="dashboard"\s+element=\{<DashboardPage/,
+        /<Route\s+element=\{<ProtectedRoute\s+[^>]*allowedRoles=\{\['ADMIN'\]\}[^>]*\/>\}>[\s\S]*?<Route\s+path="dashboard"\s+element=\{<DashboardPage/,
         '/admin dashboard must be protected with allowedRoles={["ADMIN"]}'
     );
 
     // 3. /lecturer dashboard is protected with allowedRoles={['LECTURER']}
     assert.match(
         appSource,
-        /<Route\s+element=\{<ProtectedRoute\s+allowedRoles=\{\['LECTURER'\]\}\s*\/>\}>[\s\S]*?<Route\s+path="dashboard"\s+element=\{<LecturerDashboardPage/,
+        /<Route\s+element=\{<ProtectedRoute\s+[^>]*allowedRoles=\{\['LECTURER'\]\}[^>]*\/>\}>[\s\S]*?<Route\s+path="dashboard"\s+element=\{<LecturerDashboardPage/,
         '/lecturer dashboard must be protected with allowedRoles={["LECTURER"]}'
     );
 });

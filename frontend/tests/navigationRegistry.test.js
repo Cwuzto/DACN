@@ -323,3 +323,34 @@ test('Returned navigation groups strictly preserve the canonical NAVIGATION_GROU
         ]
     );
 });
+
+test('GIAO_VU does not receive synthetic VIEW_PROJECT_ENROLLMENTS in navigation', () => {
+    const giaoVuWithoutEnrollment = {
+        role: 'LECTURER',
+        permissions: ['VIEW_ALL_TOPICS'],
+        permissionGroups: ['GIAO_VU'],
+    };
+
+    const nav = getVisibleNavigation(giaoVuWithoutEnrollment);
+    const allItems = nav.flatMap((g) => g.items);
+    assert.ok(
+        !allItems.some((i) => i.key === 'project-enrollments'),
+        'project-enrollments must not be visible when user lacks VIEW_PROJECT_ENROLLMENTS capability'
+    );
+});
+
+test('ADMIN does not bypass council assignment check in navigation', () => {
+    const adminWithoutCouncil = {
+        role: 'ADMIN',
+        permissions: ['VIEW_USERS', 'VIEW_PERMISSIONS'],
+        hasDefenseCouncilAssignment: false,
+        hasOutlineCouncilAssignment: false,
+    };
+
+    const nav = getVisibleNavigation(adminWithoutCouncil);
+    const allItems = nav.flatMap((g) => g.items);
+    assert.ok(!allItems.some((i) => i.key === 'outline-councils'));
+    assert.ok(!allItems.some((i) => i.key === 'defense-councils'));
+    assert.ok(!allItems.some((i) => i.key === 'defense-grading'));
+});
+
