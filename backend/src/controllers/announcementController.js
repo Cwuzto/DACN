@@ -122,12 +122,25 @@ const getAnnouncementById = async (req, res, next) => {
  */
 const createAnnouncement = async (req, res, next) => {
     try {
-        const { title, content, category, fileUrl, fileName, isPinned, isPublished } = req.body;
+        const { title, content, category, fileUrl, fileName, fileAssetId, isPinned, isPublished } = req.body;
 
         if (!title || !title.trim()) {
             return res.status(400).json({
                 success: false,
                 message: 'Tiêu đề thông báo là bắt buộc.',
+            });
+        }
+
+        const published = typeof isPublished === 'boolean' ? isPublished : true;
+
+        if (fileAssetId && published) {
+            await prisma.storedAsset.updateMany({
+                where: { id: fileAssetId },
+                data: {
+                    bucket: 'CONG_KHAI',
+                    visibility: 'PUBLIC',
+                    status: 'ACTIVE',
+                },
             });
         }
 
@@ -138,8 +151,9 @@ const createAnnouncement = async (req, res, next) => {
                 category: category || 'ANNOUNCEMENT',
                 fileUrl: fileUrl || null,
                 fileName: fileName || null,
+                fileAssetId: fileAssetId || null,
                 isPinned: typeof isPinned === 'boolean' ? isPinned : false,
-                isPublished: typeof isPublished === 'boolean' ? isPublished : true,
+                isPublished: published,
                 authorId: req.user?.id || null,
             },
             include: {
@@ -189,7 +203,21 @@ const updateAnnouncement = async (req, res, next) => {
             });
         }
 
-        const { title, content, category, fileUrl, fileName, isPinned, isPublished } = req.body;
+        const { title, content, category, fileUrl, fileName, fileAssetId, isPinned, isPublished } = req.body;
+
+        const willBePublished = typeof isPublished === 'boolean' ? isPublished : existing.isPublished;
+        const targetAssetId = fileAssetId !== undefined ? fileAssetId : existing.fileAssetId;
+
+        if (willBePublished && targetAssetId) {
+            await prisma.storedAsset.updateMany({
+                where: { id: targetAssetId },
+                data: {
+                    bucket: 'CONG_KHAI',
+                    visibility: 'PUBLIC',
+                    status: 'ACTIVE',
+                },
+            });
+        }
 
         const updated = await prisma.publicAnnouncement.update({
             where: { id: announcementId },
@@ -199,6 +227,7 @@ const updateAnnouncement = async (req, res, next) => {
                 ...(category !== undefined && { category }),
                 ...(fileUrl !== undefined && { fileUrl }),
                 ...(fileName !== undefined && { fileName }),
+                ...(fileAssetId !== undefined && { fileAssetId }),
                 ...(typeof isPinned === 'boolean' && { isPinned }),
                 ...(typeof isPublished === 'boolean' && { isPublished }),
                 updatedAt: new Date(),

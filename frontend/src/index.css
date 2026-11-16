@@ -2410,7 +2410,7 @@ tbody tr:last-child td {
   position: absolute;
   inset: -3%;
   z-index: -2;
-  background-image: url("https://aanqmscxckeejuhvaezm.supabase.co/storage/v1/object/public/dacn/branding/tdmu-campus-hero.png"), url("/assets/tdmu-campus-hero.png");
+  background-image: url("/assets/tdmu-campus-hero.png");
   background-position: center 44%;
   background-size: cover;
   transform: scale(1.04);

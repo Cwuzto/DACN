@@ -123,6 +123,18 @@ const createDraftRevision = async ({ resourceType, resourceId, payload, actorId 
         status: 'DRAFT',
         payload,
         createdById: actorId || null,
+        ...(payload?.assetId
+          ? {
+              revisionAssets: {
+                create: [
+                  {
+                    assetId: payload.assetId,
+                    slotKey: payload.slotKey || 'primary',
+                  },
+                ],
+              },
+            }
+          : {}),
       },
     });
   });
@@ -140,11 +152,34 @@ const publishRevision = async ({ resourceType, resourceId, revisionId, actorId }
   if (!Number.isInteger(revisionId) || revisionId <= 0) throw new Error('Portal revision id must be a positive integer');
 
   return prisma.$transaction(async (tx) => {
-    const revision = await tx.portalContentRevision.findUnique({ where: { id: revisionId } });
+    const revision = await tx.portalContentRevision.findUnique({
+      where: { id: revisionId },
+      include: { revisionAssets: true },
+    });
     if (!revision || revision.resourceType !== resourceType || revision.resourceId !== resourceId) {
       throw new Error('Portal revision does not belong to this resource');
     }
     if (revision.status !== 'DRAFT') throw new Error('Only draft portal revisions can be published');
+
+    // Promote associated assets to CONG_KHAI (PUBLIC, ACTIVE)
+    const assetIds = [];
+    if (revision.revisionAssets && revision.revisionAssets.length > 0) {
+      assetIds.push(...revision.revisionAssets.map((ra) => ra.assetId));
+    }
+    if (revision.payload?.assetId && !assetIds.includes(revision.payload.assetId)) {
+      assetIds.push(revision.payload.assetId);
+    }
+
+    if (assetIds.length > 0) {
+      await tx.storedAsset.updateMany({
+        where: { id: { in: assetIds } },
+        data: {
+          bucket: 'CONG_KHAI',
+          visibility: 'PUBLIC',
+          status: 'ACTIVE',
+        },
+      });
+    }
 
     const published = await tx.portalContentRevision.update({
       where: { id: revisionId },

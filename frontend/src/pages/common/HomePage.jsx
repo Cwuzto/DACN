@@ -708,7 +708,7 @@ export default function HomePage() {
                     <div className="brand-group" onClick={() => handleBackToPortal()} style={{ cursor: 'pointer' }}>
                         <img
                             className="brand-logo"
-                            src="https://aanqmscxckeejuhvaezm.supabase.co/storage/v1/object/public/dacn/branding/tdmu-logo.svg"
+                            src="/assets/tdmu-logo.svg"
                             onError={(e) => { e.currentTarget.src = '/assets/tdmu-logo.svg'; }}
                             alt="Đại học Thủ Dầu Một"
                             width="107"
@@ -1528,7 +1528,7 @@ export default function HomePage() {
                             <div className="brand-group" style={{ marginBottom: 14 }}>
                                 <img
                                     className="brand-logo"
-                                    src="https://aanqmscxckeejuhvaezm.supabase.co/storage/v1/object/public/dacn/branding/tdmu-logo.svg"
+                                    src="/assets/tdmu-logo.svg"
                                     onError={(e) => { e.currentTarget.src = '/assets/tdmu-logo.svg'; }}
                                     alt="Đại học Thủ Dầu Một"
                                     width="107"

@@ -245,7 +245,7 @@ function AppLayout({ role }) {
             <div className="brand-header flex items-center justify-between px-4 py-3">
                 <div className="flex items-center overflow-hidden">
                     <img
-                        src="https://aanqmscxckeejuhvaezm.supabase.co/storage/v1/object/public/dacn/branding/tdmu-logo.svg"
+                        src="/assets/tdmu-logo.svg"
                         alt="Đại học Thủ Dầu Một"
                         className={isSidebarCollapsed ? "w-9 h-9 object-contain" : "h-9 w-auto object-contain max-w-[140px]"}
                         onError={(e) => {

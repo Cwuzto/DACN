@@ -184,7 +184,7 @@ const changePassword = async (req, res, next) => {
  */
 const updateProfile = async (req, res, next) => {
     try {
-        const { avatarUrl, avatar, phone, department } = req.body;
+        const { avatarUrl, avatar, avatarAssetId, phone, department } = req.body;
 
         // Chỉ cho phép cập nhật các trường an toàn
         const updateData = {};
@@ -192,6 +192,29 @@ const updateProfile = async (req, res, next) => {
         if (resolvedAvatar !== undefined) {
             updateData.avatarUrl = resolvedAvatar;
         }
+
+        if (avatarAssetId !== undefined && avatarAssetId !== null) {
+            updateData.avatarAssetId = avatarAssetId;
+            updateData.avatarUrl = `/api/assets/${avatarAssetId}/download`;
+
+            const currentUser = await prisma.user.findUnique({
+                where: { id: req.user.id },
+                select: { id: true, avatarAssetId: true },
+            });
+
+            if (currentUser?.avatarAssetId && currentUser.avatarAssetId !== avatarAssetId) {
+                const sevenDaysLater = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+                await prisma.storedAsset.updateMany({
+                    where: { id: currentUser.avatarAssetId },
+                    data: {
+                        status: 'REPLACED',
+                        replacedById: avatarAssetId,
+                        retentionUntil: sevenDaysLater,
+                    },
+                });
+            }
+        }
+
         if (phone !== undefined) {
             updateData.phone = phone;
         }
@@ -214,6 +237,7 @@ const updateProfile = async (req, res, next) => {
                 role: true,
                 department: true,
                 avatarUrl: true,
+                avatarAssetId: true,
                 phone: true,
                 ...(isStudent ? {
                     studentProfile: {
