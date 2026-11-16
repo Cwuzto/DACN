@@ -6,6 +6,8 @@ const defenseDossierService = require('../services/defenseDossierService');
 const archivalWorkflowService = require('../services/archivalWorkflowService');
 const defenseAndArchivalSweepService = require('../services/defenseAndArchivalSweepService');
 const { WorkflowTransitionError } = require('../services/registrationTransitionService');
+const { storedAssetService } = require('../services/storedAssetService');
+const { STORAGE_BUCKETS } = require('../config/storageConfig');
 
 const parsePositiveInt = (value) => {
     const parsed = parseInt(value, 10);
@@ -830,16 +832,113 @@ const uploadDocumentVersion = async (req, res, next) => {
             return res.status(400).json({ success: false, code: 'INVALID_REGISTRATION_ID', message: 'registrationId không hợp lệ.' });
         }
 
-        const { documentType, fileUrl, fileName, fileSizeBytes, checksum, now } = req.body;
-        const actorId = req.user.id;
+        const registration = await prisma.topicRegistration.findUnique({
+            where: { id: registrationId },
+            select: {
+                id: true,
+                studentId: true,
+                topic: { select: { mentorId: true } },
+            },
+        });
 
-        const result = await defenseDossierService.uploadDefenseDocumentVersion({
-            registrationId,
+        if (!registration) {
+            return res.status(404).json({ success: false, code: 'REGISTRATION_NOT_FOUND', message: 'Không tìm thấy hồ sơ đăng ký.' });
+        }
+
+        const actorId = req.user.id;
+        const isOwner = req.user.role === 'STUDENT' && registration.studentId === actorId;
+        const isMentor = registration.topic?.mentorId === actorId;
+        const hasAdminOrReviewScope = req.user.role === 'ADMIN' || hasPermission(req.user, PERMISSIONS.FINAL_DOCUMENT_REVIEW);
+
+        if (req.user.role === 'STUDENT' && !isOwner) {
+            return res.status(403).json({
+                success: false,
+                code: 'FORBIDDEN_DOSSIER_ACCESS',
+                message: 'Bạn không có quyền tải lên tài liệu cho hồ sơ đăng ký này.',
+            });
+        }
+
+        if (!isOwner && !isMentor && !hasAdminOrReviewScope) {
+            return res.status(403).json({
+                success: false,
+                code: 'FORBIDDEN_DOSSIER_ACCESS',
+                message: 'Bạn không có quyền tải lên tài liệu cho hồ sơ đăng ký này.',
+            });
+        }
+
+        const {
             documentType,
+            assetId,
+            demoVideoExternalUrl,
             fileUrl,
             fileName,
             fileSizeBytes,
             checksum,
+            now,
+        } = req.body;
+
+        let finalFileUrl = fileUrl;
+        let finalFileName = fileName;
+        let finalSizeBytes = fileSizeBytes;
+        let finalChecksum = checksum;
+        let boundAssetId = assetId || null;
+
+        if (documentType === 'DEMO_VIDEO') {
+            if (assetId) {
+                return res.status(400).json({
+                    success: false,
+                    code: 'DIRECT_VIDEO_UPLOAD_NOT_ALLOWED',
+                    message: 'Hệ thống không cho phép tải trực tiếp tệp video. Vui lòng cung cấp link video demo qua demoVideoExternalUrl dạng link HTTPS.',
+                });
+            }
+            if (fileUrl && !demoVideoExternalUrl) {
+                return res.status(400).json({
+                    success: false,
+                    code: 'DIRECT_VIDEO_UPLOAD_NOT_ALLOWED',
+                    message: 'Hệ thống không cho phép tải trực tiếp tệp video. Vui lòng cung cấp link video demo qua demoVideoExternalUrl dạng link HTTPS.',
+                });
+            }
+            if (!demoVideoExternalUrl || !demoVideoExternalUrl.startsWith('https://')) {
+                return res.status(400).json({
+                    success: false,
+                    code: 'INVALID_DEMO_VIDEO_URL',
+                    message: 'Link video demo phải là URL HTTPS hợp lệ.',
+                });
+            }
+            finalFileUrl = demoVideoExternalUrl;
+            finalFileName = fileName || 'Video Demo Sản phẩm';
+        } else if (assetId) {
+            let asset;
+            try {
+                asset = await storedAssetService.assertAssetAccess({
+                    assetId,
+                    actorId,
+                    expectedDocumentTypes: [documentType],
+                    expectedBucket: STORAGE_BUCKETS.ACADEMIC,
+                });
+            } catch (err) {
+                return res.status(err.statusCode || 403).json({
+                    success: false,
+                    code: err.code || 'ASSET_ACCESS_DENIED',
+                    message: err.message,
+                });
+            }
+            finalFileUrl = fileUrl || `/api/assets/${asset.id}/download`;
+            finalFileName = fileName || asset.originalName;
+            finalSizeBytes = Number(asset.sizeBytes);
+            finalChecksum = asset.sha256;
+            boundAssetId = asset.id;
+        }
+
+        const result = await defenseDossierService.uploadDefenseDocumentVersion({
+            registrationId,
+            documentType,
+            fileUrl: finalFileUrl,
+            fileName: finalFileName,
+            fileSizeBytes: finalSizeBytes,
+            checksum: finalChecksum,
+            assetId: boundAssetId,
+            demoVideoExternalUrl: demoVideoExternalUrl || null,
             actorId,
             now: now ? new Date(now) : new Date(),
         });

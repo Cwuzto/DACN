@@ -169,10 +169,31 @@ const fileUploadGuards = [
     [
         param('registrationId').isInt({ min: 1 }).withMessage('registrationId phải là số nguyên dương.'),
         body('documentType').isString().notEmpty().withMessage('documentType không được để trống.'),
-        body('fileUrl').isString().notEmpty().withMessage('fileUrl không được để trống.'),
+        body('assetId').optional({ nullable: true }).isString(),
+        body('fileUrl').optional({ nullable: true }).isString(),
+        body('demoVideoExternalUrl').optional({ nullable: true }).isURL({ protocols: ['https'], require_protocol: true }).withMessage('Link video demo phải là URL HTTPS hợp lệ.'),
         body('fileName').optional({ nullable: true }).isString(),
         body('fileSizeBytes').optional({ nullable: true }).isInt(),
         body('checksum').optional({ nullable: true }).isString(),
+        body().custom((value) => {
+            const { documentType, assetId, fileUrl, demoVideoExternalUrl } = value || {};
+            if (documentType === 'DEMO_VIDEO') {
+                if (assetId) {
+                    throw new Error('Hệ thống không cho phép tải trực tiếp tệp video. Vui lòng cung cấp link video demo qua demoVideoExternalUrl dạng link HTTPS.');
+                }
+                if (fileUrl && !demoVideoExternalUrl) {
+                    throw new Error('Hệ thống không cho phép tải trực tiếp tệp video. Vui lòng cung cấp link video demo qua demoVideoExternalUrl dạng link HTTPS.');
+                }
+                if (!demoVideoExternalUrl) {
+                    throw new Error('Vui lòng cung cấp demoVideoExternalUrl dạng link HTTPS cho Video Demo.');
+                }
+            } else {
+                if (!assetId && !fileUrl) {
+                    throw new Error('Vui lòng cung cấp assetId hoặc fileUrl của tài liệu.');
+                }
+            }
+            return true;
+        }),
         validateRequest,
     ],
 ];

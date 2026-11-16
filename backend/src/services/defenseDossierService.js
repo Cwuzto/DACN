@@ -32,14 +32,18 @@ async function uploadDefenseDocumentVersion(params) {
     const {
         registrationId,
         documentType,
-        fileUrl,
+        fileUrl: rawFileUrl,
         fileName,
         fileSizeBytes,
         checksum,
+        assetId,
+        demoVideoExternalUrl,
         actorId,
         now = new Date(),
         tx: customTx,
     } = params;
+
+    const fileUrl = rawFileUrl || demoVideoExternalUrl;
 
     const parsedRegId = parseInt(registrationId, 10);
     if (!Number.isInteger(parsedRegId) || parsedRegId <= 0) {
@@ -180,6 +184,8 @@ async function uploadDefenseDocumentVersion(params) {
                 fileName: fileName || `${documentType}_v${versionNumber}`,
                 fileSizeBytes: fileSizeBytes || null,
                 checksum: finalChecksum,
+                assetId: assetId || null,
+                demoVideoExternalUrl: demoVideoExternalUrl || (documentType === 'DEMO_VIDEO' ? fileUrl : null),
                 isLatePreDefense,
                 uploadedById: actorId,
                 uploadedAt: currentTime,

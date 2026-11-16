@@ -22,6 +22,7 @@ import {
     ScanOutlined,
 } from '@ant-design/icons';
 import uploadService from '../../services/uploadService';
+import { uploadGovernedAsset, getAssetDownloadUrl } from '../../services/resumableUploadService';
 import { useDefenseDossier, useUploadDefenseDocument, canUploadArchive } from '../../queries/archiveQueries';
 import useAuthStore from '../../stores/authStore';
 import { queryKeys } from '../../query/queryKeys';
@@ -130,15 +131,21 @@ export default function ArchiveSubmissionModal({
         try {
             setUploadingType(documentType);
             message.loading({ content: `Đang tải lên ${documentType}...`, key: documentType });
-            const uploadRes = await uploadService.uploadFile(file, 'archives');
-            const fileUrl = uploadRes?.data?.url || uploadRes?.url || '';
-            if (!fileUrl || uploadRes?.success === false) throw new Error(uploadRes?.message || 'Không thể tải tệp lên');
+
+            const uploadRes = await uploadService.uploadFile(file, 'archives', { documentType, registrationId: regId });
+            const fileUrl = uploadRes?.data?.url || uploadRes?.url || (uploadRes?.id ? `/api/assets/${uploadRes.id}/download` : '');
+            const assetId = uploadRes?.data?.assetId || uploadRes?.assetId || uploadRes?.id || null;
+            const checksum = uploadRes?.data?.checksum || uploadRes?.checksum || uploadRes?.sha256 || null;
+
+            if (!fileUrl && !assetId) throw new Error(uploadRes?.message || 'Không thể tải tệp lên');
 
             const res = await uploadMutation.mutateAsync({
                 documentType,
+                assetId,
                 fileUrl,
                 fileName: file.name,
                 fileSizeBytes: file.size,
+                checksum,
             });
 
             if (res.success) {
@@ -286,12 +293,25 @@ export default function ArchiveSubmissionModal({
                                     </div>
 
                                     <div className="pt-2 flex items-center justify-between gap-2 border-t border-slate-200/80">
-                                        {latestDoc?.fileUrl && (
+                                        {(latestDoc?.fileUrl || latestDoc?.assetId) && (
                                             <Button
                                                 size="small"
                                                 type="link"
                                                 icon={<DownloadOutlined />}
-                                                onClick={() => window.open(latestDoc.fileUrl, '_blank')}
+                                                onClick={async () => {
+                                                    if (latestDoc.assetId) {
+                                                        try {
+                                                            const dl = await getAssetDownloadUrl(latestDoc.assetId);
+                                                            window.open(dl.downloadUrl || dl.url, '_blank');
+                                                            return;
+                                                        } catch (err) {
+                                                            // fallback to direct url
+                                                        }
+                                                    }
+                                                    if (latestDoc.fileUrl) {
+                                                        window.open(latestDoc.fileUrl, '_blank');
+                                                    }
+                                                }}
                                                 className="p-0 text-xs"
                                             >
                                                 Tải về xem

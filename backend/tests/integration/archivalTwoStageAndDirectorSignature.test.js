@@ -37,6 +37,15 @@ const mockDatabase = {
         updateMany: jest.fn(),
         create: jest.fn(),
     },
+    storedAsset: {
+        findUnique: jest.fn().mockImplementation(({ where }) => Promise.resolve({ id: where.id, bucket: 'HOC_VU', objectKey: 'test.pdf', sha256: 'a'.repeat(64), status: 'ACTIVE', documentType: 'CLEARANCE_CERTIFICATE' })),
+        create: jest.fn().mockImplementation(({ data }) => Promise.resolve({ ...data, id: data.id || 'asset-cert-123' })),
+        update: jest.fn(),
+        deleteMany: jest.fn(),
+    },
+    storedAssetCleanupJob: {
+        create: jest.fn().mockResolvedValue({}),
+    },
     defenseResult: {
         findUnique: jest.fn(),
         findFirst: jest.fn(),

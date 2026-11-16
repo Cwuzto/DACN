@@ -702,8 +702,11 @@ class StoredAssetService {
             throw new StoredAssetServiceError('Asset is not active', 'ASSET_NOT_ACTIVE', 400);
         }
 
-        if (expectedBucket && asset.bucket !== expectedBucket) {
-            throw new StoredAssetServiceError('Invalid asset bucket', 'INVALID_ASSET_BUCKET', 400);
+        if (expectedBucket) {
+            const expectedEnum = mapBucketToEnum(expectedBucket);
+            if (asset.bucket !== expectedEnum && asset.bucket !== expectedBucket) {
+                throw new StoredAssetServiceError('Invalid asset bucket', 'INVALID_ASSET_BUCKET', 400);
+            }
         }
 
         if (actorId && asset.ownerUserId !== actorId && asset.uploadedById !== actorId) {
