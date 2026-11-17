@@ -10,15 +10,179 @@ const {
 } = require('../utils/errors');
 const { storedAssetService, StoredAssetServiceError } = require('./storedAssetService');
 
+const BM01_MAX_FILE_BYTES = 20 * 1024 * 1024; // 20 MB
+
+const BM01_REQUIRED_FIELDS = Object.freeze({
+    BM01_INITIAL_SUBMISSION: ['topicTitle', 'objectives', 'technologies', 'deliverables'],
+    BM01_RESUBMISSION: ['topicTitle', 'revisionSummary'],
+});
+
+function normalizeOutlineSubmissionArgs(registrationIdOrInput, fileDataArg, userIdArg, optionsArg = {}) {
+    if (registrationIdOrInput && typeof registrationIdOrInput === 'object' && !Array.isArray(registrationIdOrInput)) {
+        const input = registrationIdOrInput;
+        const hasExplicitUserId = typeof fileDataArg === 'number' || typeof fileDataArg === 'string';
+        const userId = input.userId ?? input.actorId ?? (hasExplicitUserId ? fileDataArg : undefined);
+        const rawOptions = hasExplicitUserId
+            ? (userIdArg && typeof userIdArg === 'object' ? userIdArg : optionsArg)
+            : (fileDataArg && typeof fileDataArg === 'object' ? fileDataArg : optionsArg);
+        const options = { ...(rawOptions || {}) };
+        if (input.content !== undefined && options.content === undefined) {
+            options.content = input.content;
+        }
+        if (input.idempotencyKey !== undefined && options.idempotencyKey === undefined) {
+            options.idempotencyKey = input.idempotencyKey;
+        }
+        return {
+            registrationId: input.registrationId,
+            fileData: input.fileData,
+            userId,
+            options,
+        };
+    }
+
+    return {
+        registrationId: registrationIdOrInput,
+        fileData: fileDataArg,
+        userId: userIdArg,
+        options: optionsArg || {},
+    };
+}
+
+function parseAndNormalizeBM01Content(rawContent, expectedTaskType, now) {
+    if (rawContent === undefined) {
+        return undefined;
+    }
+    if (rawContent === null || rawContent === '') {
+        throw new BadRequestError('INVALID_BM01_CONTENT');
+    }
+
+    let parsed = rawContent;
+    if (typeof rawContent === 'string') {
+        try {
+            parsed = JSON.parse(rawContent);
+        } catch {
+            throw new BadRequestError('INVALID_BM01_CONTENT');
+        }
+    }
+
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new BadRequestError('INVALID_BM01_CONTENT');
+    }
+
+    if (parsed.formCode != null && parsed.formCode !== 'BM01') {
+        throw new BadRequestError('INVALID_BM01_FORM_CODE');
+    }
+
+    if (parsed.taskType != null && parsed.taskType !== expectedTaskType && parsed.taskType !== 'BM01') {
+        throw new BadRequestError('INVALID_BM01_TASK_TYPE');
+    }
+
+    if (!parsed.fields || typeof parsed.fields !== 'object' || Array.isArray(parsed.fields)) {
+        throw new BadRequestError('INVALID_BM01_CONTENT');
+    }
+
+    const requiredFields = BM01_REQUIRED_FIELDS[expectedTaskType] || [];
+    for (const field of requiredFields) {
+        const value = parsed.fields[field];
+        if (typeof value !== 'string' || !value.trim()) {
+            throw new BadRequestError(`MISSING_BM01_FIELD_${field.toUpperCase()}`);
+        }
+    }
+
+    const normalizedFields = {};
+    for (const [key, value] of Object.entries(parsed.fields)) {
+        if (typeof value === 'string') {
+            normalizedFields[key] = value.trim();
+        } else if (value !== undefined) {
+            normalizedFields[key] = value;
+        }
+    }
+
+    return JSON.stringify({
+        formCode: 'BM01',
+        taskType: expectedTaskType,
+        submittedAt: now.toISOString(),
+        fields: normalizedFields,
+    });
+}
+
+async function validateAndResolveBM01PdfAsset({ fileData, regId, userId, maxSizeBytes }) {
+    const ext = path.extname(fileData?.fileName || '').toLowerCase();
+    if (ext !== '.pdf') {
+        throw new BadRequestError('INVALID_FILE_EXTENSION');
+    }
+
+    if (fileData?.mimeType && String(fileData.mimeType).toLowerCase() !== 'application/pdf') {
+        throw new BadRequestError('INVALID_FILE_EXTENSION');
+    }
+
+    if (fileData?.fileSize != null && Number(fileData.fileSize) > maxSizeBytes) {
+        throw new BadRequestError('FILE_SIZE_EXCEEDS_LIMIT');
+    }
+
+    if (fileData?.assetId) {
+        let asset;
+        try {
+            asset = await storedAssetService.assertAssetAccess({
+                assetId: fileData.assetId,
+                actorId: userId,
+                expectedDocumentTypes: ['BM01'],
+            });
+        } catch (err) {
+            if (err instanceof StoredAssetServiceError) {
+                if (err.statusCode === 403) throw new ForbiddenError(err.message);
+                throw new BadRequestError(err.message);
+            }
+            throw err;
+        }
+
+        if (asset.registrationId != null && Number(asset.registrationId) !== regId) {
+            throw new ForbiddenError('ASSET_REGISTRATION_MISMATCH');
+        }
+        if (asset.scanStatus && asset.scanStatus !== 'PASSED') {
+            throw new BadRequestError('ASSET_NOT_INSPECTED');
+        }
+        if (asset.detectedMime && String(asset.detectedMime).toLowerCase() !== 'application/pdf') {
+            throw new BadRequestError('INVALID_PDF_ASSET');
+        }
+        if (asset.extension && String(asset.extension).toLowerCase() !== 'pdf') {
+            throw new BadRequestError('INVALID_FILE_EXTENSION');
+        }
+        if (asset.sizeBytes != null && Number(asset.sizeBytes) > maxSizeBytes) {
+            throw new BadRequestError('FILE_SIZE_EXCEEDS_LIMIT');
+        }
+
+        return {
+            assetId: fileData.assetId,
+            fileName: fileData?.fileName || asset.originalName || null,
+            fileUrl: fileData?.fileUrl || null,
+        };
+    }
+
+    return {
+        assetId: null,
+        fileName: fileData?.fileName || null,
+        fileUrl: fileData?.fileUrl || null,
+    };
+}
+
 /**
  * 1. Submit initial outline dossier (v1)
  * Atomic conditional update ensures only the first valid submission is accepted.
  */
-async function submitInitialOutline(registrationId, fileData, userId, options = {}) {
+async function submitInitialOutline(registrationIdOrInput, fileDataArg, userIdArg, optionsArg = {}) {
+    const { registrationId, fileData, userId, options } = normalizeOutlineSubmissionArgs(
+        registrationIdOrInput,
+        fileDataArg,
+        userIdArg,
+        optionsArg
+    );
     const db = options.db || prisma;
     const now = options.now ? new Date(options.now) : new Date();
     const regId = Number(registrationId);
     const uId = Number(userId);
+    const idempotencyKey = options.idempotencyKey || null;
+    const scope = 'outline:submit-initial';
 
     return db.$transaction(async (tx) => {
         const registration = await tx.topicRegistration.findUnique({
@@ -31,13 +195,52 @@ async function submitInitialOutline(registrationId, fileData, userId, options = 
         if (registration.studentId !== uId) {
             throw new ForbiddenError('FORBIDDEN');
         }
-        if (registration.status !== 'APPROVED') {
-            throw new BadRequestError('INVALID_REGISTRATION_STATUS');
-        }
+
+        const normalizedContent = parseAndNormalizeBM01Content(
+            options.content,
+            'BM01_INITIAL_SUBMISSION',
+            now
+        );
 
         const semester = registration.semesterId
             ? await tx.semester.findUnique({ where: { id: registration.semesterId } })
             : null;
+
+        const maxSizeBytes = semester?.outlineMaxFileSizeBytes
+            ? Math.min(Number(semester.outlineMaxFileSizeBytes), BM01_MAX_FILE_BYTES)
+            : BM01_MAX_FILE_BYTES;
+
+        const cmdHash = idempotencyKey
+            ? crypto
+                .createHash('sha256')
+                .update(
+                    JSON.stringify({
+                        registrationId: regId,
+                        userId: uId,
+                        assetId: fileData?.assetId || null,
+                        fileName: fileData?.fileName || null,
+                        fileUrl: fileData?.fileUrl || null,
+                        content: normalizedContent ?? null,
+                    })
+                )
+                .digest('hex')
+            : null;
+
+        if (idempotencyKey && tx.idempotencyRecord?.findUnique) {
+            const existingKey = await tx.idempotencyRecord.findUnique({
+                where: { scope_key: { scope, key: idempotencyKey } },
+            });
+            if (existingKey) {
+                if (existingKey.commandHash !== cmdHash) {
+                    throw new UnprocessableEntityError('IDEMPOTENCY_KEY_REUSE_PAYLOAD_MISMATCH');
+                }
+                return existingKey.response;
+            }
+        }
+
+        if (registration.status !== 'APPROVED') {
+            throw new BadRequestError('INVALID_REGISTRATION_STATUS');
+        }
 
         if (semester) {
             if (semester.outlineSubmissionOpenAt && now < new Date(semester.outlineSubmissionOpenAt)) {
@@ -48,18 +251,12 @@ async function submitInitialOutline(registrationId, fileData, userId, options = 
             }
         }
 
-        const allowedExtensions = Array.isArray(semester?.outlineAllowedExtensions)
-            ? semester.outlineAllowedExtensions
-            : ['.docx', '.pdf'];
-        const ext = path.extname(fileData?.fileName || '').toLowerCase();
-        if (!allowedExtensions.map((e) => e.toLowerCase()).includes(ext)) {
-            throw new BadRequestError('INVALID_FILE_EXTENSION');
-        }
-
-        const maxSizeBytes = semester?.outlineMaxFileSizeBytes || 20 * 1024 * 1024;
-        if (fileData?.fileSize && fileData.fileSize > maxSizeBytes) {
-            throw new BadRequestError('FILE_SIZE_EXCEEDS_LIMIT');
-        }
+        const resolvedFile = await validateAndResolveBM01PdfAsset({
+            fileData,
+            regId,
+            userId: uId,
+            maxSizeBytes,
+        });
 
         // Find or create BM01_INITIAL_SUBMISSION task
         let task = await tx.task.findFirst({
@@ -82,31 +279,16 @@ async function submitInitialOutline(registrationId, fileData, userId, options = 
             });
         }
 
-        if (fileData?.assetId) {
-            try {
-                await storedAssetService.assertAssetAccess({
-                    assetId: fileData.assetId,
-                    actorId: uId,
-                    expectedDocumentTypes: ['BM01'],
-                });
-            } catch (err) {
-                if (err instanceof StoredAssetServiceError) {
-                    if (err.statusCode === 403) throw new ForbiddenError(err.message);
-                    throw new BadRequestError(err.message);
-                }
-                throw err;
-            }
-        }
-
         // Create submission record
         const newSubmission = await tx.submission.create({
             data: {
                 registrationId: regId,
                 taskId: task.id,
                 submittedBy: uId,
-                fileUrl: fileData?.fileUrl || null,
-                fileName: fileData?.fileName || null,
-                assetId: fileData?.assetId || null,
+                content: normalizedContent ?? null,
+                fileUrl: resolvedFile.fileUrl,
+                fileName: resolvedFile.fileName,
+                assetId: resolvedFile.assetId,
                 submittedAt: now,
             },
         });
@@ -153,6 +335,17 @@ async function submitInitialOutline(registrationId, fileData, userId, options = 
                 stateVersion: { increment: 1 },
             },
         });
+
+        if (idempotencyKey && tx.idempotencyRecord?.create) {
+            await tx.idempotencyRecord.create({
+                data: {
+                    scope,
+                    key: idempotencyKey,
+                    commandHash: cmdHash,
+                    response: newSubmission,
+                },
+            });
+        }
 
         return newSubmission;
     });
@@ -678,11 +871,19 @@ async function setRevisionDeadline(councilId, deadline, chairId, options = {}) {
  * 8. Submit resubmission outline (v2)
  * Atomic conditional update targeting the latest evaluation ensures only 1 resubmission is permitted.
  */
-async function submitResubmissionOutline(registrationId, fileData, userId, options = {}) {
+async function submitResubmissionOutline(registrationIdOrInput, fileDataArg, userIdArg, optionsArg = {}) {
+    const { registrationId, fileData, userId, options } = normalizeOutlineSubmissionArgs(
+        registrationIdOrInput,
+        fileDataArg,
+        userIdArg,
+        optionsArg
+    );
     const db = options.db || prisma;
     const regId = Number(registrationId);
     const uId = Number(userId);
     const now = options.now ? new Date(options.now) : new Date();
+    const idempotencyKey = options.idempotencyKey || null;
+    const scope = 'outline:submit-resubmission';
 
     return db.$transaction(async (tx) => {
         const registration = await tx.topicRegistration.findUnique({
@@ -696,6 +897,41 @@ async function submitResubmissionOutline(registrationId, fileData, userId, optio
         if (registration.studentId !== uId) {
             throw new ForbiddenError('FORBIDDEN');
         }
+
+        const normalizedContent = parseAndNormalizeBM01Content(
+            options.content,
+            'BM01_RESUBMISSION',
+            now
+        );
+
+        const cmdHash = idempotencyKey
+            ? crypto
+                .createHash('sha256')
+                .update(
+                    JSON.stringify({
+                        registrationId: regId,
+                        userId: uId,
+                        assetId: fileData?.assetId || null,
+                        fileName: fileData?.fileName || null,
+                        fileUrl: fileData?.fileUrl || null,
+                        content: normalizedContent ?? null,
+                    })
+                )
+                .digest('hex')
+            : null;
+
+        if (idempotencyKey && tx.idempotencyRecord?.findUnique) {
+            const existingKey = await tx.idempotencyRecord.findUnique({
+                where: { scope_key: { scope, key: idempotencyKey } },
+            });
+            if (existingKey) {
+                if (existingKey.commandHash !== cmdHash) {
+                    throw new UnprocessableEntityError('IDEMPOTENCY_KEY_REUSE_PAYLOAD_MISMATCH');
+                }
+                return existingKey.response;
+            }
+        }
+
         if (registration.status === 'BM01_RESUBMITTED') {
             throw new ConflictError('RESUBMISSION_ALREADY_USED');
         }
@@ -715,6 +951,13 @@ async function submitResubmissionOutline(registrationId, fileData, userId, optio
         if (!latestEval || latestEval.revisionSubmissionId) {
             throw new ConflictError('RESUBMISSION_ALREADY_USED');
         }
+
+        const resolvedFile = await validateAndResolveBM01PdfAsset({
+            fileData,
+            regId,
+            userId: uId,
+            maxSizeBytes: BM01_MAX_FILE_BYTES,
+        });
 
         let task = await tx.task.findFirst({
             where: {
@@ -738,30 +981,15 @@ async function submitResubmissionOutline(registrationId, fileData, userId, optio
             });
         }
 
-        if (fileData?.assetId) {
-            try {
-                await storedAssetService.assertAssetAccess({
-                    assetId: fileData.assetId,
-                    actorId: uId,
-                    expectedDocumentTypes: ['BM01'],
-                });
-            } catch (err) {
-                if (err instanceof StoredAssetServiceError) {
-                    if (err.statusCode === 403) throw new ForbiddenError(err.message);
-                    throw new BadRequestError(err.message);
-                }
-                throw err;
-            }
-        }
-
         const newSubmission = await tx.submission.create({
             data: {
                 registrationId: regId,
                 taskId: task.id,
                 submittedBy: uId,
-                fileUrl: fileData?.fileUrl || null,
-                fileName: fileData?.fileName || null,
-                assetId: fileData?.assetId || null,
+                content: normalizedContent ?? null,
+                fileUrl: resolvedFile.fileUrl,
+                fileName: resolvedFile.fileName,
+                assetId: resolvedFile.assetId,
                 submittedAt: now,
             },
         });
@@ -787,6 +1015,17 @@ async function submitResubmissionOutline(registrationId, fileData, userId, optio
                 stateVersion: { increment: 1 },
             },
         });
+
+        if (idempotencyKey && tx.idempotencyRecord?.create) {
+            await tx.idempotencyRecord.create({
+                data: {
+                    scope,
+                    key: idempotencyKey,
+                    commandHash: cmdHash,
+                    response: newSubmission,
+                },
+            });
+        }
 
         return newSubmission;
     });

@@ -189,8 +189,10 @@ model Semester {
   outlineTemplateAssetId      String?                       @map("outline_template_asset_id")
   outlineTemplateAsset        StoredAsset?                  @relation("SemesterOutlineTemplate", fields: [outlineTemplateAssetId], references: [id], onDelete: SetNull)
   outlineTemplateFileId       Int?                          @map("outline_template_file_id")
-  outlineAllowedExtensions    Json                          @default("[\".docx\", \".pdf\"]") @map("outline_allowed_extensions")
+  outlineAllowedExtensions    Json                          @default("[\".pdf\"]") @map("outline_allowed_extensions")
   outlineMaxFileSizeBytes     Int                           @default(20971520) @map("outline_max_file_size_bytes")
+  bm03MidtermEvaluationOpenAt DateTime?                     @map("bm03_midterm_evaluation_open_at")
+  bm03FinalizationOpenAt      DateTime?                     @map("bm03_finalization_open_at")
   lockedPolicyVersionId       Int?                          @map("locked_policy_version_id")
   lockedPolicyVersion         PeriodWorkflowPolicyVersion?  @relation("SemesterLockedPolicy", fields: [lockedPolicyVersionId], references: [id], onDelete: Restrict)
   lockedDefenseRubricVersionId  Int?                          @map("locked_defense_rubric_version_id")
@@ -396,9 +398,13 @@ model BM02Submission {
   outcome                BM02Outcome                 @default(PENDING_REVIEW)
   issues                 Json?
   content                String?                     @db.Text
-  bm01ApprovedTitle      String?                     @map("bm01_approved_title")
-  bm02ProposedTitle      String?                     @map("bm02_proposed_title")
-  titleChangeReason      String?                     @map("title_change_reason") @db.Text
+  bm01ApprovedTitle          String?                     @map("bm01_approved_title")
+  bm02ProposedTitle          String?                     @map("bm02_proposed_title")
+  titleChangeReason          String?                     @map("title_change_reason") @db.Text
+  payloadHash                String?                     @map("payload_hash")
+  studentSignatureEventId    Int?                        @map("student_signature_event_id")
+  advisorSignatureEventId    Int?                        @map("advisor_signature_event_id")
+  departmentSignatureEventId Int?                        @map("department_signature_event_id")
   studentSnapshot        Json?                       @map("student_snapshot")
   mentorSnapshot         Json?                       @map("mentor_snapshot")
   fileUrl                String?                     @map("file_url")

@@ -271,14 +271,14 @@ async function signCheckpoint(input, options = {}) {
             },
         });
 
-        // Xác định trạng thái kế tiếp khi đã có đủ 2 chữ ký
+        // Xác định trạng thái kế tiếp khi đã có đủ 2 chữ ký.
+        // Checkpoint 1 & 2 giữ nguyên vai trò chứng cứ lịch sử (IN_PROGRESS_BM03),
+        // KHÔNG tự chuyển hồ sơ đang mở sang BM03_PASSED.
         let targetStatus;
         if (evaluation.conclusion === 'NOT_ALLOWED_TO_CONTINUE') {
             targetStatus = 'TERMINATED_FAILED_PROGRESS';
-        } else if (evaluation.checkpointNo === 1) {
+        } else {
             targetStatus = 'IN_PROGRESS_BM03';
-        } else if (evaluation.checkpointNo === 2) {
-            targetStatus = 'BM03_PASSED';
         }
 
         const transitionResult = await transitionRegistration({

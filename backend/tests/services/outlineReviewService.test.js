@@ -3,7 +3,11 @@ const {
     ForbiddenError,
     NotFoundError,
     ConflictError,
+    UnprocessableEntityError,
 } = require('../../src/utils/errors');
+
+const { getAssetPolicy } = require('../../src/storage/assetPolicyCatalog');
+const { storedAssetService, StoredAssetServiceError } = require('../../src/services/storedAssetService');
 
 const {
     submitInitialOutline,
@@ -607,7 +611,10 @@ describe('outlineReviewService & outlineSweepService', () => {
             });
 
             await expect(
-                submitResubmissionOutline(102, fileData, 11, { db: mockDb })
+                submitResubmissionOutline(102, fileData, 11, {
+                    db: mockDb,
+                    now: new Date('2026-11-10T00:00:00Z'),
+                })
             ).rejects.toThrow(ConflictError);
         });
 
@@ -825,6 +832,408 @@ describe('outlineReviewService & outlineSweepService', () => {
 
             expect(result.terminatedCount).toBe(1);
             expect(result.affectedRegistrationIds).toContain(106);
+        });
+    });
+
+    describe('10. BM01 PDF Policy & Content Persistence (Task 1 & Task 2)', () => {
+        const now = new Date('2026-11-10T10:00:00Z');
+        const validV1Content = JSON.stringify({
+            formCode: 'BM01',
+            taskType: 'BM01_INITIAL_SUBMISSION',
+            submittedAt: '1999-01-01T00:00:00.000Z',
+            fields: {
+                topicTitle: 'Hệ thống quản lý đồ án',
+                objectives: 'Xây dựng quy trình nộp và duyệt trực tuyến',
+                technologies: 'React, Node.js, PostgreSQL',
+                deliverables: 'Mã nguồn, báo cáo đồ án',
+            },
+        });
+        const validV2Content = JSON.stringify({
+            formCode: 'BM01',
+            taskType: 'BM01_RESUBMISSION',
+            submittedAt: '1999-01-01T00:00:00.000Z',
+            fields: {
+                topicTitle: 'Hệ thống quản lý đồ án',
+                revisionSummary: 'Đã bổ sung kiến trúc và kiểm thử bảo mật',
+            },
+        });
+
+        let assertAssetSpy;
+
+        beforeEach(() => {
+            assertAssetSpy = jest.spyOn(storedAssetService, 'assertAssetAccess');
+        });
+
+        afterEach(() => {
+            assertAssetSpy.mockRestore();
+        });
+
+        it('getAssetPolicy("BM01") allows only PDF up to 20 MB', () => {
+            const policy = getAssetPolicy('BM01');
+            expect(policy.extensions).toEqual(['pdf']);
+            expect(policy.mimeTypes).toEqual(['application/pdf']);
+            expect(policy.maxBytes).toBe(20971520);
+        });
+
+        it('rejects .docx on v1 even when legacy semester.outlineAllowedExtensions includes .docx', async () => {
+            mockTx.topicRegistration.findUnique.mockResolvedValue({
+                id: 101,
+                studentId: 10,
+                status: 'APPROVED',
+                semesterId: 1,
+            });
+            mockTx.semester.findUnique.mockResolvedValue({
+                id: 1,
+                outlineAllowedExtensions: ['.docx', '.pdf'],
+                outlineMaxFileSizeBytes: 20 * 1024 * 1024,
+            });
+
+            await expect(
+                submitInitialOutline(
+                    101,
+                    {
+                        fileName: 'legacy.docx',
+                        fileUrl: 'https://storage/legacy.docx',
+                        fileSize: 10240,
+                        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    },
+                    10,
+                    { db: mockDb, now, content: validV1Content }
+                )
+            ).rejects.toThrow(BadRequestError);
+            expect(mockTx.submission.create).not.toHaveBeenCalled();
+            expect(mockTx.topicRegistration.update).not.toHaveBeenCalled();
+        });
+
+        it('rejects fake PDF (inspected asset is not application/pdf) and > 20 MB PDF', async () => {
+            mockTx.topicRegistration.findUnique.mockResolvedValue({
+                id: 101,
+                studentId: 10,
+                status: 'APPROVED',
+                semesterId: 1,
+            });
+            mockTx.semester.findUnique.mockResolvedValue({
+                id: 1,
+                outlineMaxFileSizeBytes: 20 * 1024 * 1024,
+            });
+
+            assertAssetSpy.mockResolvedValue({
+                id: 'asset-fake-pdf',
+                documentType: 'BM01',
+                ownerUserId: 10,
+                registrationId: 101,
+                extension: 'docx',
+                detectedMime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                sizeBytes: BigInt(1024),
+                scanStatus: 'PASSED',
+            });
+
+            await expect(
+                submitInitialOutline(
+                    101,
+                    {
+                        assetId: 'asset-fake-pdf',
+                        fileName: 'fake.pdf',
+                        fileUrl: 'https://storage/fake.pdf',
+                        fileSize: 1024,
+                        mimeType: 'application/pdf',
+                    },
+                    10,
+                    { db: mockDb, now, content: validV1Content }
+                )
+            ).rejects.toThrow(BadRequestError);
+
+            await expect(
+                submitInitialOutline(
+                    101,
+                    {
+                        fileName: 'huge.pdf',
+                        fileUrl: 'https://storage/huge.pdf',
+                        fileSize: 20 * 1024 * 1024 + 1,
+                        mimeType: 'application/pdf',
+                    },
+                    10,
+                    { db: mockDb, now, content: validV1Content }
+                )
+            ).rejects.toThrow(BadRequestError);
+
+            expect(mockTx.submission.create).not.toHaveBeenCalled();
+        });
+
+        it('rejects .docx on v2 resubmission', async () => {
+            mockTx.topicRegistration.findUnique.mockResolvedValue({
+                id: 102,
+                studentId: 11,
+                status: 'BM01_NEEDS_REVISION',
+                outlineCouncil: { revisionSubmissionDeadline: new Date('2026-11-15T00:00:00Z') },
+            });
+            mockTx.bM01Evaluation.findFirst.mockResolvedValue({
+                id: 502,
+                registrationId: 102,
+                revisionSubmissionId: null,
+            });
+
+            await expect(
+                submitResubmissionOutline(
+                    102,
+                    {
+                        fileName: 'v2.docx',
+                        fileUrl: 'https://storage/v2.docx',
+                        fileSize: 1024,
+                    },
+                    11,
+                    { db: mockDb, now, content: validV2Content }
+                )
+            ).rejects.toThrow(BadRequestError);
+            expect(mockTx.submission.create).not.toHaveBeenCalled();
+        });
+
+        it('persists normalized BM01 content (with server submittedAt) and assetId in v1 transaction', async () => {
+            mockTx.topicRegistration.findUnique.mockResolvedValue({
+                id: 101,
+                studentId: 10,
+                status: 'APPROVED',
+                semesterId: 1,
+                periodPolicyVersionId: 1,
+            });
+            mockTx.semester.findUnique.mockResolvedValue({
+                id: 1,
+                outlineSubmissionOpenAt: new Date('2026-11-01T00:00:00Z'),
+                outlineSubmissionDeadline: new Date('2026-11-20T00:00:00Z'),
+                outlineMaxFileSizeBytes: 20 * 1024 * 1024,
+            });
+            assertAssetSpy.mockResolvedValue({
+                id: 'asset-pdf-101',
+                documentType: 'BM01',
+                ownerUserId: 10,
+                registrationId: 101,
+                originalName: 'de_cuong_v1.pdf',
+                extension: 'pdf',
+                detectedMime: 'application/pdf',
+                sizeBytes: BigInt(50000),
+                scanStatus: 'PASSED',
+            });
+            mockTx.task.findFirst.mockResolvedValue({ id: 201 });
+            mockTx.submission.create.mockResolvedValue({
+                id: 301,
+                registrationId: 101,
+                assetId: 'asset-pdf-101',
+                fileName: 'de_cuong_v1.pdf',
+                submittedAt: now,
+            });
+            mockTx.bM01Evaluation.findFirst.mockResolvedValue(null);
+            mockTx.bM01Evaluation.create.mockResolvedValue({ id: 401 });
+            mockTx.topicRegistration.update.mockResolvedValue({ id: 101, status: 'BM01_SUBMITTED' });
+
+            const result = await submitInitialOutline(
+                {
+                    registrationId: 101,
+                    fileData: {
+                        assetId: 'asset-pdf-101',
+                        fileName: 'de_cuong_v1.pdf',
+                        fileUrl: 'https://storage/de_cuong_v1.pdf',
+                        fileSize: 50000,
+                        mimeType: 'application/pdf',
+                    },
+                    content: validV1Content,
+                },
+                10,
+                { db: mockDb, now }
+            );
+
+            expect(result.id).toBe(301);
+            const createCall = mockTx.submission.create.mock.calls[0][0].data;
+            expect(createCall.assetId).toBe('asset-pdf-101');
+            expect(createCall.fileName).toBe('de_cuong_v1.pdf');
+            expect(createCall.submittedAt).toEqual(now);
+
+            const savedContent = JSON.parse(createCall.content);
+            expect(savedContent.formCode).toBe('BM01');
+            expect(savedContent.taskType).toBe('BM01_INITIAL_SUBMISSION');
+            expect(savedContent.submittedAt).toBe(now.toISOString());
+            expect(savedContent.fields).toEqual({
+                topicTitle: 'Hệ thống quản lý đồ án',
+                objectives: 'Xây dựng quy trình nộp và duyệt trực tuyến',
+                technologies: 'React, Node.js, PostgreSQL',
+                deliverables: 'Mã nguồn, báo cáo đồ án',
+            });
+        });
+
+        it('rejects v1 when BM01 content is missing required fields or asset belongs to another registration', async () => {
+            mockTx.topicRegistration.findUnique.mockResolvedValue({
+                id: 101,
+                studentId: 10,
+                status: 'APPROVED',
+                semesterId: 1,
+            });
+            mockTx.semester.findUnique.mockResolvedValue({ id: 1 });
+
+            // Missing objectives
+            await expect(
+                submitInitialOutline(
+                    101,
+                    { fileName: 'de_cuong.pdf', fileUrl: 'https://storage/de_cuong.pdf', fileSize: 1024 },
+                    10,
+                    {
+                        db: mockDb,
+                        now,
+                        content: JSON.stringify({
+                            formCode: 'BM01',
+                            taskType: 'BM01_INITIAL_SUBMISSION',
+                            fields: { topicTitle: 'A' },
+                        }),
+                    }
+                )
+            ).rejects.toThrow(BadRequestError);
+
+            // Asset belongs to another registration
+            assertAssetSpy.mockResolvedValue({
+                id: 'asset-other-reg',
+                documentType: 'BM01',
+                ownerUserId: 10,
+                registrationId: 999,
+                extension: 'pdf',
+                detectedMime: 'application/pdf',
+                sizeBytes: BigInt(1024),
+                scanStatus: 'PASSED',
+            });
+
+            await expect(
+                submitInitialOutline(
+                    101,
+                    {
+                        assetId: 'asset-other-reg',
+                        fileName: 'de_cuong.pdf',
+                        fileUrl: 'https://storage/de_cuong.pdf',
+                        fileSize: 1024,
+                    },
+                    10,
+                    { db: mockDb, now, content: validV1Content }
+                )
+            ).rejects.toThrow(ForbiddenError);
+
+            // Asset belongs to another user
+            assertAssetSpy.mockRejectedValue(
+                new StoredAssetServiceError('Unauthorized asset access', 'FORBIDDEN', 403)
+            );
+            await expect(
+                submitInitialOutline(
+                    101,
+                    {
+                        assetId: 'asset-other-user',
+                        fileName: 'de_cuong.pdf',
+                        fileUrl: 'https://storage/de_cuong.pdf',
+                        fileSize: 1024,
+                    },
+                    10,
+                    { db: mockDb, now, content: validV1Content }
+                )
+            ).rejects.toThrow(ForbiddenError);
+
+            expect(mockTx.submission.create).not.toHaveBeenCalled();
+            expect(mockTx.topicRegistration.update).not.toHaveBeenCalled();
+        });
+
+        it('persists normalized BM01 content and assetId in v2 resubmission and enforces idempotency key', async () => {
+            mockTx.topicRegistration.findUnique.mockResolvedValue({
+                id: 102,
+                studentId: 11,
+                status: 'BM01_NEEDS_REVISION',
+                outlineCouncil: { revisionSubmissionDeadline: new Date('2026-11-15T00:00:00Z') },
+            });
+            mockTx.bM01Evaluation.findFirst.mockResolvedValue({
+                id: 502,
+                registrationId: 102,
+                revisionSubmissionId: null,
+            });
+            assertAssetSpy.mockResolvedValue({
+                id: 'asset-pdf-v2',
+                documentType: 'BM01',
+                ownerUserId: 11,
+                registrationId: 102,
+                extension: 'pdf',
+                detectedMime: 'application/pdf',
+                sizeBytes: BigInt(20480),
+                scanStatus: 'PASSED',
+            });
+            mockTx.task.findFirst.mockResolvedValue({ id: 801 });
+            mockTx.idempotencyRecord.findUnique.mockResolvedValue(null);
+            mockTx.submission.create.mockResolvedValue({
+                id: 901,
+                registrationId: 102,
+                assetId: 'asset-pdf-v2',
+                fileName: 'v2.pdf',
+                submittedAt: now,
+            });
+            mockTx.bM01Evaluation.updateMany.mockResolvedValue({ count: 1 });
+            mockTx.topicRegistration.update.mockResolvedValue({ id: 102, status: 'BM01_RESUBMITTED' });
+
+            const firstResult = await submitResubmissionOutline(
+                {
+                    registrationId: 102,
+                    fileData: {
+                        assetId: 'asset-pdf-v2',
+                        fileName: 'v2.pdf',
+                        fileUrl: 'https://storage/v2.pdf',
+                        fileSize: 20480,
+                    },
+                    content: validV2Content,
+                    idempotencyKey: 'bm01-v2-key-1',
+                },
+                11,
+                { db: mockDb, now }
+            );
+
+            expect(firstResult.id).toBe(901);
+            const createCall = mockTx.submission.create.mock.calls[0][0].data;
+            const savedContent = JSON.parse(createCall.content);
+            expect(savedContent.formCode).toBe('BM01');
+            expect(savedContent.taskType).toBe('BM01_RESUBMISSION');
+            expect(savedContent.submittedAt).toBe(now.toISOString());
+            expect(savedContent.fields.revisionSummary).toBe('Đã bổ sung kiến trúc và kiểm thử bảo mật');
+            expect(mockTx.idempotencyRecord.create).toHaveBeenCalledTimes(1);
+
+            // Replay with same idempotencyKey and same payload
+            const createdRecord = mockTx.idempotencyRecord.create.mock.calls[0][0].data;
+            mockTx.idempotencyRecord.findUnique.mockResolvedValue(createdRecord);
+            mockTx.submission.create.mockClear();
+
+            const replayResult = await submitResubmissionOutline(
+                {
+                    registrationId: 102,
+                    fileData: {
+                        assetId: 'asset-pdf-v2',
+                        fileName: 'v2.pdf',
+                        fileUrl: 'https://storage/v2.pdf',
+                        fileSize: 20480,
+                    },
+                    content: validV2Content,
+                    idempotencyKey: 'bm01-v2-key-1',
+                },
+                11,
+                { db: mockDb, now }
+            );
+            expect(replayResult.id).toBe(901);
+            expect(mockTx.submission.create).not.toHaveBeenCalled();
+
+            // Reuse same idempotencyKey with different payload -> UnprocessableEntityError
+            await expect(
+                submitResubmissionOutline(
+                    {
+                        registrationId: 102,
+                        fileData: {
+                            assetId: 'asset-pdf-v2',
+                            fileName: 'v2-different.pdf',
+                            fileUrl: 'https://storage/v2-different.pdf',
+                            fileSize: 20480,
+                        },
+                        content: validV2Content,
+                        idempotencyKey: 'bm01-v2-key-1',
+                    },
+                    11,
+                    { db: mockDb, now }
+                )
+            ).rejects.toThrow(UnprocessableEntityError);
         });
     });
 });

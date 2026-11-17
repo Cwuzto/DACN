@@ -177,6 +177,18 @@ describe('Task 5: Chặng 2 Backend — BM03 Guidance Meetings, Midterm/Final Ev
             studentId,
             status: 'IN_PROGRESS_BM03',
             stateVersion: 1,
+            semester: {
+                id: 1,
+                bm03MidtermEvaluationOpenAt: new Date('2026-10-01T00:00:00Z'),
+                bm03FinalizationOpenAt: new Date('2026-11-01T00:00:00Z'),
+            },
+            periodPolicyVersion: {
+                id: 11,
+                policy: {
+                    bm03MidtermEvaluationOpenAt: '2026-10-01T00:00:00.000Z',
+                    bm03FinalizationOpenAt: '2026-11-01T00:00:00.000Z',
+                },
+            },
             topic: {
                 id: 42,
                 title: 'Hệ thống nhận dạng biển số xe',
@@ -765,6 +777,8 @@ describe('Task 5: Chặng 2 Backend — BM03 Guidance Meetings, Midterm/Final Ev
         it('advisor signs whole BM03: records signature event, opens 48h student acknowledgement window', async () => {
             mockBM03ProgressRecord.findUnique.mockResolvedValueOnce({
                 ...baseBM03Record,
+                midtermStageEvaluationId: 10,
+                finalStageEvaluationId: 12,
                 finalConclusion: 'CONTINUE_TO_BM04',
             });
             mockElectronicSignatureEvent.create.mockResolvedValueOnce({ id: 101 });
@@ -1046,6 +1060,10 @@ describe('Task 5: Chặng 2 Backend — BM03 Guidance Meetings, Midterm/Final Ev
         });
 
         it('POST /api/bm03/:registrationId/final-evaluation submits final evaluation', async () => {
+            mockBM03ProgressRecord.findUnique.mockResolvedValueOnce({
+                ...baseBM03Record,
+                midtermStageEvaluationId: 10,
+            });
             mockBM03StageEvaluation.create.mockResolvedValueOnce({
                 id: 12,
                 bm03RecordId,
@@ -1141,6 +1159,8 @@ describe('Task 5: Chặng 2 Backend — BM03 Guidance Meetings, Midterm/Final Ev
         it('POST /api/bm03/:id/advisor-sign signs whole BM03 form', async () => {
             mockBM03ProgressRecord.findUnique.mockResolvedValueOnce({
                 ...baseBM03Record,
+                midtermStageEvaluationId: 10,
+                finalStageEvaluationId: 12,
                 finalConclusion: 'CONTINUE_TO_BM04',
             });
             mockElectronicSignatureEvent.create.mockResolvedValueOnce({ id: 101 });

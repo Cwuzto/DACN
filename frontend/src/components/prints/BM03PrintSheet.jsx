@@ -17,25 +17,12 @@ export default function BM03PrintSheet({
     checkpoints = {},
 }) {
     const s = student?.fullName ? student : registration?.student || {};
-    const m = mentor?.fullName ? mentor : registration?.topic?.mentor || bm03Record?.advisorSignedBy || {};
+    const m = mentor?.fullName ? mentor : registration?.mentor || registration?.topic?.mentor || bm03Record?.advisorSignedBy || {};
     const topic = registration?.topic || {};
     const title = registration?.adjustedTitle || registration?.bm01ApprovedTitleSnapshot || bm03Record?.effectiveTitleSnapshot || topic?.title || '................................................................................................................';
 
-    const studentClass = s.studentProfile?.className || s.className || s.class || s.studentClass || 'D22CNTT01';
+    const studentClass = s.studentProfile?.className || s.className || s.class || s.studentClass || '....................';
     const studentCode = s.code || s.studentCode || s.studentProfile?.studentCode || '..........................';
-    const studentMajor = s.studentProfile?.major || s.major || 'Công nghệ thông tin';
-
-    // 10 default sample or real weeks
-    const defaultMeetings = [
-        { week: 1, date: '24/08/2025', plan: 'Gặp mặt giáo viên hướng dẫn, xác định phạm vi và tên đề tài.', comment: 'Đạt, thống nhất tên đề tài.' },
-        { week: 2, date: '31/08/2025', plan: 'Lập danh sách chức năng website và biểu mẫu khảo sát.', comment: 'Yêu cầu bổ sung phân quyền người dùng.' },
-        { week: 3, date: '03/09/2025', plan: 'Phân tích thiết kế kiến trúc hệ thống và cơ sở dữ liệu.', comment: 'Mô hình dữ liệu cơ bản ổn định.' },
-        { week: 4, date: '20/09/2025', plan: 'Tạo khung dự án, thiết lập kết nối CSDL và phân quyền JWT.', comment: 'Hoàn thành tốt đúng hạn.' },
-        { week: 5, date: '02/10/2025', plan: 'Hiện thực hóa các API nghiệp vụ cốt lõi và kiểm thử đơn vị.', comment: 'Cần tối ưu câu truy vấn bảng điểm.' },
-        { week: 6, date: '15/10/2025', plan: 'Xây dựng giao diện web cho Admin và Sinh viên.', comment: 'Giao diện thân thiện, bám sát Ant Design.' },
-        { week: 7, date: '28/10/2025', plan: 'Tích hợp chức năng phân công hội đồng và sổ điểm.', comment: 'Hoàn thành cơ bản các chức năng.' },
-        { week: 8, date: '10/11/2025', plan: 'Kiểm thử toàn diện, viết báo cáo tổng kết và chuẩn bị nghiệm thu.', comment: 'Đủ điều kiện hoàn tất tiến độ đồ án.' },
-    ];
 
     const rawList = (progressRecords && progressRecords.length > 0)
         ? progressRecords
@@ -43,26 +30,60 @@ export default function BM03PrintSheet({
             ? meetingLogs
             : (bm03Record?.meetings && bm03Record.meetings.length > 0)
                 ? bm03Record.meetings
-                : null;
+                : [];
 
-    const meetings = rawList
-        ? rawList.map((r, idx) => ({
-            week: r.weekNumber || r.versionNumber || idx + 1,
-            date: r.meetingDate ? new Date(r.meetingDate).toLocaleDateString('vi-VN') : (r.date || '...../...../202...'),
-            plan: r.taskContent || r.plan || r.discussionContent || r.studentCompletedWork || 'Làm việc theo kế hoạch phân công.',
-            comment: r.mentorFeedback || r.comment || (r.progressRating ? `Đánh giá: ${r.progressRating === 'ON_TRACK' ? 'Đúng tiến độ' : r.progressRating}. ${r.remainingIssues || 'Hoàn thành tốt'}` : 'Hoàn thành đạt yêu cầu.'),
-        }))
-        : defaultMeetings;
+    // Filter out superseded meeting entries so only active versions appear in print sheet
+    const activeMeetingsRaw = [...rawList]
+        .filter((r) => !r?.supersededBy && !r?.isSuperseded)
+        .sort((a, b) => {
+            const dateDiff = new Date(a?.meetingDate || 0) - new Date(b?.meetingDate || 0);
+            if (dateDiff !== 0) return dateDiff;
+            return (a?.id || 0) - (b?.id || 0);
+        });
 
-    const midtermEval = bm03Record?.midtermStageEvaluation || bm03Record?.stageEvaluations?.find(e => e.stage === 'MIDTERM');
-    const finalEval = bm03Record?.finalStageEvaluation || bm03Record?.stageEvaluations?.find(e => e.stage === 'FINAL');
+    const meetings = activeMeetingsRaw.map((r, idx) => ({
+        week: r.weekNumber || r.meetingIndex || idx + 1,
+        date: r.meetingDate ? new Date(r.meetingDate).toLocaleDateString('vi-VN') : (r.date || '...../...../202...'),
+        plan: r.taskContent || r.plan || r.discussionContent || r.studentCompletedWork || '—',
+        comment: r.mentorFeedback || r.comment || (r.progressRating ? `Đánh giá: ${r.progressRating === 'ON_TRACK' ? 'Đúng tiến độ' : r.progressRating}${r.remainingIssues ? `. ${r.remainingIssues}` : ''}` : 'Chưa có nhận xét'),
+    }));
 
-    const cp1Passed = checkpoints?.cp1Passed !== false && (midtermEval ? midtermEval.decision === 'CONTINUE' : true);
-    const cp2Passed = checkpoints?.cp2Passed !== false && (finalEval ? (finalEval.decision === 'CONTINUE' || finalEval.decision === 'CONTINUE_TO_BM04') : true);
+    const midtermEval = bm03Record?.midtermStageEvaluation || bm03Record?.stageEvaluations?.find((e) => e.stage === 'MIDTERM');
+    const finalEval = bm03Record?.finalStageEvaluation || bm03Record?.stageEvaluations?.find((e) => e.stage === 'FINAL');
+
+    // Only mark passed/failed from real BM03StageEvaluation records (never default from legacy checkpoints or registration status)
+    let cp1Status = null;
+    if (midtermEval?.decision === 'CONTINUE') {
+        cp1Status = true;
+    } else if (midtermEval?.decision === 'STOP' || midtermEval?.decision === 'PROPOSE_STOP') {
+        cp1Status = false;
+    }
+
+    let cp2Status = null;
+    if (finalEval?.decision === 'CONTINUE' || finalEval?.decision === 'CONTINUE_TO_BM04') {
+        cp2Status = true;
+    } else if (finalEval?.decision === 'STOP' || finalEval?.decision === 'PROPOSE_STOP') {
+        cp2Status = false;
+    }
+
+    const ackStatusLabels = {
+        ACKNOWLEDGED: 'Đã xác nhận nội bộ',
+        ACKNOWLEDGED_WITH_COMMENT: 'Đã xác nhận kèm ý kiến',
+        DECLINED_TO_ACKNOWLEDGE: 'Từ chối xác nhận',
+        ACKNOWLEDGEMENT_TIMEOUT: 'Quá hạn 48h (Hệ thống ghi nhận)',
+    };
+    const studentAckLabel = ackStatusLabels[bm03Record?.studentAckStatus] || null;
 
     const splitIndex = Math.max(1, Math.floor(meetings.length / 2));
     const firstHalfMeetings = meetings.slice(0, splitIndex);
     const secondHalfMeetings = meetings.slice(splitIndex);
+
+    const overallComment =
+        bm03Record?.finalComment ||
+        bm03Record?.overallComment ||
+        finalEval?.comments ||
+        finalEval?.comment ||
+        'Chưa có đánh giá chung cuối kỳ.';
 
     const currentDate = new Date();
     const day = String(currentDate.getDate()).padStart(2, '0');
@@ -76,7 +97,7 @@ export default function BM03PrintSheet({
                 <div className="w-[48%]">
                     <p className="font-normal text-[10.5pt] uppercase tracking-tight">TRƯỜNG ĐẠI HỌC THỦ DẦU MỘT</p>
                     <p className="font-bold text-[11.5pt] uppercase tracking-tight">VIỆN CÔNG NGHỆ SỐ</p>
-                    <p className="font-semibold text-[10pt] uppercase tracking-tight">BỘ MÔN: KỸ THUẬT PHẦN MỀM & HTTT</p>
+                    <p className="font-semibold text-[10pt] uppercase tracking-tight">BỘ MÔN: KỸ THUẬT PHẦN MỀM &amp; HTTT</p>
                     <div className="w-24 h-[1px] bg-black mx-auto mt-1" />
                 </div>
                 <div className="w-[50%]">
@@ -97,7 +118,7 @@ export default function BM03PrintSheet({
                 <h2 className="font-bold text-[13pt] uppercase tracking-normal mb-0.5">
                     THỰC HIỆN BÁO CÁO TỐT NGHIỆP
                 </h2>
-                <p className="text-[10pt] italic text-slate-700">(Mã biểu mẫu: BM03 - Sổ theo dõi tiến độ & Checkpoint)</p>
+                <p className="text-[10pt] italic text-slate-700">(Mã biểu mẫu: BM03 - Sổ theo dõi tiến độ &amp; Checkpoint)</p>
             </div>
 
             {/* Thông tin sinh viên & đề tài */}
@@ -108,8 +129,8 @@ export default function BM03PrintSheet({
                     &nbsp;&nbsp;Lớp: <strong>{studentClass}</strong>
                 </p>
                 <p>
-                    Điện thoại: <strong>{s.phone || '0909123456'}</strong>
-                    &nbsp;&nbsp;&nbsp;&nbsp;Email: <strong>{s.email || `${s.code || 'sv'}@student.tdmu.edu.vn`}</strong>
+                    Điện thoại: <strong>{s.phone || '....................'}</strong>
+                    &nbsp;&nbsp;&nbsp;&nbsp;Email: <strong>{s.email || '....................'}</strong>
                 </p>
                 <div className="pt-1">
                     <p>2. Tên đề tài:</p>
@@ -131,14 +152,24 @@ export default function BM03PrintSheet({
                         </tr>
                     </thead>
                     <tbody>
-                        {firstHalfMeetings.map((mItem, idx) => (
-                            <tr key={idx}>
-                                <td className="border border-black p-1 text-center font-medium">{mItem.week}</td>
-                                <td className="border border-black p-1 text-center">{mItem.date}</td>
-                                <td className="border border-black p-1 text-justify">{mItem.plan}</td>
-                                <td className="border border-black p-1 text-center text-[9.5pt]">{mItem.comment}</td>
+                        {meetings.length === 0 ? (
+                            <tr>
+                                <td colSpan={4} className="border border-black p-2 text-center italic text-slate-500">
+                                    Chưa có nhật ký hướng dẫn được ghi nhận.
+                                </td>
                             </tr>
-                        ))}
+                        ) : (
+                            <>
+                                {firstHalfMeetings.map((mItem, idx) => (
+                                    <tr key={idx}>
+                                        <td className="border border-black p-1 text-center font-medium">{mItem.week}</td>
+                                        <td className="border border-black p-1 text-center">{mItem.date}</td>
+                                        <td className="border border-black p-1 text-justify">{mItem.plan}</td>
+                                        <td className="border border-black p-1 text-center text-[9.5pt]">{mItem.comment}</td>
+                                    </tr>
+                                ))}
+                            </>
+                        )}
 
                         {/* Checkpoint 1 Row */}
                         <tr className="bg-emerald-50/50 font-medium">
@@ -148,8 +179,8 @@ export default function BM03PrintSheet({
                                         <strong>ĐÁNH GIÁ TIẾN ĐỘ ĐỢT 1 (CHECKPOINT 1):</strong>
                                     </span>
                                     <span>
-                                        Được tiếp tục: {cp1Passed ? '☑' : '◻'} &nbsp;&nbsp;&nbsp;&nbsp;
-                                        Không tiếp tục: {!cp1Passed ? '☑' : '◻'}
+                                        Được tiếp tục: {cp1Status === true ? '☑' : '◻'} &nbsp;&nbsp;&nbsp;&nbsp;
+                                        Không tiếp tục: {cp1Status === false ? '☑' : '◻'}
                                     </span>
                                 </div>
                             </td>
@@ -172,8 +203,8 @@ export default function BM03PrintSheet({
                                         <strong>ĐÁNH GIÁ TIẾN ĐỘ ĐỢT 2 (CHECKPOINT 2):</strong>
                                     </span>
                                     <span>
-                                        Được tiếp tục: {cp2Passed ? '☑' : '◻'} &nbsp;&nbsp;&nbsp;&nbsp;
-                                        Không tiếp tục: {!cp2Passed ? '☑' : '◻'}
+                                        Được tiếp tục: {cp2Status === true ? '☑' : '◻'} &nbsp;&nbsp;&nbsp;&nbsp;
+                                        Không tiếp tục: {cp2Status === false ? '☑' : '◻'}
                                     </span>
                                 </div>
                             </td>
@@ -182,23 +213,56 @@ export default function BM03PrintSheet({
                 </table>
             </div>
 
-            {/* Nhận xét chung & Chữ ký của GVHD */}
+            {/* Nhận xét chung & Chữ ký của Sinh viên + GVHD */}
             <div className="mt-4 text-[11pt] leading-relaxed pl-1 page-break-avoid">
                 <p className="font-semibold mb-1">Đánh giá chung của Cán bộ hướng dẫn:</p>
                 <p className="italic text-justify pl-3 text-slate-800">
-                    Sinh viên có tinh thần học hỏi cao, bám sát kế hoạch tiến độ định kỳ, hoàn thành tốt các sản phẩm bàn giao theo yêu cầu.
+                    {overallComment}
                 </p>
 
-                <div className="flex justify-end text-center mt-6 pr-6">
+                <div className="grid grid-cols-2 gap-8 text-center mt-6 px-4">
+                    <div>
+                        <p className="font-bold uppercase">SINH VIÊN THỰC HIỆN</p>
+                        <p className="text-[10pt] italic">(Xác nhận toàn phiếu BM03)</p>
+                        <div className="min-h-16 flex flex-col justify-center">
+                            {studentAckLabel ? (
+                                <div className="mt-2 text-[9.5pt] text-emerald-800">
+                                    <p className="font-semibold">{studentAckLabel}</p>
+                                    {s.fullName && <p className="font-semibold text-black">{s.fullName}</p>}
+                                    {bm03Record?.studentAckAt && (
+                                        <p className="text-[8.5pt] text-slate-600">
+                                            {new Date(bm03Record.studentAckAt).toLocaleString('vi-VN')}
+                                        </p>
+                                    )}
+                                    {bm03Record?.studentComment && (
+                                        <p className="text-[8.5pt] italic text-slate-700 mt-0.5">
+                                            Ý kiến: {bm03Record.studentComment}
+                                        </p>
+                                    )}
+                                </div>
+                            ) : (
+                                <p className="mt-2 text-[9.5pt] italic text-slate-500">Chờ xác nhận</p>
+                            )}
+                        </div>
+                    </div>
+
                     <div>
                         <p className="font-bold uppercase">CÁN BỘ HƯỚNG DẪN</p>
                         <p className="text-[10pt] italic">(Ký và ghi rõ họ tên)</p>
-                        <div className="h-20" />
-                        <p className="font-semibold">{m.fullName || ''}</p>
+                        <div className="min-h-16 flex flex-col justify-center">
+                            {bm03Record?.advisorSignedAt ? (
+                                <div className="mt-2 text-[9.5pt] text-emerald-800">
+                                    <p className="font-semibold">Đã xác thực nội bộ</p>
+                                    {m.fullName && <p className="font-semibold text-black">{m.fullName}</p>}
+                                    <p className="text-[8.5pt] text-slate-600">{new Date(bm03Record.advisorSignedAt).toLocaleString('vi-VN')}</p>
+                                </div>
+                            ) : (
+                                <p className="mt-2 text-[9.5pt] italic text-slate-500">Chờ xác nhận</p>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
         </A4PageContainer>
     );
 }
-

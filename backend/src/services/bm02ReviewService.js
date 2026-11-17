@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const prisma = require('../config/database');
 const { transitionRegistration, WorkflowTransitionError } = require('./registrationTransitionService');
 const { validateAcademicScope } = require('./academicScopeService');
+const { verifyBM02SignatureChain } = require('./bm02SignatureService');
 
 const REVIEW_SCOPE = 'bm02-review-command';
 const ACTIONS = new Set(['APPROVE', 'RETURN_FOR_REVISION', 'EXCEPTION_REVIEW']);
@@ -70,10 +71,16 @@ async function reviewBM02(input, options = {}) {
                 where: { id: input.registrationId },
                 select: {
                     id: true,
+                    studentId: true,
                     status: true,
                     stateVersion: true,
                     periodPolicyVersionId: true,
                     currentBM02SubmissionId: true,
+                    topic: {
+                        select: {
+                            mentorId: true,
+                        },
+                    },
                 },
             });
             if (!registration) throw new WorkflowTransitionError('REGISTRATION_NOT_FOUND', 404);
@@ -106,6 +113,17 @@ async function reviewBM02(input, options = {}) {
                 }
             } else if (registration.status !== expectedNormalStatus || submission.outcome !== 'PENDING_REVIEW') {
                 throw new WorkflowTransitionError('INVALID_TRANSITION', 409);
+            }
+
+            if (input.action === 'APPROVE' && (submission.payloadHash || submission.studentSignatureEventId)) {
+                const verification = await verifyBM02SignatureChain(tx, submission, registration);
+                if (!verification.allValid) {
+                    throw new WorkflowTransitionError(
+                        'BM02_SIGNATURES_INCOMPLETE',
+                        409,
+                        'Hồ sơ BM02 phải có đủ 3 xác nhận hợp lệ (Sinh viên, GVHD, Phụ trách bộ môn) trước khi thẩm định duyệt.',
+                    );
+                }
             }
 
             const policyVersion = await tx.periodWorkflowPolicyVersion.findUnique({

@@ -12,29 +12,52 @@ const router = express.Router();
 
 router.use(authenticateToken);
 
+const outlineSubmissionValidators = [
+    body('registrationId')
+        .isInt({ min: 1 })
+        .withMessage('registrationId phải là số nguyên dương.'),
+    body('fileData')
+        .isObject()
+        .withMessage('fileData phải là object.'),
+    body('fileData.fileUrl')
+        .isString()
+        .trim()
+        .notEmpty()
+        .withMessage('fileUrl là bắt buộc.'),
+    body('fileData.fileName')
+        .isString()
+        .trim()
+        .notEmpty()
+        .withMessage('fileName là bắt buộc.'),
+    body('fileData.assetId')
+        .optional({ nullable: true })
+        .isString()
+        .trim()
+        .notEmpty()
+        .withMessage('fileData.assetId phải là chuỗi hợp lệ.'),
+    body('assetId')
+        .optional({ nullable: true })
+        .isString()
+        .trim()
+        .notEmpty()
+        .withMessage('assetId phải là chuỗi hợp lệ.'),
+    body('content')
+        .optional()
+        .custom((value) => {
+            if (typeof value === 'string') {
+                return value.trim().length > 0;
+            }
+            return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+        })
+        .withMessage('content phải là chuỗi JSON hoặc object hợp lệ.'),
+    validateRequest,
+];
+
 // Sinh viên nộp đề cương v1
 router.post(
     '/submissions',
     authorizePermission(PERMISSIONS.SUBMIT_BM01),
-    [
-        body('registrationId')
-            .isInt({ min: 1 })
-            .withMessage('registrationId phải là số nguyên dương.'),
-        body('fileData')
-            .isObject()
-            .withMessage('fileData phải là object.'),
-        body('fileData.fileUrl')
-            .isString()
-            .trim()
-            .notEmpty()
-            .withMessage('fileUrl là bắt buộc.'),
-        body('fileData.fileName')
-            .isString()
-            .trim()
-            .notEmpty()
-            .withMessage('fileName là bắt buộc.'),
-        validateRequest,
-    ],
+    outlineSubmissionValidators,
     outlineController.submitOutline
 );
 
@@ -42,25 +65,7 @@ router.post(
 router.post(
     '/resubmissions',
     authorizePermission(PERMISSIONS.SUBMIT_BM01),
-    [
-        body('registrationId')
-            .isInt({ min: 1 })
-            .withMessage('registrationId phải là số nguyên dương.'),
-        body('fileData')
-            .isObject()
-            .withMessage('fileData phải là object.'),
-        body('fileData.fileUrl')
-            .isString()
-            .trim()
-            .notEmpty()
-            .withMessage('fileUrl là bắt buộc.'),
-        body('fileData.fileName')
-            .isString()
-            .trim()
-            .notEmpty()
-            .withMessage('fileName là bắt buộc.'),
-        validateRequest,
-    ],
+    outlineSubmissionValidators,
     outlineController.submitResubmission
 );
 

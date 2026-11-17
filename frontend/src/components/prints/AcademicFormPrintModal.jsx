@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Modal, Button, Space, Tag, Tooltip } from 'antd';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Modal, Button, Space, Tag, Tooltip, Alert } from 'antd';
 import {
     PrinterOutlined,
     CloseOutlined,
@@ -21,6 +21,8 @@ export default function AcademicFormPrintModal({
     documentCode = 'A4',
     children,
     onPrint,
+    canPrint = true,
+    printBlockedReason = '',
 }) {
     const handleClose = onClose || onCancel;
     const [zoomScale, setZoomScale] = useState(1);
@@ -29,7 +31,42 @@ export default function AcademicFormPrintModal({
     const handleZoomOut = () => setZoomScale((prev) => Math.max(prev - 0.1, 0.7));
     const handleZoomReset = () => setZoomScale(1);
 
+    const clearAcademicPrintMode = useCallback(() => {
+        if (typeof document !== 'undefined' && document.body.getAttribute('data-print-mode') === 'academic-form') {
+            document.body.removeAttribute('data-print-mode');
+        }
+    }, []);
+
+    useEffect(() => {
+        if (!open || typeof document === 'undefined') {
+            clearAcademicPrintMode();
+            return undefined;
+        }
+
+        document.body.setAttribute('data-print-mode', 'academic-form');
+
+        const handleBeforePrint = () => {
+            document.body.setAttribute('data-print-mode', 'academic-form');
+        };
+        const handleAfterPrint = () => {
+            clearAcademicPrintMode();
+        };
+
+        window.addEventListener('beforeprint', handleBeforePrint);
+        window.addEventListener('afterprint', handleAfterPrint);
+
+        return () => {
+            window.removeEventListener('beforeprint', handleBeforePrint);
+            window.removeEventListener('afterprint', handleAfterPrint);
+            clearAcademicPrintMode();
+        };
+    }, [open, clearAcademicPrintMode]);
+
     const handlePrintClick = () => {
+        if (!canPrint) return;
+        if (typeof document !== 'undefined') {
+            document.body.setAttribute('data-print-mode', 'academic-form');
+        }
         if (typeof onPrint === 'function') {
             onPrint();
         } else {
@@ -96,6 +133,7 @@ export default function AcademicFormPrintModal({
                             type="primary"
                             icon={<PrinterOutlined />}
                             onClick={handlePrintClick}
+                            disabled={!canPrint}
                             className="bg-teal-700 hover:bg-teal-800 border-teal-700"
                         >
                             In văn bản
@@ -112,7 +150,13 @@ export default function AcademicFormPrintModal({
                 },
             }}
         >
+            {!canPrint && printBlockedReason && (
+                <div className="mb-3 no-print">
+                    <Alert type="warning" showIcon message={printBlockedReason} />
+                </div>
+            )}
             <div
+                data-academic-print-root=""
                 style={{
                     transform: `scale(${zoomScale})`,
                     transformOrigin: 'top center',

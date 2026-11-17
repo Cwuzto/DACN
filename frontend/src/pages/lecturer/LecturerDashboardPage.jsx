@@ -1,14 +1,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Alert, Button, Input, Select, Tag, message } from 'antd';
+import { Alert, Button, Card, Input, Select, Spin, Tag, message } from 'antd';
 import {
     BellOutlined,
     BookOutlined,
     CalendarOutlined,
+    CheckCircleOutlined,
     CheckOutlined,
+    ClockCircleOutlined,
     CloseOutlined,
     PlusOutlined,
     ReloadOutlined,
+    SafetyCertificateOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useQueryClient } from '@tanstack/react-query';
@@ -16,16 +19,103 @@ import { useQueryClient } from '@tanstack/react-query';
 import notificationService from '../../services/notificationService';
 import useAuthStore from '../../stores/authStore';
 import { queryKeys } from '../../query/queryKeys';
+import { getEffectivePermissions } from '../../auth/policyEvaluator';
 import { useSemesters } from '../../queries/semesterQueries';
-import { usePendingTitleAdjustments } from '../../queries/registrationQueries';
+import { usePendingTitleAdjustments, useRegistrations } from '../../queries/registrationQueries';
 import { useMeetingMutation } from '../../queries/meetingQueries';
 import { dashboardKeys, useLecturerOverview } from '../../queries/dashboardQueries';
+import { useBm02AdvisorSignMutation, useBm02Verification } from '../../queries/bm02VerificationQueries';
 import ContentSkeleton from '../../components/common/ContentSkeleton';
 import AcademicDossierDrawer from '../../components/prints/AcademicDossierDrawer';
 import OverviewKpis from '../../components/lecturer/OverviewKpis';
 import AttentionQueue from '../../components/lecturer/AttentionQueue';
 import SupervisedStudentList from '../../components/lecturer/SupervisedStudentList';
 import './lecturer-opendesign.css';
+
+function Bm02AdvisorRow({ registration, scope, advisorSignMutation }) {
+    const submission = registration.currentBM02Submission;
+    const verificationQuery = useBm02Verification(scope, submission?.id, Boolean(submission?.id));
+    const verification = verificationQuery.data || null;
+
+    const handleSign = async () => {
+        if (!submission?.id) return;
+        try {
+            await advisorSignMutation.mutateAsync({
+                submissionId: submission.id,
+                expectedPayloadHash: verification?.payloadHash || submission.payloadHash || null,
+            });
+            message.success('GVHD đã ký xác nhận đơn BM02.');
+        } catch (error) {
+            message.error(error?.message || 'Không thể ký xác nhận BM02.');
+        }
+    };
+
+    const renderStepTag = (label, step) => {
+        if (step?.valid === true) {
+            return (
+                <Tag color="success" icon={<CheckCircleOutlined />} className="m-0 text-xs">
+                    {label}: Đã xác thực nội bộ
+                </Tag>
+            );
+        }
+        return (
+            <Tag color="default" icon={<ClockCircleOutlined />} className="m-0 text-xs">
+                {label}: Chờ xác nhận
+            </Tag>
+        );
+    };
+
+    const canSignNow = Boolean(verification?.student?.valid && !verification?.advisor?.valid);
+
+    return (
+        <div className="rounded-lg border border-slate-200 bg-white p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="min-w-0 flex-1 space-y-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold text-sm text-slate-900">
+                        {registration.student?.fullName || 'Sinh viên'}
+                    </span>
+                    {registration.student?.code && (
+                        <span className="text-xs font-mono text-slate-500">
+                            {registration.student.code}
+                        </span>
+                    )}
+                    <Tag color="blue" className="m-0 text-xs">
+                        BM02 v{submission?.versionNo || 1}
+                    </Tag>
+                </div>
+                <p className="text-xs text-slate-700 m-0 break-words">
+                    {submission?.bm02ProposedTitle || registration.topic?.title || 'Đơn đăng ký đề tài BM02'}
+                </p>
+                {verificationQuery.isPending ? (
+                    <Spin size="small" />
+                ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                        {renderStepTag('Sinh viên', verification?.student)}
+                        {renderStepTag('GVHD', verification?.advisor)}
+                        {renderStepTag('Bộ môn', verification?.department)}
+                    </div>
+                )}
+            </div>
+            <div className="shrink-0">
+                {canSignNow ? (
+                    <Button
+                        type="primary"
+                        size="small"
+                        icon={<SafetyCertificateOutlined />}
+                        loading={advisorSignMutation.isPending}
+                        onClick={handleSign}
+                    >
+                        Ký xác nhận GVHD
+                    </Button>
+                ) : verification?.advisor?.valid ? (
+                    <Tag color="teal" icon={<CheckCircleOutlined />} className="m-0">
+                        GVHD đã ký
+                    </Tag>
+                ) : null}
+            </div>
+        </div>
+    );
+}
 
 export default function LecturerDashboardPage() {
     const navigate = useNavigate();
@@ -175,11 +265,34 @@ export default function LecturerDashboardPage() {
         }
     };
 
+    const effectiveSemesterId = selectedSemesterId ?? activeSemester?.id ?? undefined;
+    const effectivePermissions = useMemo(
+        () => getEffectivePermissions(user, { semesterId: effectiveSemesterId }),
+        [user, effectiveSemesterId],
+    );
+    const canAdvisorSignBm02 = effectivePermissions.has('BM02_ADVISOR_SIGN');
+    const advisorRegistrationsQuery = useRegistrations(
+        scope,
+        { semesterId: effectiveSemesterId },
+        Boolean(effectiveSemesterId) && canAdvisorSignBm02,
+    );
+    const advisorSignMutation = useBm02AdvisorSignMutation(scope);
+
+    const pendingAdvisorBm02Regs = useMemo(() => {
+        if (!canAdvisorSignBm02) return [];
+        const list = Array.isArray(advisorRegistrationsQuery.data) ? advisorRegistrationsQuery.data : [];
+        return list.filter(
+            (reg) =>
+                reg.currentBM02Submission
+                && Number(reg.topic?.mentorId) === Number(user?.id)
+                && ['BM02_SUBMITTED', 'BM02_RESUBMITTED'].includes(reg.status)
+                && reg.currentBM02Submission.outcome === 'PENDING_REVIEW',
+        );
+    }, [canAdvisorSignBm02, advisorRegistrationsQuery.data, user?.id]);
+
     if (overviewQuery.isPending && !overview) {
         return <ContentSkeleton variant="dashboard" />;
     }
-
-    const effectiveSemesterId = selectedSemesterId ?? activeSemester?.id ?? undefined;
 
     return (
         <section id="view-dashboard" className="lecturer-dashboard-scope space-y-5">
@@ -271,6 +384,37 @@ export default function LecturerDashboardPage() {
                             />
                         </div>
                     </div>
+
+                    {canAdvisorSignBm02 && pendingAdvisorBm02Regs.length > 0 && (
+                        <Card
+                            className="rounded-xl border border-slate-200 shadow-sm"
+                            styles={{ body: { padding: '16px 18px' } }}
+                        >
+                            <div className="flex items-center justify-between gap-2 mb-3">
+                                <div>
+                                    <h2 className="text-base font-bold text-slate-900 m-0">
+                                        Xác nhận đơn BM02 (Giảng viên hướng dẫn)
+                                    </h2>
+                                    <p className="text-xs text-slate-500 m-0 mt-0.5">
+                                        Chuỗi xác nhận 3 bước: Sinh viên → GVHD → Phụ trách bộ môn
+                                    </p>
+                                </div>
+                                <Tag color="blue" className="m-0 font-semibold">
+                                    {pendingAdvisorBm02Regs.length} hồ sơ
+                                </Tag>
+                            </div>
+                            <div className="space-y-2.5">
+                                {pendingAdvisorBm02Regs.map((reg) => (
+                                    <Bm02AdvisorRow
+                                        key={reg.id}
+                                        registration={reg}
+                                        scope={scope}
+                                        advisorSignMutation={advisorSignMutation}
+                                    />
+                                ))}
+                            </div>
+                        </Card>
+                    )}
 
                     {/* 4. Tác vụ phụ sau nội dung chính */}
                     <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-200">

@@ -1,6 +1,5 @@
 import React from 'react';
-import { Tag } from 'antd';
-import { SafetyCertificateOutlined, WarningOutlined } from '@ant-design/icons';
+import { WarningOutlined } from '@ant-design/icons';
 import A4PageContainer from './A4PageContainer';
 
 const ROLE_LABELS = {
@@ -24,36 +23,38 @@ const GRADE_CLASSIFICATION = [
  * Khổ A4 chuẩn hóa in ấn hành chính của Viện Công nghệ Số.
  * UTF-8 (no BOM)
  */
-export default function BM05PrintSheet({ registration = {} }) {
+export default function BM05PrintSheet({ registration = {}, summaryRecord = null }) {
+    const sr = summaryRecord || {};
     const student = registration.student || {};
     const topic = registration.topic || {};
-    const mentor = topic.mentor || {};
-    const council = registration.council || {};
+    const mentor = registration.mentor || topic.mentor || {};
+    const council = registration.council || registration.defenseCouncil || {};
     const defenseResult = registration.defenseResult || {};
-    const memberScores = defenseResult.memberScores || [];
+    const memberScores = sr.memberScores || defenseResult.memberScores || [];
     const councilMembers = council.members || [];
 
-    const isAbsent = Boolean(registration.isAbsent);
+    const isAbsent = Boolean(sr.isAbsent ?? registration.isAbsent);
 
     const chairMember = councilMembers.find((m) => m.roleInCouncil === 'CHAIRMAN');
     const secretaryMember = councilMembers.find((m) => m.roleInCouncil === 'SECRETARY');
-    const reviewerMember = councilMembers.find((m) => m.roleInCouncil === 'REVIEWER');
 
-    const chairName = chairMember?.lecturer?.fullName || 'Chủ tịch Hội đồng';
-    const secretaryName = secretaryMember?.lecturer?.fullName || 'Thư ký Hội đồng';
+    const chairName = sr.chairmanName || chairMember?.lecturer?.fullName || '';
+    const secretaryName = sr.secretaryName || secretaryMember?.lecturer?.fullName || '';
 
     const scoresList = memberScores
         .filter((row) => row.finalScore !== null && row.finalScore !== undefined)
         .map((row) => Number(row.finalScore));
 
+    const resolvedFinal = sr.finalScore ?? defenseResult.finalScore ?? null;
+
     const rawAverage = scoresList.length > 0
         ? (scoresList.reduce((acc, v) => acc + v, 0) / scoresList.length).toFixed(2)
-        : (defenseResult.finalScore !== null && defenseResult.finalScore !== undefined
-            ? Number(defenseResult.finalScore).toFixed(2)
+        : (resolvedFinal !== null && resolvedFinal !== undefined
+            ? Number(resolvedFinal).toFixed(2)
             : '—');
 
-    const numericFinal = defenseResult.finalScore !== null && defenseResult.finalScore !== undefined
-        ? Number(defenseResult.finalScore)
+    const numericFinal = resolvedFinal !== null && resolvedFinal !== undefined
+        ? Number(resolvedFinal)
         : (scoresList.length > 0
             ? Math.round((scoresList.reduce((acc, v) => acc + v, 0) / scoresList.length) * 10) / 10
             : null);
@@ -65,14 +66,29 @@ export default function BM05PrintSheet({ registration = {} }) {
         ? (GRADE_CLASSIFICATION.find((g) => numericFinal >= g.min) || { label: 'Chưa xếp loại' })
         : { label: 'Chưa xếp loại' };
 
-    const defenseDateFormatted = council.defenseDate
-        ? new Date(council.defenseDate).toLocaleDateString('vi-VN', {
+    const defenseDateRaw = sr.defenseDate || council.defenseDate;
+    const defenseDateFormatted = defenseDateRaw
+        ? new Date(defenseDateRaw).toLocaleDateString('vi-VN', {
             weekday: 'long',
             year: 'numeric',
             month: 'long',
             day: 'numeric',
         })
         : 'Chưa ấn định';
+
+    const councilName = sr.councilName || council.name || 'Chưa phân công';
+    const location = sr.location || council.location || '—';
+    const decisionCode = sr.decisionCode || council.decisionCode || '—';
+    const studentName = sr.studentName || student.fullName || '—';
+    const studentCode = sr.studentCode || student.code || '—';
+    const studentClass = student.studentProfile?.className || student.className || student.class || '—';
+    const studentMajor = student.studentProfile?.major || student.department || topic.major || '—';
+    const topicTitle = sr.topicTitle || registration.adjustedTitle || topic.title || '—';
+    const mentorName = sr.mentorName || mentor.fullName || '—';
+    const commentsText = sr.comments || registration.comments || defenseResult.comments || 'Chưa có nhận xét tổng hợp.';
+
+    const secretarySigned = Boolean(sr.secretarySignedAt);
+    const chairmanSigned = Boolean(sr.chairmanSignedAt);
 
     const currentDate = new Date();
     const day = String(currentDate.getDate()).padStart(2, '0');
@@ -112,10 +128,10 @@ export default function BM05PrintSheet({ registration = {} }) {
                     I. THÔNG TIN HỘI ĐỒNG &amp; BUỔI BẢO VỆ
                 </p>
                 <div className="grid grid-cols-2 gap-x-4 pl-2 text-[10.5pt]">
-                    <p>• <strong>Hội đồng:</strong> {council.name || 'Chưa phân công'}</p>
+                    <p>• <strong>Hội đồng:</strong> {councilName}</p>
                     <p>• <strong>Ngày bảo vệ:</strong> {defenseDateFormatted}</p>
-                    <p>• <strong>Địa điểm:</strong> {council.location || 'Phòng chuyên đề Viện'}</p>
-                    <p>• <strong>Quyết định thành lập:</strong> QĐ-VCN/2026</p>
+                    <p>• <strong>Địa điểm:</strong> {location}</p>
+                    <p>• <strong>Quyết định thành lập:</strong> {decisionCode}</p>
                 </div>
             </div>
 
@@ -125,15 +141,15 @@ export default function BM05PrintSheet({ registration = {} }) {
                     II. THÔNG TIN SINH VIÊN &amp; ĐỀ TÀI
                 </p>
                 <div className="grid grid-cols-2 gap-x-4 pl-2 text-[10.5pt]">
-                    <p>• <strong>Họ và tên SV:</strong> <span className="uppercase font-semibold">{student.fullName || '—'}</span></p>
-                    <p>• <strong>Mã số SV:</strong> <span className="font-semibold">{student.code || '—'}</span></p>
-                    <p>• <strong>Lớp / Khóa:</strong> {student.className || student.class || 'Lớp Đồ án'}</p>
-                    <p>• <strong>Chuyên ngành:</strong> {student.department || 'Công nghệ Thông tin'}</p>
+                    <p>• <strong>Họ và tên SV:</strong> <span className="uppercase font-semibold">{studentName}</span></p>
+                    <p>• <strong>Mã số SV:</strong> <span className="font-semibold">{studentCode}</span></p>
+                    <p>• <strong>Lớp / Khóa:</strong> {studentClass}</p>
+                    <p>• <strong>Chuyên ngành:</strong> {studentMajor}</p>
                     <div className="col-span-2 pt-0.5">
-                        <p>• <strong>Tên đề tài:</strong> <span className="font-semibold uppercase">{registration.adjustedTitle || topic.title || '—'}</span></p>
+                        <p>• <strong>Tên đề tài:</strong> <span className="font-semibold uppercase">{topicTitle}</span></p>
                     </div>
                     <div className="col-span-2">
-                        <p>• <strong>Giảng viên hướng dẫn:</strong> {mentor.fullName || '—'}</p>
+                        <p>• <strong>Giảng viên hướng dẫn:</strong> {mentorName}</p>
                     </div>
                 </div>
             </div>
@@ -169,7 +185,7 @@ export default function BM05PrintSheet({ registration = {} }) {
                                     <tr key={idx}>
                                         <td className="border border-black p-1 text-center font-mono">{idx + 1}</td>
                                         <td className="border border-black p-1 font-medium pl-2">{row.evaluator?.fullName || `Giám khảo ${idx + 1}`}</td>
-                                        <td className="border border-black p-1 text-center">{ROLE_LABELS[row.roleInCouncilSnapshot] || row.roleInCouncilSnapshot || (idx === 0 ? 'Chủ tịch' : idx === 1 ? 'Thư ký' : 'Ủy viên')}</td>
+                                        <td className="border border-black p-1 text-center">{ROLE_LABELS[row.roleInCouncilSnapshot] || row.roleInCouncilSnapshot || 'Thành viên'}</td>
                                         <td className="border border-black p-1 text-center font-bold">{row.finalScore !== null && row.finalScore !== undefined ? Number(row.finalScore).toFixed(2) : '—'}</td>
                                         <td className="border border-black p-1 text-center text-[9pt]">{row.scoreLocked ? 'Đã khóa' : 'Đang chấm'}</td>
                                     </tr>
@@ -212,7 +228,7 @@ export default function BM05PrintSheet({ registration = {} }) {
                     IV. Ý KIẾN NHẬN XÉT &amp; NỘI DUNG CẦN CHỈNH SỬA
                 </p>
                 <p className="italic text-slate-700 pl-2">
-                    {registration.comments || defenseResult.comments || 'Hội đồng thống nhất sinh viên hoàn thành tốt buổi bảo vệ khóa luận; yêu cầu rà soát và bổ sung các ý kiến góp ý của thành viên hội đồng trước khi nộp lưu chiểu.'}
+                    {commentsText}
                 </p>
             </div>
 
@@ -221,20 +237,26 @@ export default function BM05PrintSheet({ registration = {} }) {
                 <div>
                     <p className="font-bold uppercase text-slate-800">THƯ KÝ HỘI ĐỒNG</p>
                     <p className="italic text-[10pt] text-slate-500">(Ký và ghi rõ họ tên)</p>
-                    <div className="h-20" />
-                    <p className="font-bold text-slate-900">{secretaryName}</p>
-                    <p className="text-[9pt] text-emerald-700 flex items-center justify-center gap-1 mt-0.5">
-                        <SafetyCertificateOutlined /> Đã ký điện tử
-                    </p>
+                    <div className="min-h-16 flex flex-col justify-center mt-2">
+                        {secretaryName && <p className="font-bold text-slate-900">{secretaryName}</p>}
+                        {secretarySigned ? (
+                            <p className="text-[9pt] text-emerald-700 mt-0.5">Đã xác thực nội bộ</p>
+                        ) : (
+                            <p className="text-[9pt] italic text-slate-500 mt-0.5">Chờ xác nhận</p>
+                        )}
+                    </div>
                 </div>
                 <div>
                     <p className="font-bold uppercase text-slate-800">CHỦ TỊCH HỘI ĐỒNG</p>
                     <p className="italic text-[10pt] text-slate-500">(Ký và ghi rõ họ tên)</p>
-                    <div className="h-20" />
-                    <p className="font-bold text-slate-900">{chairName}</p>
-                    <p className="text-[9pt] text-emerald-700 flex items-center justify-center gap-1 mt-0.5">
-                        <SafetyCertificateOutlined /> Đã duyệt biên bản
-                    </p>
+                    <div className="min-h-16 flex flex-col justify-center mt-2">
+                        {chairName && <p className="font-bold text-slate-900">{chairName}</p>}
+                        {chairmanSigned ? (
+                            <p className="text-[9pt] text-emerald-700 mt-0.5">Đã xác thực nội bộ</p>
+                        ) : (
+                            <p className="text-[9pt] italic text-slate-500 mt-0.5">Chờ xác nhận</p>
+                        )}
+                    </div>
                 </div>
             </div>
         </A4PageContainer>

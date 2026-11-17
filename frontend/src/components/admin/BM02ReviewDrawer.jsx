@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
     Drawer,
     Button,
@@ -12,17 +12,29 @@ import {
     Divider,
     message,
     Alert,
+    Steps,
+    Spin,
 } from 'antd';
 import {
     CheckCircleOutlined,
     CloseCircleOutlined,
+    ClockCircleOutlined,
+    ExclamationCircleOutlined,
     FilePdfOutlined,
     InfoCircleOutlined,
+    SafetyCertificateOutlined,
 } from '@ant-design/icons';
+import dayjs from 'dayjs';
 import { reviewBM02 } from '../../services/registrationService';
 import { useQueryClient } from '@tanstack/react-query';
 import useAuthStore from '../../stores/authStore';
 import { queryKeys } from '../../query/queryKeys';
+import { getEffectivePermissions } from '../../auth/policyEvaluator';
+import {
+    useBm02AdvisorSignMutation,
+    useBm02DepartmentSignMutation,
+    useBm02Verification,
+} from '../../queries/bm02VerificationQueries';
 
 const { TextArea } = Input;
 const { Text } = Typography;
@@ -57,8 +69,66 @@ export default function BM02ReviewDrawer({
         setSelectedAction(val);
     };
 
+    const submission = registration?.currentBM02Submission;
+    const submissionId = submission?.id || registration?.currentBM02SubmissionId || null;
+    const semesterId = registration?.semesterId || registration?.topic?.semesterId || undefined;
+    const department = registration?.topic?.mentor?.department || registration?.topic?.proposedBy?.department || undefined;
+
+    const effectivePermissions = useMemo(
+        () => getEffectivePermissions(user, { semesterId, department }),
+        [user, semesterId, department],
+    );
+
+    const canAdvisorSign = effectivePermissions.has('BM02_ADVISOR_SIGN')
+        && Number(registration?.topic?.mentorId) === Number(user?.id);
+    const canDepartmentSign = effectivePermissions.has('BM02_DEPARTMENT_SIGN');
+    const canAcademicReview = effectivePermissions.has('BM02_REVIEW');
+
+    const verificationQuery = useBm02Verification(scope, submissionId, open && Boolean(submissionId));
+    const verification = verificationQuery.data || null;
+    const advisorSignMutation = useBm02AdvisorSignMutation(scope);
+    const departmentSignMutation = useBm02DepartmentSignMutation(scope);
+
+    const isPendingSubmission = !submission?.outcome || submission.outcome === 'PENDING_REVIEW';
+    const isVerificationLoading = Boolean(submissionId) && verificationQuery.isPending;
+    const isSignatureChainIncomplete = Boolean(
+        verification && !verification.isHistorical && !verification.allValid,
+    );
+
+    const handleAdvisorSign = async () => {
+        if (!submissionId) return;
+        try {
+            await advisorSignMutation.mutateAsync({
+                submissionId,
+                expectedPayloadHash: verification?.payloadHash || submission?.payloadHash || null,
+            });
+            message.success('GVHD đã ký xác nhận đơn BM02.');
+            if (onSuccess) onSuccess();
+        } catch (error) {
+            message.error(error?.message || 'Không thể ký xác nhận GVHD.');
+        }
+    };
+
+    const handleDepartmentSign = async () => {
+        if (!submissionId) return;
+        try {
+            await departmentSignMutation.mutateAsync({
+                submissionId,
+                expectedPayloadHash: verification?.payloadHash || submission?.payloadHash || null,
+            });
+            message.success('Phụ trách bộ môn đã ký xác nhận đơn BM02.');
+            if (onSuccess) onSuccess();
+        } catch (error) {
+            message.error(error?.message || 'Không thể ký xác nhận bộ môn.');
+        }
+    };
+
     const handleSubmit = async (values) => {
         if (!registration?.id) return;
+        if (isSignatureChainIncomplete) {
+            message.warning('Hồ sơ BM02 chưa đủ 3 xác nhận hợp lệ để thẩm định học vụ.');
+            return;
+        }
 
         const action = values.action;
         if (action !== 'APPROVE' && action !== 'RETURN_FOR_REVISION') {
@@ -107,9 +177,32 @@ export default function BM02ReviewDrawer({
         }
     };
 
-    const submission = registration?.currentBM02Submission;
     const attemptNo = submission?.attemptNo || registration?.attemptNo || 1;
     const fileUrl = submission?.fileUrl;
+
+    const verificationSteps = [
+        { key: 'student', title: 'Sinh viên nộp & xác nhận', data: verification?.student },
+        { key: 'advisor', title: 'GVHD ký xác nhận', data: verification?.advisor },
+        { key: 'department', title: 'Phụ trách bộ môn ký', data: verification?.department },
+    ];
+
+    const renderStepDescription = (stepData) => {
+        if (!stepData?.signed) {
+            return <Tag color="default">Chờ xác nhận</Tag>;
+        }
+        if (stepData.valid === true) {
+            return (
+                <div className="text-xs text-emerald-700 space-y-0.5">
+                    <Tag color="success">Đã xác thực nội bộ</Tag>
+                    <div>
+                        {stepData.signer?.fullName || 'N/A'}
+                        {stepData.signedAt ? ` · ${dayjs(stepData.signedAt).format('DD/MM/YYYY HH:mm')}` : ''}
+                    </div>
+                </div>
+            );
+        }
+        return <Tag color="error">Không khớp phiên bản</Tag>;
+    };
 
     return (
         <Drawer
@@ -126,16 +219,20 @@ export default function BM02ReviewDrawer({
             footer={(
                 <div className="flex justify-end gap-2 py-1">
                     <Button onClick={onClose} disabled={submitting}>
-                        Hủy
+                        Đóng
                     </Button>
-                    <Button
-                        type="primary"
-                        loading={submitting}
-                        onClick={() => form.submit()}
-                        className={selectedAction === 'APPROVE' ? '!bg-teal-600 hover:!bg-teal-700' : '!bg-amber-600 hover:!bg-amber-700'}
-                    >
-                        {selectedAction === 'APPROVE' ? 'Xác nhận Phê duyệt Đơn' : 'Xác nhận Yêu cầu Sửa đổi'}
-                    </Button>
+                    {canAcademicReview && (
+                        <Button
+                            type="primary"
+                            icon={selectedAction === 'APPROVE' ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
+                            loading={submitting}
+                            disabled={isVerificationLoading || isSignatureChainIncomplete}
+                            onClick={() => form.submit()}
+                            className={selectedAction === 'APPROVE' ? '!bg-teal-600 hover:!bg-teal-700' : '!bg-amber-600 hover:!bg-amber-700'}
+                        >
+                            {selectedAction === 'APPROVE' ? 'Xác nhận Phê duyệt Đơn' : 'Xác nhận Yêu cầu Sửa đổi'}
+                        </Button>
+                    )}
                 </div>
             )}
         >
@@ -211,6 +308,83 @@ export default function BM02ReviewDrawer({
                         </Descriptions.Item>
                     )}
                 </Descriptions>
+
+                <Divider orientation="left" className="!my-2 text-xs font-bold text-slate-500">
+                    CHUỖI XÁC NHẬN BM02 (3 BƯỚC)
+                </Divider>
+
+                {submissionId ? (
+                    verificationQuery.isPending ? (
+                        <div className="py-4 text-center">
+                            <Spin size="small" />
+                        </div>
+                    ) : verificationQuery.isError ? (
+                        <Alert
+                            type="error"
+                            showIcon
+                            message="Không thể tải trạng thái xác thực BM02"
+                            description={verificationQuery.error?.message || 'Vui lòng thử lại.'}
+                        />
+                    ) : (
+                        <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 space-y-3">
+                            {verification?.isHistorical && (
+                                <Tag color="default">Hồ sơ lịch sử (trước quy trình ký 3 bước)</Tag>
+                            )}
+                            <Steps
+                                direction="vertical"
+                                size="small"
+                                items={verificationSteps.map((step) => ({
+                                    title: <span className="text-xs font-semibold text-slate-800">{step.title}</span>,
+                                    description: renderStepDescription(step.data),
+                                    status: step.data?.valid === true
+                                        ? 'finish'
+                                        : step.data?.signed
+                                            ? 'error'
+                                            : 'wait',
+                                    icon: step.data?.valid === true
+                                        ? <CheckCircleOutlined />
+                                        : step.data?.signed
+                                            ? <ExclamationCircleOutlined />
+                                            : <ClockCircleOutlined />,
+                                }))}
+                            />
+                            <div className="flex flex-wrap gap-2">
+                                {canAdvisorSign && isPendingSubmission && verification?.student?.valid && !verification?.advisor?.valid && (
+                                    <Button
+                                        type="primary"
+                                        size="small"
+                                        icon={<SafetyCertificateOutlined />}
+                                        loading={advisorSignMutation.isPending}
+                                        onClick={handleAdvisorSign}
+                                    >
+                                        Ký xác nhận GVHD
+                                    </Button>
+                                )}
+                                {canDepartmentSign && isPendingSubmission && verification?.student?.valid && verification?.advisor?.valid && !verification?.department?.valid && (
+                                    <Button
+                                        type="primary"
+                                        size="small"
+                                        icon={<SafetyCertificateOutlined />}
+                                        loading={departmentSignMutation.isPending}
+                                        onClick={handleDepartmentSign}
+                                    >
+                                        Ký xác nhận Bộ môn
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
+                    )
+                ) : null}
+
+                {isSignatureChainIncomplete && (
+                    <Alert
+                        type="warning"
+                        showIcon
+                        message="Chưa thể thẩm định học vụ"
+                        description="Hồ sơ BM02 mới chưa đủ 3 xác nhận hợp lệ (Sinh viên → GVHD → Phụ trách bộ môn). Vui lòng hoàn tất các bước xác nhận trước khi thẩm định."
+                        className="text-xs"
+                    />
+                )}
 
                 <Alert
                     message="Quy chuẩn Thẩm định Viện"

@@ -17,29 +17,35 @@ export default function BM04PrintSheet({
     mentor = {},
 }) {
     const s = student?.fullName ? student : registration?.student || {};
-    const m = mentor?.fullName ? mentor : registration?.topic?.mentor || {};
+    const m = mentor?.fullName ? mentor : registration?.mentor || registration?.topic?.mentor || {};
     const topic = registration?.topic || {};
     const title = evaluation?.effectiveTitleSnapshot || registration?.adjustedTitle || registration?.bm01ApprovedTitleSnapshot || topic?.title || '................................................................................................................';
 
     const isMentor = evaluatorRole === 'MENTOR';
     const roleSubtitle = isMentor ? 'Dành cho giảng viên hướng dẫn' : 'Dành cho giảng viên phản biện';
 
-    const crit1 = evaluation?.thesisFormatScore || evaluation?.formReview || 'Bố cục báo cáo phù hợp, văn phong rõ ràng mạch lạc, danh mục hình ảnh và bảng biểu được trình bày đúng quy chuẩn học thuật.';
-    const crit2 = evaluation?.researchContentScore || evaluation?.contentReview || 'Nội dung nghiên cứu phù hợp với mục tiêu đề ra; phương pháp nghiên cứu hợp lý và các kết quả đạt được có giá trị khoa học.';
-    const crit3 = evaluation?.applicabilityScore || evaluation?.applicabilityReview || 'Đề tài có tính ứng dụng thực tiễn cao, có khả năng triển khai ứng dụng cho các đơn vị hoặc phục vụ đào tạo.';
-    const crit4 = evaluation?.attitudeScore || evaluation?.attitudeReview || 'Sinh viên có tinh thần tự giác, ý thức nghiên cứu độc lập, thái độ làm việc nghiêm túc và tinh thần trách nhiệm cao.';
+    const crit1 = evaluation?.thesisFormatScore || evaluation?.formReview || '—';
+    const crit2 = evaluation?.researchContentScore || evaluation?.contentReview || '—';
+    const crit3 = evaluation?.applicabilityScore || evaluation?.applicabilityReview || '—';
+    const crit4 = evaluation?.attitudeScore || evaluation?.attitudeReview || '—';
 
-    const programOutcomeMet = evaluation?.programOutcome
-        ? (evaluation.programOutcome === 'MEETS_PROGRAM_OUTCOMES' || evaluation.programOutcome === 'SATISFACTORY')
-        : (evaluation?.programOutcomeMet !== false);
+    let programOutcomeMet = null;
+    if (evaluation?.programOutcome) {
+        programOutcomeMet = evaluation.programOutcome === 'MEETS_PROGRAM_OUTCOMES' || evaluation.programOutcome === 'SATISFACTORY';
+    } else if (typeof evaluation?.programOutcomeMet === 'boolean') {
+        programOutcomeMet = evaluation.programOutcomeMet;
+    }
 
-    const defenseRecommended = evaluation?.conclusion
-        ? (evaluation.conclusion === 'AGREED_FOR_DEFENSE' || evaluation.conclusion === 'ALLOW_DEFENSE' || evaluation.conclusion === 'AGREE')
-        : (evaluation?.defenseRecommendation
-            ? (evaluation.defenseRecommendation === 'APPROVE_FOR_DEFENSE' || evaluation.defenseRecommendation === 'ALLOW_DEFENSE')
-            : (evaluation?.defenseRecommended !== false));
+    let defenseRecommended = null;
+    if (evaluation?.conclusion) {
+        defenseRecommended = evaluation.conclusion === 'AGREED_FOR_DEFENSE' || evaluation.conclusion === 'ALLOW_DEFENSE' || evaluation.conclusion === 'AGREE';
+    } else if (evaluation?.defenseRecommendation) {
+        defenseRecommended = evaluation.defenseRecommendation === 'APPROVE_FOR_DEFENSE' || evaluation.defenseRecommendation === 'ALLOW_DEFENSE';
+    } else if (typeof evaluation?.defenseRecommended === 'boolean') {
+        defenseRecommended = evaluation.defenseRecommended;
+    }
 
-    const studentClass = evaluation?.studentClassSnapshot || s.studentProfile?.className || s.className || s.class || s.studentClass || 'D22CNTT01';
+    const studentClass = evaluation?.studentClassSnapshot || s.studentProfile?.className || s.className || s.class || s.studentClass || '....................';
     const studentCode = s.code || s.studentCode || s.studentProfile?.studentCode || '..........................';
 
     const currentDate = new Date();
@@ -48,6 +54,7 @@ export default function BM04PrintSheet({
     const year = currentDate.getFullYear();
 
     const reviewerFullName = evaluatorName || evaluation?.lecturerSignature || (isMentor ? m.fullName : evaluation?.evaluator?.fullName) || '';
+    const isSigned = Boolean(evaluation?.signedAt || evaluation?.submittedAt || evaluation?.lecturerSignature);
 
     return (
         <A4PageContainer id="bm04-print-sheet">
@@ -56,7 +63,7 @@ export default function BM04PrintSheet({
                 <div className="w-[45%]">
                     <p className="font-normal text-[10.5pt] uppercase tracking-tight">TRƯỜNG ĐẠI HỌC THỦ DẦU MỘT</p>
                     <p className="font-bold text-[12pt] uppercase tracking-tight">VIỆN CÔNG NGHỆ SỐ</p>
-                    <p className="font-semibold text-[10pt] uppercase tracking-tight">BỘ MÔN: KỸ THUẬT PHẦN MỀM & HTTT</p>
+                    <p className="font-semibold text-[10pt] uppercase tracking-tight">BỘ MÔN: KỸ THUẬT PHẦN MỀM &amp; HTTT</p>
                     <div className="w-24 h-[1px] bg-black mx-auto mt-1" />
                 </div>
                 <div className="w-[52%]">
@@ -99,7 +106,7 @@ export default function BM04PrintSheet({
             {/* II. Nội dung nhận xét (4 tiêu chí CĐR) */}
             <div className="mb-4 text-[11.5pt] leading-relaxed pl-1 space-y-3">
                 <h2 className="font-bold text-[12pt] mb-1 uppercase">II. Nội dung nhận xét</h2>
-                
+
                 <div className="pl-3">
                     <p className="font-semibold text-slate-900">Tiêu chí 1: Hình thức đáp ứng yêu cầu của Báo cáo tốt nghiệp</p>
                     <p className="pl-3 text-justify italic text-slate-800">{crit1}</p>
@@ -124,21 +131,25 @@ export default function BM04PrintSheet({
             {/* III. Kết luận */}
             <div className="mb-6 text-[11.5pt] leading-relaxed pl-1 space-y-2 page-break-avoid">
                 <h2 className="font-bold text-[12pt] mb-1 uppercase">III. Kết luận</h2>
-                
+
                 <div className="pl-3 space-y-1.5">
                     <p>
                         - Đáp ứng / không đáp ứng chuẩn đầu ra CTĐT:&nbsp;&nbsp;
                         <strong>
-                            {programOutcomeMet ? 'Đáp ứng chuẩn đầu ra của Chương trình đào tạo' : 'Chưa đáp ứng chuẩn đầu ra của Chương trình đào tạo'}
+                            {programOutcomeMet === true
+                                ? 'Đáp ứng chuẩn đầu ra của Chương trình đào tạo'
+                                : programOutcomeMet === false
+                                    ? 'Chưa đáp ứng chuẩn đầu ra của Chương trình đào tạo'
+                                    : 'Chưa kết luận'}
                         </strong>
                     </p>
 
                     <div className="flex items-center gap-8 pt-1">
                         <span>
-                            {defenseRecommended ? '☑' : '◻'}&nbsp;&nbsp;<strong>Đồng ý cho bảo vệ</strong>
+                            {defenseRecommended === true ? '☑' : '◻'}&nbsp;&nbsp;<strong>Đồng ý cho bảo vệ</strong>
                         </span>
                         <span>
-                            {!defenseRecommended ? '☑' : '◻'}&nbsp;&nbsp;<strong>Không đồng ý cho bảo vệ</strong>
+                            {defenseRecommended === false ? '☑' : '◻'}&nbsp;&nbsp;<strong>Không đồng ý cho bảo vệ</strong>
                         </span>
                     </div>
                 </div>
@@ -149,11 +160,18 @@ export default function BM04PrintSheet({
                 <div>
                     <p className="font-bold uppercase">NGƯỜI NHẬN XÉT</p>
                     <p className="text-[10pt] italic">(Ký và ghi rõ họ tên)</p>
-                    <div className="h-24" />
-                    <p className="font-semibold">{reviewerFullName || ''}</p>
+                    <div className="min-h-16 flex flex-col justify-center">
+                        {isSigned ? (
+                            <div className="mt-2 text-[9.5pt] text-emerald-800">
+                                <p className="font-semibold">Đã xác thực nội bộ</p>
+                                {reviewerFullName && <p className="font-semibold text-black">{reviewerFullName}</p>}
+                            </div>
+                        ) : (
+                            <p className="mt-2 text-[9.5pt] italic text-slate-500">Chờ xác nhận</p>
+                        )}
+                    </div>
                 </div>
             </div>
         </A4PageContainer>
     );
 }
-

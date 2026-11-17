@@ -14,6 +14,90 @@ class BM03WorkflowError extends Error {
     }
 }
 
+function resolveBM03StageWindows(registration) {
+    const regPolicy = registration?.periodPolicyVersion?.policy || null;
+    const lockedPolicy = registration?.semester?.lockedPolicyVersion?.policy || null;
+    const semester = registration?.semester || null;
+
+    const rawMidtermOpenAt =
+        regPolicy?.bm03MidtermEvaluationOpenAt
+        ?? lockedPolicy?.bm03MidtermEvaluationOpenAt
+        ?? semester?.bm03MidtermEvaluationOpenAt
+        ?? null;
+
+    const rawFinalOpenAt =
+        regPolicy?.bm03FinalizationOpenAt
+        ?? lockedPolicy?.bm03FinalizationOpenAt
+        ?? semester?.bm03FinalizationOpenAt
+        ?? null;
+
+    const midtermOpenAt = rawMidtermOpenAt ? new Date(rawMidtermOpenAt) : null;
+    const finalOpenAt = rawFinalOpenAt ? new Date(rawFinalOpenAt) : null;
+
+    return {
+        midtermOpenAt: midtermOpenAt && !Number.isNaN(midtermOpenAt.getTime()) ? midtermOpenAt : null,
+        finalOpenAt: finalOpenAt && !Number.isNaN(finalOpenAt.getTime()) ? finalOpenAt : null,
+        hasRawMidterm: Boolean(rawMidtermOpenAt),
+        hasRawFinal: Boolean(rawFinalOpenAt),
+    };
+}
+
+function assertBM03StageWindow({ registration, stage, now = new Date() }) {
+    const nowDate = now instanceof Date ? now : new Date(now);
+    const windows = resolveBM03StageWindows(registration);
+
+    if (stage === 'MIDTERM') {
+        if (!windows.hasRawMidterm || !windows.midtermOpenAt) {
+            throw new BM03WorkflowError(
+                'Đợt đồ án chưa cấu hình ngày mở đánh giá giữa kỳ (BM03).',
+                'BM03_MIDTERM_WINDOW_NOT_CONFIGURED',
+                409,
+            );
+        }
+        if (nowDate.getTime() < windows.midtermOpenAt.getTime()) {
+            throw new BM03WorkflowError(
+                `Chưa đến ngày mở đánh giá giữa kỳ BM03 (${windows.midtermOpenAt.toISOString().split('T')[0]}).`,
+                'BM03_MIDTERM_NOT_OPEN_YET',
+                409,
+            );
+        }
+    } else if (stage === 'FINAL') {
+        if (!windows.hasRawFinal || !windows.finalOpenAt) {
+            throw new BM03WorkflowError(
+                'Đợt đồ án chưa cấu hình ngày bắt đầu chốt BM03 cuối kỳ.',
+                'BM03_FINAL_WINDOW_NOT_CONFIGURED',
+                409,
+            );
+        }
+        if (nowDate.getTime() < windows.finalOpenAt.getTime()) {
+            throw new BM03WorkflowError(
+                `Chưa đến ngày bắt đầu chốt BM03 cuối kỳ (${windows.finalOpenAt.toISOString().split('T')[0]}).`,
+                'BM03_FINAL_NOT_OPEN_YET',
+                409,
+            );
+        }
+    }
+
+    return windows;
+}
+
+async function hasPendingStopReview(tx, registration) {
+    if (registration?.status === 'STOP_REVIEW_PENDING') {
+        return true;
+    }
+    if (!tx?.instituteStopReview?.findFirst || !registration?.id) {
+        return false;
+    }
+    const pending = await tx.instituteStopReview.findFirst({
+        where: {
+            registrationId: registration.id,
+            status: { in: ['STOP_REVIEW_PENDING', 'MORE_INFO_REQUIRED'] },
+        },
+        select: { id: true },
+    });
+    return Boolean(pending);
+}
+
 /**
  * Pure read-only lookup for a BM03ProgressRecord.
  * STRICT INVARIANT: MUST NOT write or mutate DB on GET.
@@ -244,6 +328,14 @@ async function createBM03Meeting(input, options = {}) {
             throw new BM03WorkflowError('Hồ sơ BM03 đã được đóng sớm do dừng đề tài.', 'BM03_ALREADY_CLOSED', 409);
         }
 
+        if (await hasPendingStopReview(tx, registration)) {
+            throw new BM03WorkflowError(
+                'Nhật ký BM03 đang ở trạng thái chỉ đọc trong thời gian chờ Viện thẩm định đề nghị dừng.',
+                'BM03_READONLY_STOP_REVIEW_PENDING',
+                409,
+            );
+        }
+
         if (bm03Record.advisorSignedAt) {
             throw new BM03WorkflowError(
                 'Hồ sơ BM03 đã được giảng viên hướng dẫn ký toàn phiếu, không thể thêm buổi họp mới.',
@@ -347,6 +439,14 @@ async function signBM03Meeting(input, options = {}) {
             throw new BM03WorkflowError('Chỉ giảng viên hướng dẫn của đề tài mới có quyền ký buổi hướng dẫn.', 'NOT_ADVISOR_OF_REGISTRATION', 403);
         }
 
+        if (await hasPendingStopReview(tx, meeting.registration)) {
+            throw new BM03WorkflowError(
+                'Nhật ký BM03 đang ở trạng thái chỉ đọc trong thời gian chờ Viện thẩm định đề nghị dừng.',
+                'BM03_READONLY_STOP_REVIEW_PENDING',
+                409,
+            );
+        }
+
         if (meeting.isLocked) {
             return meeting;
         }
@@ -433,7 +533,11 @@ async function submitStageEvaluation(input, options = {}) {
 
         const registration = await tx.topicRegistration.findUnique({
             where: { id: regId },
-            include: { topic: true },
+            include: {
+                topic: true,
+                semester: { include: { lockedPolicyVersion: true } },
+                periodPolicyVersion: true,
+            },
         });
 
         if (!registration) {
@@ -444,10 +548,29 @@ async function submitStageEvaluation(input, options = {}) {
             throw new BM03WorkflowError('Chỉ giảng viên hướng dẫn của đề tài mới có quyền thực hiện đánh giá giai đoạn.', 'NOT_ADVISOR_OF_REGISTRATION', 403);
         }
 
+        assertBM03StageWindow({ registration, stage, now });
+
         const bm03Record = await getOrCreateBM03Record(regId, { ...options, tx });
 
         if (bm03Record.isClosedEarly) {
             throw new BM03WorkflowError('Hồ sơ BM03 đã được đóng sớm do dừng đề tài.', 'BM03_ALREADY_CLOSED', 409);
+        }
+
+        if (stage === 'FINAL') {
+            if (!bm03Record.midtermStageEvaluationId) {
+                throw new BM03WorkflowError(
+                    'Phải hoàn tất đánh giá giữa kỳ (MIDTERM) trước khi đánh giá cuối kỳ (FINAL).',
+                    'BM03_MIDTERM_EVALUATION_REQUIRED',
+                    409,
+                );
+            }
+            if (await hasPendingStopReview(tx, registration)) {
+                throw new BM03WorkflowError(
+                    'Đang có đề nghị dừng đề tài chờ Viện thẩm định, chưa thể đánh giá cuối kỳ.',
+                    'BM03_STOP_REVIEW_PENDING',
+                    409,
+                );
+            }
         }
 
         if (stage === 'MIDTERM' && bm03Record.midtermStageEvaluationId) {
@@ -714,7 +837,11 @@ async function advisorSignWholeBM03(input, options = {}) {
             where: { id },
             include: {
                 registration: {
-                    include: { topic: true },
+                    include: {
+                        topic: true,
+                        semester: { include: { lockedPolicyVersion: true } },
+                        periodPolicyVersion: true,
+                    },
                 },
                 finalStageEvaluation: true,
             },
@@ -730,6 +857,31 @@ async function advisorSignWholeBM03(input, options = {}) {
 
         if (!record.finalConclusion || !['CONTINUE_TO_BM04', 'STOPPED'].includes(record.finalConclusion)) {
             throw new BM03WorkflowError('Chỉ được ký toàn phiếu BM03 khi đã có kết luận cuối cùng (CONTINUE_TO_BM04 hoặc STOPPED).', 'FINAL_CONCLUSION_REQUIRED', 409);
+        }
+
+        if (!record.isClosedEarly) {
+            if (!record.midtermStageEvaluationId) {
+                throw new BM03WorkflowError(
+                    'Phải hoàn tất đánh giá giữa kỳ (MIDTERM) trước khi ký toàn phiếu BM03.',
+                    'BM03_MIDTERM_EVALUATION_REQUIRED',
+                    409,
+                );
+            }
+            if (!record.finalStageEvaluationId) {
+                throw new BM03WorkflowError(
+                    'Phải hoàn tất đánh giá cuối kỳ (FINAL) trước khi ký toàn phiếu BM03.',
+                    'BM03_FINAL_EVALUATION_REQUIRED',
+                    409,
+                );
+            }
+            if (await hasPendingStopReview(tx, record.registration)) {
+                throw new BM03WorkflowError(
+                    'Đang có đề nghị dừng đề tài chờ Viện thẩm định, chưa thể ký toàn phiếu BM03.',
+                    'BM03_STOP_REVIEW_PENDING',
+                    409,
+                );
+            }
+            assertBM03StageWindow({ registration: record.registration, stage: 'FINAL', now });
         }
 
         if (record.advisorSignedAt) {
@@ -1006,6 +1158,7 @@ async function listStopReviews(query = {}) {
 
 module.exports = {
     BM03WorkflowError,
+    assertBM03StageWindow,
     getBM03Record,
     getOrCreateBM03Record,
     createBM03Meeting,

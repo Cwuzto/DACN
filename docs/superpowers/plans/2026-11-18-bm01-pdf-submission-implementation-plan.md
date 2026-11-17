@@ -42,10 +42,10 @@
 - Produces: `getAssetPolicy('BM01')` chỉ `extensions:['pdf']`, `mimeTypes:['application/pdf']`, `maxBytes:20971520`; upload inspection xác minh bytes.
 - Preserves: file `.docx` nộp trước migration chỉ đọc/tải theo quyền, không được dùng làm lượt nộp mới.
 
-- [ ] **Step 1: Viết test fail.** Test asset BM01 `.docx`, PDF giả và PDF >20 MB bị từ chối; PDF thật được nhận. Test kỳ có `outlineAllowedExtensions` cũ vẫn không cho nộp Word mới; giao diện form chỉ gợi/nhận PDF và quản trị không thể cấu hình lại Word cho BM01.
-- [ ] **Step 2: Chạy test fail.** `npm --prefix backend test -- --runTestsByPath tests/services/outlineReviewService.test.js tests/integration/outlineRoutes.test.js`; `npm --prefix frontend run test:runtime -- runtime-tests/bm01PdfPolicy.spec.jsx` → FAIL ở chính sách cũ.
-- [ ] **Step 3: Sửa chính sách gốc.** Đổi asset policy và default/cấu hình kỳ về PDF; migration đồng bộ cấu hình kỳ hiện có cho lượt nộp mới, không đụng tệp lịch sử. Ở API nộp xác nhận asset BM01 thật và PDF đã qua inspection, không chỉ kiểm tra đuôi tên; frontend `accept=".pdf,application/pdf"` và thông báo đúng loại tệp.
-- [ ] **Step 4: Chạy lại test, Prisma validate và commit.** Test bước 2 PASS; `npm --prefix backend exec prisma validate` PASS; commit `fix(bm01): require inspected PDF submissions`.
+- [x] **Step 1: Viết test fail.** Test asset BM01 `.docx`, PDF giả và PDF >20 MB bị từ chối; PDF thật được nhận. Test kỳ có `outlineAllowedExtensions` cũ vẫn không cho nộp Word mới; giao diện form chỉ gợi/nhận PDF và quản trị không thể cấu hình lại Word cho BM01.
+- [x] **Step 2: Chạy test fail.** `npm --prefix backend test -- --runTestsByPath tests/services/outlineReviewService.test.js tests/integration/outlineRoutes.test.js`; `npm --prefix frontend run test:runtime -- runtime-tests/bm01PdfPolicy.spec.jsx` → FAIL ở chính sách cũ.
+- [x] **Step 3: Sửa chính sách gốc.** Đổi asset policy và default/cấu hình kỳ về PDF; migration đồng bộ cấu hình kỳ hiện có cho lượt nộp mới, không đụng tệp lịch sử. Ở API nộp xác nhận asset BM01 thật và PDF đã qua inspection, không chỉ kiểm tra đuôi tên; frontend `accept=".pdf,application/pdf"` và thông báo đúng loại tệp.
+- [x] **Step 4: Chạy lại test, Prisma validate và commit.** Test bước 2 PASS; `npm --prefix backend exec prisma validate` PASS; commit `fix(bm01): require inspected PDF submissions`.
 
 ### Task 2: Lưu trường BM01 cùng asset trong một lần nộp
 
@@ -58,10 +58,10 @@
 - Produces: `submitInitialOutline({ registrationId, fileData:{ assetId, fileUrl, fileName }, content })` và `submitResubmission({ ... })`; `content` là JSON string `{ formCode:'BM01', taskType, fields }` với `topicTitle`, `objectives`, `technologies`, `deliverables`, hoặc `revisionSummary` của v2. Backend parse/validate rồi chuẩn hóa trước khi lưu, không tin `submittedAt` do client gửi.
 - Produces: `Submission.content`, `assetId`, `fileName`, `submittedAt` cùng một row v1/v2; backend gán thời điểm, kiểm tra actor/registration.
 
-- [ ] **Step 1: Viết test fail.** Gửi v1 với PDF thuộc actor và 4 trường bắt buộc: assert row `Submission` lưu cả `content`/`assetId`, trạng thái `BM01_SUBMITTED`; thiếu trường/asset sai quyền không tạo row hoặc chuyển trạng thái. Gửi v2 chỉ khi `BM01_NEEDS_REVISION`; trùng idempotency key không nhân bản.
-- [ ] **Step 2: Chạy test fail.** `npm --prefix backend test -- --runTestsByPath tests/integration/bm01.routes.test.js tests/services/outlineReviewService.test.js`; `npm --prefix frontend run test:runtime -- runtime-tests/bm01SubmitContent.spec.jsx` → FAIL vì `content` và `assetId` hiện bị bỏ khi gửi.
-- [ ] **Step 3: Nối payload end-to-end.** Validate JSON fields tại route/service, chuyển `content`/`assetId` qua `outlineService`, controller và transaction hiện có; không tạo một submission task thứ hai. Giữ v1/v2, quyền và deadline hiện hành.
-- [ ] **Step 4: Chạy lại test và commit.** Test bước 2 PASS; commit `fix(bm01): persist form fields with PDF asset`.
+- [x] **Step 1: Viết test fail.** Gửi v1 với PDF thuộc actor và 4 trường bắt buộc: assert row `Submission` lưu cả `content`/`assetId`, trạng thái `BM01_SUBMITTED`; thiếu trường/asset sai quyền không tạo row hoặc chuyển trạng thái. Gửi v2 chỉ khi `BM01_NEEDS_REVISION`; trùng idempotency key không nhân bản.
+- [x] **Step 2: Chạy test fail.** `npm --prefix backend test -- --runTestsByPath tests/integration/bm01.routes.test.js tests/services/outlineReviewService.test.js`; `npm --prefix frontend run test:runtime -- runtime-tests/bm01SubmitContent.spec.jsx` → FAIL vì `content` và `assetId` hiện bị bỏ khi gửi.
+- [x] **Step 3: Nối payload end-to-end.** Validate JSON fields tại route/service, chuyển `content`/`assetId` qua `outlineService`, controller và transaction hiện có; không tạo một submission task thứ hai. Giữ v1/v2, quyền và deadline hiện hành.
+- [x] **Step 4: Chạy lại test và commit.** Test bước 2 PASS; commit `fix(bm01): persist form fields with PDF asset`.
 
 ### Task 3: Xem và in đúng PDF BM01 đã nộp
 
@@ -74,7 +74,7 @@
 - Produces: `BMSubmissionViewer({ submission })` mở PDF của `submission.assetId`/URL truy cập có quyền; v1/v2 được chọn rõ. `SimulatedDocumentViewer` không là preview BM01.
 - Consumes: API BM01 của Task 2 và print surface từ kế hoạch `2026-11-18-academic-print-foundation-implementation-plan.md`.
 
-- [ ] **Step 1: Viết test fail.** Trước nộp, tệp PDF vừa chọn xem trước được và tệp khác không được nhận. Sau nộp, sinh viên/GVHD mở “Xem BM01” thấy PDF thật của phiên bản đã chọn; nút in in chính PDF đó. PDF lỗi/missing hiện trạng thái lỗi và tải xuống khi được phép. Word lịch sử chỉ có tải xuống; actor khác không mở được URL.
-- [ ] **Step 2: Chạy test fail.** `npm --prefix frontend run test:runtime -- runtime-tests/bm01PdfPreview.spec.jsx`; `npm --prefix frontend run test:e2e -- e2e/bm01PdfPreview.spec.js` → FAIL khi viewer còn dựng văn bản mô phỏng.
-- [ ] **Step 3: Thay viewer và điểm in.** Preview tệp PDF qua URL có quyền, chọn rõ v1/v2, cleanup object URL/iframe khi đóng; hồ sơ học vụ chỉ dẫn tải/in BM01 riêng, không chèn `BM01PrintSheet` vào bundle HTML.
-- [ ] **Step 4: Chạy regression và commit.** Test bước 2 PASS; `npm --prefix frontend run lint` và `npm --prefix frontend run build` PASS; commit `feat(bm01): preview submitted PDF by version`.
+- [x] **Step 1: Viết test fail.** Trước nộp, tệp PDF vừa chọn xem trước được và tệp khác không được nhận. Sau nộp, sinh viên/GVHD mở “Xem BM01” thấy PDF thật của phiên bản đã chọn; nút in in chính PDF đó. PDF lỗi/missing hiện trạng thái lỗi và tải xuống khi được phép. Word lịch sử chỉ có tải xuống; actor khác không mở được URL.
+- [x] **Step 2: Chạy test fail.** `npm --prefix frontend run test:runtime -- runtime-tests/bm01PdfPreview.spec.jsx`; `npm --prefix frontend run test:e2e -- e2e/bm01PdfPreview.spec.js` → FAIL khi viewer còn dựng văn bản mô phỏng.
+- [x] **Step 3: Thay viewer và điểm in.** Preview tệp PDF qua URL có quyền, chọn rõ v1/v2, cleanup object URL/iframe khi đóng; hồ sơ học vụ chỉ dẫn tải/in BM01 riêng, không chèn `BM01PrintSheet` vào bundle HTML.
+- [x] **Step 4: Chạy regression và commit.** Test bước 2 PASS; `npm --prefix frontend run lint` và `npm --prefix frontend run build` PASS; commit `feat(bm01): preview submitted PDF by version`.

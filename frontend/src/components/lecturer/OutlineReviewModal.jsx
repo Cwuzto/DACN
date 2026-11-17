@@ -14,6 +14,7 @@ import {
 } from '@ant-design/icons';
 import registrationService from '../../services/registrationService';
 import aiService from '../../services/aiService';
+import BMSubmissionViewer from '../forms/BMSubmissionViewer';
 import { useQueryClient } from '@tanstack/react-query';
 import useAuthStore from '../../stores/authStore';
 import { queryKeys } from '../../query/queryKeys';
@@ -34,10 +35,23 @@ export default function OutlineReviewModal({
     const scope = queryKeys.scope(user);
     const queryClient = useQueryClient();
 
-    const latestSubmission = registration?.submissions?.[0] || null;
-    const fileUrl = latestSubmission?.fileUrl || registration?.outlineFileUrl || null;
-    const fileName = latestSubmission?.fileName || registration?.outlineFileName || (fileUrl ? 'de_cuong_chi_tiet_bm01.pdf' : null);
-    const studentNote = latestSubmission?.content || registration?.studentNote || null;
+    const bm01Submissions = React.useMemo(() => {
+        const list = Array.isArray(registration?.submissions) ? registration.submissions : [];
+        if (list.length > 0) return list;
+        if (registration?.outlineFileUrl || registration?.outlineAssetId) {
+            return [{
+                id: `outline-${registration.id}`,
+                assetId: registration.outlineAssetId || null,
+                fileUrl: registration.outlineFileUrl || null,
+                fileName: registration.outlineFileName || 'de_cuong_chi_tiet_bm01.pdf',
+                content: registration.studentNote || null,
+                submittedAt: registration.updatedAt || null,
+                isBM01: true,
+            }];
+        }
+        return [];
+    }, [registration]);
+    const latestSubmission = bm01Submissions[0] || null;
 
     useEffect(() => {
         if (open) {
@@ -167,34 +181,24 @@ export default function OutlineReviewModal({
 
                 {/* TÀI LIỆU ĐỀ CƯƠNG ĐÍNH KÈM */}
                 <div className="p-3 bg-blue-50/50 rounded-lg border border-blue-100 space-y-2">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <BookOutlined className="text-blue-600" />
-                            <span className="text-xs font-semibold text-slate-800 uppercase tracking-wide">
-                                Hồ sơ đề cương sinh viên nộp
-                            </span>
-                        </div>
-                        {fileUrl ? (
-                            <a
-                                href={fileUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800"
-                            >
-                                <DownloadOutlined />
-                                <span>Tải file đề cương ({fileName})</span>
-                            </a>
-                        ) : (
-                            <span className="text-xs text-amber-600 italic">
-                                Sinh viên nộp bản thảo trực tiếp (không đính kèm file rời)
-                            </span>
-                        )}
+                    <div className="flex items-center gap-2">
+                        <BookOutlined className="text-blue-600" />
+                        <span className="text-xs font-semibold text-slate-800 uppercase tracking-wide">
+                            Hồ sơ đề cương sinh viên nộp
+                        </span>
                     </div>
 
-                    {studentNote && (
-                        <div className="text-xs text-slate-700 bg-white p-2.5 rounded border border-blue-100">
-                            <span className="font-semibold text-slate-900">Ghi chú từ sinh viên:</span> {studentNote}
-                        </div>
+                    {latestSubmission ? (
+                        <BMSubmissionViewer
+                            submission={latestSubmission}
+                            submissions={bm01Submissions}
+                            isBM01
+                            showFeedback={false}
+                        />
+                    ) : (
+                        <span className="text-xs text-amber-600 italic">
+                            Chưa có tệp đề cương BM01 được nộp.
+                        </span>
                     )}
                 </div>
 

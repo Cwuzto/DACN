@@ -751,6 +751,9 @@ function ProjectPeriodPage() {
             term: 1,
             academicStartYear: currentYear,
             code: buildSemesterCode({ projectCode: 'DATN', term: 1, academicYear: `${currentYear}-${currentYear + 1}` }),
+            outlineAllowedFormat: 'pdf',
+            bm03MidtermEvaluationOpenAt: null,
+            bm03FinalizationOpenAt: null,
         });
         setIsModalVisible(true);
     };
@@ -776,6 +779,13 @@ function ProjectPeriodPage() {
                 ? dayjs(period.rawData.midtermReportDate)
                 : null,
             defenseDate: period.rawData.defenseDate ? dayjs(period.rawData.defenseDate) : null,
+            bm03MidtermEvaluationOpenAt: period.rawData.bm03MidtermEvaluationOpenAt
+                ? dayjs(period.rawData.bm03MidtermEvaluationOpenAt)
+                : null,
+            bm03FinalizationOpenAt: period.rawData.bm03FinalizationOpenAt
+                ? dayjs(period.rawData.bm03FinalizationOpenAt)
+                : null,
+            outlineAllowedFormat: 'pdf',
         });
         setIsModalVisible(true);
     };
@@ -803,6 +813,13 @@ function ProjectPeriodPage() {
             defenseDate: period.rawData.defenseDate
                 ? dayjs(period.rawData.defenseDate).add(1, 'year')
                 : null,
+            bm03MidtermEvaluationOpenAt: period.rawData.bm03MidtermEvaluationOpenAt
+                ? dayjs(period.rawData.bm03MidtermEvaluationOpenAt).add(1, 'year')
+                : null,
+            bm03FinalizationOpenAt: period.rawData.bm03FinalizationOpenAt
+                ? dayjs(period.rawData.bm03FinalizationOpenAt).add(1, 'year')
+                : null,
+            outlineAllowedFormat: 'pdf',
         });
         message.info(`Đã sao chép cấu hình từ đợt ${period.name}`);
         setIsModalVisible(true);
@@ -850,6 +867,13 @@ function ProjectPeriodPage() {
                     ? values.midtermReportDate.toISOString()
                     : null,
                 defenseDate: values.defenseDate ? values.defenseDate.toISOString() : null,
+                bm03MidtermEvaluationOpenAt: values.bm03MidtermEvaluationOpenAt
+                    ? values.bm03MidtermEvaluationOpenAt.toISOString()
+                    : null,
+                bm03FinalizationOpenAt: values.bm03FinalizationOpenAt
+                    ? values.bm03FinalizationOpenAt.toISOString()
+                    : null,
+                outlineAllowedExtensions: ['pdf'],
             };
 
             const response =
@@ -1498,6 +1522,67 @@ function ProjectPeriodPage() {
                     <Row gutter={16}>
                         <Col span={12}>
                             <Form.Item name="defenseDate" label="Ngày dự kiến bảo vệ">
+                                <DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} />
+                            </Form.Item>
+                        </Col>
+                        <Col span={12}>
+                            <Form.Item
+                                name="outlineAllowedFormat"
+                                label="Định dạng đề cương BM01 (lượt nộp mới)"
+                                initialValue="pdf"
+                                tooltip="Chính sách hệ thống chỉ cho phép nộp đề cương BM01 bằng tệp PDF (.pdf). Tệp Word (.docx) lịch sử vẫn được giữ nguyên để tra cứu."
+                            >
+                                <Select
+                                    disabled
+                                    options={[{ value: 'pdf', label: 'Chỉ nhận PDF (.pdf) — Đã khóa' }]}
+                                />
+                            </Form.Item>
+                        </Col>
+                    </Row>
+                    <Row gutter={16}>
+                        <Col span={12}>
+                            <Form.Item
+                                name="bm03MidtermEvaluationOpenAt"
+                                label="Ngày mở đánh giá giữa kỳ BM03"
+                                dependencies={['bm03FinalizationOpenAt']}
+                                tooltip="Mốc mở đánh giá giai đoạn giữa kỳ trên nhật ký BM03 (tách biệt với hạn nộp báo cáo giữa kỳ)."
+                                rules={[
+                                    ({ getFieldValue }) => ({
+                                        validator(_, value) {
+                                            const finalOpenAt = getFieldValue('bm03FinalizationOpenAt');
+                                            if (value && finalOpenAt && !value.isBefore(finalOpenAt)) {
+                                                return Promise.reject(
+                                                    new Error('Ngày mở đánh giá giữa kỳ BM03 phải trước ngày bắt đầu chốt BM03 cuối kỳ'),
+                                                );
+                                            }
+                                            return Promise.resolve();
+                                        },
+                                    }),
+                                ]}
+                            >
+                                <DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} />
+                            </Form.Item>
+                        </Col>
+                        <Col span={12}>
+                            <Form.Item
+                                name="bm03FinalizationOpenAt"
+                                label="Ngày bắt đầu chốt BM03 cuối kỳ"
+                                dependencies={['bm03MidtermEvaluationOpenAt']}
+                                tooltip="Mốc mở đánh giá cuối kỳ và ký chốt toàn bộ nhật ký BM03."
+                                rules={[
+                                    ({ getFieldValue }) => ({
+                                        validator(_, value) {
+                                            const midtermOpenAt = getFieldValue('bm03MidtermEvaluationOpenAt');
+                                            if (value && midtermOpenAt && !midtermOpenAt.isBefore(value)) {
+                                                return Promise.reject(
+                                                    new Error('Ngày bắt đầu chốt BM03 cuối kỳ phải sau ngày mở đánh giá giữa kỳ BM03'),
+                                                );
+                                            }
+                                            return Promise.resolve();
+                                        },
+                                    }),
+                                ]}
+                            >
                                 <DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} />
                             </Form.Item>
                         </Col>

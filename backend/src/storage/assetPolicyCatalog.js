@@ -47,8 +47,8 @@ const POLICIES = Object.freeze({
     [STORED_DOCUMENT_TYPES.BM01]: {
         bucket: STORAGE_BUCKETS.ACADEMIC,
         maxBytes: 20 * MB,
-        extensions: ['pdf', 'docx'],
-        mimeTypes: [MIMES.PDF, MIMES.DOCX],
+        extensions: ['pdf'],
+        mimeTypes: [MIMES.PDF],
         visibility: 'PRIVATE',
         requireArchiveInspection: false,
     },

@@ -31,13 +31,17 @@ jest.mock('../../src/services/auditLogService', () => ({
     auditLog: jest.fn().mockResolvedValue(undefined),
 }));
 
-const { DEFAULT_GROUPS, CANONICAL_ALIAS_MAP } = require('../../src/constants/permissions');
+const { DEFAULT_GROUPS, ACADEMIC_PROTECTED_PERMISSIONS } = require('../../src/constants/permissions');
 const {
     seedPermissionCatalog,
     deleteGroup,
     updateGroup,
 } = require('../../src/services/permissionService');
-const { isCanonicalPermissionCode, normalizePermissionCode } = require('../../src/auth/permissionCatalog');
+const {
+    isCanonicalPermissionCode,
+    normalizePermissionCode,
+    getPermissionDefinition,
+} = require('../../src/auth/permissionCatalog');
 
 describe('Task 2: Protect System Groups and Canonicalize Stored Permissions', () => {
     const SYSTEM_GROUP_CODES = [
@@ -197,6 +201,68 @@ describe('Task 2: Protect System Groups and Canonicalize Stored Permissions', ()
             expect(sql).toMatch(/"permission_version"\s*=\s*[^;]*\+\s*1/i);
             expect(sql).toMatch(/"user_permission_groups"/i);
             expect(sql).not.toMatch(/academic_delegations/i);
+        });
+    });
+
+    describe('6. BM02 online confirmation permissions and migration 20261118160000_bm02_confirmation_events', () => {
+        test('catalog có BM02_ADVISOR_SIGN và BM02_DEPARTMENT_SIGN với scope và protectedDomain đúng', () => {
+            expect(isCanonicalPermissionCode('BM02_ADVISOR_SIGN')).toBe(true);
+            expect(isCanonicalPermissionCode('BM02_DEPARTMENT_SIGN')).toBe(true);
+
+            const advisorDef = getPermissionDefinition('BM02_ADVISOR_SIGN');
+            expect(advisorDef).toMatchObject({
+                code: 'BM02_ADVISOR_SIGN',
+                module: 'REGISTRATION',
+                kind: 'ACTION',
+                protectedDomain: 'ACADEMIC',
+                eligibleRoles: ['LECTURER'],
+                scopeTypes: ['RESOURCE'],
+            });
+
+            const deptDef = getPermissionDefinition('BM02_DEPARTMENT_SIGN');
+            expect(deptDef).toMatchObject({
+                code: 'BM02_DEPARTMENT_SIGN',
+                module: 'REGISTRATION',
+                kind: 'ACTION',
+                protectedDomain: 'ACADEMIC',
+                eligibleRoles: ['LECTURER'],
+                scopeTypes: ['SEMESTER', 'DEPARTMENT', 'RESOURCE'],
+            });
+
+            expect(ACADEMIC_PROTECTED_PERMISSIONS.has('BM02_ADVISOR_SIGN')).toBe(true);
+            expect(ACADEMIC_PROTECTED_PERMISSIONS.has('BM02_DEPARTMENT_SIGN')).toBe(true);
+        });
+
+        test('GVHD mặc định chỉ có BM02_ADVISOR_SIGN, không có BM02_DEPARTMENT_SIGN; không nhóm mặc định nào có BM02_DEPARTMENT_SIGN', () => {
+            const gvhd = DEFAULT_GROUPS.find((g) => g.code === 'GVHD');
+            expect(gvhd).toBeDefined();
+            expect(gvhd.permissions).toContain('BM02_ADVISOR_SIGN');
+            expect(gvhd.permissions).not.toContain('BM02_DEPARTMENT_SIGN');
+
+            for (const group of DEFAULT_GROUPS) {
+                expect(group.permissions).not.toContain('BM02_DEPARTMENT_SIGN');
+            }
+        });
+
+        test('migration 20261118160000_bm02_confirmation_events tồn tại, UTF-8 no BOM, idempotent và không tự gán BM02_DEPARTMENT_SIGN', () => {
+            const migrationPath = path.resolve(
+                __dirname,
+                '../../prisma/migrations/20261118160000_bm02_confirmation_events/migration.sql'
+            );
+            expect(fs.existsSync(migrationPath)).toBe(true);
+
+            const sql = fs.readFileSync(migrationPath, 'utf8');
+            expect(sql.charCodeAt(0)).not.toBe(0xfeff);
+            expect(sql).toMatch(/ALTER\s+TABLE\s+"bm02_submissions"/i);
+            expect(sql).toMatch(/"payload_hash"\s+TEXT/i);
+            expect(sql).toMatch(/"student_signature_event_id"\s+INTEGER/i);
+            expect(sql).toMatch(/"advisor_signature_event_id"\s+INTEGER/i);
+            expect(sql).toMatch(/"department_signature_event_id"\s+INTEGER/i);
+            expect(sql).toMatch(/'BM02_ADVISOR_SIGN'/);
+            expect(sql).toMatch(/'BM02_DEPARTMENT_SIGN'/);
+            expect(sql).toMatch(/ON\s+CONFLICT/i);
+            expect(sql).toMatch(/UPDATE\s+"users"/i);
+            expect(sql).toMatch(/"permission_version"\s*=\s*[^;]*\+\s*1/i);
         });
     });
 });

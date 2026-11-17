@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Modal, Form, Input, InputNumber, Radio, Upload, Button, message, Alert, Typography, Divider, Space } from 'antd';
-import { UploadOutlined, FilePdfOutlined, CheckCircleOutlined, InfoCircleOutlined, DeleteOutlined, RobotOutlined } from '@ant-design/icons';
+import { UploadOutlined, FilePdfOutlined, CheckCircleOutlined, InfoCircleOutlined, DeleteOutlined, RobotOutlined, EyeOutlined, EyeInvisibleOutlined } from '@ant-design/icons';
 import uploadService from '../../services/uploadService';
 import { uploadGovernedAsset } from '../../services/resumableUploadService';
 import BM01CopilotDrawer from '../student/BM01CopilotDrawer';
@@ -21,7 +21,7 @@ const FORM_CONFIGS = {
             { name: 'deliverables', label: 'Sản phẩm dự kiến & Kế hoạch', type: 'textarea', required: true, rows: 3, placeholder: 'Sản phẩm phần mềm, báo cáo, tài liệu hướng dẫn...' },
         ],
         fileRequired: true,
-        fileHint: 'Đính kèm file PDF/Word đề cương chi tiết (tối đa 20MB). Bản nộp đầu tiên là bản chính thức và không thể thay thế.',
+        fileHint: 'Chỉ chấp nhận tệp PDF (.pdf, tối đa 20MB). Bản nộp đầu tiên là bản chính thức và không thể thay thế.',
     },
     BM01_INITIAL_SUBMISSION: {
         code: 'BM01',
@@ -34,7 +34,7 @@ const FORM_CONFIGS = {
             { name: 'deliverables', label: 'Sản phẩm dự kiến & Kế hoạch', type: 'textarea', required: true, rows: 3, placeholder: 'Sản phẩm phần mềm, báo cáo, tài liệu hướng dẫn...' },
         ],
         fileRequired: true,
-        fileHint: 'Đính kèm file PDF/Word đề cương chi tiết (tối đa 20MB). Bản nộp đầu tiên là bản chính thức và không thể thay thế.',
+        fileHint: 'Chỉ chấp nhận tệp PDF (.pdf, tối đa 20MB). Bản nộp đầu tiên là bản chính thức và không thể thay thế.',
     },
     BM01_RESUBMISSION: {
         code: 'BM01',
@@ -45,12 +45,12 @@ const FORM_CONFIGS = {
             { name: 'revisionSummary', label: 'Tóm tắt nội dung đã tiếp thu & chỉnh sửa', type: 'textarea', required: true, rows: 3, placeholder: 'Mô tả chi tiết các điểm đã sửa đổi theo góp ý của Hội đồng' },
         ],
         fileRequired: true,
-        fileHint: 'Đính kèm file PDF/Word đề cương đã chỉnh sửa v2 (tối đa 20MB, chỉ nộp 1 lần duy nhất)',
+        fileHint: 'Chỉ chấp nhận tệp PDF đề cương đã chỉnh sửa v2 (.pdf, tối đa 20MB, chỉ nộp 1 lần duy nhất).',
     },
     BM02: {
         code: 'BM02',
         title: 'Đơn đăng ký đề tài & Phiếu giao nhiệm vụ',
-        subtitle: 'Xác nhận các mốc nhiệm vụ trọng tâm và nội dung thực hiện (BM02)',
+        subtitle: 'Xác nhận các mốc nhiệm vụ trọng tâm và nội dung thực hiện trực tuyến (BM02)',
         fields: [
             { name: 'bm01ApprovedTitle', label: 'Tên đề tài đã duyệt tại đề cương (BM01)', type: 'readonly', required: false },
             { name: 'bm02ProposedTitle', label: 'Tên đề tài chính thức đề xuất (BM02)', type: 'input', required: true, placeholder: 'Cập nhật cách diễn đạt tên đề tài theo góp ý của Hội đồng' },
@@ -59,8 +59,8 @@ const FORM_CONFIGS = {
             { name: 'timelineMilestones', label: 'Các mốc thời gian & tiến độ', type: 'textarea', required: true, rows: 2, placeholder: 'Giai đoạn 1: Thiết kế, Giai đoạn 2: Lập trình, Giai đoạn 3: Đánh giá...' },
             { name: 'specialRequirements', label: 'Yêu cầu kỹ thuật đặc thù', type: 'textarea', required: false, rows: 2, placeholder: 'Yêu cầu về kiểm thử, bảo mật, tài liệu kỹ thuật...' },
         ],
-        fileRequired: true,
-        fileHint: 'Đính kèm bản scan Đơn đăng ký đề tài & Phiếu giao nhiệm vụ có chữ ký (.pdf, .docx, tối đa 20MB)',
+        fileRequired: false,
+        fileHint: '',
     },
     BM03_CHECKPOINT_1: {
         code: 'BM03',
@@ -137,6 +137,9 @@ export default function HybridBMFormModal({
     const [fileList, setFileList] = useState([]);
     const [uploading, setUploading] = useState(false);
     const [uploadedFile, setUploadedFile] = useState(null);
+    const [previewObjectUrl, setPreviewObjectUrl] = useState(null);
+    const [previewVisible, setPreviewVisible] = useState(true);
+    const previewObjectUrlRef = useRef(null);
     const [copilotOpen, setCopilotOpen] = useState(false);
     const [copilotLoading, setCopilotLoading] = useState(false);
     const [copilotData, setCopilotData] = useState(null);
@@ -144,6 +147,25 @@ export default function HybridBMFormModal({
     const taskType = task?.taskType || 'GENERIC';
     const config = FORM_CONFIGS[taskType] || FORM_CONFIGS.GENERIC;
     const isBM01Form = taskType === 'BM01' || taskType === 'BM01_INITIAL_SUBMISSION' || taskType === 'BM01_RESUBMISSION';
+    const isBM02Form = taskType === 'BM02';
+
+    const revokePreviewObjectUrl = () => {
+        if (previewObjectUrlRef.current && typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') {
+            try {
+                URL.revokeObjectURL(previewObjectUrlRef.current);
+            } catch {
+                // Ignore revoke errors
+            }
+        }
+        previewObjectUrlRef.current = null;
+        setPreviewObjectUrl(null);
+    };
+
+    useEffect(() => {
+        return () => {
+            revokePreviewObjectUrl();
+        };
+    }, []);
 
     const handleRunCopilot = async () => {
         try {
@@ -182,6 +204,8 @@ export default function HybridBMFormModal({
             form.resetFields();
             setFileList([]);
             setUploadedFile(null);
+            revokePreviewObjectUrl();
+            setPreviewVisible(true);
 
             // Prepopulate initial values
             const initialValues = {};
@@ -221,10 +245,32 @@ export default function HybridBMFormModal({
             }
 
             form.setFieldsValue(initialValues);
+        } else {
+            revokePreviewObjectUrl();
         }
     }, [visible, task, registration]);
 
+    const BM01_MAX_SIZE_BYTES = 20 * 1024 * 1024;
+
+    const validateBM01PdfFile = (file) => {
+        const fileName = String(file?.name || '').toLowerCase();
+        const mimeType = String(file?.type || '').toLowerCase();
+        if (!fileName.endsWith('.pdf') || (mimeType && mimeType !== 'application/pdf')) {
+            message.error('Đề cương BM01 chỉ chấp nhận tệp định dạng PDF (.pdf).');
+            return false;
+        }
+        if (file?.size != null && Number(file.size) > BM01_MAX_SIZE_BYTES) {
+            message.error('Dung lượng tệp PDF BM01 không được vượt quá 20MB.');
+            return false;
+        }
+        return true;
+    };
+
     const handleCustomUpload = async ({ file, onSuccess, onError }) => {
+        if (isBM01Form && !validateBM01PdfFile(file)) {
+            onError?.(new Error('INVALID_BM01_PDF'));
+            return;
+        }
         try {
             setUploading(true);
             let docType = 'REPORT_PDF';
@@ -252,10 +298,23 @@ export default function HybridBMFormModal({
             }
 
             if (res && (res.assetId || res.downloadUrl)) {
+                revokePreviewObjectUrl();
+                if (isBM01Form && typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
+                    try {
+                        const objUrl = URL.createObjectURL(file);
+                        previewObjectUrlRef.current = objUrl;
+                        setPreviewObjectUrl(objUrl);
+                        setPreviewVisible(true);
+                    } catch {
+                        // Ignore preview error in non-browser environments
+                    }
+                }
                 setUploadedFile({
                     assetId: res.assetId || null,
                     url: res.downloadUrl || null,
                     name: file.name,
+                    mimeType: file.type || (isBM01Form ? 'application/pdf' : undefined),
+                    fileSize: file.size ?? null,
                 });
                 onSuccess?.(res);
                 message.success(`Đã tải lên tệp: ${file.name}`);
@@ -303,9 +362,11 @@ export default function HybridBMFormModal({
 
         const payload = {
             content: JSON.stringify(structuredData),
-            fileUrl: uploadedFile?.url || null,
-            fileName: uploadedFile?.name || null,
-            assetId: uploadedFile?.assetId || null,
+            fileUrl: isBM02Form ? null : (uploadedFile?.url || null),
+            fileName: isBM02Form ? null : (uploadedFile?.name || null),
+            assetId: isBM02Form ? null : (uploadedFile?.assetId || null),
+            ...(uploadedFile?.mimeType ? { mimeType: uploadedFile.mimeType } : {}),
+            ...(uploadedFile?.fileSize != null ? { fileSize: uploadedFile.fileSize } : {}),
         };
 
         if (taskType === 'BM02') {
@@ -424,56 +485,108 @@ export default function HybridBMFormModal({
 
                     <Divider className="my-5 border-slate-100" />
 
-                    {/* File Attachment Upload */}
-                    <div className="mb-6">
-                        <div className="flex items-center justify-between mb-2">
-                            <span className="font-medium text-slate-700">
-                                Tệp đính kèm minh chứng {config.fileRequired && <span className="text-red-500">*</span>}
-                            </span>
-                            <span className="text-xs text-slate-600 font-medium">Định dạng: PDF, DOCX, ZIP</span>
-                        </div>
-
-                        {uploadedFile ? (
-                            <div className="flex items-center justify-between p-3.5 bg-blue-50/60 border border-blue-200 rounded-lg">
-                                <div className="flex items-center gap-3 overflow-hidden">
-                                    <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 flex-shrink-0">
-                                        <FilePdfOutlined className="text-xl" />
-                                    </div>
-                                    <div className="truncate">
-                                        <div className="text-sm font-medium text-slate-800 truncate">{uploadedFile.name}</div>
-                                        <a href={uploadedFile.url} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline">
-                                            Xem tệp đã tải lên
-                                        </a>
-                                    </div>
-                                </div>
-                                <Button
-                                    type="text"
-                                    danger
-                                    icon={<DeleteOutlined />}
-                                    onClick={() => setUploadedFile(null)}
-                                    size="small"
-                                >
-                                    Xóa
-                                </Button>
+                    {/* BM02 Online Confirmation Notice OR File Attachment Upload */}
+                    {isBM02Form ? (
+                        <Alert
+                            type="info"
+                            showIcon
+                            icon={<CheckCircleOutlined />}
+                            className="mb-6 rounded-lg border-blue-200 bg-blue-50/70"
+                            message="Xác nhận trực tuyến theo quy trình BM02"
+                            description="Đơn BM02 được xác nhận trực tuyến theo chuỗi Sinh viên, Giảng viên hướng dẫn và Phụ trách bộ môn. Không cần tải lên bản scan có chữ ký tay."
+                        />
+                    ) : (
+                        <div className="mb-6">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="font-medium text-slate-700">
+                                    Tệp đính kèm minh chứng {config.fileRequired && <span className="text-red-500">*</span>}
+                                </span>
+                                <span className="text-xs text-slate-600 font-medium">
+                                    {isBM01Form ? 'Định dạng: Chỉ nhận PDF (tối đa 20MB)' : 'Định dạng: PDF, DOCX, ZIP'}
+                                </span>
                             </div>
-                        ) : (
-                            <Upload.Dragger
-                                name="file"
-                                customRequest={handleCustomUpload}
-                                showUploadList={false}
-                                disabled={uploading}
-                                className="!bg-slate-50/70 !border-dashed !border-slate-300 hover:!border-blue-400 rounded-xl p-4"
-                            >
-                                <p className="ant-upload-drag-icon text-blue-600 text-3xl mb-1">
-                                    <UploadOutlined />
-                                </p>
-                                <p className="text-sm font-medium text-slate-700">
-                                    {uploading ? 'Đang tải tệp lên...' : 'Nhấp hoặc kéo thả tệp vào đây để tải lên'}
-                                </p>
-                                <p className="text-xs text-slate-600 font-medium mt-1">{config.fileHint}</p>
-                            </Upload.Dragger>
-                        )}
-                    </div>
+
+                            {uploadedFile ? (
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between p-3.5 bg-blue-50/60 border border-blue-200 rounded-lg">
+                                        <div className="flex items-center gap-3 overflow-hidden">
+                                            <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 flex-shrink-0">
+                                                <FilePdfOutlined className="text-xl" />
+                                            </div>
+                                            <div className="truncate">
+                                                <div className="text-sm font-medium text-slate-800 truncate">{uploadedFile.name}</div>
+                                                {(previewObjectUrl || uploadedFile.url) && (
+                                                    <a
+                                                        href={previewObjectUrl || uploadedFile.url}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="text-xs text-blue-600 hover:underline"
+                                                    >
+                                                        Xem tệp đã tải lên
+                                                    </a>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <Space size="small">
+                                            {isBM01Form && (previewObjectUrl || uploadedFile.url) && (
+                                                <Button
+                                                    type="default"
+                                                    size="small"
+                                                    icon={previewVisible ? <EyeInvisibleOutlined /> : <EyeOutlined />}
+                                                    onClick={() => setPreviewVisible((prev) => !prev)}
+                                                >
+                                                    {previewVisible ? 'Ẩn xem trước' : 'Xem trước PDF'}
+                                                </Button>
+                                            )}
+                                            <Button
+                                                type="text"
+                                                danger
+                                                icon={<DeleteOutlined />}
+                                                onClick={() => {
+                                                    setUploadedFile(null);
+                                                    revokePreviewObjectUrl();
+                                                }}
+                                                size="small"
+                                            >
+                                                Xóa
+                                            </Button>
+                                        </Space>
+                                    </div>
+
+                                    {isBM01Form && previewVisible && (previewObjectUrl || uploadedFile.url) && (
+                                        <div className="rounded-lg border border-slate-200 overflow-hidden bg-slate-50">
+                                            <div className="px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 border-b border-slate-200">
+                                                Xem trước tệp PDF BM01 trước khi nộp
+                                            </div>
+                                            <iframe
+                                                title="Xem trước PDF BM01"
+                                                src={previewObjectUrl || uploadedFile.url}
+                                                className="w-full h-72 bg-white"
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                <Upload.Dragger
+                                    name="file"
+                                    accept={isBM01Form ? '.pdf,application/pdf' : undefined}
+                                    beforeUpload={isBM01Form ? (file) => (validateBM01PdfFile(file) ? true : Upload.LIST_IGNORE) : undefined}
+                                    customRequest={handleCustomUpload}
+                                    showUploadList={false}
+                                    disabled={uploading}
+                                    className="!bg-slate-50/70 !border-dashed !border-slate-300 hover:!border-blue-400 rounded-xl p-4"
+                                >
+                                    <p className="ant-upload-drag-icon text-blue-600 text-3xl mb-1">
+                                        <UploadOutlined />
+                                    </p>
+                                    <p className="text-sm font-medium text-slate-700">
+                                        {uploading ? 'Đang tải tệp lên...' : 'Nhấp hoặc kéo thả tệp vào đây để tải lên'}
+                                    </p>
+                                    <p className="text-xs text-slate-600 font-medium mt-1">{config.fileHint}</p>
+                                </Upload.Dragger>
+                            )}
+                        </div>
+                    )}
 
                     {/* Footer Actions */}
                     <div className="flex items-center justify-between pt-3 border-t border-slate-100 flex-wrap gap-2">
@@ -500,7 +613,7 @@ export default function HybridBMFormModal({
                                 loading={submitting || uploading}
                                 className="bg-[#0052a3] hover:bg-[#004080] rounded-lg px-6 font-medium shadow-sm"
                             >
-                                Nộp biểu mẫu
+                                {isBM01Form ? 'Xác nhận và nộp BM01' : isBM02Form ? 'Xác nhận và nộp BM02' : 'Nộp biểu mẫu'}
                             </Button>
                         </div>
                     </div>

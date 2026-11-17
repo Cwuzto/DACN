@@ -479,6 +479,8 @@ export default function BM04EvaluationModal({
                 onCancel={() => setPrintModalOpen(false)}
                 title="PHIẾU NHẬN XÉT KHÓA LUẬN TỐT NGHIỆP CỦA NGƯỜI HƯỚNG DẪN"
                 documentCode="BM04"
+                canPrint={Boolean(bm04Query.data || form.getFieldValue('conclusion'))}
+                printBlockedReason="Vui lòng nhập hoặc lưu kết luận đánh giá BM04 trước khi in."
             >
                 <BM04PrintSheet
                     evaluation={{

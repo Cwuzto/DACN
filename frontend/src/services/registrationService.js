@@ -146,6 +146,36 @@ const registrationService = {
         }
     },
 
+    getBM02Verification: async (submissionId) => {
+        try {
+            const response = await api.get(`/bm02/applications/${submissionId}/verification`);
+            const raw = response?.data ?? response;
+            if (!raw || typeof raw !== 'object') return response;
+
+            const normalizeStep = (step) => {
+                if (!step) return null;
+                return {
+                    ...step,
+                    verified: Boolean(step.verified ?? step.valid),
+                    signerName: step.signerName || step.signer?.fullName || null,
+                };
+            };
+
+            const normalized = {
+                ...raw,
+                student: normalizeStep(raw.student),
+                advisor: normalizeStep(raw.advisor),
+                mentor: normalizeStep(raw.advisor || raw.mentor),
+                department: normalizeStep(raw.department),
+                departmentHead: normalizeStep(raw.department || raw.departmentHead),
+            };
+
+            return response?.data ? { ...response, data: normalized } : normalized;
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi tải trạng thái xác thực BM02');
+        }
+    },
+
     createTopicDecision: async (data) => {
         try {
             return await api.post('/topic-decisions', data, idempotencyConfig());
@@ -252,6 +282,7 @@ export const {
     resubmitBM02Application,
     requestBM02Revision,
     approveBM02Application,
+    getBM02Verification,
     createTopicDecision,
     publishTopicDecision,
     reviewBM02,

@@ -1,6 +1,23 @@
 import React from 'react';
 import A4PageContainer from './A4PageContainer';
 
+function renderSignatureState(signedAt, signerName) {
+    if (signedAt) {
+        return (
+            <div className="mt-2 text-[9.5pt] text-emerald-800 space-y-0.5">
+                <p className="font-semibold">Đã xác thực nội bộ</p>
+                {signerName && <p className="font-semibold text-black">{signerName}</p>}
+                <p className="text-[8.5pt] text-slate-600">{new Date(signedAt).toLocaleString('vi-VN')}</p>
+            </div>
+        );
+    }
+    return (
+        <div className="mt-2 text-[9.5pt] text-slate-500 italic">
+            <p>Chờ xác nhận</p>
+        </div>
+    );
+}
+
 /**
  * BM02APrintSheet
  * Phiếu Đề Nghị Điều Chỉnh Tên Đề Tài (BM02-A)
@@ -14,17 +31,24 @@ export default function BM02APrintSheet({
     mentor = {},
 }) {
     const s = student?.fullName ? student : registration?.student || {};
-    const m = mentor?.fullName ? mentor : registration?.topic?.mentor || {};
+    const sp = s.studentProfile || {};
+    const m = mentor?.fullName ? mentor : registration?.mentor || registration?.topic?.mentor || {};
     const topic = registration?.topic || {};
 
     const oldTitle = request?.oldTitle || registration?.bm01ApprovedTitleSnapshot || topic?.title || '................................................................................................................';
     const newTitle = request?.newTitle || registration?.adjustedTitle || '................................................................................................................';
-    const reason = request?.reason || 'Cập nhật lại tên đề tài cho bám sát hơn với kết quả triển khai thực tế và giải pháp kỹ thuật đã hiện thực hóa.';
+    const reason = request?.reason || '—';
+
+    const studentClass = sp.className || s.className || s.class || s.studentClass || '....................';
+    const academicYear = sp.academicYear || s.academicYear || '....................';
+    const placeOfBirth = sp.placeOfBirth || s.placeOfBirth || s.birthPlace || '....................';
+    const major = sp.major || s.major || topic.major || '....................';
 
     const formatDate = (d) => {
         if (!d) return '...../...../..........';
         try {
             const date = new Date(d);
+            if (Number.isNaN(date.getTime())) return String(d);
             return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
         } catch {
             return String(d);
@@ -67,21 +91,21 @@ export default function BM02APrintSheet({
             <div className="space-y-3.5 text-[12pt] leading-loose pl-2 my-6">
                 <div className="flex justify-between">
                     <p className="w-[60%]">Họ tên sinh viên: <strong>{s.fullName || '...................................................'}</strong></p>
-                    <p className="w-[40%]">MSSV: <strong>{s.code || s.studentCode || '..............................'}</strong></p>
+                    <p className="w-[40%]">MSSV: <strong>{s.code || s.studentCode || sp.studentCode || '..............................'}</strong></p>
                 </div>
 
                 <div className="flex justify-between">
-                    <p className="w-[60%]">Ngày tháng năm sinh: <strong>{formatDate(s.dateOfBirth)}</strong></p>
-                    <p className="w-[40%]">Nơi sinh: <strong>{s.placeOfBirth || s.birthPlace || 'TP. Hồ Chí Minh'}</strong></p>
+                    <p className="w-[60%]">Ngày tháng năm sinh: <strong>{formatDate(s.dateOfBirth || sp.dateOfBirth)}</strong></p>
+                    <p className="w-[40%]">Nơi sinh: <strong>{placeOfBirth}</strong></p>
                 </div>
 
                 <div className="flex justify-between">
-                    <p className="w-[60%]">Lớp: <strong>{s.class || s.studentClass || 'D22CNTT01'}</strong></p>
-                    <p className="w-[40%]">Khóa: <strong>{s.academicYear || '2022 - 2026'}</strong></p>
+                    <p className="w-[60%]">Lớp: <strong>{studentClass}</strong></p>
+                    <p className="w-[40%]">Khóa: <strong>{academicYear}</strong></p>
                 </div>
 
                 <div>
-                    <p>Chuyên ngành: <strong>{s.major || topic.major || 'Công nghệ thông tin'}</strong></p>
+                    <p>Chuyên ngành: <strong>{major}</strong></p>
                 </div>
 
                 <div className="pt-2">
@@ -110,24 +134,26 @@ export default function BM02APrintSheet({
             <div className="grid grid-cols-3 gap-2 text-center text-[11pt] mt-16 pt-8 page-break-avoid">
                 <div>
                     <p className="font-bold uppercase">GIẢNG VIÊN HƯỚNG DẪN</p>
-                    <p className="text-[10pt] italic">(Họ tên và chữ ký)</p>
-                    <div className="h-24" />
-                    <p className="font-semibold">{m.fullName || ''}</p>
+                    <p className="text-[10pt] italic">(Họ tên và xác nhận)</p>
+                    <div className="min-h-20 flex flex-col justify-center">
+                        {renderSignatureState(request?.advisorSignedAt, m.fullName)}
+                    </div>
                 </div>
                 <div>
                     <p className="font-bold uppercase">SINH VIÊN ĐĂNG KÝ</p>
-                    <p className="text-[10pt] italic">(Họ tên và chữ ký)</p>
-                    <div className="h-24" />
-                    <p className="font-semibold">{s.fullName || ''}</p>
+                    <p className="text-[10pt] italic">(Họ tên và xác nhận)</p>
+                    <div className="min-h-20 flex flex-col justify-center">
+                        {renderSignatureState(request?.studentSignedAt || request?.createdAt, s.fullName)}
+                    </div>
                 </div>
                 <div>
                     <p className="font-bold uppercase">PHỤ TRÁCH BỘ MÔN</p>
-                    <p className="text-[10pt] italic">(Họ tên và chữ ký)</p>
-                    <div className="h-24" />
-                    <p className="font-semibold">.............................................</p>
+                    <p className="text-[10pt] italic">(Họ tên và phê duyệt)</p>
+                    <div className="min-h-20 flex flex-col justify-center">
+                        {renderSignatureState(request?.headSignedAt || request?.approvedAt, request?.approvedBy?.fullName)}
+                    </div>
                 </div>
             </div>
         </A4PageContainer>
     );
 }
-

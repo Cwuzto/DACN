@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { Drawer, Tabs, Button, Tag, Space, Alert, Spin } from 'antd';
+import { Drawer, Tabs, Button, Tag, Space, Alert, Tooltip } from 'antd';
 import {
     PrinterOutlined,
     FileTextOutlined,
+    FilePdfOutlined,
     BookOutlined,
     EditOutlined,
     ScheduleOutlined,
@@ -17,7 +18,7 @@ import { useRegistrationCheckpoints } from '../../queries/checkpointQueries';
 import { useBM04Record } from '../../queries/gradingQueries';
 import { useRegistrationBm02aRequests } from '../../queries/bm02aQueries';
 import { useMyOutline } from '../../queries/outlineQueries';
-import BM01PrintSheet from './BM01PrintSheet';
+import { getAssetDownloadUrl } from '../../services/resumableUploadService';
 import BM02PrintSheet from './BM02PrintSheet';
 import BM02APrintSheet from './BM02APrintSheet';
 import BM03PrintSheet from './BM03PrintSheet';
@@ -64,43 +65,92 @@ export default function AcademicDossierDrawer({
     const bm02aRequests = bm02aQuery.data || [];
     const latestBm02a = bm02aRequests.length > 0 ? bm02aRequests[0] : null;
 
-    // Derived outline content
-    const outlineData = outlineQuery.data || (() => {
-        const bm01Task = tasks.find(
-            (t) => t.taskType === 'BM01' || t.taskType === 'BM01_INITIAL_SUBMISSION' || t.taskType === 'BM01_RESUBMISSION'
-        );
-        const lastSub = bm01Task?.submissions?.[0];
-        if (lastSub?.content) {
-            try {
-                const parsed = JSON.parse(lastSub.content);
-                return parsed.fields || parsed;
-            } catch {
-                return { summary: lastSub.content };
-            }
-        }
-        return null;
-    })();
+    const bm01Task = tasks.find(
+        (t) => t.taskType === 'BM01' || t.taskType === 'BM01_INITIAL_SUBMISSION' || t.taskType === 'BM01_RESUBMISSION'
+    );
+    const bm01LastSub = bm01Task?.submissions?.[0] || null;
+    const bm01AssetId = bm01LastSub?.assetId || outlineQuery.data?.assetId || null;
+    const bm01PdfUrl = registration?.bm01PdfUrl || bm01LastSub?.fileUrl || outlineQuery.data?.fileUrl || null;
+    const hasBm01Pdf = Boolean(bm01AssetId || bm01PdfUrl);
 
-    const bm02Task = tasks.find((t) => t.taskType === 'BM02') || {
-        title: registration?.topic?.title || registration?.customTopicTitle,
-    };
+    const bm02Task = tasks.find((t) => t.taskType === 'BM02');
+    const bm02Submission = registration?.currentBM02Submission || bm02Task?.submissions?.[0] || null;
+    const bm02Verification = bm02Submission?.verification || registration?.bm02Verification || null;
 
     // Derived summary record for BM05
     const summaryRecord = useMemo(() => {
         if (!registration) return null;
+        const defenseResult = registration.defenseResult || {};
+        const council = registration.council || registration.defenseCouncil || {};
+        const councilMembers = council.members || [];
+        const chairMember = councilMembers.find((m) => m.roleInCouncil === 'CHAIRMAN');
+        const secretaryMember = councilMembers.find((m) => m.roleInCouncil === 'SECRETARY');
+        const isPublished = Boolean(
+            defenseResult.isPublished ||
+            defenseResult.publishedAt ||
+            registration.resultPublishedAt ||
+            registration.status === 'COMPLETED' ||
+            registration.status === 'ARCHIVED'
+        );
+
         return {
-            topicTitle: registration.topic?.title || registration.customTopicTitle,
+            topicTitle: registration.adjustedTitle || registration.topic?.title || registration.customTopicTitle,
             studentName: registration.student?.fullName,
             studentCode: registration.student?.code,
             mentorName: registration.mentor?.fullName || registration.topic?.mentor?.fullName,
-            councilName: registration.council?.name || registration.defenseCouncil?.name,
-            defenseDate: registration.council?.defenseDate || registration.defenseCouncil?.defenseDate,
-            location: registration.council?.location || registration.defenseCouncil?.location,
-            finalScore: registration.finalScore ?? registration.roundedFinalScore,
+            councilName: council.name,
+            defenseDate: council.defenseDate,
+            location: council.location,
+            decisionCode: council.decisionCode,
+            finalScore: defenseResult.finalScore ?? registration.finalScore ?? registration.roundedFinalScore,
             status: registration.status,
-            memberScores: registration.memberScores || [],
+            memberScores: defenseResult.memberScores || registration.memberScores || [],
+            comments: defenseResult.comments || registration.comments,
+            secretaryName: secretaryMember?.lecturer?.fullName,
+            chairmanName: chairMember?.lecturer?.fullName,
+            secretarySignedAt: defenseResult.secretarySignedAt || null,
+            chairmanSignedAt: defenseResult.chairmanSignedAt || null,
+            isPublished,
         };
     }, [registration]);
+
+    const printEligibility = useMemo(() => {
+        const bm03Finalized = Boolean(
+            bm03Record?.advisorSignedAt ||
+            bm03Record?.finalStageEvaluation ||
+            registration?.status === 'BM03_PASSED'
+        );
+        const bm05Published = Boolean(summaryRecord?.isPublished);
+
+        return {
+            BM01: {
+                eligible: false,
+                reason: 'BM01 dùng tệp PDF riêng do sinh viên tải lên; vui lòng tải/in PDF BM01 riêng.',
+            },
+            BM02: bm02Submission
+                ? { eligible: true, reason: '' }
+                : { eligible: false, reason: 'Chưa có dữ liệu nộp BM02 để in.' },
+            'BM02-A': latestBm02a
+                ? { eligible: true, reason: '' }
+                : { eligible: false, reason: 'Chưa có phiếu điều chỉnh tên đề tài BM02-A.' },
+            BM03: bm03Finalized
+                ? { eligible: true, reason: '' }
+                : { eligible: false, reason: 'BM03 chưa chốt cuối kỳ; chỉ xem nhật ký trên màn hình.' },
+            BM04: bm04Record
+                ? { eligible: true, reason: '' }
+                : { eligible: false, reason: 'Chưa có phiếu nhận xét BM04.' },
+            BM05: bm05Published
+                ? { eligible: true, reason: '' }
+                : { eligible: false, reason: 'Kết quả BM05 chưa được công bố chính thức.' },
+        };
+    }, [bm02Submission, latestBm02a, bm03Record, bm04Record, summaryRecord, registration?.status]);
+
+    const eligibleBundleKeys = useMemo(
+        () => ['BM02', 'BM02-A', 'BM03', 'BM04', 'BM05'].filter((key) => printEligibility[key]?.eligible),
+        [printEligibility]
+    );
+
+    const currentEligibility = printEligibility[activeTabKey] || { eligible: false, reason: 'Không đủ điều kiện in.' };
 
     const formNames = {
         BM01: 'BM01 · Đề cương nghiên cứu chi tiết',
@@ -111,7 +161,24 @@ export default function AcademicDossierDrawer({
         BM05: 'BM05 · Biên bản tổng hợp chấm bảo vệ',
     };
 
+    const handleOpenBm01Pdf = async () => {
+        if (!hasBm01Pdf || typeof window === 'undefined') return;
+        let targetUrl = bm01PdfUrl;
+        if (bm01AssetId) {
+            try {
+                const data = await getAssetDownloadUrl(bm01AssetId);
+                targetUrl = data?.downloadUrl || data?.url || bm01PdfUrl;
+            } catch {
+                targetUrl = bm01PdfUrl;
+            }
+        }
+        if (targetUrl) {
+            window.open(targetUrl, '_blank', 'noopener,noreferrer');
+        }
+    };
+
     const handlePrintCurrent = () => {
+        if (!currentEligibility.eligible) return;
         setPrintModalConfig({
             open: true,
             title: formNames[activeTabKey] || `Biểu mẫu ${activeTabKey}`,
@@ -121,9 +188,10 @@ export default function AcademicDossierDrawer({
     };
 
     const handlePrintAll = () => {
+        if (eligibleBundleKeys.length === 0) return;
         setPrintModalConfig({
             open: true,
-            title: 'TOÀN BỘ HỒ SƠ HỌC VỤ KHÓA LUẬN TỐT NGHIỆP',
+            title: 'HỒ SƠ HỌC VỤ ĐỦ ĐIỀU KIỆN (BM02 - BM05)',
             documentCode: 'DOSSIER_FULL',
             mode: 'all',
         });
@@ -140,7 +208,24 @@ export default function AcademicDossierDrawer({
             ),
             children: (
                 <div style={{ padding: '8px 0' }}>
-                    <BM01PrintSheet outline={outlineData} registration={registration} />
+                    <Alert
+                        type="info"
+                        showIcon
+                        className="mb-3"
+                        message="BM01 là tệp PDF riêng do sinh viên tải lên"
+                        description="Vui lòng tải hoặc in trực tiếp tệp PDF BM01 đã nộp; không ghép BM01 vào lệnh in HTML của trình duyệt."
+                        action={
+                            <Button
+                                size="small"
+                                type="primary"
+                                icon={<FilePdfOutlined />}
+                                disabled={!hasBm01Pdf}
+                                onClick={handleOpenBm01Pdf}
+                            >
+                                Tải / In PDF BM01
+                            </Button>
+                        }
+                    />
                 </div>
             ),
         },
@@ -154,7 +239,14 @@ export default function AcademicDossierDrawer({
             ),
             children: (
                 <div style={{ padding: '8px 0' }}>
-                    <BM02PrintSheet task={bm02Task} registration={registration} />
+                    {!printEligibility.BM02.eligible && (
+                        <Alert type="warning" showIcon className="mb-3" message={printEligibility.BM02.reason} />
+                    )}
+                    <BM02PrintSheet
+                        submission={bm02Submission}
+                        verification={bm02Verification}
+                        registration={registration}
+                    />
                 </div>
             ),
         },
@@ -168,7 +260,10 @@ export default function AcademicDossierDrawer({
             ),
             children: (
                 <div style={{ padding: '8px 0' }}>
-                    <BM02APrintSheet adjustment={latestBm02a} registration={registration} />
+                    {!printEligibility['BM02-A'].eligible && (
+                        <Alert type="warning" showIcon className="mb-3" message={printEligibility['BM02-A'].reason} />
+                    )}
+                    <BM02APrintSheet request={latestBm02a || {}} registration={registration} />
                 </div>
             ),
         },
@@ -182,6 +277,9 @@ export default function AcademicDossierDrawer({
             ),
             children: (
                 <div style={{ padding: '8px 0' }}>
+                    {!printEligibility.BM03.eligible && (
+                        <Alert type="info" showIcon className="mb-3" message={printEligibility.BM03.reason} />
+                    )}
                     <BM03PrintSheet
                         meetingLogs={meetingLogs}
                         checkpoints={checkpoints}
@@ -201,7 +299,10 @@ export default function AcademicDossierDrawer({
             ),
             children: (
                 <div style={{ padding: '8px 0' }}>
-                    <BM04PrintSheet evaluation={bm04Record} registration={registration} />
+                    {!printEligibility.BM04.eligible && (
+                        <Alert type="warning" showIcon className="mb-3" message={printEligibility.BM04.reason} />
+                    )}
+                    <BM04PrintSheet evaluation={bm04Record || {}} registration={registration} />
                 </div>
             ),
         },
@@ -215,6 +316,9 @@ export default function AcademicDossierDrawer({
             ),
             children: (
                 <div style={{ padding: '8px 0' }}>
+                    {!printEligibility.BM05.eligible && (
+                        <Alert type="warning" showIcon className="mb-3" message={printEligibility.BM05.reason} />
+                    )}
                     <BM05PrintSheet summaryRecord={summaryRecord} registration={registration} />
                 </div>
             ),
@@ -241,12 +345,33 @@ export default function AcademicDossierDrawer({
                             </div>
                         </div>
                         <Space>
-                            <Button icon={<PrinterOutlined />} onClick={handlePrintCurrent}>
-                                In biểu mẫu này
+                            <Button
+                                icon={<FilePdfOutlined />}
+                                disabled={!hasBm01Pdf}
+                                onClick={handleOpenBm01Pdf}
+                            >
+                                Tải / In PDF BM01
                             </Button>
-                            <Button type="primary" icon={<PrinterOutlined />} onClick={handlePrintAll} className="!bg-[#0052a3]">
-                                In toàn bộ hồ sơ
-                            </Button>
+                            <Tooltip title={!currentEligibility.eligible ? currentEligibility.reason : ''}>
+                                <Button
+                                    icon={<PrinterOutlined />}
+                                    disabled={!currentEligibility.eligible}
+                                    onClick={handlePrintCurrent}
+                                >
+                                    In biểu mẫu này
+                                </Button>
+                            </Tooltip>
+                            <Tooltip title={eligibleBundleKeys.length === 0 ? 'Chưa có biểu mẫu BM02–BM05 nào đủ điều kiện in.' : ''}>
+                                <Button
+                                    type="primary"
+                                    icon={<PrinterOutlined />}
+                                    disabled={eligibleBundleKeys.length === 0}
+                                    onClick={handlePrintAll}
+                                    className="!bg-[#0052a3]"
+                                >
+                                    In toàn bộ hồ sơ (BM02–BM05)
+                                </Button>
+                            </Tooltip>
                         </Space>
                     </div>
                 }
@@ -302,14 +427,15 @@ export default function AcademicDossierDrawer({
             >
                 {printModalConfig.mode === 'single' ? (
                     <>
-                        {printModalConfig.documentCode === 'BM01' && (
-                            <BM01PrintSheet outline={outlineData} registration={registration} />
-                        )}
                         {printModalConfig.documentCode === 'BM02' && (
-                            <BM02PrintSheet task={bm02Task} registration={registration} />
+                            <BM02PrintSheet
+                                submission={bm02Submission}
+                                verification={bm02Verification}
+                                registration={registration}
+                            />
                         )}
                         {printModalConfig.documentCode === 'BM02-A' && (
-                            <BM02APrintSheet adjustment={latestBm02a} registration={registration} />
+                            <BM02APrintSheet request={latestBm02a || {}} registration={registration} />
                         )}
                         {printModalConfig.documentCode === 'BM03' && (
                             <BM03PrintSheet
@@ -320,7 +446,7 @@ export default function AcademicDossierDrawer({
                             />
                         )}
                         {printModalConfig.documentCode === 'BM04' && (
-                            <BM04PrintSheet evaluation={bm04Record} registration={registration} />
+                            <BM04PrintSheet evaluation={bm04Record || {}} registration={registration} />
                         )}
                         {printModalConfig.documentCode === 'BM05' && (
                             <BM05PrintSheet summaryRecord={summaryRecord} registration={registration} />
@@ -328,21 +454,33 @@ export default function AcademicDossierDrawer({
                     </>
                 ) : (
                     <div className="all-academic-forms-bundle">
-                        <BM01PrintSheet outline={outlineData} registration={registration} />
-                        <BM02PrintSheet task={bm02Task} registration={registration} />
-                        <BM02APrintSheet adjustment={latestBm02a} registration={registration} />
-                        <BM03PrintSheet
-                            meetingLogs={meetingLogs}
-                            checkpoints={checkpoints}
-                            registration={registration}
-                            bm03Record={bm03Record}
-                        />
-                        <BM04PrintSheet evaluation={bm04Record} registration={registration} />
-                        <BM05PrintSheet summaryRecord={summaryRecord} registration={registration} />
+                        {printEligibility.BM02.eligible && (
+                            <BM02PrintSheet
+                                submission={bm02Submission}
+                                verification={bm02Verification}
+                                registration={registration}
+                            />
+                        )}
+                        {printEligibility['BM02-A'].eligible && (
+                            <BM02APrintSheet request={latestBm02a || {}} registration={registration} />
+                        )}
+                        {printEligibility.BM03.eligible && (
+                            <BM03PrintSheet
+                                meetingLogs={meetingLogs}
+                                checkpoints={checkpoints}
+                                registration={registration}
+                                bm03Record={bm03Record}
+                            />
+                        )}
+                        {printEligibility.BM04.eligible && (
+                            <BM04PrintSheet evaluation={bm04Record || {}} registration={registration} />
+                        )}
+                        {printEligibility.BM05.eligible && (
+                            <BM05PrintSheet summaryRecord={summaryRecord} registration={registration} />
+                        )}
                     </div>
                 )}
             </AcademicFormPrintModal>
         </>
     );
 }
-

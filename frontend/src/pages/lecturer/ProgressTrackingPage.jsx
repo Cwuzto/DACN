@@ -23,6 +23,7 @@ import {
     UserOutlined,
     VideoCameraOutlined,
     CheckOutlined,
+    EditOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
@@ -61,6 +62,38 @@ import ContentSkeleton from '../../components/common/ContentSkeleton';
  *   4. Thẩm định BM04 & Nghiệm thu Lưu chiểu
  * - Interactive modals: Giao việc mới, Ghi nhận buổi gặp, Chấm BM04, Giấy xác nhận
  */
+function resolveBM03StageWindows(reg, semesters = [], bm03Record = null) {
+    const matchedSemester = (semesters || []).find(
+        (s) => s.id === (reg?.semesterId || reg?.topic?.semesterId || bm03Record?.registration?.semesterId)
+    );
+    const regPolicy = bm03Record?.registration?.periodPolicyVersion?.policy || reg?.periodPolicyVersion?.policy || null;
+    const lockedPolicy =
+        bm03Record?.registration?.semester?.lockedPolicyVersion?.policy
+        || reg?.semester?.lockedPolicyVersion?.policy
+        || matchedSemester?.lockedPolicyVersion?.policy
+        || null;
+    const semester = bm03Record?.registration?.semester || reg?.semester || matchedSemester || null;
+
+    const rawMidtermOpenAt =
+        regPolicy?.bm03MidtermEvaluationOpenAt
+        ?? lockedPolicy?.bm03MidtermEvaluationOpenAt
+        ?? semester?.bm03MidtermEvaluationOpenAt
+        ?? null;
+    const rawFinalOpenAt =
+        regPolicy?.bm03FinalizationOpenAt
+        ?? lockedPolicy?.bm03FinalizationOpenAt
+        ?? semester?.bm03FinalizationOpenAt
+        ?? null;
+
+    const midtermOpenAt = rawMidtermOpenAt ? new Date(rawMidtermOpenAt) : null;
+    const finalOpenAt = rawFinalOpenAt ? new Date(rawFinalOpenAt) : null;
+
+    return {
+        midtermOpenAt: midtermOpenAt && !Number.isNaN(midtermOpenAt.getTime()) ? midtermOpenAt : null,
+        finalOpenAt: finalOpenAt && !Number.isNaN(finalOpenAt.getTime()) ? finalOpenAt : null,
+    };
+}
+
 export default function ProgressTrackingPage() {
     const [searchParams, setSearchParams] = useSearchParams();
     const paramRegId = searchParams.get('registrationId');
@@ -184,18 +217,24 @@ export default function ProgressTrackingPage() {
     // Selected student data derived from queries
     const tasks = useMemo(() => (Array.isArray(tasksQuery.data) ? tasksQuery.data : []), [tasksQuery.data]);
     const bm03Record = bm03Query.data || null;
-    const meetingLogs = useMemo(() => {
+    const { activeMeetingLogs, supersededMeetingLogs } = useMemo(() => {
         const meetings = bm03Record?.meetings || bm03Record?.meetingEntries || [];
         const raw = meetings.length > 0 ? meetings : (Array.isArray(meetingLogsQuery.data) ? meetingLogsQuery.data : []);
+        const activeRaw = raw.filter((item) => !item?.supersededBy);
+        const supersededRaw = raw.filter((item) => Boolean(item?.supersededBy));
         // Sắp xếp tăng dần theo thời gian để gán số thứ tự buổi gặp chuẩn xác (Buổi 1 là buổi sớm nhất)
-        const chronological = [...raw].sort((a, b) => new Date(a.meetingDate) - new Date(b.meetingDate));
+        const chronological = [...activeRaw].sort((a, b) => new Date(a.meetingDate) - new Date(b.meetingDate));
         const withIndex = chronological.map((item, idx) => ({
             ...item,
             meetingIndex: idx + 1,
         }));
-        // Sắp xếp mới nhất lên đầu để hiển thị timeline trực quan
-        return withIndex.sort((a, b) => new Date(b.meetingDate) - new Date(a.meetingDate));
+        return {
+            // Sắp xếp tăng dần theo thời gian để hiển thị dòng thời gian liên tục từ đầu đến cuối kỳ
+            activeMeetingLogs: withIndex,
+            supersededMeetingLogs: [...supersededRaw].sort((a, b) => new Date(b.meetingDate) - new Date(a.meetingDate)),
+        };
     }, [bm03Record, meetingLogsQuery.data]);
+    const meetingLogs = activeMeetingLogs;
     const checkpoints = useMemo(
         () => (Array.isArray(checkpointsQuery.data) ? checkpointsQuery.data : []),
         [checkpointsQuery.data]
@@ -227,12 +266,14 @@ export default function ProgressTrackingPage() {
     const [taskSubmitting, setTaskSubmitting] = useState(false);
 
     // New Meeting Form (BM03 Meeting Entry)
+    const [editingMeetingId, setEditingMeetingId] = useState(null);
     const [meetingDate, setMeetingDate] = useState(dayjs().format('YYYY-MM-DD'));
     const [meetingMode, setMeetingMode] = useState('IN_PERSON');
     const [meetingLocation, setMeetingLocation] = useState('Tại Lab H2-502');
     const [meetingContent, setMeetingContent] = useState('');
     const [studentCompletedWork, setStudentCompletedWork] = useState('');
     const [remainingIssues, setRemainingIssues] = useState('');
+    const [nextTasks, setNextTasks] = useState('');
     const [progressRating, setProgressRating] = useState('ON_TRACK');
     const [meetingSubmitting, setMeetingSubmitting] = useState(false);
     const [signingMeetingId, setSigningMeetingId] = useState(null);
@@ -304,6 +345,32 @@ export default function ProgressTrackingPage() {
         }
     };
 
+    const openNewMeetingModal = () => {
+        setEditingMeetingId(null);
+        setMeetingDate(dayjs().format('YYYY-MM-DD'));
+        setMeetingMode('IN_PERSON');
+        setMeetingLocation('Tại Lab H2-502');
+        setMeetingContent('');
+        setStudentCompletedWork('');
+        setRemainingIssues('');
+        setNextTasks('');
+        setProgressRating('ON_TRACK');
+        setMeetingModalOpen(true);
+    };
+
+    const openEditMeetingModal = (log) => {
+        setEditingMeetingId(log.id);
+        setMeetingDate(log.meetingDate ? dayjs(log.meetingDate).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'));
+        setMeetingMode(log.meetingMode === 'ONLINE' ? 'ONLINE' : 'IN_PERSON');
+        setMeetingLocation(log.locationOrLink || '');
+        setMeetingContent(log.discussionContent || '');
+        setStudentCompletedWork(log.studentCompletedWork || '');
+        setRemainingIssues(log.remainingIssues || '');
+        setNextTasks(log.nextTasks || '');
+        setProgressRating(log.progressRating || 'ON_TRACK');
+        setMeetingModalOpen(true);
+    };
+
     const handleCreateMeeting = async () => {
         if (!meetingContent.trim()) {
             message.warning('Vui lòng nhập nội dung buổi trao đổi');
@@ -321,14 +388,18 @@ export default function ProgressTrackingPage() {
                     discussionContent: meetingContent.trim(),
                     studentCompletedWork: studentCompletedWork.trim() || undefined,
                     remainingIssues: remainingIssues.trim() || undefined,
+                    nextTasks: nextTasks.trim() || undefined,
                     progressRating,
+                    supersedesEntryId: editingMeetingId || undefined,
                 }],
             });
-            message.success('Đã ghi nhận nhật ký buổi hướng dẫn BM03 thành công!');
+            message.success(editingMeetingId ? 'Đã lưu phiên bản nhật ký mới (giữ lịch sử bản cũ)!' : 'Đã ghi nhận nhật ký buổi hướng dẫn BM03 thành công!');
             setMeetingModalOpen(false);
+            setEditingMeetingId(null);
             setMeetingContent('');
             setStudentCompletedWork('');
             setRemainingIssues('');
+            setNextTasks('');
         } catch (error) {
             message.error(error?.message || 'Không thể lưu nhật ký');
         } finally {
@@ -451,6 +522,30 @@ export default function ProgressTrackingPage() {
     const regWaitingBM04 = reg?.status === 'BM03_PASSED' || reg?.status === 'BM04_REVIEW' || Boolean(reg?.bm03Record?.advisorSignedAt);
     const progress = reg?.progressPercent ?? reg?.progress ?? (bm04Status ? 100 : 0);
     const isAtRisk = !bm04Status && !regWaitingBM04 && (Boolean(reg?.isMeetingWarning) || progress < 50);
+
+    const stageEvals = bm03Record?.stageEvaluations || [];
+    const midtermEval = bm03Record?.midtermStageEvaluation || stageEvals.find((e) => e.stage === 'MIDTERM') || null;
+    const finalEval = bm03Record?.finalStageEvaluation || stageEvals.find((e) => e.stage === 'FINAL') || null;
+    const latestStopReview = bm03Record?.stopReviews?.[0] || null;
+    const isStopReviewPending =
+        reg?.status === 'STOP_REVIEW_PENDING'
+        || bm03Record?.registration?.status === 'STOP_REVIEW_PENDING'
+        || ['STOP_REVIEW_PENDING', 'MORE_INFO_REQUIRED'].includes(latestStopReview?.status);
+    const isClosedEarly = Boolean(bm03Record?.isClosedEarly) || reg?.status === 'TERMINATED_FAILED_PROGRESS';
+    const isAdvisorSigned = Boolean(bm03Record?.advisorSignedAt);
+    const isStudentAckProcessed = ['ACKNOWLEDGED', 'ACKNOWLEDGED_WITH_COMMENT', 'DECLINED_TO_ACKNOWLEDGE', 'ACKNOWLEDGEMENT_TIMEOUT'].includes(bm03Record?.studentAckStatus);
+    const isLegacyPassed = reg?.status === 'BM03_PASSED' && (!bm03Record?.id || bm03Record?.isVirtualProjection);
+    const isBM03Finalized = (isAdvisorSigned && isStudentAckProcessed) || isLegacyPassed;
+    const isMeetingReadOnly = isStopReviewPending || isClosedEarly || isAdvisorSigned;
+
+    const { midtermOpenAt, finalOpenAt } = resolveBM03StageWindows(reg, semesters, bm03Record);
+    const nowMs = Date.now();
+    const isMidtermConfigured = Boolean(midtermOpenAt);
+    const isMidtermWindowOpen = isMidtermConfigured && nowMs >= midtermOpenAt.getTime();
+    const isFinalConfigured = Boolean(finalOpenAt);
+    const isFinalWindowOpen = isFinalConfigured && nowMs >= finalOpenAt.getTime();
+    const hasValidMidterm = Boolean(midtermEval && midtermEval.decision === 'CONTINUE') && !isStopReviewPending;
+    const canOpenFinal = isFinalWindowOpen && hasValidMidterm && !isClosedEarly;
 
     return (
         <section id="view-progress" className="view-pane active" style={{ display: 'block' }}>
@@ -599,12 +694,14 @@ export default function ProgressTrackingPage() {
                             </div>
                         </div>
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                            <Button
-                                icon={<PrinterOutlined />}
-                                onClick={() => setBm03PrintOpen(true)}
-                            >
-                                In Sổ tiến độ BM03
-                            </Button>
+                            {isBM03Finalized && (
+                                <Button
+                                    icon={<PrinterOutlined />}
+                                    onClick={() => setBm03PrintOpen(true)}
+                                >
+                                    In Sổ tiến độ BM03
+                                </Button>
+                            )}
                             <Button
                                 icon={<PrinterOutlined />}
                                 onClick={() => setBm04PrintOpen(true)}
@@ -662,7 +759,8 @@ export default function ProgressTrackingPage() {
                             <Button
                                 danger
                                 icon={<PlusOutlined />}
-                                onClick={() => setMeetingModalOpen(true)}
+                                disabled={isMeetingReadOnly}
+                                onClick={openNewMeetingModal}
                             >
                                 Ghi nhận buổi hướng dẫn mới
                             </Button>
@@ -771,29 +869,32 @@ export default function ProgressTrackingPage() {
                             </div>
                         )}
 
-                        {/* TAB 2: MEETING LOGS (BM03) */}
+                        {/* TAB 2: CONTINUOUS BM03 TIMELINE (MEETING LOGS + MIDTERM + FINAL + SIGN) */}
                         {activeTab === 'meeting-logs' && (
                             <div id="tab-meeting-logs" className="tab-pane-content">
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }} className="flex-wrap gap-2">
                                     <div>
                                         <span style={{ fontSize: '13.5px', fontWeight: 700 }}>
-                                            Nhật ký trao đổi hướng dẫn thực tế (BM03):
+                                            Dòng thời gian nhật ký &amp; đánh giá tiến độ (BM03):
                                         </span>
                                         <span className="mono" style={{ color: 'var(--primary)', fontWeight: 700, marginLeft: 6 }}>
-                                            {meetingLogs.length} buổi
+                                            {meetingLogs.length} buổi hiện hành
                                         </span>
                                     </div>
                                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                                        <Button
-                                            icon={<PrinterOutlined />}
-                                            onClick={() => setBm03PrintOpen(true)}
-                                        >
-                                            In Sổ tiến độ BM03
-                                        </Button>
+                                        {isBM03Finalized && (
+                                            <Button
+                                                icon={<PrinterOutlined />}
+                                                onClick={() => setBm03PrintOpen(true)}
+                                            >
+                                                In Sổ tiến độ BM03
+                                            </Button>
+                                        )}
                                         <Button
                                             type="primary"
                                             icon={<PlusOutlined />}
-                                            onClick={() => setMeetingModalOpen(true)}
+                                            disabled={isMeetingReadOnly}
+                                            onClick={openNewMeetingModal}
                                         >
                                             Ghi nhận buổi hướng dẫn mới
                                         </Button>
@@ -801,322 +902,421 @@ export default function ProgressTrackingPage() {
                                 </div>
 
                                 <QueryPanel query={bm03Query}>
-                                    <div className="timeline" id="meeting-timeline-container">
-                                        {meetingLogs.length === 0 ? (
-                                            <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--muted)', fontSize: 13 }}>
-                                                Chưa có buổi gặp hướng dẫn nào được ghi nhận. Hãy nhấn "Ghi nhận buổi hướng dẫn mới" để lưu thông tin nhật ký.
-                                            </div>
-                                        ) : (
-                                            meetingLogs.map((log, index) => {
-                                                const ratingTag = log.progressRating === 'ON_TRACK'
-                                                    ? <Tag color="success">Đúng tiến độ</Tag>
-                                                    : log.progressRating === 'AT_RISK'
-                                                    ? <Tag color="warning">Có rủi ro</Tag>
-                                                    : log.progressRating === 'BEHIND'
-                                                    ? <Tag color="error">Chậm tiến độ</Tag>
-                                                    : log.progressRating === 'NO_PROGRESS'
-                                                    ? <Tag color="default">Không có tiến độ</Tag>
-                                                    : <Tag color="processing">Tiến độ đạt yêu cầu</Tag>;
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                        {isStopReviewPending && (
+                                            <Alert
+                                                type="warning"
+                                                showIcon
+                                                message="Nhật ký BM03 đang ở trạng thái chỉ đọc"
+                                                description="Hồ sơ đang chờ Viện thẩm định đề nghị dừng đề tài. Không thể thêm, sửa hoặc ký buổi hướng dẫn trong thời gian này."
+                                            />
+                                        )}
+                                        {isClosedEarly && (
+                                            <Alert
+                                                type="error"
+                                                showIcon
+                                                message="Hồ sơ BM03 đã đóng sớm"
+                                                description="Đề tài đã dừng theo quyết định thẩm định của Viện. Nhật ký được lưu ở chế độ chỉ đọc."
+                                            />
+                                        )}
 
-                                                return (
-                                                    <div key={log.id || index} className="timeline-node">
-                                                        <div className="timeline-dot done" />
-                                                        <div className="timeline-card">
-                                                            <div className="timeline-head flex-wrap gap-2">
-                                                                <div className="flex items-center gap-2 flex-wrap">
-                                                                    <strong>Buổi {log.meetingIndex || (meetingLogs.length - index)}: {log.meetingMode === 'ONLINE' ? 'Trực tuyến' : 'Trực tiếp tại Lab'}</strong>
-                                                                    <span className="tag teal">
-                                                                        {log.locationOrLink || (log.meetingMode === 'ONLINE' ? 'Online Meet' : 'Lab H2-502')}
+                                        <div className="timeline" id="meeting-timeline-container">
+                                            {meetingLogs.length === 0 ? (
+                                                <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--muted)', fontSize: 13 }}>
+                                                    Chưa có buổi gặp hướng dẫn nào được ghi nhận. Hãy nhấn &quot;Ghi nhận buổi hướng dẫn mới&quot; để lưu thông tin nhật ký.
+                                                </div>
+                                            ) : (
+                                                meetingLogs.map((log, index) => {
+                                                    const ratingTag = log.progressRating === 'ON_TRACK'
+                                                        ? <Tag color="success">Đúng tiến độ</Tag>
+                                                        : log.progressRating === 'AT_RISK'
+                                                        ? <Tag color="warning">Có rủi ro</Tag>
+                                                        : log.progressRating === 'BEHIND'
+                                                        ? <Tag color="error">Chậm tiến độ</Tag>
+                                                        : log.progressRating === 'NO_PROGRESS'
+                                                        ? <Tag color="default">Không có tiến độ</Tag>
+                                                        : <Tag color="processing">Tiến độ đạt yêu cầu</Tag>;
+
+                                                    return (
+                                                        <div key={log.id || index} className="timeline-node">
+                                                            <div className="timeline-dot done" />
+                                                            <div className="timeline-card">
+                                                                <div className="timeline-head flex-wrap gap-2">
+                                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                                        <strong>Buổi {log.meetingIndex || (index + 1)}: {log.meetingMode === 'ONLINE' ? 'Trực tuyến' : 'Trực tiếp tại Lab'}</strong>
+                                                                        {(log.versionNumber > 1 || log.supersedesEntryId) && (
+                                                                            <Tag color="cyan">Phiên bản v{log.versionNumber || 2}</Tag>
+                                                                        )}
+                                                                        <span className="tag teal">
+                                                                            {log.locationOrLink || (log.meetingMode === 'ONLINE' ? 'Online Meet' : 'Lab H2-502')}
+                                                                        </span>
+                                                                        {ratingTag}
+                                                                        {log.isLocked ? (
+                                                                            <Tag color="purple">Đã ký khóa</Tag>
+                                                                        ) : (
+                                                                            <Tag color="orange">Chưa khóa</Tag>
+                                                                        )}
+                                                                    </div>
+                                                                    <span className="mono" style={{ fontSize: '11.5px', color: 'var(--muted)' }}>
+                                                                        {dayjs(log.meetingDate).format('DD/MM/YYYY')}
                                                                     </span>
-                                                                    {ratingTag}
-                                                                    {log.isLocked ? (
-                                                                        <Tag color="purple">Đã ký khóa</Tag>
-                                                                    ) : (
-                                                                        <Tag color="orange">Chưa khóa</Tag>
+                                                                </div>
+                                                                <div style={{ fontSize: '12.5px', color: 'var(--fg)', lineHeight: 1.5, marginTop: 8 }} className="space-y-1.5">
+                                                                    <div><strong>Nội dung trao đổi:</strong> {log.discussionContent || log.meetingNote || log.summary || 'Sinh viên báo cáo kết quả và chạy thử nghiệm.'}</div>
+                                                                    <div><strong>Kết quả sinh viên đã hoàn thành:</strong> {log.studentCompletedWork || 'Chưa ghi nhận'}</div>
+                                                                    {log.remainingIssues && (
+                                                                        <div><strong>Vấn đề tồn đọng:</strong> {log.remainingIssues}</div>
+                                                                    )}
+                                                                    {(log.nextTasks || log.nextMilestone) && (
+                                                                        <div><strong>Nhiệm vụ kỳ tới:</strong> {log.nextTasks || log.nextMilestone}</div>
+                                                                    )}
+                                                                    {log.expectedDeadline && (
+                                                                        <div className="font-mono text-xs text-slate-500">
+                                                                            Hạn hoàn thành: {dayjs(log.expectedDeadline).format('DD/MM/YYYY')}
+                                                                        </div>
                                                                     )}
                                                                 </div>
-                                                                <span className="mono" style={{ fontSize: '11.5px', color: 'var(--muted)' }}>
-                                                                    {dayjs(log.meetingDate).format('DD/MM/YYYY')}
-                                                                </span>
+                                                                <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2">
+                                                                    {log.isLocked ? (
+                                                                        <span className="text-xs text-slate-500 font-mono">
+                                                                            Đã ký bởi GVHD {log.advisorSignedAt ? dayjs(log.advisorSignedAt).format('DD/MM/YYYY HH:mm') : ''}
+                                                                        </span>
+                                                                    ) : !isMeetingReadOnly ? (
+                                                                        <Button
+                                                                            size="small"
+                                                                            type="primary"
+                                                                            icon={<SafetyCertificateOutlined />}
+                                                                            loading={signingMeetingId === log.id}
+                                                                            onClick={() => handleSignMeetingEntry(log.id)}
+                                                                        >
+                                                                            Ký khóa buổi hướng dẫn
+                                                                        </Button>
+                                                                    ) : (
+                                                                        <span className="text-xs text-slate-400">Chế độ chỉ đọc</span>
+                                                                    )}
+                                                                    {!isMeetingReadOnly && (
+                                                                        <Button
+                                                                            size="small"
+                                                                            icon={<EditOutlined />}
+                                                                            onClick={() => openEditMeetingModal(log)}
+                                                                        >
+                                                                            Sửa nội dung
+                                                                        </Button>
+                                                                    )}
+                                                                </div>
                                                             </div>
-                                                            <div style={{ fontSize: '12.5px', color: 'var(--fg)', lineHeight: 1.5, marginTop: 8 }} className="space-y-1.5">
-                                                                <div><strong>Nội dung trao đổi:</strong> {log.discussionContent || log.meetingNote || log.summary || 'Sinh viên báo cáo kết quả và chạy thử nghiệm.'}</div>
-                                                                <div><strong>Kết quả sinh viên đã hoàn thành:</strong> {log.studentCompletedWork || 'Chưa ghi nhận'}</div>
-                                                                {log.remainingIssues && (
-                                                                    <div><strong>Vấn đề tồn đọng:</strong> {log.remainingIssues}</div>
+                                                        </div>
+                                                    );
+                                                })
+                                            )}
+
+                                            {/* MIDTERM STAGE EVALUATION NODE */}
+                                            <div className="timeline-node" id="bm03-midterm-stage-node">
+                                                <div className={`timeline-dot ${midtermEval ? 'done' : ''}`} />
+                                                <div className="timeline-card" style={{ borderLeft: '4px solid #0F766E' }}>
+                                                    <div className="timeline-head flex-wrap gap-2">
+                                                        <div>
+                                                            <strong>Mốc đánh giá giữa kỳ (MIDTERM)</strong>
+                                                            <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+                                                                {isMidtermConfigured
+                                                                    ? `Mở từ ${dayjs(midtermOpenAt).format('DD/MM/YYYY')}`
+                                                                    : 'Chưa cấu hình ngày mở đánh giá giữa kỳ'}
+                                                            </div>
+                                                        </div>
+                                                        {midtermEval ? (
+                                                            <Tag color={midtermEval.decision === 'CONTINUE' ? 'success' : 'error'}>
+                                                                {midtermEval.decision === 'CONTINUE' ? 'Cho làm tiếp' : 'Đề nghị dừng'}
+                                                            </Tag>
+                                                        ) : isMidtermWindowOpen ? (
+                                                            <Tag color="processing">Đang mở đánh giá</Tag>
+                                                        ) : (
+                                                            <Tag color="default">Chưa mở</Tag>
+                                                        )}
+                                                    </div>
+
+                                                    <div style={{ fontSize: 13, marginTop: 10 }} className="space-y-3">
+                                                        {midtermEval ? (
+                                                            <div className="p-3 bg-slate-50 rounded border border-slate-200 text-xs space-y-1">
+                                                                <div><strong>Kết luận đã lưu:</strong> {midtermEval.decision === 'CONTINUE' ? 'Cho làm tiếp' : 'Đề nghị dừng'}</div>
+                                                                <div><strong>Nhận xét:</strong> {midtermEval.comments}</div>
+                                                                <div className="text-slate-500 font-mono text-[11px]">
+                                                                    Đã đánh giá lúc: {dayjs(midtermEval.evaluatedAt).format('DD/MM/YYYY HH:mm')}
+                                                                </div>
+                                                            </div>
+                                                        ) : isMidtermWindowOpen && !isClosedEarly ? (
+                                                            <>
+                                                                <div className="space-y-2">
+                                                                    <label className="font-semibold block text-slate-700">Kết luận đánh giá giữa kỳ:</label>
+                                                                    <Radio.Group value={midtermDecision} onChange={(e) => setMidtermDecision(e.target.value)}>
+                                                                        <Radio value="CONTINUE">Cho làm tiếp</Radio>
+                                                                        <Radio value="PROPOSE_STOP">Đề nghị dừng</Radio>
+                                                                    </Radio.Group>
+                                                                </div>
+                                                                {midtermDecision === 'PROPOSE_STOP' && (
+                                                                    <Alert
+                                                                        type="warning"
+                                                                        showIcon
+                                                                        message="Cảnh báo quy trình thẩm định cấp Viện"
+                                                                        description="Đề nghị dừng đề tài sẽ chuyển sang hàng đợi thẩm định của Viện với thời hạn xử lý 168 giờ."
+                                                                    />
                                                                 )}
-                                                                {(log.nextTasks || log.nextMilestone) && (
-                                                                    <div><strong>Nhiệm vụ kỳ tới:</strong> {log.nextTasks || log.nextMilestone}</div>
+                                                                <div className="space-y-1">
+                                                                    <label className="font-semibold block text-slate-700">Ý kiến nhận xét của GVHD (*):</label>
+                                                                    <Input.TextArea
+                                                                        rows={2}
+                                                                        value={midtermComments}
+                                                                        onChange={(e) => setMidtermComments(e.target.value)}
+                                                                        placeholder="Nhận xét chi tiết khối lượng thực hiện, tiến độ và năng lực của sinh viên..."
+                                                                    />
+                                                                </div>
+                                                                <Button
+                                                                    type="primary"
+                                                                    icon={<SaveOutlined />}
+                                                                    loading={midtermSubmitting}
+                                                                    onClick={handleSubmitMidtermEvaluation}
+                                                                >
+                                                                    Lưu đánh giá giữa kỳ
+                                                                </Button>
+                                                            </>
+                                                        ) : (
+                                                            <Alert
+                                                                type="info"
+                                                                showIcon
+                                                                message={
+                                                                    !isMidtermConfigured
+                                                                        ? 'Đợt đồ án chưa cấu hình ngày mở đánh giá giữa kỳ (BM03). Vui lòng liên hệ học vụ.'
+                                                                        : `Chưa đến ngày mở đánh giá giữa kỳ BM03 (Mở từ ${dayjs(midtermOpenAt).format('DD/MM/YYYY')}).`
+                                                                }
+                                                            />
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* FINAL STAGE EVALUATION & WHOLE BM03 SIGN NODE */}
+                                            <div className="timeline-node" id="bm03-final-stage-node">
+                                                <div className={`timeline-dot ${isAdvisorSigned ? 'done' : ''}`} />
+                                                <div className="timeline-card" style={{ borderLeft: '4px solid #2563EB' }}>
+                                                    <div className="timeline-head flex-wrap gap-2">
+                                                        <div>
+                                                            <strong>Mốc đánh giá cuối kỳ (FINAL) &amp; Ký toàn phiếu BM03</strong>
+                                                            <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+                                                                {isFinalConfigured
+                                                                    ? `Mở từ ${dayjs(finalOpenAt).format('DD/MM/YYYY')}`
+                                                                    : 'Chưa cấu hình ngày bắt đầu chốt BM03 cuối kỳ'}
+                                                            </div>
+                                                        </div>
+                                                        {finalEval ? (
+                                                            <Tag color={finalEval.decision === 'CONTINUE_TO_BM04' ? 'success' : 'error'}>
+                                                                {finalEval.decision === 'CONTINUE_TO_BM04' ? 'Đạt - Chuyển sang BM04' : 'Đề nghị dừng'}
+                                                            </Tag>
+                                                        ) : canOpenFinal ? (
+                                                            <Tag color="processing">Đang mở chốt cuối kỳ</Tag>
+                                                        ) : (
+                                                            <Tag color="default">Chưa mở</Tag>
+                                                        )}
+                                                    </div>
+
+                                                    <div style={{ fontSize: 13, marginTop: 10 }} className="space-y-3">
+                                                        {finalEval ? (
+                                                            <div className="p-3 bg-slate-50 rounded border border-slate-200 text-xs space-y-1">
+                                                                <div><strong>Kết luận đã lưu:</strong> {finalEval.decision === 'CONTINUE_TO_BM04' ? 'Đạt yêu cầu - Chuyển sang BM04' : 'Đề nghị dừng đề tài'}</div>
+                                                                <div><strong>Nhận xét:</strong> {finalEval.comments}</div>
+                                                                <div className="text-slate-500 font-mono text-[11px]">
+                                                                    Đã đánh giá lúc: {dayjs(finalEval.evaluatedAt).format('DD/MM/YYYY HH:mm')}
+                                                                </div>
+                                                            </div>
+                                                        ) : canOpenFinal ? (
+                                                            <>
+                                                                <div className="space-y-2">
+                                                                    <label className="font-semibold block text-slate-700">Kết luận đánh giá cuối kỳ:</label>
+                                                                    <Radio.Group value={finalDecision} onChange={(e) => setFinalDecision(e.target.value)}>
+                                                                        <Radio value="CONTINUE_TO_BM04">Đạt yêu cầu - Chuyển sang BM04</Radio>
+                                                                        <Radio value="PROPOSE_STOP">Đề nghị dừng</Radio>
+                                                                    </Radio.Group>
+                                                                </div>
+                                                                {finalDecision === 'PROPOSE_STOP' && (
+                                                                    <Alert
+                                                                        type="warning"
+                                                                        showIcon
+                                                                        message="Cảnh báo quy trình thẩm định cấp Viện (SLA 168h)"
+                                                                        description="Đề nghị dừng đề tài cuối kỳ sẽ chuyển sang hàng đợi thẩm định của Viện với thời hạn xử lý 168 giờ."
+                                                                    />
                                                                 )}
-                                                                {log.expectedDeadline && (
-                                                                    <div className="font-mono text-xs text-slate-500">
-                                                                        Hạn hoàn thành: {dayjs(log.expectedDeadline).format('DD/MM/YYYY')}
+                                                                <div className="space-y-1">
+                                                                    <label className="font-semibold block text-slate-700">Ý kiến nhận xét tổng kết (*):</label>
+                                                                    <Input.TextArea
+                                                                        rows={2}
+                                                                        value={finalComments}
+                                                                        onChange={(e) => setFinalComments(e.target.value)}
+                                                                        placeholder="Tổng kết toàn bộ quá trình thực hiện đồ án của sinh viên..."
+                                                                    />
+                                                                </div>
+                                                                <Button
+                                                                    type="primary"
+                                                                    icon={<SaveOutlined />}
+                                                                    loading={finalSubmitting}
+                                                                    onClick={handleSubmitFinalEvaluation}
+                                                                >
+                                                                    Lưu đánh giá cuối kỳ
+                                                                </Button>
+                                                            </>
+                                                        ) : (
+                                                            <Alert
+                                                                type="info"
+                                                                showIcon
+                                                                message={
+                                                                    isStopReviewPending
+                                                                        ? 'Đang có đề nghị dừng chờ Viện thẩm định, chưa thể đánh giá cuối kỳ.'
+                                                                        : !midtermEval
+                                                                            ? 'Cần hoàn tất đánh giá giữa kỳ (MIDTERM) trước khi đánh giá cuối kỳ.'
+                                                                            : midtermEval.decision !== 'CONTINUE'
+                                                                                ? 'Đánh giá giữa kỳ không ở trạng thái Cho làm tiếp.'
+                                                                                : !isFinalConfigured
+                                                                                    ? 'Đợt đồ án chưa cấu hình ngày bắt đầu chốt BM03 cuối kỳ. Vui lòng liên hệ học vụ.'
+                                                                                    : `Chưa đến ngày bắt đầu chốt BM03 cuối kỳ (Mở từ ${dayjs(finalOpenAt).format('DD/MM/YYYY')}).`
+                                                                }
+                                                            />
+                                                        )}
+
+                                                        {/* Whole BM03 Sign Section */}
+                                                        {isAdvisorSigned ? (
+                                                            <div className="p-3 bg-purple-50/50 rounded border border-purple-200 text-xs space-y-2">
+                                                                <div className="font-semibold text-purple-900">
+                                                                    GVHD đã ký xác nhận toàn phiếu BM03 lúc {dayjs(bm03Record.advisorSignedAt).format('DD/MM/YYYY HH:mm')}
+                                                                </div>
+                                                                <div className="flex items-center gap-2 flex-wrap">
+                                                                    <span className="text-slate-600">Trạng thái phản hồi của sinh viên:</span>
+                                                                    {bm03Record.studentAckStatus === 'ACKNOWLEDGED' ? (
+                                                                        <Tag color="green">Sinh viên đã xác nhận</Tag>
+                                                                    ) : bm03Record.studentAckStatus === 'ACKNOWLEDGED_WITH_COMMENT' ? (
+                                                                        <Tag color="blue">Sinh viên xác nhận kèm ý kiến</Tag>
+                                                                    ) : bm03Record.studentAckStatus === 'DECLINED_TO_ACKNOWLEDGE' ? (
+                                                                        <Tag color="red">Sinh viên không đồng ý / từ chối ký</Tag>
+                                                                    ) : bm03Record.studentAckStatus === 'ACKNOWLEDGEMENT_TIMEOUT' ? (
+                                                                        <Tag color="purple">Quá hạn 48h (Hệ thống ghi nhận)</Tag>
+                                                                    ) : (
+                                                                        <Tag color="gold">Chờ sinh viên xác nhận toàn phiếu (Hạn: 48h)</Tag>
+                                                                    )}
+                                                                </div>
+                                                                {bm03Record.studentComment && (
+                                                                    <div className="text-slate-700 bg-white p-2 rounded border border-slate-200">
+                                                                        <strong>Ý kiến sinh viên:</strong> {bm03Record.studentComment}
+                                                                    </div>
+                                                                )}
+                                                                {isBM03Finalized && (
+                                                                    <div className="pt-1 flex items-center gap-2 flex-wrap">
+                                                                        <Button
+                                                                            size="small"
+                                                                            icon={<PrinterOutlined />}
+                                                                            onClick={() => setBm03PrintOpen(true)}
+                                                                        >
+                                                                            In Sổ tiến độ BM03
+                                                                        </Button>
+                                                                        {bm03Record.finalPdfFileUrl && (
+                                                                            <Button
+                                                                                size="small"
+                                                                                type="link"
+                                                                                icon={<FilePdfOutlined />}
+                                                                                href={bm03Record.finalPdfFileUrl}
+                                                                                target="_blank"
+                                                                            >
+                                                                                Tải PDF BM03 đã ký
+                                                                            </Button>
+                                                                        )}
                                                                     </div>
                                                                 )}
                                                             </div>
-                                                            <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2">
-                                                                {log.isLocked ? (
-                                                                    <span className="text-xs text-slate-500 font-mono">
-                                                                        Đã ký bởi GVHD {log.advisorSignedAt ? dayjs(log.advisorSignedAt).format('DD/MM/YYYY HH:mm') : ''}
-                                                                    </span>
-                                                                ) : (
-                                                                    <Button
-                                                                        size="small"
-                                                                        type="primary"
-                                                                        icon={<SafetyCertificateOutlined />}
-                                                                        loading={signingMeetingId === log.id}
-                                                                        onClick={() => handleSignMeetingEntry(log.id)}
-                                                                    >
-                                                                        Ký khóa buổi hướng dẫn
-                                                                    </Button>
-                                                                )}
+                                                        ) : (finalEval && !isStopReviewPending && !isClosedEarly && isFinalWindowOpen) ? (
+                                                            <div className="p-3 bg-slate-50 rounded border border-slate-200 space-y-2">
+                                                                <p className="text-xs text-slate-600 m-0">
+                                                                    Sau khi hoàn tất đánh giá cuối kỳ, GVHD ký xác nhận toàn phiếu BM03 để mở cửa sổ 48 giờ cho sinh viên xác nhận.
+                                                                </p>
+                                                                <Button
+                                                                    type="primary"
+                                                                    icon={<FileDoneOutlined />}
+                                                                    loading={signingWholeBm03}
+                                                                    onClick={handleAdvisorSignWholeBM03}
+                                                                >
+                                                                    Ký toàn phiếu BM03
+                                                                </Button>
                                                             </div>
-                                                        </div>
+                                                        ) : null}
                                                     </div>
-                                                );
-                                            })
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Superseded Meeting History */}
+                                        {supersededMeetingLogs.length > 0 && (
+                                            <div className="card" style={{ marginBottom: 0, background: '#F8FAFC' }}>
+                                                <div className="card-head">
+                                                    <div>
+                                                        <div className="card-title">Lịch sử phiên bản nhật ký đã chỉnh sửa ({supersededMeetingLogs.length})</div>
+                                                        <div className="card-subtitle">Các bản ghi cũ được lưu giữ nguyên trạng khi GVHD cập nhật nhật ký</div>
+                                                    </div>
+                                                </div>
+                                                <div style={{ padding: '12px 16px', fontSize: 12 }} className="space-y-2">
+                                                    {supersededMeetingLogs.map((oldLog) => (
+                                                        <div key={oldLog.id} className="p-2.5 bg-white rounded border border-slate-200 text-slate-600">
+                                                            <div className="flex justify-between items-center gap-2 flex-wrap">
+                                                                <span>
+                                                                    <Tag>v{oldLog.versionNumber || 1}</Tag>
+                                                                    <strong>{dayjs(oldLog.meetingDate).format('DD/MM/YYYY')}</strong>
+                                                                </span>
+                                                                <Tag color="default">Đã thay thế bởi v{oldLog.supersededBy?.versionNumber || '?'}</Tag>
+                                                            </div>
+                                                            <div className="mt-1">{oldLog.discussionContent}</div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
                                         )}
                                     </div>
                                 </QueryPanel>
                             </div>
                         )}
 
-                        {/* TAB 3: CHECKPOINTS & BM03 STAGE EVALUATIONS */}
-                        {activeTab === 'checkpoints' && (() => {
-                            const stageEvals = bm03Record?.stageEvaluations || [];
-                            const midtermEval = bm03Record?.midtermStageEvaluation || stageEvals.find((e) => e.stage === 'MIDTERM');
-                            const finalEval = bm03Record?.finalStageEvaluation || stageEvals.find((e) => e.stage === 'FINAL');
-
-                            return (
-                                <div id="tab-checkpoints" className="tab-pane-content">
-                                    <QueryPanel query={checkpointsQuery}>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                                        {/* Top Banner Toolbar */}
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F8FAFC', padding: '12px 18px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }} className="flex-wrap gap-2">
-                                            <div>
-                                                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)' }}>Đánh giá các giai đoạn & Sổ theo dõi tiến độ BM03</div>
-                                                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
-                                                    Theo dõi 2 mốc đánh giá (Giữa kỳ & Cuối kỳ) cùng chữ ký điện tử nội bộ chốt sổ BM03.
-                                                </div>
+                        {/* TAB 3: LEGACY CHECKPOINT EVIDENCE (READ-ONLY) */}
+                        {activeTab === 'checkpoints' && (
+                            <div id="tab-checkpoints" className="tab-pane-content">
+                                <QueryPanel query={checkpointsQuery}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                        <Alert
+                                            type="info"
+                                            showIcon
+                                            message="Đánh giá giữa kỳ, cuối kỳ và ký chốt BM03 được thực hiện trong dòng thời gian liên tục ở tab 2 (Nhật ký trao đổi)."
+                                            description="Tab này chỉ hiển thị chứng cứ checkpoint lịch sử (nếu có) và không tự động chuyển trạng thái hoàn tất BM03."
+                                        />
+                                        {checkpoints.length === 0 ? (
+                                            <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--muted)', fontSize: 13 }}>
+                                                Không có dữ liệu chứng cứ checkpoint lịch sử.
                                             </div>
-                                            <Button
-                                                icon={<PrinterOutlined />}
-                                                onClick={() => setBm03PrintOpen(true)}
-                                            >
-                                                In Sổ tiến độ BM03
-                                            </Button>
-                                        </div>
-
-                                        {/* Midterm Stage Evaluation Card */}
-                                        <div className="card" style={{ marginBottom: 0, borderLeft: '4px solid #0F766E' }}>
-                                            <div className="card-head flex-wrap gap-2">
-                                                <div>
-                                                    <div className="card-title">Đánh giá giữa kỳ</div>
-                                                    <div className="card-subtitle">Đánh giá tiến độ giữa giai đoạn đồ án · Kết luận Tiếp tục hoặc Đề nghị dừng</div>
-                                                </div>
-                                                <div>
-                                                    {midtermEval ? (
-                                                        <Tag color={midtermEval.decision === 'CONTINUE' ? 'success' : 'error'}>
-                                                            {midtermEval.decision === 'CONTINUE' ? 'Tiếp tục thực hiện' : 'Đề nghị dừng đề tài'}
-                                                        </Tag>
-                                                    ) : (
-                                                        <Tag color="warning">Chưa đánh giá giữa kỳ</Tag>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <div style={{ padding: '16px 20px', fontSize: 13 }} className="space-y-3">
-                                                {midtermEval && (
-                                                    <div className="p-3 bg-slate-50 rounded border border-slate-200 text-xs space-y-1">
-                                                        <div><strong>Kết luận đã lưu:</strong> {midtermEval.decision === 'CONTINUE' ? 'Cho phép tiếp tục thực hiện' : 'Đề nghị dừng đề tài'}</div>
-                                                        <div><strong>Nhận xét:</strong> {midtermEval.comments}</div>
-                                                        <div className="text-slate-500 font-mono text-[11px]">Đã đánh giá lúc: {dayjs(midtermEval.evaluatedAt).format('DD/MM/YYYY HH:mm')}</div>
-                                                    </div>
-                                                )}
-
-                                                <div className="space-y-2">
-                                                    <label className="font-semibold block text-slate-700">Kết luận đánh giá giữa kỳ:</label>
-                                                    <Radio.Group value={midtermDecision} onChange={(e) => setMidtermDecision(e.target.value)}>
-                                                        <Radio value="CONTINUE">Cho phép tiếp tục</Radio>
-                                                        <Radio value="PROPOSE_STOP">Đề nghị dừng đề tài</Radio>
-                                                    </Radio.Group>
-                                                </div>
-
-                                                {midtermDecision === 'PROPOSE_STOP' && (
-                                                    <Alert
-                                                        type="warning"
-                                                        showIcon
-                                                        message="Cảnh báo quy trình thẩm định cấp Viện"
-                                                        description="Đề nghị dừng đề tài sẽ chuyển ngay sang hàng đợi thẩm định của Viện với thời hạn xử lý 168 giờ (+72h nếu yêu cầu bổ sung thông tin)."
-                                                    />
-                                                )}
-
-                                                <div className="space-y-1">
-                                                    <label className="font-semibold block text-slate-700">Ý kiến nhận xét của GVHD (*):</label>
-                                                    <Input.TextArea
-                                                        rows={2}
-                                                        value={midtermComments}
-                                                        onChange={(e) => setMidtermComments(e.target.value)}
-                                                        placeholder="Nhận xét chi tiết khối lượng thực hiện, tiến độ và năng lực của sinh viên..."
-                                                    />
-                                                </div>
-
-                                                <Button
-                                                    type="primary"
-                                                    icon={<SaveOutlined />}
-                                                    loading={midtermSubmitting}
-                                                    onClick={handleSubmitMidtermEvaluation}
-                                                >
-                                                    Lưu đánh giá giữa kỳ
-                                                </Button>
-                                            </div>
-                                        </div>
-
-                                        {/* Final Stage Evaluation Card */}
-                                        <div className="card" style={{ marginBottom: 0, borderLeft: '4px solid #2563EB' }}>
-                                            <div className="card-head flex-wrap gap-2">
-                                                <div>
-                                                    <div className="card-title">Đánh giá cuối kỳ</div>
-                                                    <div className="card-subtitle">Kết luận hoàn thành tiến độ BM03 · Điều kiện tiên quyết để mở BM04</div>
-                                                </div>
-                                                <div>
-                                                    {finalEval ? (
-                                                        <Tag color={finalEval.decision === 'CONTINUE_TO_BM04' ? 'success' : 'error'}>
-                                                            {finalEval.decision === 'CONTINUE_TO_BM04' ? 'Chuyển sang BM04' : 'Đề nghị dừng đề tài'}
-                                                        </Tag>
-                                                    ) : (
-                                                        <Tag color="warning">Chưa đánh giá cuối kỳ</Tag>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <div style={{ padding: '16px 20px', fontSize: 13 }} className="space-y-3">
-                                                {finalEval && (
-                                                    <div className="p-3 bg-slate-50 rounded border border-slate-200 text-xs space-y-1">
-                                                        <div><strong>Kết luận đã lưu:</strong> {finalEval.decision === 'CONTINUE_TO_BM04' ? 'Đạt - Chuyển sang BM04' : 'Đề nghị dừng đề tài'}</div>
-                                                        <div><strong>Nhận xét:</strong> {finalEval.comments}</div>
-                                                        <div className="text-slate-500 font-mono text-[11px]">Đã đánh giá lúc: {dayjs(finalEval.evaluatedAt).format('DD/MM/YYYY HH:mm')}</div>
-                                                    </div>
-                                                )}
-
-                                                <div className="space-y-2">
-                                                    <label className="font-semibold block text-slate-700">Kết luận đánh giá cuối kỳ:</label>
-                                                    <Radio.Group value={finalDecision} onChange={(e) => setFinalDecision(e.target.value)}>
-                                                        <Radio value="CONTINUE_TO_BM04">Đạt yêu cầu - Chuyển sang BM04</Radio>
-                                                        <Radio value="PROPOSE_STOP">Đề nghị dừng đề tài</Radio>
-                                                    </Radio.Group>
-                                                </div>
-
-                                                {finalDecision === 'PROPOSE_STOP' && (
-                                                    <Alert
-                                                        type="warning"
-                                                        showIcon
-                                                        message="Cảnh báo quy trình thẩm định cấp Viện (SLA 168h)"
-                                                        description="Đề nghị dừng đề tài cuối kỳ sẽ chuyển sang hàng đợi thẩm định của Viện với thời hạn xử lý 168 giờ."
-                                                    />
-                                                )}
-
-                                                <div className="space-y-1">
-                                                    <label className="font-semibold block text-slate-700">Ý kiến nhận xét tổng kết (*):</label>
-                                                    <Input.TextArea
-                                                        rows={2}
-                                                        value={finalComments}
-                                                        onChange={(e) => setFinalComments(e.target.value)}
-                                                        placeholder="Tổng kết toàn bộ quá trình thực hiện đồ án của sinh viên..."
-                                                    />
-                                                </div>
-
-                                                <Button
-                                                    type="primary"
-                                                    icon={<SaveOutlined />}
-                                                    loading={finalSubmitting}
-                                                    onClick={handleSubmitFinalEvaluation}
-                                                >
-                                                    Lưu đánh giá cuối kỳ
-                                                </Button>
-                                            </div>
-                                        </div>
-
-                                        {/* Whole BM03 Sign Card */}
-                                        <div className="card" style={{ marginBottom: 0, borderLeft: '4px solid #7C3AED' }}>
-                                            <div className="card-head flex-wrap gap-2">
-                                                <div>
-                                                    <div className="card-title">Ký toàn phiếu BM03 & Xác nhận sinh viên (48h)</div>
-                                                    <div className="card-subtitle">Chữ ký điện tử nội bộ chốt toàn bộ quá trình theo dõi tiến độ</div>
-                                                </div>
-                                                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                                                    <Button
-                                                        icon={<PrinterOutlined />}
-                                                        onClick={() => setBm03PrintOpen(true)}
-                                                    >
-                                                        In Sổ tiến độ BM03
-                                                    </Button>
-                                                    {bm03Record?.advisorSignedAt ? (
-                                                        <Tag color="purple">GVHD đã ký số</Tag>
-                                                    ) : (
-                                                        <Tag color="default">Chưa ký toàn phiếu</Tag>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <div style={{ padding: '16px 20px', fontSize: 13 }} className="space-y-3">
-                                                {bm03Record?.advisorSignedAt ? (
-                                                    <div className="p-3 bg-purple-50/50 rounded border border-purple-200 text-xs space-y-2">
-                                                        <div className="font-semibold text-purple-900">
-                                                            ✓ GVHD đã ký xác nhận toàn phiếu BM03 lúc {dayjs(bm03Record.advisorSignedAt).format('DD/MM/YYYY HH:mm')}
+                                        ) : (
+                                            checkpoints.map((cp, idx) => (
+                                                <div key={cp.id || idx} className="card" style={{ marginBottom: 0 }}>
+                                                    <div className="card-head flex-wrap gap-2">
+                                                        <div>
+                                                            <div className="card-title">Chứng cứ Checkpoint {cp.checkpointNo || idx + 1}</div>
+                                                            <div className="card-subtitle">Dữ liệu lưu vết lịch sử</div>
                                                         </div>
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="text-slate-600">Trạng thái phản hồi của sinh viên:</span>
-                                                            {bm03Record.studentAckStatus === 'ACKNOWLEDGED' ? (
-                                                                <Tag color="green">Sinh viên đã xác nhận đã biết</Tag>
-                                                            ) : bm03Record.studentAckStatus === 'ACKNOWLEDGED_WITH_COMMENT' ? (
-                                                                <Tag color="blue">Sinh viên xác nhận kèm ý kiến</Tag>
-                                                            ) : bm03Record.studentAckStatus === 'DECLINED_TO_ACKNOWLEDGE' ? (
-                                                                <Tag color="red">Sinh viên từ chối ký</Tag>
-                                                            ) : bm03Record.studentAckStatus === 'ACKNOWLEDGEMENT_TIMEOUT' ? (
-                                                                <Tag color="purple">Quá hạn 48h (Tự động chuyển tiếp)</Tag>
-                                                            ) : (
-                                                                <Tag color="gold">Chờ sinh viên xác nhận (Hạn: 48h)</Tag>
-                                                            )}
-                                                        </div>
-                                                        {bm03Record.studentComment && (
-                                                            <div className="text-slate-700 bg-white p-2 rounded border border-slate-200">
-                                                                <strong>Ý kiến sinh viên:</strong> {bm03Record.studentComment}
-                                                            </div>
-                                                        )}
-                                                        {bm03Record.finalPdfFileUrl && (
-                                                            <div className="pt-1">
-                                                                <Button
-                                                                    type="link"
-                                                                    icon={<FilePdfOutlined />}
-                                                                    href={bm03Record.finalPdfFileUrl}
-                                                                    target="_blank"
-                                                                    className="p-0 text-purple-700"
-                                                                >
-                                                                    Tải PDF BM03 đã ký
-                                                                </Button>
+                                                        <Tag color={cp.status === 'SIGNED' ? 'green' : 'default'}>{cp.status || 'RECORDED'}</Tag>
+                                                    </div>
+                                                    <div style={{ padding: '12px 16px', fontSize: 12.5 }} className="space-y-1">
+                                                        {cp.comment && <div><strong>Nhận xét:</strong> {cp.comment}</div>}
+                                                        {cp.signedAt && (
+                                                            <div className="text-slate-500 font-mono text-xs">
+                                                                Thời điểm ghi nhận: {dayjs(cp.signedAt).format('DD/MM/YYYY HH:mm')}
                                                             </div>
                                                         )}
                                                     </div>
-                                                ) : (
-                                                    <div className="space-y-3">
-                                                        <p className="text-xs text-slate-600 m-0">
-                                                            Sau khi hoàn tất đánh giá cuối kỳ với kết luận chuyển sang BM04, GVHD thực hiện ký xác nhận toàn phiếu BM03. Hệ thống sẽ mở cửa sổ 48 giờ để sinh viên xem và phản hồi.
-                                                        </p>
-                                                        <Button
-                                                            type="primary"
-                                                            icon={<FileDoneOutlined />}
-                                                            loading={signingWholeBm03}
-                                                            onClick={handleAdvisorSignWholeBM03}
-                                                        >
-                                                            Ký toàn phiếu BM03
-                                                        </Button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
+                                                </div>
+                                            ))
+                                        )}
                                     </div>
                                 </QueryPanel>
                             </div>
-                        );
-                        })()}
+                        )}
 
                         {/* TAB 4: BM04 & ARCHIVE */}
                         {activeTab === 'archive' && (
@@ -1466,7 +1666,7 @@ export default function ProgressTrackingPage() {
                                 </div>
                                 <div>
                                     <div style={{ fontSize: 17, fontWeight: 700, color: '#FFFFFF', lineHeight: 1.3 }}>
-                                        Ghi Nhận Buổi Hướng Dẫn Mới (BM03)
+                                        {editingMeetingId ? 'Cập Nhật Nhật Ký Buổi Hướng Dẫn (Tạo Phiên Bản Mới)' : 'Ghi Nhận Buổi Hướng Dẫn Mới (BM03)'}
                                     </div>
                                     <div style={{ fontSize: 12, color: 'rgba(255, 255, 255, 0.85)', marginTop: 2 }}>
                                         Nhật ký gặp mặt định kỳ & đánh giá kết quả thực hiện
@@ -1751,6 +1951,20 @@ export default function ProgressTrackingPage() {
                                     style={{ borderRadius: 8 }}
                                 />
                             </div>
+
+                            {/* Next Tasks */}
+                            <div>
+                                <label style={{ fontWeight: 600, fontSize: 13, color: '#334155', display: 'block', marginBottom: 6 }}>
+                                    Nhiệm vụ giao kỳ tiếp theo:
+                                </label>
+                                <Input.TextArea
+                                    rows={2}
+                                    value={nextTasks}
+                                    onChange={(e) => setNextTasks(e.target.value)}
+                                    placeholder="Các đầu việc sinh viên cần thực hiện cho buổi hướng dẫn kế tiếp..."
+                                    style={{ borderRadius: 8 }}
+                                />
+                            </div>
                         </div>
 
                         {/* Modal Footer */}
@@ -1830,6 +2044,8 @@ export default function ProgressTrackingPage() {
                 onCancel={() => setBm03PrintOpen(false)}
                 title={`In Sổ Theo Dõi Tiến Độ & Hướng Dẫn BM03 - ${reg?.student?.fullName || ''}`}
                 documentCode="BM03"
+                canPrint={isBM03Finalized}
+                printBlockedReason="BM03 chưa hoàn tất chốt cuối kỳ và xác nhận của sinh viên; chỉ xem nhật ký trên màn hình."
             >
                 <BM03PrintSheet
                     meetingLogs={meetingLogs}
@@ -1846,9 +2062,11 @@ export default function ProgressTrackingPage() {
                 onCancel={() => setBm04PrintOpen(false)}
                 title={`In Phiếu Nhận Xét BM04 - ${reg?.student?.fullName || ''}`}
                 documentCode="BM04"
+                canPrint={Boolean(reg?.bm04Evaluation)}
+                printBlockedReason="Chưa có phiếu nhận xét BM04 để in."
             >
                 <BM04PrintSheet
-                    evaluation={reg?.bm04Evaluation}
+                    evaluation={reg?.bm04Evaluation || {}}
                     registration={reg}
                 />
             </AcademicFormPrintModal>

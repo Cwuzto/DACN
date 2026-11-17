@@ -1,5 +1,6 @@
 jest.mock('../../src/config/database', () => ({
     user: { findUnique: jest.fn() },
+    semester: { findUnique: jest.fn() },
     councilMember: { findFirst: jest.fn() },
     topicRegistration: { findFirst: jest.fn() },
     auditLog: { create: jest.fn() },
@@ -81,7 +82,7 @@ describe('Integration - Outline Review & Council Routes (Task 4)', () => {
             if (where.id === 30) return makeUser(30, 'LECTURER', ['OUTLINE_REVIEW']);
             if (where.id === 31) return makeUser(31, 'LECTURER', ['OUTLINE_REVIEW']);
             if (where.id === 32) return makeUser(32, 'LECTURER', ['OUTLINE_REVIEW']);
-            if (where.id === 1) return makeUser(1, 'ADMIN', []);
+            if (where.id === 1) return makeUser(1, 'ADMIN', ['OUTLINE_COUNCIL_MANAGE', 'DEFENSE_COUNCIL_MANAGE']);
             return null;
         });
 
@@ -106,20 +107,36 @@ describe('Integration - Outline Review & Council Routes (Task 4)', () => {
             mimeType: 'application/pdf',
         };
 
-        test('POST /api/outline/submissions - returns 200 on success', async () => {
+        test('POST /api/outline/submissions - returns 200 on success and forwards content, assetId, and Idempotency-Key', async () => {
             outlineReviewService.submitInitialOutline.mockResolvedValue({
                 registrationId: 50,
                 status: 'BM01_SUBMITTED',
+            });
+            const content = JSON.stringify({
+                formCode: 'BM01',
+                taskType: 'BM01_INITIAL_SUBMISSION',
+                fields: {
+                    topicTitle: 'Đề tài A',
+                    objectives: 'Mục tiêu A',
+                    technologies: 'Node.js',
+                    deliverables: 'Báo cáo',
+                },
             });
 
             const res = await request(app)
                 .post('/api/outline/submissions')
                 .set('Authorization', 'Bearer student-token')
-                .send({ registrationId: 50, fileData });
+                .set('Idempotency-Key', 'outline-v1-key')
+                .send({ registrationId: 50, assetId: 'asset-v1', fileData, content });
 
             expect(res.status).toBe(200);
             expect(res.body.success).toBe(true);
-            expect(outlineReviewService.submitInitialOutline).toHaveBeenCalledWith(50, fileData, 10);
+            expect(outlineReviewService.submitInitialOutline).toHaveBeenCalledWith(
+                50,
+                { ...fileData, assetId: 'asset-v1' },
+                10,
+                { content, idempotencyKey: 'outline-v1-key' }
+            );
         });
 
         test('POST /api/outline/submissions - returns 409 when v1 already submitted', async () => {
@@ -147,6 +164,16 @@ describe('Integration - Outline Review & Council Routes (Task 4)', () => {
             expect(res.body.success).toBe(false);
         });
 
+        test('POST /api/outline/submissions - returns 400 when content is empty string', async () => {
+            const res = await request(app)
+                .post('/api/outline/submissions')
+                .set('Authorization', 'Bearer student-token')
+                .send({ registrationId: 50, fileData, content: '   ' });
+
+            expect(res.status).toBe(400);
+            expect(res.body.success).toBe(false);
+        });
+
         test('POST /api/outline/submissions - returns 403 when user is outsider lecturer', async () => {
             const res = await request(app)
                 .post('/api/outline/submissions')
@@ -156,20 +183,34 @@ describe('Integration - Outline Review & Council Routes (Task 4)', () => {
             expect(res.status).toBe(403);
         });
 
-        test('POST /api/outline/resubmissions - returns 200 on success', async () => {
+        test('POST /api/outline/resubmissions - returns 200 on success and forwards content, assetId, and Idempotency-Key', async () => {
             outlineReviewService.submitResubmissionOutline.mockResolvedValue({
                 registrationId: 50,
                 status: 'BM01_RESUBMITTED',
+            });
+            const content = JSON.stringify({
+                formCode: 'BM01',
+                taskType: 'BM01_RESUBMISSION',
+                fields: {
+                    topicTitle: 'Đề tài A',
+                    revisionSummary: 'Đã sửa theo góp ý',
+                },
             });
 
             const res = await request(app)
                 .post('/api/outline/resubmissions')
                 .set('Authorization', 'Bearer student-token')
-                .send({ registrationId: 50, fileData });
+                .set('Idempotency-Key', 'outline-v2-key')
+                .send({ registrationId: 50, assetId: 'asset-v2', fileData, content });
 
             expect(res.status).toBe(200);
             expect(res.body.success).toBe(true);
-            expect(outlineReviewService.submitResubmissionOutline).toHaveBeenCalledWith(50, fileData, 10);
+            expect(outlineReviewService.submitResubmissionOutline).toHaveBeenCalledWith(
+                50,
+                { ...fileData, assetId: 'asset-v2' },
+                10,
+                { content, idempotencyKey: 'outline-v2-key' }
+            );
         });
 
         test('POST /api/outline/resubmissions - returns 409 when v2 already submitted', async () => {

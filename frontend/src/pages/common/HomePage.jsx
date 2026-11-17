@@ -685,6 +685,24 @@ export default function HomePage() {
         }
     };
 
+    const handlePrintAnnouncement = () => {
+        if (typeof document !== 'undefined') {
+            document.body.setAttribute('data-print-mode', 'announcement');
+        }
+        const cleanup = () => {
+            if (typeof document !== 'undefined' && document.body.getAttribute('data-print-mode') === 'announcement') {
+                document.body.removeAttribute('data-print-mode');
+            }
+            window.removeEventListener('afterprint', cleanup);
+        };
+        window.addEventListener('afterprint', cleanup);
+        try {
+            window.print();
+        } finally {
+            setTimeout(cleanup, 1000);
+        }
+    };
+
     const handleCopyDocShareLink = () => {
         const url = window.location.origin + window.location.pathname + '#announcement-' + (selectedAnnouncement?.id || 'tb-142');
         if (navigator.clipboard) {
@@ -793,7 +811,7 @@ export default function HomePage() {
                                     </svg>
                                     Quay lại Cổng học vụ
                                 </button>
-                                <button className="btn btn-secondary" onClick={() => window.print()}>
+                                <button className="btn btn-secondary" onClick={handlePrintAnnouncement}>
                                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                         <polyline points="6 9 6 2 18 2 18 9"/>
                                         <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
@@ -1683,7 +1701,7 @@ export default function HomePage() {
                                 <span className="badge badge-success" style={{ fontSize: 11, padding: '2px 8px' }}>Dấu mộc & Ký số SHA-256</span>
                             </div>
                             <div className="preview-toolbar-actions">
-                                <button className="btn btn-secondary" style={{ color: '#fff', borderColor: 'rgba(255,255,255,0.2)', padding: '6px 12px', fontSize: 12, background: 'transparent' }} onClick={() => window.print()}>
+                                <button className="btn btn-secondary" style={{ color: '#fff', borderColor: 'rgba(255,255,255,0.2)', padding: '6px 12px', fontSize: 12, background: 'transparent' }} onClick={handlePrintAnnouncement}>
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                         <polyline points="6 9 6 2 18 2 18 9"/>
                                         <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>

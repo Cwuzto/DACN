@@ -41,10 +41,10 @@
 - Produces: `BM02Submission.payloadHash`, `studentSignatureEventId`, `advisorSignatureEventId`, `departmentSignatureEventId` (nullable; event cùng `entityType='BM02_SUBMISSION'`, `entityId`, `versionNumber`).
 - Produces: `BM02_ADVISOR_SIGN` cho nhóm GVHD mặc định nhưng backend chỉ cho ký đề tài mình hướng dẫn; `BM02_DEPARTMENT_SIGN` scoped `SEMESTER/DEPARTMENT/RESOURCE` chỉ cấp qua nhóm/ủy quyền bộ môn được chỉ định, không tự cấp cho mọi GVHD/Viện trưởng.
 
-- [ ] **Step 1: Viết test fail.** Test Prisma tạo v1/v2 với cột hash/event nullable, có thể query từng phiên bản; catalog có hai capability mới, GVHD mặc định chỉ có quyền ký GVHD chứ không có quyền ký bộ môn. Lịch sử BM02 cũ vẫn đọc được dù chưa có ba event.
-- [ ] **Step 2: Chạy test fail.** `npm --prefix backend test -- --runTestsByPath tests/integration/bm02AndDecisionWorkflow.test.js tests/integration/permissionCatalogMigration.test.js` → FAIL vì schema/capability chưa có.
-- [ ] **Step 3: Thêm schema/catalog.** Migration nullable để không giả ký BM02 cũ; thêm permission catalog và seed idempotent. Migration đồng bộ grant `BM02_ADVISOR_SIGN` cho nhóm GVHD đã lưu, tăng `permissionVersion` của thành viên và làm mới cache khi triển khai; không tự gán `BM02_DEPARTMENT_SIGN`. Task 2 sẽ tính `payloadHash` từ snapshot BM02 chính thức (tên BM01/BM02, lý do, nội dung nhiệm vụ, phiên bản, registration), không gồm các trạng thái có thể đổi sau ký.
-- [ ] **Step 4: Chạy test, Prisma validate, commit.** Test bước 2 PASS; `npm --prefix backend exec prisma validate` PASS; commit `feat(bm02): store version-bound confirmation events`.
+- [x] **Step 1: Viết test fail.** Test Prisma tạo v1/v2 với cột hash/event nullable, có thể query từng phiên bản; catalog có hai capability mới, GVHD mặc định chỉ có quyền ký GVHD chứ không có quyền ký bộ môn. Lịch sử BM02 cũ vẫn đọc được dù chưa có ba event.
+- [x] **Step 2: Chạy test fail.** `npm --prefix backend test -- --runTestsByPath tests/integration/bm02AndDecisionWorkflow.test.js tests/integration/permissionCatalogMigration.test.js` → FAIL vì schema/capability chưa có.
+- [x] **Step 3: Thêm schema/catalog.** Migration nullable để không giả ký BM02 cũ; thêm permission catalog và seed idempotent. Migration đồng bộ grant `BM02_ADVISOR_SIGN` cho nhóm GVHD đã lưu, tăng `permissionVersion` của thành viên và làm mới cache khi triển khai; không tự gán `BM02_DEPARTMENT_SIGN`. Task 2 sẽ tính `payloadHash` từ snapshot BM02 chính thức (tên BM01/BM02, lý do, nội dung nhiệm vụ, phiên bản, registration), không gồm các trạng thái có thể đổi sau ký.
+- [x] **Step 4: Chạy test, Prisma validate, commit.** Test bước 2 PASS; `npm --prefix backend exec prisma validate` PASS; commit `feat(bm02): store version-bound confirmation events`.
 
 ### Task 2: Command nộp và ký có guard ở backend
 
@@ -58,10 +58,10 @@
 - Produces: `POST /api/bm02/applications/:id/advisor-sign`, `POST /api/bm02/applications/:id/department-sign`, `GET /api/bm02/applications/:id/verification`; `:id` là **BM02Submission id** cho ba route mới.
 - Preserves: endpoint nộp `/bm02/applications/:registrationId/submit` và `/registrations/bm02-submit` cùng command, v1/v2 quota và review/decision hiện có.
 
-- [ ] **Step 1: Viết test fail.** Nộp BM02 tạo student event trong transaction; GVHD đúng đề tài ký sau sinh viên; actor bộ môn có grant đúng scope ký sau GVHD. Assert sai người/scope/thứ tự/hash/trạng thái đều 403/409 và không đổi dữ liệu; ký lại cùng idempotency key không nhân bản. Review/ban hành BM02 mới trước ba event trả lỗi; hồ sơ đã duyệt trước rollout vẫn đọc/ban hành theo trạng thái lịch sử mà không được gán dấu ký hồi tố. V2 reset chuỗi.
-- [ ] **Step 2: Chạy test fail.** `npm --prefix backend test -- --runTestsByPath tests/services/bm02SignatureService.test.js tests/integration/bm02Signature.routes.test.js tests/integration/bm02AndDecisionWorkflow.test.js tests/integration/bm02ToBm04FullE2E.test.js` → FAIL ở điều kiện ký/gate mới.
-- [ ] **Step 3: Implement command.** Dùng `ElectronicSignatureEvent`/hash như BM02-A; backend tự kiểm tra actor và scope grant, không tin role label hoặc dữ liệu signature do client gửi. Route nộp mới không yêu cầu/nhận bản scan BM02; endpoint legacy chỉ giữ đọc/tương thích theo cùng service. `getBM02Verification` chỉ trả trạng thái hợp lệ khi event khớp current hash; không lộ hồ sơ của người ngoài.
-- [ ] **Step 4: Chạy lại test và commit.** Test bước 2 PASS; commit `feat(bm02): enforce online confirmation chain`.
+- [x] **Step 1: Viết test fail.** Nộp BM02 tạo student event trong transaction; GVHD đúng đề tài ký sau sinh viên; actor bộ môn có grant đúng scope ký sau GVHD. Assert sai người/scope/thứ tự/hash/trạng thái đều 403/409 và không đổi dữ liệu; ký lại cùng idempotency key không nhân bản. Review/ban hành BM02 mới trước ba event trả lỗi; hồ sơ đã duyệt trước rollout vẫn đọc/ban hành theo trạng thái lịch sử mà không được gán dấu ký hồi tố. V2 reset chuỗi.
+- [x] **Step 2: Chạy test fail.** `npm --prefix backend test -- --runTestsByPath tests/services/bm02SignatureService.test.js tests/integration/bm02Signature.routes.test.js tests/integration/bm02AndDecisionWorkflow.test.js tests/integration/bm02ToBm04FullE2E.test.js` → FAIL ở điều kiện ký/gate mới.
+- [x] **Step 3: Implement command.** Dùng `ElectronicSignatureEvent`/hash như BM02-A; backend tự kiểm tra actor và scope grant, không tin role label hoặc dữ liệu signature do client gửi. Route nộp mới không yêu cầu/nhận bản scan BM02; endpoint legacy chỉ giữ đọc/tương thích theo cùng service. `getBM02Verification` chỉ trả trạng thái hợp lệ khi event khớp current hash; không lộ hồ sơ của người ngoài.
+- [x] **Step 4: Chạy lại test và commit.** Test bước 2 PASS; commit `feat(bm02): enforce online confirmation chain`.
 
 ### Task 3: Form, hàng việc và bản in BM02
 
@@ -74,7 +74,7 @@
 - Consumes: Task 2 routes/DTO; print surface từ `2026-11-18-academic-print-foundation-implementation-plan.md`.
 - Produces: sinh viên thấy “Xác nhận và nộp BM02”, không có upload scan; GVHD/phụ trách bộ môn thấy action theo grant; `BM02PrintSheet({ registration, submission, verification })` render `verification.student|advisor|department` với tên, thời điểm, phiên bản hoặc “Chờ xác nhận”.
 
-- [ ] **Step 1: Viết test fail.** Sinh viên điền và nộp không thấy upload BM02; GVHD và bộ môn chỉ thấy nút của mình khi được quyền; viewer/in A4 chưa đủ ký hiện “Chờ xác nhận”, đủ ký hiện “Đã xác thực nội bộ”, v2 không hiện dấu v1; loading/error riêng.
-- [ ] **Step 2: Chạy test fail.** `npm --prefix frontend run test:runtime -- runtime-tests/bm02Confirmation.spec.jsx`; `npm --prefix frontend run test:e2e -- e2e/bm02Confirmation.spec.js` → FAIL với form scan và ô ký trống hiện tại.
-- [ ] **Step 3: Nối UI vào API thật.** Bỏ `fileRequired`/upload section riêng của BM02, giữ field validation; thêm hàng việc ký cho đúng actor và invalidate query sau mutation. `BM02PrintSheet` lấy `BM02Submission` + verified DTO, không dùng fallback nhân thân hay chữ ký ảnh tự chế.
-- [ ] **Step 4: Regression và commit.** Test bước 2 PASS; `npm --prefix frontend run lint` và `npm --prefix frontend run build` PASS; commit `feat(bm02): show online confirmation and verified print`.
+- [x] **Step 1: Viết test fail.** Sinh viên điền và nộp không thấy upload BM02; GVHD và bộ môn chỉ thấy nút của mình khi được quyền; viewer/in A4 chưa đủ ký hiện “Chờ xác nhận”, đủ ký hiện “Đã xác thực nội bộ”, v2 không hiện dấu v1; loading/error riêng.
+- [x] **Step 2: Chạy test fail.** `npm --prefix frontend run test:runtime -- runtime-tests/bm02Confirmation.spec.jsx`; `npm --prefix frontend run test:e2e -- e2e/bm02Confirmation.spec.js` → FAIL với form scan và ô ký trống hiện tại.
+- [x] **Step 3: Nối UI vào API thật.** Bỏ `fileRequired`/upload section riêng của BM02, giữ field validation; thêm hàng việc ký cho đúng actor và invalidate query sau mutation. `BM02PrintSheet` lấy `BM02Submission` + verified DTO, không dùng fallback nhân thân hay chữ ký ảnh tự chế.
+- [x] **Step 4: Regression và commit.** Test bước 2 PASS; `npm --prefix frontend run lint` và `npm --prefix frontend run build` PASS; commit `feat(bm02): show online confirmation and verified print`.

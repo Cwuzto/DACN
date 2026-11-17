@@ -86,6 +86,8 @@ export default function SubmissionPage() {
     // Viewer state
     const [viewerVisible, setViewerVisible] = useState(false);
     const [viewerSubmission, setViewerSubmission] = useState(null);
+    const [viewerSubmissions, setViewerSubmissions] = useState([]);
+    const [bm02VerificationData, setBm02VerificationData] = useState(null);
     const [bm04ViewerOpen, setBm04ViewerOpen] = useState(false);
     const [bm04Evaluation, setBm04Evaluation] = useState(null);
     const [printConfig, setPrintConfig] = useState({
@@ -175,6 +177,37 @@ export default function SubmissionPage() {
     const outlineData = outlineQuery.data || null;
     const bm03Record = bm03Query.data || null;
     const bm04Record = bm04Query.data || null;
+
+    const activeMeetingLogs = useMemo(() => {
+        const meetings = bm03Record?.meetings || bm03Record?.meetingEntries || [];
+        const raw = meetings.length > 0 ? meetings : meetingLogs;
+        return raw
+            .filter((item) => !item?.supersededBy && !item?.isSuperseded)
+            .sort((a, b) => {
+                const dateDiff = new Date(a?.meetingDate || 0) - new Date(b?.meetingDate || 0);
+                if (dateDiff !== 0) return dateDiff;
+                return (a?.id || 0) - (b?.id || 0);
+            });
+    }, [bm03Record, meetingLogs]);
+
+    const bm03StageEvals = bm03Record?.stageEvaluations || [];
+    const bm03MidtermEval = bm03Record?.midtermStageEvaluation || bm03StageEvals.find((e) => e.stage === 'MIDTERM') || null;
+    const bm03FinalEval = bm03Record?.finalStageEvaluation || bm03StageEvals.find((e) => e.stage === 'FINAL') || null;
+    const bm03LatestStopReview = bm03Record?.stopReviews?.[0] || null;
+    const isBm03StopReviewPending =
+        registration?.status === 'STOP_REVIEW_PENDING' ||
+        bm03Record?.registration?.status === 'STOP_REVIEW_PENDING' ||
+        ['STOP_REVIEW_PENDING', 'MORE_INFO_REQUIRED'].includes(bm03LatestStopReview?.status);
+    const isBm03ClosedEarly = Boolean(bm03Record?.isClosedEarly) || registration?.status === 'TERMINATED_FAILED_PROGRESS';
+    const isBm03AdvisorSigned = Boolean(bm03Record?.advisorSignedAt);
+    const isBm03StudentAckProcessed = [
+        'ACKNOWLEDGED',
+        'ACKNOWLEDGED_WITH_COMMENT',
+        'DECLINED_TO_ACKNOWLEDGE',
+        'ACKNOWLEDGEMENT_TIMEOUT',
+    ].includes(bm03Record?.studentAckStatus);
+    const isBm03LegacyPassed = registration?.status === 'BM03_PASSED' && (!bm03Record?.id || bm03Record?.isVirtualProjection);
+    const isBm03Finalized = (isBm03AdvisorSigned && isBm03StudentAckProcessed) || isBm03LegacyPassed;
     const preDefenseArchive = archiveQuery.data?.data?.archive;
     const dossier = dossierQuery.data?.data;
     const archiveTab = searchParams.get('tab') === 'archive';
@@ -347,8 +380,9 @@ export default function SubmissionPage() {
         setModalVisible(true);
     };
 
-    const handleOpenViewer = (submission) => {
+    const handleOpenViewer = (submission, allSubmissions = []) => {
         setViewerSubmission(submission);
+        setViewerSubmissions(Array.isArray(allSubmissions) && allSubmissions.length > 0 ? allSubmissions : (submission ? [submission] : []));
         setViewerVisible(true);
     };
 
@@ -357,31 +391,33 @@ export default function SubmissionPage() {
         try {
             setSubmitting(true);
             let res;
+            const buildBm01FileData = (defaultFileName) => ({
+                assetId: payload.assetId || null,
+                fileUrl: payload.fileUrl || null,
+                fileName: payload.fileName || defaultFileName,
+                mimeType: payload.mimeType || 'application/pdf',
+                ...(payload.fileSize != null ? { fileSize: payload.fileSize } : {}),
+            });
+
             if (activeTask.taskType === 'BM01' || activeTask.taskType === 'BM01_INITIAL_SUBMISSION') {
                 if (registration.status === 'BM01_NEEDS_REVISION') {
                     res = await outlineService.submitResubmission({
                         registrationId: registration.id,
-                        fileData: {
-                            fileUrl: payload.fileUrl,
-                            fileName: payload.fileName || 'De_cuong_chinh_sua_v2.pdf',
-                        },
+                        fileData: buildBm01FileData('De_cuong_chinh_sua_v2.pdf'),
+                        content: payload.content,
                     });
                 } else {
                     res = await outlineService.submitInitialOutline({
                         registrationId: registration.id,
-                        fileData: {
-                            fileUrl: payload.fileUrl,
-                            fileName: payload.fileName || 'De_cuong_chi_tiet_v1.pdf',
-                        },
+                        fileData: buildBm01FileData('De_cuong_chi_tiet_v1.pdf'),
+                        content: payload.content,
                     });
                 }
             } else if (activeTask.taskType === 'BM01_RESUBMISSION') {
                 res = await outlineService.submitResubmission({
                     registrationId: registration.id,
-                    fileData: {
-                        fileUrl: payload.fileUrl,
-                        fileName: payload.fileName || 'De_cuong_chinh_sua_v2.pdf',
-                    },
+                    fileData: buildBm01FileData('De_cuong_chinh_sua_v2.pdf'),
+                    content: payload.content,
                 });
             } else if (activeTask.taskType === 'BM02') {
                 res = await registrationService.submitBM02({ registrationId: registration.id, ...payload });
@@ -450,6 +486,32 @@ export default function SubmissionPage() {
         }
         return list;
     }, [tasks, outlineData]);
+
+    const bm02Task = taskByType.BM02 || null;
+    const activeBm02Submission = registration?.currentBM02Submission || bm02Task?.submissions?.[0] || null;
+
+    useEffect(() => {
+        let cancelled = false;
+        if (!printConfig.open || printConfig.type !== 'BM02' || !activeBm02Submission?.id) {
+            setBm02VerificationData(null);
+            return undefined;
+        }
+        registrationService
+            .getBM02Verification(activeBm02Submission.id)
+            .then((res) => {
+                if (!cancelled) {
+                    setBm02VerificationData(res?.data ?? res ?? null);
+                }
+            })
+            .catch(() => {
+                if (!cancelled) {
+                    setBm02VerificationData(null);
+                }
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [printConfig.open, printConfig.type, activeBm02Submission?.id]);
 
     const outlineCouncil = outlineData?.outlineCouncil || registration?.outlineCouncil;
     const latestBm01Eval = (outlineData?.bm01Evaluations || registration?.bm01Evaluations || [])[0];
@@ -1207,7 +1269,12 @@ export default function SubmissionPage() {
                                 {lastSubmission && (
                                     <button
                                         className="btn btn-secondary btn-sm"
-                                        onClick={() => handleOpenViewer(lastSubmission)}
+                                        onClick={() => handleOpenViewer(
+                                            lastSubmission,
+                                            (isBM01Initial || isBM01Resub)
+                                                ? (outlineData?.submissions?.length ? outlineData.submissions : submissions)
+                                                : submissions
+                                        )}
                                     >
                                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
@@ -1294,19 +1361,26 @@ export default function SubmissionPage() {
                 </div>
             </div>
 
-            {/* Meeting Logs Section */}
-            {meetingLogs.length > 0 && (
+            {/* BM03 Continuous Timeline & Stage Evaluation Section (Read-Only for Student) */}
+            {(activeMeetingLogs.length > 0 || Boolean(bm03Record?.id) || isBm03StopReviewPending) && (
                 <div className="card" style={{ marginTop: 24, padding: 20 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
-                        <h3 className="h3 m-0">Nhật Ký Làm Việc &amp; Trao Đổi Lab Với GVHD ({meetingLogs.length})</h3>
+                        <div>
+                            <h3 className="h3 m-0">Nhật Ký Làm Việc &amp; Theo Dõi Tiến Độ BM03 ({activeMeetingLogs.length} buổi hiện hành)</h3>
+                            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
+                                Chế độ chỉ đọc — Sinh viên theo dõi nhật ký liên tục và phản hồi xác nhận toàn phiếu BM03 khi GVHD hoàn tất ký cuối kỳ.
+                            </div>
+                        </div>
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                            <Button
-                                icon={<PrinterOutlined />}
-                                onClick={() => handleOpenPrint('BM03')}
-                            >
-                                In Sổ tiến độ BM03
-                            </Button>
-                            {bm03Record?.finalPdfFileUrl && (
+                            {isBm03Finalized && (
+                                <Button
+                                    icon={<PrinterOutlined />}
+                                    onClick={() => handleOpenPrint('BM03')}
+                                >
+                                    In Sổ tiến độ BM03
+                                </Button>
+                            )}
+                            {isBm03Finalized && bm03Record?.finalPdfFileUrl && (
                                 <Button
                                     icon={<FilePdfOutlined />}
                                     href={bm03Record.finalPdfFileUrl}
@@ -1317,42 +1391,151 @@ export default function SubmissionPage() {
                             )}
                         </div>
                     </div>
-                    <div className="table-container">
-                        <table className="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Buổi số</th>
-                                    <th>Thời gian</th>
-                                    <th>Hình thức / Địa điểm</th>
-                                    <th>Nội dung trao đổi</th>
-                                    <th>Kết quả &amp; Kế hoạch tuần tới</th>
-                                    <th>Đánh giá của GVHD</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {meetingLogs.map((log, idx) => (
-                                    <tr key={log.id || idx}>
-                                        <td className="num" style={{ fontWeight: 700, color: 'var(--primary)' }}>#{idx + 1}</td>
-                                        <td>{dayjs(log.meetingDate).format('DD/MM/YYYY')}</td>
-                                        <td>
-                                            <span className="tag teal">{log.locationOrLink || log.location || 'Văn phòng Lab'}</span>
-                                        </td>
-                                        <td style={{ maxWidth: 260 }}>{log.discussionContent || log.content || 'Sinh viên báo cáo kết quả và thảo luận giải pháp.'}</td>
-                                        <td style={{ maxWidth: 260 }}>{log.nextTasks || log.nextPlan || 'Tiếp tục triển khai theo kế hoạch'}</td>
-                                        <td>
-                                            <span className="status-badge" style={{ background: 'var(--success-soft)', color: 'var(--success)' }}>
-                                                {log.progressRating === 'ON_TRACK' ? 'Đúng tiến độ' :
-                                                 log.progressRating === 'AT_RISK' ? 'Có rủi ro' :
-                                                 log.progressRating === 'BEHIND' ? 'Chậm tiến độ' :
-                                                 log.progressRating === 'NO_PROGRESS' ? 'Không có tiến độ' :
-                                                 (log.mentorNote || 'Đạt tiến độ')}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+
+                    {isBm03StopReviewPending && (
+                        <Alert
+                            type="warning"
+                            showIcon
+                            message="Đang có đề nghị dừng đề tài chờ Viện thẩm định (STOP_REVIEW_PENDING)"
+                            description="Nhật ký BM03 đang ở chế độ chỉ đọc trong thời gian Hội đồng/Viện xem xét đề nghị dừng."
+                            style={{ marginBottom: 16 }}
+                        />
+                    )}
+                    {isBm03ClosedEarly && (
+                        <Alert
+                            type="error"
+                            showIcon
+                            message="Hồ sơ BM03 đã đóng sớm"
+                            description="Đề tài đã dừng theo quyết định thẩm định của Viện."
+                            style={{ marginBottom: 16 }}
+                        />
+                    )}
+
+                    {/* Stage Evaluations Summary (MIDTERM & FINAL) */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12, marginBottom: 16 }}>
+                        <div style={{ padding: 12, borderRadius: 8, border: '1px solid #E2E8F0', background: '#F8FAFC' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                <strong style={{ fontSize: 13 }}>Đánh giá giữa kỳ (MIDTERM)</strong>
+                                {bm03MidtermEval ? (
+                                    <Tag color={bm03MidtermEval.decision === 'CONTINUE' ? 'success' : 'error'}>
+                                        {bm03MidtermEval.decision === 'CONTINUE' ? 'Cho làm tiếp' : 'Đề nghị dừng'}
+                                    </Tag>
+                                ) : (
+                                    <Tag color="default">Chưa đánh giá</Tag>
+                                )}
+                            </div>
+                            <div style={{ fontSize: 12, color: '#475569' }}>
+                                {bm03MidtermEval?.comments || 'GVHD chưa cập nhật nhận xét giữa kỳ.'}
+                            </div>
+                        </div>
+
+                        <div style={{ padding: 12, borderRadius: 8, border: '1px solid #E2E8F0', background: '#F8FAFC' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                <strong style={{ fontSize: 13 }}>Đánh giá cuối kỳ (FINAL)</strong>
+                                {bm03FinalEval ? (
+                                    <Tag color={['CONTINUE', 'CONTINUE_TO_BM04'].includes(bm03FinalEval.decision) ? 'success' : 'error'}>
+                                        {['CONTINUE', 'CONTINUE_TO_BM04'].includes(bm03FinalEval.decision) ? 'Đạt - Chuyển sang BM04' : 'Đề nghị dừng'}
+                                    </Tag>
+                                ) : (
+                                    <Tag color="default">Chưa đánh giá</Tag>
+                                )}
+                            </div>
+                            <div style={{ fontSize: 12, color: '#475569' }}>
+                                {bm03FinalEval?.comments || 'GVHD chưa cập nhật nhận xét cuối kỳ.'}
+                            </div>
+                        </div>
                     </div>
+
+                    {/* Whole BM03 Signature & Student Acknowledgement Summary */}
+                    {isBm03AdvisorSigned && (
+                        <div style={{ padding: 12, borderRadius: 8, border: '1px solid #DDD6FE', background: '#FAF5FF', marginBottom: 16, fontSize: 12 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                                <div>
+                                    <strong style={{ color: '#581C87' }}>
+                                        GVHD đã ký toàn phiếu BM03 lúc {dayjs(bm03Record.advisorSignedAt).format('DD/MM/YYYY HH:mm')}
+                                    </strong>
+                                    <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                        <span>Trạng thái xác nhận toàn phiếu:</span>
+                                        {bm03Record.studentAckStatus === 'ACKNOWLEDGED' ? (
+                                            <Tag color="green">Đã xác nhận toàn phiếu</Tag>
+                                        ) : bm03Record.studentAckStatus === 'ACKNOWLEDGED_WITH_COMMENT' ? (
+                                            <Tag color="blue">Đã xác nhận kèm ý kiến</Tag>
+                                        ) : bm03Record.studentAckStatus === 'DECLINED_TO_ACKNOWLEDGE' ? (
+                                            <Tag color="red">Không đồng ý / Từ chối ký</Tag>
+                                        ) : bm03Record.studentAckStatus === 'ACKNOWLEDGEMENT_TIMEOUT' ? (
+                                            <Tag color="purple">Quá hạn 48h (Hệ thống ghi nhận)</Tag>
+                                        ) : (
+                                            <Tag color="gold">Chờ sinh viên xác nhận toàn phiếu (48h)</Tag>
+                                        )}
+                                    </div>
+                                </div>
+                                {bm03Record.studentAckStatus === 'PENDING_STUDENT_ACKNOWLEDGEMENT' && (
+                                    <Button
+                                        size="small"
+                                        type="primary"
+                                        icon={<FileDoneOutlined />}
+                                        onClick={() => setBm03AckModalOpen(true)}
+                                    >
+                                        Phản hồi phiếu BM03
+                                    </Button>
+                                )}
+                            </div>
+                            {bm03Record.studentComment && (
+                                <div style={{ marginTop: 8, padding: 8, background: '#FFFFFF', borderRadius: 6, border: '1px solid #E2E8F0' }}>
+                                    <strong>Ý kiến sinh viên:</strong> {bm03Record.studentComment}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Read-Only Continuous Meeting Timeline Table */}
+                    {activeMeetingLogs.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '24px 16px', color: 'var(--muted)', fontSize: 13 }}>
+                            Chưa có buổi gặp hướng dẫn nào được ghi nhận.
+                        </div>
+                    ) : (
+                        <div className="table-container">
+                            <table className="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Buổi số</th>
+                                        <th>Thời gian</th>
+                                        <th>Hình thức / Địa điểm</th>
+                                        <th>Nội dung trao đổi</th>
+                                        <th>Kết quả &amp; Kế hoạch tuần tới</th>
+                                        <th>Đánh giá của GVHD</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {activeMeetingLogs.map((log, idx) => (
+                                        <tr key={log.id || idx}>
+                                            <td className="num" style={{ fontWeight: 700, color: 'var(--primary)' }}>
+                                                #{idx + 1}
+                                                {(log.versionNumber > 1 || log.supersedesEntryId) && (
+                                                    <Tag color="cyan" style={{ marginLeft: 6 }}>v{log.versionNumber || 2}</Tag>
+                                                )}
+                                            </td>
+                                            <td>{dayjs(log.meetingDate).format('DD/MM/YYYY')}</td>
+                                            <td>
+                                                <span className="tag teal">{log.locationOrLink || log.location || 'Văn phòng Lab'}</span>
+                                            </td>
+                                            <td style={{ maxWidth: 260 }}>{log.discussionContent || log.content || 'Sinh viên báo cáo kết quả và thảo luận giải pháp.'}</td>
+                                            <td style={{ maxWidth: 260 }}>{log.nextTasks || log.nextPlan || 'Tiếp tục triển khai theo kế hoạch'}</td>
+                                            <td>
+                                                <span className="status-badge" style={{ background: 'var(--success-soft)', color: 'var(--success)' }}>
+                                                    {log.progressRating === 'ON_TRACK' ? 'Đúng tiến độ' :
+                                                     log.progressRating === 'AT_RISK' ? 'Có rủi ro' :
+                                                     log.progressRating === 'BEHIND' ? 'Chậm tiến độ' :
+                                                     log.progressRating === 'NO_PROGRESS' ? 'Không có tiến độ' :
+                                                     (log.mentorNote || 'Đạt tiến độ')}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -1513,6 +1696,7 @@ export default function SubmissionPage() {
             >
                 <BMSubmissionViewer
                     submission={viewerSubmission}
+                    submissions={viewerSubmissions}
                 />
             </Modal>
 
@@ -1571,53 +1755,77 @@ export default function SubmissionPage() {
             />
 
             {/* Academic Form Print Modal */}
-            <AcademicFormPrintModal
-                open={printConfig.open}
-                onClose={() => setPrintConfig((prev) => ({ ...prev, open: false }))}
-                onCancel={() => setPrintConfig((prev) => ({ ...prev, open: false }))}
-                title={printConfig.title}
-                documentCode={printConfig.documentCode}
-            >
-                {printConfig.type === 'BM01' && (
-                    <BM01PrintSheet
-                        outlineData={outlineData || (() => {
-                            const bm01Task = tasks.find((t) => t.taskType === 'BM01' || t.taskType === 'BM01_INITIAL_SUBMISSION' || t.taskType === 'BM01_RESUBMISSION');
-                            const lastSub = bm01Task?.submissions?.[0];
-                            if (lastSub?.content) {
-                                try {
-                                    const parsed = JSON.parse(lastSub.content);
-                                    return parsed.fields || parsed;
-                                } catch {
-                                    return { summary: lastSub.content };
-                                }
-                            }
-                            return null;
-                        })()}
-                        outline={outlineData}
-                        registration={registration}
-                    />
-                )}
-                {printConfig.type === 'BM02' && (
-                    <BM02PrintSheet
-                        task={tasks.find((t) => t.taskType === 'BM02')}
-                        registration={registration}
-                    />
-                )}
-                {printConfig.type === 'BM03' && (
-                    <BM03PrintSheet
-                        meetingLogs={meetingLogs}
-                        checkpoints={checkpoints}
-                        registration={registration}
-                        bm03Record={bm03Record}
-                    />
-                )}
-                {printConfig.type === 'BM04' && (
-                    <BM04PrintSheet
-                        evaluation={bm04Evaluation || bm04Record}
-                        registration={registration}
-                    />
-                )}
-            </AcademicFormPrintModal>
+            {(() => {
+                const bm02Submission = activeBm02Submission;
+                const bm02Verification = bm02VerificationData || bm02Submission?.verification || registration?.bm02Verification || null;
+                const resolvedBm04 = bm04Evaluation || bm04Record;
+
+                let canPrint = true;
+                let printBlockedReason = '';
+                if (printConfig.type === 'BM02' && !bm02Submission) {
+                    canPrint = false;
+                    printBlockedReason = 'Chưa có dữ liệu nộp BM02 để in.';
+                } else if (printConfig.type === 'BM03' && !isBm03Finalized) {
+                    canPrint = false;
+                    printBlockedReason = 'BM03 chưa chốt cuối kỳ và hoàn tất xác nhận toàn phiếu; chỉ xem nhật ký trên màn hình.';
+                } else if (printConfig.type === 'BM04' && !resolvedBm04) {
+                    canPrint = false;
+                    printBlockedReason = 'Chưa có phiếu nhận xét BM04.';
+                }
+
+                return (
+                    <AcademicFormPrintModal
+                        open={printConfig.open}
+                        onClose={() => setPrintConfig((prev) => ({ ...prev, open: false }))}
+                        onCancel={() => setPrintConfig((prev) => ({ ...prev, open: false }))}
+                        title={printConfig.title}
+                        documentCode={printConfig.documentCode}
+                        canPrint={canPrint}
+                        printBlockedReason={printBlockedReason}
+                    >
+                        {printConfig.type === 'BM01' && (
+                            <BM01PrintSheet
+                                outlineData={outlineData || (() => {
+                                    const bm01Task = tasks.find((t) => t.taskType === 'BM01' || t.taskType === 'BM01_INITIAL_SUBMISSION' || t.taskType === 'BM01_RESUBMISSION');
+                                    const lastSub = bm01Task?.submissions?.[0];
+                                    if (lastSub?.content) {
+                                        try {
+                                            const parsed = JSON.parse(lastSub.content);
+                                            return parsed.fields || parsed;
+                                        } catch {
+                                            return { summary: lastSub.content };
+                                        }
+                                    }
+                                    return null;
+                                })()}
+                                outline={outlineData}
+                                registration={registration}
+                            />
+                        )}
+                        {printConfig.type === 'BM02' && (
+                            <BM02PrintSheet
+                                submission={bm02Submission}
+                                verification={bm02Verification}
+                                registration={registration}
+                            />
+                        )}
+                        {printConfig.type === 'BM03' && (
+                            <BM03PrintSheet
+                                meetingLogs={activeMeetingLogs}
+                                checkpoints={checkpoints}
+                                registration={registration}
+                                bm03Record={bm03Record}
+                            />
+                        )}
+                        {printConfig.type === 'BM04' && (
+                            <BM04PrintSheet
+                                evaluation={resolvedBm04 || {}}
+                                registration={registration}
+                            />
+                        )}
+                    </AcademicFormPrintModal>
+                );
+            })()}
         </div>
     );
 }

@@ -442,4 +442,36 @@ describe('Dynamic Policy Deadlines & Concurrent Overdue Worker', () => {
             expect.stringContaining('SELECT pg_advisory_unlock(108032601)'),
         );
     });
+
+    it('should keep registration in IN_PROGRESS_BM03 when student signs Checkpoint 2 ALLOWED_TO_CONTINUE', async () => {
+        const now = new Date('2026-11-10T08:00:00.000Z');
+        mockTx.checkpointEvaluation.findUnique.mockResolvedValue({
+            id: 502,
+            checkpointNo: 2,
+            conclusion: 'ALLOWED_TO_CONTINUE',
+            studentSignedAt: null,
+            studentSignDeadlineAt: new Date('2026-11-12T08:00:00.000Z'),
+            registration: {
+                id: 100,
+                studentId: 10,
+                status: 'BM03_SIGNATURE_PENDING',
+                stateVersion: 7,
+                periodPolicyVersionId: 9,
+            },
+        });
+        mockTx.topicRegistration.findUnique.mockResolvedValue({
+            id: 100,
+            status: 'BM03_SIGNATURE_PENDING',
+            stateVersion: 7,
+        });
+
+        const result = await signCheckpoint({
+            checkpointEvaluationId: 502,
+            studentSignature: 'Sinh Vien A',
+            actorId: 10,
+            idempotencyKey: 'idem-cp2-no-early-pass',
+        }, { db: mockDb, now });
+
+        expect(result.transitionResult.status).toBe('IN_PROGRESS_BM03');
+    });
 });

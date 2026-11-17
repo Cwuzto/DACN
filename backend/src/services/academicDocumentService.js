@@ -2,6 +2,11 @@ const crypto = require('crypto');
 const prisma = require('../config/database');
 const { transitionRegistration, WorkflowTransitionError } = require('./registrationTransitionService');
 const { storedAssetService, StoredAssetServiceError } = require('./storedAssetService');
+const {
+    computeBM02PayloadHash,
+    recordStudentBM02Signature,
+    verifyBM02SignatureChain,
+} = require('./bm02SignatureService');
 
 function commandKey(prefix, key) {
     if (!key || key.length < 8) throw new WorkflowTransitionError('IDEMPOTENCY_KEY_REQUIRED', 400);
@@ -12,7 +17,7 @@ function fingerprint(value) {
     return crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
 }
 
-async function submitBM02({ registrationId, studentId, bm02ProposedTitle, titleChangeReason, content, fileUrl, fileName, assetId, idempotencyKey }, options = {}) {
+async function submitBM02({ registrationId, studentId, bm02ProposedTitle, titleChangeReason, content, fileUrl, fileName, assetId, idempotencyKey, ipAddress = null, userAgent = null }, options = {}) {
     const db = options.db || prisma;
     const now = options.now || new Date();
     const receiptScope = 'submit-bm02-command';
@@ -151,10 +156,20 @@ async function submitBM02({ registrationId, studentId, bm02ProposedTitle, titleC
             }
         }
 
-        const submission = await tx.bM02Submission.create({
+        const nextVersionNo = (prior?.versionNo || 0) + 1;
+        const payloadHash = computeBM02PayloadHash({
+            registrationId,
+            versionNo: nextVersionNo,
+            bm01ApprovedTitle: bm01ApprovedTitle || '',
+            bm02ProposedTitle: proposedTitle || '',
+            titleChangeReason: normalizedReason || '',
+            content: content || '',
+        });
+
+        const createdSubmission = await tx.bM02Submission.create({
             data: {
                 registrationId,
-                versionNo: (prior?.versionNo || 0) + 1,
+                versionNo: nextVersionNo,
                 attemptNo: isRevision ? 2 : 1,
                 supersedesId: isRevision ? prior.id : null,
                 content: content || null,
@@ -164,12 +179,41 @@ async function submitBM02({ registrationId, studentId, bm02ProposedTitle, titleC
                 bm01ApprovedTitle: bm01ApprovedTitle || null,
                 bm02ProposedTitle: proposedTitle || null,
                 titleChangeReason: normalizedReason,
+                payloadHash,
                 studentSnapshot: studentSnapshot || undefined,
                 mentorSnapshot: mentorSnapshot || undefined,
                 submittedById: studentId,
                 policyVersionId: registration.periodPolicyVersionId,
             },
         });
+
+        const { sigEvent } = await recordStudentBM02Signature(tx, {
+            submission: {
+                ...createdSubmission,
+                registrationId,
+                versionNo: nextVersionNo,
+                bm01ApprovedTitle: bm01ApprovedTitle || null,
+                bm02ProposedTitle: proposedTitle || null,
+                titleChangeReason: normalizedReason,
+                content: content || null,
+                payloadHash,
+            },
+            studentId,
+            ipAddress,
+            userAgent,
+        });
+
+        const updatedSubmission = await tx.bM02Submission.update({
+            where: { id: createdSubmission.id },
+            data: { studentSignatureEventId: sigEvent.id },
+        });
+
+        const submission = {
+            ...createdSubmission,
+            ...updatedSubmission,
+            payloadHash,
+            studentSignatureEventId: sigEvent.id,
+        };
 
         // Sync Task(taskType='BM02') to SUBMITTED
         if (tx.task) {
@@ -414,6 +458,16 @@ async function createTopicDecision({
             }
             if (!reg.currentBM02Submission || reg.currentBM02Submission.outcome !== 'APPROVED') {
                 throw new WorkflowTransitionError('BM02_NOT_APPROVED', 409);
+            }
+            if (reg.currentBM02Submission.payloadHash || reg.currentBM02Submission.studentSignatureEventId) {
+                const verification = await verifyBM02SignatureChain(tx, reg.currentBM02Submission, reg);
+                if (!verification.allValid) {
+                    throw new WorkflowTransitionError(
+                        'BM02_SIGNATURES_INCOMPLETE',
+                        409,
+                        'Hồ sơ BM02 chưa đủ 3 xác nhận hợp lệ để ban hành quyết định.',
+                    );
+                }
             }
 
             const existingItem = await tx.topicAssignmentDecisionItem.findUnique({

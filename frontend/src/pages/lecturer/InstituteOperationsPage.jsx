@@ -10,11 +10,17 @@ import {
     Empty,
     Typography,
     Result,
+    Tag,
+    Spin,
+    message,
 } from 'antd';
 import {
     AuditOutlined,
+    CheckCircleOutlined,
+    ClockCircleOutlined,
     FileDoneOutlined,
     NotificationOutlined,
+    SafetyCertificateOutlined,
     TeamOutlined,
     ReloadOutlined,
 } from '@ant-design/icons';
@@ -24,6 +30,7 @@ import { queryKeys } from '../../query/queryKeys';
 import { getEffectivePermissions } from '../../auth/policyEvaluator';
 import { useSemesters } from '../../queries/semesterQueries';
 import { useInstituteOperations } from '../../queries/instituteOperationsQueries';
+import { useBm02DepartmentSignMutation, useBm02Verification } from '../../queries/bm02VerificationQueries';
 import ReviewQueue from '../../components/institute/ReviewQueue';
 import DecisionQueue from '../../components/institute/DecisionQueue';
 import PublicationQueue from '../../components/institute/PublicationQueue';
@@ -37,6 +44,7 @@ export const TAB_CAPABILITIES = {
     review: [
         'VIEW_BM02_REVIEWS',
         'BM02_REVIEW',
+        'BM02_DEPARTMENT_SIGN',
         'VIEW_CHECKPOINTS',
         'BM03_STOP_REVIEW',
         'BM04_REVIEW',
@@ -105,6 +113,91 @@ export function resolveMappedTab(rawTab) {
     if (!rawTab) return null;
     if (rawTab === 'delegations') return 'decisions';
     return LEGACY_TAB_MAP[rawTab] || null;
+}
+
+function Bm02DepartmentSignRow({ item, scope, departmentSignMutation }) {
+    const verificationQuery = useBm02Verification(scope, item.resourceId, Boolean(item.resourceId));
+    const verification = verificationQuery.data || null;
+
+    const handleDepartmentSign = async () => {
+        if (!item.resourceId) return;
+        try {
+            await departmentSignMutation.mutateAsync({
+                submissionId: item.resourceId,
+                expectedPayloadHash: verification?.payloadHash || null,
+            });
+            message.success('Phụ trách bộ môn đã ký xác nhận đơn BM02.');
+        } catch (error) {
+            message.error(error?.message || 'Không thể ký xác nhận bộ môn.');
+        }
+    };
+
+    const renderStepTag = (label, step) => {
+        if (step?.valid === true) {
+            return (
+                <Tag color="success" icon={<CheckCircleOutlined />} className="m-0 text-xs">
+                    {label}: Đã xác thực nội bộ
+                </Tag>
+            );
+        }
+        return (
+            <Tag color="default" icon={<ClockCircleOutlined />} className="m-0 text-xs">
+                {label}: Chờ xác nhận
+            </Tag>
+        );
+    };
+
+    const canSignNow = Boolean(
+        verification?.student?.valid
+        && verification?.advisor?.valid
+        && !verification?.department?.valid,
+    );
+
+    return (
+        <div className="rounded-lg border border-slate-200 bg-white p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="min-w-0 flex-1 space-y-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold text-sm text-slate-900">
+                        {item.title}
+                    </span>
+                    {item.department && (
+                        <Tag color="blue" className="m-0 text-xs">
+                            {item.department}
+                        </Tag>
+                    )}
+                </div>
+                {item.subtitle && (
+                    <p className="text-xs text-slate-600 m-0 break-words">{item.subtitle}</p>
+                )}
+                {verificationQuery.isPending ? (
+                    <Spin size="small" />
+                ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                        {renderStepTag('Sinh viên', verification?.student)}
+                        {renderStepTag('GVHD', verification?.advisor)}
+                        {renderStepTag('Bộ môn', verification?.department)}
+                    </div>
+                )}
+            </div>
+            <div className="shrink-0">
+                {canSignNow ? (
+                    <Button
+                        type="primary"
+                        size="small"
+                        icon={<SafetyCertificateOutlined />}
+                        loading={departmentSignMutation.isPending}
+                        onClick={handleDepartmentSign}
+                    >
+                        Ký xác nhận Bộ môn
+                    </Button>
+                ) : verification?.department?.valid ? (
+                    <Tag color="teal" icon={<CheckCircleOutlined />} className="m-0">
+                        Bộ môn đã ký
+                    </Tag>
+                ) : null}
+            </div>
+        </div>
+    );
 }
 
 export default function InstituteOperationsPage() {
@@ -239,6 +332,18 @@ export default function InstituteOperationsPage() {
         }
     };
 
+    const queueData = operationsQuery.data;
+    const items = Array.isArray(queueData?.items) ? queueData.items : [];
+    const counts = queueData?.counts || { review: 0, decisions: 0, publish: 0 };
+    const pagination = queueData?.pagination || null;
+    const currentSemester = semesters.find((s) => s.id === (queueData?.semester?.id || selectedSemesterId));
+    const canDepartmentSignBm02 = effectivePermissions.has('BM02_DEPARTMENT_SIGN');
+    const departmentSignMutation = useBm02DepartmentSignMutation(scope);
+    const bm02ReviewItems = useMemo(
+        () => (Array.isArray(queueData?.items) ? queueData.items.filter((item) => item.kind === 'BM02_REVIEW') : []),
+        [queueData],
+    );
+
     if (allowedTabs.length === 0) {
         return (
             <Result
@@ -248,12 +353,6 @@ export default function InstituteOperationsPage() {
             />
         );
     }
-
-    const queueData = operationsQuery.data;
-    const items = Array.isArray(queueData?.items) ? queueData.items : [];
-    const counts = queueData?.counts || { review: 0, decisions: 0, publish: 0 };
-    const pagination = queueData?.pagination || null;
-    const currentSemester = semesters.find((s) => s.id === (queueData?.semester?.id || selectedSemesterId));
 
     const tabItems = [
         allowedTabs.includes('review') && {
@@ -425,6 +524,34 @@ export default function InstituteOperationsPage() {
                 />
                 {renderQueueBody()}
             </Card>
+
+            {activeTab === 'review' && canDepartmentSignBm02 && bm02ReviewItems.length > 0 && (
+                <Card>
+                    <div className="flex items-center justify-between gap-2 mb-3">
+                        <div>
+                            <Title level={5} style={{ margin: 0 }}>
+                                Xác nhận BM02 cấp Bộ môn
+                            </Title>
+                            <Text type="secondary" className="text-xs">
+                                Chuỗi xác nhận 3 bước: Sinh viên → GVHD → Phụ trách bộ môn
+                            </Text>
+                        </div>
+                        <Tag color="blue" className="m-0 font-semibold">
+                            {bm02ReviewItems.length} hồ sơ
+                        </Tag>
+                    </div>
+                    <div className="space-y-2.5">
+                        {bm02ReviewItems.map((item) => (
+                            <Bm02DepartmentSignRow
+                                key={item.id}
+                                item={item}
+                                scope={scope}
+                                departmentSignMutation={departmentSignMutation}
+                            />
+                        ))}
+                    </div>
+                </Card>
+            )}
 
             <AcademicDelegationDrawer
                 open={delegationsDrawerOpen}

@@ -90,6 +90,13 @@ const mockAuditLog = {
     create: jest.fn(),
 };
 
+const mockElectronicSignatureEvent = {
+    findUnique: jest.fn(),
+    findFirst: jest.fn(),
+    findMany: jest.fn(),
+    create: jest.fn(),
+};
+
 const mockPrisma = {
     topicRegistration: mockTopicRegistration,
     bM02Submission: mockBM02Submission,
@@ -106,6 +113,7 @@ const mockPrisma = {
     idempotencyRecord: mockIdempotencyRecord,
     registrationStateHistory: mockRegistrationStateHistory,
     auditLog: mockAuditLog,
+    electronicSignatureEvent: mockElectronicSignatureEvent,
     $transaction: jest.fn((callback) => callback(mockPrisma)),
 };
 
@@ -170,6 +178,9 @@ describe('BM02 and Topic Assignment Decision Workflow (Chặng 1A)', () => {
         mockIdempotencyRecord.findUnique.mockResolvedValue(null);
         mockIdempotencyRecord.create.mockResolvedValue({});
         mockRegistrationStateHistory.create.mockResolvedValue({});
+        mockElectronicSignatureEvent.findMany.mockResolvedValue([]);
+        mockElectronicSignatureEvent.create.mockImplementation(async ({ data }) => ({ id: 1001, ...data }));
+        mockBM02Submission.update.mockImplementation(async ({ where, data }) => ({ id: where?.id || 301, ...data }));
     });
 
     describe('1. Transition to BM01_PASSED in outlineReviewService', () => {

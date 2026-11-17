@@ -9,9 +9,31 @@ const {
     createDecisionAmendment,
 } = require('../services/academicDocumentService');
 const { WorkflowTransitionError } = require('../services/registrationTransitionService');
-const { createPolicyVersion, DEFAULT_POLICY } = require('../services/workflowPolicyService');
+const { createPolicyVersion, getActivePolicyVersion, DEFAULT_POLICY } = require('../services/workflowPolicyService');
 
 const REGISTRATION_TOGGLE_WARNING_WINDOW_DAYS = 14;
+const LOCKED_BM01_OUTLINE_EXTENSIONS = ['.pdf'];
+
+const parseOptionalDateField = (rawValue, fieldLabel) => {
+    if (rawValue === undefined) {
+        return { provided: false, value: undefined, error: null };
+    }
+    if (rawValue === null || rawValue === '') {
+        return { provided: true, value: null, error: null };
+    }
+    const parsed = new Date(rawValue);
+    if (Number.isNaN(parsed.getTime())) {
+        return { provided: true, value: null, error: `${fieldLabel} không hợp lệ.` };
+    }
+    return { provided: true, value: parsed, error: null };
+};
+
+const validateBM03WindowOrder = (midtermOpenAt, finalOpenAt) => {
+    if (midtermOpenAt && finalOpenAt && midtermOpenAt.getTime() >= finalOpenAt.getTime()) {
+        return 'Ngày mở đánh giá giữa kỳ (BM03) phải trước ngày bắt đầu chốt BM03 cuối kỳ.';
+    }
+    return null;
+};
 
 const deriveSemesterCode = ({ code, name, startDate }) => {
     if (code && typeof code === 'string' && code.trim()) {
@@ -159,6 +181,8 @@ const createSemester = async (req, res, next) => {
             midtermReportDate,
             defenseDate,
             registrationOpen,
+            bm03MidtermEvaluationOpenAt,
+            bm03FinalizationOpenAt,
         } = req.body;
 
         if (!name || !startDate || !registrationDeadline || !endDate) {
@@ -166,6 +190,22 @@ const createSemester = async (req, res, next) => {
                 success: false,
                 message: 'Tên, ngày bắt đầu, hạn đăng ký và ngày kết thúc là bắt buộc.',
             });
+        }
+
+        const parsedMidtermOpen = parseOptionalDateField(bm03MidtermEvaluationOpenAt, 'Ngày mở đánh giá giữa kỳ BM03');
+        if (parsedMidtermOpen.error) {
+            return res.status(400).json({ success: false, code: 'INVALID_BM03_STAGE_WINDOWS', message: parsedMidtermOpen.error });
+        }
+        const parsedFinalOpen = parseOptionalDateField(bm03FinalizationOpenAt, 'Ngày bắt đầu chốt BM03 cuối kỳ');
+        if (parsedFinalOpen.error) {
+            return res.status(400).json({ success: false, code: 'INVALID_BM03_STAGE_WINDOWS', message: parsedFinalOpen.error });
+        }
+
+        const nextMidtermOpenAt = parsedMidtermOpen.provided ? parsedMidtermOpen.value : null;
+        const nextFinalOpenAt = parsedFinalOpen.provided ? parsedFinalOpen.value : null;
+        const windowOrderError = validateBM03WindowOrder(nextMidtermOpenAt, nextFinalOpenAt);
+        if (windowOrderError) {
+            return res.status(400).json({ success: false, code: 'INVALID_BM03_STAGE_WINDOWS', message: windowOrderError });
         }
 
         const calculatedStatus = calculateStatus({
@@ -186,6 +226,9 @@ const createSemester = async (req, res, next) => {
                 registrationDeadline: new Date(registrationDeadline),
                 midtermReportDate: midtermReportDate ? new Date(midtermReportDate) : null,
                 defenseDate: defenseDate ? new Date(defenseDate) : null,
+                bm03MidtermEvaluationOpenAt: nextMidtermOpenAt,
+                bm03FinalizationOpenAt: nextFinalOpenAt,
+                outlineAllowedExtensions: LOCKED_BM01_OUTLINE_EXTENSIONS,
                 registrationOpen: typeof registrationOpen === 'boolean' ? registrationOpen : true,
                 status: calculatedStatus,
             },
@@ -195,7 +238,11 @@ const createSemester = async (req, res, next) => {
             try {
                 await createPolicyVersion({
                     semesterId: newSemester.id,
-                    policy: DEFAULT_POLICY,
+                    policy: {
+                        ...DEFAULT_POLICY,
+                        bm03MidtermEvaluationOpenAt: nextMidtermOpenAt ? nextMidtermOpenAt.toISOString() : null,
+                        bm03FinalizationOpenAt: nextFinalOpenAt ? nextFinalOpenAt.toISOString() : null,
+                    },
                     createdById: req.user?.id || null,
                 });
             } catch (policyErr) {
@@ -229,7 +276,18 @@ const updateSemester = async (req, res, next) => {
             midtermReportDate,
             defenseDate,
             registrationOpen,
+            bm03MidtermEvaluationOpenAt,
+            bm03FinalizationOpenAt,
         } = req.body;
+
+        const parsedMidtermOpen = parseOptionalDateField(bm03MidtermEvaluationOpenAt, 'Ngày mở đánh giá giữa kỳ BM03');
+        if (parsedMidtermOpen.error) {
+            return res.status(400).json({ success: false, code: 'INVALID_BM03_STAGE_WINDOWS', message: parsedMidtermOpen.error });
+        }
+        const parsedFinalOpen = parseOptionalDateField(bm03FinalizationOpenAt, 'Ngày bắt đầu chốt BM03 cuối kỳ');
+        if (parsedFinalOpen.error) {
+            return res.status(400).json({ success: false, code: 'INVALID_BM03_STAGE_WINDOWS', message: parsedFinalOpen.error });
+        }
 
         const semester = await prisma.semester.findUnique({
             where: { id: semesterId },
@@ -253,6 +311,20 @@ const updateSemester = async (req, res, next) => {
                 : semester.midtermReportDate;
         const nextDefenseDate =
             defenseDate !== undefined ? (defenseDate ? new Date(defenseDate) : null) : semester.defenseDate;
+        const nextMidtermOpenAt = parsedMidtermOpen.provided
+            ? parsedMidtermOpen.value
+            : (semester.bm03MidtermEvaluationOpenAt ?? null);
+        const nextFinalOpenAt = parsedFinalOpen.provided
+            ? parsedFinalOpen.value
+            : (semester.bm03FinalizationOpenAt ?? null);
+
+        const windowOrderError = validateBM03WindowOrder(
+            nextMidtermOpenAt ? new Date(nextMidtermOpenAt) : null,
+            nextFinalOpenAt ? new Date(nextFinalOpenAt) : null,
+        );
+        if (windowOrderError) {
+            return res.status(400).json({ success: false, code: 'INVALID_BM03_STAGE_WINDOWS', message: windowOrderError });
+        }
 
         const calculatedStatus = calculateStatus({
             startDate: nextStartDate,
@@ -271,11 +343,33 @@ const updateSemester = async (req, res, next) => {
                 registrationDeadline: nextRegistrationDeadline,
                 midtermReportDate: nextMidtermReportDate,
                 defenseDate: nextDefenseDate,
+                bm03MidtermEvaluationOpenAt: nextMidtermOpenAt,
+                bm03FinalizationOpenAt: nextFinalOpenAt,
+                outlineAllowedExtensions: LOCKED_BM01_OUTLINE_EXTENSIONS,
                 registrationOpen:
                     typeof registrationOpen === 'boolean' ? registrationOpen : semester.registrationOpen,
                 status: calculatedStatus,
             },
         });
+
+        if ((parsedMidtermOpen.provided || parsedFinalOpen.provided) && prisma.periodWorkflowPolicyVersion?.create) {
+            try {
+                const activePolicy = prisma.periodWorkflowPolicyVersion?.findFirst
+                    ? await getActivePolicyVersion(semesterId)
+                    : null;
+                await createPolicyVersion({
+                    semesterId,
+                    policy: {
+                        ...(activePolicy?.policy || DEFAULT_POLICY),
+                        bm03MidtermEvaluationOpenAt: nextMidtermOpenAt ? new Date(nextMidtermOpenAt).toISOString() : null,
+                        bm03FinalizationOpenAt: nextFinalOpenAt ? new Date(nextFinalOpenAt).toISOString() : null,
+                    },
+                    createdById: req.user?.id || null,
+                });
+            } catch (policyErr) {
+                console.error('Failed to create updated workflow policy version for semester:', policyErr);
+            }
+        }
 
         res.json({
             success: true,
@@ -321,9 +415,20 @@ const toggleSemesterRegistration = async (req, res, next) => {
 
         const warning = getToggleWindowWarning(semester);
 
+        let lockedPolicyVersionId = semester.lockedPolicyVersionId ?? undefined;
+        if (registrationOpen === false && !semester.lockedPolicyVersionId && prisma.periodWorkflowPolicyVersion?.findFirst) {
+            const activePolicy = await getActivePolicyVersion(semesterId);
+            if (activePolicy) {
+                lockedPolicyVersionId = activePolicy.id;
+            }
+        }
+
         const updated = await prisma.semester.update({
             where: { id: semesterId },
-            data: { registrationOpen },
+            data: {
+                registrationOpen,
+                ...(lockedPolicyVersionId !== undefined ? { lockedPolicyVersionId } : {}),
+            },
         });
 
         return res.json({

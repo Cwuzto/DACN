@@ -5,6 +5,11 @@ const {
     publishTopicDecision,
 } = require('../services/academicDocumentService');
 const { reviewBM02 } = require('../services/bm02ReviewService');
+const {
+    signBM02Advisor,
+    signBM02Department,
+    getBM02Verification,
+} = require('../services/bm02SignatureService');
 const { safeNotify } = require('../services/notificationService');
 const { auditLog } = require('../services/auditLogService');
 
@@ -57,7 +62,7 @@ const submitBM02Application = async (req, res, next) => {
             return res.status(400).json({ success: false, message: 'registrationId không hợp lệ.' });
         }
 
-        const { bm02ProposedTitle, titleChangeReason, content, fileUrl, fileName } = req.body;
+        const { bm02ProposedTitle, titleChangeReason, content } = req.body;
         const idempotencyKey = getIdempotencyKey(req, 'bm02-sub');
 
         const submission = await submitBM02({
@@ -66,8 +71,8 @@ const submitBM02Application = async (req, res, next) => {
             bm02ProposedTitle,
             titleChangeReason,
             content,
-            fileUrl,
-            fileName,
+            ipAddress: req.ip || null,
+            userAgent: req.get?.('user-agent') || null,
             idempotencyKey,
         });
 
@@ -146,7 +151,7 @@ const resubmitBM02Application = async (req, res, next) => {
             return res.status(404).json({ success: false, message: 'Không tìm thấy hồ sơ hoặc đơn đăng ký BM02.' });
         }
 
-        const { bm02ProposedTitle, titleChangeReason, content, fileUrl, fileName } = req.body;
+        const { bm02ProposedTitle, titleChangeReason, content } = req.body;
         const idempotencyKey = getIdempotencyKey(req, 'bm02-resub');
 
         const submission = await submitBM02({
@@ -155,8 +160,8 @@ const resubmitBM02Application = async (req, res, next) => {
             bm02ProposedTitle,
             titleChangeReason,
             content,
-            fileUrl,
-            fileName,
+            ipAddress: req.ip || null,
+            userAgent: req.get?.('user-agent') || null,
             idempotencyKey,
         });
 
@@ -308,11 +313,130 @@ const publishTopicDecisionController = async (req, res, next) => {
     }
 };
 
+/**
+ * POST /api/bm02/applications/:id/advisor-sign
+ * :id is BM02Submission id
+ */
+const advisorSignBM02Application = async (req, res, next) => {
+    try {
+        const submissionId = parseInt(req.params.id, 10);
+        if (!Number.isInteger(submissionId) || submissionId <= 0) {
+            return res.status(400).json({ success: false, message: 'ID hồ sơ BM02 không hợp lệ.' });
+        }
+
+        const expectedPayloadHash = req.body?.expectedPayloadHash || req.body?.payloadHash || null;
+        const idempotencyKey = getIdempotencyKey(req, 'bm02-adv-sign');
+
+        const result = await signBM02Advisor({
+            submissionId,
+            actorId: req.user.id,
+            expectedPayloadHash,
+            idempotencyKey,
+            ipAddress: req.ip || null,
+            userAgent: req.get?.('user-agent') || null,
+        });
+
+        if (!result.idempotent) {
+            await auditLog(
+                req.user.id,
+                'ADVISOR_SIGN_BM02',
+                'BM02Submission',
+                submissionId,
+                { registrationId: result.submission?.registrationId, eventId: result.signatureEvent?.id },
+                req.ip || null,
+            );
+        }
+
+        return res.json({
+            success: true,
+            message: 'GVHD đã ký xác nhận đơn BM02.',
+            data: result,
+        });
+    } catch (error) {
+        if (handleWorkflowError(res, error)) return;
+        next(error);
+    }
+};
+
+/**
+ * POST /api/bm02/applications/:id/department-sign
+ * :id is BM02Submission id
+ */
+const departmentSignBM02Application = async (req, res, next) => {
+    try {
+        const submissionId = parseInt(req.params.id, 10);
+        if (!Number.isInteger(submissionId) || submissionId <= 0) {
+            return res.status(400).json({ success: false, message: 'ID hồ sơ BM02 không hợp lệ.' });
+        }
+
+        const expectedPayloadHash = req.body?.expectedPayloadHash || req.body?.payloadHash || null;
+        const idempotencyKey = getIdempotencyKey(req, 'bm02-dept-sign');
+
+        const result = await signBM02Department({
+            submissionId,
+            actorId: req.user.id,
+            expectedPayloadHash,
+            idempotencyKey,
+            ipAddress: req.ip || null,
+            userAgent: req.get?.('user-agent') || null,
+        });
+
+        if (!result.idempotent) {
+            await auditLog(
+                req.user.id,
+                'DEPARTMENT_SIGN_BM02',
+                'BM02Submission',
+                submissionId,
+                { registrationId: result.submission?.registrationId, eventId: result.signatureEvent?.id },
+                req.ip || null,
+            );
+        }
+
+        return res.json({
+            success: true,
+            message: 'Phụ trách bộ môn đã ký xác nhận đơn BM02.',
+            data: result,
+        });
+    } catch (error) {
+        if (handleWorkflowError(res, error)) return;
+        next(error);
+    }
+};
+
+/**
+ * GET /api/bm02/applications/:id/verification
+ * :id is BM02Submission id
+ */
+const getBM02VerificationController = async (req, res, next) => {
+    try {
+        const submissionId = parseInt(req.params.id, 10);
+        if (!Number.isInteger(submissionId) || submissionId <= 0) {
+            return res.status(400).json({ success: false, message: 'ID hồ sơ BM02 không hợp lệ.' });
+        }
+
+        const data = await getBM02Verification({
+            submissionId,
+            actorId: req.user.id,
+        });
+
+        return res.json({
+            success: true,
+            data,
+        });
+    } catch (error) {
+        if (handleWorkflowError(res, error)) return;
+        next(error);
+    }
+};
+
 module.exports = {
     submitBM02Application,
     requestBM02Revision,
     resubmitBM02Application,
     approveBM02Application,
+    advisorSignBM02Application,
+    departmentSignBM02Application,
+    getBM02VerificationController,
     createTopicDecisionController,
     publishTopicDecisionController,
 };

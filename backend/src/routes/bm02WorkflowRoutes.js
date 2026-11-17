@@ -33,6 +33,26 @@ router.post(
     bm02WorkflowController.approveBM02Application,
 );
 
+router.post(
+    '/bm02/applications/:id/advisor-sign',
+    authenticate,
+    authorizePermission(PERMISSIONS.BM02_ADVISOR_SIGN),
+    bm02WorkflowController.advisorSignBM02Application,
+);
+
+router.post(
+    '/bm02/applications/:id/department-sign',
+    authenticate,
+    authorizePermission(PERMISSIONS.BM02_DEPARTMENT_SIGN),
+    bm02WorkflowController.departmentSignBM02Application,
+);
+
+router.get(
+    '/bm02/applications/:id/verification',
+    authenticate,
+    bm02WorkflowController.getBM02VerificationController,
+);
+
 // Topic Assignment Decision endpoints
 router.post(
     '/topic-decisions',

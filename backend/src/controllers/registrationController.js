@@ -1383,6 +1383,8 @@ const submitBM02 = async (req, res, next) => {
             fileUrl,
             fileName,
             assetId: assetId || null,
+            ipAddress: getRequestIp(req),
+            userAgent: req.get?.('user-agent') || null,
             idempotencyKey: getIdempotencyKey(req),
         });
         await auditLog(studentId, 'SUBMIT_BM02', 'BM02Submission', commandSubmission.id, {

@@ -13,6 +13,18 @@ const handleControllerError = (error, res, next) => {
     next(error);
 };
 
+const buildOutlineSubmissionOptions = (req) => {
+    const options = {};
+    if (req.body.content !== undefined) {
+        options.content = req.body.content;
+    }
+    const idempotencyKey = req.get?.('Idempotency-Key') || req.headers?.['idempotency-key'] || req.body?.idempotencyKey;
+    if (idempotencyKey) {
+        options.idempotencyKey = String(idempotencyKey).trim();
+    }
+    return options;
+};
+
 /**
  * Nộp đề cương đợt 1 (v1)
  * POST /api/outline/submissions
@@ -26,8 +38,11 @@ const submitOutline = async (req, res, next) => {
             ...(fileData || {}),
             assetId: assetId || fileData?.assetId || null,
         };
+        const serviceOptions = buildOutlineSubmissionOptions(req);
 
-        const result = await outlineReviewService.submitInitialOutline(registrationId, normalizedFileData, userId);
+        const result = Object.keys(serviceOptions).length > 0
+            ? await outlineReviewService.submitInitialOutline(registrationId, normalizedFileData, userId, serviceOptions)
+            : await outlineReviewService.submitInitialOutline(registrationId, normalizedFileData, userId);
 
         res.status(200).json({
             success: true,
@@ -52,8 +67,11 @@ const submitResubmission = async (req, res, next) => {
             ...(fileData || {}),
             assetId: assetId || fileData?.assetId || null,
         };
+        const serviceOptions = buildOutlineSubmissionOptions(req);
 
-        const result = await outlineReviewService.submitResubmissionOutline(registrationId, normalizedFileData, userId);
+        const result = Object.keys(serviceOptions).length > 0
+            ? await outlineReviewService.submitResubmissionOutline(registrationId, normalizedFileData, userId, serviceOptions)
+            : await outlineReviewService.submitResubmissionOutline(registrationId, normalizedFileData, userId);
 
         res.status(200).json({
             success: true,

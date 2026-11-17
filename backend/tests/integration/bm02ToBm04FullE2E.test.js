@@ -437,6 +437,8 @@ describe('BM02 to BM04 Academic Lifecycle Full End-to-End Integration Test', () 
             id: semesterId,
             name: 'Học kỳ 1 2026-2027',
             lockedPolicyVersionId: 12,
+            bm03MidtermEvaluationOpenAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000),
+            bm03FinalizationOpenAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
         };
 
         basePolicy = {
@@ -445,6 +447,8 @@ describe('BM02 to BM04 Academic Lifecycle Full End-to-End Integration Test', () 
                 maxStudents: 1,
                 revisionWindowDays: 7,
                 bm02MaxResubmissions: 1,
+                bm03MidtermEvaluationOpenAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
+                bm03FinalizationOpenAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
             },
         };
 
@@ -1056,8 +1060,15 @@ describe('BM02 to BM04 Academic Lifecycle Full End-to-End Integration Test', () 
                 evaluationResult: 'CONTINUE_TO_BM04',
                 comments: 'Đã hoàn thiện toàn bộ mô hình và kiểm thử đạt độ chính xác 94%',
             });
+            mockBM03ProgressRecord.findUnique.mockResolvedValueOnce({
+                ...baseBM03Record,
+                midtermStageEvaluationId: 401,
+                midtermConclusion: 'CONTINUE',
+            });
             mockBM03ProgressRecord.update.mockResolvedValue({
                 ...baseBM03Record,
+                midtermStageEvaluationId: 401,
+                midtermConclusion: 'CONTINUE',
                 finalStageEvaluationId: 402,
                 finalConclusion: 'CONTINUE_TO_BM04',
             });
@@ -1079,6 +1090,9 @@ describe('BM02 to BM04 Academic Lifecycle Full End-to-End Integration Test', () 
 
             mockBM03ProgressRecord.findUnique.mockResolvedValue({
                 ...baseBM03Record,
+                midtermStageEvaluationId: 401,
+                midtermConclusion: 'CONTINUE',
+                finalStageEvaluationId: 402,
                 finalConclusion: 'CONTINUE_TO_BM04',
                 advisorSignedById: null,
             });

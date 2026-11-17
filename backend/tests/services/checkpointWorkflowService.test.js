@@ -168,7 +168,7 @@ describe('checkpointWorkflowService', () => {
             );
         });
 
-        test('Sinh viên ký CP2 ĐẠT -> chuyển trạng thái BM03_PASSED', async () => {
+        test('Sinh viên ký CP2 ĐẠT -> giữ trạng thái IN_PROGRESS_BM03 (không chốt sớm BM03_PASSED)', async () => {
             const evaluation = {
                 id: 502,
                 checkpointNo: 2,
@@ -190,7 +190,7 @@ describe('checkpointWorkflowService', () => {
                 },
             });
 
-            const result = await signCheckpoint({
+            await signCheckpoint({
                 checkpointEvaluationId: 502,
                 studentSignature: 'Sinh Vien A',
                 actorId: 10,
@@ -199,10 +199,24 @@ describe('checkpointWorkflowService', () => {
 
             expect(transitionRegistration).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    targetStatus: 'BM03_PASSED',
+                    targetStatus: 'IN_PROGRESS_BM03',
                 }),
                 expect.anything(),
             );
+        });
+
+        test('Hồ sơ legacy đã BM03_PASSED không bị issueCheckpoint hoặc signCheckpoint ghi đè trạng thái (409)', async () => {
+            const legacyReg = { ...baseRegistration, status: 'BM03_PASSED' };
+            const db = dbFor(legacyReg);
+
+            await expect(issueCheckpoint({
+                registrationId: 50,
+                checkpointNo: 2,
+                conclusion: 'ALLOWED_TO_CONTINUE',
+                mentorSignature: 'TS. Nguyen Van B',
+                actorId: 20,
+                idempotencyKey: 'idem-key-legacy-bm03-passed',
+            }, { db })).rejects.toMatchObject({ code: 'INVALID_TRANSITION', status: 409 });
         });
 
         test('Sinh viên ký Checkpoint KHÔNG ĐẠT -> dừng đề tài TERMINATED_FAILED_PROGRESS', async () => {
