@@ -409,4 +409,61 @@ describe('legacyStorageMigrationService', () => {
             expect(mockDb.submission.update).not.toHaveBeenCalled();
         });
     });
+
+    describe('cleanupLegacyAssets CLI', () => {
+        const { run: runCleanupCli } = require('../../scripts/storage/cleanupLegacyAssets');
+
+        it('exits with non-zero code before any writes when --apply lacks --confirm-snapshot', async () => {
+            const mockExit = jest.fn();
+            const mockApplyManifest = jest.fn();
+            const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+            await runCleanupCli(['--apply', '--manifest', 'manifest.json'], {
+                db: { $disconnect: jest.fn() },
+                storage: mockStorage,
+                applyManifest: mockApplyManifest,
+                exit: mockExit,
+            });
+
+            expect(mockExit).toHaveBeenCalledWith(1);
+            expect(mockApplyManifest).not.toHaveBeenCalled();
+            expect(mockDb.user.update).not.toHaveBeenCalled();
+            expect(mockStorage.remove).not.toHaveBeenCalled();
+
+            errorSpy.mockRestore();
+        });
+
+        it('exits with non-zero code and does not print SUCCESS when failed > 0', async () => {
+            const mockExit = jest.fn();
+            const mockDisconnect = jest.fn().mockResolvedValue();
+            const mockApplyManifest = jest.fn().mockResolvedValue({
+                dryRun: false,
+                summary: { total: 2, processed: 2, succeeded: 1, failed: 1, skipped: 0 },
+                items: [],
+            });
+            const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+            const tableSpy = jest.spyOn(console, 'table').mockImplementation(() => {});
+            const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+            await runCleanupCli(['--apply', '--confirm-snapshot', '--manifest', 'manifest.json'], {
+                db: { $disconnect: mockDisconnect },
+                storage: mockStorage,
+                applyManifest: mockApplyManifest,
+                exit: mockExit,
+            });
+
+            expect(mockApplyManifest).toHaveBeenCalledWith(
+                expect.objectContaining({ dryRun: false, snapshotConfirmed: true })
+            );
+            expect(mockDisconnect).toHaveBeenCalledTimes(1);
+            expect(mockExit).toHaveBeenCalledWith(1);
+
+            const loggedMessages = logSpy.mock.calls.flat().join('\n');
+            expect(loggedMessages).not.toContain('[SUCCESS]');
+
+            logSpy.mockRestore();
+            tableSpy.mockRestore();
+            errorSpy.mockRestore();
+        });
+    });
 });

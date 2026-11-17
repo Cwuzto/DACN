@@ -141,7 +141,12 @@ Hệ thống cung cấp hai worker dọn dẹp và đối soát định kỳ:
   # Chế độ ghi nhận đối soát vào cơ sở dữ liệu
   npm --prefix backend run storage:reconcile -- --apply
   ```
-- **Lịch đề xuất (Cron)**: Chạy 1 ngày một lần vào ban đêm (`0 2 * * *`).
+- **Lịch đề xuất (Cron)**: Chạy 1 ngày một lần vào ban đêm lúc **02:00 `Asia/Ho_Chi_Minh`** (`0 2 * * *` theo `TZ=Asia/Ho_Chi_Minh`, hoặc `0 19 * * *` nếu scheduler dùng UTC).
+
+### 7.3. Yêu Cầu Vận Hành Scheduler (Concurrency, Logging & Alerting)
+- **Chống chạy trùng (Overlap Prevention)**: Cấu hình lock hoặc single-concurrency trên scheduler (ví dụ `flock` trên Linux cron hoặc chế độ `Disallow concurrent runs` trên platform job) để tránh hai tiến trình cùng chạy đồng thời.
+- **Lưu log đối chiếu**: Chuyển stdout/stderr về file log xoay vòng (log rotation) hoặc hệ thống log tập trung kèm timestamp để đối chiếu số liệu `Pending Cleanup Jobs`, `Missing in Storage`, `Orphans in Storage`.
+- **Cảnh báo lỗi**: Bắt buộc cấu hình cảnh báo (alert/notification) khi một trong hai lệnh kết thúc với **exit code khác `0`**.
 
 ---
 
