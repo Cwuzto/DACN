@@ -3,23 +3,73 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isNavigationItemActive } from '../src/auth/policyEvaluator.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const appLayoutSource = fs.readFileSync(path.join(root, 'src/components/layout/AppLayout.jsx'), 'utf8');
 
-test('AppLayout correctly imports NAVIGATION_REGISTRY to prevent ReferenceError when location.search is present', () => {
-    // Verify import from navigationRegistry includes NAVIGATION_REGISTRY
+test('AppLayout uses isNavigationItemActive from policyEvaluator and sets aria-current="page"', () => {
     assert.match(
         appLayoutSource,
-        /import\s*\{[^}]*NAVIGATION_REGISTRY[^}]*\}\s*from\s*['"][^'"]*navigationRegistry['"]/,
-        'AppLayout must import NAVIGATION_REGISTRY from navigationRegistry to support query string tab matching'
+        /import\s*\{[^}]*isNavigationItemActive[^}]*\}\s*from\s*['"][^'"]*policyEvaluator['"]/,
+        'AppLayout must import isNavigationItemActive from policyEvaluator'
+    );
+    assert.match(
+        appLayoutSource,
+        /isNavigationItemActive\(targetRoute,\s*location\.pathname,\s*location\.search\)/,
+        'AppLayout isActive must delegate to isNavigationItemActive'
+    );
+    assert.match(
+        appLayoutSource,
+        /aria-current=\{[^}]*'page'[^}]*\}/,
+        'AppLayout must set aria-current="page" on active navigation items'
     );
 });
 
-test('AppLayout isActive function executes query parameter sibling check safely', () => {
-    assert.match(
-        appLayoutSource,
-        /NAVIGATION_REGISTRY\.some/,
-        'AppLayout isActive function should use NAVIGATION_REGISTRY.some safely'
+test('isNavigationItemActive matches pathname + normalized tab regardless of unrelated params or param order', () => {
+    assert.equal(
+        isNavigationItemActive('/admin/grading?tab=approvals', '/admin/grading', '?semesterId=2&tab=approvals'),
+        true
+    );
+    assert.equal(
+        isNavigationItemActive('/admin/grading?tab=approvals', '/admin/grading', '?tab=approvals&semesterId=2'),
+        true
+    );
+    assert.equal(
+        isNavigationItemActive('/admin/grading?tab=approvals', '/admin/grading', '?tab=APPROVALS&semesterId=2'),
+        true
+    );
+    assert.equal(
+        isNavigationItemActive('/admin/grading?tab=publish', '/admin/grading', '?semesterId=2&tab=approvals'),
+        false
+    );
+    assert.equal(
+        isNavigationItemActive('/admin/grading', '/admin/grading', '?semesterId=2&tab=approvals'),
+        false,
+        'Base route without tab must not be active when a registered sibling tab matches'
+    );
+    assert.equal(
+        isNavigationItemActive('/admin/grading', '/admin/grading', '?semesterId=2'),
+        true,
+        'Base route without tab remains active when only unrelated params are present'
+    );
+});
+
+test('isNavigationItemActive handles lecturer approvals tabs and default mentor tab', () => {
+    assert.equal(
+        isNavigationItemActive('/lecturer/approvals?tab=mentor', '/lecturer/approvals', '?tab=mentor'),
+        true
+    );
+    assert.equal(
+        isNavigationItemActive('/lecturer/approvals?tab=mentor', '/lecturer/approvals', ''),
+        true
+    );
+    assert.equal(
+        isNavigationItemActive('/lecturer/approvals?tab=bm01', '/lecturer/approvals', '?tab=mentor'),
+        false
+    );
+    assert.equal(
+        isNavigationItemActive('/lecturer/approvals?tab=bm01', '/lecturer/approvals', '?tab=bm01&semesterId=5'),
+        true
     );
 });

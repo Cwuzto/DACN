@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { message, Tag, Button, Modal, Input, Descriptions, Alert, Space, Divider } from 'antd';
 import {
@@ -45,17 +45,9 @@ export default function TopicApprovalPage() {
         return null;
     };
 
-    const [activeTab, setActiveTab] = useState(() => resolveTabKey(tabParam) || 'mentor');
-
-    useEffect(() => {
-        const resolved = resolveTabKey(tabParam);
-        if (resolved && resolved !== activeTab) {
-            setActiveTab(resolved);
-        }
-    }, [tabParam]);
+    const activeTab = resolveTabKey(tabParam) || 'mentor';
 
     const handleTabChange = (key) => {
-        setActiveTab(key);
         const nextParams = new URLSearchParams(searchParams);
         if (key === 'outline') {
             nextParams.set('tab', 'bm01');
@@ -64,7 +56,7 @@ export default function TopicApprovalPage() {
         } else {
             nextParams.set('tab', 'mentor');
         }
-        setSearchParams(nextParams, { replace: true });
+        setSearchParams(nextParams);
     };
 
     const mentorRegistrationsQuery = useRegistrations(scope, { status: 'PENDING' });

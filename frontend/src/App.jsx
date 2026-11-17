@@ -116,6 +116,7 @@ const PortalContentManagementPage = lazy(() => import('./pages/admin/PortalConte
 
 // Lecturer pages
 const LecturerDashboardPage = lazy(() => import('./pages/lecturer/LecturerDashboardPage'));
+const LecturerStudentsPage = lazy(() => import('./pages/lecturer/LecturerStudentsPage'));
 const LecturerTopicManagementPage = lazy(() => import('./pages/lecturer/TopicManagementPage'));
 const TopicApprovalPage = lazy(() => import('./pages/lecturer/TopicApprovalPage'));
 const ProgressTrackingPage = lazy(() => import('./pages/lecturer/ProgressTrackingPage'));
@@ -176,7 +177,7 @@ function App() {
                                 <Route element={<ProtectedRoute featureKey="project-oversight" requiredAnyPermissions={['VIEW_PROJECT_OVERSIGHT', 'PROJECT_OVERSIGHT_MANAGE']} />}>
                                     <Route path="oversight" element={<ProjectOversightPage />} />
                                 </Route>
-                                <Route element={<ProtectedRoute featureKey="academic-reports" requiredAnyPermissions={['VIEW_PROJECT_OVERSIGHT', 'PROJECT_OVERSIGHT_MANAGE']} />}>
+                                <Route element={<ProtectedRoute featureKey="academic-reports" requiredAnyPermissions={['REPORT_VIEW']} />}>
                                     <Route path="reports" element={<AcademicReportsPage />} />
                                 </Route>
                                 <Route element={<ProtectedRoute featureKey="defense-lock" requiredAnyPermissions={['VIEW_DEFENSE_LOCK_LEDGER', 'VIEW_RESULT_LOCKS', 'DEFENSE_SCORE_VIEW', 'RESULT_LOCK', 'VIEW_DEFENSE_RESULT_APPROVALS', 'VIEW_DEFENSE_RESULTS_APPROVAL', 'DEFENSE_RESULT_APPROVE', 'VIEW_RESULT_PUBLICATIONS', 'RESULT_PUBLICATION_PUBLISH']} />}>
@@ -185,10 +186,12 @@ function App() {
                                 <Route element={<ProtectedRoute featureKey="rubric-config" requiredAnyPermissions={['VIEW_RUBRIC_CONFIG', 'RUBRIC_MANAGE']} />}>
                                     <Route path="rubric-management" element={<RubricManagementPage />} />
                                 </Route>
-                                <Route element={<ProtectedRoute featureKey="outline-councils" requiredAnyPermissions={['VIEW_COUNCIL_ASSIGNMENTS', 'OUTLINE_COUNCIL_MANAGE', 'DEFENSE_COUNCIL_MANAGE', 'VIEW_DEFENSE_GRADING', 'OUTLINE_REVIEW']} />}>
+                                <Route element={<ProtectedRoute featureKey="outline-councils" requiredAnyPermissions={['OUTLINE_COUNCIL_MANAGE', 'VIEW_COUNCIL_ASSIGNMENTS']} />}>
                                     <Route path="councils" element={<Navigate to="/admin/outline-councils" replace />} />
                                     <Route path="outline-councils" element={<CouncilAssignmentPage forcedCouncilType="OUTLINE_REVIEW" />} />
                                     <Route path="outline-councils/:id" element={<CouncilDetailPage forcedCouncilType="OUTLINE_REVIEW" />} />
+                                </Route>
+                                <Route element={<ProtectedRoute featureKey="defense-councils" requiredAnyPermissions={['DEFENSE_COUNCIL_MANAGE', 'VIEW_COUNCIL_ASSIGNMENTS', 'VIEW_DEFENSE_ASSIGNMENTS']} />}>
                                     <Route path="defense-councils" element={<CouncilAssignmentPage forcedCouncilType="DEFENSE_COUNCIL" />} />
                                     <Route path="defense-councils/:id" element={<CouncilDetailPage forcedCouncilType="DEFENSE_COUNCIL" />} />
                                 </Route>
@@ -228,7 +231,10 @@ function App() {
                                 <Route element={<ProtectedRoute featureKey="my-topics" requiredAnyPermissions={['VIEW_MY_TOPICS', 'TOPIC_CREATE', 'TOPIC_UPDATE_OWN']} />}>
                                     <Route path="topics" element={<LecturerTopicManagementPage />} />
                                 </Route>
-                                <Route element={<ProtectedRoute featureKey="mentored-students" requiredAnyPermissions={['VIEW_MENTORED_STUDENTS', 'VIEW_OUTLINE_REVIEWS', 'MENTOR_REQUEST_REVIEW', 'OUTLINE_REVIEW']} />}>
+                                <Route element={<ProtectedRoute featureKey="lecturer-students" requiredAnyPermissions={['VIEW_MENTORED_STUDENTS', 'VIEW_MENTOR_STUDENTS']} />}>
+                                    <Route path="students" element={<LecturerStudentsPage />} />
+                                </Route>
+                                <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_MENTORED_STUDENTS', 'VIEW_MENTOR_STUDENTS', 'MENTOR_REQUEST_REVIEW', 'VIEW_OUTLINE_REVIEWS', 'OUTLINE_REVIEW']} />}>
                                     <Route path="approvals" element={<TopicApprovalPage />} />
                                 </Route>
                                 <Route element={<ProtectedRoute featureKey="defense-grading" requiredAnyPermissions={['VIEW_DEFENSE_GRADING', 'DEFENSE_SCORE_VIEW']} />}>

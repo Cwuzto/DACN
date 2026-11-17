@@ -1,33 +1,35 @@
 /**
  * Feature Policy Manifest
- * Danh mục canonical xác định chính sách phân quyền cho toàn bộ hệ thống:
+ * Danh mục canonical xác định chính sách phân quyền và cấu trúc điều hướng theo quy trình đồ án:
  * - Route bảo vệ
- * - Menu điều hướng (Navigation)
+ * - Menu điều hướng (Navigation: label, icon, group, order, requiredPermission)
  * - Quyền xem (viewAnyOf, viewAllOf)
  * - Quyền thao tác (actions)
  * - Điều kiện phân công vai trò phụ / hội đồng (assignment)
  */
 
 export const NAVIGATION_GROUPS = Object.freeze([
-    'Hồ sơ của tôi',
+    'Đăng ký & đề cương',
+    'Thực hiện đồ án',
+    'Đợt & đăng ký',
     'Hướng dẫn & tiến độ',
-    'Thẩm định & quyết định',
     'Hội đồng & bảo vệ',
-    'Kết quả & công bố',
-    'Quản trị học vụ',
-    'Quản trị hệ thống',
+    'Bảo vệ & hoàn tất',
+    'Kết quả & báo cáo',
+    'Nội dung & hệ thống',
 ]);
 
 export const FEATURE_POLICIES = Object.freeze({
-    // KHỐI 1: HỒ SƠ CỦA TÔI
+    // KHỐI: ĐĂNG KÝ & ĐỀ CƯƠNG
     'my-registration': {
         key: 'my-registration',
         workspace: 'student',
         route: '/student/topics',
         menu: {
-            label: 'Đề tài đăng ký',
+            label: 'Tìm & đăng ký đề tài',
             icon: 'folder_open',
-            group: 'Hồ sơ của tôi',
+            group: 'Đăng ký & đề cương',
+            order: 1,
             requiredPermission: 'VIEW_MY_REGISTRATION',
         },
         viewAnyOf: ['VIEW_MY_REGISTRATION', 'REGISTER_TOPIC'],
@@ -44,7 +46,8 @@ export const FEATURE_POLICIES = Object.freeze({
         menu: {
             label: 'Đề tài phụ trách',
             icon: 'topic',
-            group: 'Hồ sơ của tôi',
+            group: 'Đăng ký & đề cương',
+            order: 2,
             requiredPermission: 'VIEW_MY_TOPICS',
         },
         viewAnyOf: ['VIEW_MY_TOPICS', 'TOPIC_CREATE', 'TOPIC_UPDATE_OWN'],
@@ -53,14 +56,51 @@ export const FEATURE_POLICIES = Object.freeze({
             update: 'TOPIC_UPDATE_OWN',
         },
     },
+    'mentored-students': {
+        key: 'mentored-students',
+        workspace: 'lecturer',
+        route: '/lecturer/approvals?tab=mentor',
+        menu: {
+            label: 'Duyệt nguyện vọng',
+            icon: 'fact_check',
+            group: 'Đăng ký & đề cương',
+            order: 3,
+            requiredPermission: 'VIEW_MENTORED_STUDENTS',
+        },
+        viewAnyOf: ['VIEW_MENTORED_STUDENTS', 'VIEW_MENTOR_STUDENTS', 'MENTOR_REQUEST_REVIEW'],
+        actions: {
+            reviewMentorRequest: 'MENTOR_REQUEST_REVIEW',
+        },
+    },
+    'outline-reviews': {
+        key: 'outline-reviews',
+        workspace: 'lecturer',
+        route: '/lecturer/approvals?tab=bm01',
+        menu: {
+            label: 'Thẩm định đề cương',
+            icon: 'rate_review',
+            group: 'Đăng ký & đề cương',
+            order: 4,
+            requiredPermission: 'VIEW_OUTLINE_REVIEWS',
+        },
+        viewAnyOf: ['VIEW_OUTLINE_REVIEWS', 'OUTLINE_REVIEW', 'OUTLINE_APPROVE'],
+        assignment: 'outlineCouncil',
+        actions: {
+            review: 'OUTLINE_REVIEW',
+            approve: 'OUTLINE_APPROVE',
+        },
+    },
+
+    // KHỐI: THỰC HIỆN ĐỒ ÁN
     'my-submissions': {
         key: 'my-submissions',
         workspace: 'student',
         route: '/student/submissions',
         menu: {
-            label: 'Hồ sơ & Nộp bài',
+            label: 'Hồ sơ & nộp bài',
             icon: 'cloud_upload',
-            group: 'Hồ sơ của tôi',
+            group: 'Thực hiện đồ án',
+            order: 1,
             requiredPermission: 'VIEW_MY_SUBMISSIONS',
         },
         viewAnyOf: [
@@ -80,215 +120,17 @@ export const FEATURE_POLICIES = Object.freeze({
             appealSignature: 'SIGNATURE_APPEAL_SUBMIT',
         },
     },
-    'my-archive': {
-        key: 'my-archive',
-        workspace: 'student',
-        route: '/student/submissions?tab=archive',
-        menu: {
-            label: 'Hồ sơ lưu chiểu',
-            icon: 'inventory_2',
-            group: 'Hồ sơ của tôi',
-            requiredPermission: 'VIEW_MY_ARCHIVE',
-        },
-        viewAnyOf: ['VIEW_MY_ARCHIVE', 'SUBMIT_PRE_DEFENSE_ARCHIVE', 'SUBMIT_FINAL_ARCHIVE'],
-        actions: {
-            submitPreDefense: 'SUBMIT_PRE_DEFENSE_ARCHIVE',
-            submitFinal: 'SUBMIT_FINAL_ARCHIVE',
-        },
-    },
-    'my-grades': {
-        key: 'my-grades',
-        workspace: 'student',
-        route: '/student/grades',
-        menu: {
-            label: 'Kết quả & Điểm đồ án',
-            icon: 'workspace_premium',
-            group: 'Hồ sơ của tôi',
-            requiredPermission: 'VIEW_MY_GRADES',
-        },
-        viewAnyOf: ['VIEW_MY_GRADES'],
-        actions: {},
-    },
 
-    // KHỐI 2: HƯỚNG DẪN & TIẾN ĐỘ
-    'mentored-students': {
-        key: 'mentored-students',
-        workspace: 'lecturer',
-        route: '/lecturer/approvals',
-        menu: {
-            label: 'Sinh viên hướng dẫn',
-            icon: 'school',
-            group: 'Hướng dẫn & tiến độ',
-            requiredPermission: 'VIEW_MENTORED_STUDENTS',
-        },
-        viewAnyOf: ['VIEW_MENTORED_STUDENTS', 'VIEW_MENTOR_STUDENTS', 'MENTOR_REQUEST_REVIEW'],
-        actions: {
-            reviewMentorRequest: 'MENTOR_REQUEST_REVIEW',
-        },
-    },
-    'progress-checkpoints': {
-        key: 'progress-checkpoints',
-        workspace: 'lecturer',
-        route: '/lecturer/progress',
-        menu: {
-            label: 'Theo dõi tiến độ',
-            icon: 'fact_check',
-            group: 'Hướng dẫn & tiến độ',
-            requiredPermission: 'VIEW_CHECKPOINTS',
-        },
-        viewAnyOf: ['VIEW_CHECKPOINTS', 'VIEW_BM04_EVALUATIONS', 'BM03_REVIEW'],
-        actions: {
-            issueCheckpoint: 'CHECKPOINT_ISSUE',
-            reviewBm03: 'BM03_REVIEW',
-            submitBm04: 'BM04_SUBMIT',
-            signBm04: 'BM04_CREATE_AND_SIGN',
-        },
-    },
-
-    // KHỐI 3: THẨM ĐỊNH & QUYẾT ĐỊNH
-    'outline-reviews': {
-        key: 'outline-reviews',
-        workspace: 'lecturer',
-        route: '/lecturer/approvals?tab=bm01',
-        menu: {
-            label: 'Thẩm định đề cương',
-            icon: 'rate_review',
-            group: 'Thẩm định & quyết định',
-            requiredPermission: 'VIEW_OUTLINE_REVIEWS',
-        },
-        viewAnyOf: ['VIEW_OUTLINE_REVIEWS', 'OUTLINE_REVIEW', 'OUTLINE_APPROVE'],
-        assignment: 'outlineCouncil',
-        actions: {
-            review: 'OUTLINE_REVIEW',
-            approve: 'OUTLINE_APPROVE',
-        },
-    },
-
-    // KHỐI 4: HỘI ĐỒNG & BẢO VỆ
-    'outline-councils': {
-        key: 'outline-councils',
-        workspace: 'admin',
-        route: '/admin/outline-councils',
-        menu: {
-            label: 'HĐ Xét duyệt Đề cương',
-            icon: 'fact_check',
-            group: 'Hội đồng & bảo vệ',
-            requiredPermission: 'OUTLINE_COUNCIL_MANAGE',
-        },
-        viewAnyOf: ['OUTLINE_COUNCIL_MANAGE', 'VIEW_COUNCIL_ASSIGNMENTS', 'VIEW_DEFENSE_ASSIGNMENTS'],
-        assignment: 'outlineCouncil',
-        actions: {
-            manage: 'OUTLINE_COUNCIL_MANAGE',
-        },
-    },
-    'defense-councils': {
-        key: 'defense-councils',
-        workspace: 'admin',
-        route: '/admin/defense-councils',
-        menu: {
-            label: 'HĐ Bảo vệ khóa luận',
-            icon: 'groups',
-            group: 'Hội đồng & bảo vệ',
-            requiredPermission: 'DEFENSE_COUNCIL_MANAGE',
-        },
-        viewAnyOf: ['DEFENSE_COUNCIL_MANAGE', 'VIEW_COUNCIL_ASSIGNMENTS', 'VIEW_DEFENSE_ASSIGNMENTS'],
-        assignment: 'defenseCouncil',
-        actions: {
-            manage: 'DEFENSE_COUNCIL_MANAGE',
-            replaceMember: 'DEFENSE_MEMBER_REPLACE',
-            publishSchedule: 'DEFENSE_SCHEDULE_PUBLISH',
-        },
-    },
-    'defense-grading': {
-        key: 'defense-grading',
-        workspace: 'lecturer',
-        route: '/lecturer/grading',
-        menu: {
-            label: 'Phiếu chấm bảo vệ',
-            icon: 'edit_note',
-            group: 'Hội đồng & bảo vệ',
-            requiredPermission: 'VIEW_DEFENSE_GRADING',
-        },
-        viewAnyOf: ['VIEW_DEFENSE_GRADING', 'DEFENSE_SCORE_VIEW', 'DEFENSE_SCORE_SUBMIT'],
-        assignment: 'defenseCouncil',
-        actions: {
-            submitScore: 'DEFENSE_SCORE_SUBMIT',
-        },
-    },
-    'defense-lock': {
-        key: 'defense-lock',
-        workspace: 'admin',
-        route: '/admin/grading',
-        menu: {
-            label: 'Tổng hợp & Khóa điểm',
-            icon: 'lock',
-            group: 'Hội đồng & bảo vệ',
-            requiredPermission: 'VIEW_DEFENSE_LOCK_LEDGER',
-        },
-        viewAnyOf: ['VIEW_DEFENSE_LOCK_LEDGER', 'VIEW_RESULT_LOCKS', 'RESULT_LOCK'],
-        actions: {
-            lock: 'RESULT_LOCK',
-            returnScorebook: 'DEFENSE_SCOREBOOK_RETURN',
-        },
-    },
-
-    // KHỐI 5: KẾT QUẢ & CÔNG BỐ
-    'defense-result-approvals': {
-        key: 'defense-result-approvals',
-        workspace: 'admin',
-        route: '/admin/grading?tab=approvals',
-        menu: {
-            label: 'Phê duyệt kết quả',
-            icon: 'approval',
-            group: 'Kết quả & công bố',
-            requiredPermission: 'VIEW_DEFENSE_RESULT_APPROVALS',
-        },
-        viewAnyOf: ['VIEW_DEFENSE_RESULT_APPROVALS', 'VIEW_DEFENSE_RESULTS_APPROVAL', 'DEFENSE_RESULT_APPROVE'],
-        actions: {
-            approve: 'DEFENSE_RESULT_APPROVE',
-        },
-    },
-    'result-publications': {
-        key: 'result-publications',
-        workspace: 'admin',
-        route: '/admin/grading?tab=publish',
-        menu: {
-            label: 'Công bố kết quả',
-            icon: 'campaign',
-            group: 'Kết quả & công bố',
-            requiredPermission: 'VIEW_RESULT_PUBLICATIONS',
-        },
-        viewAnyOf: ['VIEW_RESULT_PUBLICATIONS', 'RESULT_PUBLICATION_PUBLISH'],
-        actions: {
-            publish: 'RESULT_PUBLICATION_PUBLISH',
-        },
-    },
-    'rubric-config': {
-        key: 'rubric-config',
-        workspace: 'admin',
-        route: '/admin/rubric-management',
-        menu: {
-            label: 'Tiêu chí chấm điểm',
-            icon: 'rule',
-            group: 'Kết quả & công bố',
-            requiredPermission: 'VIEW_RUBRIC_CONFIG',
-        },
-        viewAnyOf: ['VIEW_RUBRIC_CONFIG', 'RUBRIC_MANAGE'],
-        actions: {
-            manage: 'RUBRIC_MANAGE',
-            lock: 'RUBRIC_LOCK',
-        },
-    },
-
-    // KHỐI 6: QUẢN TRỊ HỌC VỤ
+    // KHỐI: ĐỢT & ĐĂNG KÝ
     'project-periods': {
         key: 'project-periods',
         workspace: 'admin',
         route: '/admin/project-periods',
         menu: {
-            label: 'Đợt đồ án & Học kỳ',
+            label: 'Đợt đồ án & học kỳ',
             icon: 'calendar_month',
-            group: 'Quản trị học vụ',
+            group: 'Đợt & đăng ký',
+            order: 1,
             requiredPermission: 'VIEW_PROJECT_PERIODS',
         },
         viewAnyOf: ['VIEW_PROJECT_PERIODS', 'VIEW_SEMESTERS', 'SEMESTER_MANAGE'],
@@ -301,9 +143,10 @@ export const FEATURE_POLICIES = Object.freeze({
         workspace: 'admin',
         route: '/admin/project-enrollments',
         menu: {
-            label: 'Điều phối & Gán sinh viên',
+            label: 'Điều phối sinh viên',
             icon: 'playlist_add_check',
-            group: 'Quản trị học vụ',
+            group: 'Đợt & đăng ký',
+            order: 2,
             requiredPermission: 'VIEW_PROJECT_ENROLLMENTS',
         },
         viewAnyOf: [
@@ -326,9 +169,10 @@ export const FEATURE_POLICIES = Object.freeze({
         workspace: 'admin',
         route: '/admin/topics',
         menu: {
-            label: 'Danh mục đề tài đồ án',
+            label: 'Danh mục đề tài',
             icon: 'list_alt',
-            group: 'Quản trị học vụ',
+            group: 'Đợt & đăng ký',
+            order: 3,
             requiredPermission: 'VIEW_ALL_TOPICS',
         },
         viewAnyOf: ['VIEW_ALL_TOPICS', 'VIEW_TOPIC_REVIEWS', 'TOPIC_REVIEW'],
@@ -336,14 +180,50 @@ export const FEATURE_POLICIES = Object.freeze({
             review: 'TOPIC_REVIEW',
         },
     },
+
+    // KHỐI: HƯỚNG DẪN & TIẾN ĐỘ
+    'lecturer-students': {
+        key: 'lecturer-students',
+        workspace: 'lecturer',
+        route: '/lecturer/students',
+        menu: {
+            label: 'Sinh viên đang hướng dẫn',
+            icon: 'school',
+            group: 'Hướng dẫn & tiến độ',
+            order: 1,
+            requiredPermission: 'VIEW_MENTORED_STUDENTS',
+        },
+        viewAnyOf: ['VIEW_MENTORED_STUDENTS', 'VIEW_MENTOR_STUDENTS'],
+        actions: {},
+    },
+    'progress-checkpoints': {
+        key: 'progress-checkpoints',
+        workspace: 'lecturer',
+        route: '/lecturer/progress',
+        menu: {
+            label: 'Theo dõi tiến độ',
+            icon: 'fact_check',
+            group: 'Hướng dẫn & tiến độ',
+            order: 2,
+            requiredPermission: 'VIEW_CHECKPOINTS',
+        },
+        viewAnyOf: ['VIEW_CHECKPOINTS', 'VIEW_BM04_EVALUATIONS', 'BM03_REVIEW'],
+        actions: {
+            issueCheckpoint: 'CHECKPOINT_ISSUE',
+            reviewBm03: 'BM03_REVIEW',
+            submitBm04: 'BM04_SUBMIT',
+            signBm04: 'BM04_CREATE_AND_SIGN',
+        },
+    },
     'project-oversight': {
         key: 'project-oversight',
         workspace: 'admin',
         route: '/admin/oversight',
         menu: {
-            label: 'Theo dõi & Giám sát tiến độ',
+            label: 'Giám sát tiến độ',
             icon: 'policy',
-            group: 'Quản trị học vụ',
+            group: 'Hướng dẫn & tiến độ',
+            order: 3,
             requiredPermission: 'VIEW_PROJECT_OVERSIGHT',
         },
         viewAnyOf: ['VIEW_PROJECT_OVERSIGHT', 'PROJECT_OVERSIGHT_MANAGE'],
@@ -351,31 +231,239 @@ export const FEATURE_POLICIES = Object.freeze({
             manage: 'PROJECT_OVERSIGHT_MANAGE',
         },
     },
+
+    // KHỐI: HỘI ĐỒNG & BẢO VỆ
+    'outline-councils': {
+        key: 'outline-councils',
+        workspace: 'admin',
+        route: '/admin/outline-councils',
+        menu: {
+            label: 'Hội đồng xét duyệt đề cương',
+            icon: 'fact_check',
+            group: 'Hội đồng & bảo vệ',
+            order: 1,
+            requiredPermission: 'OUTLINE_COUNCIL_MANAGE',
+        },
+        viewAnyOf: ['OUTLINE_COUNCIL_MANAGE', 'VIEW_COUNCIL_ASSIGNMENTS'],
+        assignment: 'outlineCouncil',
+        actions: {
+            manage: 'OUTLINE_COUNCIL_MANAGE',
+        },
+    },
+    'defense-councils': {
+        key: 'defense-councils',
+        workspace: 'admin',
+        route: '/admin/defense-councils',
+        menu: {
+            label: 'Hội đồng bảo vệ',
+            icon: 'groups',
+            group: 'Hội đồng & bảo vệ',
+            order: 2,
+            requiredPermission: 'DEFENSE_COUNCIL_MANAGE',
+        },
+        viewAnyOf: ['DEFENSE_COUNCIL_MANAGE', 'VIEW_COUNCIL_ASSIGNMENTS', 'VIEW_DEFENSE_ASSIGNMENTS'],
+        assignment: 'defenseCouncil',
+        actions: {
+            manage: 'DEFENSE_COUNCIL_MANAGE',
+            replaceMember: 'DEFENSE_MEMBER_REPLACE',
+            publishSchedule: 'DEFENSE_SCHEDULE_PUBLISH',
+        },
+    },
+    'defense-grading': {
+        key: 'defense-grading',
+        workspace: 'lecturer',
+        route: '/lecturer/grading',
+        menu: {
+            label: 'Phiếu chấm bảo vệ',
+            icon: 'edit_note',
+            group: 'Hội đồng & bảo vệ',
+            order: 3,
+            requiredPermission: 'VIEW_DEFENSE_GRADING',
+        },
+        viewAnyOf: ['VIEW_DEFENSE_GRADING', 'DEFENSE_SCORE_VIEW', 'DEFENSE_SCORE_SUBMIT'],
+        assignment: 'defenseCouncil',
+        actions: {
+            submitScore: 'DEFENSE_SCORE_SUBMIT',
+        },
+    },
+    'defense-lock': {
+        key: 'defense-lock',
+        workspace: 'admin',
+        route: '/admin/grading',
+        menu: {
+            label: 'Sổ điểm bảo vệ',
+            icon: 'lock',
+            group: 'Hội đồng & bảo vệ',
+            order: 4,
+            requiredPermission: 'VIEW_DEFENSE_LOCK_LEDGER',
+        },
+        viewAnyOf: ['VIEW_DEFENSE_LOCK_LEDGER', 'VIEW_RESULT_LOCKS', 'RESULT_LOCK'],
+        actions: {
+            lock: 'RESULT_LOCK',
+            returnScorebook: 'DEFENSE_SCOREBOOK_RETURN',
+        },
+    },
+
+    // KHỐI: BẢO VỆ & HOÀN TẤT
+    'my-grades': {
+        key: 'my-grades',
+        workspace: 'student',
+        route: '/student/grades',
+        menu: {
+            label: 'Kết quả & điểm đồ án',
+            icon: 'workspace_premium',
+            group: 'Bảo vệ & hoàn tất',
+            order: 1,
+            requiredPermission: 'VIEW_MY_GRADES',
+        },
+        viewAnyOf: ['VIEW_MY_GRADES'],
+        actions: {},
+    },
+    'my-archive': {
+        key: 'my-archive',
+        workspace: 'student',
+        route: '/student/submissions?tab=archive',
+        menu: {
+            label: 'Nộp hồ sơ lưu chiểu',
+            icon: 'inventory_2',
+            group: 'Bảo vệ & hoàn tất',
+            order: 2,
+            requiredPermission: 'VIEW_MY_ARCHIVE',
+        },
+        viewAnyOf: ['VIEW_MY_ARCHIVE', 'SUBMIT_PRE_DEFENSE_ARCHIVE', 'SUBMIT_FINAL_ARCHIVE'],
+        actions: {
+            submitPreDefense: 'SUBMIT_PRE_DEFENSE_ARCHIVE',
+            submitFinal: 'SUBMIT_FINAL_ARCHIVE',
+        },
+    },
+
+    // KHỐI: KẾT QUẢ & BÁO CÁO
+    'defense-result-approvals': {
+        key: 'defense-result-approvals',
+        workspace: 'admin',
+        route: '/admin/grading?tab=approvals',
+        menu: {
+            label: 'Phê duyệt kết quả',
+            icon: 'approval',
+            group: 'Kết quả & báo cáo',
+            order: 1,
+            requiredPermission: 'VIEW_DEFENSE_RESULT_APPROVALS',
+        },
+        viewAnyOf: ['VIEW_DEFENSE_RESULT_APPROVALS', 'VIEW_DEFENSE_RESULTS_APPROVAL', 'DEFENSE_RESULT_APPROVE'],
+        actions: {
+            approve: 'DEFENSE_RESULT_APPROVE',
+        },
+    },
+    'result-publications': {
+        key: 'result-publications',
+        workspace: 'admin',
+        route: '/admin/grading?tab=publish',
+        menu: {
+            label: 'Công bố kết quả học kỳ',
+            icon: 'campaign',
+            group: 'Kết quả & báo cáo',
+            order: 2,
+            requiredPermission: 'VIEW_RESULT_PUBLICATIONS',
+        },
+        viewAnyOf: ['VIEW_RESULT_PUBLICATIONS', 'RESULT_PUBLICATION_PUBLISH'],
+        actions: {
+            publish: 'RESULT_PUBLICATION_PUBLISH',
+        },
+    },
+    'rubric-config': {
+        key: 'rubric-config',
+        workspace: 'admin',
+        route: '/admin/rubric-management',
+        menu: {
+            label: 'Tiêu chí chấm điểm',
+            icon: 'rule',
+            group: 'Kết quả & báo cáo',
+            order: 3,
+            requiredPermission: 'VIEW_RUBRIC_CONFIG',
+        },
+        viewAnyOf: ['VIEW_RUBRIC_CONFIG', 'RUBRIC_MANAGE'],
+        actions: {
+            manage: 'RUBRIC_MANAGE',
+            lock: 'RUBRIC_LOCK',
+        },
+    },
     'academic-reports': {
         key: 'academic-reports',
         workspace: 'admin',
         route: '/admin/reports',
         menu: {
-            label: 'Báo cáo & Thống kê',
+            label: 'Báo cáo học vụ',
             icon: 'bar_chart',
-            group: 'Quản trị học vụ',
-            requiredPermission: 'VIEW_PROJECT_OVERSIGHT',
+            group: 'Kết quả & báo cáo',
+            order: 4,
+            requiredPermission: 'REPORT_VIEW',
         },
-        viewAnyOf: ['VIEW_PROJECT_OVERSIGHT', 'PROJECT_OVERSIGHT_MANAGE'],
+        viewAnyOf: ['REPORT_VIEW'],
         actions: {
-            export: 'VIEW_PROJECT_OVERSIGHT',
+            export: 'REPORT_VIEW',
         },
     },
 
-    // KHỐI 7: QUẢN TRỊ HỆ THỐNG
+    // KHỐI: NỘI DUNG & HỆ THỐNG
+    'announcements': {
+        key: 'announcements',
+        workspace: 'admin',
+        route: '/admin/announcements',
+        menu: {
+            label: 'Bản tin công khai',
+            icon: 'feed',
+            group: 'Nội dung & hệ thống',
+            order: 1,
+            requiredPermission: 'VIEW_ANNOUNCEMENTS',
+        },
+        viewAnyOf: ['VIEW_ANNOUNCEMENTS', 'PUBLIC_ANNOUNCEMENT_MANAGE'],
+        actions: {
+            create: 'PUBLIC_ANNOUNCEMENT_MANAGE',
+            edit: 'PUBLIC_ANNOUNCEMENT_MANAGE',
+            delete: 'PUBLIC_ANNOUNCEMENT_MANAGE',
+        },
+    },
+    'portal-content': {
+        key: 'portal-content',
+        workspace: 'admin',
+        route: '/admin/portal',
+        menu: {
+            label: 'Biểu mẫu & nội dung',
+            icon: 'file_copy',
+            group: 'Nội dung & hệ thống',
+            order: 2,
+            requiredPermission: 'VIEW_PORTAL_CONTENT',
+        },
+        viewAnyOf: ['VIEW_PORTAL_CONTENT', 'PORTAL_CONTENT_MANAGE'],
+        actions: {
+            manage: 'PORTAL_CONTENT_MANAGE',
+        },
+    },
+    'notifications': {
+        key: 'notifications',
+        workspace: 'admin',
+        route: '/admin/notifications',
+        menu: {
+            label: 'Thông báo tài khoản',
+            icon: 'notifications_active',
+            group: 'Nội dung & hệ thống',
+            order: 3,
+            requiredPermission: 'VIEW_NOTIFICATIONS',
+        },
+        viewAnyOf: ['VIEW_NOTIFICATIONS', 'NOTIFICATION_MANAGE'],
+        actions: {
+            send: 'NOTIFICATION_MANAGE',
+        },
+    },
     'users': {
         key: 'users',
         workspace: 'admin',
         route: '/admin/users',
         menu: {
-            label: 'Quản lý người dùng',
+            label: 'Người dùng',
             icon: 'group',
-            group: 'Quản trị hệ thống',
+            group: 'Nội dung & hệ thống',
+            order: 4,
             requiredPermission: 'VIEW_USERS',
         },
         viewAnyOf: ['VIEW_USERS', 'USER_MANAGE', 'PERMISSION_GROUP_MANAGE'],
@@ -391,62 +479,16 @@ export const FEATURE_POLICIES = Object.freeze({
         workspace: 'admin',
         route: '/admin/permissions',
         menu: {
-            label: 'Phân quyền & Nhóm quyền',
+            label: 'Phân quyền',
             icon: 'shield_lock',
-            group: 'Quản trị hệ thống',
+            group: 'Nội dung & hệ thống',
+            order: 5,
             requiredPermission: 'VIEW_PERMISSIONS',
         },
         viewAnyOf: ['VIEW_PERMISSIONS', 'VIEW_PERMISSION_GROUPS', 'PERMISSION_GROUP_MANAGE', 'PERMISSION_ASSIGN_ACADEMIC'],
         actions: {
             manageGroups: 'PERMISSION_GROUP_MANAGE',
             assignAcademic: 'PERMISSION_ASSIGN_ACADEMIC',
-        },
-    },
-    'announcements': {
-        key: 'announcements',
-        workspace: 'admin',
-        route: '/admin/announcements',
-        menu: {
-            label: 'Bản tin & Thông báo',
-            icon: 'feed',
-            group: 'Quản trị hệ thống',
-            requiredPermission: 'VIEW_ANNOUNCEMENTS',
-        },
-        viewAnyOf: ['VIEW_ANNOUNCEMENTS', 'PUBLIC_ANNOUNCEMENT_MANAGE'],
-        actions: {
-            create: 'PUBLIC_ANNOUNCEMENT_MANAGE',
-            edit: 'PUBLIC_ANNOUNCEMENT_MANAGE',
-            delete: 'PUBLIC_ANNOUNCEMENT_MANAGE',
-        },
-    },
-    'portal-content': {
-        key: 'portal-content',
-        workspace: 'admin',
-        route: '/admin/portal',
-        menu: {
-            label: 'Quản lý nội dung & Biểu mẫu',
-            icon: 'file_copy',
-            group: 'Quản trị hệ thống',
-            requiredPermission: 'VIEW_PORTAL_CONTENT',
-        },
-        viewAnyOf: ['VIEW_PORTAL_CONTENT', 'PORTAL_CONTENT_MANAGE'],
-        actions: {
-            manage: 'PORTAL_CONTENT_MANAGE',
-        },
-    },
-    'notifications': {
-        key: 'notifications',
-        workspace: 'admin',
-        route: '/admin/notifications',
-        menu: {
-            label: 'Gửi thông báo hệ thống',
-            icon: 'notifications_active',
-            group: 'Quản trị hệ thống',
-            requiredPermission: 'VIEW_NOTIFICATIONS',
-        },
-        viewAnyOf: ['VIEW_NOTIFICATIONS', 'NOTIFICATION_MANAGE'],
-        actions: {
-            send: 'NOTIFICATION_MANAGE',
         },
     },
 

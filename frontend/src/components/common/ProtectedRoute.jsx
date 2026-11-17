@@ -1,11 +1,11 @@
 import { Navigate, Outlet } from 'react-router-dom';
 import useAuthStore from '../../stores/authStore';
 import { getRouteRedirect, getRoleHomePath } from '../../utils/authRedirect';
-import { canViewFeature } from '../../auth/policyEvaluator';
+import { canViewFeature, getEffectivePermissions } from '../../auth/policyEvaluator';
 
 /**
  * Component bảo vệ các Route cần đăng nhập và kiểm tra Capability/Role.
- * Hỗ trợ canonical featureKey cũng như legacy permissions/roles props.
+ * Kết hợp canonical featureKey với các ràng buộc route có chủ đích (allowedRoles, requiredAnyPermissions, ...).
  */
 function ProtectedRoute({
     featureKey,
@@ -22,29 +22,29 @@ function ProtectedRoute({
         return <Navigate to="/" replace />;
     }
 
-    let redirectTo = null;
+    const effectiveRequiredPermissions = requiredPermission
+        ? (requiredPermissions.includes(requiredPermission)
+            ? requiredPermissions
+            : [...requiredPermissions, requiredPermission])
+        : requiredPermissions;
 
-    if (featureKey) {
-        const hasRole = allowedRoles.length === 0 || allowedRoles.includes(user.role);
-        const allowed = hasRole && canViewFeature(user, featureKey, context);
-        if (!allowed) {
-            redirectTo = getRoleHomePath(user);
-        }
-    } else {
-        const effectiveRequiredPermissions = requiredPermission
-            ? (requiredPermissions.includes(requiredPermission)
-                ? requiredPermissions
-                : [...requiredPermissions, requiredPermission])
-            : requiredPermissions;
+    const effectivePermissions = Array.from(getEffectivePermissions(user, context));
+    const effectiveUser = {
+        ...user,
+        permissions: effectivePermissions,
+    };
 
-        redirectTo = getRouteRedirect({
-            isAuthenticated,
-            user,
-            allowedRoles,
-            requiredPermissions: effectiveRequiredPermissions,
-            requiredAnyPermissions,
-            allowedPermissionGroups,
-        });
+    let redirectTo = getRouteRedirect({
+        isAuthenticated,
+        user: effectiveUser,
+        allowedRoles,
+        requiredPermissions: effectiveRequiredPermissions,
+        requiredAnyPermissions,
+        allowedPermissionGroups,
+    });
+
+    if (!redirectTo && featureKey && !canViewFeature(user, featureKey, context)) {
+        redirectTo = getRoleHomePath(user);
     }
 
     if (redirectTo) return <Navigate to={redirectTo} replace />;

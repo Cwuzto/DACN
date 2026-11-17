@@ -59,7 +59,7 @@ test('FEATURE_POLICIES manifest defines valid entries with required schema', () 
 });
 
 test('Parity: Every item in NAVIGATION_REGISTRY maps exactly to one FEATURE_POLICIES entry', () => {
-    assert.equal(NAVIGATION_REGISTRY.length, 25, 'NAVIGATION_REGISTRY must have exactly 25 items');
+    assert.equal(NAVIGATION_REGISTRY.length, 26, 'NAVIGATION_REGISTRY must have exactly 26 items');
 
     const policyMap = new Map();
     const policies = Array.isArray(FEATURE_POLICIES)

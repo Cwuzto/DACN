@@ -1,51 +1,27 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { FEATURE_POLICY_LIST } from '../src/auth/featurePolicies.js';
 import {
     NAVIGATION_REGISTRY,
     NAVIGATION_GROUPS,
     getVisibleNavigation,
 } from '../src/config/navigationRegistry.js';
 
-test('NAVIGATION_REGISTRY contains exactly 25 items with required keys and unique keys/permissions', () => {
-    assert.equal(NAVIGATION_REGISTRY.length, 25, 'Registry must contain exactly 25 entries');
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-    const expectedKeys = new Set([
-        // Khối 1: Hồ sơ của tôi (5)
-        'my-registration',
-        'my-topics',
-        'my-submissions',
-        'my-archive',
-        'my-grades',
-        // Khối 2: Hướng dẫn & tiến độ (2)
-        'mentored-students',
-        'progress-checkpoints',
-        // Khối 3: Thẩm định & quyết định (1)
-        'outline-reviews',
-        // Khối 4: Hội đồng & bảo vệ (4)
-        'outline-councils',
-        'defense-councils',
-        'defense-grading',
-        'defense-lock',
-        // Khối 5: Kết quả & công bố (3)
-        'defense-result-approvals',
-        'result-publications',
-        'rubric-config',
-        // Khối 6: Quản trị học vụ (5)
-        'project-periods',
-        'project-enrollments',
-        'all-topics',
-        'project-oversight',
-        'academic-reports',
-        // Khối 7: Quản trị hệ thống (5)
-        'users',
-        'permissions',
-        'announcements',
-        'portal-content',
-        'notifications',
-    ]);
+test('NAVIGATION_REGISTRY is derived from FEATURE_POLICY_LIST without a second manual array', () => {
+    const navSrc = fs.readFileSync(path.join(root, 'src/config/navigationRegistry.js'), 'utf8');
+    assert.match(navSrc, /FEATURE_POLICY_LIST/, 'navigationRegistry.js must derive from FEATURE_POLICY_LIST');
 
+    const expectedMenuPolicies = FEATURE_POLICY_LIST.filter((p) => Boolean(p.menu));
+    assert.equal(NAVIGATION_REGISTRY.length, expectedMenuPolicies.length);
+    assert.equal(NAVIGATION_REGISTRY.length, 26, 'Registry must contain exactly 26 workflow menu entries');
+
+    const expectedKeys = new Set(expectedMenuPolicies.map((p) => p.key));
     const seenKeys = new Set();
-    const seenPermissions = new Set();
 
     for (const item of NAVIGATION_REGISTRY) {
         assert.ok(item.key, 'Item must have a non-empty key');
@@ -57,44 +33,32 @@ test('NAVIGATION_REGISTRY contains exactly 25 items with required keys and uniqu
             `Item ${item.key} must have a requiredPermission or requiredAnyPermissions`
         );
         assert.ok(item.route, `Item ${item.key} must have a route`);
-
         assert.ok(
             NAVIGATION_GROUPS.includes(item.group),
             `Item ${item.key} group "${item.group}" must be in NAVIGATION_GROUPS`
         );
         assert.ok(expectedKeys.has(item.key), `Unexpected item key: ${item.key}`);
-
         assert.ok(!seenKeys.has(item.key), `Duplicate key: ${item.key}`);
         seenKeys.add(item.key);
-
-        if (item.requiredPermission) {
-            if (item.key !== 'academic-reports') {
-                assert.ok(
-                    !seenPermissions.has(item.requiredPermission),
-                    `Duplicate requiredPermission: ${item.requiredPermission}`
-                );
-            }
-            seenPermissions.add(item.requiredPermission);
-        }
     }
 
-    assert.equal(seenKeys.size, 25);
-    assert.equal(seenPermissions.size, 24);
+    assert.equal(seenKeys.size, 26);
 });
 
-test('NAVIGATION_GROUPS defines the 7 domain groups in strict business order', () => {
+test('NAVIGATION_GROUPS defines the 8 workflow domain groups in strict business order', () => {
     assert.deepEqual(NAVIGATION_GROUPS, [
-        'Hồ sơ của tôi',
+        'Đăng ký & đề cương',
+        'Thực hiện đồ án',
+        'Đợt & đăng ký',
         'Hướng dẫn & tiến độ',
-        'Thẩm định & quyết định',
         'Hội đồng & bảo vệ',
-        'Kết quả & công bố',
-        'Quản trị học vụ',
-        'Quản trị hệ thống',
+        'Bảo vệ & hoàn tất',
+        'Kết quả & báo cáo',
+        'Nội dung & hệ thống',
     ]);
 });
 
-test('Student with SYSTEM_STUDENT_BASE sees only "Hồ sơ của tôi" (4 student items)', () => {
+test('Student with SYSTEM_STUDENT_BASE sees workflow-grouped items with updated labels', () => {
     const studentPermissions = [
         'VIEW_MY_REGISTRATION',
         'VIEW_MY_SUBMISSIONS',
@@ -114,25 +78,23 @@ test('Student with SYSTEM_STUDENT_BASE sees only "Hồ sơ của tôi" (4 studen
 
     const nav = getVisibleNavigation(studentPermissions);
 
-    assert.equal(nav.length, 1, 'Student should only see 1 group');
-    assert.equal(nav[0].group, 'Hồ sơ của tôi');
     assert.deepEqual(
-        nav[0].items.map((i) => i.key),
-        ['my-registration', 'my-submissions', 'my-archive', 'my-grades'],
-        'Student should not see my-topics (lecturer only)'
+        nav.map((g) => g.group),
+        ['Đăng ký & đề cương', 'Thực hiện đồ án', 'Bảo vệ & hoàn tất']
     );
 
-    // Verify student cannot see any management, review, or system groups
-    const groupNames = nav.map((g) => g.group);
-    assert.ok(!groupNames.includes('Hướng dẫn & tiến độ'));
-    assert.ok(!groupNames.includes('Thẩm định & quyết định'));
-    assert.ok(!groupNames.includes('Hội đồng & bảo vệ'));
-    assert.ok(!groupNames.includes('Kết quả & công bố'));
-    assert.ok(!groupNames.includes('Quản trị học vụ'));
-    assert.ok(!groupNames.includes('Quản trị hệ thống'));
+    assert.deepEqual(
+        nav.flatMap((g) => g.items).map((i) => ({ key: i.key, label: i.label, route: i.route })),
+        [
+            { key: 'my-registration', label: 'Tìm & đăng ký đề tài', route: '/student/topics' },
+            { key: 'my-submissions', label: 'Hồ sơ & nộp bài', route: '/student/submissions' },
+            { key: 'my-grades', label: 'Kết quả & điểm đồ án', route: '/student/grades' },
+            { key: 'my-archive', label: 'Nộp hồ sơ lưu chiểu', route: '/student/submissions?tab=archive' },
+        ]
+    );
 });
 
-test('Lecturer with GVHD: without defense council assignment sees 3 items across 2 groups; with defense council assignment sees defense-grading (4 items across 3 groups)', () => {
+test('Lecturer with GVHD: without defense council assignment sees 4 items across 2 groups; with defense council assignment sees defense-grading (5 items across 3 groups)', () => {
     const gvhdPermissions = [
         'TOPIC_CREATE',
         'TOPIC_UPDATE_OWN',
@@ -144,25 +106,29 @@ test('Lecturer with GVHD: without defense council assignment sees 3 items across
         'VIEW_DEFENSE_GRADING',
     ];
 
-    // 1. Without defense council assignment -> defense-grading is hidden, only 3 items in 2 groups
     const navWithoutCouncil = getVisibleNavigation(gvhdPermissions);
 
     assert.equal(navWithoutCouncil.length, 2);
     assert.deepEqual(
         navWithoutCouncil.map((n) => n.group),
-        ['Hồ sơ của tôi', 'Hướng dẫn & tiến độ']
+        ['Đăng ký & đề cương', 'Hướng dẫn & tiến độ']
     );
 
     assert.deepEqual(
-        navWithoutCouncil[0].items.map((i) => i.key),
-        ['my-topics']
+        navWithoutCouncil[0].items.map((i) => ({ key: i.key, label: i.label, route: i.route })),
+        [
+            { key: 'my-topics', label: 'Đề tài phụ trách', route: '/lecturer/topics' },
+            { key: 'mentored-students', label: 'Duyệt nguyện vọng', route: '/lecturer/approvals?tab=mentor' },
+        ]
     );
     assert.deepEqual(
-        navWithoutCouncil[1].items.map((i) => i.key),
-        ['mentored-students', 'progress-checkpoints']
+        navWithoutCouncil[1].items.map((i) => ({ key: i.key, label: i.label, route: i.route })),
+        [
+            { key: 'lecturer-students', label: 'Sinh viên đang hướng dẫn', route: '/lecturer/students' },
+            { key: 'progress-checkpoints', label: 'Theo dõi tiến độ', route: '/lecturer/progress' },
+        ]
     );
 
-    // 2. With defense council assignment (hasDefenseCouncilAssignment: true) -> sees defense-grading
     const navWithCouncil = getVisibleNavigation({
         role: 'LECTURER',
         permissions: gvhdPermissions,
@@ -172,7 +138,7 @@ test('Lecturer with GVHD: without defense council assignment sees 3 items across
     assert.equal(navWithCouncil.length, 3);
     assert.deepEqual(
         navWithCouncil.map((n) => n.group),
-        ['Hồ sơ của tôi', 'Hướng dẫn & tiến độ', 'Hội đồng & bảo vệ']
+        ['Đăng ký & đề cương', 'Hướng dẫn & tiến độ', 'Hội đồng & bảo vệ']
     );
     assert.deepEqual(
         navWithCouncil[2].items.map((i) => i.key),
@@ -180,7 +146,7 @@ test('Lecturer with GVHD: without defense council assignment sees 3 items across
     );
 });
 
-test('Institute leader (VIEN_TRUONG) sees "Thẩm định & quyết định", "Hội đồng & bảo vệ", "Kết quả & công bố"', () => {
+test('Institute leader (VIEN_TRUONG) sees workflow groups without lecturer-institute menu in Wave 2', () => {
     const vienTruongPermissions = [
         'VIEW_MY_TOPICS',
         'VIEW_MENTORED_STUDENTS',
@@ -198,6 +164,7 @@ test('Institute leader (VIEN_TRUONG) sees "Thẩm định & quyết định", "H
         'VIEW_RESULT_PUBLICATIONS',
         'VIEW_RUBRIC_CONFIG',
         'VIEW_PROJECT_PERIODS',
+        'REPORT_VIEW',
     ];
 
     const vienTruongUser = {
@@ -210,14 +177,15 @@ test('Institute leader (VIEN_TRUONG) sees "Thẩm định & quyết định", "H
     const nav = getVisibleNavigation(vienTruongUser);
     const groups = nav.map((n) => n.group);
 
-    assert.ok(groups.includes('Thẩm định & quyết định'));
+    assert.ok(groups.includes('Đăng ký & đề cương'));
     assert.ok(groups.includes('Hội đồng & bảo vệ'));
-    assert.ok(groups.includes('Kết quả & công bố'));
+    assert.ok(groups.includes('Kết quả & báo cáo'));
+    assert.ok(!nav.flatMap((g) => g.items).some((i) => i.key === 'lecturer-institute'));
 
-    const decisionGroup = nav.find((n) => n.group === 'Thẩm định & quyết định');
+    const regGroup = nav.find((n) => n.group === 'Đăng ký & đề cương');
     assert.deepEqual(
-        decisionGroup.items.map((i) => i.key),
-        ['outline-reviews']
+        regGroup.items.map((i) => i.key),
+        ['my-topics', 'mentored-students', 'outline-reviews']
     );
 
     const councilGroup = nav.find((n) => n.group === 'Hội đồng & bảo vệ');
@@ -226,19 +194,20 @@ test('Institute leader (VIEN_TRUONG) sees "Thẩm định & quyết định", "H
         ['outline-councils', 'defense-councils', 'defense-grading', 'defense-lock']
     );
 
-    const resultGroup = nav.find((n) => n.group === 'Kết quả & công bố');
+    const resultGroup = nav.find((n) => n.group === 'Kết quả & báo cáo');
     assert.deepEqual(
         resultGroup.items.map((i) => i.key),
-        ['defense-result-approvals', 'result-publications', 'rubric-config']
+        ['defense-result-approvals', 'result-publications', 'rubric-config', 'academic-reports']
     );
 });
 
-test('System administrator (QUAN_TRI_VIEN) sees "Quản trị học vụ" and "Quản trị hệ thống"', () => {
+test('System administrator / Academic staff sees separated workflow groups and labels', () => {
     const adminPermissions = [
         'VIEW_PROJECT_PERIODS',
         'VIEW_PROJECT_ENROLLMENTS',
         'VIEW_ALL_TOPICS',
         'VIEW_PROJECT_OVERSIGHT',
+        'REPORT_VIEW',
         'VIEW_USERS',
         'VIEW_PERMISSIONS',
         'VIEW_ANNOUNCEMENTS',
@@ -249,32 +218,35 @@ test('System administrator (QUAN_TRI_VIEN) sees "Quản trị học vụ" and "Q
     const nav = getVisibleNavigation(adminPermissions);
     const groups = nav.map((n) => n.group);
 
-    assert.ok(groups.includes('Quản trị học vụ'));
-    assert.ok(groups.includes('Quản trị hệ thống'));
+    assert.deepEqual(groups, [
+        'Đợt & đăng ký',
+        'Hướng dẫn & tiến độ',
+        'Kết quả & báo cáo',
+        'Nội dung & hệ thống',
+    ]);
 
-    const academicGroup = nav.find((n) => n.group === 'Quản trị học vụ');
     assert.deepEqual(
-        academicGroup.items.map((i) => i.key),
-        ['project-periods', 'project-enrollments', 'all-topics', 'project-oversight', 'academic-reports']
+        nav.find((g) => g.group === 'Đợt & đăng ký').items.map((i) => i.key),
+        ['project-periods', 'project-enrollments', 'all-topics']
     );
-
-    const sysAdminGroup = nav.find((n) => n.group === 'Quản trị hệ thống');
     assert.deepEqual(
-        sysAdminGroup.items.map((i) => i.key),
-        ['users', 'permissions', 'announcements', 'portal-content', 'notifications']
+        nav.find((g) => g.group === 'Hướng dẫn & tiến độ').items.map((i) => i.key),
+        ['project-oversight']
     );
-
-    // Verify 'Thẩm định & quyết định' is not leaked to system administrator
-    assert.ok(!groups.includes('Thẩm định & quyết định'), 'Admin must not see Thẩm định & quyết định group');
-
-    // Admin role must explicitly exclude institute-management (/lecturer/institute)
-    const adminUserNav = getVisibleNavigation({
-        role: 'ADMIN',
-        permissions: ['VIEW_ASSIGNMENT_DECISIONS', 'VIEW_PROJECT_PERIODS', 'VIEW_USERS'],
-    });
-    const adminAllItems = adminUserNav.flatMap((g) => g.items);
-    assert.ok(!adminAllItems.some((i) => i.key === 'institute-management'), 'Admin must not see institute-management item');
-    assert.ok(adminAllItems.some((i) => i.key === 'project-periods'), 'Admin retains project-periods under Quản trị học vụ');
+    assert.deepEqual(
+        nav.find((g) => g.group === 'Kết quả & báo cáo').items.map((i) => ({ key: i.key, label: i.label })),
+        [{ key: 'academic-reports', label: 'Báo cáo học vụ' }]
+    );
+    assert.deepEqual(
+        nav.find((g) => g.group === 'Nội dung & hệ thống').items.map((i) => ({ key: i.key, label: i.label })),
+        [
+            { key: 'announcements', label: 'Bản tin công khai' },
+            { key: 'portal-content', label: 'Biểu mẫu & nội dung' },
+            { key: 'notifications', label: 'Thông báo tài khoản' },
+            { key: 'users', label: 'Người dùng' },
+            { key: 'permissions', label: 'Phân quyền' },
+        ]
+    );
 });
 
 test('Empty groups with 0 accessible items are completely excluded from results', () => {
@@ -283,7 +255,7 @@ test('Empty groups with 0 accessible items are completely excluded from results'
 
     const singleNav = getVisibleNavigation(['VIEW_USERS']);
     assert.equal(singleNav.length, 1);
-    assert.equal(singleNav[0].group, 'Quản trị hệ thống');
+    assert.equal(singleNav[0].group, 'Nội dung & hệ thống');
     assert.equal(singleNav[0].items.length, 1);
     assert.equal(singleNav[0].items[0].key, 'users');
 });
@@ -304,22 +276,21 @@ test('getVisibleNavigation handles Set, Array, User object, and empty/null argum
 });
 
 test('Returned navigation groups strictly preserve the canonical NAVIGATION_GROUPS order', () => {
-    // Pass permissions from various groups in reverse order
     const reverseOrderPermissions = [
-        'VIEW_NOTIFICATIONS', // Quản trị hệ thống (Group 7)
-        'VIEW_ALL_TOPICS', // Quản trị học vụ (Group 6)
-        'VIEW_RUBRIC_CONFIG', // Kết quả & công bố (Group 5)
-        'VIEW_MY_REGISTRATION', // Hồ sơ của tôi (Group 1)
+        'VIEW_NOTIFICATIONS',
+        'VIEW_ALL_TOPICS',
+        'VIEW_RUBRIC_CONFIG',
+        'VIEW_MY_REGISTRATION',
     ];
 
     const nav = getVisibleNavigation(reverseOrderPermissions);
     assert.deepEqual(
         nav.map((n) => n.group),
         [
-            'Hồ sơ của tôi',
-            'Kết quả & công bố',
-            'Quản trị học vụ',
-            'Quản trị hệ thống',
+            'Đăng ký & đề cương',
+            'Đợt & đăng ký',
+            'Kết quả & báo cáo',
+            'Nội dung & hệ thống',
         ]
     );
 });
@@ -342,7 +313,7 @@ test('GIAO_VU does not receive synthetic VIEW_PROJECT_ENROLLMENTS in navigation'
 test('ADMIN does not bypass council assignment check in navigation', () => {
     const adminWithoutCouncil = {
         role: 'ADMIN',
-        permissions: ['VIEW_USERS', 'VIEW_PERMISSIONS'],
+        permissions: ['VIEW_USERS', 'VIEW_PERMISSIONS', 'VIEW_DEFENSE_GRADING', 'VIEW_OUTLINE_REVIEWS'],
         hasDefenseCouncilAssignment: false,
         hasOutlineCouncilAssignment: false,
     };
@@ -352,5 +323,5 @@ test('ADMIN does not bypass council assignment check in navigation', () => {
     assert.ok(!allItems.some((i) => i.key === 'outline-councils'));
     assert.ok(!allItems.some((i) => i.key === 'defense-councils'));
     assert.ok(!allItems.some((i) => i.key === 'defense-grading'));
+    assert.ok(!allItems.some((i) => i.key === 'outline-reviews'));
 });
-

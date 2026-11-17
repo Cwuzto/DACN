@@ -1,13 +1,14 @@
-import { Suspense, useState, useEffect, useMemo, useCallback } from 'react';
+import { Suspense, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { Badge } from 'antd';
+import { MenuOutlined } from '@ant-design/icons';
 import useAuthStore from '../../stores/authStore';
 import authService from '../../services/authService';
 import notificationService from '../../services/notificationService';
 import { semesterService } from '../../services/semesterService';
 import { getClosestSemester, resolveCurrentSemester } from '../../utils/semesterDisplay';
 import registrationService from '../../services/registrationService';
-import { getVisibleNavigation, NAVIGATION_REGISTRY } from '../../config/navigationRegistry';
+import { getVisibleNavigation, isNavigationItemActive } from '../../auth/policyEvaluator';
 import { isInstituteDirector, getUserDisplayRole } from '../../utils/authRedirect';
 import NavIcon from './NavIcon';
 import OpenDrawer from '../common/OpenDrawer';
@@ -30,6 +31,7 @@ function AppLayout({ role }) {
     const location = useLocation();
     const { user, logout, updateUser, refreshSession, refreshPermissions } = useAuthStore();
     const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+    const mobileMenuButtonRef = useRef(null);
     const [collapsed, setCollapsed] = useState(() => {
         try {
             return localStorage.getItem('sidebar_collapsed') === 'true';
@@ -213,25 +215,21 @@ function AppLayout({ role }) {
         navigate('/', { replace: true });
     };
 
-    const isActive = (targetRoute) => {
-        if (!targetRoute) return false;
-        const [targetPath, targetQuery] = targetRoute.split('?');
-        if (targetQuery) {
-            return location.pathname === targetPath && location.search === `?${targetQuery}`;
-        }
-        if (location.search && targetPath === location.pathname) {
-            const hasRegisteredTabSibling = NAVIGATION_REGISTRY.some((item) => {
-                const [iPath, iQuery] = item.route.split('?');
-                return iPath === targetPath && iQuery && location.search.includes(iQuery);
-            });
-            if (hasRegisteredTabSibling) {
-                return false;
-            }
-        }
-        return location.pathname === targetPath || location.pathname.startsWith(targetPath + '/');
-    };
+    const isActive = (targetRoute) => isNavigationItemActive(targetRoute, location.pathname, location.search);
 
     const initials = (user?.fullName || user?.name || roleLabel)?.[0]?.toUpperCase() || 'U';
+
+    const closeMobileDrawer = useCallback((restoreFocus = false) => {
+        setMobileDrawerOpen(false);
+        if (restoreFocus) {
+            const restore = () => mobileMenuButtonRef.current?.focus();
+            if (typeof requestAnimationFrame === 'function') {
+                requestAnimationFrame(restore);
+            } else {
+                setTimeout(restore, 0);
+            }
+        }
+    }, []);
 
     const handleNavigate = (path) => {
         navigate(path);
@@ -257,6 +255,7 @@ function AppLayout({ role }) {
                     className="sidebar-toggle"
                     type="button"
                     onClick={toggleCollapse}
+                    aria-expanded={!isSidebarCollapsed}
                     aria-label={isSidebarCollapsed ? 'Mở rộng thanh bên' : 'Thu gọn thanh bên'}
                     title={isSidebarCollapsed ? 'Mở rộng thanh bên' : 'Thu gọn thanh bên'}
                 >
@@ -302,68 +301,81 @@ function AppLayout({ role }) {
             )}
 
             {/* Navigation List */}
-            <ul className="nav-list">
-                {/* 1. Dashboard: Fixed top-level overview */}
-                <li className="space-y-1 mb-2">
-                    {!isSidebarCollapsed && (
-                        <div className="nav-section-title">TỔNG QUAN</div>
-                    )}
-                    <button
-                        type="button"
-                        onClick={() => handleNavigate(dashboardPath)}
-                        className={`nav-item ${isActive(dashboardPath) ? 'active' : ''}`}
-                        title={isSidebarCollapsed ? 'Tổng quan' : undefined}
-                    >
-                        <span className="nav-left">
-                            <NavIcon name="dashboard" />
-                            {!isSidebarCollapsed && <span>Tổng quan</span>}
-                        </span>
-                    </button>
-                </li>
-
-                {/* 2. Dynamic 7-Group Navigation Registry */}
-                {visibleGroups.map((section) => (
-                    <li key={section.group} className="space-y-1">
+            <nav aria-label="Điều hướng chính" className="flex-1 overflow-y-auto">
+                <ul className="nav-list">
+                    {/* 1. Dashboard: Fixed top-level overview */}
+                    <li className="space-y-1 mb-2" role="group" aria-labelledby="nav-group-overview">
                         {!isSidebarCollapsed && (
-                            <div className="nav-section-title">{section.title.toUpperCase()}</div>
+                            <div id="nav-group-overview" className="nav-section-title uppercase">Tổng quan</div>
                         )}
-                        <div className="space-y-0.5">
-                            {section.items.map((item) => {
-                                const active = isActive(item.route);
-                                return (
-                                    <button
-                                        key={item.key}
-                                        type="button"
-                                        onClick={() => handleNavigate(item.route)}
-                                        className={`nav-item ${active ? 'active' : ''}`}
-                                        title={isSidebarCollapsed ? item.label : undefined}
-                                    >
-                                        <span className="nav-left">
-                                            <NavIcon name={item.icon} />
-                                            {!isSidebarCollapsed && <span>{item.label}</span>}
-                                        </span>
-                                    </button>
-                                );
-                            })}
-                        </div>
+                        <button
+                            type="button"
+                            onClick={() => handleNavigate(dashboardPath)}
+                            className={`nav-item ${isActive(dashboardPath) ? 'active' : ''}`}
+                            aria-current={isActive(dashboardPath) ? 'page' : undefined}
+                            aria-label={isSidebarCollapsed ? 'Tổng quan' : undefined}
+                            title={isSidebarCollapsed ? 'Tổng quan' : undefined}
+                        >
+                            <span className="nav-left">
+                                <NavIcon name="dashboard" />
+                                {!isSidebarCollapsed && <span>Tổng quan</span>}
+                            </span>
+                        </button>
                     </li>
-                ))}
 
-                {/* 3. Bottom Items (Account Settings) */}
-                <li className="space-y-1 pt-2 border-t border-slate-100">
-                    <button
-                        type="button"
-                        onClick={() => handleNavigate(profilePath)}
-                        className={`nav-item ${isActive(profilePath) ? 'active' : ''}`}
-                        title={isSidebarCollapsed ? 'Cài đặt tài khoản' : undefined}
-                    >
-                        <span className="nav-left">
-                            <NavIcon name="settings" />
-                            {!isSidebarCollapsed && <span>Cài đặt tài khoản</span>}
-                        </span>
-                    </button>
-                </li>
-            </ul>
+                    {/* 2. Dynamic Navigation Groups */}
+                    {visibleGroups.map((section, groupIndex) => {
+                        const groupTitleId = `nav-group-${groupIndex}`;
+                        return (
+                            <li key={section.group} className="space-y-1" role="group" aria-labelledby={groupTitleId}>
+                                {!isSidebarCollapsed ? (
+                                    <div id={groupTitleId} className="nav-section-title uppercase">{section.title}</div>
+                                ) : (
+                                    <span id={groupTitleId} className="sr-only">{section.title}</span>
+                                )}
+                                <div className="space-y-0.5">
+                                    {section.items.map((item) => {
+                                        const active = isActive(item.route);
+                                        return (
+                                            <button
+                                                key={item.key}
+                                                type="button"
+                                                onClick={() => handleNavigate(item.route)}
+                                                className={`nav-item ${active ? 'active' : ''}`}
+                                                aria-current={active ? 'page' : undefined}
+                                                aria-label={isSidebarCollapsed ? item.label : undefined}
+                                                title={isSidebarCollapsed ? item.label : undefined}
+                                            >
+                                                <span className="nav-left">
+                                                    <NavIcon name={item.icon} />
+                                                    {!isSidebarCollapsed && <span>{item.label}</span>}
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </li>
+                        );
+                    })}
+
+                    {/* 3. Bottom Items (Account Settings) */}
+                    <li className="space-y-1 pt-2 border-t border-slate-100">
+                        <button
+                            type="button"
+                            onClick={() => handleNavigate(profilePath)}
+                            className={`nav-item ${isActive(profilePath) ? 'active' : ''}`}
+                            aria-current={isActive(profilePath) ? 'page' : undefined}
+                            aria-label={isSidebarCollapsed ? 'Cài đặt tài khoản' : undefined}
+                            title={isSidebarCollapsed ? 'Cài đặt tài khoản' : undefined}
+                        >
+                            <span className="nav-left">
+                                <NavIcon name="settings" />
+                                {!isSidebarCollapsed && <span>Cài đặt tài khoản</span>}
+                            </span>
+                        </button>
+                    </li>
+                </ul>
+            </nav>
 
             {/* Sidebar Footer with Logout */}
             <div className="sidebar-footer">
@@ -371,6 +383,7 @@ function AppLayout({ role }) {
                     type="button"
                     onClick={handleLogout}
                     className="switch-link danger"
+                    aria-label={isSidebarCollapsed ? 'Đăng xuất' : undefined}
                     title="Đăng xuất khỏi hệ thống"
                 >
                     <NavIcon name="logout" size={14} />
@@ -390,7 +403,7 @@ function AppLayout({ role }) {
             {/* Mobile Sliding OpenDrawer */}
             <OpenDrawer
                 open={mobileDrawerOpen}
-                onClose={() => setMobileDrawerOpen(false)}
+                onClose={() => closeMobileDrawer(true)}
                 placement="left"
                 width="280px"
                 ariaLabel="Menu điều hướng"
@@ -403,6 +416,16 @@ function AppLayout({ role }) {
                 {/* Topbar Header */}
                 <header className="topbar">
                     <div className="topbar-left">
+                        <button
+                            ref={mobileMenuButtonRef}
+                            type="button"
+                            className="lg:hidden btn btn-secondary btn-sm"
+                            onClick={() => setMobileDrawerOpen(true)}
+                            aria-label="Mở menu điều hướng"
+                            aria-expanded={mobileDrawerOpen}
+                        >
+                            <MenuOutlined />
+                        </button>
                         {/* Institutional Period Badge */}
                         <div className="period-badge">
                             <span className="period-dot"></span>

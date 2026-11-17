@@ -4,7 +4,7 @@
  * Đọc từ FEATURE_POLICIES, loại bỏ hoàn toàn bypass theo Role và synthetic permission injection.
  */
 
-import { FEATURE_POLICIES, NAVIGATION_GROUPS } from './featurePolicies.js';
+import { FEATURE_POLICIES, FEATURE_POLICY_LIST, NAVIGATION_GROUPS } from './featurePolicies.js';
 
 /**
  * Trích xuất tập quyền hiệu lực có tính đến phạm vi ủy quyền (Scoped Delegation).
@@ -93,7 +93,8 @@ function checkAssignment(assignment, user, permSet, context = {}) {
             user?.hasDefenseCouncilAssignment ||
             context?.hasDefenseCouncilAssignment ||
             permSet.has('DEFENSE_COUNCIL_MANAGE') ||
-            (user?.role === 'ADMIN' && permSet.has('VIEW_DEFENSE_GRADING'))
+            permSet.has('VIEW_COUNCIL_ASSIGNMENTS') ||
+            permSet.has('VIEW_DEFENSE_ASSIGNMENTS')
         );
     }
 
@@ -102,7 +103,7 @@ function checkAssignment(assignment, user, permSet, context = {}) {
             user?.hasOutlineCouncilAssignment ||
             context?.hasOutlineCouncilAssignment ||
             permSet.has('OUTLINE_COUNCIL_MANAGE') ||
-            (user?.role === 'ADMIN' && permSet.has('VIEW_OUTLINE_REVIEWS'))
+            permSet.has('VIEW_COUNCIL_ASSIGNMENTS')
         );
     }
 
@@ -242,6 +243,7 @@ export function getVisibleNavigation(permissionsInput, context = {}) {
                 label: policy.menu.label,
                 icon: policy.menu.icon,
                 group: policy.menu.group,
+                order: policy.menu.order ?? 999,
                 route: policy.route,
                 requiredPermission: policy.menu.requiredPermission || policy.viewAnyOf?.[0],
                 requiredAnyPermissions: policy.viewAnyOf,
@@ -253,7 +255,9 @@ export function getVisibleNavigation(permissionsInput, context = {}) {
 
     const groups = [];
     for (const groupName of NAVIGATION_GROUPS) {
-        const items = visibleItems.filter((item) => item.group === groupName);
+        const items = visibleItems
+            .filter((item) => item.group === groupName)
+            .sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
         if (items.length > 0) {
             groups.push({
                 group: groupName,
@@ -264,4 +268,60 @@ export function getVisibleNavigation(permissionsInput, context = {}) {
     }
 
     return groups;
+}
+
+function normalizeTabParam(rawSearch = '') {
+    const search = rawSearch.startsWith('?') ? rawSearch.slice(1) : rawSearch;
+    const params = new URLSearchParams(search);
+    const tab = params.get('tab');
+    return tab ? tab.trim().toLowerCase() : null;
+}
+
+/**
+ * Tính trạng thái active của mục menu dựa trên pathname + normalized tab,
+ * bỏ qua các tham số không liên quan (như semesterId, page, ...) và thứ tự tham số.
+ * Dùng FEATURE_POLICY_LIST làm nguồn tìm sibling tab.
+ *
+ * @param {string} targetRoute
+ * @param {string} currentPathname
+ * @param {string} [currentSearch='']
+ * @param {Array<object>} [policies=FEATURE_POLICY_LIST]
+ * @returns {boolean}
+ */
+export function isNavigationItemActive(
+    targetRoute,
+    currentPathname,
+    currentSearch = '',
+    policies = FEATURE_POLICY_LIST
+) {
+    if (!targetRoute || !currentPathname) return false;
+
+    const [targetPath, targetQuery = ''] = targetRoute.split('?');
+    const targetTab = normalizeTabParam(targetQuery);
+    const currentTab = normalizeTabParam(currentSearch);
+
+    if (targetTab) {
+        if (currentPathname !== targetPath) return false;
+        if (currentTab === targetTab) return true;
+        // Default tab for /lecturer/approvals is mentor when ?tab= is omitted
+        if (targetPath === '/lecturer/approvals' && targetTab === 'mentor' && !currentTab) {
+            return true;
+        }
+        return false;
+    }
+
+    if (currentPathname === targetPath && currentTab) {
+        const hasMatchingTabSibling = policies.some((policy) => {
+            if (!policy?.menu || !policy?.route) return false;
+            const [pPath, pQuery = ''] = policy.route.split('?');
+            if (pPath !== targetPath || !pQuery) return false;
+            const pTab = normalizeTabParam(pQuery);
+            return Boolean(pTab && pTab === currentTab);
+        });
+        if (hasMatchingTabSibling) {
+            return false;
+        }
+    }
+
+    return currentPathname === targetPath || currentPathname.startsWith(`${targetPath}/`);
 }

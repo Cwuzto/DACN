@@ -106,7 +106,8 @@ test('defense and archive UI separates view, submit, lock, publish, and review c
     ]) {
         assert.match(`${appSource}\n${layoutSource}\n${gradingSource}\n${oversightSource}`, new RegExp(permission));
     }
-    assert.match(appSource, /requiredAnyPermissions=\{\[[^\]]*'OUTLINE_COUNCIL_MANAGE'[^\]]*'DEFENSE_COUNCIL_MANAGE'[^\]]*\]\}/);
+    assert.match(appSource, /featureKey="outline-councils"\s+requiredAnyPermissions=\{\[[^\]]*'OUTLINE_COUNCIL_MANAGE'[^\]]*\]\}/);
+    assert.match(appSource, /featureKey="defense-councils"\s+requiredAnyPermissions=\{\[[^\]]*'DEFENSE_COUNCIL_MANAGE'[^\]]*\]\}/);
     assert.match(gradingSource, /canSubmitScore && <button/);
     assert.match(gradingSource, /canLockResult && \(r\.scoreLocked/);
     assert.match(gradingSource, /canViewPublications && <button/);

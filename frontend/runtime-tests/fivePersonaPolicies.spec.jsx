@@ -411,7 +411,9 @@ describe('Five-Persona Policy Evaluation Runtime Tests (Task 10)', () => {
         it('STUDENT receives only student menu items', () => {
             const nav = getVisibleNavigation(studentPersona);
             const groups = nav.map((g) => g.title);
-            expect(groups).toContain('Hồ sơ của tôi');
+            expect(groups).toContain('Đăng ký & đề cương');
+            expect(groups).toContain('Thực hiện đồ án');
+            expect(groups).toContain('Bảo vệ & hoàn tất');
             expect(groups).not.toContain('Quản trị học vụ');
             expect(groups).not.toContain('Quản trị hệ thống');
 
