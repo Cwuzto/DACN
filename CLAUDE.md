@@ -70,6 +70,103 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 
 ## 6. Cập Nhật Phiên Làm Việc (Session Update)
 
+### Phiên 17/11/2026 (Triển Khai Toàn Diện Quản Trị Lưu Trữ Supabase Storage 4 Buckets, TUS Resumable Upload, Bảo Mật Tệp Học Vụ Bằng Signed URL & Chuẩn Hóa Phân Quyền Năng Lực Học Vụ Viện Trưởng)
+
+#### 1. Những phần đã hoàn thành
+1. **Chuẩn Hóa Phân Quyền Năng Lực Học Vụ (Canonical RBAC) cho Viện Trưởng & Tối Ưu Giao Diện**:
+   - **Phân quyền truy cập Điều phối đợt đồ án cho Viện trưởng**:
+     * Khắc phục lỗi 403 "Bạn không có quyền thực hiện thao tác này" khi tài khoản Viện trưởng truy cập `/admin/project-enrollments`.
+     * Bổ sung đầy đủ quyền năng lực học vụ `PERMISSION_ASSIGN_ACADEMIC` và `PERMISSION_VIEW_TOPIC_ENROLLMENTS` vào nhóm chức vụ `VIEN_TRUONG`.
+   - **Chuẩn hóa nhãn học vị**:
+     * Chuyển đổi toàn bộ enum học vị kỹ thuật thô (`Thac_Si`, `Tien_Si`, `Pho_Giao_Su`, `Giao_Su`) sang danh từ tiếng Việt chuẩn mực, trang trọng ("Thạc sĩ", "Tiến sĩ", "Phó Giáo sư", "Giáo sư") trên các trang Điều phối và Quản lý người dùng.
+   - **Tối ưu form Quản lý người dùng**:
+     * Loại bỏ trường chọn khoa cố định ("Viện Công nghệ số") trong modal thêm/sửa người dùng, chỉ giữ lại trường lựa chọn Bộ môn chuyên môn trực thuộc.
+   - **Chuẩn hóa Middleware Xác thực (`backend/src/middlewares/auth.js`)**:
+     * Tái cấu trúc `optionalAuthenticate` sử dụng hàm phân giải quyền năng lực tập trung `resolveUserCapabilities({ userId, db })` đồng bộ với `authenticate`, loại bỏ lỗi `ReferenceError: extractCurrentSemesterId is not defined` từng gây nuốt ngữ cảnh xác thực.
+
+2. **Triển Khai Hạ Tầng Lưu Trữ Supabase Storage 4 Buckets (Wave 1: Tasks 1–4)**:
+   - **Quy hoạch 4 bucket chuẩn**:
+     * `cong-khai` (`public: true`): Tài nguyên công khai đã duyệt (biểu mẫu, thông báo, logo/banner).
+     * `hoc-vu` (`public: false`): Hồ sơ đồ án, biểu mẫu BM01–BM05, báo cáo lưu chiểu, bảng điểm hội đồng, slide, source code ZIP.
+     * `ca-nhan` (`public: false`): Ảnh đại diện người dùng (avatar).
+     * `tam` (`public: false`): Vùng đệm tải lên dở dang (staging) cho giao thức TUS, chỉ backend truy cập.
+   - **CLI Khởi tạo và Quản trị Bucket (`backend/scripts/storage/provisionBuckets.js`)**:
+     * Hỗ trợ cờ `--dry-run` (mặc định kiểm tra phát hiện drift) và `--apply` (tự động tạo bucket còn thiếu hoặc sửa cấu hình public/private). Cả 4 bucket đều đạt trạng thái `synced` (`MATCH`).
+   - **CSDL & Migration Quản lý Tài nguyên Lưu trữ**:
+     * Thiết kế bảng `stored_assets`, `stored_asset_upload_sessions`, `stored_asset_cleanup_jobs` và áp dụng migration Prisma `20261117110000_create_stored_asset_registry`.
+   - **Engine Lõi Lưu Trữ**:
+     * Xây dựng `storagePolicies.js` quản lý cấu trúc đường dẫn phân cấp theo đợt/người dùng/đề tài và ma trận kiểm soát truy cập.
+     * Xây dựng `fileInspector.js` kiểm định MIME thực tế qua magic bytes từ bộ đệm đĩa an toàn, chống giả mạo phần mở rộng tệp.
+     * Xây dựng `supabaseStorageAdapter.js` và `diskUploadAdapter.js` hỗ trợ đầy đủ các thao tác upload, download, move, remove, stat, list và createSignedUrl.
+
+3. **Vòng Đời Tệp Tin, TUS Resumable Transport & Giao Diện Tải Lên (Wave 2: Tasks 5–6)**:
+   - **Máy trạng thái tệp tin và API Vòng đời (`storedAssetService.js`, `storedAssetController.js`, `assetRoutes.js`)**:
+     * `POST /api/assets`: Tải lên trực tiếp multipart cho tệp nhỏ $\le 6$ MB, tự động kiểm định và chuyển trạng thái `ACTIVE`.
+     * `POST /api/assets/upload-sessions`: Khởi tạo phiên TUS cho tệp lớn $> 6$ MB đến $50$ MB (chunk cố định 6 MB), hỗ trợ tạm dừng và tiếp tục.
+     * `POST /api/assets/upload-sessions/:sessionId/finalize`: Hoàn tất phiên tải lên, kiểm tra toàn vẹn và chuyển đối tượng từ bucket `tam` sang bucket đích.
+     * `GET /api/assets/:id/download`: Cấp Signed URL riêng tư có thời hạn tối đa 600 giây (10 phút) sau khi kiểm tra quyền của actor.
+   - **Dịch vụ Resumable Upload trên Frontend (`frontend/src/services/resumableUploadService.js`)**:
+     * Sử dụng thư viện `tus-js-client` với khả năng tự động đàm phán phương thức upload theo dung lượng tệp, theo dõi tiến trình (progress) và hỗ trợ hủy tải (`AbortSignal`).
+     * Tích hợp vào `HybridBMFormModal.jsx` và `SubmissionPage.jsx` khi nộp đề cương/biểu mẫu đồ án BM01–BM05.
+
+4. **Quản Trị Hồ Sơ Học Vụ, Lưu Chiểu Đồ Án & Tài Nguyên Cá Nhân/Thương Hiệu (Wave 3: Tasks 7–9)**:
+   - **Tài liệu PDF học vụ và Biên bản Hội đồng**:
+     * Tích hợp `academicPdfService.js` và `generatedAcademicController.js` để lưu trữ bảng điểm BM05 và phiếu nhận xét BM04 qua `StoredAsset`, tải về an toàn qua Signed URL riêng tư.
+   - **Nộp hồ sơ Lưu chiểu sau bảo vệ**:
+     * Tích hợp `archiveService.js`, `ArchiveSubmissionModal.jsx`, `ClearanceCertificateModal.jsx`: Cho phép sinh viên nộp báo cáo tóm tắt/toàn văn, slide, mã nguồn ZIP (trần dung lượng 50 MB) và liên kết video HTTPS ngoài (YouTube/Vimeo); cấp giấy chứng nhận lưu chiểu không còn dùng URL Supabase hardcoded.
+   - **Tài nguyên Thương hiệu & Cá nhân**:
+     * Cắt đứt toàn bộ URL Supabase hardcoded trên Frontend; chuyển logo TDMU và hình nền về tài nguyên tĩnh nội bộ `/assets/tdmu-logo.svg`.
+     * Ảnh đại diện người dùng được lưu trong bucket `ca-nhan` với liên kết `avatarAssetId` và thời gian lưu giữ 7 ngày khi thay thế.
+
+5. **Dọn Dẹp Dữ Liệu Cũ, Worker Định Kỳ & Nghiệm Thu Bàn Giao E2E (Wave 4: Tasks 10–12)**:
+   - **Quy trình 2 bước Dọn dẹp dữ liệu cũ an toàn**:
+     * `legacyStorageMigrationService.js`, `inventoryLegacyAssets.js`: Quét phân loại 4 nhóm (`KEEP_BRANDING`, `KEEP_EXTERNAL`, `NULL_AND_DELETE`, `UNRESOLVED`), băm SHA-256 bảo vệ thương hiệu và phát hiện 800 bản ghi legacy với 0 bản ghi unresolved.
+     * `cleanupLegacyAssets.js`: Cơ chế thực thi dọn dẹp yêu cầu cờ `--apply` và `--confirm-snapshot` an toàn tuyệt đối.
+   - **Workers Vận hành Định kỳ**:
+     * `storedAssetCleanupService.js` (`npm run storage:cleanup`): Tự động dọn dẹp các phiên tải TUS dở dang/quá hạn (24h) và tệp hết hạn lưu giữ (`REPLACED`, `SOFT_DELETED`, `ORPHANED` sau TTL 7–30 ngày) với cơ chế claim-locking chống tranh chấp đa worker.
+     * `storageReconciliationService.js` (`npm run storage:reconcile`): Đối soát tính nhất quán giữa registry DB và các đối tượng thực tế trong Supabase Storage.
+   - **Kiểm Thử Toàn Diện & Nghiệm Thu**:
+     * Ma trận kiểm thử phân quyền 9 actor (`storageActorMatrix.test.js`): **9/9 tests PASS (100%)**.
+     * Kiểm thử E2E trình duyệt bằng Playwright (`governed-storage.spec.js`): **3/3 tests PASS (100%)**.
+     * Tài liệu vận hành chi tiết: Hoàn thành toàn diện [supabase-storage-rollout.md](file:///d:/DACN/docs/operations/supabase-storage-rollout.md) và đánh dấu hoàn thành 100% checklist kế hoạch [2026-11-17-supabase-storage-governance-implementation-plan.md](file:///d:/DACN/docs/superpowers/plans/2026-11-17-supabase-storage-governance-implementation-plan.md).
+
+#### 2. Trạng thái cập nhật của từng phần
+- **Backend API**:
+  * Các route `/api/assets`, `/api/assets/upload-sessions`, `/api/assets/:id/download` hoạt động ổn định, phân quyền chặt chẽ.
+  * Middleware xác thực `optionalAuthenticate` và `authenticate` hoàn toàn đồng bộ quyền năng lực học vụ.
+  * 2 CLI worker `storage:cleanup` và `storage:reconcile` đã đăng ký npm scripts, sẵn sàng vận hành.
+- **Frontend SPA**:
+  * Dịch vụ tải lên `resumableUploadService.js` tự động chuyển đổi giữa multipart $\le 6$ MB và TUS $> 6$ MB.
+  * Toàn bộ các trang (Quản lý đề tài, Theo dõi tiến độ, Nộp lưu chiểu, Thông báo, Hồ sơ cá nhân) hoạt động trơn tru.
+  * Loại bỏ hoàn toàn URL Supabase hardcoded và tuân thủ nghiêm ngặt Rule 2.6 (không emoji/ký tự thô trong text nút bấm).
+  * Build production `npm run build` hoàn thành không lỗi (3363 modules).
+- **Cơ sở dữ liệu (Supabase PostgreSQL)**:
+  * Đã kích hoạt các bảng lưu trữ: `stored_assets`, `stored_asset_upload_sessions`, `stored_asset_cleanup_jobs`.
+  * Cả 4 bucket `cong-khai`, `hoc-vu`, `ca-nhan`, `tam` đã đồng bộ trạng thái chính xác (1 public, 3 private).
+- **Kiểm thử (Tests)**:
+  * Backend: 18 storage test suites (**166/166 tests PASS** 100%).
+  * Frontend: 334 unit tests (**334/334 tests PASS**), 4 storage runtime suites (**30/30 tests PASS**), 3 Playwright E2E browser tests (**3/3 tests PASS**).
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+1. **Cấu hình Lịch Chạy Định Kỳ (Cron Jobs) cho Storage Workers trên Môi Trường Thực Tế**:
+   - Cấu hình cronjob chạy hàng giờ cho `npm run storage:cleanup -- --apply` (dọn phiên dở dang và tài nguyên hết hạn).
+   - Cấu hình cronjob chạy hàng ngày vào ban đêm cho `npm run storage:reconcile -- --apply` (đối soát Storage $\leftrightarrow$ DB).
+2. **Thực thi Giai Đoạn 2 Dọn Dẹp Dữ Liệu Cũ (Legacy Storage Cleanup Apply Mode)**:
+   - Trong khung giờ bảo trì, thực hiện sao lưu (snapshot) CSDL và chạy `node backend/scripts/storage/cleanupLegacyAssets.js --apply --confirm-snapshot` để dọn sạch các tệp legacy cũ.
+3. **Kiểm Tra & Tối Ưu Quy Trình Chấm Điểm Bảo Vệ Cuối Kỳ (BM05 & Khóa Sổ Điểm)**:
+   - Rà soát quy trình nhập điểm Rubric BM05 độc lập của 3 thành viên hội đồng và khóa sổ điểm học vụ.
+4. **Rà Soát Toàn Bộ Báo Cáo Thống Kê Học Vụ (Academic Reports)**:
+   - Kiểm tra trang Academic Reports và kiểm tra xuất dữ liệu báo cáo nghiệm thu đợt đồ án.
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+- **Quy Hoạch Cố Định 4 Buckets Thay Vì Phân Tán**: Thay vì để mỗi tính năng tự ý tạo bucket riêng gây khó khăn cho việc quản lý bảo mật, hệ thống chuẩn hóa cố định đúng 4 bucket (`cong-khai`, `hoc-vu`, `ca-nhan`, `tam`). Chỉ duy nhất `cong-khai` mở quyền đọc public; toàn bộ tài liệu học vụ và ảnh đại diện bắt buộc kiểm soát qua Signed URL.
+- **Ngưỡng 6 MB cho TUS Resumable Upload**: Đặt ngưỡng 6 MB với kích thước chunk 6 MB giúp các tệp thông thường (PDF nhẹ, ảnh) được tải lên ngay lập tức trong 1 request multipart mà không mất chi phí handshake của TUS, trong khi các tệp lớn (báo cáo, slide, source code ZIP lên đến 50 MB) được bảo vệ bằng khả năng resume chống rớt mạng.
+- **Signed URL Có Thời Hạn 600 Giây (10 Phút)**: Đảm bảo cân bằng giữa trải nghiệm người dùng (đủ thời gian xem/tải tệp ngay cả với đường truyền mạng chậm) và an ninh dữ liệu (ngăn chặn chia sẻ liên kết ngoài hoặc rò rỉ dữ liệu học vụ).
+- **Cơ Chế Safe Legacy Migration 2 Bước**: Tách biệt hoàn toàn bước kiểm kê (inventory sinh manifest) và bước dọn dẹp (cleanup có xác nhận snapshot). Đặt nguyên tắc bảo vệ tài nguyên thương hiệu (băm SHA-256 đối chiếu trước khi hủy nguồn) và chặn tuyệt đối thao tác nếu tồn tại bản ghi chưa rõ nguồn gốc (`UNRESOLVED`).
+- **Khắc Phục Lỗi Silent Auth trong `optionalAuthenticate`**: Sử dụng `resolveUserCapabilities` thay vì tự truy vấn độc lập và bọc try-catch cẩu thả, đảm bảo mọi request có token hợp lệ đều được gắn đầy đủ quyền năng lực học vụ mà không bị gián đoạn.
+
+---
+
 ### Phiên 16/11/2026 (Bổ Sung Danh Mục Loại Đồ Án DACN/DATN, Chuẩn Hóa Phân Loại "Loại Đồ Án - Đợt Đồ Án", Lọc Option Khả Dụng Khi Gán Đồ Án & Đơn Giản Hóa Modal Buổi Gặp)
 
 #### 1. Những phần đã hoàn thành
