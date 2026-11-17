@@ -67,10 +67,26 @@ test('GradingDefensePage: Synchronizes tab and filter changes with setSearchPara
     assert.match(src, /next\.delete\(['"]tab['"]\)/, 'Must clear tab query param when switching back to "all"');
 });
 
+test('InstituteOperationsPage: Maps legacy deep links and uses setSearchParams for Back/Forward history', () => {
+    const src = read('frontend/src/pages/lecturer/InstituteOperationsPage.jsx');
+    assert.match(src, /bm02:\s*'review'/);
+    assert.match(src, /bm02Queue:\s*'review'/);
+    assert.match(src, /periods:\s*'decisions'/);
+    assert.match(src, /decisions:\s*'decisions'/);
+    assert.match(src, /publish:\s*'publish'/);
+    assert.match(src, /rawTab === 'delegations'/);
+    assert.match(src, /setSearchParams\(nextParams\)/);
+});
+
 test('Compliance with AGENTS.md Rule 2.6: No raw emoji or graphic symbols in button labels', () => {
     const files = [
         'frontend/src/pages/admin/CouncilAssignmentPage.jsx',
         'frontend/src/pages/admin/GradingDefensePage.jsx',
+        'frontend/src/pages/lecturer/InstituteOperationsPage.jsx',
+        'frontend/src/components/institute/ReviewQueue.jsx',
+        'frontend/src/components/institute/DecisionQueue.jsx',
+        'frontend/src/components/institute/PublicationQueue.jsx',
+        'frontend/src/components/institute/AcademicDelegationDrawer.jsx',
     ];
 
     const forbiddenCharsRegex = /[←→+🤖📋✓✏️👥🗑️🔓▾▴↗]/;
@@ -104,6 +120,16 @@ test('UTF-8 without BOM verification (Rule 2.4)', () => {
         'frontend/src/pages/admin/CouncilAssignmentPage.jsx',
         'frontend/src/pages/admin/GradingDefensePage.jsx',
         'frontend/src/pages/__tests__/councilAndGradingDeepLinking.test.js',
+        'frontend/src/services/instituteOperationsService.js',
+        'frontend/src/queries/instituteOperationsQueries.js',
+        'frontend/src/pages/lecturer/InstituteOperationsPage.jsx',
+        'frontend/src/components/institute/ReviewQueue.jsx',
+        'frontend/src/components/institute/DecisionQueue.jsx',
+        'frontend/src/components/institute/PublicationQueue.jsx',
+        'frontend/src/components/institute/AcademicDelegationDrawer.jsx',
+        'frontend/runtime-tests/instituteReviewHub.spec.jsx',
+        'frontend/runtime-tests/instituteDecisionHub.spec.jsx',
+        'frontend/runtime-tests/institutePublicationHub.spec.jsx',
     ];
 
     files.forEach((file) => {
