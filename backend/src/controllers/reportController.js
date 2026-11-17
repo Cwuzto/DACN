@@ -1,5 +1,23 @@
 const prisma = require('../config/database');
 const { createExcelBuffer } = require('../utils/excelHelper');
+const {
+    resolveReportReadScope,
+    buildRegistrationDepartmentWhere,
+    matchesReportDepartment,
+} = require('../auth/reportReadScope');
+
+const requireReportScope = async (req, res) => {
+    const scope = await resolveReportReadScope({ actor: req.user, db: prisma });
+    if (!scope) {
+        res.status(403).json({
+            success: false,
+            error: 'REPORT_SCOPE_FORBIDDEN',
+            message: 'Không xác định được phạm vi xem báo cáo học vụ hợp lệ.',
+        });
+        return null;
+    }
+    return scope;
+};
 
 const PUBLISHED_TYPES = new Set(['INITIAL', 'SUPPLEMENTARY', 'CORRECTION']);
 
@@ -177,6 +195,9 @@ const COMPLETED_SET = new Set(['COMPLETED']);
  */
 const getOverviewReport = async (req, res, next) => {
     try {
+        const scope = await requireReportScope(req, res);
+        if (!scope) return;
+
         const { semesterId, major } = req.query;
         const targetSemester = await resolveTargetSemester(semesterId);
 
@@ -200,8 +221,13 @@ const getOverviewReport = async (req, res, next) => {
             });
         }
 
+        const where = {
+            semesterId: targetSemester.id,
+            ...(!scope.global ? buildRegistrationDepartmentWhere(scope.departments) : {}),
+        };
+
         let registrations = await prisma.topicRegistration.findMany({
-            where: { semesterId: targetSemester.id },
+            where,
             include: {
                 student: { include: { studentProfile: true } },
                 topic: { include: { mentor: true } },
@@ -215,6 +241,10 @@ const getOverviewReport = async (req, res, next) => {
                 },
             },
         });
+
+        if (!scope.global) {
+            registrations = registrations.filter((reg) => matchesReportDepartment(reg, scope.departments));
+        }
 
         // Lọc chuyên ngành nếu có
         if (major && String(major).trim() !== '') {
@@ -411,6 +441,9 @@ const getOverviewReport = async (req, res, next) => {
  */
 const getLecturerWorkloadReport = async (req, res, next) => {
     try {
+        const scope = await requireReportScope(req, res);
+        if (!scope) return;
+
         const { semesterId } = req.query;
         const targetSemester = await resolveTargetSemester(semesterId);
 
@@ -418,8 +451,13 @@ const getLecturerWorkloadReport = async (req, res, next) => {
             return res.status(200).json({ success: true, data: [] });
         }
 
-        const registrations = await prisma.topicRegistration.findMany({
-            where: { semesterId: targetSemester.id },
+        const where = {
+            semesterId: targetSemester.id,
+            ...(!scope.global ? buildRegistrationDepartmentWhere(scope.departments) : {}),
+        };
+
+        let registrations = await prisma.topicRegistration.findMany({
+            where,
             include: {
                 topic: { include: { mentor: true } },
                 bm04Evaluation: true,
@@ -432,6 +470,10 @@ const getLecturerWorkloadReport = async (req, res, next) => {
                 },
             },
         });
+
+        if (!scope.global) {
+            registrations = registrations.filter((reg) => matchesReportDepartment(reg, scope.departments));
+        }
 
         const lecturerMap = new Map();
 
@@ -506,6 +548,9 @@ const getLecturerWorkloadReport = async (req, res, next) => {
  */
 const exportAcademicSummaryExcel = async (req, res, next) => {
     try {
+        const scope = await requireReportScope(req, res);
+        if (!scope) return;
+
         const { semesterId, major } = req.query;
         const targetSemester = await resolveTargetSemester(semesterId);
 
@@ -513,8 +558,13 @@ const exportAcademicSummaryExcel = async (req, res, next) => {
             return res.status(404).json({ success: false, message: 'Không tìm thấy học kỳ yêu cầu.' });
         }
 
+        const where = {
+            semesterId: targetSemester.id,
+            ...(!scope.global ? buildRegistrationDepartmentWhere(scope.departments) : {}),
+        };
+
         let registrations = await prisma.topicRegistration.findMany({
-            where: { semesterId: targetSemester.id },
+            where,
             include: {
                 student: { include: { studentProfile: true } },
                 topic: { include: { mentor: true } },
@@ -528,6 +578,10 @@ const exportAcademicSummaryExcel = async (req, res, next) => {
                 },
             },
         });
+
+        if (!scope.global) {
+            registrations = registrations.filter((reg) => matchesReportDepartment(reg, scope.departments));
+        }
 
         if (major && String(major).trim() !== '') {
             const cleanMajor = String(major).trim().toLowerCase();

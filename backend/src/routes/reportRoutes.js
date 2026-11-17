@@ -1,5 +1,5 @@
 const express = require('express');
-const { authenticateToken, authorizeRoleOrPermission } = require('../middlewares/auth');
+const { authenticateToken, authorizePermission } = require('../middlewares/auth');
 const { PERMISSIONS } = require('../constants/permissions');
 const reportController = require('../controllers/reportController');
 
@@ -7,13 +7,7 @@ const router = express.Router();
 
 router.use(authenticateToken);
 
-const reportAccessGuard = authorizeRoleOrPermission(
-    ['ADMIN'],
-    [
-        PERMISSIONS.VIEW_PROJECT_OVERSIGHT,
-        PERMISSIONS.PROJECT_OVERSIGHT_MANAGE,
-    ],
-);
+const reportAccessGuard = authorizePermission(PERMISSIONS.REPORT_VIEW);
 
 router.get('/overview', reportAccessGuard, reportController.getOverviewReport);
 router.get('/lecturer-workload', reportAccessGuard, reportController.getLecturerWorkloadReport);

@@ -5,6 +5,26 @@ const {
     resolveLecturerSemester,
     buildUnifiedLecturerOverview,
 } = require('../services/lecturerOverviewService');
+const {
+    resolveReportReadScope,
+    buildTopicDepartmentWhere,
+    buildRegistrationDepartmentWhere,
+} = require('../auth/reportReadScope');
+
+const requireDashboardReportScope = async (req, res, { requireGlobal = false } = {}) => {
+    const scope = await resolveReportReadScope({ actor: req.user, db: prisma });
+    if (!scope || (requireGlobal && !scope.global)) {
+        res.status(403).json({
+            success: false,
+            error: 'REPORT_SCOPE_FORBIDDEN',
+            message: requireGlobal
+                ? 'Chức năng này yêu cầu quyền xem báo cáo phạm vi toàn viện.'
+                : 'Không xác định được phạm vi xem thống kê hợp lệ.',
+        });
+        return null;
+    }
+    return scope;
+};
 
 const ACTIVE_REGISTRATION_STATUSES = ['APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'DEFENDED', 'COMPLETED'];
 const getPendingCutoffDate = () => {
@@ -28,6 +48,9 @@ const getDeadlineColor = (dueDate) => {
  */
 const getGeneralStats = async (req, res, next) => {
     try {
+        const scope = await requireDashboardReportScope(req, res);
+        if (!scope) return;
+
         const semesterIdQuery = req.query?.semesterId ? parseInt(req.query.semesterId, 10) : null;
         let activeSemester = null;
 
@@ -39,8 +62,12 @@ const getGeneralStats = async (req, res, next) => {
             activeSemester = await getDefaultSemester({ id: true });
         }
 
+        const regDeptWhere = !scope.global ? buildRegistrationDepartmentWhere(scope.departments) : {};
+        const topicDeptWhere = !scope.global ? buildTopicDepartmentWhere(scope.departments) : {};
+
         const unassignedWhere = {
             ...(activeSemester?.id ? { semesterId: activeSemester.id } : {}),
+            ...regDeptWhere,
             OR: [
                 // Giai đoạn 1: Sinh viên đã duyệt đề tài / nộp đề cương nhưng chưa có Hội đồng Đề cương
                 {
@@ -56,11 +83,18 @@ const getGeneralStats = async (req, res, next) => {
         };
 
         const [totalStudents, ongoingTopics, unassignedRegistrations, upcomingDefenses] = await Promise.all([
-            prisma.user.count({ where: { role: 'STUDENT', isActive: true } }),
+            prisma.user.count({
+                where: {
+                    role: 'STUDENT',
+                    isActive: true,
+                    ...(!scope.global ? { department: { in: scope.departments } } : {}),
+                },
+            }),
             prisma.topic.count({
                 where: {
                     status: 'APPROVED',
                     ...(activeSemester?.id ? { semesterId: activeSemester.id } : {}),
+                    ...topicDeptWhere,
                 },
             }),
             prisma.topicRegistration.count({
@@ -70,6 +104,9 @@ const getGeneralStats = async (req, res, next) => {
                 where: {
                     defenseDate: { gte: new Date() },
                     ...(activeSemester?.id ? { semesterId: activeSemester.id } : {}),
+                    ...(!scope.global
+                        ? { members: { some: { lecturer: { department: { in: scope.departments } } } } }
+                        : {}),
                 },
             }),
         ]);
@@ -94,6 +131,9 @@ const getGeneralStats = async (req, res, next) => {
  */
 const getSemesterOverview = async (req, res, next) => {
     try {
+        const scope = await requireDashboardReportScope(req, res);
+        if (!scope) return;
+
         const semesterIdQuery = req.query.semesterId ? parseInt(req.query.semesterId, 10) : null;
         let targetSemester = null;
 
@@ -121,6 +161,9 @@ const getSemesterOverview = async (req, res, next) => {
             });
         }
 
+        const topicDeptWhere = !scope.global ? buildTopicDepartmentWhere(scope.departments) : {};
+        const regDeptWhere = !scope.global ? buildRegistrationDepartmentWhere(scope.departments) : {};
+
         const [
             totalTopics,
             approvedTopics,
@@ -134,29 +177,31 @@ const getSemesterOverview = async (req, res, next) => {
             stalePendingRegistrations,
             unassignedRegistrations,
         ] = await Promise.all([
-            prisma.topic.count({ where: { semesterId: targetSemester.id } }),
-            prisma.topic.count({ where: { semesterId: targetSemester.id, status: 'APPROVED' } }),
-            prisma.topicRegistration.count({ where: { semesterId: targetSemester.id } }),
-            prisma.topicRegistration.count({ where: { semesterId: targetSemester.id, status: 'PENDING' } }),
-            prisma.topicRegistration.count({ where: { semesterId: targetSemester.id, status: 'APPROVED' } }),
-            prisma.topicRegistration.count({ where: { semesterId: targetSemester.id, status: 'REJECTED' } }),
+            prisma.topic.count({ where: { semesterId: targetSemester.id, ...topicDeptWhere } }),
+            prisma.topic.count({ where: { semesterId: targetSemester.id, status: 'APPROVED', ...topicDeptWhere } }),
+            prisma.topicRegistration.count({ where: { semesterId: targetSemester.id, ...regDeptWhere } }),
+            prisma.topicRegistration.count({ where: { semesterId: targetSemester.id, status: 'PENDING', ...regDeptWhere } }),
+            prisma.topicRegistration.count({ where: { semesterId: targetSemester.id, status: 'APPROVED', ...regDeptWhere } }),
+            prisma.topicRegistration.count({ where: { semesterId: targetSemester.id, status: 'REJECTED', ...regDeptWhere } }),
             prisma.topicRegistration.count({
-                where: { semesterId: targetSemester.id, status: { in: ['IN_PROGRESS', 'SUBMITTED'] } },
+                where: { semesterId: targetSemester.id, status: { in: ['IN_PROGRESS', 'SUBMITTED'] }, ...regDeptWhere },
             }),
             prisma.topicRegistration.count({
-                where: { semesterId: targetSemester.id, status: { in: ['DEFENDED', 'COMPLETED'] } },
+                where: { semesterId: targetSemester.id, status: { in: ['DEFENDED', 'COMPLETED'] }, ...regDeptWhere },
             }),
-            prisma.defenseResult.count({ where: { registration: { semesterId: targetSemester.id } } }),
+            prisma.defenseResult.count({ where: { registration: { semesterId: targetSemester.id, ...regDeptWhere } } }),
             prisma.topicRegistration.count({
                 where: {
                     semesterId: targetSemester.id,
                     status: 'PENDING',
                     createdAt: { lte: getPendingCutoffDate() },
+                    ...regDeptWhere,
                 },
             }),
             prisma.topicRegistration.count({
                 where: {
                     semesterId: targetSemester.id,
+                    ...regDeptWhere,
                     OR: [
                         // Giai đoạn 1: Sinh viên đã duyệt đề tài / nộp đề cương nhưng chưa có Hội đồng Đề cương
                         {
@@ -229,6 +274,11 @@ const getSemesterOverview = async (req, res, next) => {
  */
 const getSemesterStats = async (req, res, next) => {
     try {
+        const scope = await requireDashboardReportScope(req, res);
+        if (!scope) return;
+
+        const regDeptWhere = !scope.global ? buildRegistrationDepartmentWhere(scope.departments) : {};
+
         const semesters = await prisma.semester.findMany({
             orderBy: { id: 'desc' },
             take: 5,
@@ -241,11 +291,12 @@ const getSemesterStats = async (req, res, next) => {
                         where: {
                             semesterId: semester.id,
                             status: { not: 'REJECTED' },
+                            ...regDeptWhere,
                         },
                     }),
                     prisma.defenseResult.count({
                         where: {
-                            registration: { semesterId: semester.id },
+                            registration: { semesterId: semester.id, ...regDeptWhere },
                         },
                     }),
                 ]);
@@ -273,8 +324,16 @@ const getSemesterStats = async (req, res, next) => {
  */
 const getScoreDistribution = async (req, res, next) => {
     try {
+        const scope = await requireDashboardReportScope(req, res);
+        if (!scope) return;
+
+        const regDeptWhere = !scope.global ? buildRegistrationDepartmentWhere(scope.departments) : {};
+
         const results = await prisma.defenseResult.findMany({
-            where: { finalScore: { not: null } },
+            where: {
+                finalScore: { not: null },
+                ...(!scope.global ? { registration: regDeptWhere } : {}),
+            },
             select: { finalScore: true },
         });
 
@@ -314,6 +373,9 @@ const getScoreDistribution = async (req, res, next) => {
  */
 const getRecentActivities = async (req, res, next) => {
     try {
+        const scope = await requireDashboardReportScope(req, res, { requireGlobal: true });
+        if (!scope) return;
+
         const notifications = await prisma.notification.findMany({
             orderBy: { createdAt: 'desc' },
             take: 10,

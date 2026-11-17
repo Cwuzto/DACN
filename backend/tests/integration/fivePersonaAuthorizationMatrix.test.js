@@ -580,12 +580,12 @@ describe('Five-Persona Authorization Matrix (Task 10)', () => {
     // SECTION 1: BASE CAPABILITIES & DIRECT API ACCESS MATRIX
     // =========================================================================
     describe('1. Base Capabilities & Direct API Access across 5 Personas', () => {
-        it('GET /api/dashboard/stats: allowed for all personas with REPORT_VIEW, denied for STUDENT', async () => {
+        it('GET /api/dashboard/stats: allowed for personas with REPORT_VIEW, denied for STUDENT and GVHD', async () => {
             const studentRes = await request(app).get('/api/dashboard/stats').set('Authorization', bearer(PERSONA_STUDENT));
             expect(studentRes.status).toBe(403);
 
             const gvhdRes = await request(app).get('/api/dashboard/stats').set('Authorization', bearer(PERSONA_GVHD));
-            expect(gvhdRes.status).toBe(200);
+            expect(gvhdRes.status).toBe(403);
 
             const giaoVuRes = await request(app).get('/api/dashboard/stats').set('Authorization', bearer(PERSONA_GIAO_VU));
             expect(giaoVuRes.status).toBe(200);

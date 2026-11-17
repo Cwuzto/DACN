@@ -25,6 +25,7 @@ const app = require('../../src/app');
 
 describe('Academic BI & Reporting Hub - Integration Tests', () => {
     const adminToken = 'admin-token';
+    const adminNoReportToken = 'admin-no-report-token';
     const studentToken = 'student-token';
     const lecturerToken = 'lecturer-token';
     const oversightToken = 'oversight-token';
@@ -43,6 +44,26 @@ describe('Academic BI & Reporting Hub - Integration Tests', () => {
         role: 'ADMIN',
         email: 'admin@tdmu.edu.vn',
         fullName: 'Quản Trị Viên',
+        isActive: true,
+        permissionVersion: 1,
+        permissionGroups: [
+            {
+                permissionGroup: {
+                    code: 'QUAN_TRI_VIEN',
+                    permissions: [
+                        { permission: { code: 'REPORT_VIEW' } },
+                    ],
+                },
+            },
+        ],
+        councilMembers: [],
+    };
+
+    const mockAdminNoReportUser = {
+        id: 11,
+        role: 'ADMIN',
+        email: 'admin-noreport@tdmu.edu.vn',
+        fullName: 'Admin Không Có REPORT_VIEW',
         isActive: true,
         permissionVersion: 1,
         permissionGroups: [],
@@ -287,6 +308,7 @@ describe('Academic BI & Reporting Hub - Integration Tests', () => {
 
         jwt.verify.mockImplementation((token) => {
             if (token === adminToken) return { userId: mockAdminUser.id, role: mockAdminUser.role };
+            if (token === adminNoReportToken) return { userId: mockAdminNoReportUser.id, role: mockAdminNoReportUser.role };
             if (token === oversightToken) return { userId: mockOversightUser.id, role: mockOversightUser.role };
             if (token === studentToken) return { userId: mockStudentUser.id, role: mockStudentUser.role };
             if (token === lecturerToken) return { userId: mockLecturerPlainUser.id, role: mockLecturerPlainUser.role };
@@ -296,6 +318,7 @@ describe('Academic BI & Reporting Hub - Integration Tests', () => {
 
         prisma.user.findUnique.mockImplementation(async ({ where }) => {
             if (where.id === mockAdminUser.id) return mockAdminUser;
+            if (where.id === mockAdminNoReportUser.id) return mockAdminNoReportUser;
             if (where.id === mockOversightUser.id) return mockOversightUser;
             if (where.id === mockStudentUser.id) return mockStudentUser;
             if (where.id === mockLecturerPlainUser.id) return mockLecturerPlainUser;
@@ -339,18 +362,25 @@ describe('Academic BI & Reporting Hub - Integration Tests', () => {
             expect(excelRes.status).toBe(403);
         });
 
-        it('should allow access for admin', async () => {
+        it('should return 403 for ADMIN without REPORT_VIEW (no role bypass)', async () => {
+            const res = await request(app)
+                .get('/api/reports/overview')
+                .set('Authorization', `Bearer ${adminNoReportToken}`);
+            expect(res.status).toBe(403);
+        });
+
+        it('should allow access for admin with REPORT_VIEW', async () => {
             const res = await request(app)
                 .get('/api/reports/overview')
                 .set('Authorization', `Bearer ${adminToken}`);
             expect(res.status).toBe(200);
         });
 
-        it('should allow access for user with VIEW_PROJECT_OVERSIGHT capability', async () => {
+        it('should return 403 for user with only VIEW_PROJECT_OVERSIGHT capability (without REPORT_VIEW)', async () => {
             const res = await request(app)
                 .get('/api/reports/overview')
                 .set('Authorization', `Bearer ${oversightToken}`);
-            expect(res.status).toBe(200);
+            expect(res.status).toBe(403);
         });
     });
 
