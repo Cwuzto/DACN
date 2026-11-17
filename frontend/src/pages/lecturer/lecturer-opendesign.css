@@ -50,12 +50,16 @@
       width: 280px;
       background: var(--surface);
       border-right: 1px solid var(--border);
-      display: flex;
       flex-direction: column;
       flex-shrink: 0;
       user-select: none;
       z-index: 20;
       transition: width 0.2s ease;
+    }
+    @media (max-width: 1023px) {
+      .sidebar {
+        display: none !important;
+      }
     }
     .sidebar.is-collapsed { width: 72px; }
 

@@ -259,6 +259,7 @@ export default function LecturerDashboardPage() {
                         <div className="min-w-0">
                             <AttentionQueue
                                 items={attentionItems}
+                                syncKey={overview?.generatedAt}
                                 onNavigate={(target) => navigate(target)}
                             />
                         </div>

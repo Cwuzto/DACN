@@ -53,21 +53,24 @@ const ACTION_LABELS = {
  */
 export default function AttentionQueue({
     items = [],
+    syncKey = null,
     onNavigate,
     maxVisible = 8,
 }) {
-    const [prevItems, setPrevItems] = useState(null);
-    const [signatureMap, setSignatureMap] = useState(() => new Map());
-    const [animatedIds, setAnimatedIds] = useState(() => new Set());
+    const versionKey = syncKey ?? items;
+    const [motionState, setMotionState] = useState(() => ({
+        prevVersion: null,
+        signatureMap: new Map(),
+        animatedIds: new Set(),
+    }));
 
-    if (items !== prevItems) {
-        setPrevItems(items);
+    if (versionKey !== motionState.prevVersion) {
         const nextAnimated = new Set();
         const nextMap = new Map();
 
         for (const item of items) {
             nextMap.set(item.id, item.priority);
-            const prevSig = signatureMap.get(item.id);
+            const prevSig = motionState.signatureMap.get(item.id);
             const isNewUrgent = prevSig === undefined && (item.priority === 'OVERDUE' || item.priority === 'DUE_SOON');
             const escalatedToOverdue = prevSig !== undefined && prevSig !== 'OVERDUE' && item.priority === 'OVERDUE';
             if (isNewUrgent || escalatedToOverdue) {
@@ -75,9 +78,14 @@ export default function AttentionQueue({
             }
         }
 
-        setSignatureMap(nextMap);
-        setAnimatedIds(nextAnimated);
+        setMotionState({
+            prevVersion: versionKey,
+            signatureMap: nextMap,
+            animatedIds: nextAnimated,
+        });
     }
+
+    const animatedIds = motionState.animatedIds;
 
     const visibleItems = items.slice(0, maxVisible);
 

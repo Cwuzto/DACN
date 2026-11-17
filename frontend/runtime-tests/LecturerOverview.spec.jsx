@@ -205,3 +205,94 @@ test('renders empty queue state and error state with retry button', async () => 
     await waitFor(() => expect(screen.getByText(/Không có việc cần xử lý/i)).toBeInTheDocument());
     expect(screen.getByText(/Chưa có sinh viên trong đợt/i)).toBeInTheDocument();
 });
+
+test('priority motion triggers once for new or escalated urgent items, INFO items have no mutation button, and headings follow h1 -> h2 -> h3', async () => {
+    const initialItems = [
+        {
+            id: 'item-normal',
+            source: 'MENTOR',
+            kind: 'REGISTRATION_PENDING',
+            title: 'Duyệt đăng ký: SV1',
+            description: 'Đề tài 1',
+            priority: 'NORMAL',
+            isActionable: true,
+            target: '/lecturer/topics',
+            allowedAction: 'REVIEW_REGISTRATION',
+        },
+        {
+            id: 'item-info',
+            source: 'MENTOR',
+            kind: 'NOTIFICATION',
+            title: 'Thông báo lịch họp bộ môn',
+            description: 'Chiều thứ 5',
+            priority: 'INFO',
+            isActionable: false,
+            target: '/lecturer/notifications',
+        },
+    ];
+
+    const getSpy = vi.spyOn(dashboardService, 'getLecturerOverview')
+        .mockResolvedValueOnce({
+            success: true,
+            data: {
+                activeSemester: { id: 10, name: 'HK1 2026-2027' },
+                mentorSummary: { supervisedCount: 1, maxStudents: 10, pendingFeedbackCount: 0, actionableCount: 1, upcomingDeadlineCount: 0 },
+                attentionItems: initialItems,
+                students: [],
+                generatedAt: '2026-11-17T10:00:00.000Z',
+            },
+        })
+        .mockResolvedValueOnce({
+            success: true,
+            data: {
+                activeSemester: { id: 10, name: 'HK1 2026-2027' },
+                mentorSummary: { supervisedCount: 1, maxStudents: 10, pendingFeedbackCount: 0, actionableCount: 1, upcomingDeadlineCount: 1 },
+                attentionItems: [
+                    { ...initialItems[0], priority: 'OVERDUE', dueAt: '2026-11-16T10:00:00.000Z' },
+                    initialItems[1],
+                ],
+                students: [],
+                generatedAt: '2026-11-17T10:05:00.000Z',
+            },
+        })
+        .mockResolvedValueOnce({
+            success: true,
+            data: {
+                activeSemester: { id: 10, name: 'HK1 2026-2027' },
+                mentorSummary: { supervisedCount: 1, maxStudents: 10, pendingFeedbackCount: 0, actionableCount: 1, upcomingDeadlineCount: 1 },
+                attentionItems: [
+                    { ...initialItems[0], priority: 'OVERDUE', dueAt: '2026-11-16T10:00:00.000Z' },
+                    initialItems[1],
+                ],
+                students: [],
+                generatedAt: '2026-11-17T10:10:00.000Z',
+            },
+        });
+
+    mountDashboard(baseLecturer);
+
+    await screen.findByText('Duyệt đăng ký: SV1');
+
+    // Heading order h1 -> h2 -> h3
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Tổng quan giảng viên');
+    expect(screen.getAllByRole('heading', { level: 2 }).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByRole('heading', { level: 3 }).length).toBeGreaterThanOrEqual(2);
+
+    // INFO item must only have read-only "Xem chi tiết", not a mutation button
+    expect(screen.getByRole('button', { name: /Xem chi tiết/i })).toBeInTheDocument();
+
+    const listItemsBefore = document.querySelectorAll('.lecturer-attention-enter');
+    expect(listItemsBefore.length).toBe(0);
+
+    // Refetch where item-normal escalates to OVERDUE -> enters animation once
+    const userEv = userEvent.setup();
+    await userEv.click(screen.getByRole('button', { name: /Làm mới/i }));
+
+    await waitFor(() => expect(getSpy).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(document.querySelectorAll('.lecturer-attention-enter').length).toBe(1));
+
+    // Refetch with same OVERDUE priority -> must NOT replay animation
+    await userEv.click(screen.getByRole('button', { name: /Làm mới/i }));
+    await waitFor(() => expect(getSpy).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(document.querySelectorAll('.lecturer-attention-enter').length).toBe(0));
+});
