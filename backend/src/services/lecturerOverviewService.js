@@ -344,9 +344,39 @@ async function buildMentorOverview({ actorId, semesterId, now = new Date(), db =
     };
 }
 
+/**
+ * Hợp nhất dữ liệu GVHD và hàng đợi Viện trưởng có kiểm tra quyền + scope.
+ */
+async function buildUnifiedLecturerOverview({ actor, semesterId, now = new Date(), db = prisma }) {
+    const { buildInstituteAttention, sortAndDedupeAttentionItems } = require('./instituteAttentionSource');
+    const actorId = actor?.id;
+
+    const [mentorOverview, instituteItems] = await Promise.all([
+        buildMentorOverview({ actorId, semesterId, now, db }),
+        buildInstituteAttention({ actor, semesterId, now, db }),
+    ]);
+
+    const mergedAttention = sortAndDedupeAttentionItems([
+        ...(mentorOverview.attentionItems || []),
+        ...(instituteItems || []),
+    ]);
+
+    const instituteActionableCount = (instituteItems || []).filter((i) => i.isActionable).length;
+
+    return {
+        mentorSummary: {
+            ...mentorOverview.mentorSummary,
+            actionableCount: mentorOverview.mentorSummary.actionableCount + instituteActionableCount,
+        },
+        attentionItems: mergedAttention,
+        students: mentorOverview.students,
+    };
+}
+
 module.exports = {
     MAX_STUDENTS_PER_MENTOR,
     computePriority,
     resolveLecturerSemester,
     buildMentorOverview,
+    buildUnifiedLecturerOverview,
 };

@@ -3,7 +3,7 @@ const { PENDING_REMINDER_DAYS } = require('../constants/registrationLimits');
 const { getDefaultSemester } = require('../utils/semesterResolver');
 const {
     resolveLecturerSemester,
-    buildMentorOverview,
+    buildUnifiedLecturerOverview,
 } = require('../services/lecturerOverviewService');
 
 const ACTIVE_REGISTRATION_STATUSES = ['APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'DEFENDED', 'COMPLETED'];
@@ -439,8 +439,8 @@ const getLecturerDashboard = async (req, res, next) => {
         });
 
         if (!activeSemester) {
-            const emptyOverview = await buildMentorOverview({
-                actorId: mentorId,
+            const emptyOverview = await buildUnifiedLecturerOverview({
+                actor: req.user,
                 semesterId: null,
                 db: prisma,
             });
@@ -474,8 +474,8 @@ const getLecturerDashboard = async (req, res, next) => {
             mentorOverview,
         ] = await Promise.all([
             fetchLecturerDashboardData(mentorId, activeSemester.id),
-            buildMentorOverview({
-                actorId: mentorId,
+            buildUnifiedLecturerOverview({
+                actor: req.user,
                 semesterId: activeSemester.id,
                 db: prisma,
             }),
