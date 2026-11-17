@@ -213,7 +213,7 @@ test.describe('Navigation and Shell Persistence', () => {
     });
 
     // Ordinary menu navigation switches routes client-side without full reload
-    const userMenuButton = page.locator('aside.sidebar button.nav-item:has-text("Quản lý người dùng")');
+    const userMenuButton = page.locator('aside.sidebar button.nav-item:has-text("Người dùng")');
     await expect(userMenuButton).toBeVisible();
     await userMenuButton.click();
 

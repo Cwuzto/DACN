@@ -18,7 +18,7 @@ test('NAVIGATION_REGISTRY is derived from FEATURE_POLICY_LIST without a second m
 
     const expectedMenuPolicies = FEATURE_POLICY_LIST.filter((p) => Boolean(p.menu));
     assert.equal(NAVIGATION_REGISTRY.length, expectedMenuPolicies.length);
-    assert.equal(NAVIGATION_REGISTRY.length, 26, 'Registry must contain exactly 26 workflow menu entries');
+    assert.equal(NAVIGATION_REGISTRY.length, 27, 'Registry must contain exactly 27 workflow menu entries');
 
     const expectedKeys = new Set(expectedMenuPolicies.map((p) => p.key));
     const seenKeys = new Set();
@@ -42,10 +42,10 @@ test('NAVIGATION_REGISTRY is derived from FEATURE_POLICY_LIST without a second m
         seenKeys.add(item.key);
     }
 
-    assert.equal(seenKeys.size, 26);
+    assert.equal(seenKeys.size, 27);
 });
 
-test('NAVIGATION_GROUPS defines the 8 workflow domain groups in strict business order', () => {
+test('NAVIGATION_GROUPS defines the 9 workflow domain groups in strict business order', () => {
     assert.deepEqual(NAVIGATION_GROUPS, [
         'Đăng ký & đề cương',
         'Thực hiện đồ án',
@@ -54,6 +54,7 @@ test('NAVIGATION_GROUPS defines the 8 workflow domain groups in strict business 
         'Hội đồng & bảo vệ',
         'Bảo vệ & hoàn tất',
         'Kết quả & báo cáo',
+        'Điều hành viện',
         'Nội dung & hệ thống',
     ]);
 });
@@ -146,7 +147,7 @@ test('Lecturer with GVHD: without defense council assignment sees 4 items across
     );
 });
 
-test('Institute leader (VIEN_TRUONG) sees workflow groups without lecturer-institute menu in Wave 2', () => {
+test('Institute leader (VIEN_TRUONG) sees workflow groups including single Điều hành học vụ item', () => {
     const vienTruongPermissions = [
         'VIEW_MY_TOPICS',
         'VIEW_MENTORED_STUDENTS',
@@ -180,7 +181,13 @@ test('Institute leader (VIEN_TRUONG) sees workflow groups without lecturer-insti
     assert.ok(groups.includes('Đăng ký & đề cương'));
     assert.ok(groups.includes('Hội đồng & bảo vệ'));
     assert.ok(groups.includes('Kết quả & báo cáo'));
-    assert.ok(!nav.flatMap((g) => g.items).some((i) => i.key === 'lecturer-institute'));
+    assert.ok(groups.includes('Điều hành viện'));
+
+    const instituteGroup = nav.find((n) => n.group === 'Điều hành viện');
+    assert.deepEqual(
+        instituteGroup.items.map((i) => ({ key: i.key, label: i.label, route: i.route })),
+        [{ key: 'lecturer-institute', label: 'Điều hành học vụ', route: '/lecturer/institute' }]
+    );
 
     const regGroup = nav.find((n) => n.group === 'Đăng ký & đề cương');
     assert.deepEqual(

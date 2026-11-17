@@ -16,6 +16,7 @@ export const NAVIGATION_GROUPS = Object.freeze([
     'Hội đồng & bảo vệ',
     'Bảo vệ & hoàn tất',
     'Kết quả & báo cáo',
+    'Điều hành viện',
     'Nội dung & hệ thống',
 ]);
 
@@ -492,23 +493,48 @@ export const FEATURE_POLICIES = Object.freeze({
         },
     },
 
-    // CÁC FEATURE ROUTE ĐỘC LẬP / WORKSPACE KHÔNG HIỂN THỊ MENU
+    // KHỐI: ĐIỀU HÀNH VIỆN
     'lecturer-institute': {
         key: 'lecturer-institute',
         workspace: 'lecturer',
         route: '/lecturer/institute',
-        menu: null,
+        menu: {
+            label: 'Điều hành học vụ',
+            icon: 'account_balance',
+            group: 'Điều hành viện',
+            order: 1,
+            requiredPermission: 'VIEW_BM02_REVIEWS',
+        },
         viewAnyOf: [
             'VIEW_BM02_REVIEWS',
-            'VIEW_ASSIGNMENT_DECISIONS',
+            'BM02_REVIEW',
+            'BM03_STOP_REVIEW',
+            'BM04_REVIEW',
+            'BM04_REJECTION_REVIEW',
+            'SIGNATURE_APPEAL_REVIEW',
             'VIEW_TOPIC_ASSIGNMENT_DECISIONS',
-            'VIEW_ACADEMIC_DELEGATIONS',
+            'VIEW_ASSIGNMENT_DECISIONS',
             'PROJECT_ASSIGNMENT_PUBLISH',
+            'TOPIC_ASSIGNMENT_DECISION_ISSUE',
+            'BM02A_FINAL_APPROVE',
+            'TITLE_ADJUSTMENT_APPENDIX_ISSUE',
+            'VIEW_CLEARANCE_CERTIFICATES',
+            'CLEARANCE_CERTIFICATE_SIGN',
+            'VIEW_DEFENSE_RESULTS_APPROVAL',
+            'VIEW_DEFENSE_RESULT_APPROVALS',
+            'DEFENSE_RESULT_APPROVE',
+            'VIEW_DEFENSE_ASSIGNMENTS',
+            'VIEW_RESULT_PUBLICATIONS',
+            'RESULT_PUBLICATION_PUBLISH',
+            'VIEW_ACADEMIC_DELEGATIONS',
+            'ACADEMIC_DELEGATION_MANAGE',
         ],
         actions: {
             publishAssignment: 'PROJECT_ASSIGNMENT_PUBLISH',
         },
     },
+
+    // CÁC FEATURE ROUTE ĐỘC LẬP / WORKSPACE KHÔNG HIỂN THỊ MENU
     'lecturer-grading-sheet': {
         key: 'lecturer-grading-sheet',
         workspace: 'lecturer',

@@ -246,6 +246,13 @@ test('Lecturer with management/Viện trưởng capabilities sees workflow group
     );
 
     assert.deepEqual(
+        groupMap.get('Điều hành viện').map((item) => ({ key: item.key, route: item.route, label: item.label })),
+        [
+            { key: 'lecturer-institute', route: '/lecturer/institute', label: 'Điều hành học vụ' },
+        ]
+    );
+
+    assert.deepEqual(
         visibleGroups.map((g) => g.group),
         [
             'Đăng ký & đề cương',
@@ -253,6 +260,7 @@ test('Lecturer with management/Viện trưởng capabilities sees workflow group
             'Hướng dẫn & tiến độ',
             'Hội đồng & bảo vệ',
             'Kết quả & báo cáo',
+            'Điều hành viện',
         ]
     );
 });
@@ -271,9 +279,9 @@ test('All items in NAVIGATION_REGISTRY strictly adhere to Rule 2.6 (No raw emoji
     }
 });
 
-test('NAVIGATION_REGISTRY maintains 26 workflow items, 8 groups, and valid routing structure', () => {
-    assert.equal(NAVIGATION_REGISTRY.length, 26, 'Registry must maintain 26 items');
-    assert.equal(NAVIGATION_GROUPS.length, 8, 'Must define 8 workflow business groups');
+test('NAVIGATION_REGISTRY maintains 27 workflow items, 9 groups, and valid routing structure', () => {
+    assert.equal(NAVIGATION_REGISTRY.length, 27, 'Registry must maintain 27 items');
+    assert.equal(NAVIGATION_GROUPS.length, 9, 'Must define 9 workflow business groups');
 
     for (const item of NAVIGATION_REGISTRY) {
         assert.ok(item.route.startsWith('/'), `Route for ${item.key} must start with /: ${item.route}`);

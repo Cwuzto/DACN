@@ -122,6 +122,7 @@ const TopicApprovalPage = lazy(() => import('./pages/lecturer/TopicApprovalPage'
 const ProgressTrackingPage = lazy(() => import('./pages/lecturer/ProgressTrackingPage'));
 const GradingPage = lazy(() => import('./pages/lecturer/GradingPage'));
 const LecturerGradingSheetPage = lazy(() => import('./pages/lecturer/LecturerGradingSheetPage'));
+const InstituteOperationsPage = lazy(() => import('./pages/lecturer/InstituteOperationsPage'));
 
 // Student pages
 const StudentDashboardPage = lazy(() => import('./pages/student/StudentDashboardPage'));
@@ -246,14 +247,32 @@ function App() {
                                             featureKey="lecturer-institute"
                                             requiredAnyPermissions={[
                                                 'VIEW_BM02_REVIEWS',
+                                                'BM02_REVIEW',
+                                                'BM03_STOP_REVIEW',
+                                                'BM04_REVIEW',
+                                                'BM04_REJECTION_REVIEW',
+                                                'SIGNATURE_APPEAL_REVIEW',
+                                                'VIEW_TOPIC_ASSIGNMENT_DECISIONS',
                                                 'VIEW_ASSIGNMENT_DECISIONS',
-                                                'VIEW_ACADEMIC_DELEGATIONS',
                                                 'PROJECT_ASSIGNMENT_PUBLISH',
+                                                'TOPIC_ASSIGNMENT_DECISION_ISSUE',
+                                                'BM02A_FINAL_APPROVE',
+                                                'TITLE_ADJUSTMENT_APPENDIX_ISSUE',
+                                                'VIEW_CLEARANCE_CERTIFICATES',
+                                                'CLEARANCE_CERTIFICATE_SIGN',
+                                                'VIEW_DEFENSE_RESULTS_APPROVAL',
+                                                'VIEW_DEFENSE_RESULT_APPROVALS',
+                                                'DEFENSE_RESULT_APPROVE',
+                                                'VIEW_DEFENSE_ASSIGNMENTS',
+                                                'VIEW_RESULT_PUBLICATIONS',
+                                                'RESULT_PUBLICATION_PUBLISH',
+                                                'VIEW_ACADEMIC_DELEGATIONS',
+                                                'ACADEMIC_DELEGATION_MANAGE',
                                             ]}
                                         />
                                     )}
                                 >
-                                    <Route path="institute" element={<ProjectPeriodPage />} />
+                                    <Route path="institute" element={<InstituteOperationsPage />} />
                                 </Route>
                                 <Route path="notifications" element={<NotificationsPage />} />
                                 <Route path="profile" element={<ProfilePage />} />

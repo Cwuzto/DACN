@@ -292,21 +292,25 @@ test.describe('Five-Persona RBAC & UI Matrix Tests', () => {
     await expect(page.locator('aside.sidebar')).toBeVisible();
 
     // Verify student menu items are visible
-    await expect(page.locator('aside.sidebar button.nav-item:has-text("Đề tài đăng ký")')).toBeVisible();
-    await expect(page.locator('aside.sidebar button.nav-item:has-text("Hồ sơ & Nộp bài")')).toBeVisible();
-    await expect(page.locator('aside.sidebar button.nav-item:has-text("Kết quả & Điểm đồ án")')).toBeVisible();
+    await expect(page.locator('aside.sidebar button.nav-item:has-text("Tìm & đăng ký đề tài")')).toBeVisible();
+    await expect(page.locator('aside.sidebar button.nav-item:has-text("Hồ sơ & nộp bài")')).toBeVisible();
+    await expect(page.locator('aside.sidebar button.nav-item:has-text("Kết quả & điểm đồ án")')).toBeVisible();
+    await expect(page.locator('aside.sidebar button.nav-item:has-text("Nộp hồ sơ lưu chiểu")')).toBeVisible();
 
     // Verify admin and lecturer items are NOT present
-    await expect(page.locator('aside.sidebar button.nav-item:has-text("Quản lý người dùng")')).toHaveCount(0);
+    await expect(page.locator('aside.sidebar button.nav-item:has-text("Người dùng")')).toHaveCount(0);
     await expect(page.locator('aside.sidebar button.nav-item:has-text("Đề tài phụ trách")')).toHaveCount(0);
-    await expect(page.locator('aside.sidebar button.nav-item:has-text("Đợt đồ án & Học kỳ")')).toHaveCount(0);
+    await expect(page.locator('aside.sidebar button.nav-item:has-text("Đợt đồ án & học kỳ")')).toHaveCount(0);
+    await expect(page.locator('aside.sidebar button.nav-item:has-text("Điều hành học vụ")')).toHaveCount(0);
 
-    // Direct navigation to admin route must be blocked and redirected
+    // Direct navigation to admin or institute routes must be blocked and redirected
     await page.goto('/admin/users');
     await expect(page).not.toHaveURL(/\/admin\/users/);
+    await page.goto('/lecturer/institute');
+    await expect(page).not.toHaveURL(/\/lecturer\/institute/);
   });
 
-  test('2. GVHD Persona: accesses lecturer workspace, sees mentoring menus, blocked from admin routes', async ({ page }) => {
+  test('2. GVHD Persona: accesses lecturer workspace, sees mentoring menus, BM02-A deep link works, blocked from admin/institute', async ({ page }) => {
     await setupPersonaSession(page, mockGvhd);
 
     await page.goto('/lecturer/dashboard');
@@ -317,21 +321,30 @@ test.describe('Five-Persona RBAC & UI Matrix Tests', () => {
 
     // Verify lecturer menus
     await expect(page.locator('aside.sidebar button.nav-item:has-text("Đề tài phụ trách")')).toBeVisible();
-    await expect(page.locator('aside.sidebar button.nav-item:has-text("Sinh viên hướng dẫn")')).toBeVisible();
+    await expect(page.locator('aside.sidebar button.nav-item:has-text("Duyệt nguyện vọng")')).toBeVisible();
+    await expect(page.locator('aside.sidebar button.nav-item:has-text("Sinh viên đang hướng dẫn")')).toBeVisible();
     await expect(page.locator('aside.sidebar button.nav-item:has-text("Theo dõi tiến độ")')).toBeVisible();
 
-    // Verify unassigned council menu is NOT present
+    // Verify unassigned council and institute menus are NOT present
     await expect(page.locator('aside.sidebar button.nav-item:has-text("Phiếu chấm bảo vệ")')).toHaveCount(0);
+    await expect(page.locator('aside.sidebar button.nav-item:has-text("Thẩm định đề cương")')).toHaveCount(0);
+    await expect(page.locator('aside.sidebar button.nav-item:has-text("Điều hành học vụ")')).toHaveCount(0);
 
     // Verify admin items are NOT present
-    await expect(page.locator('aside.sidebar button.nav-item:has-text("Quản lý người dùng")')).toHaveCount(0);
+    await expect(page.locator('aside.sidebar button.nav-item:has-text("Người dùng")')).toHaveCount(0);
 
-    // Direct navigation to admin user management must be blocked
+    // Legacy BM02-A deep link remains accessible for GVHD
+    await page.goto('/lecturer/approvals?tab=bm02a');
+    await expect(page).toHaveURL(/\/lecturer\/approvals\?tab=bm02a/);
+
+    // Direct navigation to admin user management or institute hub must be blocked
     await page.goto('/admin/users');
     await expect(page).not.toHaveURL(/\/admin\/users/);
+    await page.goto('/lecturer/institute');
+    await expect(page).not.toHaveURL(/\/lecturer\/institute/);
   });
 
-  test('3. GIAO_VU Persona: accesses academic coordination menus, cannot see user management', async ({ page }) => {
+  test('3. GIAO_VU Persona: accesses academic coordination menus, cannot see user management or institute hub', async ({ page }) => {
     await setupPersonaSession(page, mockGiaoVu);
 
     await page.goto('/admin/dashboard');
@@ -341,21 +354,23 @@ test.describe('Five-Persona RBAC & UI Matrix Tests', () => {
     await expect(page.locator('.topbar-left:has-text("Quản trị viên")')).toBeVisible();
 
     // Verify academic coordination menus
-    await expect(page.locator('aside.sidebar button.nav-item:has-text("Đợt đồ án & Học kỳ")')).toBeVisible();
-    await expect(page.locator('aside.sidebar button.nav-item:has-text("Điều phối & Gán sinh viên")')).toBeVisible();
-    await expect(page.locator('aside.sidebar button.nav-item:has-text("Danh mục đề tài đồ án")')).toBeVisible();
-    await expect(page.locator('aside.sidebar button.nav-item:has-text("Theo dõi & Giám sát tiến độ")')).toBeVisible();
+    await expect(page.locator('aside.sidebar button.nav-item:has-text("Đợt đồ án & học kỳ")')).toBeVisible();
+    await expect(page.locator('aside.sidebar button.nav-item:has-text("Điều phối sinh viên")')).toBeVisible();
+    await expect(page.locator('aside.sidebar button.nav-item:has-text("Danh mục đề tài")')).toBeVisible();
+    await expect(page.locator('aside.sidebar button.nav-item:has-text("Giám sát tiến độ")')).toBeVisible();
+    await expect(page.locator('aside.sidebar button.nav-item:has-text("Báo cáo học vụ")')).toBeVisible();
 
-    // System administration menus must NOT be present
-    await expect(page.locator('aside.sidebar button.nav-item:has-text("Quản lý người dùng")')).toHaveCount(0);
-    await expect(page.locator('aside.sidebar button.nav-item:has-text("Phân quyền & Nhóm quyền")')).toHaveCount(0);
+    // System administration and institute hub menus must NOT be present
+    await expect(page.locator('aside.sidebar button.nav-item:has-text("Người dùng")')).toHaveCount(0);
+    await expect(page.locator('aside.sidebar button.nav-item:has-text("Phân quyền")')).toHaveCount(0);
+    await expect(page.locator('aside.sidebar button.nav-item:has-text("Điều hành học vụ")')).toHaveCount(0);
 
     // Direct navigation to /admin/users must be blocked
     await page.goto('/admin/users');
     await expect(page).not.toHaveURL(/\/admin\/users/);
   });
 
-  test('4. VIEN_TRUONG Persona: displays Viện trưởng role, sees defense lock/approvals, blocked from technical admin', async ({ page }) => {
+  test('4. VIEN_TRUONG Persona: displays Viện trưởng role, sees Điều hành học vụ and independent report/oversight menus, blocked from technical admin', async ({ page }) => {
     await setupPersonaSession(page, mockVienTruong);
 
     await page.goto('/admin/dashboard');
@@ -364,12 +379,17 @@ test.describe('Five-Persona RBAC & UI Matrix Tests', () => {
     // Role display in topbar must show "Viện trưởng"
     await expect(page.locator('.topbar-left:has-text("Viện trưởng")')).toBeVisible();
 
-    // Verify executive / defense oversight menus
-    await expect(page.locator('aside.sidebar button.nav-item:has-text("Tổng hợp & Khóa điểm")')).toBeVisible();
+    // Verify executive / institute hub & independent oversight/report menus
+    await expect(page.locator('aside.sidebar button.nav-item:has-text("Điều hành học vụ")')).toBeVisible();
+    await expect(page.locator('aside.sidebar button.nav-item:has-text("Giám sát tiến độ")')).toBeVisible();
+    await expect(page.locator('aside.sidebar button.nav-item:has-text("Báo cáo học vụ")')).toBeVisible();
+    await expect(page.locator('aside.sidebar button.nav-item:has-text("Sổ điểm bảo vệ")')).toBeVisible();
+    await expect(page.locator('aside.sidebar button.nav-item:has-text("Phê duyệt kết quả")')).toBeVisible();
+    await expect(page.locator('aside.sidebar button.nav-item:has-text("Công bố kết quả học kỳ")')).toBeVisible();
 
     // System admin user management must NOT be present
-    await expect(page.locator('aside.sidebar button.nav-item:has-text("Quản lý người dùng")')).toHaveCount(0);
-    await expect(page.locator('aside.sidebar button.nav-item:has-text("Phân quyền & Nhóm quyền")')).toHaveCount(0);
+    await expect(page.locator('aside.sidebar button.nav-item:has-text("Người dùng")')).toHaveCount(0);
+    await expect(page.locator('aside.sidebar button.nav-item:has-text("Phân quyền")')).toHaveCount(0);
 
     // Direct navigation to user management must be blocked
     await page.goto('/admin/users');
@@ -386,10 +406,13 @@ test.describe('Five-Persona RBAC & UI Matrix Tests', () => {
     await expect(page.locator('.topbar-left:has-text("Quản trị viên")')).toBeVisible();
 
     // Verify system admin menus
-    const userMenuButton = page.locator('aside.sidebar button.nav-item:has-text("Quản lý người dùng")');
+    const userMenuButton = page.locator('aside.sidebar button.nav-item:has-text("Người dùng")');
     await expect(userMenuButton).toBeVisible();
-    await expect(page.locator('aside.sidebar button.nav-item:has-text("Phân quyền & Nhóm quyền")')).toBeVisible();
-    await expect(page.locator('aside.sidebar button.nav-item:has-text("Bản tin & Thông báo")')).toBeVisible();
+    await expect(page.locator('aside.sidebar button.nav-item:has-text("Phân quyền")')).toBeVisible();
+    await expect(page.locator('aside.sidebar button.nav-item:has-text("Bản tin công khai")')).toBeVisible();
+    await expect(page.locator('aside.sidebar button.nav-item:has-text("Biểu mẫu & nội dung")')).toBeVisible();
+    await expect(page.locator('aside.sidebar button.nav-item:has-text("Thông báo tài khoản")')).toBeVisible();
+    await expect(page.locator('aside.sidebar button.nav-item:has-text("Điều hành học vụ")')).toHaveCount(0);
 
     // Navigate to User Management
     await userMenuButton.click();
