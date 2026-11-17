@@ -60,7 +60,7 @@ Với Viện trưởng, một **trang hub ba tab** được chọn thay cho mộ
 | Hội đồng & bảo vệ | Hội đồng bảo vệ | Trang hội đồng hiện có khi actor có quyền xem/quản lý tương ứng |
 | Hội đồng & bảo vệ | Phiếu chấm bảo vệ | `/lecturer/grading` khi actor là thành viên chấm và có quyền |
 
-BM02-A/đổi tên do GVHD xử lý vẫn mở qua hàng đợi dashboard, hồ sơ đề tài hoặc deep link cũ `/lecturer/approvals?tab=bm02a`; không gắn thêm một menu chính mang tên không bao quát. Các mục hội đồng ở workspace nào phải được route guard theo capability thật, không hiển thị rồi trả 403.
+BM02-A là việc điều chỉnh tên sau đăng ký, không thuộc “Duyệt nguyện vọng”. GVHD mở phiếu từ thẻ BM02-A trong “Cần chú ý và xử lý” trên Tổng quan hoặc từ hồ sơ đề tài/sinh viên đang hướng dẫn. Cả hai lối vào dẫn tới màn hình “Điều chỉnh tên đề tài” `/lecturer/title-adjustments?requestId=<id>` và chọn đúng phiếu; khi không có `requestId`, màn hình hiển thị các phiếu actor được phép xem. Không thêm mục BM02-A thường trực vào sidebar, không đặt tab BM02-A trong trang “Duyệt nguyện vọng”. Deep link cũ `/lecturer/approvals?tab=bm02a` chuyển tới màn hình mới; nếu liên kết cũ có `requestId`, giữ tham số đó. Thẻ Tổng quan phải lấy đúng `BM02AAdjustmentRequest`/hàng đợi BM02-A thay vì `TopicTitleAdjustment` cũ và mở đúng hồ sơ; trạng thái chờ GVHD và chờ phụ trách bộ môn không được trộn. API kiểm tra quyền và quan hệ với phiếu trước khi trả dữ liệu hoặc thực hiện ký/trả lại. Các mục hội đồng ở workspace nào phải được route guard theo capability thật, không hiển thị rồi trả 403.
 
 ### Quản trị / Giáo vụ
 
@@ -123,3 +123,4 @@ Hành động điều phối hội đồng và khóa sổ điểm vẫn ở tran
 3. Viện trưởng có một mục “Điều hành học vụ” với ba tab thao tác thật; không cần đi qua trang admin thiếu quyền để thẩm định, quyết định hoặc công bố.
 4. Menu, route, action và API nhất quán với capability + resource scope; không có admin bypass hoặc dữ liệu học kỳ khác.
 5. URL cũ hoạt động theo ánh xạ nêu trên; deep link mới khôi phục đúng tab/hồ sơ, back/forward không làm mất trạng thái.
+6. BM02-A được tìm thấy từ Tổng quan và hồ sơ liên quan, mở đúng phiếu trong màn hình riêng; menu “Duyệt nguyện vọng” không chứa việc đổi tên, không có mục BM02-A thường trực trên sidebar.

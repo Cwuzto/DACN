@@ -27,6 +27,7 @@
 4. Hai mục cùng pathname nhưng khác `?tab=`: active state đúng khi query có thêm tham số hoặc thứ tự tham số thay đổi; Back/Forward khôi phục tab (Task 4).
 5. Thu hồi quyền khi đang mở hai tab trình duyệt: menu và dữ liệu cũ mất sau refresh permission version; direct URL không mở lại (Task 4–5).
 6. Actor được cấp `REPORT_VIEW` trực tiếp/qua nhóm khác/ủy quyền: báo cáo và dashboard tổng hợp chỉ trả phạm vi grant hợp lệ; grant thiếu scope fail-closed, không vì có mã quyền mà xem toàn viện (Task 0–1).
+7. Thẻ đổi tên trên Tổng quan và hồ sơ đề tài/sinh viên mở đúng BM02-A theo `requestId`; “Duyệt nguyện vọng” không chứa BM02-A; URL `?tab=bm02a` cũ còn hoạt động (Task 6).
 
 ---
 
@@ -130,3 +131,25 @@
 - [x] **Step 2: Chạy regression.** Các test Task 1–4, `npm --prefix frontend run test:runtime -- runtime-tests/fivePersonaPolicies.spec.jsx`, `npm --prefix frontend run test:e2e -- e2e/rbac-five-persona.spec.js e2e/loading-error-navigation.spec.js`, lint/build. Kiểm tra 375/768/1024/1440px và keyboard.
 - [x] **Step 3: Rà soát quy tắc.** `git diff --check`, UTF-8 không BOM, không route chết, mock, `group/groupMember`, icon thô trong label hoặc bypass quyền. Không tick task chưa đạt.
 - [x] **Step 4: Commit marker và báo cáo.** Commit riêng tài liệu checklist; báo tệp/test/commit/rủi ro. Không cập nhật `CLAUDE.md` trước `end phiên`.
+
+### Task 6: Đưa BM02-A ra khỏi “Duyệt nguyện vọng” bằng lối vào theo hồ sơ
+
+Task 3 và Task 5 ở trên ghi nhận phần đã hoàn thành trước quyết định này; Task 6 là phần bổ sung, chưa triển khai.
+
+**Files:**
+- Modify: `backend/src/services/lecturerOverviewService.js`, test tương ứng trong `backend/tests/services/lecturerOverviewService.test.js`
+- Create: `frontend/src/pages/lecturer/TitleAdjustmentPage.jsx`
+- Modify: `frontend/src/pages/lecturer/TopicApprovalPage.jsx`, `frontend/src/pages/lecturer/TopicManagementPage.jsx`, `frontend/src/pages/lecturer/LecturerStudentsPage.jsx`, `frontend/src/App.jsx`
+- Modify: frontend runtime/E2E tests cho Tổng quan, hồ sơ GVHD, deep link cũ và phân quyền BM02-A
+- Reuse: `frontend/src/queries/bm02aQueries.js`, `frontend/src/services/bm02aService.js` và API BM02-A hiện có
+
+**Interfaces:**
+- Produces: `/lecturer/title-adjustments?requestId=<id>` mở đúng phiếu BM02-A actor được phép xem; thiếu `requestId` mở danh sách phiếu theo quyền. Trang này không có mục sidebar thường trực.
+- Preserves: `/lecturer/approvals?tab=bm02a` chuyển sang trang mới, giữ `requestId` nếu có; `?tab=mentor` và `?tab=bm01` giữ hành vi cũ.
+- Produces: “Duyệt nguyện vọng” chỉ chứa việc tiếp nhận hướng dẫn; thẻ Tổng quan và hồ sơ đề tài/sinh viên liên quan là các lối vào BM02-A.
+
+- [ ] **Step 1: Viết test fail từ nguồn dữ liệu.** Thẻ `REVIEW_TITLE_ADJUSTMENT` phải tham chiếu `BM02AAdjustmentRequest` đang `PENDING_ADVISOR` của chính GVHD, có `requestId` và target màn hình mới; không lấy `TopicTitleAdjustment` cũ hoặc trộn phiếu `PENDING_DEPARTMENT_APPROVAL` vào hàng GVHD. API chi tiết/ký/trả lại từ chối actor không có quyền hoặc không thuộc phiếu.
+- [ ] **Step 2: Sửa backend trước.** Dùng hàng đợi/API BM02-A thật để tạo thẻ Tổng quan, đích mở đúng phiếu. Không thêm mock hoặc thay đổi trạng thái/quy tắc ba chữ ký. Chạy test service và route BM02-A liên quan.
+- [ ] **Step 3: Viết runtime test fail cho điều hướng.** Từ Tổng quan và hồ sơ đề tài/sinh viên đi đến cùng phiếu theo `requestId`; URL cũ chuyển tới trang mới; Back/Forward giữ phiếu; actor không có quyền không mở được route hay thao tác; tab nguyện vọng không còn hiển thị BM02-A.
+- [ ] **Step 4: Tách giao diện BM02-A.** Di chuyển danh sách, chi tiết, ký GVHD, phê duyệt bộ môn, trả lại và trạng thái từ `TopicApprovalPage` sang trang/component mới dùng API sẵn có. Route guard cho quyền BM02-A tương ứng; mọi dữ liệu và action vẫn kiểm tra scope ở backend. Ở trang nguyện vọng giữ mentor/BM01 và ánh xạ URL BM02-A cũ. Không thêm feature menu/sidebar.
+- [ ] **Step 5: Xác thực và commit.** Chạy các test mới, regression điều hướng GVHD/Viện trưởng, lint/build; kiểm tra deep link, 375px và bàn phím. Chỉ tick khi PASS; commit riêng cho Task 6, giữ các thay đổi ngoài phạm vi trong working tree.
