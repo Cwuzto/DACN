@@ -74,6 +74,8 @@ BM02-A/đổi tên do GVHD xử lý vẫn mở qua hàng đợi dashboard, hồ 
 
 Các chức năng Quản trị/Giáo vụ vẫn lọc theo capability; bảng trên là cấu trúc, không giả định mọi người trong workspace đều thấy tất cả. “Báo cáo học vụ” và “Giám sát tiến độ” có quyền xem độc lập, route/API phải khớp với menu. Hành động gửi thông báo tài khoản và biên tập bản tin công khai không dùng cùng nhãn.
 
+`REPORT_VIEW` là quyền xem báo cáo học vụ cấp Viện/đơn vị: nhóm GVHD mặc định không được cấp quyền này; `VIEN_TRUONG`, `GIAO_VU`, `QUAN_TRI_VIEN` giữ quyền theo phạm vi được giao. Dashboard GVHD dùng `VIEW_MY_TOPICS`/`VIEW_MENTOR_STUDENTS` và chỉ trả hồ sơ của chính GVHD. Việc bỏ quyền khỏi nhóm mặc định phải đồng bộ các grant đã lưu trong DB và làm mới `permissionVersion`/cache. Bất kỳ actor nào còn được cấp `REPORT_VIEW` trực tiếp hoặc qua ủy quyền vẫn phải bị backend giới hạn theo scope thực; grant thiếu scope xác định được thì từ chối. Quy tắc này áp dụng cho cả `/api/reports/*` lẫn các API thống kê tổng hợp `/api/dashboard/*` đang dùng `REPORT_VIEW`; API hoạt động toàn cục không có cách lọc scope thì chỉ cho grant `GLOBAL` hợp lệ.
+
 ### Viện trưởng
 
 Viện trưởng kế thừa menu GVHD có quyền tương ứng và được thêm **một mục duy nhất** trong nhóm “Điều hành viện”: **Điều hành học vụ** → `/lecturer/institute`. Các việc thẩm định, quyết định và công bố thuộc chức vụ không rải thêm thành các mục cấp một ở sidebar. Quyền được ủy quyền có thể làm mục này xuất hiện cho actor không mang nhãn chức vụ, nhưng chỉ tab/chức năng được cấp quyền mới hiện.
