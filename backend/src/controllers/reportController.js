@@ -1,46 +1,53 @@
 const prisma = require('../config/database');
 const { createExcelBuffer } = require('../utils/excelHelper');
 
+const PUBLISHED_TYPES = new Set(['INITIAL', 'SUPPLEMENTARY', 'CORRECTION']);
+
 /**
- * Helper trích xuất điểm số của sinh viên từ Hội đồng hoặc BM04/Official
+ * Tìm bản ghi công bố kết quả bảo vệ hợp lệ của đăng ký
  */
-const getStudentScore = (reg) => {
-    if (reg.officialScore !== undefined && reg.officialScore !== null && !isNaN(Number(reg.officialScore))) {
-        return Number(reg.officialScore);
-    }
-    if (reg.defenseResult) {
-        if (reg.defenseResult.finalScore !== undefined && reg.defenseResult.finalScore !== null && !isNaN(Number(reg.defenseResult.finalScore))) {
-            return Number(reg.defenseResult.finalScore);
-        }
-        if (reg.defenseResult.roundedFinalScore !== undefined && reg.defenseResult.roundedFinalScore !== null && !isNaN(Number(reg.defenseResult.roundedFinalScore))) {
-            return Number(reg.defenseResult.roundedFinalScore);
-        }
-        if (reg.defenseResult.rawAverageScore !== undefined && reg.defenseResult.rawAverageScore !== null && !isNaN(Number(reg.defenseResult.rawAverageScore))) {
-            return Number(reg.defenseResult.rawAverageScore);
-        }
+const getPublishedPublicationItem = (reg) => {
+    const items = reg?.resultPublicationItems;
+    if (!Array.isArray(items) || items.length === 0) return null;
+    return (
+        items.find((item) => {
+            const pub = item?.publication;
+            if (!pub || !PUBLISHED_TYPES.has(pub.type)) return false;
+            return !reg.semesterId || !pub.semesterId || reg.semesterId === pub.semesterId;
+        }) || null
+    );
+};
+
+/**
+ * Helper trích xuất điểm số BM05 chính thức của sinh viên đã được công bố.
+ * Chỉ dùng snapshot của bản công bố (`ResultPublicationItem.finalScoreSnapshot`),
+ * không fallback sang `defenseResult` hay BM04 và không làm lộ điểm chưa công bố.
+ */
+const getOfficialPublishedScore = (reg) => {
+    const publishedItem = getPublishedPublicationItem(reg);
+    if (!publishedItem) return null;
+
+    if (
+        publishedItem.finalScoreSnapshot !== undefined &&
+        publishedItem.finalScoreSnapshot !== null &&
+        publishedItem.finalScoreSnapshot !== '' &&
+        Number.isFinite(Number(publishedItem.finalScoreSnapshot))
+    ) {
+        return Number(publishedItem.finalScoreSnapshot);
     }
     return null;
 };
 
 /**
- * Helper trích xuất điểm đánh giá của Giảng viên Hướng dẫn (BM04)
+ * Helper trích xuất trạng thái nhận xét định tính BM04 của GVHD
  */
-const getMentorScore = (reg) => {
-    const bm04 = reg.bm04Evaluation;
-    if (!bm04) return null;
-    if (typeof bm04.score === 'number') return bm04.score;
-    if (typeof bm04.finalScore === 'number') return bm04.finalScore;
-    if (bm04.score !== undefined && bm04.score !== null && !isNaN(Number(bm04.score))) return Number(bm04.score);
-    if (bm04.finalScore !== undefined && bm04.finalScore !== null && !isNaN(Number(bm04.finalScore))) return Number(bm04.finalScore);
-
-    const s1 = parseFloat(bm04.thesisFormatScore);
-    const s2 = parseFloat(bm04.researchContentScore);
-    const s3 = parseFloat(bm04.applicabilityScore);
-    const s4 = parseFloat(bm04.attitudeScore);
-    if (!isNaN(s1) && !isNaN(s2) && !isNaN(s3) && !isNaN(s4)) {
-        return Math.round((s1 + s2 + s3 + s4) * 100) / 100;
-    }
-    return null;
+const getBm04QualitativeLabel = (reg) => {
+    const bm04 = reg?.bm04Evaluation;
+    if (!bm04) return 'Chưa đánh giá';
+    if (bm04.conclusion === 'AGREED_FOR_DEFENSE') return 'Đồng ý cho bảo vệ';
+    if (bm04.conclusion === 'NOT_AGREED_FOR_DEFENSE') return 'Không đồng ý bảo vệ';
+    if (bm04.status === 'SIGNED') return 'Đã ký nhận xét';
+    return 'Đã lập nhận xét';
 };
 
 /**
@@ -200,6 +207,12 @@ const getOverviewReport = async (req, res, next) => {
                 topic: { include: { mentor: true } },
                 bm04Evaluation: true,
                 defenseResult: true,
+                resultPublicationItems: {
+                    include: {
+                        publication: { select: { id: true, semesterId: true, type: true, publishedAt: true } },
+                    },
+                    orderBy: { createdAt: 'desc' },
+                },
             },
         });
 
@@ -220,7 +233,7 @@ const getOverviewReport = async (req, res, next) => {
 
         // Phổ điểm và điểm trung bình
         const scoredList = registrations
-            .map((r) => getStudentScore(r))
+            .map((r) => getOfficialPublishedScore(r))
             .filter((score) => score !== null);
 
         const averageScore = scoredList.length > 0
@@ -234,9 +247,10 @@ const getOverviewReport = async (req, res, next) => {
         let fairCount = 0;
         let averageGradeCount = 0;
         let failedCount = 0;
+        let ungradedCount = 0;
 
         for (const reg of registrations) {
-            const score = getStudentScore(reg);
+            const score = getOfficialPublishedScore(reg);
             if (score !== null) {
                 if (score >= 8.5) excellentCount++;
                 else if (score >= 7.0) goodCount++;
@@ -244,7 +258,7 @@ const getOverviewReport = async (req, res, next) => {
                 else if (score >= 4.0) averageGradeCount++;
                 else failedCount++;
             } else {
-                failedCount++;
+                ungradedCount++;
             }
         }
 
@@ -279,10 +293,17 @@ const getOverviewReport = async (req, res, next) => {
             },
             {
                 grade: 'FAILED',
-                label: 'Chưa đạt (< 4.0 / Vắng)',
+                label: 'Chưa đạt (< 4.0)',
                 count: failedCount,
                 percent: totalStudents > 0 ? Math.round((failedCount / totalStudents) * 1000) / 10 : 0,
                 color: '#EF4444',
+            },
+            {
+                grade: 'UNGRADED',
+                label: 'Chưa có kết quả',
+                count: ungradedCount,
+                percent: totalStudents > 0 ? Math.round((ungradedCount / totalStudents) * 1000) / 10 : 0,
+                color: '#94A3B8',
             },
         ];
 
@@ -344,7 +365,7 @@ const getOverviewReport = async (req, res, next) => {
             if (COMPLETED_SET.has(reg.status)) {
                 item.completedCount++;
             }
-            const s = getStudentScore(reg);
+            const s = getOfficialPublishedScore(reg);
             if (s !== null) {
                 item.scores.push(s);
             }
@@ -403,6 +424,12 @@ const getLecturerWorkloadReport = async (req, res, next) => {
                 topic: { include: { mentor: true } },
                 bm04Evaluation: true,
                 defenseResult: true,
+                resultPublicationItems: {
+                    include: {
+                        publication: { select: { id: true, semesterId: true, type: true, publishedAt: true } },
+                    },
+                    orderBy: { createdAt: 'desc' },
+                },
             },
         });
 
@@ -420,7 +447,8 @@ const getLecturerWorkloadReport = async (req, res, next) => {
                     department: mentor.department || 'N/A',
                     assignedCount: 0,
                     completedCount: 0,
-                    mentorScores: [],
+                    bm04ReviewedCount: 0,
+                    bm04AgreedCount: 0,
                     councilScores: [],
                 });
             }
@@ -431,12 +459,14 @@ const getLecturerWorkloadReport = async (req, res, next) => {
                 item.completedCount++;
             }
 
-            const mScore = getMentorScore(reg);
-            if (mScore !== null) {
-                item.mentorScores.push(mScore);
+            if (reg.bm04Evaluation) {
+                item.bm04ReviewedCount++;
+                if (reg.bm04Evaluation.conclusion === 'AGREED_FOR_DEFENSE') {
+                    item.bm04AgreedCount++;
+                }
             }
 
-            const cScore = getStudentScore(reg);
+            const cScore = getOfficialPublishedScore(reg);
             if (cScore !== null) {
                 item.councilScores.push(cScore);
             }
@@ -447,17 +477,9 @@ const getLecturerWorkloadReport = async (req, res, next) => {
                 ? Math.round((item.completedCount / item.assignedCount) * 1000) / 10
                 : 0;
 
-            const avgMentorScore = item.mentorScores.length > 0
-                ? Math.round((item.mentorScores.reduce((a, b) => a + b, 0) / item.mentorScores.length) * 100) / 100
-                : null;
-
             const avgCouncilScore = item.councilScores.length > 0
                 ? Math.round((item.councilScores.reduce((a, b) => a + b, 0) / item.councilScores.length) * 100) / 100
                 : null;
-
-            const variance = (avgMentorScore !== null && avgCouncilScore !== null)
-                ? Math.round(Math.abs(avgMentorScore - avgCouncilScore) * 100) / 100
-                : 0;
 
             return {
                 lecturerId: item.lecturerId,
@@ -467,9 +489,9 @@ const getLecturerWorkloadReport = async (req, res, next) => {
                 assignedCount: item.assignedCount,
                 completedCount: item.completedCount,
                 completionRate,
-                avgMentorScore,
+                bm04ReviewedCount: item.bm04ReviewedCount,
+                bm04AgreedCount: item.bm04AgreedCount,
                 avgCouncilScore,
-                variance,
             };
         }).sort((a, b) => b.assignedCount - a.assignedCount || a.fullName.localeCompare(b.fullName));
 
@@ -498,6 +520,12 @@ const exportAcademicSummaryExcel = async (req, res, next) => {
                 topic: { include: { mentor: true } },
                 bm04Evaluation: true,
                 defenseResult: true,
+                resultPublicationItems: {
+                    include: {
+                        publication: { select: { id: true, semesterId: true, type: true, publishedAt: true } },
+                    },
+                    orderBy: { createdAt: 'desc' },
+                },
             },
         });
 
@@ -510,9 +538,9 @@ const exportAcademicSummaryExcel = async (req, res, next) => {
         }
 
         const rows = registrations.map((reg, index) => {
-            const mentorScore = getMentorScore(reg);
-            const councilScore = getStudentScore(reg);
-            const finalScore = councilScore ?? mentorScore;
+            const bm04StatusLabel = getBm04QualitativeLabel(reg);
+            const councilScore = getOfficialPublishedScore(reg);
+            const finalScore = councilScore;
 
             let gradeLabel = 'Chưa có điểm';
             if (finalScore !== null) {
@@ -530,8 +558,8 @@ const exportAcademicSummaryExcel = async (req, res, next) => {
                 'Chuyên ngành': reg.student?.studentProfile?.major || reg.topic?.targetMajor || '',
                 'Tên đề tài': reg.adjustedTitle || reg.bm01ApprovedTitleSnapshot || reg.topic?.title || '',
                 'GVHD': reg.topic?.mentor?.fullName || '',
-                'Điểm Quá trình (BM04)': mentorScore !== null ? mentorScore : '',
-                'Điểm Hội đồng': councilScore !== null ? councilScore : '',
+                'Đánh giá BM04': bm04StatusLabel,
+                'Điểm Hội đồng (BM05)': councilScore !== null ? councilScore : '',
                 'Điểm Tổng kết': finalScore !== null ? finalScore : '',
                 'Xếp loại': gradeLabel,
                 'Trạng thái': reg.status || '',

@@ -187,7 +187,7 @@ export const NAVIGATION_REGISTRY = [
         icon: 'bar_chart',
         group: 'Quản trị học vụ',
         requiredPermission: 'VIEW_PROJECT_OVERSIGHT',
-        requiredAnyPermissions: ['REPORT_VIEW', 'VIEW_PROJECT_OVERSIGHT', 'PROJECT_OVERSIGHT_MANAGE'],
+        requiredAnyPermissions: ['VIEW_PROJECT_OVERSIGHT', 'PROJECT_OVERSIGHT_MANAGE'],
         route: '/admin/reports',
     },
 

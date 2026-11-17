@@ -157,3 +157,4 @@ describe('Integration - Lecturer Unified Overview Authorization', () => {
         expect(res.body.data.attentionItems.filter((i) => i.source === 'INSTITUTE_DIRECTOR')).toHaveLength(0);
     });
 });
+

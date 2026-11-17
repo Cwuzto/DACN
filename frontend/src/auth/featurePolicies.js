@@ -361,9 +361,9 @@ export const FEATURE_POLICIES = Object.freeze({
             group: 'Quản trị học vụ',
             requiredPermission: 'VIEW_PROJECT_OVERSIGHT',
         },
-        viewAnyOf: ['REPORT_VIEW', 'VIEW_PROJECT_OVERSIGHT', 'PROJECT_OVERSIGHT_MANAGE'],
+        viewAnyOf: ['VIEW_PROJECT_OVERSIGHT', 'PROJECT_OVERSIGHT_MANAGE'],
         actions: {
-            export: 'REPORT_VIEW',
+            export: 'VIEW_PROJECT_OVERSIGHT',
         },
     },
 

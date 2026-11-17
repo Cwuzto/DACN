@@ -91,6 +91,27 @@ describe('Academic BI & Reporting Hub - Integration Tests', () => {
         councilMembers: [],
     };
 
+    const mockReportViewOnlyUser = {
+        id: 21,
+        role: 'LECTURER',
+        email: 'gvhd-report@tdmu.edu.vn',
+        fullName: 'Giảng Viên Có REPORT_VIEW',
+        isActive: true,
+        permissionVersion: 1,
+        permissionGroups: [
+            {
+                permissionGroup: {
+                    code: 'GVHD',
+                    permissions: [
+                        { permission: { code: 'REPORT_VIEW' } },
+                    ],
+                },
+            },
+        ],
+        councilMembers: [],
+    };
+    const reportViewToken = 'report-view-token';
+
     const mockRegistrations = [
         {
             id: 101,
@@ -116,17 +137,22 @@ describe('Academic BI & Reporting Hub - Integration Tests', () => {
                 },
             },
             bm04Evaluation: {
-                score: 9.0,
-                thesisFormatScore: '2.5',
-                researchContentScore: '2.5',
-                applicabilityScore: '2.0',
-                attitudeScore: '2.0',
+                thesisFormatScore: 'Đạt yêu cầu trình bày',
+                researchContentScore: 'Nội dung nghiên cứu tốt',
+                applicabilityScore: 'Có tính ứng dụng cao',
+                attitudeScore: 'Nghiêm túc',
                 conclusion: 'AGREED_FOR_DEFENSE',
             },
             defenseResult: {
                 finalScore: 9.2,
                 rawAverageScore: 9.2,
             },
+            resultPublicationItems: [
+                {
+                    publication: { id: 1, semesterId: 1, type: 'INITIAL' },
+                    finalScoreSnapshot: 9.2,
+                },
+            ],
         },
         {
             id: 102,
@@ -152,13 +178,18 @@ describe('Academic BI & Reporting Hub - Integration Tests', () => {
                 },
             },
             bm04Evaluation: {
-                score: 8.0,
                 conclusion: 'AGREED_FOR_DEFENSE',
             },
             defenseResult: {
                 finalScore: 7.8,
                 rawAverageScore: 7.8,
             },
+            resultPublicationItems: [
+                {
+                    publication: { id: 1, semesterId: 1, type: 'INITIAL' },
+                    finalScoreSnapshot: 7.8,
+                },
+            ],
         },
         {
             id: 103,
@@ -184,12 +215,17 @@ describe('Academic BI & Reporting Hub - Integration Tests', () => {
                 },
             },
             bm04Evaluation: {
-                score: 6.5,
                 conclusion: 'AGREED_FOR_DEFENSE',
             },
             defenseResult: {
                 finalScore: 6.0,
             },
+            resultPublicationItems: [
+                {
+                    publication: { id: 1, semesterId: 1, type: 'INITIAL' },
+                    finalScoreSnapshot: 6.0,
+                },
+            ],
         },
         {
             id: 104,
@@ -254,6 +290,7 @@ describe('Academic BI & Reporting Hub - Integration Tests', () => {
             if (token === oversightToken) return { userId: mockOversightUser.id, role: mockOversightUser.role };
             if (token === studentToken) return { userId: mockStudentUser.id, role: mockStudentUser.role };
             if (token === lecturerToken) return { userId: mockLecturerPlainUser.id, role: mockLecturerPlainUser.role };
+            if (token === reportViewToken) return { userId: mockReportViewOnlyUser.id, role: mockReportViewOnlyUser.role };
             throw new Error('invalid token');
         });
 
@@ -262,6 +299,7 @@ describe('Academic BI & Reporting Hub - Integration Tests', () => {
             if (where.id === mockOversightUser.id) return mockOversightUser;
             if (where.id === mockStudentUser.id) return mockStudentUser;
             if (where.id === mockLecturerPlainUser.id) return mockLecturerPlainUser;
+            if (where.id === mockReportViewOnlyUser.id) return mockReportViewOnlyUser;
             return null;
         });
 
@@ -288,6 +326,17 @@ describe('Academic BI & Reporting Hub - Integration Tests', () => {
                 .get('/api/reports/overview')
                 .set('Authorization', `Bearer ${lecturerToken}`);
             expect(res.status).toBe(403);
+        });
+
+        it('should return 403 when a lecturer with only REPORT_VIEW accesses institute-wide reports', async () => {
+            const [overviewRes, workloadRes, excelRes] = await Promise.all([
+                request(app).get('/api/reports/overview').set('Authorization', `Bearer ${reportViewToken}`),
+                request(app).get('/api/reports/lecturer-workload').set('Authorization', `Bearer ${reportViewToken}`),
+                request(app).get('/api/reports/export-excel').set('Authorization', `Bearer ${reportViewToken}`),
+            ]);
+            expect(overviewRes.status).toBe(403);
+            expect(workloadRes.status).toBe(403);
+            expect(excelRes.status).toBe(403);
         });
 
         it('should allow access for admin', async () => {
@@ -328,19 +377,21 @@ describe('Academic BI & Reporting Hub - Integration Tests', () => {
             expect(kpis.maxScore).toBe(9.2);
             expect(kpis.minScore).toBe(6.0);
 
-            // Grade Distribution (5 bands)
-            expect(gradeDistribution).toHaveLength(5);
+            // Grade Distribution (6 bands: 5 graded + UNGRADED)
+            expect(gradeDistribution).toHaveLength(6);
             const excellent = gradeDistribution.find((g) => g.grade === 'EXCELLENT');
             const good = gradeDistribution.find((g) => g.grade === 'GOOD');
             const fair = gradeDistribution.find((g) => g.grade === 'FAIR');
             const average = gradeDistribution.find((g) => g.grade === 'AVERAGE');
             const failed = gradeDistribution.find((g) => g.grade === 'FAILED');
+            const ungraded = gradeDistribution.find((g) => g.grade === 'UNGRADED');
 
             expect(excellent).toMatchObject({ count: 1, color: '#10B981' });
             expect(good).toMatchObject({ count: 1, color: '#0F766E' });
             expect(fair).toMatchObject({ count: 1, color: '#F59E0B' });
             expect(average).toMatchObject({ count: 0, color: '#64748B' });
-            expect(failed).toMatchObject({ count: 2, color: '#EF4444' }); // 2 students with no defense score yet
+            expect(failed).toMatchObject({ count: 0, color: '#EF4444' });
+            expect(ungraded).toMatchObject({ count: 2, color: '#94A3B8' }); // 2 students with no published score yet
 
             // Funnel (6 milestones)
             expect(funnel).toHaveLength(6);
@@ -374,7 +425,7 @@ describe('Academic BI & Reporting Hub - Integration Tests', () => {
     });
 
     describe('GET /api/reports/lecturer-workload', () => {
-        it('should return mentor workload stats, completion rates, and score variance', async () => {
+        it('should return mentor workload stats, completion rates, qualitative BM04 counts, and published BM05 avg score', async () => {
             const res = await request(app)
                 .get('/api/reports/lecturer-workload')
                 .set('Authorization', `Bearer ${adminToken}`);
@@ -392,23 +443,25 @@ describe('Academic BI & Reporting Hub - Integration Tests', () => {
             expect(mentor1.assignedCount).toBe(3);
             expect(mentor1.completedCount).toBe(2);
             expect(mentor1.completionRate).toBe(66.7);
-            expect(mentor1.avgMentorScore).toBe(8.5); // (9.0 + 8.0) / 2
+            expect(mentor1.bm04ReviewedCount).toBe(2);
+            expect(mentor1.bm04AgreedCount).toBe(2);
+            expect(mentor1.avgMentorScore).toBeUndefined();
             expect(mentor1.avgCouncilScore).toBe(8.5); // (9.2 + 7.8) / 2
-            expect(mentor1.variance).toBe(0); // |8.5 - 8.5| = 0
 
             const mentor2 = lecturers.find((l) => l.lecturerId === 202);
             expect(mentor2).toBeDefined();
             expect(mentor2.fullName).toBe('ThS. Nguyễn Thị Cô');
             expect(mentor2.assignedCount).toBe(2);
             expect(mentor2.completedCount).toBe(0);
-            expect(mentor2.avgMentorScore).toBe(6.5);
+            expect(mentor2.bm04ReviewedCount).toBe(1);
+            expect(mentor2.bm04AgreedCount).toBe(1);
+            expect(mentor2.avgMentorScore).toBeUndefined();
             expect(mentor2.avgCouncilScore).toBe(6.0);
-            expect(mentor2.variance).toBe(0.5); // |6.5 - 6.0| = 0.5
         });
     });
 
     describe('GET /api/reports/export-excel', () => {
-        it('should return valid excel binary buffer with correct headers', async () => {
+        it('should return valid excel binary buffer with qualitative BM04 and BM05 score columns', async () => {
             const res = await request(app)
                 .get('/api/reports/export-excel')
                 .set('Authorization', `Bearer ${adminToken}`)
@@ -430,6 +483,185 @@ describe('Academic BI & Reporting Hub - Integration Tests', () => {
             expect(rows[0]).toHaveProperty('Họ và tên');
             expect(rows[0]).toHaveProperty('Tên đề tài');
             expect(rows[0]).toHaveProperty('GVHD');
+            expect(rows[0]).toHaveProperty('Đánh giá BM04', 'Đồng ý cho bảo vệ');
+            expect(rows[0]).toHaveProperty('Điểm Hội đồng (BM05)', 9.2);
+            expect(rows[0]).toHaveProperty('Điểm Tổng kết', 9.2);
+            expect(rows[0]).not.toHaveProperty('Điểm Quá trình (BM04)');
+        });
+    });
+
+    describe('BM04 Qualitative & Unpublished BM05 Protection', () => {
+        const bm04OnlyAndUnpublishedRegs = [
+            {
+                id: 201,
+                semesterId: 1,
+                status: 'DEFENSE_READY',
+                studentId: 2001,
+                student: {
+                    id: 2001,
+                    fullName: 'Sinh Viên Có BM04 Chưa Có BM05',
+                    code: 'SV20260201',
+                    studentProfile: { major: 'Kỹ thuật Phần mềm', className: 'D20KTPM01' },
+                },
+                topic: {
+                    id: 601,
+                    title: 'Đề tài Chỉ Có BM04',
+                    targetMajor: 'Kỹ thuật Phần mềm',
+                    mentorId: 301,
+                    mentor: {
+                        id: 301,
+                        fullName: 'TS. Giảng Viên BM04',
+                        email: 'gvbm04@tdmu.edu.vn',
+                        department: 'Kỹ thuật Phần mềm',
+                    },
+                },
+                bm04Evaluation: {
+                    score: 9.5,
+                    thesisFormatScore: 'Tốt',
+                    researchContentScore: 'Đạt',
+                    applicabilityScore: 'Khá',
+                    attitudeScore: 'Tốt',
+                    conclusion: 'AGREED_FOR_DEFENSE',
+                },
+                defenseResult: null,
+                resultPublicationItems: [],
+            },
+            {
+                id: 202,
+                semesterId: 1,
+                status: 'AWAITING_FINAL_APPROVAL',
+                studentId: 2002,
+                student: {
+                    id: 2002,
+                    fullName: 'Sinh Viên Điểm Chưa Công Bố',
+                    code: 'SV20260202',
+                    studentProfile: { major: 'Kỹ thuật Phần mềm', className: 'D20KTPM01' },
+                },
+                topic: {
+                    id: 602,
+                    title: 'Đề tài Chưa Công Bố BM05',
+                    targetMajor: 'Kỹ thuật Phần mềm',
+                    mentorId: 301,
+                    mentor: {
+                        id: 301,
+                        fullName: 'TS. Giảng Viên BM04',
+                        email: 'gvbm04@tdmu.edu.vn',
+                        department: 'Kỹ thuật Phần mềm',
+                    },
+                },
+                bm04Evaluation: {
+                    score: 8.5,
+                    conclusion: 'AGREED_FOR_DEFENSE',
+                },
+                defenseResult: {
+                    finalScore: 8.8,
+                    rawAverageScore: 8.8,
+                },
+                resultPublicationItems: [],
+            },
+        ];
+
+        beforeEach(() => {
+            prisma.topicRegistration.findMany.mockResolvedValue(bm04OnlyAndUnpublishedRegs);
+        });
+
+        it('does not compute scores from BM04 or leak unpublished BM05 in overview', async () => {
+            const res = await request(app)
+                .get('/api/reports/overview')
+                .set('Authorization', `Bearer ${adminToken}`);
+
+            expect(res.status).toBe(200);
+            expect(res.body.data.kpis.averageScore).toBe(0);
+            expect(res.body.data.kpis.maxScore).toBe(0);
+            expect(res.body.data.kpis.minScore).toBe(0);
+            const excellent = res.body.data.gradeDistribution.find((g) => g.grade === 'EXCELLENT');
+            expect(excellent.count).toBe(0);
+        });
+
+        it('does not expose BM04 numeric score or unpublished BM05 in lecturer-workload', async () => {
+            const res = await request(app)
+                .get('/api/reports/lecturer-workload')
+                .set('Authorization', `Bearer ${adminToken}`);
+
+            expect(res.status).toBe(200);
+            expect(res.body.data).toHaveLength(1);
+            expect(res.body.data[0].bm04ReviewedCount).toBe(2);
+            expect(res.body.data[0].bm04AgreedCount).toBe(2);
+            expect(res.body.data[0].avgCouncilScore).toBeNull();
+            expect(res.body.data[0].avgMentorScore).toBeUndefined();
+        });
+
+        it('does not export BM04 numeric fallback or unpublished BM05 scores in export-excel', async () => {
+            const res = await request(app)
+                .get('/api/reports/export-excel')
+                .set('Authorization', `Bearer ${adminToken}`)
+                .responseType('blob');
+
+            expect(res.status).toBe(200);
+            const workbook = XLSX.read(res.body, { type: 'buffer' });
+            const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+            expect(rows).toHaveLength(2);
+            for (const row of rows) {
+                expect(row['Đánh giá BM04']).toBe('Đồng ý cho bảo vệ');
+                expect(row['Điểm Quá trình (BM04)']).toBeUndefined();
+                expect(row['Điểm Hội đồng (BM05)']).toBe('');
+                expect(row['Điểm Tổng kết']).toBe('');
+                expect(row['Xếp loại']).toBe('Chưa có điểm');
+            }
+        });
+
+        it('does not fall back to defenseResult when ResultPublicationItem.finalScoreSnapshot is null and separates UNGRADED from FAILED', async () => {
+            prisma.topicRegistration.findMany.mockResolvedValue([
+                {
+                    ...bm04OnlyAndUnpublishedRegs[0],
+                    id: 203,
+                    status: 'DEFENSE_FAILED',
+                    defenseResult: { finalScore: 3.5 },
+                    resultPublicationItems: [
+                        {
+                            publication: { id: 2, semesterId: 1, type: 'INITIAL' },
+                            finalScoreSnapshot: 3.5,
+                        },
+                    ],
+                },
+                {
+                    ...bm04OnlyAndUnpublishedRegs[1],
+                    id: 204,
+                    status: 'DEFENDED',
+                    defenseResult: { finalScore: 8.9, roundedFinalScore: 8.9, rawAverageScore: 8.9 },
+                    resultPublicationItems: [
+                        {
+                            publication: { id: 2, semesterId: 1, type: 'INITIAL' },
+                            finalScoreSnapshot: null,
+                        },
+                    ],
+                },
+            ]);
+
+            const [overviewRes, excelRes] = await Promise.all([
+                request(app).get('/api/reports/overview').set('Authorization', `Bearer ${adminToken}`),
+                request(app).get('/api/reports/export-excel').set('Authorization', `Bearer ${adminToken}`).responseType('blob'),
+            ]);
+
+            expect(overviewRes.status).toBe(200);
+            expect(overviewRes.body.data.kpis.averageScore).toBe(3.5);
+            expect(overviewRes.body.data.kpis.maxScore).toBe(3.5);
+            expect(overviewRes.body.data.kpis.minScore).toBe(3.5);
+
+            const dist = overviewRes.body.data.gradeDistribution;
+            expect(dist.find((g) => g.grade === 'EXCELLENT').count).toBe(0);
+            expect(dist.find((g) => g.grade === 'FAILED').count).toBe(1);
+            expect(dist.find((g) => g.grade === 'UNGRADED').count).toBe(1);
+
+            expect(excelRes.status).toBe(200);
+            const workbook = XLSX.read(excelRes.body, { type: 'buffer' });
+            const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+            expect(rows).toHaveLength(2);
+            expect(rows[0]['Điểm Tổng kết']).toBe(3.5);
+            expect(rows[0]['Xếp loại']).toBe('Chưa đạt');
+            expect(rows[1]['Điểm Hội đồng (BM05)']).toBe('');
+            expect(rows[1]['Điểm Tổng kết']).toBe('');
+            expect(rows[1]['Xếp loại']).toBe('Chưa có điểm');
         });
     });
 });

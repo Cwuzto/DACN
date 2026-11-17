@@ -534,7 +534,7 @@ export default function TopicManagementPage() {
                             Đợt đang xem: {filterSemesterId === 'ALL' ? 'Tất cả các đợt' : (semesters.find(s => s.id === Number(filterSemesterId))?.name || 'Đợt đồ án')}
                         </span>
                         <span>
-                            Tải lượng: <strong className="text-slate-900">{capacityMetrics.activeCount}</strong>/{capacityMetrics.maxSlots} sinh viên
+                            Số lượng: <strong className="text-slate-900">{capacityMetrics.activeCount}</strong>/{capacityMetrics.maxSlots} sinh viên
                         </span>
                         <span>
                             Chỉ tiêu còn lại: <strong className="text-emerald-600">{capacityMetrics.remainingSlots} chỗ</strong>

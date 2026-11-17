@@ -110,8 +110,10 @@ test('4. NavIcon includes bar_chart vector SVG icon with feather stroke style', 
     );
 });
 
-test('5. App.jsx lazy loads AcademicReportsPage and registers guarded /admin/reports route', () => {
+test('5. App.jsx lazy loads AcademicReportsPage and registers guarded /admin/reports route aligned with backend', () => {
     const appSrc = read('frontend/src/App.jsx');
+    const policySrc = read('frontend/src/auth/featurePolicies.js');
+    const navSrc = read('frontend/src/config/navigationRegistry.js');
 
     assert.match(
         appSrc,
@@ -120,9 +122,25 @@ test('5. App.jsx lazy loads AcademicReportsPage and registers guarded /admin/rep
     );
     assert.match(
         appSrc,
-        /<Route\s+element=\{<ProtectedRoute\s+requiredAnyPermissions=\{.*['"]VIEW_PROJECT_OVERSIGHT['"].*['"]REPORT_VIEW['"].*['"]PROJECT_OVERSIGHT_MANAGE['"].*\}\s*\/>\}>[\s\S]*?<Route\s+path=["']reports["']\s+element=\{<AcademicReportsPage\s*\/>\}\s*\/>[\s\S]*?<\/Route>/,
-        'App.jsx must register reports route with VIEW_PROJECT_OVERSIGHT, REPORT_VIEW, PROJECT_OVERSIGHT_MANAGE permissions'
+        /<Route\s+element=\{<ProtectedRoute\s+featureKey=["']academic-reports["']\s+requiredAnyPermissions=\{.*['"]VIEW_PROJECT_OVERSIGHT['"].*['"]PROJECT_OVERSIGHT_MANAGE['"].*\}\s*\/>\}>[\s\S]*?<Route\s+path=["']reports["']\s+element=\{<AcademicReportsPage\s*\/>\}\s*\/>[\s\S]*?<\/Route>/,
+        'App.jsx must register reports route with VIEW_PROJECT_OVERSIGHT and PROJECT_OVERSIGHT_MANAGE permissions'
     );
+
+    const routeMatch = appSrc.match(/<Route\s+element=\{<ProtectedRoute\s+featureKey=["']academic-reports["'][\s\S]*?<\/Route>/);
+    assert.ok(routeMatch, 'Must find academic-reports route block');
+    assert.strictEqual(
+        routeMatch[0].includes('REPORT_VIEW'),
+        false,
+        'App.jsx /admin/reports route must not grant access to plain REPORT_VIEW without oversight scope'
+    );
+
+    const navBlock = navSrc.match(/key:\s*['"]academic-reports['"][\s\S]*?route:\s*['"]\/admin\/reports['"]/);
+    assert.ok(navBlock, 'navigationRegistry must define academic-reports');
+    assert.strictEqual(navBlock[0].includes('REPORT_VIEW'), false, 'navigationRegistry must not include REPORT_VIEW for /admin/reports');
+
+    const policyBlock = policySrc.match(/key:\s*['"]academic-reports['"][\s\S]*?\},/);
+    assert.ok(policyBlock, 'featurePolicies must define academic-reports');
+    assert.strictEqual(policyBlock[0].includes('REPORT_VIEW'), false, 'featurePolicies must not include REPORT_VIEW for /admin/reports');
 });
 
 test('6. AcademicReportsPage placeholder exists and adheres to Rule 2.6', () => {

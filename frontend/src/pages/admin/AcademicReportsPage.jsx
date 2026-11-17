@@ -49,6 +49,7 @@ const GRADE_BAND_COLORS = {
     FAIR: '#F59E0B',
     AVERAGE: '#64748B',
     FAILED: '#EF4444',
+    UNGRADED: '#94A3B8',
 };
 
 const GRADE_RANGES = {
@@ -56,7 +57,8 @@ const GRADE_RANGES = {
     GOOD: '7.0 - 8.4',
     FAIR: '5.5 - 6.9',
     AVERAGE: '4.0 - 5.4',
-    FAILED: '< 4.0 / Vắng',
+    FAILED: '< 4.0',
+    UNGRADED: 'Chưa công bố điểm',
 };
 
 export default function AcademicReportsPage() {
@@ -366,61 +368,38 @@ export default function AcademicReportsPage() {
             ),
         },
         {
-            title: 'Điểm BM04 TB',
-            dataIndex: 'avgMentorScore',
-            key: 'avgMentorScore',
-            width: 130,
-            align: 'center',
-            render: (val) => (
-                <span className="font-semibold text-slate-700">
-                    {val !== null && val !== undefined ? Number(val).toFixed(2) : '—'}
-                </span>
-            ),
-        },
-        {
-            title: 'Điểm HĐ TB',
-            dataIndex: 'avgCouncilScore',
-            key: 'avgCouncilScore',
-            width: 130,
-            align: 'center',
-            render: (val) => (
-                <span className="font-semibold text-slate-700">
-                    {val !== null && val !== undefined ? Number(val).toFixed(2) : '—'}
-                </span>
-            ),
-        },
-        {
-            title: 'Độ lệch điểm Δ',
-            dataIndex: 'variance',
-            key: 'variance',
+            title: 'Đã nhận xét BM04',
+            dataIndex: 'bm04ReviewedCount',
+            key: 'bm04ReviewedCount',
             width: 140,
             align: 'center',
-            render: (val) => {
-                if (val === null || val === undefined) return '—';
-                const isHigh = Number(val) > 1.5;
-                return (
-                    <span className={`font-bold ${isHigh ? 'text-amber-600' : 'text-slate-700'}`}>
-                        {Number(val).toFixed(2)}
-                    </span>
-                );
-            },
+            render: (val, record) => (
+                <span className="font-semibold text-slate-700">
+                    {val ?? 0}/{record.assignedCount ?? 0}
+                </span>
+            ),
         },
         {
-            title: 'Đánh giá độ lệch',
-            key: 'varianceCheck',
-            width: 170,
+            title: 'Đồng ý BV (BM04)',
+            dataIndex: 'bm04AgreedCount',
+            key: 'bm04AgreedCount',
+            width: 140,
             align: 'center',
-            render: (_, record) => {
-                const variance = Number(record.variance) || 0;
-                if (variance > 1.5) {
-                    return (
-                        <Tag color="warning" icon={<WarningOutlined />}>
-                            Lệch cao (&gt; 1.5)
-                        </Tag>
-                    );
-                }
-                return <Tag color="success">Bình thường</Tag>;
-            },
+            render: (val) => (
+                <Tag color="cyan">{val ?? 0} SV</Tag>
+            ),
+        },
+        {
+            title: 'Điểm HĐ TB (BM05)',
+            dataIndex: 'avgCouncilScore',
+            key: 'avgCouncilScore',
+            width: 150,
+            align: 'center',
+            render: (val) => (
+                <span className="font-semibold text-slate-700">
+                    {val !== null && val !== undefined ? Number(val).toFixed(2) : '—'}
+                </span>
+            ),
         },
     ];
 
@@ -785,13 +764,13 @@ export default function AcademicReportsPage() {
                         },
                         {
                             key: '4',
-                            label: 'Tải GVHD & Độ lệch điểm',
+                            label: 'Tải GVHD & Kết quả BM05',
                             children: (
                                 <QueryPanel query={workloadQuery} variant="table">
                                 <div className="space-y-4 pt-2">
                                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                                         <p className="text-slate-500 text-sm">
-                                            Theo dõi khối lượng hướng dẫn, tỷ lệ sinh viên hoàn thành và độ lệch điểm đánh giá quá trình (BM04) so với điểm Hội đồng bảo vệ
+                                            Theo dõi khối lượng hướng dẫn, trạng thái nhận xét định tính BM04 và điểm Hội đồng bảo vệ BM05 đã công bố
                                         </p>
                                         <div className="w-72">
                                             <Input

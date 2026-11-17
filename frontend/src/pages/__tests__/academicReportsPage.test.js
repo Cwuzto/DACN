@@ -84,15 +84,16 @@ test('AcademicReportsPage: Renders 4 interactive Tabs with exact keys and names'
     assert.match(src, /Phổ điểm & Xếp loại/, 'Tab 1 label must be "Phổ điểm & Xếp loại"');
     assert.match(src, /Phễu tiến độ học vụ/, 'Tab 2 label must be "Phễu tiến độ học vụ"');
     assert.match(src, /So sánh Chuyên ngành/, 'Tab 3 label must be "So sánh Chuyên ngành"');
-    assert.match(src, /Tải GVHD & Độ lệch điểm/, 'Tab 4 label must be "Tải GVHD & Độ lệch điểm"');
+    assert.match(src, /Tải GVHD & Kết quả BM05/, 'Tab 4 label must be "Tải GVHD & Kết quả BM05"');
 });
 
-test('AcademicReportsPage: Implements score variance warning badge and Excel export handling', () => {
+test('AcademicReportsPage: Displays qualitative BM04 counts, BM05 council score, and Excel export handling', () => {
     const src = read('frontend/src/pages/admin/AcademicReportsPage.jsx');
 
-    // Check variance check > 1.5
-    assert.match(src, /1\.5/, 'Must check score variance threshold of 1.5');
-    assert.match(src, /WarningOutlined/, 'Must use WarningOutlined for high variance');
+    assert.match(src, /bm04ReviewedCount/, 'Must display qualitative BM04 reviewed count');
+    assert.match(src, /bm04AgreedCount/, 'Must display qualitative BM04 agreed count');
+    assert.match(src, /avgCouncilScore/, 'Must display BM05 average council score');
+    assert.strictEqual(src.includes('avgMentorScore'), false, 'Must not reference numeric avgMentorScore from BM04');
 
     // Check Excel download mechanism
     assert.match(src, /Bang_Tong_Hop_Ket_Qua_Tot_Nghiep_/, 'Must generate proper Excel filename');
