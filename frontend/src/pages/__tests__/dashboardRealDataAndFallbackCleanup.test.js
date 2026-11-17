@@ -203,6 +203,7 @@ test('Task 5: Rule 2.6 Button text integrity across all modified files', () => {
     const filesToCheck = [
         'frontend/src/pages/student/StudentDashboardPage.jsx',
         'frontend/src/pages/lecturer/ProgressTrackingPage.jsx',
+        'frontend/src/pages/lecturer/LecturerDashboardPage.jsx',
         'frontend/src/pages/admin/DashboardPage.jsx',
         'frontend/src/pages/common/HomePage.jsx',
     ];
@@ -221,4 +222,14 @@ test('Task 5: Rule 2.6 Button text integrity across all modified files', () => {
             }
         }
     });
+});
+
+test('LecturerDashboardPage uses unified overview components and eliminates fake metrics (82, 75, 4/7, 2 Hội đồng)', () => {
+    const src = read('frontend/src/pages/lecturer/LecturerDashboardPage.jsx');
+    assert.ok(!src.includes(': 82'), 'Must not fall back to fake 82%');
+    assert.ok(!src.includes('2 Hội đồng'), 'Must not hardcode 2 Hội đồng');
+    assert.ok(!src.includes('4/7'), 'Must not hardcode 4/7');
+    assert.match(src, /OverviewKpis/);
+    assert.match(src, /AttentionQueue/);
+    assert.match(src, /SupervisedStudentList/);
 });
