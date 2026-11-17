@@ -62,6 +62,7 @@ export const useTitleAdjustmentMutation = (scope) => {
             const keys = [
                 registrationCustomKeys.pendingTitleAdjustments(scope),
                 queryKeys.registrations.lists(scope),
+                [...scope, 'dashboard', 'lecturer-overview'],
             ];
             await Promise.all(keys.map((queryKey) => client.invalidateQueries({ queryKey })));
         },
@@ -73,7 +74,10 @@ export const useRegistrationMutation = (scope) => {
     return useMutation({
         mutationFn: async ({ action, args }) => requireSuccess(await registrationService[action](...args)),
         onSuccess: async () => {
-            await client.invalidateQueries({ queryKey: queryKeys.registrations.lists(scope) });
+            await Promise.all([
+                client.invalidateQueries({ queryKey: queryKeys.registrations.lists(scope) }),
+                client.invalidateQueries({ queryKey: [...scope, 'dashboard', 'lecturer-overview'] }),
+            ]);
         },
     });
 };

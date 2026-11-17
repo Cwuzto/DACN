@@ -54,6 +54,15 @@ const dashboardService = {
         }
     },
 
+    getLecturerOverview: async ({ semesterId } = {}) => {
+        try {
+            const params = semesterId ? { semesterId } : undefined;
+            return await api.get('/dashboard/lecturer', params ? { params } : undefined);
+        } catch (error) {
+            throw wrapServiceError(error, 'Lỗi tải tổng quan giảng viên');
+        }
+    },
+
     getStudentStats: async () => {
         try {
             return await api.get('/dashboard/student');

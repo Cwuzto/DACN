@@ -23,6 +23,7 @@ import { isInstituteDirector } from '../../utils/authRedirect';
 import { queryKeys } from '../../query/queryKeys';
 import { useRegistrations, usePendingTitleAdjustments, useTitleAdjustmentMutation } from '../../queries/registrationQueries';
 import { useMeetingMutation } from '../../queries/meetingQueries';
+import { dashboardKeys, useLecturerOverview } from '../../queries/dashboardQueries';
 import QueryPanel from '../../components/common/QueryPanel';
 import ContentSkeleton from '../../components/common/ContentSkeleton';
 import AcademicDossierDrawer from '../../components/prints/AcademicDossierDrawer';
@@ -43,6 +44,7 @@ export default function LecturerDashboardPage() {
     const isVienTruong = isInstituteDirector(user);
 
     const registrationsQuery = useRegistrations(scope);
+    const overviewQuery = useLecturerOverview(scope);
     // registrationService.getPendingTitleAdjustments()
     const titleAdjustmentsQuery = usePendingTitleAdjustments(scope);
     const titleAdjustmentMutation = useTitleAdjustmentMutation(scope);
@@ -154,7 +156,10 @@ export default function LecturerDashboardPage() {
             const res = await evaluationService.approveResubmittedBM01(registrationId, { outcome: 'PASSED' });
             if (res.success) {
                 message.success('Đã duyệt đề cương chỉnh sửa đạt yêu cầu.');
-                await queryClient.invalidateQueries({ queryKey: queryKeys.registrations.lists(scope) });
+                await Promise.all([
+                    queryClient.invalidateQueries({ queryKey: queryKeys.registrations.lists(scope) }),
+                    queryClient.invalidateQueries({ queryKey: dashboardKeys.lecturerOverviewRoot(scope) }),
+                ]);
             }
         } catch (error) {
             message.error(error?.message || 'Không thể duyệt lại đề cương.');

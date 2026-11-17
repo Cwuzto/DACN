@@ -26,6 +26,9 @@ import councilService from '../src/services/councilService.js';
 import taskService from '../src/services/taskService.js';
 import archiveService from '../src/services/archiveService.js';
 import bm02aService from '../src/services/bm02aService.js';
+import dashboardService from '../src/services/dashboardService.js';
+import { useLecturerOverview } from '../src/queries/dashboardQueries.js';
+import { useTitleAdjustmentMutation } from '../src/queries/registrationQueries.js';
 
 let client;
 const lecturerUser = {
@@ -194,6 +197,35 @@ beforeEach(() => {
         success: true,
         data: [],
     });
+
+    vi.spyOn(dashboardService, 'getLecturerOverview').mockResolvedValue({
+        success: true,
+        data: {
+            activeSemester: { id: 1, name: 'Hoc ky 1 2026' },
+            mentorSummary: {
+                supervisedCount: 1,
+                maxStudents: 10,
+                pendingFeedbackCount: 0,
+                actionableCount: 0,
+                upcomingDeadlineCount: 0,
+            },
+            attentionItems: [],
+            students: [
+                {
+                    registrationId: 101,
+                    studentId: 201,
+                    studentName: 'Sinh Vien A',
+                    studentCode: '2010001',
+                    topicTitle: 'He Thong Quan Ly Do An',
+                    status: 'IN_PROGRESS',
+                    nextMilestone: null,
+                    nextMilestoneAt: null,
+                    allowedActions: [],
+                },
+            ],
+            generatedAt: '2026-11-17T10:00:00.000Z',
+        },
+    });
 });
 
 afterEach(() => {
@@ -335,4 +367,71 @@ test('no dossier 403 regression when viewing defense dossier', async () => {
     await userEv.click(dossierBtn);
 
     expect(await screen.findByText(/Không có quyền truy cập/i)).toBeInTheDocument();
+});
+
+test('useLecturerOverview keys by scope + semesterId, invalidates on mutation, and surfaces API errors without fake fallback', async () => {
+    let latestState;
+    let titleMutation;
+
+    function OverviewObserver({ user, semesterId }) {
+        const scope = queryKeys.scope(user);
+        latestState = useLecturerOverview(scope, semesterId);
+        titleMutation = useTitleAdjustmentMutation(scope);
+        return (
+            <div>
+                <span data-testid="status">{latestState.status}</span>
+                <span data-testid="count">{latestState.data?.mentorSummary?.supervisedCount ?? 'none'}</span>
+            </div>
+        );
+    }
+
+    const view = mount(<OverviewObserver user={lecturerUser} semesterId={1} />);
+    await waitFor(() => expect(dashboardService.getLecturerOverview).toHaveBeenCalledWith({ semesterId: 1 }));
+    await waitFor(() => expect(screen.getByTestId('count')).toHaveTextContent('1'));
+
+    // Switching semesterId triggers new query key
+    view.rerender(
+        <ConfigProvider theme={{ token: { motion: false } }}>
+            <AppQueryProvider client={client}>
+                <MemoryRouter>
+                    <OverviewObserver user={lecturerUser} semesterId={2} />
+                </MemoryRouter>
+            </AppQueryProvider>
+        </ConfigProvider>
+    );
+    await waitFor(() => expect(dashboardService.getLecturerOverview).toHaveBeenCalledWith({ semesterId: 2 }));
+
+    // Changing permissionVersion produces a new scope key
+    const updatedUser = { ...lecturerUser, permissionVersion: 2 };
+    view.rerender(
+        <ConfigProvider theme={{ token: { motion: false } }}>
+            <AppQueryProvider client={client}>
+                <MemoryRouter>
+                    <OverviewObserver user={updatedUser} semesterId={2} />
+                </MemoryRouter>
+            </AppQueryProvider>
+        </ConfigProvider>
+    );
+    await waitFor(() => expect(dashboardService.getLecturerOverview).toHaveBeenCalledTimes(3));
+
+    // Mutation invalidates lecturerOverview
+    vi.spyOn(registrationService, 'reviewTitleAdjustment').mockResolvedValue({ success: true, data: {} });
+    await act(async () => {
+        await titleMutation.mutateAsync({ action: 'reviewTitleAdjustment', args: [12, { action: 'APPROVE' }] });
+    });
+    await waitFor(() => expect(dashboardService.getLecturerOverview).toHaveBeenCalledTimes(4));
+
+    // API error surfaces error status with no fake fallback count
+    dashboardService.getLecturerOverview.mockRejectedValueOnce({ success: false, message: 'Server error' });
+    view.rerender(
+        <ConfigProvider theme={{ token: { motion: false } }}>
+            <AppQueryProvider client={client}>
+                <MemoryRouter>
+                    <OverviewObserver user={updatedUser} semesterId={3} />
+                </MemoryRouter>
+            </AppQueryProvider>
+        </ConfigProvider>
+    );
+    await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('error'));
+    expect(screen.getByTestId('count')).toHaveTextContent('none');
 });
