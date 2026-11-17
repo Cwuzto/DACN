@@ -70,6 +70,56 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 
 ## 6. Cập Nhật Phiên Làm Việc (Session Update)
 
+### Phiên 18/11/2026 (Triển Khai Workflow Sidebar Theo Quy Trình Đồ Án, Khóa Phạm Vi `REPORT_VIEW` & Trung Tâm Điều Hành Học Vụ Viện Trưởng `/lecturer/institute`)
+
+#### 1. Những phần đã hoàn thành
+1. **Dọn sạch & Chuẩn hóa các thay đổi bàn giao từ phiên trước (`0d82ef1`, `4e125e7`)**:
+   - Siết chặt `backend/scripts/storage/cleanupLegacyAssets.js`: không cho `--apply` tự xác nhận snapshot, chặn khi thiếu `--confirm-snapshot`, thoát với exit code `1` khi có lỗi một phần (`failed > 0`).
+   - Cập nhật `backend/src/controllers/reportController.js` & `frontend/src/pages/admin/AcademicReportsPage.jsx`: loại bỏ hoàn toàn điểm BM04 định lượng, chỉ sử dụng điểm BM05 đã công bố hợp lệ.
+2. **Tách `REPORT_VIEW` khỏi `GVHD` & Khóa Phạm Vi Đọc Báo Cáo (`3ac4874`, `c706eda`)**:
+   - Bỏ `REPORT_VIEW` khỏi `DEFAULT_GROUPS.GVHD` trong `backend/src/constants/permissions.js` (giữ ở `VIEN_TRUONG`, `GIAO_VU`, `QUAN_TRI_VIEN`) và bỏ `REPORT_VIEW` khỏi guard `GET /api/dashboard/lecturer`.
+   - Tạo migration idempotent `backend/prisma/migrations/20261118120000_remove_gvhd_report_view/migration.sql` (tăng `permission_version` cho thành viên nhóm `GVHD` khi có bản ghi bị xóa) và đã áp dụng lên CSDL bằng `npx prisma migrate deploy`.
+   - Tạo `backend/src/auth/reportReadScope.js` (`resolveReportReadScope`) và áp dụng lọc theo scope trên `/api/reports/*` (`overview`, `lecturer-workload`, `export-excel`) và `/api/dashboard/*` (`stats`, `semester-overview`, `semesters`, `scores`, `activities` fail-closed khi không `GLOBAL`).
+3. **Tái Cấu Trúc Sidebar Theo Quy Trình & Trang "Sinh Viên Đang Hướng Dẫn" (`7087057`)**:
+   - Hợp nhất `FEATURE_POLICIES` (`frontend/src/auth/featurePolicies.js`) làm nguồn chuẩn duy nhất (27 mục, 9 nhóm quy trình) và dẫn xuất `NAVIGATION_REGISTRY` (`frontend/src/config/navigationRegistry.js`) từ `FEATURE_POLICY_LIST`.
+   - Cập nhật `ProtectedRoute.jsx`, `policyEvaluator.js` (bỏ bypass `role === 'ADMIN'`) và `App.jsx` (tách guard hội đồng xét duyệt đề cương / hội đồng bảo vệ; `/admin/reports` dùng `REPORT_VIEW` độc lập).
+   - Tạo `frontend/src/pages/lecturer/LecturerStudentsPage.jsx` (`/lecturer/students`) dùng `useLecturerOverview` (chỉ sinh viên do actor hướng dẫn), cập nhật `TopicApprovalPage.jsx` đồng bộ `?tab=`, và nâng cấp `AppLayout.jsx` (active state theo `pathname + normalized tab`, `aria-current="page"`, keyboard navigation, Escape đóng drawer mobile trả focus).
+4. **Trung Tâm Điều Hành Học Vụ Viện Trưởng (`/lecturer/institute`) (`3cb6511`, `b5a0b0f`, `eff08ac`, `e810412`)**:
+   - **Backend API**: Tạo `instituteOperationsService.js`, `instituteOperationsController.js`, `instituteOperationsRoutes.js` (`GET /api/institute/operations?tab=review|decisions|publish`), lọc capability + resource scope cho từng hồ sơ, tính `counts` trước phân trang, phân trang tối đa 50 item/trang, `allowedActions[]` khớp quyền mutation và không làm lộ điểm BM05 chưa công bố.
+   - **Frontend Hub**: Tạo `instituteOperationsService.js`, `instituteOperationsQueries.js`, `ReviewQueue.jsx`, `DecisionQueue.jsx`, `PublicationQueue.jsx`, `AcademicDelegationDrawer.jsx`, và `InstituteOperationsPage.jsx` tái dùng form/modal hiện có, hỗ trợ legacy deep links (`bm02`/`bm02Queue`, `periods`/`decisions`, `delegations`) và lịch sử Back/Forward.
+   - **Nối Route, Menu & Checklist**: Nối `InstituteOperationsPage` vào `/lecturer/institute` trong `App.jsx`, bật mục `"Điều hành học vụ"` (`lecturer-institute`, nhóm `"Điều hành viện"`) trong `featurePolicies.js`, và đánh dấu hoàn thành toàn bộ checklist trong cả 2 kế hoạch [2026-11-18-workflow-sidebar-implementation-plan.md](file:///d:/DACN/docs/superpowers/plans/2026-11-18-workflow-sidebar-implementation-plan.md) và [2026-11-18-institute-operations-hub-implementation-plan.md](file:///d:/DACN/docs/superpowers/plans/2026-11-18-institute-operations-hub-implementation-plan.md).
+
+#### 2. Trạng thái cập nhật của từng phần
+- **Cơ sở dữ liệu (Supabase PostgreSQL)**:
+  - `npx prisma validate`: **PASS**.
+  - `npx prisma migrate deploy` & `npx prisma migrate status`: Đã áp dụng cả `20261116234000_canonicalize_rbac_permissions` và `20261118120000_remove_gvhd_report_view` — **36/36 migrations applied (`Database schema is up to date!`)**.
+- **Backend API**:
+  - Các test suites RBAC, scope `REPORT_VIEW` và `/api/institute/operations` chạy PASS:
+    * Wave 1A (RBAC & Scope): **7/7 suites, 92/92 tests PASS**.
+    * Wave 1B (Institute Operations API): **5/5 suites, 51/51 tests PASS**.
+- **Frontend SPA & Kiểm thử**:
+  - Node unit tests (6 files điều hướng, parity, deep-link): **47/47 tests PASS**.
+  - Vitest runtime tests (7 files: `sidebarRouteAuthorization`, `lecturerStudentsNavigation`, `sidebarAccessibility`, `instituteReviewHub`, `instituteDecisionHub`, `institutePublicationHub`, `fivePersonaPolicies`): **7/7 files, 39/39 tests PASS**.
+  - Playwright E2E (`institute-operations-hub.spec.js`, `rbac-five-persona.spec.js`, `loading-error-navigation.spec.js`, dùng API route mocking theo pattern repo): **13/13 tests PASS**.
+  - Production build (`npm --prefix frontend run build`): **PASS** (13.27s).
+  - `git diff --check` & UTF-8 without BOM: **PASS**.
+  - *Lưu ý sẵn có ngoài phạm vi*: `frontend/tests/rbacUiContracts.test.js` còn 1 test sẵn có từ trước fail ở `LecturerDashboardPage.jsx`, và `npm --prefix frontend run lint` toàn repo còn các cảnh báo sẵn có ở tệp khác ngoài phạm vi Wave 1–3.
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+1. **Cải thiện điểm vào duyệt đổi tên BM02-A cho GVHD (nếu muốn tối ưu UX)**:
+   - Cân nhắc hiển thị khối/hành động duyệt yêu cầu đổi tên BM02-A ngay trên trang **"Sinh viên đang hướng dẫn"** (`/lecturer/students`) và/hoặc dashboard GVHD trong khi vẫn giữ deep link `/lecturer/approvals?tab=bm02a`.
+2. **Dọn 3 bản ghi `StoredAsset` test mồ côi & vận hành Storage Production**:
+   - Xử lý 3 bản ghi `hoc-vu/test/...` (`registrationId = null`) phát hiện khi chạy `storage:reconcile --dry-run` ở phiên trước, rồi lập lịch cron thực tế cho `storage:cleanup` và `storage:reconcile`.
+3. **Xử lý test & lint pre-existing**:
+   - Rà soát test fail sẵn có ở `LecturerDashboardPage.jsx` trong `frontend/tests/rbacUiContracts.test.js` và dọn các cảnh báo ESLint còn tồn đọng.
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+- **Thực thi song song theo 3 Waves tách vùng tệp**: Chia 2 kế hoạch thành Wave 1 (Backend song song), Wave 2 (Frontend nền tảng vs. Hub Components tách rời) và Wave 3 (ghép `App.jsx` / `featurePolicies.js` + E2E 5 persona) giúp tránh xung đột file và giữ mỗi task 1 commit sạch.
+- **Tách `REPORT_VIEW` khỏi `GVHD` và Fail-Closed theo Scope**: GVHD mặc định chỉ xem sinh viên mình hướng dẫn qua `/api/dashboard/lecturer` và `/lecturer/students`; chỉ các vai trò có `REPORT_VIEW` gắn scope hợp lệ mới truy cập `/api/reports/*` và các endpoint dashboard tổng hợp.
+- **Một nguồn Policy (`FEATURE_POLICIES`) & Bật Hub khi đủ 3 tab**: Dẫn xuất `NAVIGATION_REGISTRY` trực tiếp từ `FEATURE_POLICY_LIST` để loại bỏ lệch nhãn/quyền giữa menu và route; chỉ bật mục `"Điều hành học vụ"` ở Wave 3 sau khi cả 3 tab (`review`, `decisions`, `publish`) và guard backend đã hoàn chỉnh.
+
+---
+
 ### Phiên 17/11/2026 (Triển Khai Toàn Diện Quản Trị Lưu Trữ Supabase Storage 4 Buckets, TUS Resumable Upload, Bảo Mật Tệp Học Vụ Bằng Signed URL & Chuẩn Hóa Phân Quyền Năng Lực Học Vụ Viện Trưởng)
 
 #### 1. Những phần đã hoàn thành
