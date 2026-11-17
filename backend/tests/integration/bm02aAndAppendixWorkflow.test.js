@@ -168,20 +168,29 @@ describe('Task 3: Chặng 1B — BM02-A 3-Signature Workflow & Batch Appendices'
         jwt.verify.mockImplementation((token) => {
             if (token === 'student-token') return { userId: studentId, role: 'STUDENT' };
             if (token === 'advisor-token') return { userId: advisorId, role: 'LECTURER' };
+            if (token === 'other-advisor-token') return { userId: 21, role: 'LECTURER' };
             if (token === 'dept-head-token') return { userId: departmentHeadId, role: 'LECTURER' };
             if (token === 'admin-token') return { userId: 1, role: 'ADMIN' };
+            if (token === 'admin-no-perm-token') return { userId: 2, role: 'ADMIN' };
             throw new Error('invalid token');
         });
 
         mockUser.findUnique.mockImplementation(async ({ where }) => {
             if (where.id === studentId) return buildUser({ id: studentId, role: 'STUDENT', permissions: ['RENAME_TOPIC'] });
             if (where.id === advisorId) return buildUser({ id: advisorId, role: 'LECTURER', department: 'CNTT', permissions: ['BM02A_ADVISOR_SIGN'] });
+            if (where.id === 21) return buildUser({ id: 21, role: 'LECTURER', department: 'CNTT', permissions: ['BM02A_ADVISOR_SIGN'] });
             if (where.id === departmentHeadId) return buildUser({ id: departmentHeadId, role: 'LECTURER', department: 'CNTT', permissions: ['BM02A_FINAL_APPROVE'] });
             if (where.id === 1) return buildUser({
                 id: 1,
                 role: 'ADMIN',
                 department: 'CNTT',
                 permissions: ['TITLE_ADJUSTMENT_APPENDIX_ISSUE', 'BM02A_FINAL_APPROVE'],
+            });
+            if (where.id === 2) return buildUser({
+                id: 2,
+                role: 'ADMIN',
+                department: 'CNTT',
+                permissions: [],
             });
             return null;
         });
@@ -991,6 +1000,93 @@ describe('Task 3: Chặng 1B — BM02-A 3-Signature Workflow & Batch Appendices'
 
             expect(res.status).toBe(200);
             expect(res.body.success).toBe(true);
+        });
+
+        test('GET /api/bm02a/requests/:id denies 403 for unrelated lecturer and ADMIN without BM02-A permissions', async () => {
+            mockBM02AAdjustmentRequest.findUnique.mockResolvedValue({
+                id: 1,
+                registrationId,
+                status: 'PENDING_ADVISOR',
+                registration: {
+                    id: registrationId,
+                    studentId,
+                    topic: { mentorId: advisorId },
+                },
+                versions: [],
+                appendixItems: [],
+            });
+
+            const resOtherAdvisor = await request(app)
+                .get('/api/bm02a/requests/1')
+                .set('Authorization', 'Bearer other-advisor-token');
+            expect(resOtherAdvisor.status).toBe(403);
+
+            const resAdminNoPerm = await request(app)
+                .get('/api/bm02a/requests/1')
+                .set('Authorization', 'Bearer admin-no-perm-token');
+            expect(resAdminNoPerm.status).toBe(403);
+        });
+
+        test('POST /api/bm02a/requests/:id/advisor-sign denies 403 for unrelated lecturer', async () => {
+            mockBM02AAdjustmentRequest.findUnique.mockResolvedValue({
+                id: 1,
+                registrationId,
+                currentVersionNumber: 1,
+                status: 'PENDING_ADVISOR',
+                titleAdjustmentDeadline: deadline168h,
+                registration: { topic: { mentorId: advisorId } },
+                versions: [{ id: 11, versionNumber: 1, payloadHash: 'h1' }],
+            });
+
+            const res = await request(app)
+                .post('/api/bm02a/requests/1/advisor-sign')
+                .set('Authorization', 'Bearer other-advisor-token')
+                .send({ payloadHash: 'h1' });
+
+            expect(res.status).toBe(403);
+        });
+
+        test('POST /api/bm02a/requests/:id/department-sign denies 403 for actor without BM02A_FINAL_APPROVE', async () => {
+            const res = await request(app)
+                .post('/api/bm02a/requests/1/department-sign')
+                .set('Authorization', 'Bearer advisor-token')
+                .send({ payloadHash: 'h1' });
+
+            expect(res.status).toBe(403);
+        });
+
+        test('POST /api/bm02a/requests/:id/return denies 403 when advisor spoofs DEPARTMENT_HEAD or unrelated lecturer returns', async () => {
+            mockBM02AAdjustmentRequest.findUnique.mockResolvedValue({
+                id: 1,
+                registrationId,
+                currentVersionNumber: 1,
+                status: 'PENDING_DEPARTMENT_APPROVAL',
+                titleAdjustmentDeadline: deadline168h,
+                registration: { topic: { mentorId: advisorId } },
+                versions: [{ id: 11, versionNumber: 1, payloadHash: 'h1' }],
+            });
+
+            const resSpoof = await request(app)
+                .post('/api/bm02a/requests/1/return')
+                .set('Authorization', 'Bearer advisor-token')
+                .send({ actorRole: 'DEPARTMENT_HEAD', reason: 'Spoof attempt' });
+            expect(resSpoof.status).toBe(403);
+
+            mockBM02AAdjustmentRequest.findUnique.mockResolvedValue({
+                id: 1,
+                registrationId,
+                currentVersionNumber: 1,
+                status: 'PENDING_ADVISOR',
+                titleAdjustmentDeadline: deadline168h,
+                registration: { topic: { mentorId: advisorId } },
+                versions: [{ id: 11, versionNumber: 1, payloadHash: 'h1' }],
+            });
+
+            const resOtherAdvisor = await request(app)
+                .post('/api/bm02a/requests/1/return')
+                .set('Authorization', 'Bearer other-advisor-token')
+                .send({ actorRole: 'ADVISOR', reason: 'Not my student' });
+            expect(resOtherAdvisor.status).toBe(403);
         });
     });
 });

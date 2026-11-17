@@ -58,6 +58,7 @@ const mockGvhd = {
     'VIEW_MENTORED_STUDENTS',
     'VIEW_MENTOR_STUDENTS',
     'MENTOR_REQUEST_REVIEW',
+    'BM02A_ADVISOR_SIGN',
     'VIEW_CHECKPOINTS',
     'CHECKPOINT_ISSUE',
     'BM03_REVIEW',
@@ -333,9 +334,9 @@ test.describe('Five-Persona RBAC & UI Matrix Tests', () => {
     // Verify admin items are NOT present
     await expect(page.locator('aside.sidebar button.nav-item:has-text("Người dùng")')).toHaveCount(0);
 
-    // Legacy BM02-A deep link remains accessible for GVHD
+    // Legacy BM02-A deep link redirects to dedicated TitleAdjustmentPage for GVHD
     await page.goto('/lecturer/approvals?tab=bm02a');
-    await expect(page).toHaveURL(/\/lecturer\/approvals\?tab=bm02a/);
+    await expect(page).toHaveURL(/\/lecturer\/title-adjustments/);
 
     // Direct navigation to admin user management or institute hub must be blocked
     await page.goto('/admin/users');

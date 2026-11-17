@@ -2,6 +2,7 @@ import React from 'react';
 import { Button, Card, Empty, Tag } from 'antd';
 import {
     CalendarOutlined,
+    EditOutlined,
     FolderOpenOutlined,
     UserOutlined,
 } from '@ant-design/icons';
@@ -15,6 +16,8 @@ export default function SupervisedStudentList({
     students = [],
     onOpenDossier,
     onOpenMeetingModal,
+    onOpenTitleAdjustment,
+    bm02aByRegistrationId,
 }) {
     return (
         <Card
@@ -46,6 +49,12 @@ export default function SupervisedStudentList({
                 <ul className="space-y-2.5 m-0 p-0 list-none">
                     {students.map((student) => {
                         const statusCfg = getStatusTagConfig(student.status);
+                        const bm02aRequestId =
+                            student.bm02aRequestId ??
+                            (bm02aByRegistrationId instanceof Map
+                                ? bm02aByRegistrationId.get(student.registrationId)
+                                : bm02aByRegistrationId?.[student.registrationId]) ??
+                            null;
                         return (
                             <li
                                 key={student.registrationId}
@@ -97,6 +106,20 @@ export default function SupervisedStudentList({
                                         >
                                             Ghi nhật ký
                                         </Button>
+                                        {bm02aRequestId && onOpenTitleAdjustment && (
+                                            <Button
+                                                size="small"
+                                                icon={<EditOutlined />}
+                                                onClick={() =>
+                                                    onOpenTitleAdjustment({
+                                                        ...student,
+                                                        bm02aRequestId,
+                                                    })
+                                                }
+                                            >
+                                                Đổi tên BM02-A
+                                            </Button>
+                                        )}
                                     </div>
                                 </div>
                             </li>

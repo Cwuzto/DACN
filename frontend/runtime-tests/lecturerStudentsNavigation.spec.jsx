@@ -109,13 +109,14 @@ describe('LecturerStudentsPage and TopicApprovalPage navigation', () => {
         expect(await screen.findByText('Không thể tải danh sách sinh viên đang hướng dẫn')).toBeInTheDocument();
     });
 
-    it('synchronizes TopicApprovalPage tabs with query params for deep links and history navigation', async () => {
+    it('synchronizes TopicApprovalPage tabs with query params without BM02-A tab', async () => {
         renderLecturerApp(['/lecturer/approvals?tab=bm01']);
         expect(await screen.findByText(/Hội Đồng Thẩm Định Đề Cương Chi Tiết/)).toBeInTheDocument();
+        expect(screen.queryByText(/Duyệt phiếu đổi tên BM02-A/)).not.toBeInTheDocument();
 
-        await userEvent.click(screen.getByText(/Duyệt phiếu đổi tên BM02-A/));
+        await userEvent.click(screen.getByText(/Nguyện Vọng Đăng Ký Hướng Dẫn/));
         await waitFor(() => {
-            expect(screen.getByTestId('location-probe').textContent).toBe('/lecturer/approvals?tab=bm02a');
+            expect(screen.getByTestId('location-probe').textContent).toBe('/lecturer/approvals?tab=mentor');
         });
     });
 });

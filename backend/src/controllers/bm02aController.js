@@ -179,7 +179,42 @@ const returnBM02AController = async (req, res, next) => {
         const { reason, actorRole } = req.body;
         const idempotencyKey = getIdempotencyKey(req, 'bm02a-return');
 
-        const resolvedRole = actorRole || (req.user.role === 'ADMIN' ? 'DEPARTMENT_HEAD' : 'ADVISOR');
+        const permissions = Array.isArray(req.user?.permissions) ? req.user.permissions : [];
+        const canAdvisorReturn = permissions.includes('BM02A_ADVISOR_SIGN');
+        const canDeptReturn = permissions.includes('BM02A_FINAL_APPROVE');
+
+        if (actorRole === 'ADVISOR' && !canAdvisorReturn) {
+            return res.status(403).json({
+                success: false,
+                code: 'FORBIDDEN_ACTOR_ROLE',
+                message: 'Bạn không có quyền trả lại phiếu với vai trò GVHD.',
+            });
+        }
+        if (actorRole === 'DEPARTMENT_HEAD' && !canDeptReturn) {
+            return res.status(403).json({
+                success: false,
+                code: 'FORBIDDEN_ACTOR_ROLE',
+                message: 'Bạn không có quyền trả lại phiếu với vai trò Phụ trách bộ môn.',
+            });
+        }
+
+        let resolvedRole = actorRole;
+        if (!resolvedRole) {
+            if (canDeptReturn && !canAdvisorReturn) {
+                resolvedRole = 'DEPARTMENT_HEAD';
+            } else if (canAdvisorReturn && !canDeptReturn) {
+                resolvedRole = 'ADVISOR';
+            } else if (canDeptReturn && canAdvisorReturn) {
+                const existing = await getBM02ARequestById(requestId);
+                resolvedRole = existing?.status === 'PENDING_DEPARTMENT_APPROVAL' ? 'DEPARTMENT_HEAD' : 'ADVISOR';
+            } else {
+                return res.status(403).json({
+                    success: false,
+                    code: 'FORBIDDEN_ACTOR_ROLE',
+                    message: 'Bạn không có quyền trả lại phiếu BM02-A.',
+                });
+            }
+        }
 
         const result = await returnBM02A({
             requestId,
@@ -232,16 +267,15 @@ const reviseBM02AController = async (req, res, next) => {
  */
 const checkBM02AOwnership = (registration, user) => {
     if (!registration || !user) return false;
-    if (user.role === 'ADMIN') return true;
 
     if (user.role === 'STUDENT') {
         const studentId = registration.studentId || registration.student?.id;
         return studentId === user.id;
     }
 
-    // Giảng viên: chỉ được xem nếu là GVHD hoặc có quyền xem/duyệt (cấp bộ môn / quản lý)
+    // Giảng viên / quản lý: chỉ được xem nếu là GVHD của đề tài hoặc có quyền xem/duyệt BM02-A
     const mentorId = registration.topic?.mentorId || registration.topic?.mentor?.id || registration.mentorId;
-    const isMentor = mentorId === user.id;
+    const isMentor = Boolean(mentorId && mentorId === user.id);
     if (isMentor) return true;
 
     const allowedPermissions = [
@@ -251,7 +285,7 @@ const checkBM02AOwnership = (registration, user) => {
         'BM02_REVIEW',
         'PROJECT_ASSIGNMENT_PUBLISH',
     ];
-    const hasPermission = user.permissions?.some((p) => allowedPermissions.includes(p));
+    const hasPermission = Array.isArray(user.permissions) && user.permissions.some((p) => allowedPermissions.includes(p));
     return Boolean(hasPermission);
 };
 
@@ -266,7 +300,7 @@ const getBM02ARequestController = async (req, res, next) => {
             return res.status(404).json({ success: false, message: 'Không tìm thấy yêu cầu BM02-A.' });
         }
 
-        if (result.registration && !checkBM02AOwnership(result.registration, req.user)) {
+        if (!checkBM02AOwnership(result.registration, req.user)) {
             return res.status(403).json({
                 success: false,
                 code: 'FORBIDDEN_RESOURCE',

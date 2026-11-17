@@ -28,6 +28,9 @@ describe('lecturerOverviewService', () => {
             count: jest.fn().mockResolvedValue(0),
             findMany: jest.fn().mockResolvedValue([]),
         },
+        bM02AAdjustmentRequest: {
+            findMany: jest.fn().mockResolvedValue([]),
+        },
         topicTitleAdjustment: {
             findMany: jest.fn().mockResolvedValue([]),
         },
@@ -120,18 +123,21 @@ describe('lecturerOverviewService', () => {
                     registration: { id: 102, topic: { title: 'Đề tài B' } },
                 }))
             );
-            db.topicTitleAdjustment.findMany.mockResolvedValue([
+            db.bM02AAdjustmentRequest.findMany.mockResolvedValue([
                 {
                     id: 401,
                     registrationId: 102,
-                    newTitle: 'Đề tài B (đổi tên)',
-                    status: 'PENDING',
-                    deadline: new Date('2026-11-16T08:00:00.000Z'), // overdue relative to fixedNow
+                    status: 'PENDING_ADVISOR',
+                    currentVersionNumber: 1,
+                    titleAdjustmentDeadline: new Date('2026-11-16T08:00:00.000Z'), // overdue relative to fixedNow
                     registration: {
                         id: 102,
                         student: { fullName: 'Trần Thị B', code: 'SV002' },
                         topic: { title: 'Đề tài B' },
                     },
+                    versions: [
+                        { versionNumber: 1, proposedTitle: 'Đề tài B (đổi tên)' },
+                    ],
                 },
             ]);
             db.task.count.mockResolvedValue(1);
@@ -152,12 +158,24 @@ describe('lecturerOverviewService', () => {
                     }),
                 })
             );
+            expect(db.bM02AAdjustmentRequest.findMany).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    where: {
+                        status: 'PENDING_ADVISOR',
+                        registration: {
+                            semesterId: 10,
+                            topic: { mentorId: 77 },
+                        },
+                    },
+                })
+            );
+            expect(db.topicTitleAdjustment.findMany).not.toHaveBeenCalled();
 
             expect(result.mentorSummary).toEqual({
                 supervisedCount: 2,
                 maxStudents: 10,
                 pendingFeedbackCount: 6,
-                actionableCount: 9, // 6 submissions + 1 PENDING reg + 1 BM01_RESUBMITTED + 1 title adjustment
+                actionableCount: 9, // 6 submissions + 1 PENDING reg + 1 BM01_RESUBMITTED + 1 BM02-A adjustment
                 upcomingDeadlineCount: 1,
             });
 
@@ -165,6 +183,10 @@ describe('lecturerOverviewService', () => {
             expect(result.students.map((s) => s.registrationId)).toEqual([101, 102]);
             expect(result.students[0]).not.toHaveProperty('progress', 82);
             expect(result.students[0]).not.toHaveProperty('progress', 75);
+            expect(result.students[0].bm02aRequestId).toBeNull();
+            expect(result.students[0].allowedActions).not.toContain('REVIEW_TITLE_ADJUSTMENT');
+            expect(result.students[1].bm02aRequestId).toBe(401);
+            expect(result.students[1].allowedActions).toContain('REVIEW_TITLE_ADJUSTMENT');
 
             expect(result.attentionItems.length).toBeGreaterThanOrEqual(4);
             for (const item of result.attentionItems) {
@@ -177,7 +199,57 @@ describe('lecturerOverviewService', () => {
                 (i) => i.kind === 'TITLE_ADJUSTMENT_PENDING'
             );
             expect(overdueAdjustment).toBeDefined();
-            expect(overdueAdjustment.priority).toBe('OVERDUE');
+            expect(overdueAdjustment).toMatchObject({
+                id: 'mentor-bm02a-401',
+                kind: 'TITLE_ADJUSTMENT_PENDING',
+                requestId: 401,
+                registrationId: 102,
+                target: '/lecturer/title-adjustments?requestId=401',
+                allowedAction: 'REVIEW_TITLE_ADJUSTMENT',
+                priority: 'OVERDUE',
+            });
+        });
+
+        it('does not mix PENDING_DEPARTMENT_APPROVAL BM02-A requests into mentor queue', async () => {
+            const db = makeMockDb();
+            db.topicRegistration.findMany.mockResolvedValue([
+                {
+                    id: 102,
+                    semesterId: 10,
+                    status: 'APPROVED',
+                    createdAt: new Date('2026-11-12T08:00:00.000Z'),
+                    studentId: 1002,
+                    student: { id: 1002, fullName: 'Trần Thị B', code: 'SV002' },
+                    topic: { id: 502, title: 'Đề tài B', mentorId: 77 },
+                    tasks: [],
+                },
+            ]);
+            db.bM02AAdjustmentRequest.findMany.mockResolvedValue([
+                {
+                    id: 402,
+                    registrationId: 102,
+                    status: 'PENDING_DEPARTMENT_APPROVAL',
+                    currentVersionNumber: 1,
+                    titleAdjustmentDeadline: new Date('2026-11-20T08:00:00.000Z'),
+                    registration: {
+                        id: 102,
+                        student: { fullName: 'Trần Thị B', code: 'SV002' },
+                        topic: { title: 'Đề tài B' },
+                    },
+                    versions: [{ versionNumber: 1, proposedTitle: 'Tên mới' }],
+                },
+            ]);
+
+            const result = await buildMentorOverview({
+                actorId: 77,
+                semesterId: 10,
+                now: fixedNow,
+                db,
+            });
+
+            expect(result.attentionItems.filter((i) => i.kind === 'TITLE_ADJUSTMENT_PENDING')).toHaveLength(0);
+            expect(result.students[0].bm02aRequestId).toBeNull();
+            expect(result.students[0].allowedActions).not.toContain('REVIEW_TITLE_ADJUSTMENT');
         });
     });
 });

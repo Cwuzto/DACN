@@ -140,7 +140,7 @@ async function buildMentorOverview({ actorId, semesterId, now = new Date(), db =
         registrations,
         pendingFeedbackCount,
         pendingFeedbackPreview,
-        pendingAdjustments,
+        pendingBm02aRequests,
         upcomingDeadlineCount,
     ] = await Promise.all([
         db.topicRegistration.findMany({
@@ -192,10 +192,10 @@ async function buildMentorOverview({ actorId, semesterId, now = new Date(), db =
             orderBy: { submittedAt: 'desc' },
             take: 5,
         }),
-        typeof db.topicTitleAdjustment?.findMany === 'function'
-            ? db.topicTitleAdjustment.findMany({
+        typeof db.bM02AAdjustmentRequest?.findMany === 'function'
+            ? db.bM02AAdjustmentRequest.findMany({
                 where: {
-                    status: 'PENDING',
+                    status: 'PENDING_ADVISOR',
                     registration: {
                         semesterId,
                         topic: { mentorId: actorId },
@@ -209,8 +209,12 @@ async function buildMentorOverview({ actorId, semesterId, now = new Date(), db =
                             topic: { select: { title: true } },
                         },
                     },
+                    versions: {
+                        orderBy: { versionNumber: 'desc' },
+                        take: 1,
+                    },
                 },
-                orderBy: { deadline: 'asc' },
+                orderBy: { titleAdjustmentDeadline: 'asc' },
                 take: 10,
             })
             : Promise.resolve([]),
@@ -228,7 +232,8 @@ async function buildMentorOverview({ actorId, semesterId, now = new Date(), db =
 
     const regList = Array.isArray(registrations) ? registrations : [];
     const previewSubs = Array.isArray(pendingFeedbackPreview) ? pendingFeedbackPreview : [];
-    const adjustments = Array.isArray(pendingAdjustments) ? pendingAdjustments : [];
+    const bm02aRequests = (Array.isArray(pendingBm02aRequests) ? pendingBm02aRequests : [])
+        .filter((req) => !req.status || req.status === 'PENDING_ADVISOR');
 
     const attentionItems = [];
     let pendingRegCount = 0;
@@ -273,20 +278,24 @@ async function buildMentorOverview({ actorId, semesterId, now = new Date(), db =
         }
     }
 
-    for (const adj of adjustments) {
-        const studentLabel = adj.registration?.student?.fullName || adj.registration?.student?.code || 'Sinh viên';
+    for (const req of bm02aRequests) {
+        const studentLabel = req.registration?.student?.fullName || req.registration?.student?.code || 'Sinh viên';
+        const currentVersion = Array.isArray(req.versions)
+            ? (req.versions.find((v) => v.versionNumber === req.currentVersionNumber) || req.versions[0])
+            : null;
         attentionItems.push({
-            id: `mentor-title-adj-${adj.id}`,
+            id: `mentor-bm02a-${req.id}`,
             source: 'MENTOR',
             kind: 'TITLE_ADJUSTMENT_PENDING',
             title: `Duyệt điều chỉnh tên đề tài: ${studentLabel}`,
-            description: adj.newTitle || adj.registration?.topic?.title || '',
+            description: currentVersion?.proposedTitle || req.registration?.topic?.title || '',
             semesterId,
-            registrationId: adj.registrationId,
-            dueAt: adj.deadline || null,
-            priority: computePriority(adj.deadline, now),
+            requestId: req.id,
+            registrationId: req.registrationId,
+            dueAt: req.titleAdjustmentDeadline || null,
+            priority: computePriority(req.titleAdjustmentDeadline, now),
             isActionable: true,
-            target: '/lecturer/progress',
+            target: `/lecturer/title-adjustments?requestId=${req.id}`,
             allowedAction: 'REVIEW_TITLE_ADJUSTMENT',
         });
     }
@@ -309,11 +318,21 @@ async function buildMentorOverview({ actorId, semesterId, now = new Date(), db =
         });
     }
 
+    const pendingBm02aByRegId = new Map();
+    for (const req of bm02aRequests) {
+        if (req.registrationId && !pendingBm02aByRegId.has(req.registrationId)) {
+            pendingBm02aByRegId.set(req.registrationId, req);
+        }
+    }
+
     const students = regList.map((reg) => {
         const nextTask = Array.isArray(reg.tasks) && reg.tasks.length > 0 ? reg.tasks[0] : null;
+        const pendingReq = pendingBm02aByRegId.get(reg.id) || null;
+        const bm02aRequestId = pendingReq?.id || null;
         const allowedActions = [];
         if (reg.status === 'PENDING') allowedActions.push('REVIEW_REGISTRATION');
         if (BM01_PENDING_STATUSES.has(reg.status)) allowedActions.push('REVIEW_BM01');
+        if (bm02aRequestId) allowedActions.push('REVIEW_TITLE_ADJUSTMENT');
 
         return {
             registrationId: reg.id,
@@ -324,12 +343,13 @@ async function buildMentorOverview({ actorId, semesterId, now = new Date(), db =
             status: reg.status,
             nextMilestone: nextTask?.title || null,
             nextMilestoneAt: nextTask?.dueDate || null,
+            bm02aRequestId,
             allowedActions,
         };
     });
 
     const realPendingFeedback = Number.isInteger(pendingFeedbackCount) ? pendingFeedbackCount : previewSubs.length;
-    const actionableCount = realPendingFeedback + pendingRegCount + bm01PendingCount + adjustments.length;
+    const actionableCount = realPendingFeedback + pendingRegCount + bm01PendingCount + bm02aRequests.length;
 
     return {
         mentorSummary: {

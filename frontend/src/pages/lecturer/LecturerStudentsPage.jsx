@@ -5,7 +5,8 @@ import { CheckSquareOutlined, ReloadOutlined } from '@ant-design/icons';
 import useAuthStore from '../../stores/authStore';
 import { queryKeys } from '../../query/queryKeys';
 import { useLecturerOverview } from '../../queries/dashboardQueries';
-import { canViewFeature } from '../../auth/policyEvaluator';
+import { useBm02aQueue } from '../../queries/bm02aQueries';
+import { canViewFeature, getEffectivePermissions } from '../../auth/policyEvaluator';
 import SupervisedStudentList from '../../components/lecturer/SupervisedStudentList';
 import ContentSkeleton from '../../components/common/ContentSkeleton';
 import AcademicDossierDrawer from '../../components/prints/AcademicDossierDrawer';
@@ -42,6 +43,24 @@ export default function LecturerStudentsPage() {
 
     const effectiveSemesterId = selectedSemesterId ?? activeSemester?.id ?? undefined;
     const canApproveMentorRequests = canViewFeature(user, 'mentored-students');
+    const canSignBm02a = useMemo(
+        () => getEffectivePermissions(user).has('BM02A_ADVISOR_SIGN'),
+        [user]
+    );
+    const bm02aQueueQuery = useBm02aQueue(scope, canSignBm02a);
+
+    const bm02aByRegistrationId = useMemo(() => {
+        const map = {};
+        const queue = Array.isArray(bm02aQueueQuery.data) ? bm02aQueueQuery.data : [];
+        for (const req of queue) {
+            if (req?.status !== 'PENDING_ADVISOR') continue;
+            const regId = req.registrationId ?? req.registration?.id;
+            if (regId && req.id && !map[regId]) {
+                map[regId] = req.id;
+            }
+        }
+        return map;
+    }, [bm02aQueueQuery.data]);
 
     const handleOpenDossier = (student) => {
         if (!student?.registrationId) return;
@@ -67,6 +86,16 @@ export default function LecturerStudentsPage() {
             return;
         }
         navigate('/lecturer/progress');
+    };
+
+    const handleOpenTitleAdjustment = (student) => {
+        const requestId =
+            student?.bm02aRequestId ?? bm02aByRegistrationId[student?.registrationId];
+        if (requestId) {
+            navigate(`/lecturer/title-adjustments?requestId=${requestId}`);
+            return;
+        }
+        navigate('/lecturer/title-adjustments');
     };
 
     if (overviewQuery.isPending && !overview) {
@@ -141,8 +170,10 @@ export default function LecturerStudentsPage() {
             ) : (
                 <SupervisedStudentList
                     students={students}
+                    bm02aByRegistrationId={bm02aByRegistrationId}
                     onOpenDossier={handleOpenDossier}
                     onOpenMeetingModal={handleOpenMeeting}
+                    onOpenTitleAdjustment={handleOpenTitleAdjustment}
                 />
             )}
 

@@ -1,26 +1,19 @@
 import React, { useState, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { message, Tag, Button, Modal, Input, Descriptions, Alert, Space, Divider } from 'antd';
+import { Navigate, useSearchParams } from 'react-router-dom';
+import { message, Button, Modal, Input, Space } from 'antd';
 import {
     CheckOutlined,
     CloseOutlined,
-    FileDoneOutlined,
-    CloseCircleOutlined,
     EditOutlined,
     SearchOutlined,
-    AuditOutlined,
-    ClockCircleOutlined,
     HistoryOutlined,
 } from '@ant-design/icons';
-import registrationService from '../../services/registrationService';
-import bm02aService from '../../services/bm02aService';
 import OutlineReviewModal from '../../components/lecturer/OutlineReviewModal';
 import RegistrationTimelineDrawer from '../../components/common/RegistrationTimelineDrawer';
 import { getStatusTagConfig } from '../../components/common/statusMap';
 import useAuthStore from '../../stores/authStore';
 import { queryKeys } from '../../query/queryKeys';
 import { useRegistrations, useRegistrationMutation } from '../../queries/registrationQueries';
-import { useBm02aQueue, useBm02aMutation } from '../../queries/bm02aQueries';
 import QueryPanel from '../../components/common/QueryPanel';
 import ContentSkeleton from '../../components/common/ContentSkeleton';
 
@@ -30,7 +23,6 @@ const { TextArea } = Input;
  * TopicApprovalPage
  * - Tab 1: Phê duyệt nguyện vọng sinh viên đăng ký đề tài (GVHD)
  * - Tab 2: Hội đồng thẩm định đề cương (BM01) lần đầu (Chủ tịch Hội đồng)
- * - Tab 3: Duyệt phiếu đổi tên BM02-A (GVHD & Phụ trách bộ môn)
  */
 export default function TopicApprovalPage() {
     const { user: currentUser } = useAuthStore();
@@ -40,7 +32,6 @@ export default function TopicApprovalPage() {
 
     const resolveTabKey = (tab) => {
         if (tab === 'bm01' || tab === 'outline') return 'outline';
-        if (tab === 'bm02a') return 'bm02a';
         if (tab === 'mentor') return 'mentor';
         return null;
     };
@@ -51,8 +42,6 @@ export default function TopicApprovalPage() {
         const nextParams = new URLSearchParams(searchParams);
         if (key === 'outline') {
             nextParams.set('tab', 'bm01');
-        } else if (key === 'bm02a') {
-            nextParams.set('tab', 'bm02a');
         } else {
             nextParams.set('tab', 'mentor');
         }
@@ -61,14 +50,11 @@ export default function TopicApprovalPage() {
 
     const mentorRegistrationsQuery = useRegistrations(scope, { status: 'PENDING' });
     const councilOutlineQuery = useRegistrations(scope, { asCouncilChairman: 'true' });
-    const bm02aQueueQuery = useBm02aQueue(scope);
 
     const registrationMutation = useRegistrationMutation(scope);
-    const bm02aMutation = useBm02aMutation(scope);
 
     const pendingRegistrations = mentorRegistrationsQuery.data || [];
     const councilOutlineRegistrations = councilOutlineQuery.data || [];
-    const bm02aRequests = bm02aQueueQuery.data || [];
 
     // Modals for Mentor Approval
     const [rejectModalOpen, setRejectModalOpen] = useState(false);
@@ -80,13 +66,6 @@ export default function TopicApprovalPage() {
     const [outlineModalOpen, setOutlineModalOpen] = useState(false);
     const [selectedOutlineRecord, setSelectedOutlineRecord] = useState(null);
 
-    // Modal for BM02-A Return
-    const [returnModalOpen, setReturnModalOpen] = useState(false);
-    const [returningRequest, setReturningRequest] = useState(null);
-    const [returningRole, setReturningRole] = useState('ADVISOR');
-    const [returnReason, setReturnReason] = useState('');
-    const [submittingBm02a, setSubmittingBm02a] = useState(false);
-
     // Registration Timeline Drawer State
     const [timelineOpen, setTimelineOpen] = useState(false);
     const [timelineRegistration, setTimelineRegistration] = useState(null);
@@ -95,9 +74,15 @@ export default function TopicApprovalPage() {
         return councilOutlineRegistrations.filter((r) => r.status === 'BM01_SUBMITTED').length;
     }, [councilOutlineRegistrations]);
 
-    const pendingBm02aCount = useMemo(() => {
-        return bm02aRequests.filter((r) => ['PENDING_ADVISOR', 'PENDING_DEPARTMENT_APPROVAL'].includes(r.status)).length;
-    }, [bm02aRequests]);
+    if (tabParam === 'bm02a') {
+        const targetParams = new URLSearchParams();
+        const requestId = searchParams.get('requestId');
+        if (requestId) {
+            targetParams.set('requestId', requestId);
+        }
+        const targetSearch = targetParams.toString();
+        return <Navigate to={`/lecturer/title-adjustments${targetSearch ? `?${targetSearch}` : ''}`} replace />;
+    }
 
     const handleApprove = async (record) => {
         try {
@@ -142,88 +127,8 @@ export default function TopicApprovalPage() {
         }
     };
 
-    // BM02-A Actions
-    const handleAdvisorSign = async (request) => {
-        try {
-            setSubmittingBm02a(true);
-            const currentVersion = request.versions?.find((v) => v.versionNumber === request.currentVersionNumber)
-                || request.versions?.[0];
-            const payloadHash = currentVersion?.payloadHash;
-
-            await bm02aMutation.mutateAsync({
-                action: 'advisorSign',
-                args: [request.id, {
-                    payloadHash,
-                    signatureImageId: null,
-                }],
-            });
-            message.success('GVHD đã ký duyệt xác nhận đơn điều chỉnh tên BM02-A thành công!');
-        } catch (error) {
-            message.error(error?.message || 'Lỗi khi GVHD ký duyệt đơn BM02-A');
-        } finally {
-            setSubmittingBm02a(false);
-        }
-    };
-
-    const handleDepartmentSign = async (request) => {
-        try {
-            setSubmittingBm02a(true);
-            const currentVersion = request.versions?.find((v) => v.versionNumber === request.currentVersionNumber)
-                || request.versions?.[0];
-            const payloadHash = currentVersion?.payloadHash;
-
-            await bm02aMutation.mutateAsync({
-                action: 'departmentSign',
-                args: [request.id, {
-                    payloadHash,
-                    signatureImageId: null,
-                }],
-            });
-            message.success('Phụ trách bộ môn đã phê duyệt và ký số hoàn tất đơn BM02-A!');
-        } catch (error) {
-            message.error(error?.message || 'Lỗi khi Phụ trách bộ môn ký duyệt đơn BM02-A');
-        } finally {
-            setSubmittingBm02a(false);
-        }
-    };
-
-    const openReturnModal = (request, role) => {
-        setReturningRequest(request);
-        setReturningRole(role);
-        setReturnReason('');
-        setReturnModalOpen(true);
-    };
-
-    const handleReturnSubmit = async () => {
-        if (!returningRequest) return;
-        if (!returnReason.trim()) {
-            message.warning('Vui lòng nhập lý do trả lại / từ chối.');
-            return;
-        }
-
-        try {
-            setSubmittingBm02a(true);
-            await bm02aMutation.mutateAsync({
-                action: 'returnRequest',
-                args: [returningRequest.id, {
-                    reason: returnReason.trim(),
-                    actorRole: returningRole,
-                }],
-            });
-            message.success('Đã trả lại yêu cầu điều chỉnh tên đề tài BM02-A.');
-            setReturnModalOpen(false);
-            setReturningRequest(null);
-            setReturnReason('');
-        } catch (error) {
-            message.error(error?.message || 'Lỗi khi trả lại yêu cầu BM02-A');
-        } finally {
-            setSubmittingBm02a(false);
-        }
-    };
-
     const isInitialPending = mentorRegistrationsQuery.isPending && !mentorRegistrationsQuery.data &&
-        councilOutlineQuery.isPending && !councilOutlineQuery.data &&
-        bm02aQueueQuery.isPending && !bm02aQueueQuery.data;
+        councilOutlineQuery.isPending && !councilOutlineQuery.data;
 
     if (isInitialPending) {
         return <ContentSkeleton variant="table" />;
@@ -238,7 +143,7 @@ export default function TopicApprovalPage() {
                         Phê Duyệt Nghiệp Vụ Giảng Viên
                     </h1>
                     <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 2 }}>
-                        Quản lý tiếp nhận hướng dẫn sinh viên, thẩm định đề cương và xét duyệt phiếu đổi tên đề tài BM02-A.
+                        Quản lý tiếp nhận hướng dẫn sinh viên và thẩm định đề cương nghiên cứu chi tiết.
                     </p>
                 </div>
                 <span className="tag teal" style={{ padding: '6px 12px', fontSize: 12 }}>
@@ -259,12 +164,6 @@ export default function TopicApprovalPage() {
                     onClick={() => handleTabChange('outline')}
                 >
                     Hội Đồng Thẩm Định Đề Cương Chi Tiết ({pendingOutlineCount})
-                </div>
-                <div
-                    className={`seg-tab ${activeTab === 'bm02a' ? 'active' : ''}`}
-                    onClick={() => handleTabChange('bm02a')}
-                >
-                    Duyệt phiếu đổi tên BM02-A ({pendingBm02aCount})
                 </div>
             </div>
 
@@ -462,142 +361,6 @@ export default function TopicApprovalPage() {
                 </QueryPanel>
             )}
 
-            {/* TAB 3: DUYỆT PHIẾU ĐỔI TÊN BM02-A (GVHD & PHỤ TRÁCH BỘ MÔN) */}
-            {activeTab === 'bm02a' && (
-                <QueryPanel query={bm02aQueueQuery}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                    <div style={{ padding: '14px 18px', background: '#F0FDF4', borderRadius: 'var(--radius)', border: '1px solid #BBF7D0', fontSize: 13, color: '#166534' }}>
-                        <strong>Quy trình ký duyệt BM02-A:</strong> Phiếu điều chỉnh tên đề tài BM02-A trải qua 3 chữ ký điện tử nội bộ. Sau khi sinh viên ký nộp, GVHD ký xác nhận, tiếp đó Phụ trách bộ môn phê duyệt và ký số để hoàn tất hồ sơ đưa vào Phụ lục điều chỉnh.
-                    </div>
-
-                    {bm02aRequests.length === 0 ? (
-                        <div className="card" style={{ padding: '48px 24px', textAlign: 'center', color: 'var(--muted)' }}>
-                            <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--fg)' }}>
-                                Không có phiếu đổi tên đề tài BM02-A nào cần xử lý
-                            </h3>
-                            <p style={{ fontSize: 13, marginTop: 4 }}>
-                                Toàn bộ các yêu cầu đổi tên đã được xử lý hoặc chưa phát sinh trong đợt đồ án.
-                            </p>
-                        </div>
-                    ) : (
-                        bm02aRequests.map((req) => {
-                            const reg = req.registration;
-                            const student = reg?.student;
-                            const topic = reg?.topic;
-                            const currentVersion = req.versions?.find((v) => v.versionNumber === req.currentVersionNumber)
-                                || req.versions?.[0];
-                            const isPendingAdvisor = req.status === 'PENDING_ADVISOR';
-                            const isPendingDept = req.status === 'PENDING_DEPARTMENT_APPROVAL';
-
-                            return (
-                                <div
-                                    key={req.id}
-                                    className="card"
-                                    style={{
-                                        borderLeft: isPendingAdvisor ? '4px solid #2563EB' : isPendingDept ? '4px solid #7C3AED' : '4px solid var(--border)',
-                                        marginBottom: 0,
-                                    }}
-                                >
-                                    <div style={{ padding: '18px 20px' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }} className="flex-wrap gap-2">
-                                            <div>
-                                                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--fg)' }}>
-                                                    {student?.fullName || 'Sinh viên'}{' '}
-                                                    <span className="mono" style={{ fontWeight: 'normal', color: 'var(--muted)', fontSize: 12 }}>
-                                                        · MSSV: {student?.code || '-'}
-                                                    </span>
-                                                </div>
-                                                <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>
-                                                    GVHD: <strong>{topic?.mentor?.fullName || 'Chưa phân công'}</strong>
-                                                </div>
-                                            </div>
-                                            <Space>
-                                                <Tag color={req.currentVersionNumber === 2 ? 'volcano' : 'blue'}>
-                                                    Phiên bản v{req.currentVersionNumber || 1}
-                                                </Tag>
-                                                <Tag color={isPendingAdvisor ? 'processing' : isPendingDept ? 'purple' : 'default'}>
-                                                    {req.status}
-                                                </Tag>
-                                            </Space>
-                                        </div>
-
-                                        <Descriptions size="small" bordered column={1} className="my-3 bg-slate-50/50">
-                                            <Descriptions.Item label="Tên đề tài đã giao">
-                                                <span className="text-slate-700">{currentVersion?.registeredTitleSnapshot || topic?.title}</span>
-                                            </Descriptions.Item>
-                                            <Descriptions.Item label="Tên đề tài mới xin đổi">
-                                                <strong className="text-blue-700">{currentVersion?.proposedTitle}</strong>
-                                            </Descriptions.Item>
-                                            <Descriptions.Item label="Lý do điều chỉnh">
-                                                <span className="text-slate-600 italic">{currentVersion?.reason}</span>
-                                            </Descriptions.Item>
-                                        </Descriptions>
-
-                                        {/* Action buttons */}
-                                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
-                                            {isPendingAdvisor && (
-                                                <>
-                                                    <Button
-                                                        danger
-                                                        icon={<CloseCircleOutlined />}
-                                                        disabled={submittingBm02a}
-                                                        onClick={() => openReturnModal(req, 'ADVISOR')}
-                                                    >
-                                                        Trả lại chỉnh sửa
-                                                    </Button>
-                                                    <Button
-                                                        type="primary"
-                                                        icon={<FileDoneOutlined />}
-                                                        loading={submittingBm02a}
-                                                        className="!bg-[#0052a3]"
-                                                        onClick={() => handleAdvisorSign(req)}
-                                                    >
-                                                        GVHD ký duyệt BM02-A
-                                                    </Button>
-                                                </>
-                                            )}
-
-                                            {isPendingDept && (
-                                                <>
-                                                    <Button
-                                                        danger
-                                                        icon={<CloseCircleOutlined />}
-                                                        disabled={submittingBm02a}
-                                                        onClick={() => openReturnModal(req, 'DEPARTMENT_HEAD')}
-                                                    >
-                                                        Từ chối duyệt
-                                                    </Button>
-                                                    <Button
-                                                        type="primary"
-                                                        icon={<FileDoneOutlined />}
-                                                        loading={submittingBm02a}
-                                                        className="!bg-purple-600 hover:!bg-purple-700"
-                                                        onClick={() => handleDepartmentSign(req)}
-                                                    >
-                                                        Phê duyệt và Ký số
-                                                    </Button>
-                                                </>
-                                            )}
-
-                                            {!isPendingAdvisor && !isPendingDept && req.finalPdfFileUrl && (
-                                                <Button
-                                                    icon={<SearchOutlined />}
-                                                    href={req.finalPdfFileUrl}
-                                                    target="_blank"
-                                                >
-                                                    Xem bản PDF đã duyệt
-                                                </Button>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })
-                    )}
-                    </div>
-                </QueryPanel>
-            )}
-
             {/* MODAL: TỪ CHỐI ĐĂNG KÝ HƯỚNG DẪN */}
             <Modal
                 title="Từ chối tiếp nhận hướng dẫn"
@@ -633,52 +396,6 @@ export default function TopicApprovalPage() {
                             placeholder="Nhập lý do từ chối cụ thể..."
                             value={rejectReason}
                             onChange={(e) => setRejectReason(e.target.value)}
-                        />
-                    </div>
-                </div>
-            </Modal>
-
-            {/* MODAL: TRẢ LẠI / TỪ CHỐI PHIẾU BM02-A */}
-            <Modal
-                title={returningRole === 'DEPARTMENT_HEAD' ? 'Từ chối phê duyệt phiếu BM02-A' : 'Trả lại yêu cầu chỉnh sửa BM02-A'}
-                open={returnModalOpen}
-                onCancel={() => setReturnModalOpen(false)}
-                footer={[
-                    <Button key="cancel" icon={<CloseOutlined />} onClick={() => setReturnModalOpen(false)}>
-                        Hủy
-                    </Button>,
-                    <Button
-                        key="submit"
-                        type="primary"
-                        danger
-                        loading={submittingBm02a}
-                        icon={<CheckOutlined />}
-                        onClick={handleReturnSubmit}
-                    >
-                        Xác nhận trả lại
-                    </Button>,
-                ]}
-            >
-                <div className="space-y-3 pt-2">
-                    <Alert
-                        type="warning"
-                        showIcon
-                        message="Lưu ý quy định trả lại BM02-A"
-                        description={
-                            returningRole === 'ADVISOR'
-                                ? 'Nếu đây là phiên bản v1 và còn trong hạn 168 giờ, sinh viên sẽ được nộp lại bản sửa v2 duy nhất 01 lần.'
-                                : 'Phụ trách bộ môn trả lại sẽ chuyển hồ sơ sang trạng thái từ chối hoặc yêu cầu sửa theo quy định.'
-                        }
-                    />
-                    <div>
-                        <label className="text-xs font-semibold text-slate-700 block mb-1">
-                            Lý do trả lại / yêu cầu chỉnh sửa:
-                        </label>
-                        <TextArea
-                            rows={3}
-                            placeholder="Nêu rõ lý do và nội dung cần điều chỉnh..."
-                            value={returnReason}
-                            onChange={(e) => setReturnReason(e.target.value)}
                         />
                     </div>
                 </div>

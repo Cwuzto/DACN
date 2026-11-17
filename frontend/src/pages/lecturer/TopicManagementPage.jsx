@@ -4,6 +4,7 @@ import { Button, Empty, message, Modal, Table, Select, Progress, Tag, Tooltip } 
 import {
     CopyOutlined,
     PlusOutlined,
+    EditOutlined,
     AuditOutlined,
     CloseOutlined,
     SearchOutlined,
@@ -22,6 +23,8 @@ import useAuthStore from '../../stores/authStore';
 import { queryKeys } from '../../query/queryKeys';
 import { useSemesters } from '../../queries/semesterQueries';
 import { useTopics, useTopicMutation, useCloneableTopics, useProjectCatalogs } from '../../queries/topicQueries';
+import { useBm02aQueue } from '../../queries/bm02aQueries';
+import { getEffectivePermissions } from '../../auth/policyEvaluator';
 import QueryPanel from '../../components/common/QueryPanel';
 import ContentSkeleton from '../../components/common/ContentSkeleton';
 import AuthorizedAction from '../../components/common/AuthorizedAction';
@@ -45,6 +48,23 @@ export default function TopicManagementPage() {
     const catalogs = catalogsQuery.data || [];
     const topicsQuery = useTopics(scope, { mentorId: user?.id });
     const topicMutation = useTopicMutation(scope);
+    const canSignBm02a = useMemo(
+        () => getEffectivePermissions(user).has('BM02A_ADVISOR_SIGN'),
+        [user],
+    );
+    const bm02aQueueQuery = useBm02aQueue(scope, canSignBm02a);
+    const bm02aByRegistrationId = useMemo(() => {
+        const map = {};
+        const queue = Array.isArray(bm02aQueueQuery.data) ? bm02aQueueQuery.data : [];
+        for (const req of queue) {
+            if (req?.status !== 'PENDING_ADVISOR') continue;
+            const regId = req.registrationId ?? req.registration?.id;
+            if (regId && req.id && !map[regId]) {
+                map[regId] = req.id;
+            }
+        }
+        return map;
+    }, [bm02aQueueQuery.data]);
 
     const [searchText, setSearchText] = useState('');
     const [activeTab, setActiveTab] = useState('all'); // 'all' | 'approved' | 'open' | 'pending'
@@ -637,6 +657,7 @@ export default function TopicManagementPage() {
                                     const isWarning = regStatus === 'STOP_REVIEW_PENDING' || regStatus === 'AUTO_NOT_ELIGIBLE';
                                     const isCompleted = regStatus === 'COMPLETED' || regStatus === 'DEFENDED' || regStatus === 'DEFENSE_PASSED';
                                     const isInProgress = regStatus === 'IN_PROGRESS_BM03' || regStatus === 'IN_PROGRESS';
+                                    const pendingBm02aId = reg?.id ? bm02aByRegistrationId[reg.id] : null;
 
                                     return (
                                         <tr key={topic.id} data-status={topic.status?.toLowerCase()}>
@@ -705,35 +726,48 @@ export default function TopicManagementPage() {
                                                 )}
                                             </td>
                                             <td style={{ textAlign: 'right' }}>
-                                                {hasStudent ? (
-                                                    <button
-                                                        type="button"
-                                                        className="btn btn-secondary btn-sm"
-                                                        onClick={() => navigate(`/lecturer/progress?registrationId=${reg.id}`)}
-                                                    >
-                                                        Sổ nhật ký
-                                                    </button>
-                                                ) : isApproved ? (
-                                                    <button
-                                                        type="button"
-                                                        className="btn btn-primary btn-sm"
-                                                        onClick={() => navigate('/lecturer/approvals')}
-                                                    >
-                                                        Xem đơn đăng ký
-                                                    </button>
-                                                ) : (
-                                                    <button
-                                                        type="button"
-                                                        className="btn btn-primary btn-sm"
-                                                        onClick={() => {
-                                                            setSelectedPendingTopic(topic);
-                                                            setReviewRejectReason('');
-                                                            setReviewModalOpen(true);
-                                                        }}
-                                                    >
-                                                        Xem xét đề xuất
-                                                    </button>
-                                                )}
+                                                <div className="inline-flex flex-wrap items-center justify-end gap-1.5">
+                                                    {pendingBm02aId && (
+                                                        <Button
+                                                            size="small"
+                                                            type="primary"
+                                                            ghost
+                                                            icon={<EditOutlined />}
+                                                            onClick={() => navigate(`/lecturer/title-adjustments?requestId=${pendingBm02aId}`)}
+                                                        >
+                                                            Duyệt đổi tên
+                                                        </Button>
+                                                    )}
+                                                    {hasStudent ? (
+                                                        <button
+                                                            type="button"
+                                                            className="btn btn-secondary btn-sm"
+                                                            onClick={() => navigate(`/lecturer/progress?registrationId=${reg.id}`)}
+                                                        >
+                                                            Sổ nhật ký
+                                                        </button>
+                                                    ) : isApproved ? (
+                                                        <button
+                                                            type="button"
+                                                            className="btn btn-primary btn-sm"
+                                                            onClick={() => navigate('/lecturer/approvals')}
+                                                        >
+                                                            Xem đơn đăng ký
+                                                        </button>
+                                                    ) : (
+                                                        <button
+                                                            type="button"
+                                                            className="btn btn-primary btn-sm"
+                                                            onClick={() => {
+                                                                setSelectedPendingTopic(topic);
+                                                                setReviewRejectReason('');
+                                                                setReviewModalOpen(true);
+                                                            }}
+                                                        >
+                                                            Xem xét đề xuất
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </td>
                                         </tr>
                                     );
