@@ -1779,7 +1779,7 @@ const getPendingTitleAdjustments = async (req, res, next) => {
         // Also include pending BM02-A requests (status: PENDING_ADVISOR)
         if (prisma.bM02AAdjustmentRequest?.findMany) {
             const bm02aWhere = { status: 'PENDING_ADVISOR' };
-            if (role !== 'ADMIN') {
+            if (req.user.role !== 'ADMIN') {
                 bm02aWhere.registration = { topic: { mentorId: lecturerId } };
             }
 
