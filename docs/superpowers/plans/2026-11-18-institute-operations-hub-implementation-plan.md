@@ -1,6 +1,6 @@
 # Institute Operations Hub Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Viện trưởng có một mục “Điều hành học vụ” mở trang ba tab Thẩm định, Quyết định, Công bố, thao tác trực tiếp trên hàng đợi đúng quyền và phạm vi.
 
@@ -45,11 +45,11 @@
 - Produces: `GET /api/institute/operations?tab=review|decisions|publish&semesterId=<id>&status=<code>&page=<n>`; `items[]` có `id, kind, resourceId, registrationId?, title, status, dueAt?, allowedActions[], detailTarget`.
 - Preserves: các API mutation BM02/BM03/BM04 hiện có; API mới chỉ đọc và không cấp quyền qua dữ liệu client.
 
-- [ ] **Step 1: Kiểm tra schema trước khi code.** `npm --prefix backend exec prisma validate`; xác nhận relation/index phục vụ actor + semester + trạng thái. Chỉ thêm migration nếu thiếu ràng buộc thực sự cho query, không đổi workflow hoặc `TopicRegistration`.
-- [ ] **Step 2: Viết test fail cho `review`.** Fixtures có BM02 nộp lần 1/nộp lại, BM03 stop review, BM04 defense review và appeal; hai kỳ/hai đơn vị; actor có một quyền view, actor có action quyền, actor thiếu cả hai. Assert chỉ item trong scope, `allowedActions` rỗng cho view-only, tổng `counts.review` tính trước phân trang, `pageSize` tối đa 50, query sai tab/page trả 400, không có quyền tab trả 403.
-- [ ] **Step 3: Chạy test để xác nhận fail.** `npm --prefix backend test -- --runTestsByPath tests/services/instituteOperationsService.test.js tests/integration/instituteOperations.routes.test.js`.
-- [ ] **Step 4: Implement query/guard Thẩm định.** Tạo các source nhỏ trong service, dùng capability đúng (`BM02_REVIEW`, `BM03_STOP_REVIEW`, `BM04_REJECTION_REVIEW`, `SIGNATURE_APPEAL_REVIEW` và quyền view tương ứng) và `resolveResourceScope`/`validateAcademicScope` theo resource. Không gọi `/api/manual-review-cases` mặc định vì router hiện cần `PROJECT_OVERSIGHT_MANAGE`. Tái dùng predicate trạng thái ở service nghiệp vụ; không tự suy ra deadline khi DB không có.
-- [ ] **Step 5: Chạy lại test và commit.** Test bước 3 và Prisma validate PASS; commit `feat(institute): add scoped review queue`.
+- [x] **Step 1: Kiểm tra schema trước khi code.** `npm --prefix backend exec prisma validate`; xác nhận relation/index phục vụ actor + semester + trạng thái. Chỉ thêm migration nếu thiếu ràng buộc thực sự cho query, không đổi workflow hoặc `TopicRegistration`.
+- [x] **Step 2: Viết test fail cho `review`.** Fixtures có BM02 nộp lần 1/nộp lại, BM03 stop review, BM04 defense review và appeal; hai kỳ/hai đơn vị; actor có một quyền view, actor có action quyền, actor thiếu cả hai. Assert chỉ item trong scope, `allowedActions` rỗng cho view-only, tổng `counts.review` tính trước phân trang, `pageSize` tối đa 50, query sai tab/page trả 400, không có quyền tab trả 403.
+- [x] **Step 3: Chạy test để xác nhận fail.** `npm --prefix backend test -- --runTestsByPath tests/services/instituteOperationsService.test.js tests/integration/instituteOperations.routes.test.js`.
+- [x] **Step 4: Implement query/guard Thẩm định.** Tạo các source nhỏ trong service, dùng capability đúng (`BM02_REVIEW`, `BM03_STOP_REVIEW`, `BM04_REJECTION_REVIEW`, `SIGNATURE_APPEAL_REVIEW` và quyền view tương ứng) và `resolveResourceScope`/`validateAcademicScope` theo resource. Không gọi `/api/manual-review-cases` mặc định vì router hiện cần `PROJECT_OVERSIGHT_MANAGE`. Tái dùng predicate trạng thái ở service nghiệp vụ; không tự suy ra deadline khi DB không có.
+- [x] **Step 5: Chạy lại test và commit.** Test bước 3 và Prisma validate PASS; commit `feat(institute): add scoped review queue`.
 
 ### Task 2: Hàng đợi Quyết định/Công bố và kiểm tra hành động backend
 
@@ -62,10 +62,10 @@
 - Extends: `getInstituteOperations` for `decisions` and `publish`, with `counts` from authorized full query and `items` paginated.
 - Preserves: POST action APIs và lifecycle phê duyệt, ký, công bố hiện có; `allowedActions[]` chỉ chứa action mà API mutation chấp nhận tại trạng thái/resource đó.
 
-- [ ] **Step 1: Viết test fail.** `decisions`: quyết định giao đề tài, phụ lục BM02-A, giấy xác nhận, phê duyệt kết quả; `publish`: danh sách đủ điều kiện và kết quả chính thức. Kiểm tra capability view/action tách biệt, khác kỳ/đơn vị, resource state chưa đủ điều kiện, điểm BM05 chưa công bố, và nhiều item hơn một trang. Assert actor chỉ có quyền một action không nhận các item/action khác.
-- [ ] **Step 2: Chạy test để xác nhận fail.** `npm --prefix backend test -- --runTestsByPath tests/services/instituteOperationsService.test.js tests/integration/instituteOperations.routes.test.js tests/integration/bm02AndDecisionWorkflow.test.js tests/integration/bm02aAndAppendixWorkflow.test.js tests/services/defenseResultPublicationService.test.js`.
-- [ ] **Step 3: Implement sources Quyết định/Công bố.** Dùng `AssignmentDecision`, BM02-A appendix, archive/clearance, `DefenseResultApproval`, `ResultPublication`, council eligible-list state; kiểm tra quyền từng resource. Không dùng `VIEW_PROJECT_OVERSIGHT` làm điều kiện thay thế cho `BM03_STOP_REVIEW`/`BM04_REJECTION_REVIEW`. Giữ action routes hiện có; chỉ sửa guard sai nếu test chứng minh mismatch, không nới quyền hàng loạt.
-- [ ] **Step 4: Chạy lại test và commit.** Test bước 2 PASS; commit `feat(institute): expose scoped decision and publication queues`.
+- [x] **Step 1: Viết test fail.** `decisions`: quyết định giao đề tài, phụ lục BM02-A, giấy xác nhận, phê duyệt kết quả; `publish`: danh sách đủ điều kiện và kết quả chính thức. Kiểm tra capability view/action tách biệt, khác kỳ/đơn vị, resource state chưa đủ điều kiện, điểm BM05 chưa công bố, và nhiều item hơn một trang. Assert actor chỉ có quyền một action không nhận các item/action khác.
+- [x] **Step 2: Chạy test để xác nhận fail.** `npm --prefix backend test -- --runTestsByPath tests/services/instituteOperationsService.test.js tests/integration/instituteOperations.routes.test.js tests/integration/bm02AndDecisionWorkflow.test.js tests/integration/bm02aAndAppendixWorkflow.test.js tests/services/defenseResultPublicationService.test.js`.
+- [x] **Step 3: Implement sources Quyết định/Công bố.** Dùng `AssignmentDecision`, BM02-A appendix, archive/clearance, `DefenseResultApproval`, `ResultPublication`, council eligible-list state; kiểm tra quyền từng resource. Không dùng `VIEW_PROJECT_OVERSIGHT` làm điều kiện thay thế cho `BM03_STOP_REVIEW`/`BM04_REJECTION_REVIEW`. Giữ action routes hiện có; chỉ sửa guard sai nếu test chứng minh mismatch, không nới quyền hàng loạt.
+- [x] **Step 4: Chạy lại test và commit.** Test bước 2 PASS; commit `feat(institute): expose scoped decision and publication queues`.
 
 ### Task 3: Trang hub và tab Thẩm định
 
@@ -82,10 +82,10 @@
 - Produces: `useInstituteOperations(scope, { tab, semesterId, status, page })` với query key identity + permission version + filter.
 - Produces: `/lecturer/institute?tab=review` là tab thao tác Thẩm định; menu chỉ có một feature `lecturer-institute` nhãn “Điều hành học vụ”.
 
-- [ ] **Step 1: Viết runtime test fail.** Actor view-only thấy hàng đợi BM02/BM03/BM04 được phép nhưng không có nút mutation; actor đủ quyền mở form và gửi một mutation; actor thiếu quyền không thấy tab. Loading/empty/error riêng, đổi kỳ xóa dữ liệu kỳ cũ, không gọi API nguồn không có quyền.
-- [ ] **Step 2: Chạy test fail.** `npm --prefix frontend run test:runtime -- runtime-tests/instituteReviewHub.spec.jsx`.
-- [ ] **Step 3: Dựng route/hub với tab Thẩm định.** Lấy `allowedActions` từ API, tái dùng service/form BM02 và BM03/BM04 thay vì chép business logic; khi mutation thành công invalidate query hub và query màn cũ. Route guard cho phép view capability của ít nhất một tab, không dựa vào role label. Chưa bật mục menu mới cho người dùng cho đến khi cả ba tab hoàn tất ở Task 5; các URL cũ vẫn dùng được trong giai đoạn này.
-- [ ] **Step 4: Chạy test và commit.** Test bước 2 và `npm --prefix frontend run build` PASS; commit `feat(institute): add review hub tab`.
+- [x] **Step 1: Viết runtime test fail.** Actor view-only thấy hàng đợi BM02/BM03/BM04 được phép nhưng không có nút mutation; actor đủ quyền mở form và gửi một mutation; actor thiếu quyền không thấy tab. Loading/empty/error riêng, đổi kỳ xóa dữ liệu kỳ cũ, không gọi API nguồn không có quyền.
+- [x] **Step 2: Chạy test fail.** `npm --prefix frontend run test:runtime -- runtime-tests/instituteReviewHub.spec.jsx`.
+- [x] **Step 3: Dựng route/hub với tab Thẩm định.** Lấy `allowedActions` từ API, tái dùng service/form BM02 và BM03/BM04 thay vì chép business logic; khi mutation thành công invalidate query hub và query màn cũ. Route guard cho phép view capability của ít nhất một tab, không dựa vào role label. Chưa bật mục menu mới cho người dùng cho đến khi cả ba tab hoàn tất ở Task 5; các URL cũ vẫn dùng được trong giai đoạn này.
+- [x] **Step 4: Chạy test và commit.** Test bước 2 và `npm --prefix frontend run build` PASS; commit `feat(institute): add review hub tab`.
 
 ### Task 4: Tab Quyết định và công cụ ủy quyền
 
@@ -99,10 +99,10 @@
 - Produces: `?tab=decisions`, `?tab=delegations` mở công cụ ủy quyền theo ngữ cảnh; không thêm tab thứ tư/menu thứ hai.
 - Preserves: transaction/audit và xác nhận của các mutation hiện có.
 
-- [ ] **Step 1: Viết runtime test fail.** View-only thấy hồ sơ nhưng không có nút ban hành/ký/phê duyệt; actor đủ quyền thực hiện một mutation rồi item/count cập nhật; `?tab=decisions` và deep link cũ `?tab=periods` mở tab Quyết định; `?tab=delegations` mở công cụ ủy quyền chỉ khi có quyền.
-- [ ] **Step 2: Chạy test fail.** `npm --prefix frontend run test:runtime -- runtime-tests/instituteDecisionHub.spec.jsx`.
-- [ ] **Step 3: Implement tab.** Tách component/hook nghiệp vụ dùng chung, gọi mutation hiện có đúng payload/idempotency; không dựng bản sao logic quyết định. Ủy quyền là drawer/secondary tool và tuân `PERMISSION_ASSIGN_ACADEMIC` + scope.
-- [ ] **Step 4: Chạy test và commit.** Test bước 2 và build PASS; commit `feat(institute): add decision actions and delegation tool`.
+- [x] **Step 1: Viết runtime test fail.** View-only thấy hồ sơ nhưng không có nút ban hành/ký/phê duyệt; actor đủ quyền thực hiện một mutation rồi item/count cập nhật; `?tab=decisions` và deep link cũ `?tab=periods` mở tab Quyết định; `?tab=delegations` mở công cụ ủy quyền chỉ khi có quyền.
+- [x] **Step 2: Chạy test fail.** `npm --prefix frontend run test:runtime -- runtime-tests/instituteDecisionHub.spec.jsx`.
+- [x] **Step 3: Implement tab.** Tách component/hook nghiệp vụ dùng chung, gọi mutation hiện có đúng payload/idempotency; không dựng bản sao logic quyết định. Ủy quyền là drawer/secondary tool và tuân `PERMISSION_ASSIGN_ACADEMIC` + scope.
+- [x] **Step 4: Chạy test và commit.** Test bước 2 và build PASS; commit `feat(institute): add decision actions and delegation tool`.
 
 ### Task 5: Tab Công bố và deep link tương thích
 
@@ -118,10 +118,10 @@
 - Produces: `?tab=publish` with preview/history/action theo `RESULT_PUBLICATION_PUBLISH` và capability công bố danh sách đủ điều kiện.
 - Maps: `?tab=bm02`/`bm02Queue` → `review`; `periods`/`decisions` → `decisions`; `delegations` → secondary tool; URL admin cũ vẫn tới chức năng cho actor có quyền.
 
-- [ ] **Step 1: Viết test fail.** Actor chỉ có view thấy preview phù hợp nhưng không publish; actor có quyền công bố thấy nút và xác nhận; không hiện điểm chưa công bố ở nơi không được phép. Deep link cũ mở đúng tab/tool; Back/Forward khôi phục tab và resource; query param thêm không làm sai active menu.
-- [ ] **Step 2: Chạy test fail.** `npm --prefix frontend run test:runtime -- runtime-tests/institutePublicationHub.spec.jsx`; `node --test frontend/src/pages/__tests__/councilAndGradingDeepLinking.test.js`.
-- [ ] **Step 3: Implement Công bố.** Tái dùng preview/history/mutation hiện có; sau publish invalidate đúng query và phản ánh bản công bố. Giữ `ProjectPeriodPage` cho `/admin/project-periods`; không redirect admin URL theo role một cách mù. Dùng `setSearchParams` có history đúng với tab selection, không mở modal lặp khi Back/Forward. Khi ba tab đều hoạt động, bật đúng một mục “Điều hành học vụ” trong menu workspace lecturer và loại các mục Viện trưởng trùng chức năng.
-- [ ] **Step 4: Chạy test và commit.** Test bước 2, lint/build PASS; commit `feat(institute): add publication tab and legacy links`.
+- [x] **Step 1: Viết test fail.** Actor chỉ có view thấy preview phù hợp nhưng không publish; actor có quyền công bố thấy nút và xác nhận; không hiện điểm chưa công bố ở nơi không được phép. Deep link cũ mở đúng tab/tool; Back/Forward khôi phục tab và resource; query param thêm không làm sai active menu.
+- [x] **Step 2: Chạy test fail.** `npm --prefix frontend run test:runtime -- runtime-tests/institutePublicationHub.spec.jsx`; `node --test frontend/src/pages/__tests__/councilAndGradingDeepLinking.test.js`.
+- [x] **Step 3: Implement Công bố.** Tái dùng preview/history/mutation hiện có; sau publish invalidate đúng query và phản ánh bản công bố. Giữ `ProjectPeriodPage` cho `/admin/project-periods`; không redirect admin URL theo role một cách mù. Dùng `setSearchParams` có history đúng với tab selection, không mở modal lặp khi Back/Forward. Khi ba tab đều hoạt động, bật đúng một mục “Điều hành học vụ” trong menu workspace lecturer và loại các mục Viện trưởng trùng chức năng.
+- [x] **Step 4: Chạy test và commit.** Test bước 2, lint/build PASS; commit `feat(institute): add publication tab and legacy links`.
 
 ### Task 6: Kiểm tra năm persona, bảo mật và bàn giao
 
@@ -130,7 +130,7 @@
 - Modify: `frontend/runtime-tests/fivePersonaPolicies.spec.jsx`, `frontend/e2e/rbac-five-persona.spec.js`
 - Modify: `docs/superpowers/plans/2026-11-18-institute-operations-hub-implementation-plan.md` để tick bước có bằng chứng PASS
 
-- [ ] **Step 1: Viết E2E/hợp đồng persona.** Sinh viên/GVHD thường không thấy hub hoặc bị chặn khi truy cập trực tiếp; Viện trưởng và actor được ủy quyền chỉ thấy tab/hành động trong capability + resource scope. Test từ menu vào ba tab, deep link, đổi kỳ, lỗi API, revoke quyền, view-only, công bố idempotent và dữ liệu BM05 chưa công bố.
-- [ ] **Step 2: Chạy backend regression.** `npm --prefix backend test -- --runTestsByPath tests/integration/instituteOperations.routes.test.js tests/integration/bm02AndDecisionWorkflow.test.js tests/integration/bm02aAndAppendixWorkflow.test.js tests/services/defenseResultPublicationService.test.js`; thêm test BM03/BM04/clearance/eligible publication đã chạm; `npm --prefix backend exec prisma validate`.
-- [ ] **Step 3: Chạy frontend regression.** Các runtime test Task 3–5, `npm --prefix frontend run test:e2e -- e2e/institute-operations-hub.spec.js e2e/rbac-five-persona.spec.js`, lint/build. Kiểm tra 375/768/1024/1440px, keyboard, deep link và trạng thái empty/error.
-- [ ] **Step 4: Rà soát và commit.** `git diff --check`, UTF-8 không BOM, không mock, `group/groupMember`, icon thô, role bypass, menu trùng, route chết hoặc dữ liệu BM05 chưa công bố. Chỉ tick task PASS, commit riêng checklist, báo rủi ro còn lại; không cập nhật `CLAUDE.md` trước `end phiên`.
+- [x] **Step 1: Viết E2E/hợp đồng persona.** Sinh viên/GVHD thường không thấy hub hoặc bị chặn khi truy cập trực tiếp; Viện trưởng và actor được ủy quyền chỉ thấy tab/hành động trong capability + resource scope. Test từ menu vào ba tab, deep link, đổi kỳ, lỗi API, revoke quyền, view-only, công bố idempotent và dữ liệu BM05 chưa công bố.
+- [x] **Step 2: Chạy backend regression.** `npm --prefix backend test -- --runTestsByPath tests/integration/instituteOperations.routes.test.js tests/integration/bm02AndDecisionWorkflow.test.js tests/integration/bm02aAndAppendixWorkflow.test.js tests/services/defenseResultPublicationService.test.js`; thêm test BM03/BM04/clearance/eligible publication đã chạm; `npm --prefix backend exec prisma validate`.
+- [x] **Step 3: Chạy frontend regression.** Các runtime test Task 3–5, `npm --prefix frontend run test:e2e -- e2e/institute-operations-hub.spec.js e2e/rbac-five-persona.spec.js`, lint/build. Kiểm tra 375/768/1024/1440px, keyboard, deep link và trạng thái empty/error.
+- [x] **Step 4: Rà soát và commit.** `git diff --check`, UTF-8 không BOM, không mock, `group/groupMember`, icon thô, role bypass, menu trùng, route chết hoặc dữ liệu BM05 chưa công bố. Chỉ tick task PASS, commit riêng checklist, báo rủi ro còn lại; không cập nhật `CLAUDE.md` trước `end phiên`.
