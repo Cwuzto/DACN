@@ -26,6 +26,7 @@ const lecturerAssignmentRoutes = require('./lecturerAssignmentRoutes');
 const outlineRoutes = require('./outlineRoutes');
 const reportRoutes = require('./reportRoutes');
 const storedAssetRoutes = require('./storedAssetRoutes');
+const instituteOperationsRoutes = require('./instituteOperationsRoutes');
 
 // Đăng ký routes
 router.use('/assets', storedAssetRoutes);
@@ -52,6 +53,7 @@ router.use('/manual-review-cases', manualReviewRoutes);
 router.use('/delegations', delegationRoutes);
 router.use('/lecturer-assignments', lecturerAssignmentRoutes);
 router.use('/reports', reportRoutes);
+router.use('/institute', instituteOperationsRoutes);
 router.use('/', meetingLogRoutes);
 
 // Health check
