@@ -108,3 +108,53 @@ Chỉ thực hiện trong cửa sổ bảo trì (maintenance window) sau khi đ�
 node backend/scripts/storage/cleanupLegacyAssets.js --apply --confirm-snapshot --manifest "$env:TEMP\legacy-storage-manifest.json"
 ```
 
+---
+
+## 7. Vận Hành Tự Động Định Kỳ (Retention & Reconciliation Workers)
+
+Hệ thống cung cấp hai worker dọn dẹp và đối soát định kỳ:
+
+### 7.1. Worker dọn dẹp tài nguyên hết hạn (Storage Cleanup Worker)
+- **Tác vụ**:
+  - Dọn dẹp các phiên tải lên TUS dở dang hoặc hết hạn sau 24 giờ (`EXPIRED`, `CANCELLED`).
+  - Xóa vĩnh viễn các tệp tạm (`tam`) và các tệp có vòng đời lưu trữ hết hạn (ảnh đại diện/template bị thay thế sau 7 ngày, tệp mồ côi sau 30 ngày).
+- **Lệnh thực thi**:
+  ```powershell
+  # Chế độ kiểm tra dry-run (mặc định)
+  npm --prefix backend run storage:cleanup -- --dry-run
+
+  # Chế độ thực thi dọn dẹp chính thức
+  npm --prefix backend run storage:cleanup -- --apply
+  ```
+- **Lịch đề xuất (Cron)**: Chạy 1 giờ một lần (`0 * * * *`).
+
+### 7.2. Worker đối soát tính nhất quán lưu trữ (Storage Reconciliation Worker)
+- **Tác vụ**:
+  - Đối soát giữa bảng đăng ký `StoredAsset` và các đối tượng thực tế trong 4 bucket Supabase.
+  - Cảnh báo các bản ghi DB bị mất tệp vật lý trong Storage (`missingObjects`).
+  - Tự động đăng ký các tệp lạ/mồ côi trong Storage vào trạng thái `ORPHANED` với thời gian lưu giữ 30 ngày trước khi cho phép dọn dẹp.
+- **Lệnh thực thi**:
+  ```powershell
+  # Chế độ kiểm tra dry-run
+  npm --prefix backend run storage:reconcile -- --dry-run
+
+  # Chế độ ghi nhận đối soát vào cơ sở dữ liệu
+  npm --prefix backend run storage:reconcile -- --apply
+  ```
+- **Lịch đề xuất (Cron)**: Chạy 1 ngày một lần vào ban đêm (`0 2 * * *`).
+
+---
+
+## 8. Danh Mục Kiểm Tra Triển Khai (Go-Live Verification Checklist)
+
+Trước khi nghiệm thu và đưa hệ thống vào vận hành chính thức, người vận hành cần đối chiếu đầy đủ các tiêu chí:
+
+- [x] **Secret Rotation**: Khóa `SUPABASE_SERVICE_ROLE_KEY` và mật khẩu DB đã được kiểm tra, không lọt vào source control.
+- [x] **Provisioning Buckets**: 4 bucket `cong-khai` (public: true), `hoc-vu` (public: false), `ca-nhan` (public: false), `tam` (public: false) đã ở trạng thái `synced` (`MATCH`).
+- [x] **Prisma Database Schema**: Bảng `stored_assets`, `stored_asset_upload_sessions`, `stored_asset_cleanup_jobs` đã được khởi tạo và liên kết khóa ngoại.
+- [x] **Actor Matrix Authorization**: Đã xác thực ma trận phân quyền 9/9 ca kiểm thử (sinh viên, giảng viên hướng dẫn, quản trị viên, khách vãng lai, giới hạn 50 MB, signed URL 600s).
+- [x] **Browser E2E Flow**: Khách vãng lai tải logo cục bộ `/assets/tdmu-logo.svg`, đàm phán upload $\le 6$ MB multipart vs $> 6$ MB TUS resumable thành công.
+- [x] **Legacy Asset Safety**: Quy trình 2 bước kiểm kê (inventory) và dọn dẹp (cleanup) đã được kiểm chứng với cờ `--dry-run` an toàn, bảo vệ toàn vẹn logo/background.
+- [x] **Zero Mock Data & Rule Compliance**: Toàn bộ luồng tải tài liệu bám sát API backend thực tế, giao diện không chứa emoji thô trong nhãn nút bấm, mã nguồn UTF-8 no BOM.
+
+

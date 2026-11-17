@@ -246,73 +246,21 @@ const optionalAuthenticate = async (req, res, next) => {
         }
         const token = authHeader.split(' ')[1];
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const user = await prisma.user.findUnique({
-            where: { id: decoded.userId },
-            select: {
-                id: true,
-                email: true,
-                fullName: true,
-                code: true,
-                role: true,
-                department: true,
-                isActive: true,
-                permissionVersion: true,
-                permissionGroups: {
-                    include: {
-                        permissionGroup: {
-                            include: { permissions: { include: { permission: true } } },
-                        },
-                    },
-                },
-            },
-        });
-        if (user && user.isActive) {
-            const now = new Date();
-            const currentSemesterId = await extractCurrentSemesterId(req);
-            let activeDelegations = [];
-            if (prisma.academicDelegation?.findMany) {
-                const semesterFilter = currentSemesterId
-                    ? { OR: [{ semesterId: null }, { semesterId: currentSemesterId }] }
-                    : { semesterId: null };
+        const userId = decoded.userId;
 
-                activeDelegations = await prisma.academicDelegation.findMany({
-                    where: {
-                        delegateeId: user.id,
-                        status: 'ACTIVE',
-                        effectiveFrom: { lte: now },
-                        effectiveTo: { gte: now },
-                        ...semesterFilter,
-                    },
-                    select: { capabilityCode: true },
-                });
-            }
-
-        const permissionSet = new Set();
-            (user.permissionGroups || []).forEach(({ permissionGroup }) => {
-                (permissionGroup?.permissions || []).forEach(({ permission }) => {
-                    if (permission?.code) permissionSet.add(permission.code);
-                });
-            });
-            (activeDelegations || []).forEach(({ capabilityCode }) => {
-            if (capabilityCode) permissionSet.add(capabilityCode);
-        });
-        if (user.role === 'STUDENT' && permissionSet.size === 0) {
-            studentBasePermissions.forEach((code) => permissionSet.add(code));
-        } else if (user.role === 'LECTURER' && permissionSet.size === 0) {
-            const gvhdGroup = DEFAULT_GROUPS.find((group) => group.code === 'GVHD');
-            if (gvhdGroup) {
-                gvhdGroup.permissions.forEach((code) => permissionSet.add(code));
+        if (userId) {
+            const resolvedUser = await resolveUserCapabilities({ userId, db: prisma });
+            if (resolvedUser && resolvedUser.isActive) {
+                req.user = {
+                    ...resolvedUser,
+                    permissions: [...(resolvedUser.permissions || [])],
+                    permissionGroups: [...(resolvedUser.permissionGroups || [])],
+                };
             }
         }
-        req.user = {
-                ...user,
-                permissionGroups: user.permissionGroups.map(({ permissionGroup }) => permissionGroup.code),
-                permissions: [...permissionSet],
-            };
-        }
-        next();
+        return next();
     } catch {
-        next();
+        return next();
     }
 };
 

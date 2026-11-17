@@ -3,6 +3,7 @@ const jwt = jest.requireActual('jsonwebtoken');
 const prisma = require('../../src/config/database');
 const app = require('../../src/app');
 const { generateImmutableAcademicPdf } = require('../../src/services/academicPdfService');
+const { storageAdapter } = require('../../src/storage/supabaseStorageAdapter');
 
 jest.setTimeout(30000);
 
@@ -103,7 +104,10 @@ describe('Task 7: Generated Academic PDFs and Council Documents Governance', () 
             if (topic?.id) await prisma.topic.delete({ where: { id: topic.id } });
             if (semester?.id) await prisma.semester.delete({ where: { id: semester.id } });
             const userIds = [studentUser?.id, lecturerUser?.id, otherLecturerUser?.id].filter(Boolean);
-            await prisma.user.deleteMany({ where: { id: { in: userIds } } });
+            if (userIds.length > 0) {
+                await prisma.auditLog.deleteMany({ where: { userId: { in: userIds } } });
+                await prisma.user.deleteMany({ where: { id: { in: userIds } } });
+            }
         } catch {
             // ignore
         }
@@ -171,10 +175,20 @@ describe('Task 7: Generated Academic PDFs and Council Documents Governance', () 
         let testAsset;
 
         beforeAll(async () => {
+            const objectKey = `hoc-vu/test/secret_doc_${Date.now()}.pdf`;
+            try {
+                await storageAdapter.upload({
+                    bucket: 'hoc-vu',
+                    objectKey,
+                    data: Buffer.from('%PDF-1.4 dummy bm05 doc'),
+                    contentType: 'application/pdf',
+                });
+            } catch {}
+
             testAsset = await prisma.storedAsset.create({
                 data: {
                     bucket: 'HOC_VU',
-                    objectKey: `hoc-vu/test/secret_doc_${Date.now()}.pdf`,
+                    objectKey,
                     originalName: 'bang-diem-hoi-dong.pdf',
                     normalizedName: 'bang-diem-hoi-dong.pdf',
                     extension: '.pdf',
@@ -195,6 +209,7 @@ describe('Task 7: Generated Academic PDFs and Council Documents Governance', () 
         afterAll(async () => {
             if (testAsset?.id) {
                 await prisma.storedAsset.delete({ where: { id: testAsset.id } }).catch(() => {});
+                await storageAdapter.remove({ bucket: 'hoc-vu', objectKey: testAsset.objectKey }).catch(() => {});
             }
         });
 

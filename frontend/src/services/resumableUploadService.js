@@ -92,7 +92,9 @@ export function uploadAssetResumable({ file, session, onProgress, signal }) {
             if (uploadInstance) {
                 try {
                     uploadInstance.abort();
-                } catch {}
+                } catch (_err) {
+                    // Bỏ qua lỗi hủy nếu phiên tải đã kết thúc
+                }
             }
             const abortErr = new Error('Tải tệp lên đã bị hủy');
             abortErr.name = 'AbortError';

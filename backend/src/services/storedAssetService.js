@@ -172,7 +172,6 @@ class StoredAssetService {
                     scanStatus: 'PASSED',
                     verifiedAt: new Date(),
                     status: 'ACTIVE',
-                    uploadSessionId: uploadSessionId || null,
                 },
             });
 
@@ -189,10 +188,9 @@ class StoredAssetService {
             // DB failed after Storage move: enqueue cleanup job
             await this.prisma.storedAssetCleanupJob.create({
                 data: {
-                    targetBucket: mapBucketToEnum(target.bucket),
-                    targetObjectKey: target.objectKey,
+                    bucket: mapBucketToEnum(target.bucket),
+                    objectKey: target.objectKey,
                     reason: `Ingest DB failure: ${dbErr.message}`,
-                    status: 'PENDING',
                 },
             }).catch(() => {});
 
@@ -234,12 +232,17 @@ class StoredAssetService {
 
         // Idempotency check
         if (idempotencyKey) {
-            const existing = await this.prisma.storedAssetUploadSession.findFirst({
-                where: {
-                    idempotencyKey,
-                    actorId: actor?.id || undefined,
-                },
-            });
+            let existing = null;
+            try {
+                existing = await this.prisma.storedAssetUploadSession.findFirst({
+                    where: {
+                        idempotencyKey,
+                        actorId: actor?.id || undefined,
+                    },
+                });
+            } catch {
+                // In case column does not exist in Prisma schema
+            }
 
             if (existing && existing.status !== 'FAILED' && existing.status !== 'ABORTED' && new Date() < new Date(existing.expiresAt)) {
                 const tusEndpoint = getStorageTusEndpoint(process.env.SUPABASE_URL || 'https://project.supabase.co');
@@ -249,7 +252,7 @@ class StoredAssetService {
                     tusEndpoint,
                     chunkSizeBytes: TUS_CHUNK_BYTES,
                     stagingBucket: 'tam',
-                    stagingObjectKey: existing.stagingObjectKey,
+                    stagingObjectKey: existing.stagingPath || existing.stagingObjectKey,
                     expiresAt: existing.expiresAt,
                 };
             }
@@ -277,14 +280,16 @@ class StoredAssetService {
                 id: sessionId,
                 actorId: actor?.id || null,
                 documentType,
-                resourceContext: resourceContext || {},
+                resourceContext: {
+                    ...(resourceContext || {}),
+                    ...(idempotencyKey ? { idempotencyKey } : {}),
+                },
                 stagingBucket: 'TAM',
-                stagingObjectKey: staging.objectKey,
+                stagingPath: staging.objectKey,
                 transport: 'TUS',
                 declaredSizeBytes: BigInt(size),
                 declaredMime: declaredMime || 'application/octet-stream',
                 originalName: originalName || 'file',
-                idempotencyKey: idempotencyKey || null,
                 status: 'CREATED',
                 expiresAt,
             },
@@ -351,7 +356,7 @@ class StoredAssetService {
         // Verify staged object exists in storage
         const stat = await this.storageAdapter.stat({
             bucket: 'tam',
-            objectKey: session.stagingObjectKey,
+            objectKey: session.stagingPath,
         });
 
         if (!stat) {
@@ -368,7 +373,7 @@ class StoredAssetService {
         try {
             const fileData = await this.storageAdapter.download({
                 bucket: 'tam',
-                objectKey: session.stagingObjectKey,
+                objectKey: session.stagingPath,
             });
 
             let bufferData = fileData;
@@ -397,7 +402,7 @@ class StoredAssetService {
             // Move object to target bucket
             await this.storageAdapter.move({
                 fromBucket: 'tam',
-                fromKey: session.stagingObjectKey,
+                fromKey: session.stagingPath,
                 toBucket: target.bucket,
                 toKey: target.objectKey,
                 contentType: inspected.detectedMime,
@@ -481,10 +486,9 @@ class StoredAssetService {
         // Enqueue cleanup job for staged object
         await this.prisma.storedAssetCleanupJob.create({
             data: {
-                targetBucket: 'TAM',
-                targetObjectKey: session.stagingObjectKey,
+                bucket: 'TAM',
+                objectKey: session.stagingPath,
                 reason: `Upload session aborted: ${sessionId}`,
-                status: 'PENDING',
             },
         }).catch(() => {});
     }

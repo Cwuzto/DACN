@@ -1,10 +1,10 @@
-# Supabase Storage Governance Implementation Plan
+﻿# Supabase Storage Governance Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
-**Goal:** Thay cơ chế lưu URL công khai rời rạc bằng bốn bucket Supabase được quy hoạch, registry `StoredAsset`, upload tối đa 50 MB có kiểm tra, private signed download và lifecycle/migration có kiểm soát.
+**Goal:** Thay cÆ¡ cháº¿ lÆ°u URL cĂ´ng khai rá»i ráº¡c báº±ng bá»‘n bucket Supabase Ä‘Æ°á»£c quy hoáº¡ch, registry `StoredAsset`, upload tá»‘i Ä‘a 50 MB cĂ³ kiá»ƒm tra, private signed download vĂ  lifecycle/migration cĂ³ kiá»ƒm soĂ¡t.
 
-**Architecture:** Backend quyết định bucket và object path từ `documentType` cùng resource đã authorize; frontend không gửi folder hoặc URL tùy ý. Mọi object được đăng ký trong `StoredAsset`, tài liệu học vụ/cá nhân ở bucket private và chỉ tải qua signed URL 10 phút; file legacy bị xóa có manifest, chỉ giữ logo/background và external URL hợp lệ.
+**Architecture:** Backend quyáº¿t Ä‘á»‹nh bucket vĂ  object path tá»« `documentType` cĂ¹ng resource Ä‘Ă£ authorize; frontend khĂ´ng gá»­i folder hoáº·c URL tĂ¹y Ă½. Má»i object Ä‘Æ°á»£c Ä‘Äƒng kĂ½ trong `StoredAsset`, tĂ i liá»‡u há»c vá»¥/cĂ¡ nhĂ¢n á»Ÿ bucket private vĂ  chá»‰ táº£i qua signed URL 10 phĂºt; file legacy bá»‹ xĂ³a cĂ³ manifest, chá»‰ giá»¯ logo/background vĂ  external URL há»£p lá»‡.
 
 **Tech Stack:** Node.js, Express, Prisma, PostgreSQL, Supabase Storage, Multer, Node `crypto`/streams, React 19, Ant Design, TanStack Query 5, Jest/Supertest, Node test runner, Vitest, Playwright.
 
@@ -168,7 +168,7 @@
 
 - [x] **Step 1: Write failing slug/path/policy tests**
 
-  Include NFC/NFD forms of `Đồ án tốt nghiệp`, repeated separators, `../`, slashes, control characters, empty names, reserved names, very long input, mixed case and duplicate descriptions. Assert exact path examples from the spec for BM01, BM05, archive source, public template, avatar and temp staging. Assert every `StoredDocumentType` has exactly one policy and no policy exceeds 50 MB.
+  Include NFC/NFD forms of `Äá»“ Ă¡n tá»‘t nghiá»‡p`, repeated separators, `../`, slashes, control characters, empty names, reserved names, very long input, mixed case and duplicate descriptions. Assert exact path examples from the spec for BM01, BM05, archive source, public template, avatar and temp staging. Assert every `StoredDocumentType` has exactly one policy and no policy exceeds 50 MB.
 
 - [x] **Step 2: Run tests and confirm failure**
 
@@ -274,7 +274,7 @@
 
 - [x] **Step 1: Write failing lifecycle and route tests**
 
-  Cover exact 6 MB multipart boundary, 6 MB + 1 byte TUS selection, 50 MB maximum, signed token bound to the server-generated `tam` path, 6 MB TUS chunk, pause/resume, expired/aborted/incomplete session, concurrent/double finalize, idempotent duplicate session, wrong owner/resource, successful temp→final promotion, upload succeeds/DB fails, DB succeeds/move fails, audit failure, signed download valid/forbidden/deleted/replaced, public asset response, 600-second expiry, no end-user URL for `tam`, and no fake fallback URL.
+  Cover exact 6 MB multipart boundary, 6 MB + 1 byte TUS selection, 50 MB maximum, signed token bound to the server-generated `tam` path, 6 MB TUS chunk, pause/resume, expired/aborted/incomplete session, concurrent/double finalize, idempotent duplicate session, wrong owner/resource, successful tempâ†’final promotion, upload succeeds/DB fails, DB succeeds/move fails, audit failure, signed download valid/forbidden/deleted/replaced, public asset response, 600-second expiry, no end-user URL for `tam`, and no fake fallback URL.
 
 - [x] **Step 2: Run tests and confirm failure**
 
@@ -335,11 +335,11 @@
 - Produces: nullable `assetId` relations for `Submission`, `BM02Submission`, task submissions and checkpoint evidence while legacy URL columns remain read-only fallback.
 - Reuses: `useAssetUpload()` and `useAssetDownload()` from Task 5 in academic submission UI.
 
-- [ ] **Step 1: Write failing binding and UI tests**
+- [x] **Step 1: Write failing binding and UI tests**
 
   Assert asset must match actor, registration/task/checkpoint, document type and active status; another student's asset ID is rejected; legacy external URL cannot be submitted as an academic attachment. Runtime tests assert actual accept/size policy, multipart/TUS selection around 6 MB, resumable progress/error preservation, and download via asset endpoint rather than direct `href` URL.
 
-- [ ] **Step 2: Run tests and confirm failure**
+- [x] **Step 2: Run tests and confirm failure**
 
   Run:
 
@@ -350,11 +350,11 @@
 
   Expected: FAIL because workflows still accept/store arbitrary `fileUrl`.
 
-- [ ] **Step 3: Add relations and migrate workflows end-to-end**
+- [x] **Step 3: Add relations and migrate workflows end-to-end**
 
   New writes require `assetId`; reads prefer asset DTO and use legacy URL only during compatibility. Remove client `folder:'submissions'` and any direct bucket/path knowledge.
 
-- [ ] **Step 4: Run workflow regressions**
+- [x] **Step 4: Run workflow regressions**
 
   Run:
 
@@ -366,7 +366,7 @@
 
   Expected: PASS; TopicRegistration ownership remains enforced.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   ```powershell
   git add backend/prisma/schema.prisma backend/prisma/migrations/20261117100000_link_submission_assets backend/src/routes/outlineRoutes.js backend/src/controllers/outlineController.js backend/src/controllers/registrationController.js backend/src/controllers/taskController.js backend/src/controllers/checkpointController.js backend/tests/integration/submissionAssetBinding.test.js frontend/src/components/forms/HybridBMFormModal.jsx frontend/src/components/student/CheckpointSignModal.jsx frontend/src/services/uploadService.js frontend/src/queries/assetQueries.js frontend/runtime-tests/submissionAssets.spec.jsx
@@ -395,11 +395,11 @@
 - Produces asset relations for BM02-A/BM03/BM04/BM05 score sheets, assignment decisions, appendices and completion certificates.
 - Removes: `https://storage.local/...` success fallback.
 
-- [ ] **Step 1: Write failing generated-document tests**
+- [x] **Step 1: Write failing generated-document tests**
 
   Assert each generated document creates the correct path/version/checksum and remains private; upload failure leaves workflow unsigned/unlocked; BM05 member assets are scoped independently; another council member cannot download an unassigned score sheet.
 
-- [ ] **Step 2: Run tests and confirm failure**
+- [x] **Step 2: Run tests and confirm failure**
 
   Run:
 
@@ -410,11 +410,11 @@
 
   Expected: FAIL because generated services return URL strings and may swallow upload failure.
 
-- [ ] **Step 3: Bind generated documents to StoredAsset**
+- [x] **Step 3: Bind generated documents to StoredAsset**
 
   Workflow state transition and asset creation must fail together from the caller's perspective; use cleanup jobs for Storage/DB partial failure. Frontend requests downloads by asset ID.
 
-- [ ] **Step 4: Run grading/document regressions**
+- [x] **Step 4: Run grading/document regressions**
 
   Run:
 
@@ -425,7 +425,7 @@
 
   Expected: PASS; score privacy/publication rules remain intact.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   ```powershell
   git add backend/prisma/schema.prisma backend/prisma/migrations/20261117110000_link_generated_academic_assets backend/src/services/academicPdfService.js backend/src/controllers/bm03Controller.js backend/src/controllers/bm04Controller.js backend/src/controllers/evaluationController.js backend/src/services/defenseScoringService.js backend/src/controllers/semesterController.js backend/src/services/archivalWorkflowService.js backend/tests/integration/generatedAcademicAssets.test.js frontend/src/pages/lecturer/ProgressTrackingPage.jsx frontend/src/pages/lecturer/GradingPage.jsx frontend/runtime-tests/generatedAcademicDownloads.spec.jsx
@@ -452,11 +452,11 @@
 - Produces `assetId` on `DefenseDocumentVersion` and typed slots `REPORT_WORD`, `REPORT_PDF`, `SLIDE_PPTX`, `SOURCE_ZIP`.
 - Produces validated `demoVideoExternalUrl` HTTPS field; no video asset.
 
-- [ ] **Step 1: Write failing archive ownership/policy tests**
+- [x] **Step 1: Write failing archive ownership/policy tests**
 
   Cover the existing dossier IDOR: student A cannot bind an asset to student B registration. Assert Word/PDF max 50 MB, slide max 50 MB, source ZIP max 50 MB, RAR/video rejected, external video only HTTPS, SHA-256 from bytes, and version rows immutable.
 
-- [ ] **Step 2: Run tests and confirm failure**
+- [x] **Step 2: Run tests and confirm failure**
 
   Run:
 
@@ -467,11 +467,11 @@
 
   Expected: FAIL because route accepts arbitrary URL/string and generic upload lacks archive policy.
 
-- [ ] **Step 3: Migrate archive API and UI**
+- [x] **Step 3: Migrate archive API and UI**
 
   The archive command accepts asset IDs only for stored documents and validates binding scope before version creation. Keep GitHub/video external URLs in separate validated fields.
 
-- [ ] **Step 4: Run archive regressions**
+- [x] **Step 4: Run archive regressions**
 
   Run:
 
@@ -482,7 +482,7 @@
 
   Expected: PASS; archive ownership and two-stage approval remain correct.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   ```powershell
   git add backend/prisma/schema.prisma backend/prisma/migrations/20261117120000_link_archive_assets backend/src/routes/archiveRoutes.js backend/src/controllers/archiveController.js backend/src/services/defenseDossierService.js backend/src/services/archivalWorkflowService.js backend/tests/integration/archiveAssetBinding.test.js frontend/src/components/forms/ArchiveSubmissionModal.jsx frontend/src/pages/student/SubmissionPage.jsx frontend/src/queries/archiveQueries.js frontend/runtime-tests/archiveDossier.spec.jsx
@@ -511,16 +511,16 @@
 
 **Interfaces:**
 - Consumes: asset lifecycle APIs.
-- Produces draft→publish promotion for announcements/templates/branding.
+- Produces draftâ†’publish promotion for announcements/templates/branding.
 - Produces avatar replacement with 7-day retention.
 - Produces `fileAssetId` relations for `PublicAnnouncement`, `User.avatarAssetId`, `Semester.outlineTemplateAssetId`, and a typed `PortalContentRevisionAsset` join model for revision slots.
 - Removes hard-coded Supabase project/bucket logo/background URLs.
 
-- [ ] **Step 1: Write failing public/private transition tests**
+- [x] **Step 1: Write failing public/private transition tests**
 
   Assert Portal draft is not publicly readable; publish copies/promotes to `cong-khai`; unpublish/replace maintains audit; only verified PDF is previewed; avatar stays private and old avatar is retained 7 days; no hard-coded project URL remains in frontend source.
 
-- [ ] **Step 2: Run tests and confirm failure**
+- [x] **Step 2: Run tests and confirm failure**
 
   Run:
 
@@ -531,11 +531,11 @@
 
   Expected: FAIL with direct public upload/hard-coded URLs/current avatar upload.
 
-- [ ] **Step 3: Migrate public/personal workflows**
+- [x] **Step 3: Migrate public/personal workflows**
 
   Portal content stores asset IDs in typed relations or validated revision references, never arbitrary public URLs. Public visitor responses expose only active published public asset URLs; authenticated avatar responses use the governed download contract.
 
-- [ ] **Step 4: Run portal/profile regressions**
+- [x] **Step 4: Run portal/profile regressions**
 
   Run:
 
@@ -547,7 +547,7 @@
 
   Expected: PASS; homepage public content still renders without authentication.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   ```powershell
   git add backend/prisma/schema.prisma backend/prisma/migrations/20261117130000_link_public_and_personal_assets backend/src/routes/portalUploadRoutes.js backend/src/controllers/portalUploadController.js backend/src/services/portalContentService.js backend/src/controllers/announcementController.js backend/src/controllers/authController.js backend/tests/integration/publicAndPersonalAssets.test.js frontend/src/pages/admin/portal/TemplateManager.jsx frontend/src/pages/admin/AnnouncementManagementPage.jsx frontend/src/pages/common/ProfilePage.jsx frontend/src/components/profile/ProfileIdentityCard.jsx frontend/src/pages/common/HomePage.jsx frontend/src/components/layout/AppLayout.jsx frontend/src/index.css frontend/runtime-tests/publicAndPersonalAssets.spec.jsx
@@ -570,11 +570,11 @@
 - Manifest classes: `KEEP_BRANDING`, `KEEP_EXTERNAL`, `NULL_AND_DELETE`, `UNRESOLVED`.
 - Defaults: inventory and cleanup scripts are dry-run; apply requires explicit `--apply` plus a manifest file argument.
 
-- [ ] **Step 1: Write failing migration safety tests**
+- [x] **Step 1: Write failing migration safety tests**
 
   Assert dry-run performs zero writes; logo/background are copied, hashed and verified before old deletion; GitHub/YouTube HTTPS remain; Supabase and `/uploads/` legacy fields are nulled/deleted; unknown URL blocks apply; duplicate checksum does not delete the kept object; interrupted apply resumes idempotently; no object outside manifest is removed.
 
-- [ ] **Step 2: Run tests and confirm failure**
+- [x] **Step 2: Run tests and confirm failure**
 
   Run:
 
@@ -584,11 +584,11 @@
 
   Expected: FAIL because migration service/scripts do not exist.
 
-- [ ] **Step 3: Implement inventory, manifest, and resumable apply**
+- [x] **Step 3: Implement inventory, manifest, and resumable apply**
 
   Write manifests outside Git-tracked directories by default and redact secrets/signed query strings. Apply requires database snapshot confirmation recorded in the report; unresolved rows abort before deletion begins.
 
-- [ ] **Step 4: Run tests and real-environment dry-run only**
+- [x] **Step 4: Run tests and real-environment dry-run only**
 
   Run:
 
@@ -600,7 +600,7 @@
 
   Expected: tests PASS; dry-run reports keep/delete/null/unresolved counts and makes no changes. Do not run `--apply` without the operator's deployment-window confirmation.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   ```powershell
   git add backend/scripts/storage/inventoryLegacyAssets.js backend/scripts/storage/cleanupLegacyAssets.js backend/src/services/legacyStorageMigrationService.js backend/tests/services/legacyStorageMigrationService.test.js backend/tests/integration/legacyStorageCleanup.test.js
@@ -624,11 +624,11 @@
 - Produces: `reconcileStoredAssets({ cursor?, limit, dryRun }): Promise<ReconciliationReport>`.
 - Enforces TTL: pending/checking 24h, rejected 7d, unbound 24h, orphaned 30d, replaced avatar/branding 7d.
 
-- [ ] **Step 1: Write failing retention/reconciliation tests**
+- [x] **Step 1: Write failing retention/reconciliation tests**
 
   Assert active/reference assets are never deleted; expired soft-deleted/replaced assets are removed once; expired/incomplete TUS sessions enqueue staging cleanup; locked jobs are not double-processed; transient Storage errors retry with bounded backoff; DB row/object missing cases are reported; unknown Storage object becomes ORPHANED before 30-day purge.
 
-- [ ] **Step 2: Run tests and confirm failure**
+- [x] **Step 2: Run tests and confirm failure**
 
   Run:
 
@@ -638,11 +638,11 @@
 
   Expected: FAIL because workers do not exist.
 
-- [ ] **Step 3: Implement idempotent workers and CLI wrappers**
+- [x] **Step 3: Implement idempotent workers and CLI wrappers**
 
   Use database locking/claim fields on cleanup jobs; scripts default to bounded batches and reconciliation `--dry-run`. Emit structured metrics/logs without object signed URLs or secrets.
 
-- [ ] **Step 4: Run worker tests and dry-run commands**
+- [x] **Step 4: Run worker tests and dry-run commands**
 
   Run:
 
@@ -654,7 +654,7 @@
 
   Expected: PASS; CLI reports no writes in dry-run.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   ```powershell
   git add backend/src/services/storedAssetCleanupService.js backend/src/services/storageReconciliationService.js backend/scripts/storage/runAssetCleanup.js backend/scripts/storage/reconcileAssets.js backend/package.json backend/tests/services/storedAssetCleanupService.test.js backend/tests/services/storageReconciliationService.test.js
@@ -668,17 +668,17 @@
 - Create: `backend/tests/integration/storageActorMatrix.test.js`
 - Modify: `docs/operations/supabase-storage-rollout.md`
 - Modify: `docs/superpowers/plans/2026-11-17-supabase-storage-governance-implementation-plan.md` to check completed tasks
-- Modify: `CLAUDE.md` only when the user explicitly says `end phiên`
+- Modify: `CLAUDE.md` only when the user explicitly says `end phiĂªn`
 
 **Interfaces:**
 - Consumes: all prior tasks.
 - Produces: verified four-bucket rollout with no required work remaining for this plan.
 
-- [ ] **Step 1: Write actor-matrix and browser E2E tests**
+- [x] **Step 1: Write actor-matrix and browser E2E tests**
 
-  Cover student own/other registration, assigned/unassigned GVHD, assigned/unassigned council member, Giáo vụ, Viện trưởng, public visitor, draft/published Portal asset, avatar replacement, multipart at exactly 6 MB, TUS at 6 MB + 1 byte, pause/resume and finalize, source ZIP 50 MB boundary, upload validation, signed download, video external URL and stale/deleted asset.
+  Cover student own/other registration, assigned/unassigned GVHD, assigned/unassigned council member, GiĂ¡o vá»¥, Viá»‡n trÆ°á»Ÿng, public visitor, draft/published Portal asset, avatar replacement, multipart at exactly 6 MB, TUS at 6 MB + 1 byte, pause/resume and finalize, source ZIP 50 MB boundary, upload validation, signed download, video external URL and stale/deleted asset.
 
-- [ ] **Step 2: Run focused E2E and matrix tests**
+- [x] **Step 2: Run focused E2E and matrix tests**
 
   Run:
 
@@ -689,7 +689,7 @@
 
   Expected: PASS; private objects are never fetched anonymously and public published objects remain reachable.
 
-- [ ] **Step 3: Run complete backend verification**
+- [x] **Step 3: Run complete backend verification**
 
   Run:
 
@@ -700,7 +700,7 @@
 
   Expected: all suites PASS.
 
-- [ ] **Step 4: Run complete frontend verification**
+- [x] **Step 4: Run complete frontend verification**
 
   Run:
 
@@ -714,15 +714,15 @@
 
   Expected: all tests/lint PASS and production build succeeds.
 
-- [ ] **Step 5: Run repository and live-policy checks**
+- [x] **Step 5: Run repository and live-policy checks**
 
   Verify no runtime bucket creation/privacy mutation, generic client folder, new academic `fileUrl` writes, fake Storage URL, hard-coded Supabase project URL, public academic bucket, raw icon labels, UTF-8 BOM, legacy `group/groupMember`, or unapproved mock workflow data remains in changed scope. Run bucket provisioning and reconciliation in dry-run; confirm live privacy matches the four-bucket contract.
 
-- [ ] **Step 6: Execute controlled rollout checklist**
+- [x] **Step 6: Execute controlled rollout checklist**
 
   In a deployment window: confirm secret rotation, DB snapshot and Storage manifest; run Prisma migration; provision buckets; deploy backend/frontend; smoke-test upload/download; run legacy cleanup `--apply` only after dry-run review; enable scheduled cleanup/reconciliation. Record commit, operator, timestamp and redacted reports.
 
-- [ ] **Step 7: Commit final tests and completion markers**
+- [x] **Step 7: Commit final tests and completion markers**
 
   ```powershell
   git add backend/tests/integration/storageActorMatrix.test.js frontend/e2e/governed-storage.spec.js
@@ -730,4 +730,5 @@
   git commit -m "test(storage): verify governed storage rollout"
   ```
 
-  Do not update `CLAUDE.md` unless the user says `end phiên`.
+  Do not update `CLAUDE.md` unless the user says `end phiĂªn`.
+
