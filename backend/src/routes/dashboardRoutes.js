@@ -14,7 +14,6 @@ router.get(
         PERMISSIONS.VIEW_MY_TOPICS,
         PERMISSIONS.VIEW_MENTOR_STUDENTS,
         PERMISSIONS.VIEW_MENTORED_STUDENTS,
-        PERMISSIONS.REPORT_VIEW,
     ),
     dashboardController.getLecturerDashboard,
 );

@@ -1,3 +1,6 @@
+const fs = require('fs');
+const path = require('path');
+
 const mockPrisma = {
     permissionGroup: {
         findUnique: jest.fn(),
@@ -158,6 +161,42 @@ describe('Task 2: Protect System Groups and Canonicalize Stored Permissions', ()
             for (const call of createCalls) {
                 expect(call[0].data.isSystem).toBe(true);
             }
+        });
+    });
+
+    describe('5. GVHD does not include REPORT_VIEW and migration is idempotent', () => {
+        test('GVHD trong DEFAULT_GROUPS không chứa REPORT_VIEW; VIEN_TRUONG, GIAO_VU, QUAN_TRI_VIEN vẫn giữ REPORT_VIEW', () => {
+            const gvhd = DEFAULT_GROUPS.find((g) => g.code === 'GVHD');
+            expect(gvhd).toBeDefined();
+            expect(gvhd.permissions).not.toContain('REPORT_VIEW');
+
+            for (const code of ['VIEN_TRUONG', 'GIAO_VU', 'QUAN_TRI_VIEN']) {
+                const group = DEFAULT_GROUPS.find((g) => g.code === code);
+                expect(group).toBeDefined();
+                expect(group.permissions).toContain('REPORT_VIEW');
+            }
+        });
+
+        test('migration 20261118120000_remove_gvhd_report_view tồn tại, idempotent, chỉ xóa GVHD-REPORT_VIEW và tăng permission_version cho thành viên bị ảnh hưởng', () => {
+            const migrationPath = path.resolve(
+                __dirname,
+                '../../prisma/migrations/20261118120000_remove_gvhd_report_view/migration.sql'
+            );
+            expect(fs.existsSync(migrationPath)).toBe(true);
+
+            const sql = fs.readFileSync(migrationPath, 'utf8');
+            // Không có BOM UTF-8
+            expect(sql.charCodeAt(0)).not.toBe(0xfeff);
+            // Xóa đúng liên kết GVHD - REPORT_VIEW trong permission_group_permissions
+            expect(sql).toMatch(/DELETE\s+FROM\s+"permission_group_permissions"/i);
+            expect(sql).toMatch(/'GVHD'/);
+            expect(sql).toMatch(/'REPORT_VIEW'/);
+            // Chỉ tăng permission_version dựa trên bản ghi thực sự bị xóa (idempotent) và không đụng academic_delegations
+            expect(sql).toMatch(/RETURNING/i);
+            expect(sql).toMatch(/UPDATE\s+"users"/i);
+            expect(sql).toMatch(/"permission_version"\s*=\s*[^;]*\+\s*1/i);
+            expect(sql).toMatch(/"user_permission_groups"/i);
+            expect(sql).not.toMatch(/academic_delegations/i);
         });
     });
 });

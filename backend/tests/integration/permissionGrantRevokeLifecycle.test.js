@@ -206,5 +206,60 @@ describe('Task 6: Permission Grant/Revoke Lifecycle and Protected Matrix Authori
                 data: { permissionVersion: { increment: 1 } },
             });
         });
+
+        it('returns 409 PERMISSION_VERSION_STALE for stale GVHD token after REPORT_VIEW revocation and refreshes on /api/auth/me', async () => {
+            const gvhdUser = buildUser({
+                id: 201,
+                role: 'LECTURER',
+                permissions: ['VIEW_MY_TOPICS', 'VIEW_MENTOR_STUDENTS'],
+                permissionVersion: 2,
+            });
+            gvhdUser.permissionGroups = [{
+                permissionGroup: {
+                    id: 2,
+                    code: 'GVHD',
+                    permissions: [
+                        { permission: { code: 'VIEW_MY_TOPICS' } },
+                        { permission: { code: 'VIEW_MENTOR_STUDENTS' } },
+                    ],
+                },
+            }];
+
+            jwt.verify.mockImplementation((token) => {
+                if (token === 'stale-gvhd-token') {
+                    return { userId: 201, role: 'LECTURER', permissionVersion: 1 };
+                }
+                if (token === 'fresh-gvhd-token') {
+                    return { userId: 201, role: 'LECTURER', permissionVersion: 2 };
+                }
+                throw new Error('Invalid token');
+            });
+
+            mockUser.findUnique.mockImplementation(async ({ where }) => {
+                if (where.id === 201) return gvhdUser;
+                return null;
+            });
+
+            const staleRes = await request(app)
+                .get('/api/dashboard/stats')
+                .set('Authorization', 'Bearer stale-gvhd-token');
+
+            expect(staleRes.status).toBe(409);
+            expect(staleRes.body.error).toBe('PERMISSION_VERSION_STALE');
+
+            const meRes = await request(app)
+                .get('/api/auth/me')
+                .set('Authorization', 'Bearer stale-gvhd-token');
+
+            expect(meRes.status).toBe(200);
+            expect(meRes.body.data.permissions).not.toContain('REPORT_VIEW');
+            expect(meRes.body.data.permissions).toContain('VIEW_MY_TOPICS');
+
+            const freshStatsRes = await request(app)
+                .get('/api/dashboard/stats')
+                .set('Authorization', 'Bearer fresh-gvhd-token');
+
+            expect(freshStatsRes.status).toBe(403);
+        });
     });
 });

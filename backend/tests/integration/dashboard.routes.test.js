@@ -142,4 +142,61 @@ describe('Integration - dashboard routes', () => {
 
         expect(res.status).toBe(400);
     });
+
+    test('GVHD without REPORT_VIEW still accesses /api/dashboard/lecturer via mentor permissions but gets 403 on aggregate dashboard endpoints', async () => {
+        prisma.semester.findFirst.mockResolvedValue(null);
+
+        const lecturerRes = await request(app)
+            .get('/api/dashboard/lecturer')
+            .set('Authorization', 'Bearer lecturer-token');
+        expect(lecturerRes.status).toBe(200);
+
+        for (const endpoint of [
+            '/api/dashboard/stats',
+            '/api/dashboard/semester-overview',
+            '/api/dashboard/scores',
+            '/api/dashboard/activities',
+        ]) {
+            const res = await request(app)
+                .get(endpoint)
+                .set('Authorization', 'Bearer lecturer-token');
+            expect(res.status).toBe(403);
+        }
+    });
+
+    test('GET /api/dashboard/lecturer rejects actor who only has REPORT_VIEW without mentor permissions', async () => {
+        jwt.verify.mockImplementation((token) => {
+            if (token === 'report-only-token') return { userId: 88, role: 'ADMIN', permissionVersion: 1 };
+            throw new Error('invalid token');
+        });
+        prisma.user.findUnique.mockImplementation(async ({ where }) => {
+            if (where?.id === 88) {
+                return {
+                    id: 88,
+                    email: 'reportonly@example.com',
+                    fullName: 'Report Only',
+                    code: 'AD088',
+                    role: 'ADMIN',
+                    department: 'CNTT',
+                    isActive: true,
+                    permissionVersion: 1,
+                    permissionGroups: [{
+                        permissionGroup: {
+                            id: 3,
+                            code: 'CUSTOM_REPORT',
+                            permissions: [{ permission: { code: 'REPORT_VIEW' } }],
+                        },
+                    }],
+                    councilMembers: [],
+                };
+            }
+            return null;
+        });
+
+        const res = await request(app)
+            .get('/api/dashboard/lecturer')
+            .set('Authorization', 'Bearer report-only-token');
+
+        expect(res.status).toBe(403);
+    });
 });
