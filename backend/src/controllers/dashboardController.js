@@ -1,6 +1,10 @@
 const prisma = require('../config/database');
 const { PENDING_REMINDER_DAYS } = require('../constants/registrationLimits');
 const { getDefaultSemester } = require('../utils/semesterResolver');
+const {
+    resolveLecturerSemester,
+    buildMentorOverview,
+} = require('../services/lecturerOverviewService');
 
 const ACTIVE_REGISTRATION_STATUSES = ['APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'DEFENDED', 'COMPLETED'];
 const getPendingCutoffDate = () => {
@@ -427,15 +431,19 @@ const fetchLecturerDashboardData = async (mentorId, semesterId) => {
 const getLecturerDashboard = async (req, res, next) => {
     try {
         const mentorId = req.user.id;
-        let activeSemester = await getDefaultSemester({
-            id: true,
-            name: true,
-            startDate: true,
-            registrationDeadline: true,
-            endDate: true,
+        const requestedSemesterId = req.query?.semesterId;
+        const activeSemester = await resolveLecturerSemester({
+            actorId: mentorId,
+            requestedSemesterId,
+            db: prisma,
         });
 
         if (!activeSemester) {
+            const emptyOverview = await buildMentorOverview({
+                actorId: mentorId,
+                semesterId: null,
+                db: prisma,
+            });
             return res.json({
                 success: true,
                 data: {
@@ -448,80 +456,30 @@ const getLecturerDashboard = async (req, res, next) => {
                     },
                     recentSubmissions: [],
                     timelineEvents: [],
+                    ...emptyOverview,
+                    generatedAt: new Date().toISOString(),
                 },
             });
         }
 
-        let [
-            activeTopics,
-            activeRegistrations,
-            completedRegistrations,
-            pendingFeedbackSubmissions,
-            upcomingTasks,
-            stalePendingRegistrations,
-        ] = await fetchLecturerDashboardData(mentorId, activeSemester.id);
-
-        if (activeRegistrations === 0 && activeTopics === 0) {
-            const fallbackRegistration = await prisma.topicRegistration.findFirst({
-                where: {
-                    topic: { mentorId },
-                    semester: { status: { in: ['REGISTRATION', 'ONGOING', 'DEFENSE'] } },
-                    status: { not: 'REJECTED' },
-                },
-                include: {
-                    semester: {
-                        select: {
-                            id: true,
-                            name: true,
-                            startDate: true,
-                            registrationDeadline: true,
-                            endDate: true,
-                        },
-                    },
-                },
-                orderBy: { createdAt: 'desc' },
-            });
-
-            let fallbackSemester = fallbackRegistration?.semester;
-
-            if (!fallbackSemester) {
-                const fallbackTopic = await prisma.topic.findFirst({
-                    where: {
-                        mentorId,
-                        semester: { status: { in: ['REGISTRATION', 'ONGOING', 'DEFENSE'] } },
-                        status: { not: 'REJECTED' },
-                    },
-                    include: {
-                        semester: {
-                            select: {
-                                id: true,
-                                name: true,
-                                startDate: true,
-                                registrationDeadline: true,
-                                endDate: true,
-                            },
-                        },
-                    },
-                    orderBy: { createdAt: 'desc' },
-                });
-
-                if (fallbackTopic?.semester) {
-                    fallbackSemester = fallbackTopic.semester;
-                }
-            }
-
-            if (fallbackSemester && fallbackSemester.id !== activeSemester.id) {
-                activeSemester = fallbackSemester;
-                [
-                    activeTopics,
-                    activeRegistrations,
-                    completedRegistrations,
-                    pendingFeedbackSubmissions,
-                    upcomingTasks,
-                    stalePendingRegistrations,
-                ] = await fetchLecturerDashboardData(mentorId, activeSemester.id);
-            }
-        }
+        const [
+            [
+                activeTopics,
+                activeRegistrations,
+                completedRegistrations,
+                pendingFeedbackSubmissions,
+                upcomingTasks,
+                stalePendingRegistrations,
+            ],
+            mentorOverview,
+        ] = await Promise.all([
+            fetchLecturerDashboardData(mentorId, activeSemester.id),
+            buildMentorOverview({
+                actorId: mentorId,
+                semesterId: activeSemester.id,
+                db: prisma,
+            }),
+        ]);
 
         const recentSubmissions = pendingFeedbackSubmissions.map((submission) => ({
             id: submission.id,
@@ -550,11 +508,13 @@ const getLecturerDashboard = async (req, res, next) => {
                     activeTopics,
                     studentGroups: activeRegistrations,
                     completedRegistrations,
-                    pendingFeedback: pendingFeedbackSubmissions.length,
+                    pendingFeedback: mentorOverview.mentorSummary.pendingFeedbackCount,
                     stalePendingRegistrations,
                 },
                 recentSubmissions,
                 timelineEvents,
+                ...mentorOverview,
+                generatedAt: new Date().toISOString(),
             },
         });
     } catch (error) {

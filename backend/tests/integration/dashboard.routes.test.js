@@ -4,19 +4,27 @@ jest.mock('../../src/config/database', () => ({
     },
     semester: {
         findFirst: jest.fn(),
+        findUnique: jest.fn(),
     },
     topic: {
         count: jest.fn(),
+        findFirst: jest.fn(),
     },
     topicRegistration: {
         count: jest.fn(),
         findFirst: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
     },
     submission: {
+        count: jest.fn().mockResolvedValue(0),
         findMany: jest.fn(),
     },
     task: {
+        count: jest.fn().mockResolvedValue(0),
         findMany: jest.fn(),
+    },
+    topicTitleAdjustment: {
+        findMany: jest.fn().mockResolvedValue([]),
     },
 }));
 
@@ -120,5 +128,18 @@ describe('Integration - dashboard routes', () => {
                 where: expect.objectContaining({ semesterId: 9 }),
             })
         );
+        expect(res.body.data.mentorSummary).toBeDefined();
+        expect(res.body.data.mentorSummary.maxStudents).toBe(10);
+        expect(Array.isArray(res.body.data.attentionItems)).toBe(true);
+        expect(Array.isArray(res.body.data.students)).toBe(true);
+        expect(res.body.data.generatedAt).toBeDefined();
+    });
+
+    test('GET /api/dashboard/lecturer returns 400 when semesterId query is invalid', async () => {
+        const res = await request(app)
+            .get('/api/dashboard/lecturer?semesterId=invalid')
+            .set('Authorization', 'Bearer lecturer-token');
+
+        expect(res.status).toBe(400);
     });
 });
