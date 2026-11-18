@@ -11,6 +11,7 @@ import {
 } from '@ant-design/icons';
 import aiService from '../../services/aiService';
 import StatusBadge from '../../components/common/StatusBadge';
+import { getStatusTagConfig } from '../../components/common/statusMap';
 import { PROJECT_NAME, formatSemesterLabel } from '../../utils/semesterDisplay';
 import MentorTransferModal from '../../components/admin/MentorTransferModal';
 import TopicSimilarityModal from '../../components/topics/TopicSimilarityModal';
@@ -590,7 +591,10 @@ function TopicManagementPage() {
                                                 <div className="font-mono text-slate-500 text-[11px]">MSSV: {r.student?.code}</div>
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                <Tag color="cyan">{r.status}</Tag>
+                                                {(() => {
+                                                    const statusCfg = getStatusTagConfig(r.status);
+                                                    return <Tag color={statusCfg.color}>{statusCfg.label}</Tag>;
+                                                })()}
                                                 {canTransfer && (
                                                     <Button
                                                         size="small"
