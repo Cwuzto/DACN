@@ -285,7 +285,7 @@ export default function HybridBMFormModal({
                     resourceContext: { taskId: task?.id, registrationId: registration?.id },
                 });
             } catch (err) {
-                // Fallback to uploadService if needed
+                // Fallback to uploadService ONLY when governed asset upload fails
                 const legacyRes = await uploadService.uploadFile(file, 'submissions', { taskId: task?.id });
                 if (legacyRes.success && legacyRes.data?.url) {
                     res = {
@@ -297,7 +297,10 @@ export default function HybridBMFormModal({
                 }
             }
 
-            if (res && (res.assetId || res.downloadUrl)) {
+            const assetId = res?.id || res?.assetId || res?.data?.id || res?.data?.data?.id || null;
+            const downloadUrl = res?.downloadUrl || res?.url || res?.data?.downloadUrl || res?.data?.url || (assetId ? `/api/assets/${assetId}/download` : null);
+
+            if (res && (assetId || downloadUrl)) {
                 revokePreviewObjectUrl();
                 if (isBM01Form && typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
                     try {
@@ -310,8 +313,8 @@ export default function HybridBMFormModal({
                     }
                 }
                 setUploadedFile({
-                    assetId: res.assetId || null,
-                    url: res.downloadUrl || null,
+                    assetId: assetId,
+                    url: downloadUrl,
                     name: file.name,
                     mimeType: file.type || (isBM01Form ? 'application/pdf' : undefined),
                     fileSize: file.size ?? null,

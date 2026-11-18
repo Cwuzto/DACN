@@ -1,3 +1,4 @@
+const fs = require('fs');
 const UploadService = require('../services/uploadService');
 const prisma = require('../config/database');
 
@@ -64,8 +65,27 @@ const uploadFile = async (req, res, next) => {
             ? await buildSubmissionFolder(req)
             : requestedFolder;
 
+        let fileBuffer = req.file.buffer;
+        if (!fileBuffer && req.file.path) {
+            try {
+                fileBuffer = await fs.promises.readFile(req.file.path);
+            } catch (_err) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Không thể đọc tệp đã tải lên từ đĩa.',
+                });
+            }
+        }
+
+        if (!fileBuffer || !Buffer.isBuffer(fileBuffer)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Nội dung tệp không hợp lệ hoặc không tìm thấy dữ liệu tệp.',
+            });
+        }
+
         const result = await UploadService.uploadBuffer(
-            req.file.buffer,
+            fileBuffer,
             folder,
             req.file.mimetype,
             req.file.originalname,

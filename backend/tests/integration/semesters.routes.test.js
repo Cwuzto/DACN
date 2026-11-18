@@ -147,6 +147,112 @@ describe('Integration - semesters routes', () => {
         expect(res.body.success).toBe(false);
     });
 
+    test('POST /api/semesters persists outline submission window and template asset', async () => {
+        prisma.semester.create.mockResolvedValue({
+            id: 2,
+            name: 'HK2 2026',
+            code: 'DATN-HK2-2026',
+            startDate: new Date('2026-07-01T00:00:00.000Z'),
+            endDate: new Date('2026-12-01T00:00:00.000Z'),
+            registrationDeadline: new Date('2026-07-20T00:00:00.000Z'),
+            outlineSubmissionOpenAt: new Date('2026-08-01T00:00:00.000Z'),
+            outlineSubmissionDeadline: new Date('2026-08-15T00:00:00.000Z'),
+            outlineTemplateAssetId: 'asset-bm01-tpl',
+            outlineTemplateFileUrl: '/api/assets/asset-bm01-tpl/download',
+            status: 'UPCOMING',
+            registrationOpen: false,
+        });
+
+        const res = await request(app)
+            .post('/api/semesters')
+            .set('Authorization', 'Bearer admin-token')
+            .send({
+                name: 'HK2 2026',
+                startDate: '2026-07-01T00:00:00.000Z',
+                registrationDeadline: '2026-07-20T00:00:00.000Z',
+                endDate: '2026-12-01T00:00:00.000Z',
+                outlineSubmissionOpenAt: '2026-08-01T00:00:00.000Z',
+                outlineSubmissionDeadline: '2026-08-15T00:00:00.000Z',
+                outlineTemplateAssetId: 'asset-bm01-tpl',
+            });
+
+        expect(res.status).toBe(201);
+        expect(res.body.success).toBe(true);
+        expect(prisma.semester.create).toHaveBeenCalledWith(expect.objectContaining({
+            data: expect.objectContaining({
+                outlineSubmissionOpenAt: new Date('2026-08-01T00:00:00.000Z'),
+                outlineSubmissionDeadline: new Date('2026-08-15T00:00:00.000Z'),
+                outlineTemplateAssetId: 'asset-bm01-tpl',
+                outlineTemplateFileUrl: '/api/assets/asset-bm01-tpl/download',
+            }),
+        }));
+    });
+
+    test('POST /api/semesters rejects invalid outline window order', async () => {
+        const res = await request(app)
+            .post('/api/semesters')
+            .set('Authorization', 'Bearer admin-token')
+            .send({
+                name: 'HK2 2026',
+                startDate: '2026-07-01T00:00:00.000Z',
+                registrationDeadline: '2026-07-20T00:00:00.000Z',
+                endDate: '2026-12-01T00:00:00.000Z',
+                outlineSubmissionOpenAt: '2026-08-20T00:00:00.000Z',
+                outlineSubmissionDeadline: '2026-08-10T00:00:00.000Z',
+            });
+
+        expect(res.status).toBe(400);
+        expect(res.body.code).toBe('INVALID_OUTLINE_WINDOWS');
+    });
+
+    test('PUT /api/semesters/:id updates outline submission window and template asset', async () => {
+        prisma.semester.findUnique.mockResolvedValue({
+            id: 1,
+            name: 'HK1',
+            startDate: new Date('2026-01-01T00:00:00.000Z'),
+            endDate: new Date('2026-06-01T00:00:00.000Z'),
+            registrationDeadline: new Date('2026-01-20T00:00:00.000Z'),
+            outlineSubmissionOpenAt: null,
+            outlineSubmissionDeadline: null,
+            outlineTemplateAssetId: null,
+            outlineTemplateFileUrl: null,
+        });
+        prisma.semester.update.mockResolvedValue({
+            id: 1,
+            name: 'HK1',
+            startDate: new Date('2026-01-01T00:00:00.000Z'),
+            endDate: new Date('2026-06-01T00:00:00.000Z'),
+            registrationDeadline: new Date('2026-01-20T00:00:00.000Z'),
+            outlineSubmissionOpenAt: new Date('2026-02-01T00:00:00.000Z'),
+            outlineSubmissionDeadline: new Date('2026-02-15T00:00:00.000Z'),
+            outlineTemplateAssetId: 'new-tpl-id',
+            outlineTemplateFileUrl: '/api/assets/new-tpl-id/download',
+            status: 'COMPLETED',
+            registrationOpen: false,
+        });
+
+        const res = await request(app)
+            .put('/api/semesters/1')
+            .set('Authorization', 'Bearer admin-token')
+            .send({
+                outlineSubmissionOpenAt: '2026-02-01T00:00:00.000Z',
+                outlineSubmissionDeadline: '2026-02-15T00:00:00.000Z',
+                outlineTemplateAssetId: 'new-tpl-id',
+            });
+
+        expect(res.status).toBe(200);
+        expect(res.body.success).toBe(true);
+        expect(prisma.semester.update).toHaveBeenCalledWith(expect.objectContaining({
+            where: { id: 1 },
+            data: expect.objectContaining({
+                outlineSubmissionOpenAt: new Date('2026-02-01T00:00:00.000Z'),
+                outlineSubmissionDeadline: new Date('2026-02-15T00:00:00.000Z'),
+                outlineTemplateAssetId: 'new-tpl-id',
+                outlineTemplateFileUrl: '/api/assets/new-tpl-id/download',
+            }),
+        }));
+    });
+
     test('PATCH /api/semesters/:id/registration-toggle validates boolean payload', async () => {
         const res = await request(app)
             .patch('/api/semesters/1/registration-toggle')

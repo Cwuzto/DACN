@@ -35,6 +35,13 @@ const validateBM03WindowOrder = (midtermOpenAt, finalOpenAt) => {
     return null;
 };
 
+const validateOutlineWindowOrder = (openAt, deadline) => {
+    if (openAt && deadline && openAt.getTime() > deadline.getTime()) {
+        return 'Ngày mở nộp đề cương BM01 phải trước hoặc bằng hạn nộp đề cương.';
+    }
+    return null;
+};
+
 const validateDefenseCouncilTargetSize = (rawValue, { isUpdate = false, currentValue = 22 } = {}) => {
     if (rawValue === undefined) {
         return { value: isUpdate ? (currentValue ?? 22) : 22, error: null };
@@ -210,6 +217,10 @@ const createSemester = async (req, res, next) => {
             bm03MidtermEvaluationOpenAt,
             bm03FinalizationOpenAt,
             defenseCouncilTargetSize,
+            outlineSubmissionOpenAt,
+            outlineSubmissionDeadline,
+            outlineTemplateAssetId,
+            outlineTemplateFileUrl,
         } = req.body;
 
         if (!name || !startDate || !registrationDeadline || !endDate) {
@@ -240,6 +251,21 @@ const createSemester = async (req, res, next) => {
             return res.status(400).json({ success: false, code: 'INVALID_BM03_STAGE_WINDOWS', message: windowOrderError });
         }
 
+        const parsedOutlineOpen = parseOptionalDateField(outlineSubmissionOpenAt, 'Ngày mở nộp đề cương BM01');
+        if (parsedOutlineOpen.error) {
+            return res.status(400).json({ success: false, code: 'INVALID_OUTLINE_WINDOWS', message: parsedOutlineOpen.error });
+        }
+        const parsedOutlineDeadline = parseOptionalDateField(outlineSubmissionDeadline, 'Hạn nộp đề cương BM01');
+        if (parsedOutlineDeadline.error) {
+            return res.status(400).json({ success: false, code: 'INVALID_OUTLINE_WINDOWS', message: parsedOutlineDeadline.error });
+        }
+        const nextOutlineOpenAt = parsedOutlineOpen.provided ? parsedOutlineOpen.value : null;
+        const nextOutlineDeadline = parsedOutlineDeadline.provided ? parsedOutlineDeadline.value : null;
+        const outlineWindowOrderError = validateOutlineWindowOrder(nextOutlineOpenAt, nextOutlineDeadline);
+        if (outlineWindowOrderError) {
+            return res.status(400).json({ success: false, code: 'INVALID_OUTLINE_WINDOWS', message: outlineWindowOrderError });
+        }
+
         const calculatedStatus = calculateStatus({
             startDate,
             endDate,
@@ -261,6 +287,12 @@ const createSemester = async (req, res, next) => {
                 defenseCouncilTargetSize: parsedTargetSize.value,
                 bm03MidtermEvaluationOpenAt: nextMidtermOpenAt,
                 bm03FinalizationOpenAt: nextFinalOpenAt,
+                outlineSubmissionOpenAt: nextOutlineOpenAt,
+                outlineSubmissionDeadline: nextOutlineDeadline,
+                outlineTemplateAssetId: outlineTemplateAssetId ? String(outlineTemplateAssetId).trim() : null,
+                outlineTemplateFileUrl: outlineTemplateFileUrl
+                    ? String(outlineTemplateFileUrl).trim()
+                    : (outlineTemplateAssetId ? `/api/assets/${String(outlineTemplateAssetId).trim()}/download` : null),
                 outlineAllowedExtensions: LOCKED_BM01_OUTLINE_EXTENSIONS,
                 registrationOpen: typeof registrationOpen === 'boolean' ? registrationOpen : true,
                 status: calculatedStatus,
@@ -312,6 +344,10 @@ const updateSemester = async (req, res, next) => {
             bm03MidtermEvaluationOpenAt,
             bm03FinalizationOpenAt,
             defenseCouncilTargetSize,
+            outlineSubmissionOpenAt,
+            outlineSubmissionDeadline,
+            outlineTemplateAssetId,
+            outlineTemplateFileUrl,
         } = req.body;
 
         const parsedMidtermOpen = parseOptionalDateField(bm03MidtermEvaluationOpenAt, 'Ngày mở đánh giá giữa kỳ BM03');
@@ -321,6 +357,15 @@ const updateSemester = async (req, res, next) => {
         const parsedFinalOpen = parseOptionalDateField(bm03FinalizationOpenAt, 'Ngày bắt đầu chốt BM03 cuối kỳ');
         if (parsedFinalOpen.error) {
             return res.status(400).json({ success: false, code: 'INVALID_BM03_STAGE_WINDOWS', message: parsedFinalOpen.error });
+        }
+
+        const parsedOutlineOpen = parseOptionalDateField(outlineSubmissionOpenAt, 'Ngày mở nộp đề cương BM01');
+        if (parsedOutlineOpen.error) {
+            return res.status(400).json({ success: false, code: 'INVALID_OUTLINE_WINDOWS', message: parsedOutlineOpen.error });
+        }
+        const parsedOutlineDeadline = parseOptionalDateField(outlineSubmissionDeadline, 'Hạn nộp đề cương BM01');
+        if (parsedOutlineDeadline.error) {
+            return res.status(400).json({ success: false, code: 'INVALID_OUTLINE_WINDOWS', message: parsedOutlineDeadline.error });
         }
 
         const semester = await prisma.semester.findUnique({
@@ -368,12 +413,36 @@ const updateSemester = async (req, res, next) => {
             return res.status(400).json({ success: false, code: 'INVALID_BM03_STAGE_WINDOWS', message: windowOrderError });
         }
 
+        const nextOutlineOpenAt = parsedOutlineOpen.provided
+            ? parsedOutlineOpen.value
+            : (semester.outlineSubmissionOpenAt ?? null);
+        const nextOutlineDeadline = parsedOutlineDeadline.provided
+            ? parsedOutlineDeadline.value
+            : (semester.outlineSubmissionDeadline ?? null);
+
+        const outlineWindowOrderError = validateOutlineWindowOrder(
+            nextOutlineOpenAt ? new Date(nextOutlineOpenAt) : null,
+            nextOutlineDeadline ? new Date(nextOutlineDeadline) : null,
+        );
+        if (outlineWindowOrderError) {
+            return res.status(400).json({ success: false, code: 'INVALID_OUTLINE_WINDOWS', message: outlineWindowOrderError });
+        }
+
         const calculatedStatus = calculateStatus({
             startDate: nextStartDate,
             endDate: nextEndDate,
             registrationDeadline: nextRegistrationDeadline,
             defenseDate: nextDefenseDate,
         });
+
+        const nextOutlineAssetId = outlineTemplateAssetId !== undefined
+            ? (outlineTemplateAssetId ? String(outlineTemplateAssetId).trim() : null)
+            : semester.outlineTemplateAssetId;
+        const nextOutlineFileUrl = outlineTemplateFileUrl !== undefined
+            ? (outlineTemplateFileUrl ? String(outlineTemplateFileUrl).trim() : null)
+            : (outlineTemplateAssetId !== undefined && outlineTemplateAssetId
+                ? `/api/assets/${String(outlineTemplateAssetId).trim()}/download`
+                : semester.outlineTemplateFileUrl);
 
         const updatedSemester = await prisma.semester.update({
             where: { id: semesterId },
@@ -388,6 +457,10 @@ const updateSemester = async (req, res, next) => {
                 defenseCouncilTargetSize: parsedTargetSize.value,
                 bm03MidtermEvaluationOpenAt: nextMidtermOpenAt,
                 bm03FinalizationOpenAt: nextFinalOpenAt,
+                outlineSubmissionOpenAt: nextOutlineOpenAt,
+                outlineSubmissionDeadline: nextOutlineDeadline,
+                outlineTemplateAssetId: nextOutlineAssetId,
+                outlineTemplateFileUrl: nextOutlineFileUrl,
                 outlineAllowedExtensions: LOCKED_BM01_OUTLINE_EXTENSIONS,
                 registrationOpen:
                     typeof registrationOpen === 'boolean' ? registrationOpen : semester.registrationOpen,

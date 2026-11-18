@@ -29,6 +29,7 @@ import {
     Tooltip,
     Table,
     Tag,
+    Upload,
 } from 'antd';
 import {
     ArrowRightOutlined,
@@ -46,8 +47,11 @@ import {
     HistoryOutlined,
     PlusOutlined,
     ReloadOutlined,
+    UploadOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
+
+import { uploadGovernedAsset } from '../../services/resumableUploadService';
 
 import useAuthStore from '../../stores/authStore';
 import { PROJECT_NAME, buildSemesterName, buildSemesterCode, extractSemesterMeta, formatSemesterLabel } from '../../utils/semesterDisplay';
@@ -367,10 +371,15 @@ function ProjectPeriodPage() {
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [modalMode, setModalMode] = useState('add');
     const [form] = Form.useForm();
+    const [templateUploading, setTemplateUploading] = useState(false);
+    const [uploadedTemplateName, setUploadedTemplateName] = useState(null);
 
     const editingSemesterId = Form.useWatch('id', form);
     const watchedTargetSize = Form.useWatch('defenseCouncilTargetSize', form);
     const effectiveTargetSize = watchedTargetSize ? Number(watchedTargetSize) : 22;
+    const watchedOutlineTemplateFileUrl = Form.useWatch('outlineTemplateFileUrl', form);
+    const watchedOutlineTemplateAssetId = Form.useWatch('outlineTemplateAssetId', form);
+    const hasConfiguredTemplate = Boolean(watchedOutlineTemplateFileUrl || watchedOutlineTemplateAssetId || uploadedTemplateName);
 
     const remainingEligibleCount = useMemo(() => {
         if (!editingSemesterId) return 0;
@@ -764,6 +773,7 @@ function ProjectPeriodPage() {
     const handleAdd = () => {
         setModalMode('add');
         form.resetFields();
+        setUploadedTemplateName(null);
         const currentYear = dayjs().year();
         form.setFieldsValue({
             status: 'UPCOMING',
@@ -776,6 +786,10 @@ function ProjectPeriodPage() {
             bm03MidtermEvaluationOpenAt: null,
             bm03FinalizationOpenAt: null,
             defenseCouncilTargetSize: 22,
+            outlineSubmissionOpenAt: null,
+            outlineSubmissionDeadline: null,
+            outlineTemplateAssetId: null,
+            outlineTemplateFileUrl: null,
         });
         setIsModalVisible(true);
     };
@@ -784,6 +798,7 @@ function ProjectPeriodPage() {
         setModalMode('edit');
         const meta = extractSemesterMeta(period.rawData);
         const startYear = Number.parseInt((meta.academicYear || '').split('-')[0], 10) || dayjs().year();
+        setUploadedTemplateName(period.rawData?.outlineTemplateAsset?.originalName || (period.rawData?.outlineTemplateFileUrl ? 'Mẫu đề cương hiện tại' : null));
         form.setFieldsValue({
             id: period.id,
             code: period.code,
@@ -808,6 +823,14 @@ function ProjectPeriodPage() {
             bm03FinalizationOpenAt: period.rawData.bm03FinalizationOpenAt
                 ? dayjs(period.rawData.bm03FinalizationOpenAt)
                 : null,
+            outlineSubmissionOpenAt: period.rawData.outlineSubmissionOpenAt
+                ? dayjs(period.rawData.outlineSubmissionOpenAt)
+                : null,
+            outlineSubmissionDeadline: period.rawData.outlineSubmissionDeadline
+                ? dayjs(period.rawData.outlineSubmissionDeadline)
+                : null,
+            outlineTemplateAssetId: period.rawData.outlineTemplateAssetId || null,
+            outlineTemplateFileUrl: period.rawData.outlineTemplateFileUrl || null,
             outlineAllowedFormat: 'pdf',
         });
         setIsModalVisible(true);
@@ -818,6 +841,7 @@ function ProjectPeriodPage() {
         const meta = extractSemesterMeta(period.rawData);
         const cloneStartYear = Number.parseInt((meta.academicYear || '').split('-')[0], 10) + 1;
         const targetYear = Number.isInteger(cloneStartYear) ? cloneStartYear : dayjs().year() + 1;
+        setUploadedTemplateName(period.rawData?.outlineTemplateAsset?.originalName || (period.rawData?.outlineTemplateFileUrl ? 'Mẫu đề cương hiện tại' : null));
         form.setFieldsValue({
             code: buildSemesterCode({ projectCode: 'DATN', term: meta.term, academicYear: `${targetYear}-${targetYear + 1}` }),
             projectName: PROJECT_NAME,
@@ -843,6 +867,14 @@ function ProjectPeriodPage() {
             bm03FinalizationOpenAt: period.rawData.bm03FinalizationOpenAt
                 ? dayjs(period.rawData.bm03FinalizationOpenAt).add(1, 'year')
                 : null,
+            outlineSubmissionOpenAt: period.rawData.outlineSubmissionOpenAt
+                ? dayjs(period.rawData.outlineSubmissionOpenAt).add(1, 'year')
+                : null,
+            outlineSubmissionDeadline: period.rawData.outlineSubmissionDeadline
+                ? dayjs(period.rawData.outlineSubmissionDeadline).add(1, 'year')
+                : null,
+            outlineTemplateAssetId: period.rawData.outlineTemplateAssetId || null,
+            outlineTemplateFileUrl: period.rawData.outlineTemplateFileUrl || null,
             outlineAllowedFormat: 'pdf',
         });
         message.info(`Đã sao chép cấu hình từ đợt ${period.name}`);
@@ -898,6 +930,14 @@ function ProjectPeriodPage() {
                 bm03FinalizationOpenAt: values.bm03FinalizationOpenAt
                     ? values.bm03FinalizationOpenAt.toISOString()
                     : null,
+                outlineSubmissionOpenAt: values.outlineSubmissionOpenAt
+                    ? values.outlineSubmissionOpenAt.toISOString()
+                    : null,
+                outlineSubmissionDeadline: values.outlineSubmissionDeadline
+                    ? values.outlineSubmissionDeadline.toISOString()
+                    : null,
+                outlineTemplateAssetId: values.outlineTemplateAssetId || null,
+                outlineTemplateFileUrl: values.outlineTemplateFileUrl || null,
                 outlineAllowedExtensions: ['pdf'],
             };
 
@@ -1596,6 +1636,135 @@ function ProjectPeriodPage() {
                                     disabled
                                     options={[{ value: 'pdf', label: 'Chỉ nhận PDF (.pdf) — Đã khóa' }]}
                                 />
+                            </Form.Item>
+                        </Col>
+                    </Row>
+                    <Row gutter={16}>
+                        <Col span={12}>
+                            <Form.Item
+                                name="outlineSubmissionOpenAt"
+                                label="Ngày mở nộp đề cương BM01"
+                                dependencies={['outlineSubmissionDeadline']}
+                                tooltip="Thời điểm bắt đầu cho phép sinh viên nộp đề cương chi tiết BM01."
+                                rules={[
+                                    ({ getFieldValue }) => ({
+                                        validator(_, value) {
+                                            const deadline = getFieldValue('outlineSubmissionDeadline');
+                                            if (value && deadline && value.isAfter(deadline)) {
+                                                return Promise.reject(
+                                                    new Error('Ngày mở nộp đề cương BM01 phải trước hoặc bằng hạn nộp đề cương'),
+                                                );
+                                            }
+                                            return Promise.resolve();
+                                        },
+                                    }),
+                                ]}
+                            >
+                                <DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} placeholder="Chọn ngày mở nộp BM01" />
+                            </Form.Item>
+                        </Col>
+                        <Col span={12}>
+                            <Form.Item
+                                name="outlineSubmissionDeadline"
+                                label="Hạn nộp đề cương BM01"
+                                dependencies={['outlineSubmissionOpenAt']}
+                                tooltip="Hạn chót sinh viên phải hoàn thành nộp đề cương chi tiết BM01."
+                                rules={[
+                                    ({ getFieldValue }) => ({
+                                        validator(_, value) {
+                                            const openAt = getFieldValue('outlineSubmissionOpenAt');
+                                            if (value && openAt && value.isBefore(openAt)) {
+                                                return Promise.reject(
+                                                    new Error('Hạn nộp đề cương BM01 phải sau hoặc bằng ngày mở nộp đề cương'),
+                                                );
+                                            }
+                                            return Promise.resolve();
+                                        },
+                                    }),
+                                ]}
+                            >
+                                <DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} placeholder="Chọn hạn nộp BM01" />
+                            </Form.Item>
+                        </Col>
+                    </Row>
+                    <Row gutter={16}>
+                        <Col span={24}>
+                            <Form.Item
+                                label="Tệp mẫu đề cương BM01 (.pdf)"
+                                tooltip="Tệp PDF mẫu đề cương BM01 được cung cấp cho sinh viên tải về để tham khảo/lập đề cương."
+                            >
+                                <Space direction="vertical" style={{ width: '100%' }}>
+                                    <Form.Item name="outlineTemplateAssetId" hidden>
+                                        <Input />
+                                    </Form.Item>
+                                    <Form.Item name="outlineTemplateFileUrl" hidden>
+                                        <Input />
+                                    </Form.Item>
+                                    <div className="flex items-center gap-2">
+                                        <Upload
+                                            accept=".pdf,application/pdf"
+                                            showUploadList={false}
+                                            beforeUpload={() => false}
+                                            onChange={async (info) => {
+                                                const file = info.file?.originFileObj || info.file;
+                                                if (!file) return;
+                                                if (file.type !== 'application/pdf' && !file.name?.toLowerCase().endsWith('.pdf')) {
+                                                    message.error('Chỉ chấp nhận tệp định dạng PDF (.pdf) làm mẫu đề cương');
+                                                    return;
+                                                }
+                                                try {
+                                                    setTemplateUploading(true);
+                                                    const res = await uploadGovernedAsset({
+                                                        file,
+                                                        documentType: 'PORTAL_TEMPLATE',
+                                                        resourceContext: { contextType: 'BM01_TEMPLATE' },
+                                                    });
+                                                    const assetId = res?.id || res?.assetId || res?.data?.id || res?.data?.data?.id;
+                                                    const fileUrl = res?.downloadUrl || res?.url || (assetId ? `/api/assets/${assetId}/download` : null);
+                                                    form.setFieldsValue({
+                                                        outlineTemplateAssetId: assetId || null,
+                                                        outlineTemplateFileUrl: fileUrl || null,
+                                                    });
+                                                    setUploadedTemplateName(file.name);
+                                                    message.success(`Đã tải lên tệp mẫu: ${file.name}`);
+                                                } catch (err) {
+                                                    message.error(err?.message || 'Không thể tải lên tệp mẫu đề cương');
+                                                } finally {
+                                                    setTemplateUploading(false);
+                                                }
+                                            }}
+                                        >
+                                            <Button
+                                                icon={<UploadOutlined />}
+                                                loading={templateUploading}
+                                            >
+                                                Tải lên mẫu đề cương (.pdf)
+                                            </Button>
+                                        </Upload>
+                                        {hasConfiguredTemplate && (
+                                            <div className="flex items-center gap-2 text-xs text-slate-700 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
+                                                <FilePdfOutlined className="text-red-500 text-sm" />
+                                                <span className="font-medium truncate max-w-xs">
+                                                    {uploadedTemplateName || 'Mẫu đề cương BM01 đã cấu hình'}
+                                                </span>
+                                                <Button
+                                                    type="link"
+                                                    size="small"
+                                                    danger
+                                                    onClick={() => {
+                                                        form.setFieldsValue({
+                                                            outlineTemplateAssetId: null,
+                                                            outlineTemplateFileUrl: null,
+                                                        });
+                                                        setUploadedTemplateName(null);
+                                                    }}
+                                                >
+                                                    Gỡ bỏ
+                                                </Button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </Space>
                             </Form.Item>
                         </Col>
                     </Row>

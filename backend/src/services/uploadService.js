@@ -78,7 +78,7 @@ class UploadService {
             secure_url: publicUrlData.publicUrl,
             public_id: objectPath,
             format: cleanedName.includes('.') ? cleanedName.split('.').pop() : null,
-            bytes: fileBuffer.length,
+            bytes: fileBuffer ? (Buffer.isBuffer(fileBuffer) ? fileBuffer.length : (fileBuffer.length || 0)) : 0,
             bucket: DEFAULT_BUCKET,
         };
     }
