@@ -16,7 +16,7 @@ router.put('/:id', authenticate, authorizePermission(PERMISSIONS.SEMESTER_MANAGE
 router.patch(
     '/:id/registration-toggle',
     authenticate,
-    authorizePermission(PERMISSIONS.PROJECT_ASSIGNMENT_PUBLISH),
+    authorizePermission(PERMISSIONS.SEMESTER_MANAGE, PERMISSIONS.PROJECT_ASSIGNMENT_PUBLISH),
     semesterController.toggleSemesterRegistration
 );
 router.post(

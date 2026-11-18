@@ -809,6 +809,44 @@ const getAvailableLecturers = async (req, res, next) => {
     }
 };
 
+/**
+ * POST /api/lecturer-assignments/publish
+ * Publish lecturer assignments (transition DRAFT -> ACTIVE or mark published)
+ */
+const publishLecturerAssignments = async (req, res, next) => {
+    try {
+        const { semesterId, projectCatalogId, assignmentIds } = req.body;
+
+        const where = {
+            status: 'DRAFT',
+        };
+        if (semesterId) where.semesterId = Number(semesterId);
+        if (projectCatalogId) where.projectCatalogId = Number(projectCatalogId);
+        if (Array.isArray(assignmentIds) && assignmentIds.length > 0) {
+            where.id = { in: assignmentIds.map(Number) };
+        }
+
+        const updateResult = await prisma.lecturerProjectAssignment.updateMany({
+            where,
+            data: {
+                status: 'ACTIVE',
+                assignedById: req.user.id,
+                assignedAt: new Date(),
+            },
+        });
+
+        return res.json({
+            success: true,
+            message: 'Đã công bố phân công giảng viên thành công.',
+            data: {
+                count: updateResult.count,
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     listLecturerAssignments,
     createLecturerAssignment,
@@ -817,4 +855,5 @@ module.exports = {
     bulkUpsertLecturerAssignments,
     getRoundCoordinationOverview,
     getAvailableLecturers,
+    publishLecturerAssignments,
 };

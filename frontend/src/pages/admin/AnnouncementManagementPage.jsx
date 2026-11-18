@@ -97,7 +97,7 @@ function AnnouncementManagementPage() {
 
     const openEditModal = (record) => {
         setEditingItem(record);
-        setUploadedFile(record.fileUrl ? { url: record.fileUrl, name: record.fileName } : null);
+        setUploadedFile(record.fileUrl ? { url: record.fileUrl, name: record.fileName, fileAssetId: record.fileAssetId || null } : null);
         form.setFieldsValue({
             title: record.title,
             content: record.content || '',
@@ -117,6 +117,7 @@ function AnnouncementManagementPage() {
                 ...values,
                 fileUrl: uploadedFile?.url || null,
                 fileName: uploadedFile?.name || null,
+                fileAssetId: uploadedFile?.fileAssetId || null,
             };
 
             if (editingItem) {
@@ -171,7 +172,8 @@ function AnnouncementManagementPage() {
         try {
             const res = await uploadService.uploadFile(file);
             if (res.success) {
-                setUploadedFile({ url: res.data.url, name: file.name });
+                const assetId = res.data.fileAssetId || res.data.assetId || res.data.id || null;
+                setUploadedFile({ url: res.data.url, name: file.name, fileAssetId: assetId });
                 message.success('Tải file thành công!');
             }
         } catch (err) {

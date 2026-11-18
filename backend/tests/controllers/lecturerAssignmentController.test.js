@@ -3,6 +3,7 @@ const mockLecturerProjectAssignment = {
     findUnique: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
     upsert: jest.fn(),
     delete: jest.fn(),
     count: jest.fn(),
@@ -652,6 +653,55 @@ describe('Lecturer Project Assignment Controller (/api/lecturer-assignments)', (
                 .set('Authorization', `Bearer ${adminToken}`);
 
             expect(res.status).toBe(400);
+        });
+    });
+
+    describe('POST /api/lecturer-assignments/publish', () => {
+        it('publishes draft lecturer assignments for a semester successfully', async () => {
+            mockLecturerProjectAssignment.updateMany.mockResolvedValue({ count: 3 });
+
+            const res = await request(app)
+                .post('/api/lecturer-assignments/publish')
+                .set('Authorization', `Bearer ${adminToken}`)
+                .send({
+                    semesterId: 1,
+                    projectCatalogId: 1,
+                });
+
+            expect(res.status).toBe(200);
+            expect(res.body.success).toBe(true);
+            expect(res.body.data.count).toBe(3);
+            expect(mockLecturerProjectAssignment.updateMany).toHaveBeenCalledWith({
+                where: {
+                    status: 'DRAFT',
+                    semesterId: 1,
+                    projectCatalogId: 1,
+                },
+                data: {
+                    status: 'ACTIVE',
+                    assignedById: 1,
+                    assignedAt: expect.any(Date),
+                },
+            });
+        });
+
+        it('returns 400 when semesterId is missing or invalid', async () => {
+            const res = await request(app)
+                .post('/api/lecturer-assignments/publish')
+                .set('Authorization', `Bearer ${adminToken}`)
+                .send({});
+
+            expect(res.status).toBe(400);
+            expect(res.body.success).toBe(false);
+        });
+
+        it('returns 403 when user lacks permission to publish assignments', async () => {
+            const res = await request(app)
+                .post('/api/lecturer-assignments/publish')
+                .set('Authorization', `Bearer ${unauthorizedToken}`)
+                .send({ semesterId: 1 });
+
+            expect(res.status).toBe(403);
         });
     });
 });

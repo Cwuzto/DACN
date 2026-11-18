@@ -138,6 +138,35 @@ describe('P0 Security Guard: Anti-Escalation, Scope Enforcement & Delegation', (
             expect(result.authoritativeDepartment).toBe('Bộ môn Công nghệ Phần mềm');
         });
 
+        test('succeeds when actor is Institute Director covering the registration department', async () => {
+            const mockTx = {
+                user: {
+                    findUnique: jest.fn().mockResolvedValue({
+                        id: 30,
+                        role: 'INSTITUTE_DIRECTOR',
+                        department: 'Viện Công nghệ Thông tin và Truyền thông',
+                    }),
+                },
+                topicRegistration: {
+                    findUnique: jest.fn().mockResolvedValue({
+                        id: 102,
+                        topic: {
+                            mentor: { department: 'Kỹ thuật Phần mềm' },
+                        },
+                    }),
+                },
+            };
+
+            const result = await validateAcademicScope(mockTx, {
+                actorId: 30,
+                registrationId: 102,
+                capabilityCode: 'BM02_REVIEW',
+            });
+
+            expect(result.grantedVia).toBe('INSTITUTE_SCOPE');
+            expect(result.authoritativeDepartment).toBe('Kỹ thuật Phần mềm');
+        });
+
         test('succeeds when actor has an ACTIVE, non-expired delegation for the department', async () => {
             const now = new Date('2026-11-09T12:00:00Z');
             const mockTx = {

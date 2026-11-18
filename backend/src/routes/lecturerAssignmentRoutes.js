@@ -8,6 +8,7 @@ const {
     bulkUpsertLecturerAssignments,
     getRoundCoordinationOverview,
     getAvailableLecturers,
+    publishLecturerAssignments,
 } = require('../controllers/lecturerAssignmentController');
 const { authenticate, authorizePermission } = require('../middlewares/auth');
 const { PERMISSIONS } = require('../constants/permissions');
@@ -73,6 +74,25 @@ router.post(
         validateRequest,
     ],
     bulkUpsertLecturerAssignments
+);
+
+// Publish lecturer assignments
+router.post(
+    '/publish',
+    [
+        authorizePermission(
+            PERMISSIONS.PROJECT_ASSIGNMENT_PUBLISH,
+            PERMISSIONS.PERMISSION_ASSIGN_ACADEMIC,
+            PERMISSIONS.MENTOR_ASSIGN,
+            PERMISSIONS.SEMESTER_MANAGE
+        ),
+        body('semesterId').isInt({ min: 1 }).withMessage('semesterId phải là số nguyên dương.'),
+        body('projectCatalogId').optional().isInt({ min: 1 }).withMessage('projectCatalogId phải là số nguyên dương.'),
+        body('assignmentIds').optional().isArray().withMessage('assignmentIds phải là mảng.'),
+        body('assignmentIds.*').optional().isInt({ min: 1 }).withMessage('ID phân công không hợp lệ.'),
+        validateRequest,
+    ],
+    publishLecturerAssignments
 );
 
 // List lecturer assignments

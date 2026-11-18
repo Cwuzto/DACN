@@ -132,10 +132,11 @@ const createAnnouncement = async (req, res, next) => {
         }
 
         const published = typeof isPublished === 'boolean' ? isPublished : true;
+        const normalizedFileAssetId = fileAssetId ? String(fileAssetId).trim() : null;
 
-        if (fileAssetId && published) {
+        if (normalizedFileAssetId && published) {
             await prisma.storedAsset.updateMany({
-                where: { id: fileAssetId },
+                where: { id: normalizedFileAssetId },
                 data: {
                     bucket: 'CONG_KHAI',
                     visibility: 'PUBLIC',
@@ -151,7 +152,7 @@ const createAnnouncement = async (req, res, next) => {
                 category: category || 'ANNOUNCEMENT',
                 fileUrl: fileUrl || null,
                 fileName: fileName || null,
-                fileAssetId: fileAssetId || null,
+                fileAssetId: normalizedFileAssetId,
                 isPinned: typeof isPinned === 'boolean' ? isPinned : false,
                 isPublished: published,
                 authorId: req.user?.id || null,
@@ -206,7 +207,9 @@ const updateAnnouncement = async (req, res, next) => {
         const { title, content, category, fileUrl, fileName, fileAssetId, isPinned, isPublished } = req.body;
 
         const willBePublished = typeof isPublished === 'boolean' ? isPublished : existing.isPublished;
-        const targetAssetId = fileAssetId !== undefined ? fileAssetId : existing.fileAssetId;
+        const targetAssetId = fileAssetId !== undefined
+            ? (fileAssetId ? String(fileAssetId).trim() : null)
+            : existing.fileAssetId;
 
         if (willBePublished && targetAssetId) {
             await prisma.storedAsset.updateMany({
@@ -227,7 +230,7 @@ const updateAnnouncement = async (req, res, next) => {
                 ...(category !== undefined && { category }),
                 ...(fileUrl !== undefined && { fileUrl }),
                 ...(fileName !== undefined && { fileName }),
-                ...(fileAssetId !== undefined && { fileAssetId }),
+                ...(fileAssetId !== undefined && { fileAssetId: targetAssetId }),
                 ...(typeof isPinned === 'boolean' && { isPinned }),
                 ...(typeof isPublished === 'boolean' && { isPublished }),
                 updatedAt: new Date(),
