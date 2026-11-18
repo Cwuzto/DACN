@@ -257,12 +257,15 @@ const startPendingRegistrationReminderScheduler = () => {
         }
     };
 
-    setTimeout(tick, 10 * 1000);
+    const initialTimer = setTimeout(tick, 10 * 1000);
     const timer = setInterval(tick, intervalMs);
 
     console.log(`[jobs] Pending reminder scheduler started (every ${Math.round(intervalMs / 60000)} minutes)`);
 
-    return () => clearInterval(timer);
+    return () => {
+        clearTimeout(initialTimer);
+        clearInterval(timer);
+    };
 };
 
 module.exports = {

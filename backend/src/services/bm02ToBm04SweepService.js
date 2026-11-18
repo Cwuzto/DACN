@@ -1,5 +1,8 @@
 const prisma = require('../config/database');
 const { generateImmutableAcademicPdf } = require('./academicPdfService');
+const { resolveSystemActor } = require('./systemActorService');
+
+const SWEEP_ADVISORY_LOCK_ID = 108032602;
 
 /**
  * Sweeps all 5 scheduled automated background jobs across BM02 to BM04:
@@ -21,6 +24,28 @@ async function runBm02ToBm04SweepJobs(input = {}, options = {}) {
     const now = input.now ? new Date(input.now) : (options.now ? new Date(options.now) : new Date());
 
     const execute = async (tx) => {
+        if (typeof tx.$queryRawUnsafe === 'function') {
+            try {
+                const rows = await tx.$queryRawUnsafe(
+                    `SELECT pg_try_advisory_xact_lock(${SWEEP_ADVISORY_LOCK_ID}) as locked`
+                );
+                const isLocked = rows?.[0]?.locked;
+                if (isLocked === false) {
+                    return {
+                        skipped: true,
+                        reason: 'LOCKED_BY_ANOTHER_INSTANCE',
+                        closedBm02AWindowsCount: 0,
+                        expiredBm02ARequestsCount: 0,
+                        autoTerminatedStopReviewsCount: 0,
+                        autoCompletedStudentAcksCount: 0,
+                        autoFinalizedDefenseReviewsCount: 0,
+                    };
+                }
+            } catch (lockErr) {
+                // If DB does not support advisory lock in mocks, continue
+            }
+        }
+
         let closedBm02AWindowsCount = 0;
         let expiredBm02ARequestsCount = 0;
         let autoTerminatedStopReviewsCount = 0;
@@ -140,8 +165,7 @@ async function runBm02ToBm04SweepJobs(input = {}, options = {}) {
             for (const record of overdueAcks) {
                 // Generate PDF with timeout note and empty student signature
                 let fileUrl = null;
-                try {
-                    const sections = [
+                const sections = [
                         {
                             heading: '1. THÔNG TIN CHUNG',
                             lines: [
@@ -174,30 +198,34 @@ async function runBm02ToBm04SweepJobs(input = {}, options = {}) {
                         },
                     ];
 
+                    const systemActor = await resolveSystemActor(tx);
                     const pdfResult = await generateImmutableAcademicPdf({
                         docType: 'BM03',
                         registrationId: record.registrationId,
                         entityId: record.id,
                         versionNumber: 1,
                         title: 'PHIẾU THEO DÕI QUÁ TRÌNH THỰC HIỆN ĐỒ ÁN (BM03)',
+                        actor: { id: systemActor.id },
                         sections,
                         signatures,
                     }, { ...options, tx });
 
-                    fileUrl = pdfResult?.fileUrl || null;
-                } catch (pdfErr) {
-                    console.error('[SweepJob4] PDF generation failed:', pdfErr.message);
-                }
+                    if (!pdfResult?.fileUrl) {
+                        throw new Error('Sweep Job 4 failed: BM03 PDF generation returned empty URL');
+                    }
 
-                await tx.bM03ProgressRecord.update({
-                    where: { id: record.id },
-                    data: {
-                        studentAckStatus: 'ACKNOWLEDGEMENT_TIMEOUT',
-                        studentAckAt: now,
-                        studentSignatureEventId: null, // STRICT INVARIANT: 0 fake student signature
-                        finalPdfFileUrl: fileUrl,
-                    },
-                });
+                    fileUrl = pdfResult.fileUrl;
+
+                    await tx.bM03ProgressRecord.update({
+                        where: { id: record.id },
+                        data: {
+                            studentAckStatus: 'ACKNOWLEDGEMENT_TIMEOUT',
+                            studentAckAt: now,
+                            studentSignatureEventId: null, // STRICT INVARIANT: 0 fake student signature
+                            finalPdfFileUrl: fileUrl,
+                            finalPdfAssetId: pdfResult?.assetId || null,
+                        },
+                    });
 
                 autoCompletedStudentAcksCount += 1;
 
@@ -301,6 +329,38 @@ async function runBm02ToBm04SweepJobs(input = {}, options = {}) {
     return db.$transaction(execute);
 }
 
+let isSweepRunning = false;
+
+const sweepIntervalMs = () => {
+    const val = Number.parseInt(process.env.BM02_BM04_SWEEP_JOB_INTERVAL_MS, 10);
+    return Number.isFinite(val) && val > 0 ? val : 15 * 60 * 1000;
+};
+
+const isSweepEnabled = () => String(process.env.ENABLE_BM02_BM04_SWEEP_JOB || 'true').toLowerCase() !== 'false';
+
+function startBm02ToBm04SweepScheduler() {
+    if (!isSweepEnabled()) {
+        return () => {};
+    }
+    const timer = setInterval(async () => {
+        if (isSweepRunning) {
+            return;
+        }
+        isSweepRunning = true;
+        try {
+            await runBm02ToBm04SweepJobs();
+        } catch (err) {
+            console.error('[SweepJob] Error running BM02-BM04 sweep jobs:', err);
+        } finally {
+            isSweepRunning = false;
+        }
+    }, sweepIntervalMs());
+
+    return () => clearInterval(timer);
+}
+
 module.exports = {
+    SWEEP_ADVISORY_LOCK_ID,
     runBm02ToBm04SweepJobs,
+    startBm02ToBm04SweepScheduler,
 };

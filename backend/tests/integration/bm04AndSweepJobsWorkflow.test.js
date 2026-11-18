@@ -84,7 +84,7 @@ const mockCouncil = {
 
 const mockUser = {
     findUnique: jest.fn(),
-    findFirst: jest.fn(),
+    findFirst: jest.fn().mockResolvedValue({ id: 1, role: 'ADMIN', isActive: true }),
 };
 
 const mockAcademicDelegation = {

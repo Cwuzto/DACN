@@ -1,14 +1,22 @@
 const prisma = require('../config/database');
 const { transitionRegistration, WorkflowTransitionError } = require('../services/registrationTransitionService');
 const { calculatePolicyDeadline } = require('../services/checkpointWorkflowService');
+const { resolveSystemActor } = require('../services/systemActorService');
 
 const DEFAULT_BATCH_SIZE = 100;
-const SYSTEM_ACTOR_ID = 0;
 const ADVISORY_LOCK_ID = 108032601;
 
 async function tryAcquireAdvisoryLock(db) {
     if (typeof db.$queryRawUnsafe !== 'function') {
         return true;
+    }
+    try {
+        const rows = await db.$queryRawUnsafe(`SELECT pg_try_advisory_xact_lock(${ADVISORY_LOCK_ID}) as locked`);
+        if (rows?.[0] && typeof rows[0].locked === 'boolean') {
+            return rows[0].locked;
+        }
+    } catch (err) {
+        // Fallback for mock or dialect supporting session-level advisory lock
     }
     try {
         const rows = await db.$queryRawUnsafe(`SELECT pg_try_advisory_lock(${ADVISORY_LOCK_ID}) as locked`);
@@ -140,7 +148,11 @@ async function runCheckpointDeadlineOverdueJob(options = {}) {
     const db = options.db || prisma;
     const now = options.now || new Date();
     const batchSize = options.batchSize || DEFAULT_BATCH_SIZE;
-    const actorId = Number.isInteger(options.actorId) ? options.actorId : SYSTEM_ACTOR_ID;
+    let actorId = options.actorId;
+    if (!Number.isInteger(actorId) || actorId <= 0) {
+        const systemActor = await resolveSystemActor(db);
+        actorId = systemActor.id;
+    }
 
     const hasLock = await tryAcquireAdvisoryLock(db);
     if (!hasLock) {
