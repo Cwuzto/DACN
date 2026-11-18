@@ -221,6 +221,22 @@ const councilService = {
             throw wrapServiceError(error, 'Lỗi khi thay thế thành viên chấm');
         }
     },
+
+    getDefenseAssignmentPreview: async (payload) => {
+        try {
+            return await api.post('/councils/defense-assignment/preview', payload);
+        } catch (error) {
+            throw wrapServiceError(error, 'Lỗi khi xem trước phương án phân công hội đồng bảo vệ');
+        }
+    },
+
+    confirmDefenseAssignment: async (payload) => {
+        try {
+            return await api.post('/councils/defense-assignment/confirm', payload);
+        } catch (error) {
+            throw wrapServiceError(error, 'Lỗi khi xác nhận phân công hội đồng bảo vệ');
+        }
+    },
 };
 
 export default councilService;

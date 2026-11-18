@@ -37,13 +37,51 @@ export const useCouncilLecturers = scope => {
     if (primary.isError) return fallback;
     return { ...primary, data: primary.data?.data?.users || primary.data?.data };
 };
+export const useDefenseAssignmentPreviewQuery = (scope, payload, options = {}) => {
+    const enabled = typeof options === 'boolean' ? options : (options.enabled ?? false);
+    return useQuery({
+        queryKey: ['councils', 'defense-assignment-preview', scope, payload],
+        queryFn: async () => requireSuccess(await councilService.getDefenseAssignmentPreview(payload)).data,
+        enabled: Boolean(payload?.semesterId && payload?.rooms?.length > 0) && enabled,
+        staleTime: 0,
+        ...(typeof options === 'object' ? options : {}),
+    });
+};
+
+export const useConfirmDefenseAssignmentMutation = (scope, semesterId) => {
+    const client = useQueryClient();
+    return useMutation({
+        mutationFn: async (payload) => requireSuccess(await councilService.confirmDefenseAssignment(payload)),
+        onSuccess: async () => {
+            const requests = [
+                client.invalidateQueries({
+                    queryKey: queryKeys.councils.lists(scope),
+                    predicate: query => !semesterId || String(query.queryKey.at(-1)?.semesterId) === String(semesterId),
+                }),
+                client.invalidateQueries({
+                    queryKey: queryKeys.councils.details(scope),
+                }),
+                client.invalidateQueries({
+                    queryKey: queryKeys.registrations.lists(scope),
+                    predicate: query => !query.queryKey.at(-1)?.semesterId || String(query.queryKey.at(-1)?.semesterId) === String(semesterId),
+                }),
+                client.invalidateQueries({
+                    queryKey: queryKeys.grading.all(scope),
+                    predicate: query => !query.queryKey.at(-1)?.semesterId || String(query.queryKey.at(-1)?.semesterId) === String(semesterId),
+                }),
+            ];
+            await Promise.all(requests);
+        },
+    });
+};
+
 export const useCouncilMutation = (scope, semesterId) => {
     const client = useQueryClient();
     return useMutation({
         mutationFn: async ({ action, args }) => requireSuccess(await councilService[action](...args)),
         onSuccess: async (_, { action, args }) => {
-            if (action === 'previewAutoOutlineCouncils') return;
-            const bulk = ['autoAssignRegistrations', 'autoAssignOutlineCouncils', 'publishEligibleDefenseList', 'createCouncil'].includes(action);
+            if (action === 'previewAutoOutlineCouncils' || action === 'getDefenseAssignmentPreview') return;
+            const bulk = ['autoAssignRegistrations', 'autoAssignOutlineCouncils', 'confirmDefenseAssignment', 'publishEligibleDefenseList', 'createCouncil'].includes(action);
             const id = bulk ? null : args[0];
             const requests = [client.invalidateQueries({
                 queryKey: queryKeys.councils.lists(scope),

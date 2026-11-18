@@ -13,6 +13,7 @@ import {
     DatePicker,
     Form,
     Input,
+    InputNumber,
     List,
     Descriptions,
     message,
@@ -54,6 +55,8 @@ import dayjs from 'dayjs';
 
 import PageHeader from '../../components/common/PageHeader';
 import CouncilAuditLogModal from '../../components/admin/CouncilAuditLogModal';
+import DefenseAssignmentPreview from '../../components/admin/DefenseAssignmentPreview';
+import councilService from '../../services/councilService';
 import { PROJECT_NAME, formatSemesterLabel } from '../../utils/semesterDisplay';
 import useAuthStore from '../../stores/authStore';
 
@@ -129,8 +132,15 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
     const [expandedCouncilIds, setExpandedCouncilIds] = useState(new Set());
     const [previewConfirmLoading, setPreviewConfirmLoading] = useState(false);
 
+    // Defense Council Assignment Preview Modal State
+    const [isDefensePreviewModalVisible, setIsDefensePreviewModalVisible] = useState(false);
+    const [defensePreviewData, setDefensePreviewData] = useState(null);
+    const [defensePreviewLoading, setDefensePreviewLoading] = useState(false);
+    const [defensePreviewError, setDefensePreviewError] = useState(null);
+
     const [councilForm] = Form.useForm();
     const [memberForm] = Form.useForm();
+    const [defenseForm] = Form.useForm();
 
     const scope = queryKeys.scope(user);
     const semestersQuery = useSemesters(scope);
@@ -164,26 +174,63 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
         }
     }, [selectedSemester, semesters]);
 
-    const handleAutoAssign = async () => {
-        if (!selectedSemester) return;
+    const handleOpenDefenseConfig = () => {
+        const defaultDate = currentSemesterObj?.defenseDate ? dayjs(currentSemesterObj.defenseDate) : null;
+        const defaultTarget = currentSemesterObj?.defenseCouncilTargetSize || 22;
+        defenseForm.setFieldsValue({
+            defenseDate: defaultDate,
+            rooms: 'P.301, P.302, P.303, P.304, P.305',
+            targetSize: defaultTarget,
+        });
+        setDefensePreviewData(null);
+        setDefensePreviewError(null);
+        setIsDefensePreviewModalVisible(true);
+    };
+
+    const handleFetchDefensePreview = async () => {
         try {
-            setSubmitLoading(true);
-            const response = await councilMutation.mutateAsync({ action: 'autoAssignRegistrations', args: [selectedSemester] });
-            if (response.success) {
-                const assigned = response.data?.assigned || 0;
-                const total = response.data?.totalUnassigned || 0;
-                const skipped = response.data?.skipped?.length || 0;
-                message.success(`Đã tự động phân công ${assigned}/${total} sinh viên`);
-                if (skipped > 0) {
-                    message.warning(`Còn ${skipped} sinh viên chưa thể phân công (xung đột/hết slot).`);
-                }
+            const values = await defenseForm.validateFields();
+            const rawRooms = values.rooms || '';
+            const rooms = (Array.isArray(rawRooms) ? rawRooms : String(rawRooms).split(/[,;\n]+/))
+                .map((r) => String(r).trim())
+                .filter(Boolean);
+
+            if (rooms.length === 0) {
+                message.warning('Vui lòng nhập danh sách ít nhất 1 phòng bảo vệ.');
+                return;
             }
-        } catch (error) {
-            message.error(error.message || 'Lỗi khi phân công tự động');
+
+            setDefensePreviewLoading(true);
+            setDefensePreviewError(null);
+
+            const payload = {
+                semesterId: Number(selectedSemester),
+                date: values.defenseDate ? dayjs(values.defenseDate).format('YYYY-MM-DD') : undefined,
+                rooms,
+                targetSize: Number(values.targetSize) || 22,
+            };
+
+            const res = await councilService.getDefenseAssignmentPreview(payload);
+            const preview = res?.data || res;
+            setDefensePreviewData(preview);
+        } catch (err) {
+            if (err?.errorFields) return;
+            const msg = err?.message || 'Lỗi khi tạo phương án xem trước phân công';
+            setDefensePreviewError(msg);
+            message.error(msg);
         } finally {
-            setSubmitLoading(false);
+            setDefensePreviewLoading(false);
         }
     };
+
+    const handleDefenseConfirmSuccess = () => {
+        setIsDefensePreviewModalVisible(false);
+        setDefensePreviewData(null);
+        councilsQuery.refetch();
+        registrationsQuery.refetch();
+    };
+
+    const handleAutoAssign = handleOpenDefenseConfig;
 
     const handleAutoAssignOutline = async () => {
         if (!selectedSemester) return;
@@ -832,12 +879,14 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                         </Button>
                                     </Tooltip>
                                     <Button
-                                        onClick={handleAutoAssign}
+                                        onClick={handleOpenDefenseConfig}
                                         loading={submitLoading}
                                         disabled={!selectedSemester || isSemesterCompleted}
                                         icon={<RobotOutlined />}
+                                        type="primary"
+                                        ghost
                                     >
-                                        Tự động phân công
+                                        Phân công hội đồng bảo vệ
                                     </Button>
                                 </>
                             )
@@ -1983,6 +2032,99 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                             </div>
                         );
                     })}
+                </div>
+            </Modal>
+
+            {/* Modal Cấu hình & Xem trước Phân công Hội đồng Bảo vệ */}
+            <Modal
+                title={
+                    <div className="flex items-center gap-2">
+                        <RobotOutlined className="text-teal-700 text-lg" />
+                        <span className="font-bold text-slate-800 text-base">
+                            Lập & Xem trước Phương án Phân công Hội đồng Bảo vệ
+                        </span>
+                    </div>
+                }
+                open={isDefensePreviewModalVisible}
+                onCancel={() => setIsDefensePreviewModalVisible(false)}
+                width={1050}
+                footer={[
+                    <Button key="close" onClick={() => setIsDefensePreviewModalVisible(false)}>
+                        Đóng
+                    </Button>,
+                ]}
+            >
+                <div className="space-y-5 py-2 max-h-[75vh] overflow-y-auto pr-1">
+                    {/* Form cấu hình xem trước */}
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                        <h4 className="text-sm font-bold text-slate-800 mb-3">
+                            Cấu hình thông số phân công bảo vệ
+                        </h4>
+                        <Form
+                            form={defenseForm}
+                            layout="vertical"
+                            className="grid grid-cols-1 sm:grid-cols-3 gap-3"
+                        >
+                            <Form.Item
+                                name="defenseDate"
+                                label="Ngày bảo vệ"
+                                rules={[{ required: true, message: 'Vui lòng chọn ngày bảo vệ' }]}
+                            >
+                                <DatePicker
+                                    format="DD/MM/YYYY"
+                                    className="w-full"
+                                    placeholder="Chọn ngày bảo vệ"
+                                />
+                            </Form.Item>
+
+                            <Form.Item
+                                name="rooms"
+                                label="Danh sách phòng khả dụng"
+                                rules={[{ required: true, message: 'Vui lòng nhập ít nhất 1 phòng' }]}
+                                tooltip="Phân cách bởi dấu phẩy, chấm phẩy hoặc xuống dòng (VD: P.301, P.302, P.303)"
+                            >
+                                <Input
+                                    placeholder="Ví dụ: P.301, P.302, P.303"
+                                    className="w-full"
+                                />
+                            </Form.Item>
+
+                            <Form.Item
+                                name="targetSize"
+                                label="Quy mô mục tiêu (SV/HĐ)"
+                                rules={[{ required: true, message: 'Vui lòng nhập quy mô' }]}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <InputNumber
+                                        min={1}
+                                        max={30}
+                                        className="w-full"
+                                        placeholder="Mặc định 22"
+                                    />
+                                    <Button
+                                        type="primary"
+                                        icon={<EyeOutlined />}
+                                        onClick={handleFetchDefensePreview}
+                                        loading={defensePreviewLoading}
+                                        className="bg-teal-700 hover:bg-teal-800 shrink-0"
+                                    >
+                                        Xem trước phương án
+                                    </Button>
+                                </div>
+                            </Form.Item>
+                        </Form>
+                    </div>
+
+                    {/* Defense Assignment Preview Component */}
+                    {defensePreviewData && (
+                        <DefenseAssignmentPreview
+                            previewData={defensePreviewData}
+                            semesterId={selectedSemester}
+                            onConfirmSuccess={handleDefenseConfirmSuccess}
+                            onRegeneratePreview={handleFetchDefensePreview}
+                            loading={defensePreviewLoading}
+                        />
+                    )}
                 </div>
             </Modal>
         </div>
