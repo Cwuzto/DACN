@@ -21,18 +21,19 @@ export function getRoleHomePath(userOrRole) {
 export function isInstituteDirector(user) {
     if (!user) return false;
     const groupCodes = readGroupCodes(user);
-    const permissions = user?.permissions || [];
-    return (
-        groupCodes.includes('VIEN_TRUONG') ||
-        permissions.includes('PROJECT_ASSIGNMENT_PUBLISH') ||
-        permissions.includes('PERMISSION_ASSIGN_ACADEMIC')
-    );
+    return groupCodes.includes('VIEN_TRUONG');
 }
 
 export function getUserDisplayRole(userOrRole) {
     if (!userOrRole) return '';
-    if (typeof userOrRole === 'object' && isInstituteDirector(userOrRole)) {
-        return 'Viện trưởng';
+    if (typeof userOrRole === 'object') {
+        const groupCodes = readGroupCodes(userOrRole);
+        if (groupCodes.includes('VIEN_TRUONG')) {
+            return 'Viện trưởng';
+        }
+        if (groupCodes.includes('GIAO_VU')) {
+            return 'Giáo vụ';
+        }
     }
     const role = readRole(userOrRole);
     if (role === 'ADMIN') return 'Quản trị viên';

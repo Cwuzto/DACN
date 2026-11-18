@@ -280,6 +280,10 @@ function AppLayout({ role }) {
                                 <span className="font-semibold text-[#0F766E]">
                                     {user?.code ? `Mã: ${user.code} · ` : ''}Viện trưởng
                                 </span>
+                            ) : roleLabel === 'Giáo vụ' ? (
+                                <span className="font-semibold text-[#0369A1]">
+                                    {user?.code ? `Mã: ${user.code} · ` : ''}Giáo vụ
+                                </span>
                             ) : (
                                 user?.code ? `Mã: ${user.code}` : (currentRole === 'ADMIN' ? 'Ban Quản trị Viện' : 'Khoa Công nghệ Phần mềm')
                             )}
