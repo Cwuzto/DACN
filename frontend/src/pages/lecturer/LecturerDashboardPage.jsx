@@ -21,7 +21,8 @@ import useAuthStore from '../../stores/authStore';
 import { queryKeys } from '../../query/queryKeys';
 import { getEffectivePermissions } from '../../auth/policyEvaluator';
 import { useSemesters } from '../../queries/semesterQueries';
-import { usePendingTitleAdjustments, useRegistrations } from '../../queries/registrationQueries';
+import { useRegistrations } from '../../queries/registrationQueries';
+import { useBm02aQueue } from '../../queries/bm02aQueries';
 import { useMeetingMutation } from '../../queries/meetingQueries';
 import { dashboardKeys, useLecturerOverview } from '../../queries/dashboardQueries';
 import { useBm02AdvisorSignMutation, useBm02Verification } from '../../queries/bm02VerificationQueries';
@@ -127,7 +128,7 @@ export default function LecturerDashboardPage() {
 
     const semestersQuery = useSemesters(scope);
     const overviewQuery = useLecturerOverview(scope, selectedSemesterId);
-    const titleAdjustmentsQuery = usePendingTitleAdjustments(scope);
+    const titleAdjustmentsQuery = useBm02aQueue(scope);
 
     // Modals & Drawer
     const [meetingModalOpen, setMeetingModalOpen] = useState(false);

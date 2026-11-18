@@ -1,13 +1,15 @@
 import React from 'react';
 import A4PageContainer from './A4PageContainer';
 
-function renderSignatureState(signedAt, signerName) {
-    if (signedAt) {
+function renderSignatureState(signedVal, signerName) {
+    if (signedVal) {
+        const isValidDate = (typeof signedVal === 'string' || signedVal instanceof Date)
+            && !Number.isNaN(new Date(signedVal).getTime());
         return (
             <div className="mt-2 text-[9.5pt] text-emerald-800 space-y-0.5">
                 <p className="font-semibold">Đã xác thực nội bộ</p>
                 {signerName && <p className="font-semibold text-black">{signerName}</p>}
-                <p className="text-[8.5pt] text-slate-600">{new Date(signedAt).toLocaleString('vi-VN')}</p>
+                {isValidDate && <p className="text-[8.5pt] text-slate-600">{new Date(signedVal).toLocaleString('vi-VN')}</p>}
             </div>
         );
     }
@@ -25,19 +27,46 @@ function renderSignatureState(signedAt, signerName) {
  * UTF-8 (no BOM)
  */
 export default function BM02APrintSheet({
-    request = {},
+    request,
+    adjustment,
     registration = {},
     student = {},
     mentor = {},
 }) {
-    const s = student?.fullName ? student : registration?.student || {};
-    const sp = s.studentProfile || {};
-    const m = mentor?.fullName ? mentor : registration?.mentor || registration?.topic?.mentor || {};
-    const topic = registration?.topic || {};
+    const req = request || adjustment || {};
+    const reg = registration?.id ? registration : (req.registration || {});
+    const currentVersion = req.versions?.find((v) => v.versionNumber === req.currentVersionNumber)
+        || req.versions?.[req.versions.length - 1]
+        || req.versions?.[0]
+        || {};
 
-    const oldTitle = request?.oldTitle || registration?.bm01ApprovedTitleSnapshot || topic?.title || '................................................................................................................';
-    const newTitle = request?.newTitle || registration?.adjustedTitle || '................................................................................................................';
-    const reason = request?.reason || '—';
+    const s = student?.fullName
+        ? student
+        : (reg?.student?.fullName
+            ? reg.student
+            : (currentVersion.studentSnapshot?.fullName
+                ? currentVersion.studentSnapshot
+                : (req.student || {})));
+    const sp = s.studentProfile || currentVersion.studentSnapshot || {};
+    const m = mentor?.fullName
+        ? mentor
+        : (reg?.mentor?.fullName
+            ? reg.mentor
+            : (reg?.topic?.mentor || req.mentor || {}));
+    const topic = reg?.topic || req.topic || {};
+
+    const oldTitle = req.oldTitle
+        || currentVersion.registeredTitleSnapshot
+        || req.registeredTitleSnapshot
+        || reg?.bm01ApprovedTitleSnapshot
+        || topic?.title
+        || '................................................................................................................';
+    const newTitle = req.newTitle
+        || currentVersion.proposedTitle
+        || req.proposedTitle
+        || reg?.adjustedTitle
+        || '................................................................................................................';
+    const reason = req.reason || currentVersion.reason || '—';
 
     const studentClass = sp.className || s.className || s.class || s.studentClass || '....................';
     const academicYear = sp.academicYear || s.academicYear || '....................';
@@ -136,21 +165,21 @@ export default function BM02APrintSheet({
                     <p className="font-bold uppercase">GIẢNG VIÊN HƯỚNG DẪN</p>
                     <p className="text-[10pt] italic">(Họ tên và xác nhận)</p>
                     <div className="min-h-20 flex flex-col justify-center">
-                        {renderSignatureState(request?.advisorSignedAt, m.fullName)}
+                        {renderSignatureState(req.advisorSignedAt || currentVersion.advisorSignatureEventId, m.fullName)}
                     </div>
                 </div>
                 <div>
                     <p className="font-bold uppercase">SINH VIÊN ĐĂNG KÝ</p>
                     <p className="text-[10pt] italic">(Họ tên và xác nhận)</p>
                     <div className="min-h-20 flex flex-col justify-center">
-                        {renderSignatureState(request?.studentSignedAt || request?.createdAt, s.fullName)}
+                        {renderSignatureState(req.studentSignedAt || currentVersion.studentSignatureEventId || req.createdAt, s.fullName)}
                     </div>
                 </div>
                 <div>
                     <p className="font-bold uppercase">PHỤ TRÁCH BỘ MÔN</p>
                     <p className="text-[10pt] italic">(Họ tên và phê duyệt)</p>
                     <div className="min-h-20 flex flex-col justify-center">
-                        {renderSignatureState(request?.headSignedAt || request?.approvedAt, request?.approvedBy?.fullName)}
+                        {renderSignatureState(req.headSignedAt || req.approvedAt || currentVersion.departmentSignatureEventId, req.approvedBy?.fullName || 'Phụ trách bộ môn')}
                     </div>
                 </div>
             </div>

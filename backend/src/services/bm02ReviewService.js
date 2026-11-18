@@ -166,7 +166,7 @@ async function reviewBM02(input, options = {}) {
             if (input.action === 'APPROVE') {
                 if (isExceptionState) {
                     targetStatus = expectedNormalStatus;
-                } else if (input.targetStatus === 'BM02_APPROVED' || input.transitionStatus === 'BM02_APPROVED') {
+                } else {
                     targetStatus = 'BM02_APPROVED';
                 }
             }

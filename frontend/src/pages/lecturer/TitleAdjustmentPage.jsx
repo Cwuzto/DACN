@@ -12,9 +12,12 @@ import {
     ArrowLeftOutlined,
     CheckCircleOutlined,
     ClockCircleOutlined,
+    FileProtectOutlined,
+    PrinterOutlined,
 } from '@ant-design/icons';
 import bm02aService from '../../services/bm02aService';
 import RegistrationTimelineDrawer from '../../components/common/RegistrationTimelineDrawer';
+import BM02APrintSheet from '../../components/prints/BM02APrintSheet';
 import useAuthStore from '../../stores/authStore';
 import { queryKeys } from '../../query/queryKeys';
 import { useBm02aQueue, useBm02aMutation, bm02aKeys } from '../../queries/bm02aQueries';
@@ -29,10 +32,16 @@ const { TextArea } = Input;
 const BM02A_STATUS_CONFIG = {
     STUDENT_PREPARING: { label: 'Sinh viên đang soạn', color: 'default' },
     PENDING_ADVISOR: { label: 'Chờ GVHD ký xác nhận', color: 'processing' },
-    PENDING_DEPARTMENT_APPROVAL: { label: 'Chờ Phụ trách bộ môn duyệt', color: 'purple' },
-    APPROVED: { label: 'Đã phê duyệt & ký số', color: 'success' },
+    RETURNED_FOR_CORRECTION: { label: 'Trả lại chỉnh sửa', color: 'warning' },
     RETURNED_FOR_REVISION: { label: 'Trả lại chỉnh sửa', color: 'warning' },
+    PENDING_DEPARTMENT_APPROVAL: { label: 'Chờ Phụ trách bộ môn duyệt', color: 'purple' },
+    APPROVED_PENDING_APPENDIX: { label: 'Đã duyệt (chờ lập phụ lục)', color: 'blue' },
+    APPROVED: { label: 'Đã duyệt (chờ lập phụ lục)', color: 'blue' },
+    ASSIGNED_TO_APPENDIX: { label: 'Đã đưa vào dự thảo phụ lục', color: 'cyan' },
+    ADJUSTMENT_ISSUED: { label: 'Đã ban hành phụ lục', color: 'success' },
+    REJECTED_FINAL: { label: 'Từ chối', color: 'error' },
     REJECTED: { label: 'Từ chối', color: 'error' },
+    EXPIRED: { label: 'Hết hạn', color: 'default' },
 };
 
 const getBm02aStatusTag = (status) => {
@@ -65,6 +74,8 @@ export default function TitleAdjustmentPage() {
     const effectivePerms = useMemo(() => getEffectivePermissions(currentUser), [currentUser]);
     const canAdvisorSign = effectivePerms.has('BM02A_ADVISOR_SIGN');
     const canDepartmentApprove = effectivePerms.has('BM02A_FINAL_APPROVE');
+    const canIssueAppendix = effectivePerms.has('TITLE_ADJUSTMENT_APPENDIX_ISSUE');
+    const [printSheetRequest, setPrintSheetRequest] = useState(null);
 
     const bm02aQueueQuery = useBm02aQueue(scope);
     const bm02aRequests = bm02aQueueQuery.data || [];
@@ -155,6 +166,28 @@ export default function TitleAdjustmentPage() {
             message.success('Phụ trách bộ môn đã phê duyệt và ký số hoàn tất đơn BM02-A!');
         } catch (error) {
             message.error(error?.message || 'Lỗi khi Phụ trách bộ môn ký duyệt đơn BM02-A');
+        } finally {
+            setSubmittingBm02a(false);
+        }
+    };
+
+    const handleCreateAppendix = async (request) => {
+        try {
+            setSubmittingBm02a(true);
+            const decisionId = request.decisionId || request.registration?.assignmentDecisions?.[0]?.id;
+            await bm02aMutation.mutateAsync({
+                action: 'createAppendix',
+                args: [{
+                    decisionId,
+                    appendixNumber: `PL-${request.id}`,
+                    bm02aRequestIds: [request.id],
+                    signedDate: new Date().toISOString(),
+                }],
+            });
+            await refreshBm02aData(request.id);
+            message.success('Đã lập dự thảo phụ lục điều chỉnh tên đề tài thành công!');
+        } catch (error) {
+            message.error(error?.message || 'Lỗi khi lập dự thảo phụ lục');
         } finally {
             setSubmittingBm02a(false);
         }
@@ -357,7 +390,7 @@ export default function TitleAdjustmentPage() {
                                         disabled={submittingBm02a}
                                         onClick={() => openReturnModal(req, 'DEPARTMENT_HEAD')}
                                     >
-                                        Trả lại / Từ chối
+                                        Từ chối phê duyệt
                                     </Button>
                                     <Button
                                         type="primary"
@@ -366,10 +399,28 @@ export default function TitleAdjustmentPage() {
                                         className="!bg-purple-600 hover:!bg-purple-700"
                                         onClick={() => handleDepartmentSign(req)}
                                     >
-                                        Phê duyệt &amp; Ký số
+                                        Phê duyệt và ký số
                                     </Button>
                                 </>
                             )}
+
+                            {req.status === 'APPROVED_PENDING_APPENDIX' && canIssueAppendix && (
+                                <Button
+                                    type="primary"
+                                    icon={<FileProtectOutlined />}
+                                    loading={submittingBm02a}
+                                    onClick={() => handleCreateAppendix(req)}
+                                >
+                                    Lập dự thảo phụ lục
+                                </Button>
+                            )}
+
+                            <Button
+                                icon={<PrinterOutlined />}
+                                onClick={() => setPrintSheetRequest(req)}
+                            >
+                                Xem biểu mẫu in
+                            </Button>
 
                             {req.finalPdfFileUrl && (
                                 <Button
@@ -553,6 +604,25 @@ export default function TitleAdjustmentPage() {
                 studentName={timelineRegistration?.student?.fullName}
                 studentCode={timelineRegistration?.student?.code}
             />
+
+            {/* MODAL: XEM PHIẾU IN BM02-A */}
+            <Modal
+                title="Bản in Phiếu Đề Nghị Điều Chỉnh Tên Đề Tài (BM02-A)"
+                open={Boolean(printSheetRequest)}
+                onCancel={() => setPrintSheetRequest(null)}
+                width={850}
+                footer={[
+                    <Button key="close" onClick={() => setPrintSheetRequest(null)}>
+                        Đóng
+                    </Button>,
+                ]}
+            >
+                {printSheetRequest && (
+                    <div className="overflow-auto max-h-[75vh] p-4 bg-slate-100/60 rounded">
+                        <BM02APrintSheet adjustment={printSheetRequest} />
+                    </div>
+                )}
+            </Modal>
         </section>
     );
 }

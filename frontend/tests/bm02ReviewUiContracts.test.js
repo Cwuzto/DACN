@@ -80,3 +80,28 @@ test('ProjectPeriodPage provides decision amendment creation modal calling semes
     // Action button to open amendment modal
     assert.match(pageSource, /Điều chỉnh QĐ|Ban hành QĐ Điều chỉnh|Quyết định Điều chỉnh/i);
 });
+
+test('ReviewQueue, DecisionQueue, TitleAdjustmentPage and BM02APrintSheet adhere to Task 3 contracts', () => {
+    const regServiceSource = read('src/services/registrationService.js');
+    assert.match(regServiceSource, /getRegistrationById\s*:\s*async/);
+
+    const reviewQueueSource = read('src/components/institute/ReviewQueue.jsx');
+    assert.match(reviewQueueSource, /registrationService\.getRegistrationById\(/);
+
+    const decisionQueueSource = read('src/components/institute/DecisionQueue.jsx');
+    assert.match(decisionQueueSource, /bm02aRequestIds/);
+    assert.match(decisionQueueSource, /decisionId/);
+    assert.match(decisionQueueSource, /signedDate/);
+
+    const titleAdjustmentSource = read('src/pages/lecturer/TitleAdjustmentPage.jsx');
+    assert.match(titleAdjustmentSource, /APPROVED_PENDING_APPENDIX/);
+    assert.match(titleAdjustmentSource, /ASSIGNED_TO_APPENDIX/);
+    assert.match(titleAdjustmentSource, /ADJUSTMENT_ISSUED/);
+    assert.match(titleAdjustmentSource, /RETURNED_FOR_CORRECTION/);
+    assert.match(titleAdjustmentSource, /REJECTED_FINAL/);
+
+    const printSheetSource = read('src/components/prints/BM02APrintSheet.jsx');
+    assert.match(printSheetSource, /adjustment/);
+    assert.match(printSheetSource, /registeredTitleSnapshot/);
+    assert.match(printSheetSource, /proposedTitle/);
+});

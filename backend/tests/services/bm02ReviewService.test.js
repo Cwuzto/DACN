@@ -60,16 +60,21 @@ const baseCommand = {
 describe('bm02ReviewService', () => {
     beforeEach(() => jest.clearAllMocks());
 
-    test('approves only the current pending BM02 without changing registration state', async () => {
+    test('approves current pending BM02 and transitions registration to BM02_APPROVED', async () => {
         const db = dbFor();
         const result = await reviewBM02(baseCommand, { db, now: new Date('2026-10-28T02:00:00.000Z') });
 
         expect(result.submission).toMatchObject({ id: 301, outcome: 'APPROVED' });
+        expect(result.targetStatus).toBe('BM02_APPROVED');
         expect(db.tx.bM02Submission.update).toHaveBeenCalledWith({
             where: { id: 301 },
             data: expect.objectContaining({ outcome: 'APPROVED', reviewedById: 20 }),
         });
-        expect(transitionRegistration).not.toHaveBeenCalled();
+        expect(transitionRegistration).toHaveBeenCalledWith(expect.objectContaining({
+            registrationId: 51,
+            expectedStatus: 'BM02_SUBMITTED',
+            targetStatus: 'BM02_APPROVED',
+        }), { tx: db.tx });
     });
 
     test('returns the first version once with issues and a pinned revision deadline', async () => {

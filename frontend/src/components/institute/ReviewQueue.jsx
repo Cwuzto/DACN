@@ -103,8 +103,8 @@ export default function ReviewQueue({
 
         try {
             setLoadingBm02Id(item.id);
-            const res = await registrationService.getRegistrationById?.(item.registrationId);
-            setSelectedBm02Reg(res?.data || fallbackReg);
+            const res = await registrationService.getRegistrationById(item.registrationId);
+            setSelectedBm02Reg(res?.data || res || fallbackReg);
         } catch {
             setSelectedBm02Reg(fallbackReg);
         } finally {
@@ -251,7 +251,8 @@ export default function ReviewQueue({
                         {record.kind === 'BM02_REVIEW' &&
                             (actions.includes('APPROVE_BM02') ||
                                 actions.includes('REQUEST_BM02_REVISION') ||
-                                actions.includes('MARK_BM02_EXCEPTION')) && (
+                                actions.includes('MARK_BM02_EXCEPTION') ||
+                                actions.includes('REVIEW_BM02')) && (
                                 <Button
                                     type="primary"
                                     size="small"

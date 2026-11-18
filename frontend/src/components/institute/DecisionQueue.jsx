@@ -295,8 +295,10 @@ export default function DecisionQueue({
                                         record.id,
                                         () =>
                                             bm02aService.createAppendix({
-                                                requestIds: [record.resourceId],
-                                                semesterId,
+                                                decisionId: record.decisionId,
+                                                appendixNumber: record.appendixNumber || `PL-${record.resourceId}`,
+                                                bm02aRequestIds: [record.resourceId],
+                                                signedDate: new Date().toISOString(),
                                             }),
                                         'Đã tạo dự thảo phụ lục'
                                     )
@@ -323,7 +325,7 @@ export default function DecisionQueue({
                                         record.id,
                                         () =>
                                             bm02aService.issueAppendix(record.resourceId, {
-                                                issuedAt: new Date().toISOString(),
+                                                signedDate: new Date().toISOString(),
                                             }),
                                         'Đã ban hành phụ lục điều chỉnh'
                                     )

@@ -351,17 +351,37 @@ const getBM02ARequestsByRegistrationController = async (req, res, next) => {
  */
 const createAppendixDraftController = async (req, res, next) => {
     try {
-        const { decisionId, appendixNumber, signedDate, fileUrl, fileName, bm02aRequestIds } = req.body;
+        let { decisionId, appendixNumber, signedDate, fileUrl, fileName, bm02aRequestIds, requestIds, issuedAt } = req.body;
         const issuedById = req.user.id;
         const idempotencyKey = getIdempotencyKey(req, 'appendix-create');
+
+        const normalizedRequestIds = Array.isArray(bm02aRequestIds) && bm02aRequestIds.length > 0
+            ? bm02aRequestIds
+            : (Array.isArray(requestIds) ? requestIds : []);
+
+        if (!decisionId && normalizedRequestIds.length > 0) {
+            const firstReq = await prisma.bM02AAdjustmentRequest.findUnique({
+                where: { id: Number(normalizedRequestIds[0]) },
+                select: { decisionId: true },
+            });
+            if (firstReq?.decisionId) {
+                decisionId = firstReq.decisionId;
+            }
+        }
+
+        if (!appendixNumber || !String(appendixNumber).trim()) {
+            appendixNumber = `PL-ĐC-${decisionId || 'QĐ'}-${Date.now()}`;
+        }
+
+        const effectiveSignedDate = signedDate || issuedAt || new Date();
 
         const result = await createAppendixDraft({
             decisionId,
             appendixNumber,
-            signedDate,
+            signedDate: effectiveSignedDate,
             fileUrl,
             fileName,
-            bm02aRequestIds,
+            bm02aRequestIds: normalizedRequestIds,
             issuedById,
             idempotencyKey,
         });
@@ -408,7 +428,7 @@ const issueAppendixController = async (req, res, next) => {
     try {
         const appendixId = parseInt(req.params.id, 10);
         const issuedById = req.user.id;
-        const { signedDate } = req.body;
+        const signedDate = req.body.signedDate || req.body.issuedAt || new Date();
         const idempotencyKey = getIdempotencyKey(req, 'appendix-issue');
 
         const result = await issueAppendix({

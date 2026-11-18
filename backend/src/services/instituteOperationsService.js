@@ -869,6 +869,7 @@ async function collectAppendixItems({ actor, semesterId, db, now }) {
                 kind: 'TITLE_ADJUSTMENT_APPENDIX',
                 resourceId: reqItem.id,
                 registrationId: reg.id,
+                decisionId: reqItem.decisionId,
                 title: `Điều chỉnh tên đề tài BM02-A: ${getStudentLabel(reg)}`,
                 subtitle: getTopicTitle(reg),
                 status: reqItem.status,
