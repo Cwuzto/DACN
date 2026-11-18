@@ -3,8 +3,6 @@ const { auditLog } = require('../services/auditLogService');
 const { safeNotify } = require('../services/notificationService');
 const UploadService = require('../services/uploadService');
 const { generateScoreSheetPdfBuffer } = require('../services/scoreSheetPdfService');
-const rubricService = require('../services/rubricService');
-const { normalizeRubricLevelPolicy } = require('../services/rubricLevelPolicy');
 const { reviewBM01, submitBM01Initial, submitBM01Revision } = require('../services/bm01WorkflowService');
 const { submitBM04 } = require('../services/bm04WorkflowService');
 const {
@@ -16,6 +14,11 @@ const {
 } = require('../services/checkpointWorkflowService');
 const { WorkflowTransitionError } = require('../services/registrationTransitionService');
 const {
+    RUBRIC_V1,
+    resolveActiveScoringMembers,
+    resolveRubricForRegistration,
+    formatRubricPayload,
+    saveMemberScoreSheet,
     lockDefenseScores,
     lockMemberScoreSheet,
     markStudentAbsentByChairman,
@@ -48,143 +51,6 @@ const DEFENSE_ELIGIBLE_STATUSES = [
     'SUBMITTED',
 ];
 
-const RUBRIC_V1 = {
-    version: 'v1',
-    scoreLevelPolicy: normalizeRubricLevelPolicy(null),
-    criteria: [
-        { code: 'STRUCTURE', label: 'Cau truc', maxScore: 0.5 },
-        { code: 'CITATION_FORMAT', label: 'Trich dan, hinh thuc trinh bay', maxScore: 0.25 },
-        { code: 'LANGUAGE', label: 'Ngon ngu', maxScore: 0.25 },
-        { code: 'PROBLEM_STATEMENT', label: 'Dat van de, tong quan tinh hinh nghien cuu', maxScore: 1.0 },
-        { code: 'RESEARCH_METHOD', label: 'Phuong phap nghien cuu', maxScore: 0.5 },
-        { code: 'RESEARCH_CONTENT', label: 'Noi dung nghien cuu', maxScore: 2.5 },
-        { code: 'RESEARCH_RESULT', label: 'Ket qua nghien cuu', maxScore: 1.0 },
-        { code: 'NOVELTY', label: 'Tinh moi va tinh thoi su', maxScore: 0.25 },
-        { code: 'APPLICABILITY', label: 'Tinh ung dung', maxScore: 0.5 },
-        { code: 'PUBLICATION', label: 'De tai co bai bao', maxScore: 0.25 },
-        { code: 'PRESENTATION_SKILL', label: 'Kha nang trinh bay va hinh thuc bai trinh bay', maxScore: 0.5 },
-        { code: 'ATTITUDE', label: 'Thai do, cach ung xu, ban linh', maxScore: 0.5 },
-        { code: 'PRESENTATION_CONTENT', label: 'Noi dung trinh bay', maxScore: 1.0 },
-        { code: 'QA_RESPONSE', label: 'Tra loi cac cau hoi', maxScore: 1.0 },
-    ],
-};
-
-const RUBRIC_INCLUDE = {
-    categories: {
-        orderBy: { orderIndex: 'asc' },
-        include: { criteria: { orderBy: { orderIndex: 'asc' } } },
-    },
-};
-
-const resolveRubricForRegistration = async (registration) => {
-    if (!prisma?.rubricVersion?.findUnique) return null;
-
-    const effectiveMemberScore = (registration?.memberScores || []).find(
-        (row) => row?.isEffective !== false && row?.scoreRubricVersion,
-    ) || (registration?.memberScores || []).find((row) => row?.scoreRubricVersion);
-
-    const pinnedVersion = (
-        registration?.defenseResult?.scoreRubricVersion
-        || effectiveMemberScore?.scoreRubricVersion
-        || registration?.defenseCouncil?.rubricVersion?.version
-        || registration?.council?.rubricVersion?.version
-        || null
-    );
-
-    if (pinnedVersion) {
-        const found = await prisma.rubricVersion.findUnique({
-            where: { version: pinnedVersion },
-            include: RUBRIC_INCLUDE,
-        });
-        if (!found) {
-            throw new WorkflowTransitionError(
-                'PINNED_RUBRIC_NOT_FOUND',
-                404,
-                `Không tìm thấy phiên bản rubric "${pinnedVersion}" đã gắn với hồ sơ.`,
-            );
-        }
-        return found;
-    }
-
-    const pinnedRubricId = (
-        registration?.defenseCouncil?.rubricVersionId
-        || registration?.council?.rubricVersionId
-        || registration?.defenseCouncil?.rubricVersion?.id
-        || registration?.council?.rubricVersion?.id
-        || registration?.semester?.lockedDefenseRubricVersionId
-        || registration?.topic?.semester?.lockedDefenseRubricVersionId
-        || registration?.defenseCouncil?.semester?.lockedDefenseRubricVersionId
-        || registration?.council?.semester?.lockedDefenseRubricVersionId
-        || null
-    );
-
-    if (pinnedRubricId) {
-        const foundById = await prisma.rubricVersion.findUnique({
-            where: { id: Number(pinnedRubricId) },
-            include: RUBRIC_INCLUDE,
-        });
-        if (!foundById) {
-            throw new WorkflowTransitionError(
-                'PINNED_RUBRIC_NOT_FOUND',
-                404,
-                `Không tìm thấy phiên bản rubric (ID: ${pinnedRubricId}) đã gắn với hội đồng hoặc học kỳ.`,
-            );
-        }
-        return foundById;
-    }
-
-    const active = await rubricService.getActiveRubric();
-    if (active) return active;
-
-    return null;
-};
-
-const formatRubricPayload = (resolvedRubric) => {
-    if (!resolvedRubric) {
-        return {
-            ...RUBRIC_V1,
-            scoreLevelPolicy: normalizeRubricLevelPolicy(null),
-        };
-    }
-
-    const scoreLevelPolicy = normalizeRubricLevelPolicy(resolvedRubric.scoreLevelPolicy);
-    const categories = (resolvedRubric.categories || []).map((cat) => ({
-        ...cat,
-        criteria: (cat.criteria || []).map((cri) => ({
-            ...cri,
-            levelGoodDesc: cri.levelGoodDesc ?? null,
-            levelFairDesc: cri.levelFairDesc ?? null,
-            levelAverageDesc: cri.levelAverageDesc ?? null,
-            levelPoorDesc: cri.levelPoorDesc ?? null,
-        })),
-    }));
-
-    return {
-        id: resolvedRubric.id,
-        version: resolvedRubric.version,
-        title: resolvedRubric.title,
-        description: resolvedRubric.description,
-        totalMaxScore: resolvedRubric.totalMaxScore,
-        scoreLevelPolicy,
-        categories,
-        criteria: categories.flatMap((cat) =>
-            (cat.criteria || []).map((cri) => ({
-                code: cri.code,
-                label: cri.label,
-                description: cri.description ?? null,
-                cloCode: cri.cloCode ?? null,
-                levelGoodDesc: cri.levelGoodDesc ?? null,
-                levelFairDesc: cri.levelFairDesc ?? null,
-                levelAverageDesc: cri.levelAverageDesc ?? null,
-                levelPoorDesc: cri.levelPoorDesc ?? null,
-                maxScore: cri.maxScore,
-                categoryCode: cat.code,
-                categoryName: cat.name,
-                orderIndex: cri.orderIndex,
-            }))
-        ),
-    };
-};
 const parsePositiveInt = (value) => {
     if (value === undefined || value === null || value === '') return null;
     const parsed = parseInt(value, 10);
@@ -201,72 +67,6 @@ const computeRegistrationFinalScore = (memberScores = []) => {
     if (!valid.length) return null;
     const avg = valid.reduce((sum, row) => sum + Number(row.finalScore), 0) / valid.length;
     return round2(avg);
-};
-
-const canLecturerGradeRegistration = async (lecturerId, registrationId) => {
-    const registration = await prisma.topicRegistration.findUnique({
-        where: { id: registrationId },
-        include: {
-            defenseCouncil: { select: { members: { select: { lecturerId: true } } } },
-            council: { select: { members: { select: { lecturerId: true } } } },
-            topic: { select: { mentorId: true } },
-        },
-    });
-
-    if (!registration) return { ok: false, reason: 'not_found' };
-
-    // INV-11 & INV-20: Giảng viên hướng dẫn không được chấm điểm hội đồng cho sinh viên mình hướng dẫn
-    if (registration.topic?.mentorId === lecturerId) {
-        return { ok: false, reason: 'mentor_conflict' };
-    }
-
-    const effectiveMembers = registration.defenseCouncil?.members || registration.council?.members || [];
-    const inCouncil = effectiveMembers.some((m) => m.lecturerId === lecturerId);
-
-    return { ok: inCouncil, registration };
-};
-
-const validateAndNormalizeScores = (scores = [], rubricPayload = null) => {
-    if (!Array.isArray(scores) || !scores.length) {
-        return { ok: false, message: 'scores phải là mảng có ít nhất 1 phần tử.' };
-    }
-
-    const rubric = rubricPayload || RUBRIC_V1;
-    const criteriaList = rubric.criteria || [];
-    const criteriaMap = new Map(criteriaList.map((c) => [c.code, c]));
-    const seen = new Set();
-    const normalized = [];
-
-    for (const item of scores) {
-        const criterionCode = String(item?.criterionCode || '').trim();
-        if (!criteriaMap.has(criterionCode) || seen.has(criterionCode)) {
-            return { ok: false, message: `criterionCode không hợp lệ hoặc trùng lặp: ${criterionCode || 'N/A'}` };
-        }
-
-        const criterion = criteriaMap.get(criterionCode);
-        const parsedScore = Number.parseFloat(item?.score);
-        if (!Number.isFinite(parsedScore) || parsedScore < 0 || parsedScore > criterion.maxScore) {
-            return { ok: false, message: `Score của ${criterionCode} phải nằm trong [0, ${criterion.maxScore}]` };
-        }
-
-        normalized.push({
-            criterionCode,
-            criterionLabel: criterion.label,
-            maxScore: criterion.maxScore,
-            score: parsedScore,
-            comment: item?.comment ? String(item.comment).trim() : null,
-        });
-        seen.add(criterionCode);
-    }
-
-    if (seen.size !== criteriaList.length) {
-        return { ok: false, message: `scores chưa đầy đủ các tiêu chí trong barem ${rubric.version || 'v1'}.` };
-    }
-
-    const finalScoreRaw = normalized.reduce((sum, row) => sum + row.score, 0);
-    const finalScore = Math.round(finalScoreRaw * 100) / 100;
-
-    return { ok: true, normalized, finalScoreRaw, finalScore };
 };
 
 const getTargetSemesterForDefenseCenter = async (semesterIdRaw) => {
@@ -742,7 +542,7 @@ const getAdminDefenseCenter = async (req, res, next) => {
 
 const getScoreSheet = async (req, res, next) => {
     try {
-        const registrationId = parsePositiveInt(req.params.registrationId);
+        const registrationId = parsePositiveInt(req.params.registrationId || req.params.id);
         if (!registrationId) {
             return res.status(400).json({ success: false, message: 'registrationId không hợp lệ.' });
         }
@@ -769,6 +569,8 @@ const getScoreSheet = async (req, res, next) => {
                             select: {
                                 lecturerId: true,
                                 roleInCouncil: true,
+                                isActive: true,
+                                isScoringMember: true,
                                 lecturer: { select: { fullName: true } },
                             },
                         },
@@ -782,6 +584,8 @@ const getScoreSheet = async (req, res, next) => {
                             select: {
                                 lecturerId: true,
                                 roleInCouncil: true,
+                                isActive: true,
+                                isScoringMember: true,
                                 lecturer: { select: { fullName: true } },
                             },
                         },
@@ -803,6 +607,10 @@ const getScoreSheet = async (req, res, next) => {
 
         const effectiveCouncil = registration.defenseCouncil || registration.council;
         const effectiveMembers = effectiveCouncil?.members || [];
+        const activeScoringMembers = resolveActiveScoringMembers(effectiveCouncil);
+        const activeScoringLecturerIds = new Set(activeScoringMembers.map((m) => m.lecturerId));
+        const activeScorerCount = activeScoringMembers.length;
+
         const requestedEvaluatorId = parsePositiveInt(req.query.evaluatorId);
         const councilMemberIds = new Set(effectiveMembers.map((m) => m.lecturerId));
         const evaluatorId = req.user.role === 'ADMIN' && requestedEvaluatorId && councilMemberIds.has(requestedEvaluatorId)
@@ -815,8 +623,12 @@ const getScoreSheet = async (req, res, next) => {
 
         const currentMemberScore = (registration.memberScores || []).find((row) => row.evaluatorId === evaluatorId) || null;
         const roleInCouncil = effectiveMembers.find((m) => m.lecturerId === evaluatorId)?.roleInCouncil || null;
-        const finalScore = registration.defenseResult?.finalScore ?? computeRegistrationFinalScore(registration.memberScores || []);
+        const finalScore = registration.defenseResult?.finalScore ?? null;
         const scoreLocked = currentMemberScore?.scoreLocked || false;
+
+        const lockedScorerCount = (registration.memberScores || []).filter(
+            (row) => row.isEffective !== false && row.scoreLocked === true && activeScoringLecturerIds.has(row.evaluatorId),
+        ).length;
 
         const resolvedRubric = await resolveRubricForRegistration(registration);
         const rubricPayload = formatRubricPayload(resolvedRubric);
@@ -839,13 +651,16 @@ const getScoreSheet = async (req, res, next) => {
                     evaluatorName: row.evaluator?.fullName || null,
                     finalScore: row.finalScore,
                     scoreLocked: row.scoreLocked,
+                    isEffective: row.isEffective !== false,
                 })),
                 currentEvaluator: {
                     id: evaluatorId,
                     fullName: effectiveMembers.find((m) => m.lecturerId === evaluatorId)?.lecturer?.fullName || req.user.fullName || null,
                     roleInCouncil,
                 },
-                finalScore: finalScore ?? null,
+                activeScorerCount,
+                lockedScorerCount,
+                finalScore,
                 scoreLocked: Boolean(scoreLocked),
             },
         });
@@ -857,232 +672,91 @@ const getScoreSheet = async (req, res, next) => {
 
 const saveScoreSheet = async (req, res, next) => {
     try {
-        const registrationId = parsePositiveInt(req.params.registrationId);
+        const registrationId = parsePositiveInt(req.params.registrationId || req.params.id);
         if (!registrationId) {
             return res.status(400).json({ success: false, message: 'registrationId không hợp lệ.' });
         }
 
-        const { scores, generalComment } = req.body;
+        const { scores, criterionScores, generalComment, comments, targetRubricVersion } = req.body;
         const targetEvaluatorId = parsePositiveInt(req.body?.evaluatorId);
+
+        if (req.user.role !== 'ADMIN' && targetEvaluatorId && targetEvaluatorId !== req.user.id) {
+            return res.status(403).json({
+                success: false,
+                code: 'CANNOT_EDIT_OTHER_EVALUATOR_SCORE',
+                message: 'Bạn không có quyền chỉnh sửa phiếu điểm của giám khảo khác.',
+            });
+        }
+
         const evaluatorId = req.user.role === 'ADMIN' && targetEvaluatorId ? targetEvaluatorId : req.user.id;
         const evaluatorRole = req.user.role;
 
-        const targetRegistration = await prisma.topicRegistration.findUnique({
-            where: { id: registrationId },
-            include: {
-                semester: { select: { id: true, lockedDefenseRubricVersionId: true } },
-                defenseCouncil: {
-                    select: {
-                        id: true,
-                        rubricVersionId: true,
-                        rubricVersion: { select: { id: true, version: true } },
-                    },
-                },
-                council: {
-                    select: {
-                        id: true,
-                        rubricVersionId: true,
-                        rubricVersion: { select: { id: true, version: true } },
-                    },
-                },
-                defenseResult: { select: { scoreRubricVersion: true } },
-                memberScores: { select: { scoreRubricVersion: true, isEffective: true }, take: 5 },
-            },
-        });
-
-        if (!targetRegistration) {
-            return res.status(404).json({ success: false, message: 'Không tìm thấy đăng ký đề tài.' });
-        }
-
-        const resolvedRubric = await resolveRubricForRegistration(targetRegistration);
-        const rubricPayload = formatRubricPayload(resolvedRubric);
-        const targetRubricVersion = rubricPayload.version || RUBRIC_V1.version;
-
-        const validScore = validateAndNormalizeScores(scores, rubricPayload);
-        if (!validScore.ok) {
-            return res.status(400).json({ success: false, message: validScore.message });
-        }
-
-        if (evaluatorRole === 'LECTURER') {
-            const access = await canLecturerGradeRegistration(evaluatorId, registrationId);
-            if (!access.ok) {
-                if (access.reason === 'mentor_conflict') {
-                    return res.status(403).json({
-                        success: false,
-                        code: 'MENTOR_CANNOT_GRADE_OWN_STUDENT',
-                        message: 'Xung đột lợi ích: Giảng viên hướng dẫn không được chấm điểm hội đồng bảo vệ cho sinh viên của mình.',
-                    });
-                }
-                return res.status(access.reason === 'not_found' ? 404 : 403).json({
-                    success: false,
-                    message: access.reason === 'not_found' ? 'Không tìm thấy đăng ký.' : 'Bạn không có quyền chấm điểm hồ sơ này (chỉ thành viên hội đồng mới có quyền).',
-                });
-            }
-        }
-
-        const updated = await prisma.$transaction(async (tx) => {
-            const registration = await tx.topicRegistration.findUnique({
-                where: { id: registrationId },
-                select: {
-                    id: true,
-                    status: true,
-                    studentId: true,
-                    topic: { select: { title: true, mentorId: true } },
-                    defenseCouncil: { select: { members: { select: { lecturerId: true } } } },
-                    council: { select: { members: { select: { lecturerId: true } } } },
-                },
-            });
-
-            if (!registration) {
-                throw new Error('NOT_FOUND_REGISTRATION');
-            }
-
-            if (registration.topic?.mentorId === evaluatorId) {
-                throw new Error('MENTOR_CANNOT_GRADE_OWN_STUDENT');
-            }
-
-            const effectiveMembers = registration.defenseCouncil?.members || registration.council?.members || [];
-            const councilMemberIdSet = new Set(effectiveMembers.map((m) => m.lecturerId));
-            if (!councilMemberIdSet.has(evaluatorId)) {
-                throw new Error('EVALUATOR_NOT_IN_COUNCIL');
-            }
-
-            let memberScore = await tx.defenseMemberScore.findUnique({
-                where: {
-                    registrationId_evaluatorId: {
-                        registrationId,
-                        evaluatorId,
-                    },
-                },
-            });
-
-            if (memberScore?.scoreLocked) {
-                throw new Error('SCORE_LOCKED');
-            }
-
-            if (!memberScore) {
-                memberScore = await tx.defenseMemberScore.create({
-                    data: {
-                        registrationId,
-                        finalScore: validScore.finalScore,
-                        comments: generalComment ? String(generalComment).trim() : '',
-                        evaluatorId,
-                        scoreRubricVersion: targetRubricVersion,
-                    },
-                });
-            } else {
-                memberScore = await tx.defenseMemberScore.update({
-                    where: { id: memberScore.id },
-                    data: {
-                        finalScore: validScore.finalScore,
-                        comments: generalComment !== undefined ? String(generalComment || '').trim() : memberScore.comments,
-                        scoreRubricVersion: targetRubricVersion,
-                    },
-                });
-            }
-
-            await tx.defenseMemberCriterionScore.deleteMany({
-                where: { defenseMemberScoreId: memberScore.id },
-            });
-
-            await tx.defenseMemberCriterionScore.createMany({
-                data: validScore.normalized.map((row) => ({
-                    defenseMemberScoreId: memberScore.id,
-                    criterionCode: row.criterionCode,
-                    criterionLabel: row.criterionLabel,
-                    maxScore: row.maxScore,
-                    score: row.score,
-                    comment: row.comment,
-                })),
-            });
-
-            const councilMemberIds = [...new Set(effectiveMembers.map((m) => m.lecturerId))];
-            const consideredEvaluatorIds = councilMemberIds.length ? councilMemberIds : [evaluatorId];
-            const allMemberScores = await tx.defenseMemberScore.findMany({
-                where: {
-                    registrationId,
-                    evaluatorId: { in: consideredEvaluatorIds },
-                },
-                select: { finalScore: true },
-            });
-            const aggregateFinalScore = computeRegistrationFinalScore(allMemberScores);
-
-            const defenseResult = await tx.defenseResult.upsert({
-                where: { registrationId },
-                update: {
-                    finalScore: aggregateFinalScore,
-                    evaluatorId,
-                    scoreRubricVersion: targetRubricVersion,
-                },
-                create: {
-                    registrationId,
-                    finalScore: aggregateFinalScore,
-                    comments: '',
-                    evaluatorId,
-                    scoreRubricVersion: targetRubricVersion,
-                },
-            });
-
-            return { registration, memberScore, defenseResult, aggregateFinalScore };
+        const saved = await saveMemberScoreSheet({
+            registrationId,
+            evaluatorId,
+            actorId: req.user.id,
+            evaluatorRole,
+            actorRole: req.user.role,
+            scores,
+            criterionScores,
+            generalComment,
+            comments,
+            targetRubricVersion,
         });
 
         // SEC-12: Do not leak defense scores to students upon saving score sheet.
         // Scores are strictly withheld until formal ResultPublication snapshot promulgation.
 
         await auditLog(
-            evaluatorId,
+            req.user.id,
             'SAVE_SCORE_SHEET',
             'DefenseMemberScore',
-            updated.memberScore.id,
+            saved.memberScore.id,
             {
                 registrationId,
-                rubricVersion: RUBRIC_V1.version,
-                finalScore: validScore.finalScore,
-                aggregateFinalScore: updated.aggregateFinalScore,
+                actorId: req.user.id,
+                evaluatorId,
+                delegatedByAdmin: req.user.id !== evaluatorId,
+                rubricVersion: saved.rubricVersion,
+                finalScore: saved.finalScore,
+                scoredCriteriaCount: saved.scoredCriteriaCount,
+                totalCriteriaCount: saved.totalCriteriaCount,
+                aggregateFinalScore: saved.aggregateFinalScore,
             },
             getRequestIp(req),
         );
 
         return res.json({
             success: true,
-            message: 'Da luu bang diem online.',
+            message: 'Đã lưu nháp bảng điểm.',
             data: {
-                defenseResultId: updated.defenseResult.id,
-                finalScore: validScore.finalScore,
-                aggregateFinalScore: updated.aggregateFinalScore,
-                finalScoreRaw: validScore.finalScoreRaw,
-                rubricVersion: RUBRIC_V1.version,
+                memberScoreId: saved.memberScore.id,
+                defenseResultId: saved.defenseResult?.id || null,
+                finalScore: saved.finalScore,
+                aggregateFinalScore: saved.aggregateFinalScore,
+                finalScoreRaw: saved.finalScore,
+                rubricVersion: saved.rubricVersion,
+                scoredCriteriaCount: saved.scoredCriteriaCount,
+                totalCriteriaCount: saved.totalCriteriaCount,
+                scoreLocked: Boolean(saved.memberScore?.scoreLocked),
             },
         });
     } catch (error) {
         if (sendWorkflowError(res, error)) return;
-        if (error?.message === 'NOT_FOUND_REGISTRATION') {
-            return res.status(404).json({ success: false, message: 'Khong tim thay dang ky.' });
-        }
-        if (error?.message === 'MENTOR_CANNOT_GRADE_OWN_STUDENT') {
-            return res.status(403).json({
-                success: false,
-                code: 'MENTOR_CANNOT_GRADE_OWN_STUDENT',
-                message: 'Xung đột lợi ích: Giảng viên hướng dẫn không được chấm điểm hội đồng cho sinh viên của mình.',
-            });
-        }
-        if (error?.message === 'EVALUATOR_NOT_IN_COUNCIL') {
-            return res.status(400).json({ success: false, message: 'Nguoi cham khong thuoc hoi dong cua de tai nay.' });
-        }
-        if (error?.message === 'SCORE_LOCKED') {
-            return res.status(409).json({ success: false, message: 'Bang diem da khoa, khong the cap nhat.' });
-        }
         next(error);
     }
 };
 
 const lockMemberScore = async (req, res, next) => {
     try {
-        const { registrationId, scores, generalComment, targetRubricVersion } = req.body;
-        const regId = parsePositiveInt(registrationId);
+        const { registrationId, scores, criterionScores, generalComment, comments, targetRubricVersion } = req.body;
+        const regId = parsePositiveInt(registrationId || req.params.id);
         if (!regId) {
             return res.status(400).json({ success: false, message: 'registrationId không hợp lệ.' });
         }
+
+        const requestedEvaluatorId = parsePositiveInt(req.body?.evaluatorId);
+        const evaluatorId = requestedEvaluatorId || req.user.id;
 
         const idempotencyKey = getIdempotencyKey(req);
         if (!idempotencyKey) {
@@ -1095,11 +769,14 @@ const lockMemberScore = async (req, res, next) => {
 
         const result = await lockMemberScoreSheet({
             registrationId: regId,
-            evaluatorId: req.user.id,
+            evaluatorId,
             actorId: req.user.id,
             actorRole: req.user.role,
+            evaluatorRole: req.user.role,
             scores,
+            criterionScores,
             generalComment,
+            comments,
             targetRubricVersion,
             idempotencyKey,
         });
@@ -1109,7 +786,14 @@ const lockMemberScore = async (req, res, next) => {
             'LOCK_MEMBER_SCORE_SHEET',
             'DefenseMemberScore',
             result.memberScoreId,
-            { registrationId: regId, finalScore: result.finalScore, idempotent: result.idempotent },
+            {
+                registrationId: regId,
+                actorId: req.user.id,
+                evaluatorId,
+                finalScore: result.finalScore,
+                rubricVersion: result.scoreRubricVersion,
+                idempotent: result.idempotent,
+            },
             getRequestIp(req),
         );
 

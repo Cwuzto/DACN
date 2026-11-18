@@ -3,6 +3,8 @@ const prisma = require('../config/database');
 const { transitionRegistration, WorkflowTransitionError } = require('./registrationTransitionService');
 const { roundDefenseScoreOneDecimal } = require('../utils/defenseTimeWindowUtils');
 const { safeNotifyMany } = require('./notificationService');
+const rubricService = require('./rubricService');
+const { normalizeRubricLevelPolicy } = require('./rubricLevelPolicy');
 
 const DEFENSE_SCORING_SCOPE = 'defense-scoring';
 const DEFENSE_MEMBER_SCORE_LOCK_SCOPE = 'defense-member-score-lock';
@@ -10,12 +12,363 @@ const DEFENSE_SCOREBOOK_LOCK_SCOPE = 'defense-scorebook-lock';
 const DEFENSE_SCOREBOOK_RETURN_SCOPE = 'defense-scorebook-return';
 const REQUIRED_COUNCIL_ROLES = ['CHAIRMAN', 'SECRETARY', 'REVIEWER'];
 
+const ELIGIBLE_DEFENSE_GRADING_STATUSES = [
+    'DEFENSE_READY',
+    'DEFENDED',
+    'SUBMITTED',
+    'AWAITING_SCORES',
+    'DEFENSE_ELIGIBLE',
+    'ELIGIBLE_BY_INSTITUTE',
+];
+
+const RUBRIC_V1 = {
+    version: 'v1',
+    scoreLevelPolicy: normalizeRubricLevelPolicy(null),
+    criteria: [
+        { code: 'STRUCTURE', label: 'Cau truc', maxScore: 0.5 },
+        { code: 'CITATION_FORMAT', label: 'Trich dan, hinh thuc trinh bay', maxScore: 0.25 },
+        { code: 'LANGUAGE', label: 'Ngon ngu', maxScore: 0.25 },
+        { code: 'PROBLEM_STATEMENT', label: 'Dat van de, tong quan tinh hinh nghien cuu', maxScore: 1.0 },
+        { code: 'RESEARCH_METHOD', label: 'Phuong phap nghien cuu', maxScore: 0.5 },
+        { code: 'RESEARCH_CONTENT', label: 'Noi dung nghien cuu', maxScore: 2.5 },
+        { code: 'RESEARCH_RESULT', label: 'Ket qua nghien cuu', maxScore: 1.0 },
+        { code: 'NOVELTY', label: 'Tinh moi va tinh thoi su', maxScore: 0.25 },
+        { code: 'APPLICABILITY', label: 'Tinh ung dung', maxScore: 0.5 },
+        { code: 'PUBLICATION', label: 'De tai co bai bao', maxScore: 0.25 },
+        { code: 'PRESENTATION_SKILL', label: 'Kha nang trinh bay va hinh thuc bai trinh bay', maxScore: 0.5 },
+        { code: 'ATTITUDE', label: 'Thai do, cach ung xu, ban linh', maxScore: 0.5 },
+        { code: 'PRESENTATION_CONTENT', label: 'Noi dung trinh bay', maxScore: 1.0 },
+        { code: 'QA_RESPONSE', label: 'Tra loi cac cau hoi', maxScore: 1.0 },
+    ],
+};
+
+const RUBRIC_INCLUDE = {
+    categories: {
+        orderBy: { orderIndex: 'asc' },
+        include: { criteria: { orderBy: { orderIndex: 'asc' } } },
+    },
+};
+
+const REGISTRATION_SCORING_INCLUDE = {
+    semester: { select: { id: true, lockedDefenseRubricVersionId: true } },
+    topic: {
+        select: {
+            id: true,
+            title: true,
+            mentorId: true,
+            semesterId: true,
+            semester: { select: { id: true, lockedDefenseRubricVersionId: true } },
+        },
+    },
+    defenseCouncil: {
+        select: {
+            id: true,
+            name: true,
+            allowFourthScoringMember: true,
+            rubricVersionId: true,
+            rubricVersion: { select: { id: true, version: true } },
+            semester: { select: { id: true, lockedDefenseRubricVersionId: true } },
+            members: {
+                select: {
+                    id: true,
+                    lecturerId: true,
+                    roleInCouncil: true,
+                    isActive: true,
+                    isScoringMember: true,
+                },
+            },
+        },
+    },
+    council: {
+        select: {
+            id: true,
+            name: true,
+            allowFourthScoringMember: true,
+            rubricVersionId: true,
+            rubricVersion: { select: { id: true, version: true } },
+            semester: { select: { id: true, lockedDefenseRubricVersionId: true } },
+            members: {
+                select: {
+                    id: true,
+                    lecturerId: true,
+                    roleInCouncil: true,
+                    isActive: true,
+                    isScoringMember: true,
+                },
+            },
+        },
+    },
+    defenseResult: true,
+    memberScores: true,
+};
+
 const round2 = (value) => {
     if (value === null || value === undefined || value === '') return null;
     const num = Number(value);
     if (!Number.isFinite(num)) return null;
     return Math.round(num * 100) / 100;
 };
+
+/**
+ * Xác định phiên bản rubric gắn với hồ sơ đăng ký (không fallback sang active nếu đã chốt phiên bản mà bị thiếu).
+ * @param {object} registration
+ * @param {object} [db]
+ * @returns {Promise<object|null>}
+ */
+async function resolveRubricForRegistration(registration, db = prisma) {
+    if (!db?.rubricVersion?.findUnique) return null;
+
+    const effectiveMemberScore = (registration?.memberScores || []).find(
+        (row) => row?.isEffective !== false && row?.scoreRubricVersion,
+    ) || (registration?.memberScores || []).find((row) => row?.scoreRubricVersion);
+
+    const pinnedVersion = (
+        registration?.defenseResult?.scoreRubricVersion
+        || effectiveMemberScore?.scoreRubricVersion
+        || registration?.defenseCouncil?.rubricVersion?.version
+        || registration?.council?.rubricVersion?.version
+        || null
+    );
+
+    if (pinnedVersion) {
+        const found = await db.rubricVersion.findUnique({
+            where: { version: pinnedVersion },
+            include: RUBRIC_INCLUDE,
+        });
+        if (!found) {
+            throw new WorkflowTransitionError(
+                'PINNED_RUBRIC_NOT_FOUND',
+                404,
+                `Không tìm thấy phiên bản rubric "${pinnedVersion}" đã gắn với hồ sơ.`,
+            );
+        }
+        return found;
+    }
+
+    const pinnedRubricId = (
+        registration?.defenseCouncil?.rubricVersionId
+        || registration?.council?.rubricVersionId
+        || registration?.defenseCouncil?.rubricVersion?.id
+        || registration?.council?.rubricVersion?.id
+        || registration?.semester?.lockedDefenseRubricVersionId
+        || registration?.topic?.semester?.lockedDefenseRubricVersionId
+        || registration?.defenseCouncil?.semester?.lockedDefenseRubricVersionId
+        || registration?.council?.semester?.lockedDefenseRubricVersionId
+        || null
+    );
+
+    if (pinnedRubricId) {
+        const foundById = await db.rubricVersion.findUnique({
+            where: { id: Number(pinnedRubricId) },
+            include: RUBRIC_INCLUDE,
+        });
+        if (!foundById) {
+            throw new WorkflowTransitionError(
+                'PINNED_RUBRIC_NOT_FOUND',
+                404,
+                `Không tìm thấy phiên bản rubric (ID: ${pinnedRubricId}) đã gắn với hội đồng hoặc học kỳ.`,
+            );
+        }
+        return foundById;
+    }
+
+    if (db === prisma) {
+        const active = await rubricService.getActiveRubric();
+        return active || null;
+    }
+
+    if (typeof db.rubricVersion?.findFirst === 'function') {
+        const active = await db.rubricVersion.findFirst({
+            where: { isActive: true },
+            include: RUBRIC_INCLUDE,
+        });
+        return active
+            ? { ...active, scoreLevelPolicy: normalizeRubricLevelPolicy(active.scoreLevelPolicy) }
+            : null;
+    }
+
+    return null;
+}
+
+/**
+ * Chuẩn hóa payload rubric trả về cho API và validator.
+ * @param {object|null} resolvedRubric
+ * @returns {object}
+ */
+function formatRubricPayload(resolvedRubric) {
+    if (!resolvedRubric) {
+        return {
+            ...RUBRIC_V1,
+            scoreLevelPolicy: normalizeRubricLevelPolicy(null),
+        };
+    }
+
+    const scoreLevelPolicy = normalizeRubricLevelPolicy(resolvedRubric.scoreLevelPolicy);
+    const categories = (resolvedRubric.categories || []).map((cat) => ({
+        ...cat,
+        criteria: (cat.criteria || []).map((cri) => ({
+            ...cri,
+            levelGoodDesc: cri.levelGoodDesc ?? null,
+            levelFairDesc: cri.levelFairDesc ?? null,
+            levelAverageDesc: cri.levelAverageDesc ?? null,
+            levelPoorDesc: cri.levelPoorDesc ?? null,
+        })),
+    }));
+
+    return {
+        id: resolvedRubric.id,
+        version: resolvedRubric.version,
+        title: resolvedRubric.title,
+        description: resolvedRubric.description,
+        totalMaxScore: resolvedRubric.totalMaxScore,
+        scoreLevelPolicy,
+        categories,
+        criteria: categories.flatMap((cat) =>
+            (cat.criteria || []).map((cri) => ({
+                code: cri.code,
+                label: cri.label,
+                description: cri.description ?? null,
+                cloCode: cri.cloCode ?? null,
+                levelGoodDesc: cri.levelGoodDesc ?? null,
+                levelFairDesc: cri.levelFairDesc ?? null,
+                levelAverageDesc: cri.levelAverageDesc ?? null,
+                levelPoorDesc: cri.levelPoorDesc ?? null,
+                maxScore: cri.maxScore,
+                categoryCode: cat.code,
+                categoryName: cat.name,
+                orderIndex: cri.orderIndex,
+            }))
+        ),
+    };
+}
+
+/**
+ * Kiểm tra và chuẩn hóa danh sách điểm tiêu chí cho nháp (partial/empty) hoặc khóa phiếu (đầy đủ).
+ * Không bao giờ tự điền 0 cho mục trống; giữ nguyên giá trị 0 hợp lệ; từ chối > 2 chữ số thập phân.
+ * @param {Array} scoresInput
+ * @param {object} rubricPayload
+ * @param {{ requireAllCriteria?: boolean }} [options]
+ */
+function validateAndNormalizeMemberScores(scoresInput, rubricPayload, { requireAllCriteria = false } = {}) {
+    if (!Array.isArray(scoresInput)) {
+        throw new WorkflowTransitionError('INVALID_SCORES_PAYLOAD', 400, 'scores phải là một mảng hợp lệ.');
+    }
+
+    const criteriaList = rubricPayload?.criteria || [];
+    const criteriaMap = new Map(criteriaList.map((c) => [c.code, c]));
+    const seen = new Set();
+    const normalized = [];
+
+    for (const item of scoresInput) {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) {
+            throw new WorkflowTransitionError('INVALID_CRITERION_SCORE', 400, 'Phần tử điểm tiêu chí không hợp lệ.');
+        }
+
+        const criterionCode = typeof item.criterionCode === 'string' ? item.criterionCode.trim() : '';
+        if (!criterionCode || !criteriaMap.has(criterionCode)) {
+            throw new WorkflowTransitionError(
+                'UNKNOWN_CRITERION_CODE',
+                400,
+                `Mã tiêu chí không hợp lệ hoặc không thuộc barem chấm điểm: ${criterionCode || 'N/A'}.`,
+            );
+        }
+
+        if (seen.has(criterionCode)) {
+            throw new WorkflowTransitionError(
+                'DUPLICATE_CRITERION_CODE',
+                400,
+                `Mã tiêu chí bị trùng lặp trong phiếu điểm: ${criterionCode}.`,
+            );
+        }
+
+        const rawScore = item.score;
+        if (rawScore === null || rawScore === undefined || typeof rawScore === 'boolean') {
+            throw new WorkflowTransitionError(
+                'INVALID_CRITERION_SCORE',
+                400,
+                `Điểm của tiêu chí ${criterionCode} không được để trống.`,
+            );
+        }
+
+        let parsedScore;
+        if (typeof rawScore === 'number') {
+            parsedScore = rawScore;
+        } else if (typeof rawScore === 'string') {
+            const trimmed = rawScore.trim();
+            if (!trimmed || !/^-?\d+(?:\.\d+)?$/.test(trimmed)) {
+                throw new WorkflowTransitionError(
+                    'INVALID_CRITERION_SCORE',
+                    400,
+                    `Điểm của tiêu chí ${criterionCode} không phải số hợp lệ.`,
+                );
+            }
+            parsedScore = Number(trimmed);
+        } else {
+            throw new WorkflowTransitionError(
+                'INVALID_CRITERION_SCORE',
+                400,
+                `Điểm của tiêu chí ${criterionCode} không hợp lệ.`,
+            );
+        }
+
+        if (!Number.isFinite(parsedScore) || parsedScore < 0) {
+            throw new WorkflowTransitionError(
+                'INVALID_CRITERION_SCORE',
+                400,
+                `Điểm của tiêu chí ${criterionCode} phải là số hữu hạn >= 0.`,
+            );
+        }
+
+        const hundredths = Math.round(parsedScore * 100);
+        if (Math.abs(parsedScore * 100 - hundredths) > 1e-9) {
+            throw new WorkflowTransitionError(
+                'INVALID_CRITERION_SCORE',
+                400,
+                `Điểm của tiêu chí ${criterionCode} chỉ được phép tối đa 2 chữ số thập phân.`,
+            );
+        }
+
+        const exactScore = hundredths / 100;
+        const criterion = criteriaMap.get(criterionCode);
+        const criterionMax = Number(criterion.maxScore);
+        if (exactScore > criterionMax + 1e-9) {
+            throw new WorkflowTransitionError(
+                'INVALID_CRITERION_SCORE',
+                400,
+                `Điểm của tiêu chí ${criterionCode} (${exactScore}) vượt quá điểm tối đa (${criterionMax}).`,
+            );
+        }
+
+        normalized.push({
+            criterionCode,
+            criterionLabel: criterion.label,
+            maxScore: criterionMax,
+            score: exactScore,
+            comment: item.comment !== undefined && item.comment !== null ? String(item.comment).trim() : null,
+        });
+        seen.add(criterionCode);
+    }
+
+    if (requireAllCriteria && seen.size !== criteriaList.length) {
+        const missing = criteriaList.filter((c) => !seen.has(c.code)).map((c) => c.code);
+        throw new WorkflowTransitionError(
+            'INCOMPLETE_CRITERION_SCORES',
+            400,
+            `Phiếu điểm chưa chấm đầy đủ tất cả tiêu chí (${seen.size}/${criteriaList.length}). Thiếu: ${missing.slice(0, 5).join(', ')}.`,
+        );
+    }
+
+    const finalScore = normalized.length === 0
+        ? null
+        : round2(normalized.reduce((sum, row) => sum + row.score, 0));
+
+    return {
+        normalized,
+        finalScore,
+        scoredCriteriaCount: normalized.length,
+        totalCriteriaCount: criteriaList.length,
+    };
+}
 
 /**
  * Xác định các thành viên có quyền chấm điểm đang hoạt động trong hội đồng
@@ -71,7 +424,9 @@ async function isResultPublished(tx, registrationId) {
 }
 
 /**
- * Lưu bảng điểm (nháp hoặc cập nhật) của một thành viên hội đồng
+ * Lưu bảng điểm nháp (hoặc cập nhật) của một thành viên hội đồng.
+ * Cho phép lưu nháp rỗng (`scores: []`) hoặc một phần tiêu chí mà không tự điền 0;
+ * không bao giờ ghi điểm chính thức vào `DefenseResult` trước khi khóa sổ đủ 3/4 người.
  */
 async function saveMemberScoreSheet(input, options = {}) {
     const db = options.db || prisma;
@@ -80,11 +435,12 @@ async function saveMemberScoreSheet(input, options = {}) {
         evaluatorId,
         actorId,
         evaluatorRole,
-        scores = [],
+        actorRole,
+        scores,
         criterionScores,
-        generalComment = '',
+        generalComment,
         comments,
-        targetRubricVersion = 'v1',
+        targetRubricVersion,
     } = input;
 
     if (!Number.isInteger(registrationId) || registrationId <= 0) {
@@ -95,33 +451,32 @@ async function saveMemberScoreSheet(input, options = {}) {
         throw new WorkflowTransitionError('INVALID_EVALUATOR_ID', 400, 'evaluatorId không hợp lệ.');
     }
 
-    const effectiveScores = Array.isArray(criterionScores) && criterionScores.length > 0 ? criterionScores : scores;
+    const effectiveActorRole = actorRole || evaluatorRole;
+    if (actorId && evaluatorId && actorId !== evaluatorId && effectiveActorRole !== 'ADMIN') {
+        throw new WorkflowTransitionError(
+            'CANNOT_EDIT_OTHER_EVALUATOR_SCORE',
+            403,
+            'Không thể chỉnh sửa phiếu điểm của giám khảo khác.',
+        );
+    }
+
+    let rawScoresInput;
+    if (criterionScores !== undefined && scores === undefined) {
+        rawScoresInput = criterionScores;
+    } else if (Array.isArray(criterionScores) && criterionScores.length > 0 && (!Array.isArray(scores) || scores.length === 0)) {
+        rawScoresInput = criterionScores;
+    } else if (scores !== undefined) {
+        rawScoresInput = scores;
+    } else {
+        rawScoresInput = [];
+    }
+
     const effectiveComment = generalComment !== undefined ? generalComment : comments;
 
     return await db.$transaction(async (tx) => {
         const registration = await tx.topicRegistration.findUnique({
             where: { id: registrationId },
-            include: {
-                topic: { select: { id: true, title: true, mentorId: true } },
-                defenseCouncil: {
-                    select: {
-                        id: true,
-                        name: true,
-                        allowFourthScoringMember: true,
-                        members: { select: { id: true, lecturerId: true, roleInCouncil: true, isActive: true, isScoringMember: true } },
-                    },
-                },
-                council: {
-                    select: {
-                        id: true,
-                        name: true,
-                        allowFourthScoringMember: true,
-                        members: { select: { id: true, lecturerId: true, roleInCouncil: true, isActive: true, isScoringMember: true } },
-                    },
-                },
-                defenseResult: true,
-                memberScores: true,
-            },
+            include: REGISTRATION_SCORING_INCLUDE,
         });
 
         if (!registration) {
@@ -147,16 +502,21 @@ async function saveMemberScoreSheet(input, options = {}) {
             );
         }
 
-        // Kiểm tra quyền: Người chấm phải thuộc hội đồng bảo vệ và đang active
+        // Kiểm tra quyền: Người chấm phải là thành viên chấm điểm hợp lệ đang hoạt động trong hội đồng
         const effectiveCouncil = registration.defenseCouncil || registration.council;
         const activeScorers = resolveActiveScoringMembers(effectiveCouncil);
         const scoringLecturerIds = new Set(activeScorers.map((m) => m.lecturerId));
-
-        // Kiểm tra người chấm có thuộc hội đồng
         const allCouncilMembers = effectiveCouncil?.members || [];
-        const isMemberOfCouncil = allCouncilMembers.some((m) => m.lecturerId === effectiveEvaluatorId && m.isActive !== false);
+        const isActiveCouncilMember = allCouncilMembers.some((m) => m.lecturerId === effectiveEvaluatorId && m.isActive !== false);
 
-        if (!isMemberOfCouncil && !scoringLecturerIds.has(effectiveEvaluatorId)) {
+        if (!scoringLecturerIds.has(effectiveEvaluatorId)) {
+            if (isActiveCouncilMember) {
+                throw new WorkflowTransitionError(
+                    'EVALUATOR_NOT_SCORING_MEMBER',
+                    403,
+                    'Thành viên hội đồng này không có quyền chấm điểm (không thuộc danh sách thành viên chấm hợp lệ).',
+                );
+            }
             throw new WorkflowTransitionError(
                 'EVALUATOR_NOT_IN_COUNCIL',
                 403,
@@ -183,11 +543,7 @@ async function saveMemberScoreSheet(input, options = {}) {
         }
 
         // Kiểm tra trạng thái hồ sơ
-        const eligibleStatuses = [
-            'DEFENSE_READY', 'DEFENDED', 'SUBMITTED', 'AWAITING_SCORES',
-            'DEFENSE_ELIGIBLE', 'ELIGIBLE_BY_INSTITUTE',
-        ];
-        if (!eligibleStatuses.includes(registration.status)) {
+        if (!ELIGIBLE_DEFENSE_GRADING_STATUSES.includes(registration.status)) {
             throw new WorkflowTransitionError(
                 'INVALID_STATUS_FOR_DEFENSE_GRADING',
                 409,
@@ -213,9 +569,28 @@ async function saveMemberScoreSheet(input, options = {}) {
             );
         }
 
-        // Tính điểm tổng phiếu cá nhân từ các tiêu chí
-        const totalScore = effectiveScores.reduce((sum, item) => sum + (Number(item.score) || 0), 0);
-        const finalScore = round2(totalScore);
+        // Giải quyết phiên bản rubric gắn với hồ sơ (không fallback sang active nếu bản đã gắn bị thiếu)
+        const resolvedRubric = await resolveRubricForRegistration(registration, tx);
+        const rubricPayload = formatRubricPayload(resolvedRubric);
+        const resolvedRubricVersion = rubricPayload.version || RUBRIC_V1.version;
+
+        if (
+            targetRubricVersion !== undefined
+            && targetRubricVersion !== null
+            && String(targetRubricVersion).trim() !== ''
+            && String(targetRubricVersion).trim() !== resolvedRubricVersion
+        ) {
+            throw new WorkflowTransitionError(
+                'RUBRIC_VERSION_MISMATCH',
+                400,
+                `Phiên bản rubric gửi lên (${targetRubricVersion}) không khớp với phiên bản đã gắn với hồ sơ (${resolvedRubricVersion}).`,
+            );
+        }
+
+        // Xác thực điểm tiêu chí cho nháp (cho phép rỗng hoặc một phần)
+        const validated = validateAndNormalizeMemberScores(rawScoresInput, rubricPayload, {
+            requireAllCriteria: false,
+        });
 
         const currentMember = activeScorers.find((m) => m.lecturerId === effectiveEvaluatorId) ||
             allCouncilMembers.find((m) => m.lecturerId === effectiveEvaluatorId);
@@ -228,9 +603,9 @@ async function saveMemberScoreSheet(input, options = {}) {
                     roleInCouncilSnapshot: currentMember?.roleInCouncil || null,
                     isEffective: true,
                     supersededReason: null,
-                    finalScore,
-                    comments: effectiveComment ? String(effectiveComment).trim() : '',
-                    scoreRubricVersion: targetRubricVersion,
+                    finalScore: validated.finalScore,
+                    comments: effectiveComment !== undefined && effectiveComment !== null ? String(effectiveComment).trim() : '',
+                    scoreRubricVersion: resolvedRubricVersion,
                     scoreLocked: false,
                 },
             });
@@ -238,97 +613,66 @@ async function saveMemberScoreSheet(input, options = {}) {
             memberScore = await tx.defenseMemberScore.update({
                 where: { id: memberScore.id },
                 data: {
-                    finalScore,
+                    finalScore: validated.finalScore,
                     isEffective: true,
                     supersededReason: null,
                     comments: effectiveComment !== undefined ? String(effectiveComment || '').trim() : memberScore.comments,
-                    scoreRubricVersion: targetRubricVersion,
+                    scoreRubricVersion: resolvedRubricVersion,
                 },
             });
         }
 
-        // Xóa và tạo mới các điểm tiêu chí
-        if (effectiveScores.length > 0) {
-            await tx.defenseMemberCriterionScore.deleteMany({
-                where: { defenseMemberScoreId: memberScore.id },
-            });
+        // Luôn xóa tiêu chí cũ và chỉ tạo lại các tiêu chí đã chấm (không tự điền 0 cho mục trống)
+        await tx.defenseMemberCriterionScore.deleteMany({
+            where: { defenseMemberScoreId: memberScore.id },
+        });
 
+        if (validated.normalized.length > 0) {
             await tx.defenseMemberCriterionScore.createMany({
-                data: effectiveScores.map((row) => ({
+                data: validated.normalized.map((row) => ({
                     defenseMemberScoreId: memberScore.id,
-                    criterionCode: row.criterionCode || (row.criterionId ? `C_${row.criterionId}` : 'CRITERION'),
-                    criterionLabel: row.criterionLabel || row.criterionCode || 'Tiêu chí',
-                    maxScore: Number(row.maxScore) || 10,
-                    score: Number(row.score) || 0,
-                    comment: row.comment || null,
+                    criterionCode: row.criterionCode,
+                    criterionLabel: row.criterionLabel,
+                    maxScore: row.maxScore,
+                    score: row.score,
+                    comment: row.comment,
                 })),
             });
         }
 
-        // Tính toán lại Điểm tổng kết:
-        // Lấy tất cả các phiếu chấm có hiệu lực (isEffective = true) của các thành viên đang hoạt động
-        const activeScorerCount = activeScorers.length > 0 ? activeScorers.length : 3;
-        const activeScorerIds = activeScorers.map((m) => m.lecturerId);
-
-        const allMemberScores = await tx.defenseMemberScore.findMany({
-            where: {
-                registrationId,
-                evaluatorId: activeScorerIds.length > 0 ? { in: activeScorerIds } : undefined,
-                isEffective: true,
-            },
-            select: { finalScore: true, evaluatorId: true, isEffective: true },
-        });
-
-        const activeScorerIdSet = new Set(activeScorerIds);
-        const validScores = allMemberScores.filter((s) =>
-            s.isEffective !== false &&
-            s.finalScore !== null &&
-            s.finalScore !== undefined &&
-            !isNaN(Number(s.finalScore)) &&
-            (activeScorerIdSet.size === 0 || activeScorerIdSet.has(s.evaluatorId))
-        );
-        const sumScores = validScores.reduce((sum, row) => sum + Number(row.finalScore), 0);
-
-        // Chia cho số thành viên chấm có hiệu lực (3 hoặc 4)
-        const rawAverageScore = activeScorerCount > 0 ? sumScores / activeScorerCount : null;
-        const roundedFinalScore = roundDefenseScoreOneDecimal(rawAverageScore);
-
-        const defenseResult = await tx.defenseResult.upsert({
-            where: { registrationId },
-            update: {
-                rawAverageScore,
-                roundedFinalScore,
-                finalScore: roundedFinalScore,
-                activeScorerCount,
-                evaluatorId: effectiveEvaluatorId,
-                scoreRubricVersion: targetRubricVersion,
-            },
-            create: {
-                registrationId,
-                rawAverageScore,
-                roundedFinalScore,
-                finalScore: roundedFinalScore,
-                activeScorerCount,
-                comments: '',
-                evaluatorId: effectiveEvaluatorId,
-                scoreRubricVersion: targetRubricVersion,
-            },
-        });
+        // Không ghi điểm hội đồng chính thức từ phiếu nháp/chưa khóa sổ.
+        // Nếu DefenseResult đã tồn tại trước đó (ví dụ sau trả sổ), xóa điểm tổng cũ để tránh lộ điểm chưa chốt.
+        if (registration.defenseResult && typeof tx.defenseResult?.updateMany === 'function') {
+            await tx.defenseResult.updateMany({
+                where: { registrationId },
+                data: {
+                    finalScore: null,
+                    rawAverageScore: null,
+                    roundedFinalScore: null,
+                    activeScorerCount: activeScorers.length > 0 ? activeScorers.length : 3,
+                    scoreRubricVersion: resolvedRubricVersion,
+                },
+            });
+        }
 
         return {
             ...memberScore,
             registration,
             memberScore,
-            defenseResult,
-            aggregateFinalScore: roundedFinalScore,
-            rawAverageScore,
-            roundedFinalScore,
+            defenseResult: null,
+            finalScore: validated.finalScore,
+            rubricVersion: resolvedRubricVersion,
+            scoredCriteriaCount: validated.scoredCriteriaCount,
+            totalCriteriaCount: validated.totalCriteriaCount,
+            aggregateFinalScore: null,
+            rawAverageScore: null,
+            roundedFinalScore: null,
         };
     });
 }
 
 /**
- * Khóa phiếu điểm cá nhân của một thành viên hội đồng
+ * Khóa phiếu điểm cá nhân của một thành viên hội đồng (bắt buộc đầy đủ tất cả tiêu chí rubric hợp lệ).
  */
 async function lockMemberScoreSheet(input, options = {}) {
     const db = options.db || prisma;
@@ -336,12 +680,11 @@ async function lockMemberScoreSheet(input, options = {}) {
         registrationId,
         evaluatorId,
         actorId,
-        evaluatorRole,
         scores,
         criterionScores,
         generalComment,
         comments,
-        targetRubricVersion = 'v1',
+        targetRubricVersion,
         idempotencyKey,
     } = input;
 
@@ -367,12 +710,17 @@ async function lockMemberScoreSheet(input, options = {}) {
     }
 
     const cleanIdempotencyKey = idempotencyKey.trim();
+    const hasInlineScores = scores !== undefined || criterionScores !== undefined;
     const hashInput = {
         registrationId,
         evaluatorId: effectiveEvaluatorId,
     };
-    if (scores || criterionScores) hashInput.scores = scores || criterionScores;
-    if (generalComment || comments) hashInput.generalComment = generalComment || comments;
+    if (hasInlineScores) {
+        hashInput.scores = criterionScores !== undefined ? criterionScores : scores;
+    }
+    if (generalComment !== undefined || comments !== undefined) {
+        hashInput.generalComment = generalComment !== undefined ? generalComment : comments;
+    }
     const commandHash = crypto.createHash('sha256').update(JSON.stringify(hashInput)).digest('hex');
 
     return await db.$transaction(async (tx) => {
@@ -400,27 +748,7 @@ async function lockMemberScoreSheet(input, options = {}) {
 
         const registration = await tx.topicRegistration.findUnique({
             where: { id: registrationId },
-            include: {
-                topic: { select: { id: true, title: true, mentorId: true } },
-                defenseCouncil: {
-                    select: {
-                        id: true,
-                        name: true,
-                        allowFourthScoringMember: true,
-                        members: { select: { id: true, lecturerId: true, roleInCouncil: true, isActive: true, isScoringMember: true } },
-                    },
-                },
-                council: {
-                    select: {
-                        id: true,
-                        name: true,
-                        allowFourthScoringMember: true,
-                        members: { select: { id: true, lecturerId: true, roleInCouncil: true, isActive: true, isScoringMember: true } },
-                    },
-                },
-                defenseResult: true,
-                memberScores: true,
-            },
+            include: REGISTRATION_SCORING_INCLUDE,
         });
 
         if (!registration) {
@@ -446,13 +774,21 @@ async function lockMemberScoreSheet(input, options = {}) {
             );
         }
 
-        // Kiểm tra quyền: Người chấm phải thuộc hội đồng bảo vệ
+        // Kiểm tra quyền: Người chấm phải là thành viên chấm điểm hợp lệ đang hoạt động
         const effectiveCouncil = registration.defenseCouncil || registration.council;
         const activeScorers = resolveActiveScoringMembers(effectiveCouncil);
+        const scoringLecturerIds = new Set(activeScorers.map((m) => m.lecturerId));
         const allCouncilMembers = effectiveCouncil?.members || [];
-        const isMemberOfCouncil = allCouncilMembers.some((m) => m.lecturerId === effectiveEvaluatorId && m.isActive !== false);
+        const isActiveCouncilMember = allCouncilMembers.some((m) => m.lecturerId === effectiveEvaluatorId && m.isActive !== false);
 
-        if (!isMemberOfCouncil) {
+        if (!scoringLecturerIds.has(effectiveEvaluatorId)) {
+            if (isActiveCouncilMember) {
+                throw new WorkflowTransitionError(
+                    'EVALUATOR_NOT_SCORING_MEMBER',
+                    403,
+                    'Thành viên hội đồng này không có quyền chấm hoặc khóa phiếu điểm.',
+                );
+            }
             throw new WorkflowTransitionError(
                 'EVALUATOR_NOT_IN_COUNCIL',
                 403,
@@ -479,15 +815,11 @@ async function lockMemberScoreSheet(input, options = {}) {
         }
 
         // Kiểm tra trạng thái hồ sơ
-        const eligibleStatuses = [
-            'DEFENSE_READY', 'DEFENDED', 'SUBMITTED', 'AWAITING_SCORES',
-            'DEFENSE_ELIGIBLE', 'ELIGIBLE_BY_INSTITUTE',
-        ];
-        if (!eligibleStatuses.includes(registration.status)) {
+        if (!ELIGIBLE_DEFENSE_GRADING_STATUSES.includes(registration.status)) {
             throw new WorkflowTransitionError(
                 'INVALID_STATUS_FOR_DEFENSE_GRADING',
                 409,
-                `Trạng thái đề tài không hợp lệ (${registration.status}). Chỉ được khóa điểm khi ở trạng thái: ${eligibleStatuses.join(', ')}.`,
+                `Trạng thái đề tài không hợp lệ (${registration.status}). Chỉ được khóa điểm khi ở trạng thái: ${ELIGIBLE_DEFENSE_GRADING_STATUSES.join(', ')}.`,
             );
         }
 
@@ -499,6 +831,7 @@ async function lockMemberScoreSheet(input, options = {}) {
                     evaluatorId: effectiveEvaluatorId,
                 },
             },
+            include: { criterionScores: true },
         });
 
         if (memberScore?.scoreLocked) {
@@ -509,23 +842,41 @@ async function lockMemberScoreSheet(input, options = {}) {
             );
         }
 
+        // Giải quyết phiên bản rubric gắn với hồ sơ
+        const resolvedRubric = await resolveRubricForRegistration(registration, tx);
+        const rubricPayload = formatRubricPayload(resolvedRubric);
+        const resolvedRubricVersion = rubricPayload.version || RUBRIC_V1.version;
+
+        if (
+            targetRubricVersion !== undefined
+            && targetRubricVersion !== null
+            && String(targetRubricVersion).trim() !== ''
+            && String(targetRubricVersion).trim() !== resolvedRubricVersion
+        ) {
+            throw new WorkflowTransitionError(
+                'RUBRIC_VERSION_MISMATCH',
+                400,
+                `Phiên bản rubric gửi lên (${targetRubricVersion}) không khớp với phiên bản đã gắn với hồ sơ (${resolvedRubricVersion}).`,
+            );
+        }
+
         const now = new Date();
-        const effectiveScores = Array.isArray(criterionScores) && criterionScores.length > 0 ? criterionScores : scores;
         const effectiveComment = generalComment !== undefined ? generalComment : comments;
 
-        if (effectiveScores && Array.isArray(effectiveScores) && effectiveScores.length > 0) {
-            for (const row of effectiveScores) {
-                const s = Number(row.score);
-                if (row.score === null || row.score === undefined || isNaN(s) || s < 0) {
-                    throw new WorkflowTransitionError(
-                        'INVALID_CRITERION_SCORE',
-                        400,
-                        `Điểm tiêu chí ${row.criterionCode || ''} không hợp lệ (phải là số thực >= 0).`,
-                    );
-                }
+        if (hasInlineScores) {
+            let inlineScoresInput;
+            if (criterionScores !== undefined && scores === undefined) {
+                inlineScoresInput = criterionScores;
+            } else if (Array.isArray(criterionScores) && criterionScores.length > 0 && (!Array.isArray(scores) || scores.length === 0)) {
+                inlineScoresInput = criterionScores;
+            } else {
+                inlineScoresInput = scores;
             }
-            const totalScore = effectiveScores.reduce((sum, item) => sum + Number(item.score), 0);
-            const finalScore = round2(totalScore);
+
+            const validated = validateAndNormalizeMemberScores(inlineScoresInput, rubricPayload, {
+                requireAllCriteria: true,
+            });
+
             const currentMember = activeScorers.find((m) => m.lecturerId === effectiveEvaluatorId) ||
                 allCouncilMembers.find((m) => m.lecturerId === effectiveEvaluatorId);
 
@@ -537,9 +888,9 @@ async function lockMemberScoreSheet(input, options = {}) {
                         roleInCouncilSnapshot: currentMember?.roleInCouncil || null,
                         isEffective: true,
                         supersededReason: null,
-                        finalScore,
-                        comments: effectiveComment ? String(effectiveComment).trim() : '',
-                        scoreRubricVersion: targetRubricVersion,
+                        finalScore: validated.finalScore,
+                        comments: effectiveComment !== undefined && effectiveComment !== null ? String(effectiveComment).trim() : '',
+                        scoreRubricVersion: resolvedRubricVersion,
                         scoreLocked: true,
                         lockedAt: now,
                         lockedBy: effectiveEvaluatorId,
@@ -549,11 +900,11 @@ async function lockMemberScoreSheet(input, options = {}) {
                 memberScore = await tx.defenseMemberScore.update({
                     where: { id: memberScore.id },
                     data: {
-                        finalScore,
+                        finalScore: validated.finalScore,
                         isEffective: true,
                         supersededReason: null,
                         comments: effectiveComment !== undefined ? String(effectiveComment || '').trim() : memberScore.comments,
-                        scoreRubricVersion: targetRubricVersion,
+                        scoreRubricVersion: resolvedRubricVersion,
                         scoreLocked: true,
                         lockedAt: now,
                         lockedBy: effectiveEvaluatorId,
@@ -566,13 +917,13 @@ async function lockMemberScoreSheet(input, options = {}) {
             });
 
             await tx.defenseMemberCriterionScore.createMany({
-                data: effectiveScores.map((row) => ({
+                data: validated.normalized.map((row) => ({
                     defenseMemberScoreId: memberScore.id,
-                    criterionCode: row.criterionCode || (row.criterionId ? `C_${row.criterionId}` : 'CRITERION'),
-                    criterionLabel: row.criterionLabel || row.criterionCode || 'Tiêu chí',
-                    maxScore: Number(row.maxScore) || 10,
-                    score: Number(row.score),
-                    comment: row.comment || null,
+                    criterionCode: row.criterionCode,
+                    criterionLabel: row.criterionLabel,
+                    maxScore: row.maxScore,
+                    score: row.score,
+                    comment: row.comment,
                 })),
             });
         } else {
@@ -583,9 +934,28 @@ async function lockMemberScoreSheet(input, options = {}) {
                     'Chưa có điểm để khóa. Vui lòng nhập điểm trước khi khóa phiếu.',
                 );
             }
+
+            if (memberScore.scoreRubricVersion && memberScore.scoreRubricVersion !== resolvedRubricVersion) {
+                throw new WorkflowTransitionError(
+                    'RUBRIC_VERSION_MISMATCH',
+                    400,
+                    `Phiếu nháp đang ở phiên bản rubric (${memberScore.scoreRubricVersion}) không khớp với phiên bản đã gắn (${resolvedRubricVersion}).`,
+                );
+            }
+
+            let finalScoreToLock = memberScore.finalScore;
+            if (Array.isArray(memberScore.criterionScores)) {
+                const validatedSaved = validateAndNormalizeMemberScores(memberScore.criterionScores, rubricPayload, {
+                    requireAllCriteria: true,
+                });
+                finalScoreToLock = validatedSaved.finalScore;
+            }
+
             memberScore = await tx.defenseMemberScore.update({
                 where: { id: memberScore.id },
                 data: {
+                    finalScore: finalScoreToLock,
+                    scoreRubricVersion: resolvedRubricVersion,
                     scoreLocked: true,
                     lockedAt: now,
                     lockedBy: effectiveEvaluatorId,
@@ -594,52 +964,19 @@ async function lockMemberScoreSheet(input, options = {}) {
             });
         }
 
-        // Cập nhật lại điểm trung bình tạm thời
-        const activeScorerCount = activeScorers.length > 0 ? activeScorers.length : 3;
-        const activeScorerIds = activeScorers.map((m) => m.lecturerId);
-
-        const allMemberScores = await tx.defenseMemberScore.findMany({
-            where: {
-                registrationId,
-                evaluatorId: activeScorerIds.length > 0 ? { in: activeScorerIds } : undefined,
-                isEffective: true,
-            },
-            select: { finalScore: true, evaluatorId: true },
-        });
-
-        const activeScorerIdSet = new Set(activeScorerIds);
-        const validScores = allMemberScores.filter((s) =>
-            s.isEffective !== false &&
-            s.finalScore !== null &&
-            s.finalScore !== undefined &&
-            !isNaN(Number(s.finalScore)) &&
-            (activeScorerIdSet.size === 0 || activeScorerIdSet.has(s.evaluatorId))
-        );
-        const sumScores = validScores.reduce((sum, row) => sum + Number(row.finalScore), 0);
-        const rawAverageScore = activeScorerCount > 0 ? sumScores / activeScorerCount : null;
-        const roundedFinalScore = roundDefenseScoreOneDecimal(rawAverageScore);
-
-        await tx.defenseResult.upsert({
-            where: { registrationId },
-            update: {
-                rawAverageScore,
-                roundedFinalScore,
-                finalScore: roundedFinalScore,
-                activeScorerCount,
-                evaluatorId: effectiveEvaluatorId,
-                scoreRubricVersion: targetRubricVersion,
-            },
-            create: {
-                registrationId,
-                rawAverageScore,
-                roundedFinalScore,
-                finalScore: roundedFinalScore,
-                activeScorerCount,
-                comments: '',
-                evaluatorId: effectiveEvaluatorId,
-                scoreRubricVersion: targetRubricVersion,
-            },
-        });
+        // Tuyệt đối không ghi điểm trung bình tạm thời thành điểm chính thức trên DefenseResult trước khi khóa sổ
+        if (registration.defenseResult && typeof tx.defenseResult?.updateMany === 'function') {
+            await tx.defenseResult.updateMany({
+                where: { registrationId },
+                data: {
+                    finalScore: null,
+                    rawAverageScore: null,
+                    roundedFinalScore: null,
+                    activeScorerCount: activeScorers.length > 0 ? activeScorers.length : 3,
+                    scoreRubricVersion: resolvedRubricVersion,
+                },
+            });
+        }
 
         const responsePayload = {
             ...memberScore,
@@ -647,11 +984,12 @@ async function lockMemberScoreSheet(input, options = {}) {
             evaluatorId: effectiveEvaluatorId,
             memberScoreId: memberScore.id,
             finalScore: memberScore.finalScore,
+            scoreRubricVersion: resolvedRubricVersion,
             scoreLocked: true,
             lockedAt: memberScore.lockedAt || now.toISOString(),
-            aggregateFinalScore: roundedFinalScore,
-            rawAverageScore,
-            roundedFinalScore,
+            aggregateFinalScore: null,
+            rawAverageScore: null,
+            roundedFinalScore: null,
         };
 
         if (typeof tx?.idempotencyRecord?.create === 'function') {
@@ -884,6 +1222,7 @@ async function lockDefenseScoreBookByChairman(input, options = {}) {
 
         let rawAverageScore = null;
         let roundedFinalScore = null;
+        let validScores = [];
 
         if (isAbsent) {
             // NHÁNH B: Sinh viên vắng mặt (ABSENT)
@@ -901,6 +1240,14 @@ async function lockDefenseScoreBookByChairman(input, options = {}) {
         } else {
             // NHÁNH A: Sinh viên có mặt (PRESENT)
             // BẮT BUỘC đủ 100% thành viên chấm có hiệu lực (3 hoặc 4 người) đã khóa phiếu cá nhân
+            if (activeScorers.length === 0) {
+                throw new WorkflowTransitionError(
+                    'INVALID_COUNCIL_COMPOSITION',
+                    400,
+                    'Hội đồng bảo vệ chưa có thành viên chấm điểm hợp lệ.',
+                );
+            }
+
             const effectiveMemberScores = (registration.memberScores || []).filter((s) => s.isEffective !== false);
 
             for (const scorer of activeScorers) {
@@ -931,7 +1278,7 @@ async function lockDefenseScoreBookByChairman(input, options = {}) {
                 }
             }
 
-            const validScores = activeScorers.map((scorer) => {
+            validScores = activeScorers.map((scorer) => {
                 const ms = effectiveMemberScores.find((s) => s.evaluatorId === scorer.lecturerId);
                 return Number(ms.finalScore);
             });
@@ -1454,8 +1801,13 @@ module.exports = {
     DEFENSE_MEMBER_SCORE_LOCK_SCOPE,
     DEFENSE_SCOREBOOK_LOCK_SCOPE,
     DEFENSE_SCOREBOOK_RETURN_SCOPE,
+    RUBRIC_V1,
+    RUBRIC_INCLUDE,
     round2,
     resolveActiveScoringMembers,
+    resolveRubricForRegistration,
+    formatRubricPayload,
+    validateAndNormalizeMemberScores,
     computeAggregateDefenseScore,
     saveMemberScoreSheet,
     lockMemberScoreSheet,

@@ -2,9 +2,31 @@ const {
     lockMemberScoreSheet,
     lockDefenseScores,
     saveMemberScoreSheet,
+    lockDefenseScoreBookByChairman,
     computeAggregateDefenseScore,
 } = require('../../src/services/defenseScoringService');
 const { WorkflowTransitionError } = require('../../src/services/registrationTransitionService');
+
+const buildFullV1Scores = (overrideMap = {}) => ([
+    { criterionCode: 'STRUCTURE', score: 0.5 },
+    { criterionCode: 'CITATION_FORMAT', score: 0.25 },
+    { criterionCode: 'LANGUAGE', score: 0.25 },
+    { criterionCode: 'PROBLEM_STATEMENT', score: 1.0 },
+    { criterionCode: 'RESEARCH_METHOD', score: 0.5 },
+    { criterionCode: 'RESEARCH_CONTENT', score: 2.0 },
+    { criterionCode: 'RESEARCH_RESULT', score: 1.0 },
+    { criterionCode: 'NOVELTY', score: 0.25 },
+    { criterionCode: 'APPLICABILITY', score: 0.5 },
+    { criterionCode: 'PUBLICATION', score: 0.25 },
+    { criterionCode: 'PRESENTATION_SKILL', score: 0.5 },
+    { criterionCode: 'ATTITUDE', score: 0.5 },
+    { criterionCode: 'PRESENTATION_CONTENT', score: 0.75 },
+    { criterionCode: 'QA_RESPONSE', score: 0.75 },
+].map((row) => (
+    Object.prototype.hasOwnProperty.call(overrideMap, row.criterionCode)
+        ? { ...row, score: overrideMap[row.criterionCode] }
+        : row
+)));
 
 describe('Two-Step Defense Score Lock Tests (C03)', () => {
     let mockTx;
@@ -427,13 +449,15 @@ describe('Two-Step Defense Score Lock Tests (C03)', () => {
                 evaluatorId: 21,
                 actorId: 21,
                 idempotencyKey: 'valid-idemp-key-777',
-                scores: [{ criterionCode: 'C1', score: 9.0 }],
+                scores: buildFullV1Scores(),
             },
             { db: mockDb },
         );
 
         expect(result.scoreLocked).toBe(true);
         expect(result.finalScore).toBe(9.0);
+        expect(result.aggregateFinalScore).toBeNull();
+        expect(mockTx.defenseResult.upsert).not.toHaveBeenCalled();
         expect(mockTx.idempotencyRecord.create).toHaveBeenCalledWith(
             expect.objectContaining({
                 data: expect.objectContaining({
@@ -542,5 +566,287 @@ describe('Two-Step Defense Score Lock Tests (C03)', () => {
                 update: expect.objectContaining({ finalScore: 9.0, scoreLocked: true }),
             }),
         );
+    });
+
+    it('should reject incomplete lock (empty scores, partial scores, or incomplete saved draft)', async () => {
+        mockTx.topicRegistration.findUnique.mockResolvedValue({
+            id: 100,
+            status: 'DEFENSE_READY',
+            topic: { id: 1, title: 'Đề tài A', mentorId: 999 },
+            defenseCouncil: {
+                id: 5,
+                members: [
+                    { lecturerId: 21, roleInCouncil: 'CHAIRMAN', isActive: true, isScoringMember: true },
+                    { lecturerId: 22, roleInCouncil: 'SECRETARY', isActive: true, isScoringMember: true },
+                    { lecturerId: 23, roleInCouncil: 'REVIEWER', isActive: true, isScoringMember: true },
+                ],
+            },
+            defenseResult: null,
+        });
+        mockTx.defenseMemberScore.findUnique.mockResolvedValue(null);
+
+        // 1. Explicit empty scores: []
+        await expect(
+            lockMemberScoreSheet(
+                {
+                    registrationId: 100,
+                    evaluatorId: 21,
+                    actorId: 21,
+                    idempotencyKey: 'incomplete-empty-1',
+                    scores: [],
+                },
+                { db: mockDb },
+            ),
+        ).rejects.toMatchObject({ code: 'INCOMPLETE_CRITERION_SCORES', status: 400 });
+
+        // 2. Partial subset
+        await expect(
+            lockMemberScoreSheet(
+                {
+                    registrationId: 100,
+                    evaluatorId: 21,
+                    actorId: 21,
+                    idempotencyKey: 'incomplete-partial-1',
+                    scores: [{ criterionCode: 'STRUCTURE', score: 0.5 }],
+                },
+                { db: mockDb },
+            ),
+        ).rejects.toMatchObject({ code: 'INCOMPLETE_CRITERION_SCORES', status: 400 });
+
+        // 3. Omitting scores when saved draft is incomplete
+        mockTx.defenseMemberScore.findUnique.mockResolvedValue({
+            id: 702,
+            registrationId: 100,
+            evaluatorId: 21,
+            finalScore: 0.5,
+            scoreLocked: false,
+            scoreRubricVersion: 'v1',
+            criterionScores: [{ criterionCode: 'STRUCTURE', score: 0.5, maxScore: 0.5 }],
+        });
+
+        await expect(
+            lockMemberScoreSheet(
+                {
+                    registrationId: 100,
+                    evaluatorId: 21,
+                    actorId: 21,
+                    idempotencyKey: 'incomplete-draft-lock-1',
+                },
+                { db: mockDb },
+            ),
+        ).rejects.toMatchObject({ code: 'INCOMPLETE_CRITERION_SCORES', status: 400 });
+    });
+
+    it('should allow lockMemberScoreSheet when all criteria are scored including 0, and allow locking a complete saved draft', async () => {
+        mockTx.topicRegistration.findUnique.mockResolvedValue({
+            id: 100,
+            status: 'DEFENSE_READY',
+            topic: { id: 1, title: 'Đề tài A', mentorId: 999 },
+            defenseCouncil: {
+                id: 5,
+                members: [
+                    { lecturerId: 21, roleInCouncil: 'CHAIRMAN', isActive: true, isScoringMember: true },
+                    { lecturerId: 22, roleInCouncil: 'SECRETARY', isActive: true, isScoringMember: true },
+                    { lecturerId: 23, roleInCouncil: 'REVIEWER', isActive: true, isScoringMember: true },
+                ],
+            },
+            defenseResult: null,
+        });
+
+        // All 0 scores -> valid lock with finalScore = 0
+        const zeroScores = buildFullV1Scores({
+            STRUCTURE: 0,
+            CITATION_FORMAT: 0,
+            LANGUAGE: 0,
+            PROBLEM_STATEMENT: 0,
+            RESEARCH_METHOD: 0,
+            RESEARCH_CONTENT: 0,
+            RESEARCH_RESULT: 0,
+            NOVELTY: 0,
+            APPLICABILITY: 0,
+            PUBLICATION: 0,
+            PRESENTATION_SKILL: 0,
+            ATTITUDE: 0,
+            PRESENTATION_CONTENT: 0,
+            QA_RESPONSE: 0,
+        });
+
+        mockTx.defenseMemberScore.findUnique.mockResolvedValue(null);
+        mockTx.defenseMemberScore.create.mockImplementation(async ({ data }) => ({
+            id: 703,
+            ...data,
+        }));
+
+        const zeroLockRes = await lockMemberScoreSheet(
+            {
+                registrationId: 100,
+                evaluatorId: 21,
+                actorId: 21,
+                idempotencyKey: 'lock-zero-all-1',
+                scores: zeroScores,
+            },
+            { db: mockDb },
+        );
+
+        expect(zeroLockRes.scoreLocked).toBe(true);
+        expect(zeroLockRes.finalScore).toBe(0);
+        expect(mockTx.defenseResult.upsert).not.toHaveBeenCalled();
+
+        // Locking a complete saved draft without resending scores
+        mockTx.defenseMemberScore.findUnique.mockResolvedValue({
+            id: 704,
+            registrationId: 100,
+            evaluatorId: 21,
+            finalScore: 9.0,
+            scoreLocked: false,
+            scoreRubricVersion: 'v1',
+            criterionScores: buildFullV1Scores(),
+        });
+        mockTx.defenseMemberScore.update.mockImplementation(async ({ data }) => ({
+            id: 704,
+            registrationId: 100,
+            evaluatorId: 21,
+            ...data,
+        }));
+
+        const savedDraftLockRes = await lockMemberScoreSheet(
+            {
+                registrationId: 100,
+                evaluatorId: 21,
+                actorId: 21,
+                idempotencyKey: 'lock-complete-draft-1',
+            },
+            { db: mockDb },
+        );
+
+        expect(savedDraftLockRes.scoreLocked).toBe(true);
+        expect(savedDraftLockRes.finalScore).toBe(9.0);
+    });
+
+    it('should reject lockMemberScoreSheet for non-scoring council member (403) and invalid score precision (>2 decimals)', async () => {
+        mockTx.topicRegistration.findUnique.mockResolvedValue({
+            id: 100,
+            status: 'DEFENSE_READY',
+            topic: { id: 1, title: 'Đề tài A', mentorId: 999 },
+            defenseCouncil: {
+                id: 5,
+                allowFourthScoringMember: false,
+                members: [
+                    { lecturerId: 21, roleInCouncil: 'CHAIRMAN', isActive: true, isScoringMember: true },
+                    { lecturerId: 22, roleInCouncil: 'SECRETARY', isActive: true, isScoringMember: true },
+                    { lecturerId: 23, roleInCouncil: 'REVIEWER', isActive: true, isScoringMember: true },
+                    { lecturerId: 24, roleInCouncil: 'MEMBER', isActive: true, isScoringMember: false },
+                ],
+            },
+            defenseResult: null,
+        });
+
+        await expect(
+            lockMemberScoreSheet(
+                {
+                    registrationId: 100,
+                    evaluatorId: 24,
+                    actorId: 24,
+                    idempotencyKey: 'lock-non-scoring-1',
+                    scores: buildFullV1Scores(),
+                },
+                { db: mockDb },
+            ),
+        ).rejects.toMatchObject({ status: 403 });
+
+        mockTx.defenseMemberScore.findUnique.mockResolvedValue(null);
+        await expect(
+            lockMemberScoreSheet(
+                {
+                    registrationId: 100,
+                    evaluatorId: 21,
+                    actorId: 21,
+                    idempotencyKey: 'lock-bad-decimal-1',
+                    scores: buildFullV1Scores({ STRUCTURE: 0.125 }),
+                },
+                { db: mockDb },
+            ),
+        ).rejects.toMatchObject({ code: 'INVALID_CRITERION_SCORE', status: 400 });
+    });
+
+    it('lockDefenseScoreBookByChairman should lock PRESENT student cleanly without ReferenceError (3 and 4 effective scorers)', async () => {
+        // Case 1: 3 scorers with discrepancy >= 1.5
+        mockTx.topicRegistration.findUnique.mockResolvedValue({
+            id: 100,
+            status: 'DEFENSE_READY',
+            stateVersion: 1,
+            defenseCouncil: {
+                id: 5,
+                allowFourthScoringMember: false,
+                members: [
+                    { lecturerId: 21, roleInCouncil: 'CHAIRMAN', isActive: true, isScoringMember: true },
+                    { lecturerId: 22, roleInCouncil: 'SECRETARY', isActive: true, isScoringMember: true },
+                    { lecturerId: 23, roleInCouncil: 'REVIEWER', isActive: true, isScoringMember: true },
+                ],
+            },
+            defenseResult: { attendanceStatus: 'PRESENT', scoreLocked: false },
+            memberScores: [
+                { evaluatorId: 21, finalScore: 8.0, scoreLocked: true, isEffective: true },
+                { evaluatorId: 22, finalScore: 9.5, scoreLocked: true, isEffective: true },
+                { evaluatorId: 23, finalScore: 9.5, scoreLocked: true, isEffective: true },
+            ],
+        });
+        mockTx.defenseResult.upsert.mockImplementation(async ({ update, create }) => ({
+            id: 801,
+            ...(update || create),
+        }));
+
+        const res3 = await lockDefenseScoreBookByChairman(
+            {
+                registrationId: 100,
+                actorId: 21,
+                idempotencyKey: 'chair-present-lock-3',
+            },
+            { db: mockDb },
+        );
+
+        expect(res3.status).toBe('AWAITING_FINAL_APPROVAL');
+        expect(res3.scoreLocked).toBe(true);
+        expect(res3.rawAverageScore).toBe(9.0);
+        expect(res3.roundedFinalScore).toBe(9.0);
+        expect(res3.finalScore).toBe(9.0);
+
+        // Case 2: 4 effective scorers
+        mockTx.topicRegistration.findUnique.mockResolvedValue({
+            id: 101,
+            status: 'DEFENSE_READY',
+            stateVersion: 1,
+            defenseCouncil: {
+                id: 6,
+                allowFourthScoringMember: true,
+                members: [
+                    { lecturerId: 21, roleInCouncil: 'CHAIRMAN', isActive: true, isScoringMember: true },
+                    { lecturerId: 22, roleInCouncil: 'SECRETARY', isActive: true, isScoringMember: true },
+                    { lecturerId: 23, roleInCouncil: 'REVIEWER', isActive: true, isScoringMember: true },
+                    { lecturerId: 24, roleInCouncil: 'MEMBER', isActive: true, isScoringMember: true },
+                ],
+            },
+            defenseResult: { attendanceStatus: 'PRESENT', scoreLocked: false },
+            memberScores: [
+                { evaluatorId: 21, finalScore: 8.0, scoreLocked: true, isEffective: true },
+                { evaluatorId: 22, finalScore: 8.5, scoreLocked: true, isEffective: true },
+                { evaluatorId: 23, finalScore: 9.0, scoreLocked: true, isEffective: true },
+                { evaluatorId: 24, finalScore: 9.5, scoreLocked: true, isEffective: true },
+            ],
+        });
+
+        const res4 = await lockDefenseScoreBookByChairman(
+            {
+                registrationId: 101,
+                actorId: 21,
+                idempotencyKey: 'chair-present-lock-4',
+            },
+            { db: mockDb },
+        );
+
+        expect(res4.status).toBe('AWAITING_FINAL_APPROVAL');
+        expect(res4.rawAverageScore).toBe(8.75);
+        expect(res4.roundedFinalScore).toBe(8.8);
+        expect(res4.finalScore).toBe(8.8);
     });
 });

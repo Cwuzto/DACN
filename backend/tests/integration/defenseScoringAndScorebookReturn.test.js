@@ -34,6 +34,10 @@ const mockDatabase = {
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
         createMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
+    rubricVersion: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        findFirst: jest.fn().mockResolvedValue(null),
+    },
     defenseScoreBookReturnLog: {
         create: jest.fn().mockResolvedValue({ id: 1 }),
         findMany: jest.fn().mockResolvedValue([]),
@@ -70,6 +74,28 @@ jest.mock('jsonwebtoken', () => ({
 const prisma = require('../../src/config/database');
 const app = require('../../src/app');
 const defenseScoringService = require('../../src/services/defenseScoringService');
+const { auditLog } = require('../../src/services/auditLogService');
+
+const buildFullV1Scores = (overrideMap = {}) => ([
+    { criterionCode: 'STRUCTURE', score: 0.5 },
+    { criterionCode: 'CITATION_FORMAT', score: 0.25 },
+    { criterionCode: 'LANGUAGE', score: 0.25 },
+    { criterionCode: 'PROBLEM_STATEMENT', score: 1.0 },
+    { criterionCode: 'RESEARCH_METHOD', score: 0.5 },
+    { criterionCode: 'RESEARCH_CONTENT', score: 2.0 },
+    { criterionCode: 'RESEARCH_RESULT', score: 1.0 },
+    { criterionCode: 'NOVELTY', score: 0.25 },
+    { criterionCode: 'APPLICABILITY', score: 0.5 },
+    { criterionCode: 'PUBLICATION', score: 0.25 },
+    { criterionCode: 'PRESENTATION_SKILL', score: 0.5 },
+    { criterionCode: 'ATTITUDE', score: 0.5 },
+    { criterionCode: 'PRESENTATION_CONTENT', score: 0.75 },
+    { criterionCode: 'QA_RESPONSE', score: 0.75 },
+].map((row) => (
+    Object.prototype.hasOwnProperty.call(overrideMap, row.criterionCode)
+        ? { ...row, score: overrideMap[row.criterionCode] }
+        : row
+)));
 
 const adminPerms = [{
     permissionGroup: {
@@ -118,6 +144,7 @@ describe('Task 4: 3-or-4-Member Rubric Scoring, Chairman ABSENT Minutes, Chairma
 
         jwt.verify.mockImplementation((token) => {
             if (token === 'admin-token') return { userId: 1, role: 'ADMIN' };
+            if (token === 'scoring-admin-token') return { userId: 2, role: 'ADMIN' };
             if (token === 'chairman-token') return { userId: 101, role: 'LECTURER' };
             if (token === 'secretary-token') return { userId: 102, role: 'LECTURER' };
             if (token === 'reviewer-token') return { userId: 103, role: 'LECTURER' };
@@ -129,6 +156,23 @@ describe('Task 4: 3-or-4-Member Rubric Scoring, Chairman ABSENT Minutes, Chairma
         prisma.user.findUnique.mockImplementation(async ({ where }) => {
             if (where.id === 1) {
                 return { id: 1, fullName: 'Admin User', role: 'ADMIN', isActive: true, permissionGroups: adminPerms };
+            }
+            if (where.id === 2) {
+                return {
+                    id: 2,
+                    fullName: 'Scoring Admin User',
+                    role: 'ADMIN',
+                    isActive: true,
+                    permissionGroups: [{
+                        permissionGroup: {
+                            code: 'SCORING_ADMIN_GROUP',
+                            permissions: [
+                                ...adminPerms[0].permissionGroup.permissions,
+                                { permission: { code: 'DEFENSE_SCORE_SUBMIT' } },
+                            ],
+                        },
+                    }],
+                };
             }
             if (where.id === 101) {
                 return { id: 101, fullName: 'Chairman Lecturer', role: 'LECTURER', isActive: true, permissionGroups: chairmanPerms };
@@ -149,7 +193,7 @@ describe('Task 4: 3-or-4-Member Rubric Scoring, Chairman ABSENT Minutes, Chairma
         });
     });
 
-    test('1. 3-member council divides by 3; 4-member council (allowFourthScoringMember = true) divides by 4; superseded sheets (isEffective = false) are excluded from average', async () => {
+    test('1. 3-member council divides by 3; 4-member council (allowFourthScoringMember = true) divides by 4; superseded sheets (isEffective = false) are excluded; no official DefenseResult.finalScore before scorebook lock', async () => {
         // Case A: 3-member council
         const council3 = {
             id: 10,
@@ -168,6 +212,13 @@ describe('Task 4: 3-or-4-Member Rubric Scoring, Chairman ABSENT Minutes, Chairma
             topic: { mentorId: 50 },
             defenseCouncil: council3,
             defenseResult: null,
+            memberScores: [
+                { id: 201, evaluatorId: 101, finalScore: 8.5, scoreLocked: true, isEffective: true },
+                { id: 202, evaluatorId: 102, finalScore: 9.0, scoreLocked: true, isEffective: true },
+                { id: 203, evaluatorId: 103, finalScore: 7.5, scoreLocked: true, isEffective: true },
+                // Superseded sheet from replaced reviewer should be excluded
+                { id: 199, evaluatorId: 105, finalScore: 2.0, scoreLocked: true, isEffective: false, supersededReason: 'REPLACED' },
+            ],
         };
 
         prisma.topicRegistration.findUnique.mockResolvedValue(registrationCaseA);
@@ -176,35 +227,49 @@ describe('Task 4: 3-or-4-Member Rubric Scoring, Chairman ABSENT Minutes, Chairma
             id: 201,
             ...data,
         }));
-        prisma.defenseMemberScore.findMany.mockResolvedValue([
-            { id: 201, evaluatorId: 101, finalScore: 8.5, isEffective: true },
-            { id: 202, evaluatorId: 102, finalScore: 9.0, isEffective: true },
-            { id: 203, evaluatorId: 103, finalScore: 7.5, isEffective: true },
-            // Superseded sheet from replaced reviewer should be excluded
-            { id: 199, evaluatorId: 105, finalScore: 2.0, isEffective: false, supersededReason: 'REPLACED' },
-        ]);
         prisma.defenseResult.upsert.mockImplementation(async ({ update, create }) => ({
             id: 301,
             ...(update || create),
         }));
 
-        const resultCaseA = await defenseScoringService.saveMemberScoreSheet({
+        // Saving draft MUST NOT write DefenseResult.finalScore
+        const draftResA = await defenseScoringService.saveMemberScoreSheet({
             registrationId: 1,
             evaluatorId: 101,
-            scores: [{ criterionCode: 'C1', score: 8.5 }],
+            scores: [{ criterionCode: 'STRUCTURE', score: 0.5 }],
+        });
+        expect(draftResA.aggregateFinalScore).toBeNull();
+        expect(prisma.defenseResult.upsert).not.toHaveBeenCalled();
+
+        // Locking scorebook by chairman finalizes 3-member average excluding superseded sheet:
+        // (8.5 + 9.0 + 7.5) / 3 = 25.0 / 3 = 8.3333... -> 8.3
+        const lockResA = await defenseScoringService.lockDefenseScoreBookByChairman({
+            registrationId: 1,
+            actorId: 101,
+            idempotencyKey: 'lock-3-member-case-a',
         });
 
-        // 3 active scorers: (8.5 + 9.0 + 7.5) / 3 = 25.0 / 3 = 8.3333333...
-        // superseded sheet (2.0) excluded
+        expect(lockResA.rawAverageScore).toBeCloseTo(8.333, 2);
+        expect(lockResA.roundedFinalScore).toBe(8.3);
+        expect(lockResA.finalScore).toBe(8.3);
         expect(prisma.defenseResult.upsert).toHaveBeenCalledWith(
             expect.objectContaining({
                 update: expect.objectContaining({
                     rawAverageScore: expect.closeTo(8.333, 2),
                     roundedFinalScore: 8.3,
+                    finalScore: 8.3,
                     activeScorerCount: 3,
                 }),
             })
         );
+
+        jest.clearAllMocks();
+        prisma.$transaction.mockImplementation(async (cb) => cb(prisma));
+        prisma.topicRegistration.updateMany.mockResolvedValue({ count: 1 });
+        prisma.defenseResult.upsert.mockImplementation(async ({ update, create }) => ({
+            id: 302,
+            ...(update || create),
+        }));
 
         // Case B: 4-member council with allowFourthScoringMember = true
         const council4 = {
@@ -225,35 +290,38 @@ describe('Task 4: 3-or-4-Member Rubric Scoring, Chairman ABSENT Minutes, Chairma
             topic: { mentorId: 50 },
             defenseCouncil: council4,
             defenseResult: null,
+            memberScores: [
+                { id: 201, evaluatorId: 101, finalScore: 8.0, scoreLocked: true, isEffective: true },
+                { id: 202, evaluatorId: 102, finalScore: 9.0, scoreLocked: true, isEffective: true },
+                { id: 203, evaluatorId: 103, finalScore: 8.0, scoreLocked: true, isEffective: true },
+                { id: 204, evaluatorId: 104, finalScore: 9.0, scoreLocked: true, isEffective: true },
+            ],
         };
 
         prisma.topicRegistration.findUnique.mockResolvedValue(registrationCaseB);
-        prisma.defenseMemberScore.findMany.mockResolvedValue([
-            { id: 201, evaluatorId: 101, finalScore: 8.0, isEffective: true },
-            { id: 202, evaluatorId: 102, finalScore: 9.0, isEffective: true },
-            { id: 203, evaluatorId: 103, finalScore: 8.0, isEffective: true },
-            { id: 204, evaluatorId: 104, finalScore: 9.0, isEffective: true },
-        ]);
 
-        await defenseScoringService.saveMemberScoreSheet({
+        const lockResB = await defenseScoringService.lockDefenseScoreBookByChairman({
             registrationId: 2,
-            evaluatorId: 104,
-            scores: [{ criterionCode: 'C1', score: 9.0 }],
+            actorId: 101,
+            idempotencyKey: 'lock-4-member-case-b',
         });
 
         // 4 active scorers: (8.0 + 9.0 + 8.0 + 9.0) / 4 = 34.0 / 4 = 8.5
+        expect(lockResB.rawAverageScore).toBe(8.5);
+        expect(lockResB.roundedFinalScore).toBe(8.5);
         expect(prisma.defenseResult.upsert).toHaveBeenCalledWith(
             expect.objectContaining({
                 update: expect.objectContaining({
                     rawAverageScore: 8.5,
                     roundedFinalScore: 8.5,
+                    finalScore: 8.5,
                     activeScorerCount: 4,
                 }),
             })
         );
     });
 
-    test('2. Stores both rawAverageScore (unrounded) and roundedFinalScore (rounded 1 decimal place) for PRESENT students', async () => {
+    test('2. Stores both rawAverageScore (unrounded) and roundedFinalScore (rounded 1 decimal place) for PRESENT students only on Chairman scorebook lock', async () => {
         const council = {
             id: 10,
             allowFourthScoringMember: false,
@@ -270,26 +338,30 @@ describe('Task 4: 3-or-4-Member Rubric Scoring, Chairman ABSENT Minutes, Chairma
             stateVersion: 1,
             topic: { mentorId: 50 },
             defenseCouncil: council,
-            defenseResult: { attendanceStatus: 'PRESENT' },
+            defenseResult: { attendanceStatus: 'PRESENT', scoreLocked: false },
+            // Raw sum = 4.9 + 5.0 + 4.95 = 14.85 -> rawAverage = 4.95 -> roundedFinalScore = 5.0
+            memberScores: [
+                { id: 301, evaluatorId: 101, finalScore: 4.9, scoreLocked: true, isEffective: true },
+                { id: 302, evaluatorId: 102, finalScore: 5.0, scoreLocked: true, isEffective: true },
+                { id: 303, evaluatorId: 103, finalScore: 4.95, scoreLocked: true, isEffective: true },
+            ],
         };
 
         prisma.topicRegistration.findUnique.mockResolvedValue(registration);
-        prisma.defenseMemberScore.findUnique.mockResolvedValue(null);
-        prisma.defenseMemberScore.create.mockImplementation(async ({ data }) => ({ id: 301, ...data }));
+        prisma.defenseResult.upsert.mockImplementation(async ({ update, create }) => ({
+            id: 303,
+            ...(update || create),
+        }));
 
-        // Raw sum = 4.9 + 5.0 + 4.95 = 14.85 -> rawAverage = 4.95 -> roundedFinalScore = 5.0
-        prisma.defenseMemberScore.findMany.mockResolvedValue([
-            { id: 301, evaluatorId: 101, finalScore: 4.9, isEffective: true },
-            { id: 302, evaluatorId: 102, finalScore: 5.0, isEffective: true },
-            { id: 303, evaluatorId: 103, finalScore: 4.95, isEffective: true },
-        ]);
-
-        await defenseScoringService.saveMemberScoreSheet({
+        const lockRes = await defenseScoringService.lockDefenseScoreBookByChairman({
             registrationId: 3,
-            evaluatorId: 101,
-            scores: [{ criterionCode: 'C1', score: 4.9 }],
+            actorId: 101,
+            idempotencyKey: 'lock-present-rounding-3',
         });
 
+        expect(lockRes.rawAverageScore).toBeCloseTo(4.95, 2);
+        expect(lockRes.roundedFinalScore).toBe(5.0);
+        expect(lockRes.finalScore).toBe(5.0);
         expect(prisma.defenseResult.upsert).toHaveBeenCalledWith(
             expect.objectContaining({
                 update: expect.objectContaining({
@@ -699,5 +771,259 @@ describe('Task 4: 3-or-4-Member Rubric Scoring, Chairman ABSENT Minutes, Chairma
                 }),
             })
         );
+    });
+
+    test('6. Both save route aliases (PUT /:registrationId/score-sheet and POST /councils/:id/score-sheet) share unified validation, support empty/partial/zero drafts, and audit admin delegation', async () => {
+        const council = {
+            id: 10,
+            allowFourthScoringMember: false,
+            members: [
+                { lecturerId: 101, roleInCouncil: 'CHAIRMAN', isScoringMember: true, isActive: true },
+                { lecturerId: 102, roleInCouncil: 'SECRETARY', isScoringMember: true, isActive: true },
+                { lecturerId: 103, roleInCouncil: 'REVIEWER', isScoringMember: true, isActive: true },
+            ],
+        };
+
+        const registration = {
+            id: 601,
+            status: 'DEFENSE_READY',
+            topic: { id: 1, title: 'Đề tài X', mentorId: 50 },
+            defenseCouncil: council,
+            defenseResult: null,
+            memberScores: [],
+        };
+
+        prisma.topicRegistration.findUnique.mockResolvedValue(registration);
+        prisma.defenseMemberScore.findUnique.mockResolvedValue(null);
+        prisma.defenseMemberScore.create.mockImplementation(async ({ data }) => ({ id: 801, ...data }));
+
+        // 6A: Empty draft via PUT /:registrationId/score-sheet
+        const resPutEmpty = await request(app)
+            .put('/api/evaluations/601/score-sheet')
+            .set('Authorization', 'Bearer chairman-token')
+            .send({ scores: [], generalComment: 'Nháp rỗng' });
+
+        expect(resPutEmpty.status).toBe(200);
+        expect(resPutEmpty.body.data.finalScore).toBeNull();
+        expect(resPutEmpty.body.data.scoredCriteriaCount).toBe(0);
+        expect(resPutEmpty.body.data.aggregateFinalScore).toBeNull();
+        expect(prisma.defenseResult.upsert).not.toHaveBeenCalled();
+
+        // 6B: Partial draft with 0 score via POST /councils/:id/score-sheet
+        const resPostPartial = await request(app)
+            .post('/api/evaluations/councils/601/score-sheet')
+            .set('Authorization', 'Bearer chairman-token')
+            .send({
+                scores: [
+                    { criterionCode: 'STRUCTURE', score: 0 },
+                    { criterionCode: 'PROBLEM_STATEMENT', score: 0.75 },
+                ],
+                generalComment: 'Lưu nháp một phần',
+            });
+
+        expect(resPostPartial.status).toBe(200);
+        expect(resPostPartial.body.data.finalScore).toBe(0.75);
+        expect(resPostPartial.body.data.scoredCriteriaCount).toBe(2);
+        expect(resPostPartial.body.data.aggregateFinalScore).toBeNull();
+        expect(prisma.defenseMemberCriterionScore.createMany).toHaveBeenCalledWith({
+            data: [
+                expect.objectContaining({ criterionCode: 'STRUCTURE', score: 0 }),
+                expect.objectContaining({ criterionCode: 'PROBLEM_STATEMENT', score: 0.75 }),
+            ],
+        });
+
+        // 6C: Both aliases reject >2 decimal places identically
+        const resBadPut = await request(app)
+            .put('/api/evaluations/601/score-sheet')
+            .set('Authorization', 'Bearer chairman-token')
+            .send({ scores: [{ criterionCode: 'STRUCTURE', score: 0.125 }] });
+        const resBadPost = await request(app)
+            .post('/api/evaluations/councils/601/score-sheet')
+            .set('Authorization', 'Bearer chairman-token')
+            .send({ scores: [{ criterionCode: 'STRUCTURE', score: 0.125 }] });
+
+        expect(resBadPut.status).toBe(400);
+        expect(resBadPost.status).toBe(400);
+
+        // 6D: Admin delegation audits actorId (2) and evaluatorId (102)
+        const resAdminDelegation = await request(app)
+            .put('/api/evaluations/601/score-sheet')
+            .set('Authorization', 'Bearer scoring-admin-token')
+            .send({
+                evaluatorId: 102,
+                scores: [{ criterionCode: 'STRUCTURE', score: 0.5 }],
+            });
+
+        expect(resAdminDelegation.status).toBe(200);
+        expect(auditLog).toHaveBeenCalledWith(
+            2,
+            'SAVE_SCORE_SHEET',
+            'DefenseMemberScore',
+            expect.any(Number),
+            expect.objectContaining({
+                registrationId: 601,
+                actorId: 2,
+                evaluatorId: 102,
+                delegatedByAdmin: true,
+            }),
+            expect.anything(),
+        );
+    });
+
+    test('7. Member lock route aliases reject incomplete criteria and lock complete sheets without writing official DefenseResult.finalScore', async () => {
+        const council = {
+            id: 10,
+            allowFourthScoringMember: false,
+            members: [
+                { lecturerId: 101, roleInCouncil: 'CHAIRMAN', isScoringMember: true, isActive: true },
+                { lecturerId: 102, roleInCouncil: 'SECRETARY', isScoringMember: true, isActive: true },
+                { lecturerId: 103, roleInCouncil: 'REVIEWER', isScoringMember: true, isActive: true },
+            ],
+        };
+
+        prisma.topicRegistration.findUnique.mockResolvedValue({
+            id: 602,
+            status: 'DEFENSE_READY',
+            topic: { id: 1, title: 'Đề tài Y', mentorId: 50 },
+            defenseCouncil: council,
+            defenseResult: null,
+            memberScores: [],
+        });
+        prisma.defenseMemberScore.findUnique.mockResolvedValue(null);
+        prisma.defenseMemberScore.create.mockImplementation(async ({ data }) => ({ id: 802, ...data }));
+
+        // Incomplete lock via alias
+        const resIncomplete = await request(app)
+            .post('/api/evaluations/councils/602/score-sheet/lock')
+            .set('Authorization', 'Bearer secretary-token')
+            .set('Idempotency-Key', 'route-lock-incomplete-1')
+            .send({ scores: [{ criterionCode: 'STRUCTURE', score: 0.5 }] });
+
+        expect(resIncomplete.status).toBe(400);
+        expect(resIncomplete.body.code).toBe('INCOMPLETE_CRITERION_SCORES');
+
+        // Complete lock including 0 scores
+        const resComplete = await request(app)
+            .post('/api/evaluations/member-score/lock')
+            .set('Authorization', 'Bearer secretary-token')
+            .set('Idempotency-Key', 'route-lock-complete-1')
+            .send({
+                registrationId: 602,
+                scores: buildFullV1Scores({ STRUCTURE: 0 }),
+            });
+
+        expect(resComplete.status).toBe(200);
+        expect(resComplete.body.data.scoreLocked).toBe(true);
+        expect(resComplete.body.data.finalScore).toBe(8.5);
+        expect(resComplete.body.data.aggregateFinalScore).toBeNull();
+        expect(prisma.defenseResult.upsert).not.toHaveBeenCalled();
+    });
+
+    test('8. GET /api/evaluations/:registrationId/score-sheet computes activeScorerCount & lockedScorerCount from resolveActiveScoringMembers (3 and 4 scorers, excluding inactive/non-scoring)', async () => {
+        // Case 3 scorers + 1 inactive replaced member + 1 non-scoring member
+        prisma.topicRegistration.findUnique.mockResolvedValue({
+            id: 603,
+            status: 'AWAITING_SCORES',
+            student: { id: 10, fullName: 'SV Test', code: 'SV10', department: 'CNTT' },
+            topic: { id: 2, title: 'Đề tài Z', mentorId: 50 },
+            defenseCouncil: {
+                id: 10,
+                allowFourthScoringMember: false,
+                members: [
+                    { lecturerId: 101, roleInCouncil: 'CHAIRMAN', isActive: true, isScoringMember: true, lecturer: { fullName: 'Chair' } },
+                    { lecturerId: 102, roleInCouncil: 'SECRETARY', isActive: true, isScoringMember: true, lecturer: { fullName: 'Sec' } },
+                    { lecturerId: 103, roleInCouncil: 'REVIEWER', isActive: true, isScoringMember: true, lecturer: { fullName: 'Rev' } },
+                    { lecturerId: 104, roleInCouncil: 'MEMBER', isActive: true, isScoringMember: false, lecturer: { fullName: 'NonScorer' } },
+                    { lecturerId: 105, roleInCouncil: 'REVIEWER', isActive: false, isScoringMember: true, lecturer: { fullName: 'ReplacedRev' } },
+                ],
+            },
+            council: null,
+            defenseResult: null,
+            memberScores: [
+                { evaluatorId: 101, finalScore: 8.5, scoreLocked: true, isEffective: true, criterionScores: [], evaluator: { id: 101, fullName: 'Chair' } },
+                { evaluatorId: 102, finalScore: 8.0, scoreLocked: false, isEffective: true, criterionScores: [], evaluator: { id: 102, fullName: 'Sec' } },
+                { evaluatorId: 104, finalScore: 9.0, scoreLocked: true, isEffective: true, criterionScores: [], evaluator: { id: 104, fullName: 'NonScorer' } },
+                { evaluatorId: 105, finalScore: 7.0, scoreLocked: true, isEffective: false, criterionScores: [], evaluator: { id: 105, fullName: 'ReplacedRev' } },
+            ],
+        });
+
+        const res3 = await request(app)
+            .get('/api/evaluations/603/score-sheet')
+            .set('Authorization', 'Bearer chairman-token');
+
+        expect(res3.status).toBe(200);
+        expect(res3.body.data.activeScorerCount).toBe(3);
+        expect(res3.body.data.lockedScorerCount).toBe(1);
+
+        // Case 4 effective scorers (allowFourthScoringMember: true)
+        prisma.topicRegistration.findUnique.mockResolvedValue({
+            id: 604,
+            status: 'AWAITING_SCORES',
+            student: { id: 10, fullName: 'SV Test 4', code: 'SV11', department: 'CNTT' },
+            topic: { id: 3, title: 'Đề tài W', mentorId: 50 },
+            defenseCouncil: {
+                id: 11,
+                allowFourthScoringMember: true,
+                members: [
+                    { lecturerId: 101, roleInCouncil: 'CHAIRMAN', isActive: true, isScoringMember: true, lecturer: { fullName: 'Chair' } },
+                    { lecturerId: 102, roleInCouncil: 'SECRETARY', isActive: true, isScoringMember: true, lecturer: { fullName: 'Sec' } },
+                    { lecturerId: 103, roleInCouncil: 'REVIEWER', isActive: true, isScoringMember: true, lecturer: { fullName: 'Rev' } },
+                    { lecturerId: 104, roleInCouncil: 'MEMBER', isActive: true, isScoringMember: true, lecturer: { fullName: 'Mem4' } },
+                ],
+            },
+            council: null,
+            defenseResult: null,
+            memberScores: [
+                { evaluatorId: 101, finalScore: 8.5, scoreLocked: true, isEffective: true, criterionScores: [], evaluator: { id: 101, fullName: 'Chair' } },
+                { evaluatorId: 102, finalScore: 8.0, scoreLocked: true, isEffective: true, criterionScores: [], evaluator: { id: 102, fullName: 'Sec' } },
+                { evaluatorId: 104, finalScore: 9.0, scoreLocked: true, isEffective: true, criterionScores: [], evaluator: { id: 104, fullName: 'Mem4' } },
+            ],
+        });
+
+        const res4 = await request(app)
+            .get('/api/evaluations/604/score-sheet')
+            .set('Authorization', 'Bearer chairman-token');
+
+        expect(res4.status).toBe(200);
+        expect(res4.body.data.activeScorerCount).toBe(4);
+        expect(res4.body.data.lockedScorerCount).toBe(3);
+    });
+
+    test('9. Missing pinned rubric returns error on save/lock and never substitutes active rubric', async () => {
+        prisma.topicRegistration.findUnique.mockResolvedValue({
+            id: 605,
+            status: 'DEFENSE_READY',
+            topic: { id: 1, title: 'Đề tài Missing Rubric', mentorId: 50 },
+            defenseCouncil: {
+                id: 10,
+                rubricVersionId: 9999,
+                members: [
+                    { lecturerId: 101, roleInCouncil: 'CHAIRMAN', isScoringMember: true, isActive: true },
+                ],
+            },
+            defenseResult: { scoreRubricVersion: 'v_deleted_9999' },
+            memberScores: [],
+        });
+        prisma.rubricVersion.findUnique.mockResolvedValue(null);
+        prisma.rubricVersion.findFirst.mockResolvedValue({ id: 1, version: 'v_active_fallback', categories: [] });
+
+        const resSave = await request(app)
+            .put('/api/evaluations/605/score-sheet')
+            .set('Authorization', 'Bearer chairman-token')
+            .send({ scores: [{ criterionCode: 'STRUCTURE', score: 0.5 }] });
+
+        expect(resSave.status).toBe(404);
+        expect(resSave.body.code).toBe('PINNED_RUBRIC_NOT_FOUND');
+        expect(prisma.rubricVersion.findFirst).not.toHaveBeenCalled();
+
+        const resLock = await request(app)
+            .post('/api/evaluations/member-score/lock')
+            .set('Authorization', 'Bearer chairman-token')
+            .set('Idempotency-Key', 'missing-rubric-lock-1')
+            .send({ registrationId: 605, scores: buildFullV1Scores() });
+
+        expect(resLock.status).toBe(404);
+        expect(resLock.body.code).toBe('PINNED_RUBRIC_NOT_FOUND');
+        expect(prisma.rubricVersion.findFirst).not.toHaveBeenCalled();
     });
 });
