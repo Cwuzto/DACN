@@ -66,11 +66,14 @@ model User {
   avatarAssetId                   String?                       @map("avatar_asset_id")
   avatarAsset                     StoredAsset?                  @relation("UserAvatar", fields: [avatarAssetId], references: [id], onDelete: SetNull)
   academicTitle                   AcademicTitle?                @map("academic_title")
+  expertiseAreas                  Json                          @default("[]") @map("expertise_areas")
   isActive                        Boolean                       @default(true) @map("is_active")
   permissionVersion               Int                           @default(1) @map("permission_version")
   createdAt                       DateTime                      @default(now()) @map("created_at")
   updatedAt                       DateTime                      @updatedAt @map("updated_at")
   councilMembers                  CouncilMember[]
+  councilAssignmentConfirmations  Council[]                     @relation("CouncilAssignmentConfirmer")
+  reviewedTopicAssessments        TopicExpertiseAssessment[]    @relation("TopicAssessmentReviewer")
   defenseResults                  DefenseResult[]               @relation("DefenseEvaluator")
   lockedDefenseResults            DefenseResult[]               @relation("DefenseScoreLocker")
   evaluatedMemberScores           DefenseMemberScore[]          @relation("DefenseMemberScoreEvaluator")
@@ -181,6 +184,7 @@ model Semester {
   registrationDeadline   DateTime?                     @map("registration_deadline")
   midtermReportDate      DateTime?                     @map("midterm_report_date")
   defenseDate            DateTime?                     @map("defense_date")
+  defenseCouncilTargetSize    Int                       @default(22) @map("defense_council_target_size")
   registrationOpen            Boolean                       @default(true) @map("registration_open")
   status                      SemesterStatus                @default(UPCOMING)
   outlineSubmissionOpenAt     DateTime?                     @map("outline_submission_open_at")
@@ -259,6 +263,7 @@ model Topic {
   semester         Semester            @relation(fields: [semesterId], references: [id])
   projectCatalog   ProjectCatalog?     @relation(fields: [projectCatalogId], references: [id])
   registrations    TopicRegistration[]
+  expertiseAssessment TopicExpertiseAssessment?
 
   @@map("topics")
 }
@@ -337,6 +342,25 @@ model TopicRegistration {
   @@unique([studentId, semesterId])
   @@index([semesterId, periodPolicyVersionId])
   @@map("topic_registrations")
+}
+
+model TopicExpertiseAssessment {
+  id             Int       @id @default(autoincrement())
+  topicId        Int       @unique @map("topic_id")
+  fingerprint    String
+  candidateAreas Json      @default("[]") @map("candidate_areas")
+  acceptedAreas  Json      @default("[]") @map("accepted_areas")
+  evidenceText   String?   @map("evidence_text")
+  status         String    @default("NEEDS_REVIEW")
+  reviewedById   Int?      @map("reviewed_by_id")
+  reviewedAt     DateTime? @map("reviewed_at")
+  model          String?
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  topic          Topic     @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  reviewedBy     User?     @relation("TopicAssessmentReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@map("topic_expertise_assessments")
 }
 
 model BM01Evaluation {
@@ -685,6 +709,8 @@ model Council {
   schedulePublishedById      Int?                 @map("schedule_published_by_id")
   scheduleConfirmedAt        DateTime?            @map("schedule_confirmed_at")
   scheduleConfirmedById      Int?                 @map("schedule_confirmed_by_id")
+  assignmentConfirmedAt      DateTime?            @map("assignment_confirmed_at")
+  assignmentConfirmedById    Int?                 @map("assignment_confirmed_by_id")
   rubricVersionId            Int?                 @map("rubric_version_id")
   allowFourthScoringMember   Boolean              @default(false) @map("allow_fourth_scoring_member")
   scoreBookLocked            Boolean              @default(false) @map("score_book_locked")
@@ -701,6 +727,7 @@ model Council {
   semester                   Semester             @relation(fields: [semesterId], references: [id])
   rubricVersion              RubricVersion?       @relation("CouncilRubric", fields: [rubricVersionId], references: [id])
   scheduleConfirmedBy        User?                @relation("CouncilScheduleConfirmer", fields: [scheduleConfirmedById], references: [id])
+  assignmentConfirmedBy      User?                @relation("CouncilAssignmentConfirmer", fields: [assignmentConfirmedById], references: [id])
   schedulePublishedBy        User?                @relation("CouncilSchedulePublisher", fields: [schedulePublishedById], references: [id])
   scoreBookLockedBy          User?                @relation("CouncilScoreBookLocker", fields: [scoreBookLockedById], references: [id])
   registrations              TopicRegistration[]  @relation("CouncilLegacy")
