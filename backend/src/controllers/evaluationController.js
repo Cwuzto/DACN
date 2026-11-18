@@ -4,6 +4,7 @@ const { safeNotify } = require('../services/notificationService');
 const UploadService = require('../services/uploadService');
 const { generateScoreSheetPdfBuffer } = require('../services/scoreSheetPdfService');
 const rubricService = require('../services/rubricService');
+const { normalizeRubricLevelPolicy } = require('../services/rubricLevelPolicy');
 const { reviewBM01, submitBM01Initial, submitBM01Revision } = require('../services/bm01WorkflowService');
 const { submitBM04 } = require('../services/bm04WorkflowService');
 const {
@@ -49,6 +50,7 @@ const DEFENSE_ELIGIBLE_STATUSES = [
 
 const RUBRIC_V1 = {
     version: 'v1',
+    scoreLevelPolicy: normalizeRubricLevelPolicy(null),
     criteria: [
         { code: 'STRUCTURE', label: 'Cau truc', maxScore: 0.5 },
         { code: 'CITATION_FORMAT', label: 'Trich dan, hinh thuc trinh bay', maxScore: 0.25 },
@@ -67,23 +69,68 @@ const RUBRIC_V1 = {
     ],
 };
 
+const RUBRIC_INCLUDE = {
+    categories: {
+        orderBy: { orderIndex: 'asc' },
+        include: { criteria: { orderBy: { orderIndex: 'asc' } } },
+    },
+};
+
 const resolveRubricForRegistration = async (registration) => {
     if (!prisma?.rubricVersion?.findUnique) return null;
 
-    const existingVersion = registration?.defenseResult?.scoreRubricVersion ||
-        registration?.memberScores?.[0]?.scoreRubricVersion;
+    const effectiveMemberScore = (registration?.memberScores || []).find(
+        (row) => row?.isEffective !== false && row?.scoreRubricVersion,
+    ) || (registration?.memberScores || []).find((row) => row?.scoreRubricVersion);
 
-    if (existingVersion) {
+    const pinnedVersion = (
+        registration?.defenseResult?.scoreRubricVersion
+        || effectiveMemberScore?.scoreRubricVersion
+        || registration?.defenseCouncil?.rubricVersion?.version
+        || registration?.council?.rubricVersion?.version
+        || null
+    );
+
+    if (pinnedVersion) {
         const found = await prisma.rubricVersion.findUnique({
-            where: { version: existingVersion },
-            include: {
-                categories: {
-                    orderBy: { orderIndex: 'asc' },
-                    include: { criteria: { orderBy: { orderIndex: 'asc' } } },
-                },
-            },
+            where: { version: pinnedVersion },
+            include: RUBRIC_INCLUDE,
         });
-        if (found) return found;
+        if (!found) {
+            throw new WorkflowTransitionError(
+                'PINNED_RUBRIC_NOT_FOUND',
+                404,
+                `Không tìm thấy phiên bản rubric "${pinnedVersion}" đã gắn với hồ sơ.`,
+            );
+        }
+        return found;
+    }
+
+    const pinnedRubricId = (
+        registration?.defenseCouncil?.rubricVersionId
+        || registration?.council?.rubricVersionId
+        || registration?.defenseCouncil?.rubricVersion?.id
+        || registration?.council?.rubricVersion?.id
+        || registration?.semester?.lockedDefenseRubricVersionId
+        || registration?.topic?.semester?.lockedDefenseRubricVersionId
+        || registration?.defenseCouncil?.semester?.lockedDefenseRubricVersionId
+        || registration?.council?.semester?.lockedDefenseRubricVersionId
+        || null
+    );
+
+    if (pinnedRubricId) {
+        const foundById = await prisma.rubricVersion.findUnique({
+            where: { id: Number(pinnedRubricId) },
+            include: RUBRIC_INCLUDE,
+        });
+        if (!foundById) {
+            throw new WorkflowTransitionError(
+                'PINNED_RUBRIC_NOT_FOUND',
+                404,
+                `Không tìm thấy phiên bản rubric (ID: ${pinnedRubricId}) đã gắn với hội đồng hoặc học kỳ.`,
+            );
+        }
+        return foundById;
     }
 
     const active = await rubricService.getActiveRubric();
@@ -93,19 +140,43 @@ const resolveRubricForRegistration = async (registration) => {
 };
 
 const formatRubricPayload = (resolvedRubric) => {
-    if (!resolvedRubric) return RUBRIC_V1;
+    if (!resolvedRubric) {
+        return {
+            ...RUBRIC_V1,
+            scoreLevelPolicy: normalizeRubricLevelPolicy(null),
+        };
+    }
+
+    const scoreLevelPolicy = normalizeRubricLevelPolicy(resolvedRubric.scoreLevelPolicy);
+    const categories = (resolvedRubric.categories || []).map((cat) => ({
+        ...cat,
+        criteria: (cat.criteria || []).map((cri) => ({
+            ...cri,
+            levelGoodDesc: cri.levelGoodDesc ?? null,
+            levelFairDesc: cri.levelFairDesc ?? null,
+            levelAverageDesc: cri.levelAverageDesc ?? null,
+            levelPoorDesc: cri.levelPoorDesc ?? null,
+        })),
+    }));
+
     return {
         id: resolvedRubric.id,
         version: resolvedRubric.version,
         title: resolvedRubric.title,
         description: resolvedRubric.description,
         totalMaxScore: resolvedRubric.totalMaxScore,
-        categories: resolvedRubric.categories || [],
-        criteria: (resolvedRubric.categories || []).flatMap((cat) =>
+        scoreLevelPolicy,
+        categories,
+        criteria: categories.flatMap((cat) =>
             (cat.criteria || []).map((cri) => ({
                 code: cri.code,
                 label: cri.label,
-                description: cri.description,
+                description: cri.description ?? null,
+                cloCode: cri.cloCode ?? null,
+                levelGoodDesc: cri.levelGoodDesc ?? null,
+                levelFairDesc: cri.levelFairDesc ?? null,
+                levelAverageDesc: cri.levelAverageDesc ?? null,
+                levelPoorDesc: cri.levelPoorDesc ?? null,
                 maxScore: cri.maxScore,
                 categoryCode: cat.code,
                 categoryName: cat.name,
@@ -680,9 +751,20 @@ const getScoreSheet = async (req, res, next) => {
             where: { id: registrationId },
             include: {
                 student: { select: { id: true, fullName: true, code: true, department: true } },
-                topic: { select: { id: true, title: true, mentorId: true } },
+                semester: { select: { id: true, lockedDefenseRubricVersionId: true } },
+                topic: {
+                    select: {
+                        id: true,
+                        title: true,
+                        mentorId: true,
+                        semesterId: true,
+                        semester: { select: { id: true, lockedDefenseRubricVersionId: true } },
+                    },
+                },
                 defenseCouncil: {
                     include: {
+                        rubricVersion: { select: { id: true, version: true } },
+                        semester: { select: { id: true, lockedDefenseRubricVersionId: true } },
                         members: {
                             select: {
                                 lecturerId: true,
@@ -694,6 +776,8 @@ const getScoreSheet = async (req, res, next) => {
                 },
                 council: {
                     include: {
+                        rubricVersion: { select: { id: true, version: true } },
+                        semester: { select: { id: true, lockedDefenseRubricVersionId: true } },
                         members: {
                             select: {
                                 lecturerId: true,
@@ -766,6 +850,7 @@ const getScoreSheet = async (req, res, next) => {
             },
         });
     } catch (error) {
+        if (sendWorkflowError(res, error)) return;
         next(error);
     }
 };
@@ -785,8 +870,23 @@ const saveScoreSheet = async (req, res, next) => {
         const targetRegistration = await prisma.topicRegistration.findUnique({
             where: { id: registrationId },
             include: {
+                semester: { select: { id: true, lockedDefenseRubricVersionId: true } },
+                defenseCouncil: {
+                    select: {
+                        id: true,
+                        rubricVersionId: true,
+                        rubricVersion: { select: { id: true, version: true } },
+                    },
+                },
+                council: {
+                    select: {
+                        id: true,
+                        rubricVersionId: true,
+                        rubricVersion: { select: { id: true, version: true } },
+                    },
+                },
                 defenseResult: { select: { scoreRubricVersion: true } },
-                memberScores: { select: { scoreRubricVersion: true }, take: 1 },
+                memberScores: { select: { scoreRubricVersion: true, isEffective: true }, take: 5 },
             },
         });
 
@@ -955,6 +1055,7 @@ const saveScoreSheet = async (req, res, next) => {
             },
         });
     } catch (error) {
+        if (sendWorkflowError(res, error)) return;
         if (error?.message === 'NOT_FOUND_REGISTRATION') {
             return res.status(404).json({ success: false, message: 'Khong tim thay dang ky.' });
         }

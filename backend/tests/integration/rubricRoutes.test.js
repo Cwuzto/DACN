@@ -151,4 +151,342 @@ describe('Integration - Rubric Management Routes', () => {
 
         expect(res.status).toBe(403);
     });
+
+    test('GET /api/rubrics và GET /api/rubrics/:id trả về scoreLevelPolicy đã chuẩn hóa kể cả bản ghi cũ null', async () => {
+        prisma.rubricVersion.findMany.mockResolvedValue([
+            {
+                id: 1,
+                version: 'v1',
+                title: 'Barem v1',
+                description: null,
+                totalMaxScore: 10.0,
+                scoreLevelPolicy: null,
+                status: 'ACTIVE',
+                isActive: true,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+                createdByUser: null,
+                categories: [
+                    { id: 1, code: 'CAT1', name: 'Mục 1', maxScore: 10.0, _count: { criteria: 1 } },
+                ],
+            },
+        ]);
+        prisma.rubricVersion.findUnique.mockResolvedValue({
+            id: 1,
+            version: 'v1',
+            title: 'Barem v1',
+            totalMaxScore: 10.0,
+            scoreLevelPolicy: null,
+            status: 'ACTIVE',
+            isActive: true,
+            categories: [
+                {
+                    code: 'CAT1',
+                    name: 'Mục 1',
+                    maxScore: 10.0,
+                    criteria: [{ code: 'CRI1', label: 'Tiêu chí 1', maxScore: 10.0 }],
+                },
+            ],
+        });
+        prisma.defenseMemberScore.count.mockResolvedValue(0);
+        prisma.defenseResult.count.mockResolvedValue(0);
+
+        const listRes = await request(app)
+            .get('/api/rubrics')
+            .set('Authorization', 'Bearer admin-token');
+
+        expect(listRes.status).toBe(200);
+        expect(listRes.body.data.versions[0].scoreLevelPolicy).toEqual({
+            good: { minPercent: 85, maxPercent: 100, suggestedPercent: 90 },
+            fair: { minPercent: 70, maxPercent: 85, suggestedPercent: 75 },
+            average: { minPercent: 50, maxPercent: 70, suggestedPercent: 60 },
+            poor: { minPercent: 0, maxPercent: 50, suggestedPercent: 30 },
+        });
+
+        const detailRes = await request(app)
+            .get('/api/rubrics/1')
+            .set('Authorization', 'Bearer admin-token');
+
+        expect(detailRes.status).toBe(200);
+        expect(detailRes.body.data.scoreLevelPolicy).toEqual(listRes.body.data.versions[0].scoreLevelPolicy);
+    });
+
+    test('POST /api/rubrics dùng policy mặc định nếu không truyền và nhận policy hợp lệ nếu truyền, từ chối policy lỗi', async () => {
+        const validCategories = [
+            {
+                code: 'CAT1',
+                name: 'Mục 1',
+                maxScore: 10.0,
+                criteria: [{ code: 'CRI1', label: 'Tiêu chí 1', maxScore: 10.0 }],
+            },
+        ];
+
+        prisma.rubricVersion.findUnique.mockResolvedValue(null);
+        prisma.rubricVersion.create.mockImplementation(async ({ data }) => ({
+            id: 20,
+            ...data,
+            categories: validCategories,
+        }));
+
+        const resDefault = await request(app)
+            .post('/api/rubrics')
+            .set('Authorization', 'Bearer admin-token')
+            .send({
+                version: 'v_default_policy',
+                title: 'Barem mặc định',
+                categories: validCategories,
+            });
+
+        expect(resDefault.status).toBe(201);
+        expect(prisma.rubricVersion.create).toHaveBeenCalledWith(
+            expect.objectContaining({
+                data: expect.objectContaining({
+                    scoreLevelPolicy: {
+                        good: { minPercent: 85, maxPercent: 100, suggestedPercent: 90 },
+                        fair: { minPercent: 70, maxPercent: 85, suggestedPercent: 75 },
+                        average: { minPercent: 50, maxPercent: 70, suggestedPercent: 60 },
+                        poor: { minPercent: 0, maxPercent: 50, suggestedPercent: 30 },
+                    },
+                }),
+            })
+        );
+        expect(resDefault.body.data.scoreLevelPolicy.good.suggestedPercent).toBe(90);
+
+        const customPolicy = {
+            good: { minPercent: 80, maxPercent: 100, suggestedPercent: 92 },
+            fair: { minPercent: 65, maxPercent: 80, suggestedPercent: 72 },
+            average: { minPercent: 45, maxPercent: 65, suggestedPercent: 55 },
+            poor: { minPercent: 0, maxPercent: 45, suggestedPercent: 25 },
+        };
+
+        const resCustom = await request(app)
+            .post('/api/rubrics')
+            .set('Authorization', 'Bearer admin-token')
+            .send({
+                version: 'v_custom_policy',
+                title: 'Barem tùy chỉnh',
+                categories: validCategories,
+                scoreLevelPolicy: customPolicy,
+            });
+
+        expect(resCustom.status).toBe(201);
+        expect(resCustom.body.data.scoreLevelPolicy).toEqual(customPolicy);
+
+        const resInvalidPolicy = await request(app)
+            .post('/api/rubrics')
+            .set('Authorization', 'Bearer admin-token')
+            .send({
+                version: 'v_bad_policy',
+                title: 'Barem policy lỗi',
+                categories: validCategories,
+                scoreLevelPolicy: {
+                    good: { minPercent: 85, maxPercent: 100, suggestedPercent: 80 },
+                    fair: { minPercent: 70, maxPercent: 85, suggestedPercent: 75 },
+                    average: { minPercent: 50, maxPercent: 70, suggestedPercent: 60 },
+                    poor: { minPercent: 0, maxPercent: 50, suggestedPercent: 30 },
+                },
+            });
+
+        expect(resInvalidPolicy.status).toBe(400);
+        expect(resInvalidPolicy.body.success).toBe(false);
+    });
+
+    test('POST /api/rubrics nhân bản (cloneFromId) sao chép policy từ nguồn trừ khi caller truyền policy mới', async () => {
+        const sourcePolicy = {
+            good: { minPercent: 88, maxPercent: 100, suggestedPercent: 94 },
+            fair: { minPercent: 72, maxPercent: 88, suggestedPercent: 78 },
+            average: { minPercent: 52, maxPercent: 72, suggestedPercent: 62 },
+            poor: { minPercent: 0, maxPercent: 52, suggestedPercent: 32 },
+        };
+        const sourceRubric = {
+            id: 5,
+            version: 'v_source',
+            title: 'Barem nguồn',
+            scoreLevelPolicy: sourcePolicy,
+            categories: [
+                {
+                    code: 'CAT1',
+                    name: 'Mục 1',
+                    maxScore: 10.0,
+                    orderIndex: 1,
+                    criteria: [{ code: 'CRI1', label: 'Tiêu chí 1', maxScore: 10.0, orderIndex: 1 }],
+                },
+            ],
+        };
+
+        prisma.rubricVersion.findUnique.mockImplementation(async ({ where }) => {
+            if (where.id === 5) return sourceRubric;
+            return null;
+        });
+        prisma.defenseMemberScore.count.mockResolvedValue(0);
+        prisma.defenseResult.count.mockResolvedValue(0);
+        prisma.rubricVersion.create.mockImplementation(async ({ data }) => ({
+            id: 21,
+            ...data,
+            categories: sourceRubric.categories,
+        }));
+
+        const resCloneInherit = await request(app)
+            .post('/api/rubrics')
+            .set('Authorization', 'Bearer admin-token')
+            .send({
+                version: 'v_clone_inherit',
+                cloneFromId: 5,
+            });
+
+        expect(resCloneInherit.status).toBe(201);
+        expect(resCloneInherit.body.data.scoreLevelPolicy).toEqual(sourcePolicy);
+
+        const overridePolicy = {
+            good: { minPercent: 85, maxPercent: 100, suggestedPercent: 95 },
+            fair: { minPercent: 70, maxPercent: 85, suggestedPercent: 75 },
+            average: { minPercent: 50, maxPercent: 70, suggestedPercent: 60 },
+            poor: { minPercent: 0, maxPercent: 50, suggestedPercent: 30 },
+        };
+
+        const resCloneOverride = await request(app)
+            .post('/api/rubrics')
+            .set('Authorization', 'Bearer admin-token')
+            .send({
+                version: 'v_clone_override',
+                cloneFromId: 5,
+                scoreLevelPolicy: overridePolicy,
+            });
+
+        expect(resCloneOverride.status).toBe(201);
+        expect(resCloneOverride.body.data.scoreLevelPolicy).toEqual(overridePolicy);
+    });
+
+    test('PUT /api/rubrics/:id cho phép cập nhật policy trên bản nháp chưa dùng, từ chối nếu đã chấm điểm hoặc đã khóa', async () => {
+        const categories = [
+            {
+                code: 'CAT1',
+                name: 'Mục 1',
+                maxScore: 10.0,
+                criteria: [{ code: 'CRI1', label: 'Tiêu chí 1', maxScore: 10.0 }],
+            },
+        ];
+        const newPolicy = {
+            good: { minPercent: 86, maxPercent: 100, suggestedPercent: 91 },
+            fair: { minPercent: 71, maxPercent: 86, suggestedPercent: 76 },
+            average: { minPercent: 51, maxPercent: 71, suggestedPercent: 61 },
+            poor: { minPercent: 0, maxPercent: 51, suggestedPercent: 31 },
+        };
+
+        // Case 1: Unused DRAFT -> allowed
+        prisma.rubricVersion.findUnique.mockResolvedValue({
+            id: 30,
+            version: 'v_draft',
+            title: 'Barem nháp',
+            status: 'DRAFT',
+            isActive: false,
+            lockedAt: null,
+            scoreLevelPolicy: null,
+            categories,
+        });
+        prisma.defenseMemberScore.count.mockResolvedValue(0);
+        prisma.defenseResult.count.mockResolvedValue(0);
+        prisma.$transaction.mockImplementation(async (cb) => cb(prisma));
+        prisma.rubricCategory.deleteMany.mockResolvedValue({ count: 1 });
+        prisma.rubricVersion.update.mockImplementation(async ({ data }) => ({
+            id: 30,
+            version: 'v_draft',
+            title: data.title,
+            scoreLevelPolicy: data.scoreLevelPolicy,
+            status: 'DRAFT',
+            isActive: false,
+            categories,
+        }));
+
+        const resDraft = await request(app)
+            .put('/api/rubrics/30')
+            .set('Authorization', 'Bearer admin-token')
+            .send({
+                title: 'Barem nháp v2',
+                categories,
+                scoreLevelPolicy: newPolicy,
+            });
+
+        expect(resDraft.status).toBe(200);
+        expect(resDraft.body.data.scoreLevelPolicy).toEqual(newPolicy);
+
+        // Case 2: Used in grading -> rejected 400
+        prisma.defenseMemberScore.count.mockResolvedValue(2);
+        const resUsed = await request(app)
+            .put('/api/rubrics/30')
+            .set('Authorization', 'Bearer admin-token')
+            .send({ title: 'Sửa khi đã chấm', categories, scoreLevelPolicy: newPolicy });
+
+        expect(resUsed.status).toBe(400);
+        expect(resUsed.body.success).toBe(false);
+
+        // Case 3: Locked rubric (even with 0 scores) -> rejected 400
+        prisma.defenseMemberScore.count.mockResolvedValue(0);
+        prisma.rubricVersion.findUnique.mockResolvedValue({
+            id: 31,
+            version: 'v_locked',
+            title: 'Barem đã khóa',
+            status: 'ACTIVE',
+            isActive: true,
+            lockedAt: new Date('2026-11-18T00:00:00Z'),
+            categories,
+        });
+
+        const resLocked = await request(app)
+            .put('/api/rubrics/31')
+            .set('Authorization', 'Bearer admin-token')
+            .send({ title: 'Sửa bản đã khóa', categories, scoreLevelPolicy: newPolicy });
+
+        expect(resLocked.status).toBe(400);
+        expect(resLocked.body.success).toBe(false);
+    });
+
+    test('POST /api/rubrics/:id/lock và /activate từ chối 400 nếu tiêu chí không biểu diễn được điểm gợi ý ở độ phân giải 0.01', async () => {
+        const unrepresentableRubric = {
+            id: 40,
+            version: 'v_tiny_criterion',
+            title: 'Barem tiêu chí siêu nhỏ',
+            status: 'DRAFT',
+            isActive: false,
+            lockedAt: null,
+            scoreLevelPolicy: {
+                good: { minPercent: 85, maxPercent: 100, suggestedPercent: 90 },
+                fair: { minPercent: 70, maxPercent: 85, suggestedPercent: 75 },
+                average: { minPercent: 50, maxPercent: 70, suggestedPercent: 60 },
+                poor: { minPercent: 0, maxPercent: 50, suggestedPercent: 30 },
+            },
+            categories: [
+                {
+                    code: 'CAT1',
+                    name: 'Mục 1',
+                    maxScore: 10.0,
+                    criteria: [
+                        { code: 'TINY', label: 'Tiêu chí 0.02đ', maxScore: 0.02 },
+                        { code: 'MAIN', label: 'Tiêu chí chính', maxScore: 9.98 },
+                    ],
+                },
+            ],
+        };
+
+        prisma.rubricVersion.findUnique.mockResolvedValue(unrepresentableRubric);
+        prisma.defenseMemberScore.count.mockResolvedValue(0);
+        prisma.defenseResult.count.mockResolvedValue(0);
+
+        const lockRes = await request(app)
+            .post('/api/rubrics/40/lock')
+            .set('Authorization', 'Bearer admin-token')
+            .send({});
+
+        expect(lockRes.status).toBe(400);
+        expect(lockRes.body.success).toBe(false);
+        expect(lockRes.body.message).toMatch(/0\.01|TINY/i);
+
+        const activateRes = await request(app)
+            .post('/api/rubrics/40/activate')
+            .set('Authorization', 'Bearer admin-token')
+            .send({});
+
+        expect(activateRes.status).toBe(400);
+        expect(activateRes.body.success).toBe(false);
+    });
 });

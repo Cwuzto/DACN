@@ -35,13 +35,14 @@ const getRubricById = async (req, res, next) => {
 
 const createRubric = async (req, res, next) => {
     try {
-        const { version, title, description, categories, cloneFromId } = req.body;
+        const { version, title, description, categories, cloneFromId, sourceRubricId, scoreLevelPolicy } = req.body;
         const created = await rubricService.createRubricVersion({
             version,
             title,
             description,
             categories,
-            cloneFromId,
+            cloneFromId: cloneFromId ?? sourceRubricId,
+            scoreLevelPolicy,
             userId: req.user.id,
         });
 
@@ -51,17 +52,18 @@ const createRubric = async (req, res, next) => {
             data: created,
         });
     } catch (error) {
-        res.status(400).json({ success: false, message: error.message });
+        res.status(error.statusCode || 400).json({ success: false, message: error.message });
     }
 };
 
 const updateRubric = async (req, res, next) => {
     try {
-        const { title, description, categories } = req.body;
+        const { title, description, categories, scoreLevelPolicy } = req.body;
         const updated = await rubricService.updateRubricVersion(req.params.id, {
             title,
             description,
             categories,
+            scoreLevelPolicy,
         });
 
         res.json({
@@ -70,7 +72,7 @@ const updateRubric = async (req, res, next) => {
             data: updated,
         });
     } catch (error) {
-        res.status(400).json({ success: false, message: error.message });
+        res.status(error.statusCode || 400).json({ success: false, message: error.message });
     }
 };
 
@@ -83,7 +85,7 @@ const activateRubric = async (req, res, next) => {
             data: activated,
         });
     } catch (error) {
-        res.status(400).json({ success: false, message: error.message });
+        res.status(error.statusCode || 400).json({ success: false, message: error.message });
     }
 };
 

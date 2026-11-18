@@ -486,4 +486,194 @@ describe('Task 2: Defense Rubric, 22-Student Shift Splitting, Schedule Adjustmen
             })
         );
     });
+
+    test('9. GET /api/evaluations/:registrationId/score-sheet trả về policy và mô tả 4 mức theo đúng rubric lịch sử đã gắn, không lấy rubric active khác', async () => {
+        const historicalPolicy = {
+            good: { minPercent: 88, maxPercent: 100, suggestedPercent: 95 },
+            fair: { minPercent: 72, maxPercent: 88, suggestedPercent: 78 },
+            average: { minPercent: 55, maxPercent: 72, suggestedPercent: 62 },
+            poor: { minPercent: 0, maxPercent: 55, suggestedPercent: 28 },
+        };
+        const historicalRubric = {
+            id: 77,
+            version: 'v_hist_2025',
+            title: 'Rubric lịch sử 2025',
+            description: 'Barem khóa năm 2025',
+            totalMaxScore: 10.0,
+            scoreLevelPolicy: historicalPolicy,
+            categories: [
+                {
+                    id: 701,
+                    code: 'CAT1',
+                    name: 'Nội dung',
+                    maxScore: 10.0,
+                    orderIndex: 1,
+                    criteria: [
+                        {
+                            id: 7001,
+                            code: 'C_HIST',
+                            label: 'Tiêu chí lịch sử',
+                            description: 'Mô tả tiêu chí',
+                            cloCode: 'CLO1',
+                            levelGoodDesc: 'Mô tả mức Tốt',
+                            levelFairDesc: 'Mô tả mức Khá',
+                            levelAverageDesc: 'Mô tả mức Trung bình',
+                            levelPoorDesc: 'Mô tả mức Kém',
+                            maxScore: 10.0,
+                            orderIndex: 1,
+                        },
+                    ],
+                },
+            ],
+        };
+        const otherActiveRubric = {
+            id: 88,
+            version: 'v_active_2026',
+            title: 'Rubric active mới',
+            totalMaxScore: 10.0,
+            scoreLevelPolicy: {
+                good: { minPercent: 85, maxPercent: 100, suggestedPercent: 90 },
+                fair: { minPercent: 70, maxPercent: 85, suggestedPercent: 75 },
+                average: { minPercent: 50, maxPercent: 70, suggestedPercent: 60 },
+                poor: { minPercent: 0, maxPercent: 50, suggestedPercent: 30 },
+            },
+            categories: [],
+        };
+
+        prisma.topicRegistration.findUnique.mockResolvedValue({
+            id: 301,
+            status: 'DEFENDED',
+            student: { id: 10, fullName: 'Student Nguyen', code: 'SV10', department: 'CNTT' },
+            topic: { id: 20, title: 'Đề tài AI', mentorId: 999 },
+            defenseCouncil: {
+                id: 50,
+                members: [{ lecturerId: 2, roleInCouncil: 'CHAIRMAN', lecturer: { fullName: 'Lecturer Chair' } }],
+            },
+            council: null,
+            defenseResult: { id: 401, scoreRubricVersion: 'v_hist_2025', finalScore: null },
+            memberScores: [],
+        });
+
+        prisma.rubricVersion.findUnique.mockImplementation(async ({ where }) => {
+            if (where.version === 'v_hist_2025') return historicalRubric;
+            return null;
+        });
+        prisma.rubricVersion.findFirst.mockResolvedValue(otherActiveRubric);
+
+        const res = await request(app)
+            .get('/api/evaluations/301/score-sheet')
+            .set('Authorization', 'Bearer lecturer-token');
+
+        expect(res.status).toBe(200);
+        expect(res.body.data.rubric.version).toBe('v_hist_2025');
+        expect(res.body.data.rubric.scoreLevelPolicy).toEqual(historicalPolicy);
+        expect(res.body.data.rubric.criteria[0]).toEqual(
+            expect.objectContaining({
+                code: 'C_HIST',
+                levelGoodDesc: 'Mô tả mức Tốt',
+                levelFairDesc: 'Mô tả mức Khá',
+                levelAverageDesc: 'Mô tả mức Trung bình',
+                levelPoorDesc: 'Mô tả mức Kém',
+            })
+        );
+        expect(res.body.data.rubric.categories[0].criteria[0]).toEqual(
+            expect.objectContaining({
+                levelGoodDesc: 'Mô tả mức Tốt',
+                levelFairDesc: 'Mô tả mức Khá',
+                levelAverageDesc: 'Mô tả mức Trung bình',
+                levelPoorDesc: 'Mô tả mức Kém',
+            })
+        );
+        expect(prisma.rubricVersion.findFirst).not.toHaveBeenCalled();
+    });
+
+    test('10. GET /api/evaluations/:registrationId/score-sheet trả lỗi rõ ràng nếu rubric đã gắn với hồ sơ/hội đồng bị thiếu, tuyệt đối không fallback sang active rubric', async () => {
+        prisma.topicRegistration.findUnique.mockResolvedValue({
+            id: 302,
+            status: 'DEFENDED',
+            student: { id: 10, fullName: 'Student Nguyen', code: 'SV10', department: 'CNTT' },
+            topic: { id: 20, title: 'Đề tài AI', mentorId: 999 },
+            defenseCouncil: {
+                id: 50,
+                rubricVersionId: 999,
+                members: [{ lecturerId: 2, roleInCouncil: 'CHAIRMAN', lecturer: { fullName: 'Lecturer Chair' } }],
+            },
+            council: null,
+            defenseResult: null,
+            memberScores: [{ scoreRubricVersion: 'v_deleted_999', evaluatorId: 2, criterionScores: [] }],
+        });
+
+        prisma.rubricVersion.findUnique.mockResolvedValue(null);
+        prisma.rubricVersion.findFirst.mockResolvedValue({
+            id: 88,
+            version: 'v_active_fallback_should_not_be_used',
+            title: 'Active Rubric',
+            totalMaxScore: 10.0,
+            categories: [],
+        });
+
+        const res = await request(app)
+            .get('/api/evaluations/302/score-sheet')
+            .set('Authorization', 'Bearer lecturer-token');
+
+        expect([404, 409]).toContain(res.status);
+        expect(res.body.success).toBe(false);
+        expect(prisma.rubricVersion.findFirst).not.toHaveBeenCalled();
+
+        // Trường hợp gắn qua council.rubricVersionId / semester.lockedDefenseRubricVersionId nhưng bị xóa
+        prisma.topicRegistration.findUnique.mockResolvedValue({
+            id: 303,
+            status: 'DEFENDED',
+            student: { id: 10, fullName: 'Student Nguyen', code: 'SV10', department: 'CNTT' },
+            topic: { id: 20, title: 'Đề tài AI', mentorId: 999 },
+            semester: { id: 1, lockedDefenseRubricVersionId: 777 },
+            defenseCouncil: {
+                id: 50,
+                rubricVersionId: null,
+                members: [{ lecturerId: 2, roleInCouncil: 'CHAIRMAN', lecturer: { fullName: 'Lecturer Chair' } }],
+            },
+            council: null,
+            defenseResult: null,
+            memberScores: [],
+        });
+
+        const resLockedMissing = await request(app)
+            .get('/api/evaluations/303/score-sheet')
+            .set('Authorization', 'Bearer lecturer-token');
+
+        expect([404, 409]).toContain(resLockedMissing.status);
+        expect(resLockedMissing.body.success).toBe(false);
+        expect(prisma.rubricVersion.findFirst).not.toHaveBeenCalled();
+    });
+
+    test('11. GET /api/evaluations/:registrationId/score-sheet fallback sang active rubric hoặc RUBRIC_V1 kèm scoreLevelPolicy chỉ khi chưa gắn phiên bản nào', async () => {
+        prisma.topicRegistration.findUnique.mockResolvedValue({
+            id: 304,
+            status: 'DEFENDED',
+            student: { id: 10, fullName: 'Student Nguyen', code: 'SV10', department: 'CNTT' },
+            topic: { id: 20, title: 'Đề tài AI', mentorId: 999 },
+            defenseCouncil: {
+                id: 50,
+                members: [{ lecturerId: 2, roleInCouncil: 'CHAIRMAN', lecturer: { fullName: 'Lecturer Chair' } }],
+            },
+            council: null,
+            defenseResult: null,
+            memberScores: [],
+        });
+
+        prisma.rubricVersion.findFirst.mockResolvedValue(null);
+
+        const resV1 = await request(app)
+            .get('/api/evaluations/304/score-sheet')
+            .set('Authorization', 'Bearer lecturer-token');
+
+        expect(resV1.status).toBe(200);
+        expect(resV1.body.data.rubric.version).toBe('v1');
+        expect(resV1.body.data.rubric.scoreLevelPolicy).toEqual({
+            good: { minPercent: 85, maxPercent: 100, suggestedPercent: 90 },
+            fair: { minPercent: 70, maxPercent: 85, suggestedPercent: 75 },
+            average: { minPercent: 50, maxPercent: 70, suggestedPercent: 60 },
+            poor: { minPercent: 0, maxPercent: 50, suggestedPercent: 30 },
+        });
+    });
 });

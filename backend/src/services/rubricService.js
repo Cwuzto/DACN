@@ -1,6 +1,40 @@
 const prisma = require('../config/database');
+const {
+    DEFAULT_RUBRIC_LEVEL_POLICY,
+    normalizeRubricLevelPolicy,
+    validateRubricLevelPolicy,
+} = require('./rubricLevelPolicy');
 
 const round2 = (num) => Math.round((Number(num) || 0) * 100) / 100;
+
+const extractCriteriaFromCategories = (categories = []) => (
+    (categories || []).flatMap((cat) => (cat?.criteria || []).map((cri) => ({
+        code: cri.code,
+        label: cri.label,
+        maxScore: cri.maxScore,
+    })))
+);
+
+const withNormalizedPolicy = (rubric) => {
+    if (!rubric) return rubric;
+    return {
+        ...rubric,
+        scoreLevelPolicy: normalizeRubricLevelPolicy(rubric.scoreLevelPolicy),
+    };
+};
+
+const assertRubricPolicyValid = (policyInput, categories = [], errorPrefix = '') => {
+    const policyToValidate = (policyInput === undefined || policyInput === null)
+        ? DEFAULT_RUBRIC_LEVEL_POLICY
+        : policyInput;
+    const result = validateRubricLevelPolicy(policyToValidate, extractCriteriaFromCategories(categories));
+    if (!result.ok) {
+        const error = new Error(errorPrefix ? `${errorPrefix}${result.message}` : result.message);
+        error.statusCode = 400;
+        throw error;
+    }
+    return result.policy;
+};
 
 const DEFAULT_REFERENCE_RUBRIC_4_GROUPS_14_ITEMS = {
     version: 'v1_standard_14',
@@ -385,6 +419,9 @@ const getRubricVersions = async () => {
                 totalMaxScore: v.totalMaxScore,
                 status: v.status,
                 isActive: v.isActive,
+                lockedAt: v.lockedAt || null,
+                isLocked: Boolean(v.lockedAt || v.isActive || (v.status && v.status !== 'DRAFT')),
+                scoreLevelPolicy: normalizeRubricLevelPolicy(v.scoreLevelPolicy),
                 createdAt: v.createdAt,
                 updatedAt: v.updatedAt,
                 createdByUser: v.createdByUser,
@@ -417,7 +454,7 @@ const getActiveRubric = async () => {
         },
     });
 
-    return rubric;
+    return withNormalizedPolicy(rubric);
 };
 
 /**
@@ -455,9 +492,11 @@ const getRubricById = async (idOrVersion) => {
     });
 
     const isLockedByGrading = (usedInMemberScores + usedInResults) > 0;
+    const isLocked = Boolean(rubric.lockedAt || rubric.isActive || (rubric.status && rubric.status !== 'DRAFT'));
 
     return {
-        ...rubric,
+        ...withNormalizedPolicy(rubric),
+        isLocked,
         isLockedByGrading,
         totalGradedSubmissions: usedInMemberScores + usedInResults,
     };
@@ -466,7 +505,7 @@ const getRubricById = async (idOrVersion) => {
 /**
  * Tạo phiên bản Rubric mới (hoặc Clone từ phiên bản cũ)
  */
-const createRubricVersion = async ({ version, title, description, categories = [], cloneFromId, userId }) => {
+const createRubricVersion = async ({ version, title, description, categories = [], cloneFromId, scoreLevelPolicy, userId }) => {
     const editCheck = await checkCanEditRubric();
     if (!editCheck.canEdit) {
         throw new Error(editCheck.reason);
@@ -485,10 +524,11 @@ const createRubricVersion = async ({ version, title, description, categories = [
     }
 
     let finalCategories = categories;
+    let sourceRubric = null;
 
     // Nếu chọn clone từ một phiên bản cũ
     if (cloneFromId) {
-        const sourceRubric = await getRubricById(cloneFromId);
+        sourceRubric = await getRubricById(cloneFromId);
         if (!sourceRubric) {
             throw new Error('Phiên bản gốc cần nhân bản không tồn tại.');
         }
@@ -524,12 +564,32 @@ const createRubricVersion = async ({ version, title, description, categories = [
         totalMaxScore = validation.totalScore;
     }
 
+    let policyCandidate;
+    if (scoreLevelPolicy !== undefined) {
+        policyCandidate = scoreLevelPolicy;
+    } else if (sourceRubric) {
+        policyCandidate = normalizeRubricLevelPolicy(sourceRubric.scoreLevelPolicy);
+    } else {
+        policyCandidate = normalizeRubricLevelPolicy(DEFAULT_RUBRIC_LEVEL_POLICY);
+    }
+
+    const policyValidation = validateRubricLevelPolicy(
+        policyCandidate,
+        extractCriteriaFromCategories(finalCategories),
+    );
+    if (!policyValidation.ok) {
+        const error = new Error(policyValidation.message);
+        error.statusCode = 400;
+        throw error;
+    }
+
     const created = await prisma.rubricVersion.create({
         data: {
             version: cleanVersion,
             title: String(title || `Barem đánh giá ${cleanVersion}`).trim(),
             description: description ? String(description).trim() : null,
             totalMaxScore,
+            scoreLevelPolicy: policyValidation.policy,
             status: 'DRAFT',
             isActive: false,
             createdById: userId || null,
@@ -564,13 +624,13 @@ const createRubricVersion = async ({ version, title, description, categories = [
         },
     });
 
-    return created;
+    return withNormalizedPolicy(created);
 };
 
 /**
- * Cập nhật cấu trúc Rubric (Chỉ cho phép khi chưa vào đợt đồ án)
+ * Cập nhật cấu trúc Rubric (Chỉ cho phép khi chưa vào đợt đồ án, chưa khóa và chưa có điểm chấm)
  */
-const updateRubricVersion = async (id, { title, description, categories = [] }) => {
+const updateRubricVersion = async (id, { title, description, categories = [], scoreLevelPolicy }) => {
     const editCheck = await checkCanEditRubric();
     if (!editCheck.canEdit) {
         throw new Error(editCheck.reason);
@@ -585,9 +645,27 @@ const updateRubricVersion = async (id, { title, description, categories = [] }) 
         throw new Error(`Phiên bản ${rubric.version} đã có ${rubric.totalGradedSubmissions} điểm số được chấm. Vui lòng nhân bản (Clone) sang phiên bản mới thay vì sửa trực tiếp.`);
     }
 
+    if (rubric.lockedAt || rubric.isLocked || rubric.isActive || (rubric.status && rubric.status !== 'DRAFT')) {
+        throw new Error(`Phiên bản ${rubric.version} đã bị khóa hoặc đang áp dụng (${rubric.status}). Không thể chỉnh sửa cấu trúc hay chính sách mức điểm.`);
+    }
+
     const validation = validateRubricStructure(categories, 10.0);
     if (!validation.ok) {
         throw new Error(validation.message);
+    }
+
+    const policyCandidate = scoreLevelPolicy !== undefined
+        ? scoreLevelPolicy
+        : normalizeRubricLevelPolicy(rubric.scoreLevelPolicy);
+
+    const policyValidation = validateRubricLevelPolicy(
+        policyCandidate,
+        extractCriteriaFromCategories(categories),
+    );
+    if (!policyValidation.ok) {
+        const error = new Error(policyValidation.message);
+        error.statusCode = 400;
+        throw error;
     }
 
     // Thực hiện cập nhật trong transaction: xóa các categories cũ và tạo lại danh sách mới
@@ -604,6 +682,7 @@ const updateRubricVersion = async (id, { title, description, categories = [] }) 
                 title: title !== undefined ? String(title).trim() : rubric.title,
                 description: description !== undefined ? String(description).trim() : rubric.description,
                 totalMaxScore: validation.totalScore,
+                scoreLevelPolicy: policyValidation.policy,
                 categories: {
                     create: categories.map((cat, catIdx) => ({
                         code: String(cat.code).trim().toUpperCase(),
@@ -639,7 +718,7 @@ const updateRubricVersion = async (id, { title, description, categories = [] }) 
         return res;
     });
 
-    return updated;
+    return withNormalizedPolicy(updated);
 };
 
 /**
@@ -672,6 +751,8 @@ const lockRubricVersion = async (id, { semesterId, actorId } = {}) => {
         throw error;
     }
 
+    assertRubricPolicyValid(rubric.scoreLevelPolicy, rubric.categories, 'Chính sách mức điểm không hợp lệ để khóa: ');
+
     const lockedAt = new Date();
     const updated = await prisma.$transaction(async (tx) => {
         const updatedRubric = await tx.rubricVersion.update({
@@ -703,7 +784,7 @@ const lockRubricVersion = async (id, { semesterId, actorId } = {}) => {
         return updatedRubric;
     });
 
-    return updated;
+    return withNormalizedPolicy(updated);
 };
 
 /**
@@ -736,6 +817,8 @@ const activateRubricVersion = async (id) => {
     if (!validation.ok) {
         throw new Error(`Không thể kích hoạt barem chưa hợp lệ: ${validation.message}`);
     }
+
+    assertRubricPolicyValid(rubric.scoreLevelPolicy, rubric.categories, 'Không thể kích hoạt barem có chính sách mức điểm không hợp lệ: ');
 
     await prisma.$transaction(async (tx) => {
         // Đưa các bản active hiện tại về ARCHIVED
