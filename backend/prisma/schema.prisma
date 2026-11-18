@@ -1537,6 +1537,8 @@ enum NotificationType {
   REGISTRATION
   SUBMISSION
   DEFENSE
+  DEFENSE_SCHEDULE_PUBLISHED
+  DEFENSE_SCHEDULE_ADJUSTED
 }
 
 enum StudentProjectEnrollmentStatus {
