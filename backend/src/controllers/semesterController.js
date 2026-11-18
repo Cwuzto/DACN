@@ -494,6 +494,16 @@ const deleteSemester = async (req, res, next) => {
             return res.status(400).json({ success: false, message: 'ID học kỳ không hợp lệ.' });
         }
 
+        const existingSemester = await prisma.semester.findUnique({
+            where: { id: semesterId },
+        });
+        if (!existingSemester) {
+            return res.status(404).json({
+                success: false,
+                message: 'Không tìm thấy đợt đồ án.',
+            });
+        }
+
         const [relatedTopics, relatedRegistrations, relatedCouncils] = await Promise.all([
             prisma.topic.count({ where: { semesterId } }),
             prisma.topicRegistration.count({ where: { semesterId } }),
@@ -501,16 +511,56 @@ const deleteSemester = async (req, res, next) => {
         ]);
 
         if (relatedTopics > 0 || relatedRegistrations > 0 || relatedCouncils > 0) {
-            return res.status(400).json({
+            return res.status(409).json({
                 success: false,
-                message:
-                    'Không thể xóa đợt đồ án đã có đề tài, đăng ký hoặc hội đồng liên quan.',
+                code: 'PERIOD_NOT_EMPTY',
+                message: 'Không thể xóa đợt đồ án đã có dữ liệu học vụ.',
             });
         }
 
-        await prisma.semester.delete({
-            where: { id: semesterId },
-        });
+        const executeDelete = async (tx) => {
+            await tx.semester.update({
+                where: { id: semesterId },
+                data: {
+                    lockedPolicyVersionId: null,
+                    lockedDefenseRubricVersionId: null,
+                },
+            });
+
+            if (tx.periodWorkflowPolicyVersion?.deleteMany) {
+                await tx.periodWorkflowPolicyVersion.deleteMany({
+                    where: { semesterId },
+                });
+            }
+
+            if (tx.rubricVersion?.findMany) {
+                const relatedRubrics = await tx.rubricVersion.findMany({
+                    where: { semesterId },
+                    select: { id: true },
+                });
+                if (relatedRubrics.length > 0) {
+                    const rubricIds = relatedRubrics.map((r) => r.id);
+                    if (tx.rubricCategory?.deleteMany) {
+                        await tx.rubricCategory.deleteMany({
+                            where: { rubricVersionId: { in: rubricIds } },
+                        });
+                    }
+                    await tx.rubricVersion.deleteMany({
+                        where: { id: { in: rubricIds } },
+                    });
+                }
+            }
+
+            await tx.semester.delete({
+                where: { id: semesterId },
+            });
+        };
+
+        if (typeof prisma.$transaction === 'function') {
+            await prisma.$transaction(executeDelete);
+        } else {
+            await executeDelete(prisma);
+        }
 
         res.json({
             success: true,

@@ -34,21 +34,36 @@ async function requireActivePolicyVersion(semesterId, db = prisma) {
 }
 
 async function createPolicyVersion({ semesterId, policy = DEFAULT_POLICY, createdById }, db = prisma) {
-    const latest = await db.periodWorkflowPolicyVersion.findFirst({
-        where: { semesterId },
-        orderBy: { version: 'desc' },
-        select: { version: true },
-    });
+    const runInTx = async (tx) => {
+        if (tx.periodWorkflowPolicyVersion?.updateMany) {
+            await tx.periodWorkflowPolicyVersion.updateMany({
+                where: { semesterId, isActive: true },
+                data: { isActive: false },
+            });
+        }
 
-    return db.periodWorkflowPolicyVersion.create({
-        data: {
-            semesterId,
-            version: (latest?.version || 0) + 1,
-            policy,
-            checksum: checksum(policy),
-            createdById: createdById || null,
-        },
-    });
+        const latest = await tx.periodWorkflowPolicyVersion.findFirst({
+            where: { semesterId },
+            orderBy: { version: 'desc' },
+            select: { version: true },
+        });
+
+        return tx.periodWorkflowPolicyVersion.create({
+            data: {
+                semesterId,
+                version: (latest?.version || 0) + 1,
+                policy,
+                checksum: checksum(policy),
+                isActive: true,
+                createdById: createdById || null,
+            },
+        });
+    };
+
+    if (typeof db.$transaction === 'function') {
+        return db.$transaction(runInTx);
+    }
+    return runInTx(db);
 }
 
 module.exports = {

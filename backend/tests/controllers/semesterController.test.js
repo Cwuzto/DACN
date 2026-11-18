@@ -1,20 +1,52 @@
-jest.mock('../../src/config/database', () => ({
-    semester: {
-        create: jest.fn(),
-        findUnique: jest.fn(),
-        update: jest.fn(),
-        delete: jest.fn(),
-    },
-    topic: {
-        count: jest.fn(),
-    },
-    topicRegistration: {
-        count: jest.fn(),
-    },
-    council: {
-        count: jest.fn(),
-    },
-}));
+const mockSemester = {
+    create: jest.fn(),
+    findUnique: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+};
+
+const mockTopic = {
+    count: jest.fn(),
+};
+
+const mockTopicRegistration = {
+    count: jest.fn(),
+};
+
+const mockCouncil = {
+    count: jest.fn(),
+};
+
+const mockPeriodWorkflowPolicyVersion = {
+    deleteMany: jest.fn(),
+};
+
+const mockRubricVersion = {
+    findMany: jest.fn(),
+    deleteMany: jest.fn(),
+};
+
+const mockRubricCategory = {
+    deleteMany: jest.fn(),
+};
+
+const mockPrisma = {
+    semester: mockSemester,
+    topic: mockTopic,
+    topicRegistration: mockTopicRegistration,
+    council: mockCouncil,
+    periodWorkflowPolicyVersion: mockPeriodWorkflowPolicyVersion,
+    rubricVersion: mockRubricVersion,
+    rubricCategory: mockRubricCategory,
+    $transaction: jest.fn(async (cb) => {
+        if (typeof cb === 'function') {
+            return cb(mockPrisma);
+        }
+        return Promise.all(cb);
+    }),
+};
+
+jest.mock('../../src/config/database', () => mockPrisma);
 
 const prisma = require('../../src/config/database');
 const semesterController = require('../../src/controllers/semesterController');
@@ -111,7 +143,8 @@ describe('semesterController', () => {
         expect(next).not.toHaveBeenCalled();
     });
 
-    test('deleteSemester blocks delete when related data exists', async () => {
+    test('deleteSemester blocks delete when related data exists with 409 PERIOD_NOT_EMPTY', async () => {
+        prisma.semester.findUnique.mockResolvedValue({ id: 4, name: 'HK4' });
         prisma.topic.count.mockResolvedValue(1);
         prisma.topicRegistration.count.mockResolvedValue(0);
         prisma.council.count.mockResolvedValue(0);
@@ -124,8 +157,58 @@ describe('semesterController', () => {
 
         await semesterController.deleteSemester(req, res, next);
 
-        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.status).toHaveBeenCalledWith(409);
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            success: false,
+            code: 'PERIOD_NOT_EMPTY',
+        }));
         expect(prisma.semester.delete).not.toHaveBeenCalled();
+        expect(next).not.toHaveBeenCalled();
+    });
+
+    test('deleteSemester cleans up policies and rubrics in transaction when empty', async () => {
+        prisma.semester.findUnique.mockResolvedValue({
+            id: 5,
+            name: 'HK5',
+            lockedPolicyVersionId: 10,
+            lockedDefenseRubricVersionId: 20,
+        });
+        prisma.topic.count.mockResolvedValue(0);
+        prisma.topicRegistration.count.mockResolvedValue(0);
+        prisma.council.count.mockResolvedValue(0);
+        prisma.rubricVersion.findMany.mockResolvedValue([{ id: 20 }]);
+
+        const req = createMockReq({
+            params: { id: '5' },
+        });
+        const res = createMockRes();
+        const next = createNext();
+
+        await semesterController.deleteSemester(req, res, next);
+
+        expect(prisma.$transaction).toHaveBeenCalled();
+        expect(prisma.semester.update).toHaveBeenCalledWith(expect.objectContaining({
+            where: { id: 5 },
+            data: expect.objectContaining({
+                lockedPolicyVersionId: null,
+                lockedDefenseRubricVersionId: null,
+            }),
+        }));
+        expect(prisma.periodWorkflowPolicyVersion.deleteMany).toHaveBeenCalledWith({
+            where: { semesterId: 5 },
+        });
+        expect(prisma.rubricCategory.deleteMany).toHaveBeenCalledWith({
+            where: { rubricVersionId: { in: [20] } },
+        });
+        expect(prisma.rubricVersion.deleteMany).toHaveBeenCalledWith({
+            where: { id: { in: [20] } },
+        });
+        expect(prisma.semester.delete).toHaveBeenCalledWith({
+            where: { id: 5 },
+        });
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            success: true,
+        }));
         expect(next).not.toHaveBeenCalled();
     });
 });

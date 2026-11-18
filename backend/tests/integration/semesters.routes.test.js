@@ -1,24 +1,58 @@
-jest.mock('../../src/config/database', () => ({
-    user: {
-        findUnique: jest.fn(),
-    },
-    semester: {
-        findMany: jest.fn(),
-        findUnique: jest.fn(),
-        create: jest.fn(),
-        update: jest.fn(),
-        delete: jest.fn(),
-    },
-    topic: {
-        count: jest.fn(),
-    },
-    topicRegistration: {
-        count: jest.fn(),
-    },
-    council: {
-        count: jest.fn(),
-    },
-}));
+const mockSemester = {
+    findMany: jest.fn(),
+    findUnique: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+};
+
+const mockTopic = {
+    count: jest.fn(),
+};
+
+const mockTopicRegistration = {
+    count: jest.fn(),
+};
+
+const mockCouncil = {
+    count: jest.fn(),
+};
+
+const mockPeriodWorkflowPolicyVersion = {
+    deleteMany: jest.fn(),
+};
+
+const mockRubricVersion = {
+    findMany: jest.fn(),
+    deleteMany: jest.fn(),
+};
+
+const mockRubricCategory = {
+    deleteMany: jest.fn(),
+};
+
+const mockUser = {
+    findUnique: jest.fn(),
+};
+
+const mockPrisma = {
+    user: mockUser,
+    semester: mockSemester,
+    topic: mockTopic,
+    topicRegistration: mockTopicRegistration,
+    council: mockCouncil,
+    periodWorkflowPolicyVersion: mockPeriodWorkflowPolicyVersion,
+    rubricVersion: mockRubricVersion,
+    rubricCategory: mockRubricCategory,
+    $transaction: jest.fn(async (cb) => {
+        if (typeof cb === 'function') {
+            return cb(mockPrisma);
+        }
+        return Promise.all(cb);
+    }),
+};
+
+jest.mock('../../src/config/database', () => mockPrisma);
 
 jest.mock('jsonwebtoken', () => ({
     verify: jest.fn(),
@@ -143,5 +177,64 @@ describe('Integration - semesters routes', () => {
         expect(typeof res.body.message).toBe('string');
         expect(res.body.message.length).toBeGreaterThan(0);
         expect(prisma.semester.update).not.toHaveBeenCalled();
+    });
+
+    test('DELETE /api/semesters/:id rejects non-admin role', async () => {
+        const res = await request(app)
+            .delete('/api/semesters/1')
+            .set('Authorization', 'Bearer lecturer-token');
+
+        expect(res.status).toBe(403);
+        expect(res.body.success).toBe(false);
+    });
+
+    test('DELETE /api/semesters/:id returns 409 PERIOD_NOT_EMPTY if academic records exist', async () => {
+        prisma.semester.findUnique.mockResolvedValue({ id: 1, name: 'HK1' });
+        prisma.topic.count.mockResolvedValue(0);
+        prisma.topicRegistration.count.mockResolvedValue(2);
+        prisma.council.count.mockResolvedValue(0);
+
+        const res = await request(app)
+            .delete('/api/semesters/1')
+            .set('Authorization', 'Bearer admin-token');
+
+        expect(res.status).toBe(409);
+        expect(res.body.success).toBe(false);
+        expect(res.body.code).toBe('PERIOD_NOT_EMPTY');
+        expect(prisma.semester.delete).not.toHaveBeenCalled();
+    });
+
+    test('DELETE /api/semesters/:id successfully deletes empty semester in transaction', async () => {
+        prisma.semester.findUnique.mockResolvedValue({
+            id: 1,
+            name: 'HK1',
+            lockedPolicyVersionId: 10,
+            lockedDefenseRubricVersionId: null,
+        });
+        prisma.topic.count.mockResolvedValue(0);
+        prisma.topicRegistration.count.mockResolvedValue(0);
+        prisma.council.count.mockResolvedValue(0);
+        prisma.rubricVersion.findMany.mockResolvedValue([]);
+
+        const res = await request(app)
+            .delete('/api/semesters/1')
+            .set('Authorization', 'Bearer admin-token');
+
+        expect(res.status).toBe(200);
+        expect(res.body.success).toBe(true);
+        expect(prisma.$transaction).toHaveBeenCalled();
+        expect(prisma.semester.update).toHaveBeenCalledWith(expect.objectContaining({
+            where: { id: 1 },
+            data: expect.objectContaining({
+                lockedPolicyVersionId: null,
+                lockedDefenseRubricVersionId: null,
+            }),
+        }));
+        expect(prisma.periodWorkflowPolicyVersion.deleteMany).toHaveBeenCalledWith({
+            where: { semesterId: 1 },
+        });
+        expect(prisma.semester.delete).toHaveBeenCalledWith({
+            where: { id: 1 },
+        });
     });
 });
