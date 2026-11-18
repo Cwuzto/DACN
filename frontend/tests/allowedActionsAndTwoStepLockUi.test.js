@@ -34,7 +34,7 @@ test('LecturerGradingSheetPage integrates Step 1 lock with confirmation, rubric 
     assert.match(pageSource, /Đã nộp và khóa phiếu chấm cá nhân/);
 });
 
-test('GradingDefensePage integrates Step 2 council score lock with examiner badges and 3-member requirement', () => {
+test('GradingDefensePage integrates Step 2 council score lock with examiner badges and dynamic effective-scorer requirement', () => {
     const pageSource = read('src/pages/admin/GradingDefensePage.jsx');
 
     // Examiner lock status badge
@@ -42,8 +42,11 @@ test('GradingDefensePage integrates Step 2 council score lock with examiner badg
     assert.match(pageSource, /Chưa khóa/);
     assert.match(pageSource, /scoreLocked/);
 
-    // Summary badge X/3 phiếu đã khóa
-    assert.match(pageSource, /\/3 phiếu đã khóa/);
+    // Summary badge X/{totalScorers} phiếu đã khóa (dynamic denominator from active/effective scorers)
+    assert.match(pageSource, /\{lockedCount\}\/\{totalScorers\} phiếu đã khóa/);
+    assert.match(pageSource, /activeScorerCount/);
+    assert.match(pageSource, /lockedScorerCount/);
+    assert.doesNotMatch(pageSource, /\/3 phiếu đã khóa/);
 
     // Council score lock button label
     assert.match(pageSource, /Khóa sổ điểm hội đồng/);
@@ -51,8 +54,8 @@ test('GradingDefensePage integrates Step 2 council score lock with examiner badg
     // Permission guard
     assert.match(pageSource, /canLockResult/);
 
-    // Requires all 3 member score sheets locked before enabling council lock
-    assert.match(pageSource, /Cần đủ 3 thành viên hội đồng nộp & khóa phiếu chấm trước khi khóa sổ điểm hội đồng/);
+    // Requires all effective member score sheets locked before enabling council lock
+    assert.match(pageSource, /Cần đủ \$\{totalScorers\} thành viên hội đồng nộp & khóa phiếu chấm trước khi khóa sổ điểm hội đồng/);
 });
 
 test('StudentDashboardPage connects allowedActions[] contract to withdrawal and title adjustment actions', () => {

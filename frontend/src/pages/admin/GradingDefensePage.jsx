@@ -8,12 +8,13 @@ import {
     Input,
     message,
     Modal,
+    Popconfirm,
+    Spin,
     Table,
     Tag,
     Tooltip,
 } from 'antd';
 import {
-    CheckOutlined,
     ExclamationCircleOutlined,
     FileTextOutlined,
     HistoryOutlined,
@@ -21,8 +22,6 @@ import {
     PrinterOutlined,
     ReloadOutlined,
     RollbackOutlined,
-    SettingOutlined,
-    WarningOutlined,
     FolderOpenOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -38,8 +37,71 @@ import DefenseResultPublicationModal from '../../components/admin/DefenseResultP
 import PublicationHistoryModal from '../../components/admin/PublicationHistoryModal';
 import DefenseSummaryRecordModal from '../../components/admin/DefenseSummaryRecordModal';
 import AcademicDossierDrawer from '../../components/prints/AcademicDossierDrawer';
+import RubricQuickScore from '../../components/grading/RubricQuickScore';
+import {
+    DEFAULT_RUBRIC_LEVEL_POLICY,
+    isScoredValue,
+    roundScore2,
+} from '../../utils/rubricLevelPolicy';
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+
+const isCouncilMemberActiveScorer = (member, council) => {
+    if (!member) return false;
+    if (member.isActive === false) return false;
+    if (member.isScoringMember === false) return false;
+    if (member.roleInCouncil === 'MEMBER') {
+        if (council?.allowFourthScoringMember === false) return false;
+        return member.isScoringMember === true;
+    }
+    if (['CHAIRMAN', 'SECRETARY', 'REVIEWER'].includes(member.roleInCouncil)) {
+        return member.isScoringMember !== false;
+    }
+    return member.isScoringMember !== false;
+};
+
+const getRowScorerSummary = (row) => {
+    const council = row?.council || row?.defenseCouncil || null;
+    const councilMembers = Array.isArray(council?.members) ? council.members : [];
+    const inactiveOrNonScoringLecturerIds = new Set(
+        councilMembers
+            .filter((m) => !isCouncilMemberActiveScorer(m, council))
+            .map((m) => m.lecturerId)
+            .filter((id) => id !== undefined && id !== null)
+    );
+    const activeCouncilMembers = councilMembers.filter((m) => isCouncilMemberActiveScorer(m, council));
+
+    const rawMemberScores = Array.isArray(row?.memberScores) ? row.memberScores : [];
+    const effectiveMemberScores = rawMemberScores.filter((m) => {
+        if (!m) return false;
+        if (m.isEffective === false || m.isActive === false || m.isScoringMember === false) return false;
+        if (m.evaluatorId !== undefined && m.evaluatorId !== null && inactiveOrNonScoringLecturerIds.has(m.evaluatorId)) {
+            return false;
+        }
+        return true;
+    });
+
+    const explicitTotal = row?.activeScorerCount ?? row?.totalScorers;
+    const totalScorers = (explicitTotal !== null && explicitTotal !== undefined && Number.isFinite(Number(explicitTotal)) && Number(explicitTotal) > 0)
+        ? Number(explicitTotal)
+        : (activeCouncilMembers.length > 0
+            ? activeCouncilMembers.length
+            : (effectiveMemberScores.length > 0 ? Math.max(3, effectiveMemberScores.length) : 3));
+
+    const explicitLocked = row?.lockedScorerCount ?? row?.lockedScoreCount;
+    const lockedCount = (explicitLocked !== null && explicitLocked !== undefined && Number.isFinite(Number(explicitLocked)) && Number(explicitLocked) >= 0)
+        ? Number(explicitLocked)
+        : effectiveMemberScores.filter((m) => m.scoreLocked).length;
+
+    const allLocked = totalScorers > 0 && lockedCount >= totalScorers;
+
+    return {
+        effectiveMemberScores,
+        lockedCount,
+        totalScorers,
+        allLocked,
+    };
+};
 
 const fmtDate = (v) => {
     if (!v) return '—';
@@ -104,16 +166,29 @@ export default function GradingDefensePage() {
     // Rubric Drawer state
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [drawerLoading, setDrawerLoading] = useState(false);
+    const [drawerError, setDrawerError] = useState(null);
     const [scoreSaving, setScoreSaving] = useState(false);
+    const [memberLocking, setMemberLocking] = useState(false);
     const [isExportingPdf, setIsExportingPdf] = useState(false);
     const [scoreSheetRegistration, setScoreSheetRegistration] = useState(null);
-    const [scoreSheetRows, setScoreSheetRows] = useState([]);
+    const [rubricCategories, setRubricCategories] = useState([]);
+    const [rubricInfo, setRubricInfo] = useState({
+        version: 'v1',
+        title: 'Barem đánh giá bảo vệ đồ án',
+        totalMaxScore: 10.0,
+        scoreLevelPolicy: DEFAULT_RUBRIC_LEVEL_POLICY,
+    });
+    const [scoresMap, setScoresMap] = useState({});
+    const [commentsMap, setCommentsMap] = useState({});
     const [generalComment, setGeneralComment] = useState('');
     const [scoreLocked, setScoreLocked] = useState(false);
     const [selectedEvaluatorId, setSelectedEvaluatorId] = useState(null);
     const [activeJuryIndex, setActiveJuryIndex] = useState(0);
     const [memberScoresList, setMemberScoresList] = useState([]);
-    const [adminEditRubric, setAdminEditRubric] = useState(false);
+    const [scoreSheetCounts, setScoreSheetCounts] = useState({
+        activeScorerCount: null,
+        lockedScorerCount: null,
+    });
 
     const scope = queryKeys.scope(user);
     const semesterQuery = useGradingSemesters(scope);
@@ -487,40 +562,96 @@ export default function GradingDefensePage() {
     const loadScoreSheet = useCallback(async (registrationId, evaluatorId = undefined) => {
         try {
             setDrawerLoading(true);
+            setDrawerError(null);
             const params = evaluatorId ? { evaluatorId } : {};
             const res = await evaluationService.getScoreSheet(registrationId, params);
-            if (!res.success) return;
+            if (!res?.success) {
+                throw new Error(res?.message || 'Không thể tải bảng điểm chi tiết');
+            }
 
             const payload = res.data || {};
-            const rubric = payload.rubric?.criteria || [];
-            const scoreMap = new Map((payload.scores || []).map((s) => [s.criterionCode, s]));
+            const rubric = payload.rubric || {};
+            let rawCategories = rubric.categories || [];
+            if (!rawCategories.length && rubric.criteria?.length) {
+                rawCategories = [
+                    {
+                        code: 'DEFAULT_CAT',
+                        name: 'Tiêu chuẩn đánh giá',
+                        maxScore: rubric.totalMaxScore || 10.0,
+                        criteria: rubric.criteria,
+                    },
+                ];
+            }
 
-            const rows = rubric.map((criterion, idx) => {
-                const current = scoreMap.get(criterion.code);
-                const currentScore = Number.isFinite(Number(current?.score)) ? Number(current.score) : round2(criterion.maxScore * 0.85);
-                return {
-                    id: idx + 1,
-                    criterionCode: criterion.code,
-                    criterionLabel: criterion.label,
-                    description: criterion.description || 'Đánh giá chi tiết theo chuẩn quy chế học vụ',
-                    maxScore: criterion.maxScore || 2.5,
-                    score: currentScore,
-                    comment: current?.comment || '',
-                };
+            const normalizedCategories = rawCategories.map((cat) => ({
+                ...cat,
+                criteria: (cat.criteria || []).map((cri) => ({
+                    ...cri,
+                    label: cri.label || cri.name || cri.code,
+                    name: cri.name || cri.label || cri.code,
+                    cloCode: cri.cloCode || null,
+                })),
+            }));
+
+            const nextScoresMap = {};
+            const nextCommentsMap = {};
+            (payload.scores || []).forEach((item) => {
+                if (item?.criterionCode) {
+                    nextScoresMap[item.criterionCode] = isScoredValue(item.score) ? Number(item.score) : null;
+                    nextCommentsMap[item.criterionCode] = item.comment || '';
+                }
             });
 
-            const finalRows = rows;
             const members = payload.memberScores || [];
+            const targetEvalId = evaluatorId || payload.currentEvaluator?.id || members[0]?.evaluatorId || null;
+            const summaryForMembers = getRowScorerSummary({
+                registrationId,
+                council: payload.registration?.council || payload.registration?.defenseCouncil,
+                memberScores: members,
+                activeScorerCount: payload.activeScorerCount,
+                lockedScorerCount: payload.lockedScorerCount,
+            });
+            const matchedIdx = summaryForMembers.effectiveMemberScores.findIndex((m) => m.evaluatorId === targetEvalId);
 
-            setScoreSheetRegistration(payload.registration || null);
-            setScoreSheetRows(finalRows);
+            setScoreSheetRegistration((prev) => {
+                const incoming = payload.registration || null;
+                if (!incoming) return prev;
+                const prevId = prev?.registrationId || prev?.id;
+                const incomingId = incoming.registrationId || incoming.id;
+                if (prev && prevId && incomingId && String(prevId) === String(incomingId)) {
+                    return {
+                        ...prev,
+                        ...incoming,
+                        student: incoming.student || prev.student,
+                        topic: incoming.topic || prev.topic,
+                        mentor: incoming.mentor || prev.mentor,
+                        council: incoming.council || prev.council,
+                    };
+                }
+                return incoming;
+            });
+            setRubricInfo({
+                version: rubric.version || 'v1',
+                title: rubric.title || 'Barem đánh giá bảo vệ đồ án',
+                totalMaxScore: rubric.totalMaxScore || 10.0,
+                scoreLevelPolicy: rubric.scoreLevelPolicy || DEFAULT_RUBRIC_LEVEL_POLICY,
+            });
+            setRubricCategories(normalizedCategories);
+            setScoresMap(nextScoresMap);
+            setCommentsMap(nextCommentsMap);
             setGeneralComment(payload.defenseResult?.comments || '');
             setScoreLocked(Boolean(payload.scoreLocked));
             setMemberScoresList(members);
-            setSelectedEvaluatorId(evaluatorId || members[0]?.evaluatorId || null);
-            setActiveJuryIndex(0);
+            setScoreSheetCounts({
+                activeScorerCount: payload.activeScorerCount ?? null,
+                lockedScorerCount: payload.lockedScorerCount ?? null,
+            });
+            setSelectedEvaluatorId(targetEvalId);
+            setActiveJuryIndex(matchedIdx >= 0 ? matchedIdx : 0);
         } catch (err) {
-            message.error(err?.message || 'Không thể tải bảng điểm chi tiết');
+            const errMsg = err?.message || 'Không thể tải bảng điểm chi tiết';
+            setDrawerError(errMsg);
+            message.error(errMsg);
         } finally {
             setDrawerLoading(false);
         }
@@ -528,6 +659,16 @@ export default function GradingDefensePage() {
 
     const openRubricDrawer = (registration) => {
         setScoreSheetRegistration(registration);
+        setRubricCategories([]);
+        setScoresMap({});
+        setCommentsMap({});
+        setGeneralComment('');
+        setScoreLocked(false);
+        setDrawerError(null);
+        setScoreSheetCounts({
+            activeScorerCount: registration.activeScorerCount ?? registration.totalScorers ?? null,
+            lockedScorerCount: registration.lockedScorerCount ?? registration.lockedScoreCount ?? null,
+        });
         setDrawerOpen(true);
         loadScoreSheet(registration.registrationId || registration.id);
     };
@@ -535,77 +676,146 @@ export default function GradingDefensePage() {
     const closeRubricDrawer = () => {
         setDrawerOpen(false);
         setScoreSheetRegistration(null);
+        setDrawerError(null);
     };
 
-    // Change criteria score inside drawer
-    const handleCriterionScoreChange = (index, value) => {
-        const val = Math.max(0, Number(value) || 0);
-        setScoreSheetRows((prev) =>
-            prev.map((r, idx) => (idx === index ? { ...r, score: round2(val) } : r))
-        );
-    };
+    const allCriteria = useMemo(
+        () => rubricCategories.flatMap((cat) => cat.criteria || []),
+        [rubricCategories]
+    );
 
-    const handleCriterionTitleChange = (index, title) => {
-        setScoreSheetRows((prev) =>
-            prev.map((r, idx) => (idx === index ? { ...r, criterionLabel: title } : r))
-        );
-    };
-
-    const handleCriterionMaxChange = (index, maxScore) => {
-        setScoreSheetRows((prev) =>
-            prev.map((r, idx) => (idx === index ? { ...r, maxScore: Number(maxScore) || 1 } : r))
-        );
-    };
+    const activeScoredCount = useMemo(
+        () => allCriteria.filter((cri) => isScoredValue(scoresMap[cri.code])).length,
+        [allCriteria, scoresMap]
+    );
 
     // Calculated Drawer Total Score for Active Evaluator
     const activeEvaluatorScore = useMemo(() => {
-        return round2(scoreSheetRows.reduce((sum, r) => sum + (Number(r.score) || 0), 0));
-    }, [scoreSheetRows]);
+        const sum = allCriteria.reduce((acc, cri) => {
+            const val = scoresMap[cri.code];
+            return acc + (isScoredValue(val) ? Number(val) : 0);
+        }, 0);
+        return roundScore2(sum);
+    }, [allCriteria, scoresMap]);
+
+    const isSheetCompleted = useMemo(() => {
+        if (!allCriteria.length) return false;
+        return allCriteria.every((cri) => isScoredValue(scoresMap[cri.code]));
+    }, [allCriteria, scoresMap]);
+
+    const drawerScorerSummary = useMemo(() => {
+        return getRowScorerSummary({
+            ...(scoreSheetRegistration || {}),
+            memberScores: memberScoresList,
+            activeScorerCount: scoreSheetCounts.activeScorerCount ?? scoreSheetRegistration?.activeScorerCount,
+            lockedScorerCount: scoreSheetCounts.lockedScorerCount ?? scoreSheetRegistration?.lockedScorerCount,
+        });
+    }, [scoreSheetRegistration, memberScoresList, scoreSheetCounts]);
 
     // Check discrepancy in drawer
     const drawerDiscrepancy = useMemo(() => {
-        const scores = memberScoresList.map((m) => Number(m.finalScore)).filter((n) => Number.isFinite(n));
+        const scores = drawerScorerSummary.effectiveMemberScores
+            .map((m) => Number(m.finalScore))
+            .filter((n) => Number.isFinite(n));
         if (scores.length < 2) return 0;
         return round2(Math.max(...scores) - Math.min(...scores));
-    }, [memberScoresList]);
+    }, [drawerScorerSummary.effectiveMemberScores]);
 
     // Calculated Final Composite Score: Trung bình cộng các điểm của thành viên Hội đồng hợp lệ
     const finalCompositeScore = useMemo(() => {
-        const scores = memberScoresList.map((m) => Number(m.finalScore)).filter((n) => Number.isFinite(n));
+        const scores = drawerScorerSummary.effectiveMemberScores
+            .map((m) => Number(m.finalScore))
+            .filter((n) => Number.isFinite(n));
         if (scores.length > 0) {
             return round2(scores.reduce((sum, s) => sum + s, 0) / scores.length);
         }
-        if (activeEvaluatorScore > 0) return activeEvaluatorScore;
+        if (activeScoredCount > 0) return activeEvaluatorScore;
         return scoreSheetRegistration?.finalScore !== null && scoreSheetRegistration?.finalScore !== undefined
             ? Number(scoreSheetRegistration.finalScore)
             : 0;
-    }, [memberScoresList, activeEvaluatorScore, scoreSheetRegistration]);
+    }, [drawerScorerSummary.effectiveMemberScores, activeScoredCount, activeEvaluatorScore, scoreSheetRegistration]);
 
-    // Save score sheet
+    // Save score sheet (supports empty/partial draft without fabricating zeroes)
     const handleSaveScoreSheet = async () => {
-        if (!scoreSheetRegistration) return;
+        if (!scoreSheetRegistration || scoreLocked) return;
         try {
             setScoreSaving(true);
+            const scoredCriteria = allCriteria.filter((cri) => isScoredValue(scoresMap[cri.code]));
             const payload = {
-                scores: scoreSheetRows.map((r) => ({
-                    criterionCode: r.criterionCode,
-                    score: Number(r.score),
-                    comment: r.comment || undefined,
+                scores: scoredCriteria.map((cri) => ({
+                    criterionCode: cri.code,
+                    score: Number(scoresMap[cri.code]),
+                    comment: commentsMap[cri.code] || undefined,
                 })),
-                generalComment,
-                evaluatorId: selectedEvaluatorId,
+                generalComment: generalComment ? generalComment.trim() : '',
+                evaluatorId: selectedEvaluatorId || undefined,
             };
             const regId = scoreSheetRegistration.registrationId || scoreSheetRegistration.id;
             const res = await evaluationService.saveScoreSheet(regId, payload);
             if (res.success) {
-                message.success('Đã lưu & ký biên bản điểm số thành công!');
-                closeRubricDrawer();
+                if (scoredCriteria.length === allCriteria.length && allCriteria.length > 0) {
+                    message.success('Đã lưu phiếu điểm số thành công!');
+                } else {
+                    message.success(`Đã lưu nháp ${scoredCriteria.length}/${allCriteria.length} tiêu chí thành công!`);
+                }
+                setMemberScoresList((prev) => prev.map((m) => (
+                    m.evaluatorId === selectedEvaluatorId
+                        ? { ...m, finalScore: scoredCriteria.length > 0 ? activeEvaluatorScore : null }
+                        : m
+                )));
                 fetchData();
             }
         } catch (err) {
             message.error(err?.message || 'Không thể lưu bảng điểm');
         } finally {
             setScoreSaving(false);
+        }
+    };
+
+    const handleLockMemberScoreSheet = async () => {
+        if (!scoreSheetRegistration || scoreLocked) return;
+        if (!isSheetCompleted) {
+            message.warning('Vui lòng nhập đầy đủ điểm cho tất cả các tiêu chí trước khi khóa phiếu.');
+            return;
+        }
+        const regId = scoreSheetRegistration.registrationId || scoreSheetRegistration.id;
+        try {
+            setMemberLocking(true);
+            const payload = {
+                registrationId: Number(regId),
+                evaluatorId: selectedEvaluatorId || undefined,
+                scores: allCriteria.map((cri) => ({
+                    criterionCode: cri.code,
+                    score: Number(scoresMap[cri.code]),
+                    comment: commentsMap[cri.code] || undefined,
+                })),
+                generalComment: generalComment ? generalComment.trim() : '',
+                targetRubricVersion: rubricInfo?.version || 'v1',
+            };
+            const res = await evaluationService.lockMemberScoreSheet(payload);
+            if (res?.success) {
+                setScoreLocked(true);
+                const wasAlreadyLocked = memberScoresList.some(
+                    (m) => m.evaluatorId === selectedEvaluatorId && m.scoreLocked
+                );
+                setMemberScoresList((prev) => prev.map((m) => (
+                    m.evaluatorId === selectedEvaluatorId
+                        ? { ...m, finalScore: activeEvaluatorScore, scoreLocked: true }
+                        : m
+                )));
+                if (!wasAlreadyLocked && scoreSheetCounts.lockedScorerCount !== null && scoreSheetCounts.lockedScorerCount !== undefined) {
+                    setScoreSheetCounts((prev) => ({
+                        ...prev,
+                        lockedScorerCount: Number(prev.lockedScorerCount) + 1,
+                    }));
+                }
+                message.success('Đã nộp và khóa phiếu chấm thành công!');
+                fetchData();
+            }
+        } catch (err) {
+            message.error(err?.message || 'Không thể khóa phiếu chấm');
+        } finally {
+            setMemberLocking(false);
         }
     };
 
@@ -878,12 +1088,15 @@ export default function GradingDefensePage() {
                                 const id = r.registrationId || r.id;
                                 const isSelected = selectedRowKeys.includes(id);
                                 const grade = getGradeClassification(r.finalScore);
-                                const memberScores = r.memberScores || [];
-                                const scores = memberScores.map((m) => Number(m.finalScore)).filter((n) => Number.isFinite(n));
+                                const {
+                                    effectiveMemberScores,
+                                    lockedCount,
+                                    totalScorers,
+                                    allLocked,
+                                } = getRowScorerSummary(r);
+                                const scores = effectiveMemberScores.map((m) => Number(m.finalScore)).filter((n) => Number.isFinite(n));
                                 const delta = scores.length >= 2 ? Math.max(...scores) - Math.min(...scores) : 0;
                                 const hasDiscrepancy = delta >= 1.5;
-                                const lockedCount = memberScores.filter((m) => m.scoreLocked).length;
-                                const allLocked = memberScores.length >= 3 && memberScores.every((m) => m.scoreLocked);
 
                                 return (
                                     <tr key={id} style={{ background: isSelected ? 'var(--primary-light)' : undefined }}>
@@ -949,10 +1162,10 @@ export default function GradingDefensePage() {
                                         </td>
                                         <td style={{ textAlign: 'center' }}>
                                             <div style={{ display: 'flex', gap: 4, justifyContent: 'center', flexWrap: 'wrap', alignItems: 'center' }}>
-                                                {memberScores.length > 0 ? (
-                                                    memberScores.map((m, idx) => (
+                                                {effectiveMemberScores.length > 0 ? (
+                                                    effectiveMemberScores.map((m, idx) => (
                                                         <span
-                                                            key={idx}
+                                                            key={m.evaluatorId || idx}
                                                             style={{
                                                                 fontSize: 11,
                                                                 fontFamily: 'var(--font-mono)',
@@ -965,7 +1178,7 @@ export default function GradingDefensePage() {
                                                                 gap: 4,
                                                             }}
                                                         >
-                                                            <span>{m.evaluator?.fullName ? m.evaluator.fullName.split(' ').slice(-1)[0] : `GK${idx + 1}`}: <strong>{m.finalScore ?? '—'}</strong></span>
+                                                            <span>{m.evaluator?.fullName ? m.evaluator.fullName.split(' ').slice(-1)[0] : (m.evaluatorName ? m.evaluatorName.split(' ').slice(-1)[0] : `GK${idx + 1}`)}: <strong>{m.finalScore ?? '—'}</strong></span>
                                                             {m.scoreLocked ? (
                                                                 <span style={{ fontSize: 9.5, padding: '1px 4px', borderRadius: 3, background: '#DCFCE7', color: '#15803D', fontWeight: 600 }}>
                                                                     Đã khóa
@@ -984,6 +1197,7 @@ export default function GradingDefensePage() {
                                             <div style={{ marginTop: 4 }}>
                                                 <span
                                                     className="badge"
+                                                    data-testid={`row-scorer-counter-${id}`}
                                                     style={{
                                                         fontSize: 10.5,
                                                         padding: '2px 6px',
@@ -994,7 +1208,7 @@ export default function GradingDefensePage() {
                                                         fontWeight: 600,
                                                     }}
                                                 >
-                                                    {lockedCount}/3 phiếu đã khóa
+                                                    {lockedCount}/{totalScorers} phiếu đã khóa
                                                 </span>
                                             </div>
                                             {hasDiscrepancy && (
@@ -1098,7 +1312,7 @@ export default function GradingDefensePage() {
                                                     </button>
                                                 ) : (
                                                     <Tooltip
-                                                        title={!allLocked ? `Cần đủ 3 thành viên hội đồng nộp & khóa phiếu chấm trước khi khóa sổ điểm hội đồng (Hiện tại: ${lockedCount}/3)` : ''}
+                                                        title={!allLocked ? `Cần đủ ${totalScorers} thành viên hội đồng nộp & khóa phiếu chấm trước khi khóa sổ điểm hội đồng (Hiện tại: ${lockedCount}/${totalScorers})` : ''}
                                                     >
                                                         <span>
                                                             <button
@@ -1229,30 +1443,37 @@ export default function GradingDefensePage() {
                             </div>
                             <span
                                 className="badge"
+                                data-testid="drawer-scorer-counter"
                                 style={{
                                     fontSize: 11,
                                     padding: '2px 8px',
                                     borderRadius: 4,
-                                    background: memberScoresList.filter(m => m.scoreLocked).length >= 3 ? '#ECFDF5' : '#FFFBEB',
-                                    color: memberScoresList.filter(m => m.scoreLocked).length >= 3 ? '#047857' : '#B45309',
+                                    background: drawerScorerSummary.allLocked ? '#ECFDF5' : '#FFFBEB',
+                                    color: drawerScorerSummary.allLocked ? '#047857' : '#B45309',
                                     fontWeight: 600,
                                 }}
                             >
-                                {memberScoresList.filter(m => m.scoreLocked).length}/3 phiếu đã khóa
+                                {drawerScorerSummary.lockedCount}/{drawerScorerSummary.totalScorers} phiếu đã khóa
                             </span>
                         </div>
                         <div className="rubric-jury-strip">
-                            {memberScoresList.map((m, idx) => (
+                            {drawerScorerSummary.effectiveMemberScores.map((m, idx) => (
                                 <div
-                                    key={idx}
+                                    key={m.evaluatorId || idx}
                                     className={`rubric-jury-card ${activeJuryIndex === idx ? 'active' : ''}`}
                                     onClick={() => {
                                         setActiveJuryIndex(idx);
-                                        setSelectedEvaluatorId(m.evaluatorId);
+                                        if (m.evaluatorId && m.evaluatorId !== selectedEvaluatorId) {
+                                            setSelectedEvaluatorId(m.evaluatorId);
+                                            const regId = scoreSheetRegistration?.registrationId || scoreSheetRegistration?.id;
+                                            if (regId) {
+                                                loadScoreSheet(regId, m.evaluatorId);
+                                            }
+                                        }
                                     }}
                                 >
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <span className="jury-role-label">{m.role || `Giám khảo ${idx + 1}`}</span>
+                                        <span className="jury-role-label">{m.role || m.roleInCouncil || `Giám khảo ${idx + 1}`}</span>
                                         {m.scoreLocked ? (
                                             <span style={{ fontSize: 9.5, padding: '1px 4px', borderRadius: 3, background: '#DCFCE7', color: '#15803D', fontWeight: 600 }}>
                                                 Đã khóa
@@ -1265,127 +1486,91 @@ export default function GradingDefensePage() {
                                     </div>
                                     <span className="jury-person-name">{m.evaluatorName || m.evaluator?.fullName || `GK ${idx + 1}`}</span>
                                     <span className="rubric-jury-score num">
-                                        {activeJuryIndex === idx ? activeEvaluatorScore.toFixed(1) : (m.finalScore ?? '—')}
+                                        {activeJuryIndex === idx
+                                            ? (activeScoredCount > 0 ? activeEvaluatorScore.toFixed(2) : (m.finalScore ?? '—'))
+                                            : (m.finalScore ?? '—')}
                                     </span>
                                 </div>
                             ))}
                         </div>
                     </div>
 
-                    {/* Rubric Criteria Interactive Sliders */}
+                    {scoreLocked && (
+                        <Alert
+                            type="warning"
+                            showIcon
+                            icon={<LockOutlined />}
+                            style={{ marginTop: 14 }}
+                            message="Phiếu chấm đã được khóa"
+                            description="Điểm số của phiếu chấm này đã được chốt vào biên bản hội đồng và đang ở chế độ chỉ đọc."
+                        />
+                    )}
+
+                    {/* Rubric Quick Scoring Control */}
                     <div style={{ marginTop: 18 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
                             <span className="drawer-section-title" style={{ marginBottom: 0 }}>
                                 Phiếu Chấm Chi Tiết Chuẩn Rubric ·{' '}
                                 <span style={{ color: 'var(--accent)' }}>
-                                    {memberScoresList[activeJuryIndex]?.role || 'Giám khảo'}
+                                    {drawerScorerSummary.effectiveMemberScores[activeJuryIndex]?.role
+                                        || drawerScorerSummary.effectiveMemberScores[activeJuryIndex]?.roleInCouncil
+                                        || 'Giám khảo'}
                                 </span>
                             </span>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <Tag color="cyan" style={{ margin: 0 }}>
+                                    Phiên bản {rubricInfo.version}
+                                </Tag>
                                 <span className="meta">
-                                    Tổng tối đa: <strong className="num">10.0 điểm</strong>
+                                    Tổng tối đa: <strong className="num">{Number(rubricInfo?.totalMaxScore || 10).toFixed(1)} điểm</strong>
                                 </span>
-                                {canSubmitScore && <Button
-                                    size="small"
-                                    icon={<SettingOutlined />}
-                                    onClick={() => setAdminEditRubric(!adminEditRubric)}
-                                    style={{ fontSize: 11.5 }}
-                                >
-                                    {adminEditRubric ? 'Đóng chế độ sửa' : 'Sửa Tiêu chí & Điểm'}
-                                </Button>}
                             </div>
                         </div>
 
-                        {adminEditRubric && (
-                            <div
-                                style={{
-                                    background: '#F0FDFA',
-                                    border: '1px solid #CCFBF1',
-                                    borderRadius: 'var(--radius)',
-                                    padding: '8px 12px',
-                                    marginBottom: 12,
-                                    fontSize: 12,
-                                    color: '#115E59',
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center',
-                                }}
-                            >
-                                <span><strong>Chế độ Sửa Rubric:</strong> Cho phép đổi tên tiêu chí và điểm tối đa của từng mục.</span>
-                                <Button
-                                    size="small"
-                                    type="primary"
-                                    icon={<CheckOutlined />}
-                                    onClick={() => setAdminEditRubric(false)}
-                                    style={{ fontSize: 11 }}
-                                >
-                                    Hoàn tất
-                                </Button>
+                        {drawerError ? (
+                            <Alert
+                                type="error"
+                                showIcon
+                                message="Không thể tải phiếu chấm rubric"
+                                description={drawerError}
+                                style={{ marginBottom: 12 }}
+                            />
+                        ) : drawerLoading ? (
+                            <div style={{ padding: 32, textAlign: 'center' }}>
+                                <Spin tip="Đang tải phiếu chấm..." />
                             </div>
-                        )}
+                        ) : drawerOpen ? (
+                            <>
+                                <RubricQuickScore
+                                    categories={rubricCategories}
+                                    policy={rubricInfo?.scoreLevelPolicy}
+                                    scoresMap={scoresMap}
+                                    commentsMap={commentsMap}
+                                    disabled={scoreLocked || !canSubmitScore}
+                                    onScoresChange={(nextScoresMap) => {
+                                        if (scoreLocked || !canSubmitScore) return;
+                                        setScoresMap(nextScoresMap);
+                                    }}
+                                    onCommentChange={(criterionCode, value) => {
+                                        if (scoreLocked || !canSubmitScore) return;
+                                        setCommentsMap((prev) => ({ ...prev, [criterionCode]: value }));
+                                    }}
+                                />
 
-                        {scoreSheetRows.map((crit, idx) => (
-                            <div className="rubric-criterion-box" key={crit.id || idx}>
-                                <div className="rubric-criterion-header">
-                                    <div style={{ flex: 1, marginRight: 8 }}>
-                                        {!adminEditRubric ? (
-                                            <div className="rubric-criterion-title">{crit.criterionLabel}</div>
-                                        ) : (
-                                            <input
-                                                type="text"
-                                                className="input-field"
-                                                value={crit.criterionLabel}
-                                                onChange={(e) => handleCriterionTitleChange(idx, e.target.value)}
-                                                style={{ fontSize: 12, fontWeight: 600, padding: '4px 6px', width: '100%', marginBottom: 3 }}
-                                            />
-                                        )}
-                                        <p style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 2 }}>
-                                            {crit.description}
-                                        </p>
-                                    </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                        {!adminEditRubric ? (
-                                            <span className="rubric-criterion-max">Tối đa {crit.maxScore}đ</span>
-                                        ) : (
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                                                <span style={{ fontSize: 11, color: 'var(--muted)' }}>Tối đa:</span>
-                                                <input
-                                                    type="number"
-                                                    className="rubric-score-input"
-                                                    min="0.1"
-                                                    max="10"
-                                                    step="0.1"
-                                                    value={crit.maxScore}
-                                                    onChange={(e) => handleCriterionMaxChange(idx, e.target.value)}
-                                                    style={{ width: 50, height: 26, fontSize: 11.5 }}
-                                                />
-                                                <span style={{ fontSize: 11, color: 'var(--muted)' }}>đ</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                                <div className="rubric-slider-wrap">
-                                    <input
-                                        type="range"
-                                        className="rubric-range"
-                                        min="0"
-                                        max={crit.maxScore}
-                                        step="0.1"
-                                        value={crit.score}
-                                        onChange={(e) => handleCriterionScoreChange(idx, e.target.value)}
-                                    />
-                                    <input
-                                        type="number"
-                                        className="rubric-score-input"
-                                        min="0"
-                                        max={crit.maxScore}
-                                        step="0.1"
-                                        value={crit.score}
-                                        onChange={(e) => handleCriterionScoreChange(idx, e.target.value)}
+                                <div style={{ marginTop: 14 }}>
+                                    <label style={{ display: 'block', fontWeight: 600, fontSize: 12.5, marginBottom: 6 }}>
+                                        Nhận xét chung của Giám khảo:
+                                    </label>
+                                    <Input.TextArea
+                                        rows={3}
+                                        placeholder="Nhập nhận xét về khóa luận và buổi bảo vệ..."
+                                        value={generalComment}
+                                        disabled={scoreLocked || !canSubmitScore}
+                                        onChange={(e) => setGeneralComment(e.target.value)}
                                     />
                                 </div>
-                            </div>
-                        ))}
+                            </>
+                        ) : null}
                     </div>
 
                     {/* Realtime Summary Calculation Box */}
@@ -1404,7 +1589,7 @@ export default function GradingDefensePage() {
                                 </span>
                             </div>
                             <p style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 2 }}>
-                                Quy chế Viện: Trung bình cộng điểm các thành viên Hội đồng bảo vệ (Chủ tịch, Thư ký, Phản biện)
+                                Quy chế Viện: Trung bình cộng điểm các thành viên Hội đồng bảo vệ có hiệu lực ({drawerScorerSummary.totalScorers} thành viên)
                             </p>
                         </div>
                         <Button
@@ -1445,12 +1630,32 @@ export default function GradingDefensePage() {
                         </Button>
                         {canSubmitScore && <button
                             type="button"
-                            className="btn btn-primary"
+                            className="btn btn-secondary"
                             onClick={handleSaveScoreSheet}
-                            disabled={scoreSaving}
+                            disabled={scoreSaving || memberLocking || scoreLocked || drawerLoading || Boolean(drawerError)}
                         >
-                            <span>{scoreSaving ? 'Đang lưu...' : 'Lưu & Ký Biên Bản Điểm'}</span>
+                            <span>{scoreSaving ? 'Đang lưu...' : 'Lưu Điểm Nháp'}</span>
                         </button>}
+                        {canSubmitScore && (
+                            <Popconfirm
+                                title="Khóa phiếu chấm thành viên"
+                                description="Sau khi khóa phiếu, điểm số của thành viên này sẽ được chốt vào hội đồng và không thể chỉnh sửa trực tiếp. Bạn có chắc chắn muốn khóa?"
+                                onConfirm={handleLockMemberScoreSheet}
+                                okText="Xác nhận khóa"
+                                cancelText="Hủy"
+                                disabled={scoreLocked || !isSheetCompleted || scoreSaving || memberLocking || drawerLoading || Boolean(drawerError)}
+                            >
+                                <Button
+                                    type="primary"
+                                    icon={<LockOutlined />}
+                                    disabled={scoreLocked || !isSheetCompleted || scoreSaving || memberLocking || drawerLoading || Boolean(drawerError)}
+                                    loading={memberLocking}
+                                    title={!isSheetCompleted ? 'Vui lòng chấm đủ tất cả các tiêu chí trước khi khóa' : undefined}
+                                >
+                                    {memberLocking ? 'Đang khóa...' : 'Khóa phiếu chấm'}
+                                </Button>
+                            </Popconfirm>
+                        )}
                     </div>
                 </div>
             </aside>
