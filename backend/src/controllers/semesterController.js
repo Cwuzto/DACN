@@ -35,6 +35,32 @@ const validateBM03WindowOrder = (midtermOpenAt, finalOpenAt) => {
     return null;
 };
 
+const validateDefenseCouncilTargetSize = (rawValue, { isUpdate = false, currentValue = 22 } = {}) => {
+    if (rawValue === undefined) {
+        return { value: isUpdate ? (currentValue ?? 22) : 22, error: null };
+    }
+    if (typeof rawValue === 'boolean' || rawValue === null || rawValue === '') {
+        return {
+            value: null,
+            error: 'Quy mô mục tiêu hội đồng bảo vệ phải là số nguyên từ 1 đến 30.',
+        };
+    }
+    const num = Number(rawValue);
+    if (!Number.isInteger(num)) {
+        return {
+            value: null,
+            error: 'Quy mô mục tiêu hội đồng bảo vệ phải là số nguyên từ 1 đến 30.',
+        };
+    }
+    if (num < 1 || num > 30) {
+        return {
+            value: null,
+            error: 'Quy mô mục tiêu hội đồng bảo vệ phải nằm trong khoảng từ 1 đến 30.',
+        };
+    }
+    return { value: num, error: null };
+};
+
 const deriveSemesterCode = ({ code, name, startDate }) => {
     if (code && typeof code === 'string' && code.trim()) {
         return code.trim().toUpperCase();
@@ -183,6 +209,7 @@ const createSemester = async (req, res, next) => {
             registrationOpen,
             bm03MidtermEvaluationOpenAt,
             bm03FinalizationOpenAt,
+            defenseCouncilTargetSize,
         } = req.body;
 
         if (!name || !startDate || !registrationDeadline || !endDate) {
@@ -190,6 +217,11 @@ const createSemester = async (req, res, next) => {
                 success: false,
                 message: 'Tên, ngày bắt đầu, hạn đăng ký và ngày kết thúc là bắt buộc.',
             });
+        }
+
+        const parsedTargetSize = validateDefenseCouncilTargetSize(defenseCouncilTargetSize, { isUpdate: false });
+        if (parsedTargetSize.error) {
+            return res.status(400).json({ success: false, code: 'INVALID_DEFENSE_COUNCIL_TARGET_SIZE', message: parsedTargetSize.error });
         }
 
         const parsedMidtermOpen = parseOptionalDateField(bm03MidtermEvaluationOpenAt, 'Ngày mở đánh giá giữa kỳ BM03');
@@ -226,6 +258,7 @@ const createSemester = async (req, res, next) => {
                 registrationDeadline: new Date(registrationDeadline),
                 midtermReportDate: midtermReportDate ? new Date(midtermReportDate) : null,
                 defenseDate: defenseDate ? new Date(defenseDate) : null,
+                defenseCouncilTargetSize: parsedTargetSize.value,
                 bm03MidtermEvaluationOpenAt: nextMidtermOpenAt,
                 bm03FinalizationOpenAt: nextFinalOpenAt,
                 outlineAllowedExtensions: LOCKED_BM01_OUTLINE_EXTENSIONS,
@@ -278,6 +311,7 @@ const updateSemester = async (req, res, next) => {
             registrationOpen,
             bm03MidtermEvaluationOpenAt,
             bm03FinalizationOpenAt,
+            defenseCouncilTargetSize,
         } = req.body;
 
         const parsedMidtermOpen = parseOptionalDateField(bm03MidtermEvaluationOpenAt, 'Ngày mở đánh giá giữa kỳ BM03');
@@ -298,6 +332,14 @@ const updateSemester = async (req, res, next) => {
                 success: false,
                 message: 'Không tìm thấy đợt đồ án để cập nhật.',
             });
+        }
+
+        const parsedTargetSize = validateDefenseCouncilTargetSize(defenseCouncilTargetSize, {
+            isUpdate: true,
+            currentValue: semester.defenseCouncilTargetSize,
+        });
+        if (parsedTargetSize.error) {
+            return res.status(400).json({ success: false, code: 'INVALID_DEFENSE_COUNCIL_TARGET_SIZE', message: parsedTargetSize.error });
         }
 
         const nextStartDate = startDate ? new Date(startDate) : semester.startDate;
@@ -343,6 +385,7 @@ const updateSemester = async (req, res, next) => {
                 registrationDeadline: nextRegistrationDeadline,
                 midtermReportDate: nextMidtermReportDate,
                 defenseDate: nextDefenseDate,
+                defenseCouncilTargetSize: parsedTargetSize.value,
                 bm03MidtermEvaluationOpenAt: nextMidtermOpenAt,
                 bm03FinalizationOpenAt: nextFinalOpenAt,
                 outlineAllowedExtensions: LOCKED_BM01_OUTLINE_EXTENSIONS,
