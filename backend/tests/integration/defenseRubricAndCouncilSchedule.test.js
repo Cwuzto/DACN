@@ -317,6 +317,9 @@ describe('Task 2: Defense Rubric, 22-Student Shift Splitting, Schedule Adjustmen
         prisma.council.findUnique.mockResolvedValue({
             id: 50,
             semesterId: 1,
+            assignmentConfirmedAt: new Date(),
+            location: 'Phòng 101',
+            defenseDate: new Date(),
             semester: {
                 lockedDefenseRubricVersionId: 100,
                 defenseEligibleListPublishedAt: new Date(),

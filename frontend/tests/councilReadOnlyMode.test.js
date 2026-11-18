@@ -2,9 +2,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const assignmentPagePath = path.resolve('src/pages/admin/CouncilAssignmentPage.jsx');
-const detailPagePath = path.resolve('src/pages/admin/CouncilDetailPage.jsx');
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const frontendRoot = path.resolve(__dirname, '..');
+const assignmentPagePath = path.resolve(frontendRoot, 'src/pages/admin/CouncilAssignmentPage.jsx');
+const detailPagePath = path.resolve(frontendRoot, 'src/pages/admin/CouncilDetailPage.jsx');
 
 test('Council Read-Only & Integrity: Files exist and adhere to UTF-8 without BOM (Rule 2.4)', () => {
     for (const filePath of [assignmentPagePath, detailPagePath]) {

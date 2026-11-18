@@ -114,6 +114,9 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
     const unassignedRegistrations = unassignedQuery.data || EMPTY_LIST;
     const loadingUnassigned = unassignedQuery.isFetching;
 
+    const isAssignmentConfirmed = Boolean(council?.assignmentConfirmedAt || council?.scheduleConfirmedAt);
+    const isSchedulePublished = Boolean(council?.schedulePublishedAt);
+
     const effectiveRegistrations = useMemo(() => {
         if (!council) return [];
         if (council.registrations && council.registrations.length > 0) return council.registrations;
@@ -653,12 +656,14 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                 const isGradedOrEvaluated = effectiveCouncilType === 'DEFENSE_COUNCIL'
                     ? (hasDefenseScore || isDefended)
                     : hasOutlineEval;
-                const isRemoveDisabled = isSemesterCompleted || isGradedOrEvaluated;
+                const isRemoveDisabled = isSemesterCompleted || isGradedOrEvaluated || isSchedulePublished;
                 const tooltipMsg = isSemesterCompleted
                     ? 'Đợt đồ án đã kết thúc (Chỉ đọc)'
-                    : isGradedOrEvaluated
-                        ? (effectiveCouncilType === 'DEFENSE_COUNCIL' ? 'Sinh viên đã có điểm bảo vệ hoặc đã bảo vệ' : 'Sinh viên đã được hội đồng thẩm định đề cương')
-                        : 'Gỡ sinh viên khỏi hội đồng';
+                    : isSchedulePublished
+                        ? 'Lịch bảo vệ chính thức đã công bố (Không thể gỡ sinh viên)'
+                        : isGradedOrEvaluated
+                            ? (effectiveCouncilType === 'DEFENSE_COUNCIL' ? 'Sinh viên đã có điểm bảo vệ hoặc đã bảo vệ' : 'Sinh viên đã được hội đồng thẩm định đề cương')
+                            : 'Gỡ sinh viên khỏi hội đồng';
 
                 if (isRemoveDisabled) {
                     return (
@@ -748,6 +753,16 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                             <Tag color={effectiveCouncilType === 'OUTLINE_REVIEW' ? 'purple' : 'teal'} className="font-bold border border-slate-300">
                                 {effectiveCouncilType === 'OUTLINE_REVIEW' ? 'Thẩm định Đề cương' : 'Chấm Bảo vệ'}
                             </Tag>
+                            {effectiveCouncilType === 'DEFENSE_COUNCIL' && isSchedulePublished && (
+                                <Tag color="success" icon={<CheckCircleOutlined />} className="font-bold border border-emerald-300">
+                                    Lịch bảo vệ chính thức (Đã công bố)
+                                </Tag>
+                            )}
+                            {effectiveCouncilType === 'DEFENSE_COUNCIL' && isAssignmentConfirmed && !isSchedulePublished && (
+                                <Tag color="processing" icon={<ClockCircleOutlined />} className="font-bold border border-blue-300">
+                                    Đã xác nhận phân công
+                                </Tag>
+                            )}
                             <span className={`text-xs px-2.5 py-1 rounded font-bold ${
                                 council.members?.length === 3 ? 'bg-emerald-50 text-emerald-800 border border-emerald-300' : 'bg-rose-50 text-rose-800 border border-rose-300'
                             }`}>
@@ -761,7 +776,7 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
 
                     {/* Action buttons */}
                     <div className="flex items-center gap-2 flex-wrap">
-                        {effectiveCouncilType === 'DEFENSE_COUNCIL' && canManageCouncil && (
+                        {effectiveCouncilType === 'DEFENSE_COUNCIL' && canManageCouncil && !isSchedulePublished && (
                             <Button
                                 type="primary"
                                 icon={<CalendarOutlined />}
@@ -781,7 +796,7 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
                         <Button icon={<HistoryOutlined />} onClick={openLogModal}>
                             Lịch sử thao tác
                         </Button>
-                        {canManageCouncil && (
+                        {canManageCouncil && !isSchedulePublished && (
                             <>
                                 <Button icon={<EditOutlined />} onClick={openEditModal} disabled={isSemesterCompleted}>
                                     Sửa thông tin HĐ
