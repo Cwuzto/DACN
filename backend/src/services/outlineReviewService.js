@@ -764,6 +764,21 @@ async function publishCouncilResults(councilId, chairId, idempotencyKey, options
                         });
                     }
                 }
+            } else if (evaluation.initialOutcome === 'FAIL') {
+                await tx.bM01Evaluation.update({
+                    where: { id: evaluation.id },
+                    data: {
+                        outcome: 'TERMINATED',
+                        revisionApprovalStatus: 'REJECTED',
+                    },
+                });
+                await tx.topicRegistration.update({
+                    where: { id: evaluation.registrationId },
+                    data: {
+                        status: 'TERMINATED_BM01',
+                        stateVersion: { increment: 1 },
+                    },
+                });
             } else {
                 await tx.bM01Evaluation.update({
                     where: { id: evaluation.id },
@@ -1358,6 +1373,54 @@ async function finalizeOverdueResubmissions(councilId, actorId, options = {}) {
     });
 }
 
+/**
+ * Unified outline review command (v1 or v2)
+ */
+async function reviewOutlineRegistration({ registrationId, reviewerId, decision, feedback, idempotencyKey }, options = {}) {
+    const db = options.db || prisma;
+    const regId = Number(registrationId);
+    const uId = Number(reviewerId);
+
+    const registration = await db.topicRegistration.findUnique({
+        where: { id: regId },
+        include: {
+            topic: true,
+            outlineCouncil: { include: { members: true } },
+        },
+    });
+
+    if (!registration) {
+        throw new NotFoundError('REGISTRATION_NOT_FOUND');
+    }
+
+    const councilMembers = registration.outlineCouncil?.members || [];
+    const membership = councilMembers.find((m) => m.lecturerId === uId);
+
+    if (membership && membership.roleInCouncil !== 'CHAIRMAN') {
+        throw new ForbiddenError('ONLY_CHAIRMAN_CAN_APPROVE_OUTLINE');
+    }
+
+    let normalizedOutcome = 'NEEDS_REVISION';
+    if (['PASSED', 'PASS', 'APPROVE'].includes(decision)) {
+        normalizedOutcome = 'PASSED';
+    } else if (['FAIL', 'FAILED', 'REJECT'].includes(decision)) {
+        normalizedOutcome = 'FAIL';
+    }
+
+    const attemptNo = registration.status === 'BM01_RESUBMITTED' ? 2 : 1;
+    const idKey = idempotencyKey || `outline-review-${regId}-${attemptNo}-${Date.now()}`;
+
+    const { reviewBM01 } = require('./bm01WorkflowService');
+    return await reviewBM01({
+        registrationId: regId,
+        reviewerId: uId,
+        attemptNo,
+        outcome: normalizedOutcome,
+        feedback,
+        idempotencyKey: idKey,
+    }, options);
+}
+
 module.exports = {
     submitInitialOutline,
     publishCouncilSchedule,
@@ -1370,4 +1433,5 @@ module.exports = {
     reviewResubmission,
     reopenCouncilResults,
     finalizeOverdueResubmissions,
+    reviewOutlineRegistration,
 };

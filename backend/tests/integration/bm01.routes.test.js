@@ -149,6 +149,65 @@ describe('Integration - BM01 workflow routes', () => {
         expect(reviewBM01).not.toHaveBeenCalled();
     });
 
+    test('lecturer can submit FAIL outcome on outline-review without converting to revision', async () => {
+        prisma.topicRegistration.findUnique.mockResolvedValue({
+            id: 41,
+            studentId: 10,
+            status: 'BM01_SUBMITTED',
+            topic: { id: 5, title: 'Đề tài', mentorId: 20 },
+            student: { id: 10, fullName: 'Sinh viên' },
+        });
+        reviewBM01.mockResolvedValue({
+            evaluation: { id: 201, attemptNo: 1, outcome: 'TERMINATED' },
+            targetStatus: 'TERMINATED_BM01',
+            idempotent: false,
+        });
+
+        const response = await request(app)
+            .patch('/api/registrations/41/outline-review')
+            .set('Authorization', 'Bearer lecturer-token')
+            .set('Idempotency-Key', 'bm01-outline-fail-0001')
+            .send({ status: 'FAIL', feedback: 'Không đạt tiêu chí nghiên cứu' });
+
+        expect(response.status).toBe(200);
+        expect(reviewBM01).toHaveBeenCalledWith(expect.objectContaining({
+            registrationId: 41,
+            reviewerId: 21,
+            attemptNo: 1,
+            outcome: 'FAIL',
+            feedback: 'Không đạt tiêu chí nghiên cứu',
+        }));
+    });
+
+    test('lecturer reviewing BM01_RESUBMITTED evaluates attempt 2', async () => {
+        prisma.topicRegistration.findUnique.mockResolvedValue({
+            id: 41,
+            studentId: 10,
+            status: 'BM01_RESUBMITTED',
+            topic: { id: 5, title: 'Đề tài', mentorId: 20 },
+            student: { id: 10, fullName: 'Sinh viên' },
+        });
+        reviewBM01.mockResolvedValue({
+            evaluation: { id: 202, attemptNo: 2, outcome: 'PASSED' },
+            targetStatus: 'BM01_PASSED',
+            idempotent: false,
+        });
+
+        const response = await request(app)
+            .patch('/api/registrations/41/outline-review')
+            .set('Authorization', 'Bearer lecturer-token')
+            .set('Idempotency-Key', 'bm01-outline-resubmit-pass-0001')
+            .send({ status: 'PASSED', feedback: 'Đã chỉnh sửa tốt' });
+
+        expect(response.status).toBe(200);
+        expect(reviewBM01).toHaveBeenCalledWith(expect.objectContaining({
+            registrationId: 41,
+            reviewerId: 21,
+            attemptNo: 2,
+            outcome: 'PASSED',
+        }));
+    });
+
     test('BM02 review requires the dedicated institute capability', async () => {
         prisma.topicRegistration.findUnique.mockResolvedValue({
             id: 51,

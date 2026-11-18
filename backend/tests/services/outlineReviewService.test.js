@@ -485,7 +485,7 @@ describe('outlineReviewService & outlineSweepService', () => {
             expect(mockTx.task.create).not.toHaveBeenCalled();
         });
 
-        it('transitions REVISION_REQUIRED / FAIL / ABSENT to BM01_NEEDS_REVISION', async () => {
+        it('transitions REVISION_REQUIRED / ABSENT to BM01_NEEDS_REVISION and FAIL to TERMINATED_BM01', async () => {
             mockTx.bM01Evaluation.findMany.mockResolvedValue([
                 { id: 11, registrationId: 102, initialOutcome: 'REVISION_REQUIRED' },
                 { id: 12, registrationId: 103, initialOutcome: 'FAIL' },
@@ -503,7 +503,7 @@ describe('outlineReviewService & outlineSweepService', () => {
             expect(mockTx.topicRegistration.update).toHaveBeenCalledWith(
                 expect.objectContaining({
                     where: { id: 103 },
-                    data: expect.objectContaining({ status: 'BM01_NEEDS_REVISION' }),
+                    data: expect.objectContaining({ status: 'TERMINATED_BM01' }),
                 })
             );
             expect(mockTx.topicRegistration.update).toHaveBeenCalledWith(

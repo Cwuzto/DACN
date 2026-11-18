@@ -109,6 +109,22 @@ export const outlineService = {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi tải thông tin đề cương');
         }
     },
+
+    /**
+     * Thẩm định đề cương (v1 hoặc v2)
+     * POST /api/outline/reviews/:registrationId
+     */
+    reviewOutline: async (registrationId, data, idempotencyKey) => {
+        try {
+            return await api.post(
+                `/outline/reviews/${registrationId}`,
+                data,
+                idempotencyConfig(idempotencyKey)
+            );
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi thẩm định đề cương');
+        }
+    },
 };
 
 export default outlineService;

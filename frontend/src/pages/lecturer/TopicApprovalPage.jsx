@@ -71,7 +71,7 @@ export default function TopicApprovalPage() {
     const [timelineRegistration, setTimelineRegistration] = useState(null);
 
     const pendingOutlineCount = useMemo(() => {
-        return councilOutlineRegistrations.filter((r) => r.status === 'BM01_SUBMITTED').length;
+        return councilOutlineRegistrations.filter((r) => r.status === 'BM01_SUBMITTED' || r.status === 'BM01_RESUBMITTED').length;
     }, [councilOutlineRegistrations]);
 
     if (tabParam === 'bm02a') {
@@ -298,9 +298,9 @@ export default function TopicApprovalPage() {
                         councilOutlineRegistrations.map((record) => {
                             const student = record.student;
                             const topic = record.topic;
-                            const submissions = record.bm01Submissions || [];
+                            const submissions = record.bm01Submissions || record.submissions || [];
                             const latestSub = submissions[0];
-                            const isPendingReview = record.status === 'BM01_SUBMITTED';
+                            const isPendingReview = record.status === 'BM01_SUBMITTED' || record.status === 'BM01_RESUBMITTED';
 
                             return (
                                 <div

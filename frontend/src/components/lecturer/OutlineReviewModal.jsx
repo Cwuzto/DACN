@@ -4,6 +4,8 @@ import {
     FileTextOutlined,
     CheckCircleOutlined,
     CheckOutlined,
+    CloseCircleOutlined,
+    CloseOutlined,
     ExclamationCircleOutlined,
     DownloadOutlined,
     UserOutlined,
@@ -36,7 +38,9 @@ export default function OutlineReviewModal({
     const queryClient = useQueryClient();
 
     const bm01Submissions = React.useMemo(() => {
-        const list = Array.isArray(registration?.submissions) ? registration.submissions : [];
+        const list = Array.isArray(registration?.bm01Submissions) && registration.bm01Submissions.length > 0
+            ? registration.bm01Submissions
+            : (Array.isArray(registration?.submissions) ? registration.submissions : []);
         if (list.length > 0) return list;
         if (registration?.outlineFileUrl || registration?.outlineAssetId) {
             return [{
@@ -101,11 +105,17 @@ export default function OutlineReviewModal({
             return;
         }
 
+        if (decision === 'FAIL' && !feedback) {
+            message.warning('Vui lòng nhập lý do cụ thể khi kết luận KHÔNG ĐẠT để sinh viên được rõ.');
+            return;
+        }
+
         try {
             setSubmitting(true);
             const payload = {
                 status: decision,
                 decision: decision,
+                outcome: decision,
                 feedback: feedback,
                 reviewComment: feedback,
             };
@@ -116,7 +126,9 @@ export default function OutlineReviewModal({
                 message.success(
                     decision === 'PASSED'
                         ? 'Đã duyệt ĐẠT đề cương! Sinh viên có thể tiến hành nộp đơn đăng ký đề tài chính thức.'
-                        : 'Đã gửi yêu cầu chỉnh sửa đề cương tới sinh viên.'
+                        : (decision === 'FAIL'
+                            ? 'Đã ghi nhận kết quả KHÔNG ĐẠT. Đề tài chuyển sang trạng thái dừng.'
+                            : 'Đã gửi yêu cầu chỉnh sửa đề cương tới sinh viên.')
                 );
                 await queryClient.invalidateQueries({ queryKey: queryKeys.registrations.all(scope) });
                 onSuccess?.();
@@ -249,6 +261,20 @@ export default function OutlineReviewModal({
                                     </div>
                                 </div>
                             </Radio>
+
+                            <Radio
+                                value="FAIL"
+                                className="p-3 rounded-lg border border-slate-200 hover:border-rose-400 bg-rose-50/20"
+                            >
+                                <div className="ml-1">
+                                    <div className="font-semibold text-rose-700 flex items-center gap-1.5">
+                                        <CloseCircleOutlined /> KHÔNG ĐẠT — Dừng đề tài
+                                    </div>
+                                    <div className="text-xs text-slate-500 mt-0.5">
+                                        Đề cương không đáp ứng yêu cầu nghiên cứu khoa học. Đề tài sẽ bị dừng (TERMINATED_BM01).
+                                    </div>
+                                </div>
+                            </Radio>
                         </Radio.Group>
                     </Form.Item>
 
@@ -258,7 +284,7 @@ export default function OutlineReviewModal({
                             <div className="flex items-center justify-between w-full">
                                 <span className="text-xs font-semibold text-slate-700">
                                     Ý kiến nhận xét & Hướng dẫn chỉnh sửa của Hội đồng:
-                                    {selectedDecision === 'REVISION_REQUIRED' && (
+                                    {(selectedDecision === 'REVISION_REQUIRED' || selectedDecision === 'FAIL') && (
                                         <span className="text-rose-600 ml-1">(*) Bắt buộc</span>
                                     )}
                                 </span>
@@ -276,8 +302,10 @@ export default function OutlineReviewModal({
                         }
                         rules={[
                             {
-                                required: selectedDecision === 'REVISION_REQUIRED',
-                                message: 'Vui lòng nhập ý kiến góp ý chỉnh sửa cho sinh viên.',
+                                required: selectedDecision === 'REVISION_REQUIRED' || selectedDecision === 'FAIL',
+                                message: selectedDecision === 'FAIL'
+                                    ? 'Vui lòng nhập lý do cụ thể khi kết luận không đạt.'
+                                    : 'Vui lòng nhập ý kiến góp ý chỉnh sửa cho sinh viên.',
                             },
                         ]}
                     >
@@ -286,7 +314,9 @@ export default function OutlineReviewModal({
                             placeholder={
                                 selectedDecision === 'PASSED'
                                     ? 'Nhập nhận xét tích cực hoặc dặn dò thêm cho sinh viên khi triển khai đồ án (tùy chọn)...'
-                                    : 'Nêu rõ các nội dung cần sửa đổi (phương pháp nghiên cứu, công nghệ áp dụng, kế hoạch tiến độ, tài liệu tham khảo)...'
+                                    : (selectedDecision === 'FAIL'
+                                        ? 'Nêu rõ lý do không đạt yêu cầu nghiên cứu/học thuật của đề tài...'
+                                        : 'Nêu rõ các nội dung cần sửa đổi (phương pháp nghiên cứu, công nghệ áp dụng, kế hoạch tiến độ, tài liệu tham khảo)...')
                             }
                             className="text-xs"
                         />
@@ -298,7 +328,7 @@ export default function OutlineReviewModal({
                         </Button>
                         <Popconfirm
                             title="Xác nhận kết luận thẩm định đề cương"
-                            description={`Bạn chắc chắn muốn kết luận ${selectedDecision === 'PASSED' ? 'ĐẠT' : 'YÊU CẦU CHỈNH SỬA'} cho đề tài này?`}
+                            description={`Bạn chắc chắn muốn kết luận ${selectedDecision === 'PASSED' ? 'ĐẠT' : (selectedDecision === 'FAIL' ? 'KHÔNG ĐẠT (DỪNG ĐỀ TÀI)' : 'YÊU CẦU CHỈNH SỬA')} cho đề tài này?`}
                             onConfirm={() => form.submit()}
                             okText="Đồng ý"
                             cancelText="Hủy"
@@ -310,7 +340,9 @@ export default function OutlineReviewModal({
                                 className={
                                     selectedDecision === 'PASSED'
                                         ? '!bg-emerald-600 hover:!bg-emerald-500'
-                                        : '!bg-amber-600 hover:!bg-amber-500'
+                                        : (selectedDecision === 'FAIL'
+                                            ? '!bg-rose-600 hover:!bg-rose-500'
+                                            : '!bg-amber-600 hover:!bg-amber-500')
                                 }
                             >
                                 {selectedDecision === 'PASSED' ? 'Xác nhận duyệt Đạt' : 'Gửi yêu cầu chỉnh sửa'}

@@ -186,9 +186,13 @@ async function reviewBM01(input, options = {}) {
         feedback: input.feedback || null,
     });
 
-    if (![1, 2].includes(input.attemptNo) || !['PASSED', 'NEEDS_REVISION'].includes(input.outcome)) {
+    if (![1, 2].includes(input.attemptNo) || !['PASSED', 'NEEDS_REVISION', 'FAIL', 'FAILED', 'REJECT'].includes(input.outcome)) {
         throw new WorkflowTransitionError('BM01_REVIEW_INPUT_INVALID', 400);
     }
+
+    const normalizedOutcome = ['FAIL', 'FAILED', 'REJECT'].includes(input.outcome)
+        ? 'FAIL'
+        : (input.outcome === 'PASSED' ? 'PASSED' : 'NEEDS_REVISION');
 
     try {
         return await db.$transaction(async (tx) => {
@@ -203,7 +207,10 @@ async function reviewBM01(input, options = {}) {
             });
 
             const { registration, rules } = await loadRegistrationAndPolicy(tx, input.registrationId);
-            if (registration.status !== 'BM01_SUBMITTED') {
+            const expectedStatuses = input.attemptNo === 2
+                ? ['BM01_RESUBMITTED', 'BM01_SUBMITTED']
+                : ['BM01_SUBMITTED'];
+            if (!expectedStatuses.includes(registration.status)) {
                 throw new WorkflowTransitionError('INVALID_TRANSITION', 409);
             }
 
@@ -211,22 +218,23 @@ async function reviewBM01(input, options = {}) {
                 where: { registrationId: input.registrationId },
                 orderBy: { attemptNo: 'desc' },
             });
-            if (input.attemptNo === 1 && latest) {
+            if (input.attemptNo === 1 && latest && latest.outcome !== null) {
                 throw new WorkflowTransitionError('BM01_ATTEMPT_CONFLICT', 409);
             }
             if (input.attemptNo === 2
-                && (!latest || latest.attemptNo !== 2 || latest.outcome !== null || !latest.supersedesId)) {
+                && (!latest || (latest.attemptNo !== 2 && registration.status !== 'BM01_RESUBMITTED') || (latest.outcome !== null && registration.status !== 'BM01_RESUBMITTED'))) {
                 throw new WorkflowTransitionError('BM01_REVISION_NOT_PENDING', 409);
             }
 
-            const isTerminal = input.attemptNo === rules.maxResubmissions + 1
-                && input.outcome === 'NEEDS_REVISION';
-            const storedOutcome = isTerminal ? 'TERMINATED' : input.outcome;
-            const targetStatus = input.outcome === 'PASSED'
+            const isFail = normalizedOutcome === 'FAIL';
+            const isTerminal = isFail || (input.attemptNo === rules.maxResubmissions + 1
+                && normalizedOutcome === 'NEEDS_REVISION');
+            const storedOutcome = isTerminal ? 'TERMINATED' : normalizedOutcome;
+            const targetStatus = normalizedOutcome === 'PASSED'
                 ? 'BM01_PASSED'
                 : (isTerminal ? 'TERMINATED_BM01' : 'BM01_NEEDS_REVISION');
-            const notifiedAt = input.outcome === 'NEEDS_REVISION' ? now : null;
-            const deadlineAt = input.outcome === 'NEEDS_REVISION' && !isTerminal
+            const notifiedAt = normalizedOutcome === 'NEEDS_REVISION' ? now : null;
+            const deadlineAt = normalizedOutcome === 'NEEDS_REVISION' && !isTerminal
                 ? addDays(now, rules.revisionWindowDays)
                 : null;
             const evaluationData = {
@@ -237,12 +245,13 @@ async function reviewBM01(input, options = {}) {
                 notifiedAt,
                 deadlineAt,
             };
-            const evaluation = input.attemptNo === 1
+            const evaluation = (input.attemptNo === 1 || !latest || latest.attemptNo < 2)
                 ? await tx.bM01Evaluation.create({
                     data: {
                         registrationId: input.registrationId,
-                        attemptNo: 1,
+                        attemptNo: input.attemptNo,
                         policyVersionId: registration.periodPolicyVersionId,
+                        supersedesId: latest?.id || null,
                         ...evaluationData,
                     },
                 })
@@ -258,9 +267,33 @@ async function reviewBM01(input, options = {}) {
                 },
             });
 
+            if (targetStatus === 'BM01_PASSED' && tx.task) {
+                const existingBm02Task = await tx.task.findFirst({
+                    where: {
+                        registrationId: registration.id,
+                        taskType: 'BM02',
+                    },
+                });
+                if (!existingBm02Task) {
+                    await tx.task.create({
+                        data: {
+                            registrationId: registration.id,
+                            title: 'Nộp đơn đăng ký đề tài chính thức (BM02)',
+                            taskType: 'BM02',
+                            status: 'OPEN',
+                        },
+                    });
+                } else if (existingBm02Task.status !== 'OPEN') {
+                    await tx.task.update({
+                        where: { id: existingBm02Task.id },
+                        data: { status: 'OPEN' },
+                    });
+                }
+            }
+
             await transitionRegistration({
                 registrationId: registration.id,
-                expectedStatus: 'BM01_SUBMITTED',
+                expectedStatus: registration.status,
                 expectedStateVersion: registration.stateVersion,
                 targetStatus,
                 actorId: input.reviewerId,

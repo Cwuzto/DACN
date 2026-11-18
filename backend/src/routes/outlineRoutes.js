@@ -86,4 +86,17 @@ router.get(
     outlineController.getMyOutline
 );
 
+// Thẩm định đề cương v1 hoặc v2 qua cùng một command
+router.post(
+    ['/reviews', '/reviews/:registrationId'],
+    authorizePermission(PERMISSIONS.OUTLINE_REVIEW),
+    outlineController.reviewOutline
+);
+
+router.put(
+    '/reviews/:registrationId',
+    authorizePermission(PERMISSIONS.OUTLINE_REVIEW),
+    outlineController.reviewOutline
+);
+
 module.exports = router;

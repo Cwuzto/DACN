@@ -18,6 +18,7 @@ jest.mock('../../src/services/outlineReviewService', () => ({
     reviewResubmission: jest.fn(),
     reopenCouncilResults: jest.fn(),
     finalizeOverdueResubmissions: jest.fn(),
+    reviewOutlineRegistration: jest.fn(),
 }));
 
 jest.mock('../../src/services/outlineAutoSetupService', () => ({
@@ -571,6 +572,98 @@ describe('Integration - Outline Review & Council Routes (Task 4)', () => {
                 .set('Authorization', 'Bearer outsider-token');
 
             expect(res.status).toBe(403);
+        });
+
+        describe('Unified BM01 Outline Review Command (/api/outline/reviews)', () => {
+            test('POST /api/outline/reviews/:registrationId - lecturer reviews outline returns 200', async () => {
+                outlineReviewService.reviewOutlineRegistration.mockResolvedValue({
+                    registrationId: 50,
+                    status: 'BM01_PASSED',
+                });
+
+                const res = await request(app)
+                    .post('/api/outline/reviews/50')
+                    .set('Authorization', 'Bearer chairman-token')
+                    .set('Idempotency-Key', 'review-key-01')
+                    .send({ decision: 'PASSED', feedback: 'Đề cương rất tốt' });
+
+                expect(res.status).toBe(200);
+                expect(res.body.success).toBe(true);
+                expect(outlineReviewService.reviewOutlineRegistration).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        registrationId: 50,
+                        reviewerId: 30,
+                        decision: 'PASSED',
+                        feedback: 'Đề cương rất tốt',
+                        idempotencyKey: 'review-key-01',
+                    })
+                );
+            });
+
+            test('POST /api/outline/reviews - reviews with FAIL decision returns 200 and retains FAIL', async () => {
+                outlineReviewService.reviewOutlineRegistration.mockResolvedValue({
+                    registrationId: 50,
+                    status: 'TERMINATED_BM01',
+                });
+
+                const res = await request(app)
+                    .post('/api/outline/reviews')
+                    .set('Authorization', 'Bearer secretary-token')
+                    .send({ registrationId: 50, decision: 'FAIL', feedback: 'Không đạt tiêu chuẩn nghiên cứu' });
+
+                expect(res.status).toBe(200);
+                expect(res.body.success).toBe(true);
+                expect(outlineReviewService.reviewOutlineRegistration).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        registrationId: 50,
+                        reviewerId: 31,
+                        decision: 'FAIL',
+                        feedback: 'Không đạt tiêu chuẩn nghiên cứu',
+                    })
+                );
+            });
+
+            test('PUT /api/outline/reviews/:registrationId - works with PUT method', async () => {
+                outlineReviewService.reviewOutlineRegistration.mockResolvedValue({
+                    registrationId: 50,
+                    status: 'BM01_NEEDS_REVISION',
+                });
+
+                const res = await request(app)
+                    .put('/api/outline/reviews/50')
+                    .set('Authorization', 'Bearer chairman-token')
+                    .send({ decision: 'REVISION_REQUIRED', feedback: 'Cần bổ sung phần phương pháp' });
+
+                expect(res.status).toBe(200);
+                expect(res.body.success).toBe(true);
+                expect(outlineReviewService.reviewOutlineRegistration).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        registrationId: 50,
+                        reviewerId: 30,
+                        decision: 'REVISION_REQUIRED',
+                        feedback: 'Cần bổ sung phần phương pháp',
+                    })
+                );
+            });
+
+            test('POST /api/outline/reviews - rejects student without permission (403)', async () => {
+                const res = await request(app)
+                    .post('/api/outline/reviews/50')
+                    .set('Authorization', 'Bearer student-token')
+                    .send({ decision: 'PASSED' });
+
+                expect(res.status).toBe(403);
+            });
+
+            test('POST /api/outline/reviews - rejects invalid status (400)', async () => {
+                const res = await request(app)
+                    .post('/api/outline/reviews/50')
+                    .set('Authorization', 'Bearer chairman-token')
+                    .send({ decision: 'INVALID_STATUS' });
+
+                expect(res.status).toBe(400);
+                expect(res.body.message).toContain('Trạng thái xét duyệt đề cương không hợp lệ');
+            });
         });
     });
 });
