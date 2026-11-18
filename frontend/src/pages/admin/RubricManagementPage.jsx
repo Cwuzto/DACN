@@ -10,9 +10,12 @@ import {
 } from 'antd';
 import {
     CheckCircleOutlined,
+    CopyOutlined,
     DeleteOutlined,
     DownloadOutlined,
+    ExclamationCircleOutlined,
     EyeOutlined,
+    InfoCircleOutlined,
     LockOutlined,
     PlusOutlined,
     ReloadOutlined,
@@ -30,6 +33,75 @@ import AuthorizedAction from '../../components/common/AuthorizedAction';
 import { canPerformFeatureAction } from '../../auth/policyEvaluator';
 
 const round2 = (num) => Math.round((Number(num) || 0) * 100) / 100;
+
+const DEFAULT_SCORE_LEVEL_POLICY = {
+    good: { minPercent: 85, maxPercent: 100, suggestedPercent: 90 },
+    fair: { minPercent: 70, maxPercent: 85, suggestedPercent: 75 },
+    average: { minPercent: 50, maxPercent: 70, suggestedPercent: 60 },
+    poor: { minPercent: 0, maxPercent: 50, suggestedPercent: 30 },
+};
+
+const SCORE_LEVEL_META = [
+    { key: 'good', label: 'Tốt', color: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0', upperInclusive: true },
+    { key: 'fair', label: 'Khá', color: '#0284c7', bg: '#f0f9ff', border: '#bae6fd', upperInclusive: false },
+    { key: 'average', label: 'Trung bình', color: '#d97706', bg: '#fffbeb', border: '#fde68a', upperInclusive: false },
+    { key: 'poor', label: 'Kém', color: '#dc2626', bg: '#fef2f2', border: '#fecaca', upperInclusive: false },
+];
+
+const cloneDefaultScoreLevelPolicy = () => ({
+    good: { ...DEFAULT_SCORE_LEVEL_POLICY.good },
+    fair: { ...DEFAULT_SCORE_LEVEL_POLICY.fair },
+    average: { ...DEFAULT_SCORE_LEVEL_POLICY.average },
+    poor: { ...DEFAULT_SCORE_LEVEL_POLICY.poor },
+});
+
+const normalizeScoreLevelPolicy = (policy) => {
+    const result = {};
+    for (const { key } of SCORE_LEVEL_META) {
+        const def = DEFAULT_SCORE_LEVEL_POLICY[key];
+        const raw = policy && typeof policy === 'object' ? policy[key] : null;
+        result[key] = {
+            minPercent: raw && raw.minPercent !== '' && raw.minPercent !== null && raw.minPercent !== undefined && Number.isFinite(Number(raw.minPercent))
+                ? Number(raw.minPercent)
+                : def.minPercent,
+            maxPercent: raw && raw.maxPercent !== '' && raw.maxPercent !== null && raw.maxPercent !== undefined && Number.isFinite(Number(raw.maxPercent))
+                ? Number(raw.maxPercent)
+                : def.maxPercent,
+            suggestedPercent: raw && raw.suggestedPercent !== '' && raw.suggestedPercent !== null && raw.suggestedPercent !== undefined && Number.isFinite(Number(raw.suggestedPercent))
+                ? Number(raw.suggestedPercent)
+                : def.suggestedPercent,
+        };
+    }
+    return result;
+};
+
+const sanitizeScoreLevelPolicy = (policy) => {
+    const source = policy || DEFAULT_SCORE_LEVEL_POLICY;
+    const result = {};
+    for (const { key } of SCORE_LEVEL_META) {
+        const def = DEFAULT_SCORE_LEVEL_POLICY[key];
+        const raw = source[key] || def;
+        const parseNumeric = (val) => {
+            if (val === '' || val === null || val === undefined) return null;
+            const num = Number(val);
+            return Number.isFinite(num) ? num : null;
+        };
+        result[key] = {
+            minPercent: parseNumeric(raw.minPercent),
+            maxPercent: parseNumeric(raw.maxPercent),
+            suggestedPercent: parseNumeric(raw.suggestedPercent),
+        };
+    }
+    return result;
+};
+
+const formatPolicyRangeText = (levelMeta, levelPolicy) => {
+    const min = levelPolicy?.minPercent ?? '—';
+    const max = levelPolicy?.maxPercent ?? '—';
+    const suggested = levelPolicy?.suggestedPercent ?? '—';
+    const upperPrefix = levelMeta.upperInclusive ? '' : '<';
+    return `${min}% – ${upperPrefix}${max}% · Gợi ý ${suggested}%`;
+};
 
 const DEFAULT_FORMS = [
     {
@@ -178,7 +250,7 @@ export default function RubricManagementPage() {
     // Queries portal templates via portalContentService.getPublicContent
     const portalContentQuery = usePublicPortalContent(scope);
 
-    const versions = versionsQuery.data?.versions || [];
+    const versions = useMemo(() => versionsQuery.data?.versions || [], [versionsQuery.data?.versions]);
     const systemEditable = versionsQuery.data?.systemEditable !== undefined ? Boolean(versionsQuery.data.systemEditable) : true;
     const systemEditableReason = versionsQuery.data?.systemEditableReason || '';
 
@@ -192,25 +264,30 @@ export default function RubricManagementPage() {
 
     // Active Rubric Editing state (Tab 2)
     const [activeRubricId, setActiveRubricId] = useState(null);
+    const hasAutoSelectedRef = useRef(false);
     const detailQuery = useRubricDetail(scope, activeRubricId, Boolean(activeRubricId));
 
     const [formTitle, setFormTitle] = useState('Barem đánh giá bảo vệ đồ án tốt nghiệp khóa mới');
     const [formDescription, setFormDescription] = useState('Barem đánh giá chuẩn hóa theo quy chế học vụ.');
     const [formCategories, setFormCategories] = useState([]);
+    const [formScoreLevelPolicy, setFormScoreLevelPolicy] = useState(cloneDefaultScoreLevelPolicy);
+    const [saveError, setSaveError] = useState('');
     const [saving, setSaving] = useState(false);
 
     // Clone Modal state
     const [cloneModalOpen, setCloneModalOpen] = useState(false);
     const [cloneSourceId, setCloneSourceId] = useState(null);
+    const [cloneSourcePolicy, setCloneSourcePolicy] = useState(cloneDefaultScoreLevelPolicy);
     const [cloneVersionName, setCloneVersionName] = useState('');
     const [cloneTitle, setCloneTitle] = useState('');
     const [cloning, setCloning] = useState(false);
 
-    // Auto pick active rubric when versions arrive and no rubric selected
+    // Auto pick active rubric once when versions arrive and no rubric selected
     useEffect(() => {
-        if (versions.length > 0 && !activeRubricId) {
+        if (!hasAutoSelectedRef.current && versions.length > 0 && !activeRubricId) {
             const currentActive = versions.find((v) => v.isActive) || versions[0];
             if (currentActive) {
+                hasAutoSelectedRef.current = true;
                 setActiveRubricId(currentActive.id);
             }
         }
@@ -221,17 +298,49 @@ export default function RubricManagementPage() {
     useEffect(() => {
         if (detailQuery.data && detailQuery.data.id === activeRubricId && lastLoadedRubricIdRef.current !== activeRubricId) {
             const r = detailQuery.data;
+            const versionFallback = versions.find((v) => v.id === activeRubricId);
             setFormTitle(r.title || '');
             setFormDescription(r.description || '');
             setFormCategories(
                 (r.categories || []).map((cat) => ({
                     ...cat,
-                    criteria: (cat.criteria || []).map((cri) => ({ ...cri })),
+                    criteria: (cat.criteria || []).map((cri) => ({
+                        ...cri,
+                        descGood: cri.descGood ?? cri.levelGoodDesc ?? '',
+                        descFair: cri.descFair ?? cri.levelFairDesc ?? '',
+                        descAverage: cri.descAverage ?? cri.levelAverageDesc ?? '',
+                        descPoor: cri.descPoor ?? cri.levelPoorDesc ?? '',
+                    })),
                 }))
             );
+            setFormScoreLevelPolicy(normalizeScoreLevelPolicy(r.scoreLevelPolicy || versionFallback?.scoreLevelPolicy));
+            setSaveError('');
             lastLoadedRubricIdRef.current = activeRubricId;
         }
-    }, [detailQuery.data, activeRubricId]);
+    }, [detailQuery.data, activeRubricId, versions]);
+
+    const currentRubric = useMemo(() => {
+        if (!activeRubricId) return null;
+        if (detailQuery.data && detailQuery.data.id === activeRubricId) {
+            return detailQuery.data;
+        }
+        return versions.find((v) => v.id === activeRubricId) || null;
+    }, [activeRubricId, detailQuery.data, versions]);
+
+    const isUsedInGrading = Boolean(
+        currentRubric?.isLockedByGrading
+        || Number(currentRubric?.totalGradedSubmissions || 0) > 0
+        || Number(currentRubric?.usedInScoringCount || 0) > 0
+    );
+
+    const isRubricLocked = Boolean(
+        currentRubric?.isLocked
+        || currentRubric?.lockedAt
+        || currentRubric?.isActive
+        || (currentRubric?.status && currentRubric.status !== 'DRAFT')
+    );
+
+    const canEditScoreLevelPolicy = !activeRubricId || (Boolean(currentRubric) && !isRubricLocked && !isUsedInGrading);
 
     // Merge public portal templates with defaults
     const forms = useMemo(() => {
@@ -412,10 +521,29 @@ export default function RubricManagementPage() {
         );
     };
 
+    const handleUpdateScoreLevelField = (levelKey, field, rawValue) => {
+        setSaveError('');
+        setFormScoreLevelPolicy((prev) => ({
+            ...prev,
+            [levelKey]: {
+                ...(prev[levelKey] || DEFAULT_SCORE_LEVEL_POLICY[levelKey]),
+                [field]: rawValue === '' ? '' : Number(rawValue),
+            },
+        }));
+    };
+
+    const handleResetDefaultPolicy = () => {
+        setSaveError('');
+        setFormScoreLevelPolicy(cloneDefaultScoreLevelPolicy());
+    };
+
     // Save rubric builder changes
     const handleSaveRubric = async () => {
+        setSaveError('');
         if (!isScoreValid) {
-            message.warning(`Tổng điểm toàn barem hiện tại là ${totalScore}đ. Bắt buộc phải bằng chính xác 10.0đ.`);
+            const msg = `Tổng điểm toàn barem hiện tại là ${totalScore}đ. Bắt buộc phải bằng chính xác 10.0đ.`;
+            setSaveError(msg);
+            message.warning(msg);
             return;
         }
 
@@ -424,9 +552,9 @@ export default function RubricManagementPage() {
                 (cat.criteria || []).reduce((sum, cri) => sum + (Number(cri.maxScore) || 0), 0)
             );
             if (sumCri !== Number(cat.maxScore)) {
-                message.warning(
-                    `Tổng điểm tiêu chí trong nhóm "${cat.name}" là ${sumCri}đ, chưa khớp với điểm nhóm (${cat.maxScore}đ).`
-                );
+                const msg = `Tổng điểm tiêu chí trong nhóm "${cat.name}" là ${sumCri}đ, chưa khớp với điểm nhóm (${cat.maxScore}đ).`;
+                setSaveError(msg);
+                message.warning(msg);
                 return;
             }
         }
@@ -436,6 +564,7 @@ export default function RubricManagementPage() {
             const payload = {
                 title: formTitle.trim(),
                 description: formDescription.trim(),
+                scoreLevelPolicy: sanitizeScoreLevelPolicy(formScoreLevelPolicy),
                 categories: formCategories.map((cat, catIdx) => ({
                     code: cat.code.trim().toUpperCase(),
                     name: cat.name.trim(),
@@ -458,17 +587,26 @@ export default function RubricManagementPage() {
             };
 
             if (activeRubricId) {
-                await rubricMutation.mutateAsync({ action: 'updateRubric', args: [activeRubricId, payload] });
+                const res = await rubricMutation.mutateAsync({ action: 'updateRubric', args: [activeRubricId, payload] });
+                if (res?.data?.scoreLevelPolicy) {
+                    setFormScoreLevelPolicy(normalizeScoreLevelPolicy(res.data.scoreLevelPolicy));
+                }
+                lastLoadedRubricIdRef.current = null;
                 message.success('Đã lưu cấu hình Rubric thành công!');
             } else {
                 payload.version = `v${versions.length + 1}`;
                 const res = await rubricMutation.mutateAsync({ action: 'createRubric', args: [payload] });
                 message.success('Đã tạo phiên bản Rubric mới thành công!');
                 lastLoadedRubricIdRef.current = null;
+                if (res.data?.scoreLevelPolicy) {
+                    setFormScoreLevelPolicy(normalizeScoreLevelPolicy(res.data.scoreLevelPolicy));
+                }
                 setActiveRubricId(res.data?.id);
             }
         } catch (error) {
-            message.error(error.message || 'Lưu phiên bản Rubric thất bại');
+            const errorMessage = error?.message || error?.response?.data?.message || 'Lưu phiên bản Rubric thất bại';
+            setSaveError(errorMessage);
+            message.error(errorMessage);
         } finally {
             setSaving(false);
         }
@@ -575,7 +713,12 @@ export default function RubricManagementPage() {
 
     // Open clone modal
     const handleOpenClone = (rubric) => {
+        const detailMatch = detailQuery.data?.id === rubric.id ? detailQuery.data : null;
+        const inheritedPolicy = normalizeScoreLevelPolicy(
+            rubric.scoreLevelPolicy || detailMatch?.scoreLevelPolicy
+        );
         setCloneSourceId(rubric.id);
+        setCloneSourcePolicy(inheritedPolicy);
         setCloneVersionName(`v${versions.length + 1}`);
         setCloneTitle(`Bản sao của ${rubric.title}`);
         setCloneModalOpen(true);
@@ -595,12 +738,15 @@ export default function RubricManagementPage() {
                     version: cloneVersionName.trim().toLowerCase(),
                     title: cloneTitle.trim(),
                     cloneFromId: cloneSourceId,
+                    scoreLevelPolicy: sanitizeScoreLevelPolicy(cloneSourcePolicy),
                 }],
             });
 
             message.success('Đã nhân bản phiên bản mới thành công!');
             setCloneModalOpen(false);
             lastLoadedRubricIdRef.current = null;
+            setSaveError('');
+            setFormScoreLevelPolicy(normalizeScoreLevelPolicy(res.data?.scoreLevelPolicy || cloneSourcePolicy));
             setActiveRubricId(res.data?.id);
             setActiveTab('rubric');
         } catch (error) {
@@ -651,8 +797,13 @@ export default function RubricManagementPage() {
                             type="primary"
                             icon={<PlusOutlined />}
                             onClick={() => {
+                                hasAutoSelectedRef.current = true;
+                                lastLoadedRubricIdRef.current = null;
                                 setActiveRubricId(null);
                                 setFormTitle('Barem đánh giá bảo vệ đồ án tốt nghiệp khóa mới');
+                                setFormDescription('Barem đánh giá chuẩn hóa theo quy chế học vụ.');
+                                setFormScoreLevelPolicy(cloneDefaultScoreLevelPolicy());
+                                setSaveError('');
                                 handleResetToDefault();
                                 setActiveTab('rubric');
                             }}
@@ -933,7 +1084,7 @@ export default function RubricManagementPage() {
             {/* TAB 2: BIÊN TẬP RUBRIC BUILDER */}
             {activeTab === 'rubric' && (
                 <QueryPanel query={versionsQuery}>
-                    <QueryPanel query={detailQuery}>
+                    <QueryPanel query={activeRubricId ? detailQuery : { isPending: false, isError: false, isFetching: false, data: true }}>
                         <div>
                     {/* High Privilege Admin Notice Banner */}
                     <div
@@ -1103,6 +1254,223 @@ export default function RubricManagementPage() {
                         </div>
                     </div>
 
+                    {saveError && (
+                        <div
+                            role="alert"
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 10,
+                                padding: '12px 16px',
+                                marginBottom: 20,
+                                borderRadius: 'var(--radius-lg)',
+                                background: '#FEF2F2',
+                                border: '1px solid #FECACA',
+                                color: '#B91C1C',
+                                fontSize: 13,
+                                fontWeight: 600,
+                            }}
+                        >
+                            <ExclamationCircleOutlined style={{ fontSize: 16, flexShrink: 0 }} />
+                            <span>{saveError}</span>
+                        </div>
+                    )}
+
+                    {/* Score Level Policy Section */}
+                    <section
+                        aria-label="Chính sách mức điểm Rubric"
+                        style={{
+                            background: 'var(--surface)',
+                            border: '1px solid var(--border)',
+                            borderRadius: 'var(--radius-lg)',
+                            padding: '16px 20px',
+                            marginBottom: 20,
+                        }}
+                    >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 14 }}>
+                            <div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                    <span className="eyebrow">SCORE LEVEL POLICY</span>
+                                    {!canEditScoreLevelPolicy && (
+                                        <span
+                                            style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: 4,
+                                                fontSize: 11,
+                                                fontWeight: 700,
+                                                padding: '2px 8px',
+                                                borderRadius: 999,
+                                                background: '#F1F5F9',
+                                                color: '#475569',
+                                            }}
+                                        >
+                                            <LockOutlined />
+                                            Chỉ đọc
+                                        </span>
+                                    )}
+                                </div>
+                                <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--fg)', marginTop: 4, marginBottom: 2 }}>
+                                    Chính sách quy đổi 4 mức điểm
+                                </h2>
+                                <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>
+                                    Biên dưới bao gồm và biên trên không bao gồm (riêng mức Tốt bao gồm 100%). Điểm gợi ý tính theo tỷ lệ phần trăm của điểm tối đa từng tiêu chí.
+                                </p>
+                            </div>
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                {canEditScoreLevelPolicy ? (
+                                    <AuthorizedAction feature="rubric-config" action="manage">
+                                        <Button
+                                            size="small"
+                                            icon={<ReloadOutlined />}
+                                            onClick={handleResetDefaultPolicy}
+                                        >
+                                            Khôi phục ngưỡng mặc định
+                                        </Button>
+                                    </AuthorizedAction>
+                                ) : (
+                                    currentRubric && (
+                                        <AuthorizedAction feature="rubric-config" action="manage">
+                                            <Button
+                                                size="small"
+                                                icon={<CopyOutlined />}
+                                                onClick={() => handleOpenClone(currentRubric)}
+                                            >
+                                                Nhân bản phiên bản này
+                                            </Button>
+                                        </AuthorizedAction>
+                                    )
+                                )}
+                            </div>
+                        </div>
+
+                        {!canEditScoreLevelPolicy && (
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 8,
+                                    padding: '10px 12px',
+                                    marginBottom: 14,
+                                    borderRadius: 8,
+                                    background: '#F8FAFC',
+                                    border: '1px solid #E2E8F0',
+                                    fontSize: 12.5,
+                                    color: '#334155',
+                                }}
+                            >
+                                <InfoCircleOutlined style={{ color: '#0284C7', flexShrink: 0 }} />
+                                <span>
+                                    {isUsedInGrading
+                                        ? 'Phiên bản Rubric này đã được sử dụng để chấm điểm nên chính sách mức điểm ở chế độ chỉ đọc. Hãy nhân bản sang phiên bản mới nếu cần thay đổi.'
+                                        : 'Phiên bản Rubric này đã khóa hoặc đang áp dụng chính thức nên chính sách mức điểm ở chế độ chỉ đọc. Hãy nhân bản sang phiên bản nháp mới để chỉnh sửa.'}
+                                </span>
+                            </div>
+                        )}
+
+                        <div
+                            style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                                gap: 12,
+                            }}
+                        >
+                            {SCORE_LEVEL_META.map((level) => {
+                                const levelPolicy = formScoreLevelPolicy?.[level.key] || DEFAULT_SCORE_LEVEL_POLICY[level.key];
+                                return (
+                                    <div
+                                        key={level.key}
+                                        data-testid={`policy-level-${level.key}`}
+                                        style={{
+                                            border: `1px solid ${level.border}`,
+                                            background: level.bg,
+                                            borderRadius: 10,
+                                            padding: 12,
+                                        }}
+                                    >
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                                            <span style={{ fontWeight: 700, fontSize: 13.5, color: level.color }}>
+                                                {level.label}
+                                            </span>
+                                            <span style={{ fontSize: 11.5, fontWeight: 600, color: '#334155' }}>
+                                                {formatPolicyRangeText(level, levelPolicy)}
+                                            </span>
+                                        </div>
+
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
+                                            <div>
+                                                <label
+                                                    htmlFor={`policy-${level.key}-min`}
+                                                    style={{ fontSize: 11, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}
+                                                >
+                                                    Biên dưới (%)
+                                                </label>
+                                                <input
+                                                    id={`policy-${level.key}-min`}
+                                                    aria-label={`${level.label} - Biên dưới (%)`}
+                                                    type="number"
+                                                    className="input-field"
+                                                    min="0"
+                                                    max="100"
+                                                    step="1"
+                                                    value={levelPolicy.minPercent ?? ''}
+                                                    disabled={!canEditScoreLevelPolicy}
+                                                    readOnly={!canEditScoreLevelPolicy}
+                                                    onChange={(e) => handleUpdateScoreLevelField(level.key, 'minPercent', e.target.value)}
+                                                    style={{ width: '100%', fontSize: 12.5, fontWeight: 600 }}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label
+                                                    htmlFor={`policy-${level.key}-max`}
+                                                    style={{ fontSize: 11, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}
+                                                >
+                                                    Biên trên (%)
+                                                </label>
+                                                <input
+                                                    id={`policy-${level.key}-max`}
+                                                    aria-label={`${level.label} - Biên trên (%)`}
+                                                    type="number"
+                                                    className="input-field"
+                                                    min="0"
+                                                    max="100"
+                                                    step="1"
+                                                    value={levelPolicy.maxPercent ?? ''}
+                                                    disabled={!canEditScoreLevelPolicy}
+                                                    readOnly={!canEditScoreLevelPolicy}
+                                                    onChange={(e) => handleUpdateScoreLevelField(level.key, 'maxPercent', e.target.value)}
+                                                    style={{ width: '100%', fontSize: 12.5, fontWeight: 600 }}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label
+                                                    htmlFor={`policy-${level.key}-suggested`}
+                                                    style={{ fontSize: 11, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}
+                                                >
+                                                    Điểm gợi ý (%)
+                                                </label>
+                                                <input
+                                                    id={`policy-${level.key}-suggested`}
+                                                    aria-label={`${level.label} - Điểm gợi ý (%)`}
+                                                    type="number"
+                                                    className="input-field"
+                                                    min="0"
+                                                    max="100"
+                                                    step="1"
+                                                    value={levelPolicy.suggestedPercent ?? ''}
+                                                    disabled={!canEditScoreLevelPolicy}
+                                                    readOnly={!canEditScoreLevelPolicy}
+                                                    onChange={(e) => handleUpdateScoreLevelField(level.key, 'suggestedPercent', e.target.value)}
+                                                    style={{ width: '100%', fontSize: 12.5, fontWeight: 600 }}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </section>
+
                     {/* Dynamic Groups Container */}
                     <div>
                         {formCategories.map((cat, catIdx) => {
@@ -1228,7 +1596,9 @@ export default function RubricManagementPage() {
                                                     />
                                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
                                                         <div>
-                                                            <span style={{ fontSize: 10, fontWeight: 700, color: '#16a34a', display: 'block' }}>Tốt (85-100%):</span>
+                                                            <span style={{ fontSize: 10, fontWeight: 700, color: '#16a34a', display: 'block' }}>
+                                                                {`Tốt (${formScoreLevelPolicy.good.minPercent}-${formScoreLevelPolicy.good.maxPercent}%):`}
+                                                            </span>
                                                             <input
                                                                 type="text"
                                                                 className="input-field"
@@ -1239,7 +1609,9 @@ export default function RubricManagementPage() {
                                                             />
                                                         </div>
                                                         <div>
-                                                            <span style={{ fontSize: 10, fontWeight: 700, color: '#0284c7', display: 'block' }}>Khá (70-84%):</span>
+                                                            <span style={{ fontSize: 10, fontWeight: 700, color: '#0284c7', display: 'block' }}>
+                                                                {`Khá (${formScoreLevelPolicy.fair.minPercent}-<${formScoreLevelPolicy.fair.maxPercent}%):`}
+                                                            </span>
                                                             <input
                                                                 type="text"
                                                                 className="input-field"
@@ -1250,7 +1622,9 @@ export default function RubricManagementPage() {
                                                             />
                                                         </div>
                                                         <div>
-                                                            <span style={{ fontSize: 10, fontWeight: 700, color: '#d97706', display: 'block' }}>Trung bình (50-69%):</span>
+                                                            <span style={{ fontSize: 10, fontWeight: 700, color: '#d97706', display: 'block' }}>
+                                                                {`Trung bình (${formScoreLevelPolicy.average.minPercent}-<${formScoreLevelPolicy.average.maxPercent}%):`}
+                                                            </span>
                                                             <input
                                                                 type="text"
                                                                 className="input-field"
@@ -1261,7 +1635,9 @@ export default function RubricManagementPage() {
                                                             />
                                                         </div>
                                                         <div>
-                                                            <span style={{ fontSize: 10, fontWeight: 700, color: '#dc2626', display: 'block' }}>Kém (&lt;50%):</span>
+                                                            <span style={{ fontSize: 10, fontWeight: 700, color: '#dc2626', display: 'block' }}>
+                                                                {`Kém (${formScoreLevelPolicy.poor.minPercent}-<${formScoreLevelPolicy.poor.maxPercent}%):`}
+                                                            </span>
                                                             <input
                                                                 type="text"
                                                                 className="input-field"
@@ -1535,6 +1911,18 @@ export default function RubricManagementPage() {
                             onChange={(e) => setCloneTitle(e.target.value)}
                             style={{ width: '100%' }}
                         />
+                    </div>
+                    <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '10px 12px' }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                            Chính sách mức điểm kế thừa từ phiên bản gốc:
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6, fontSize: 12 }}>
+                            {SCORE_LEVEL_META.map((level) => (
+                                <div key={level.key} style={{ color: level.color, fontWeight: 600 }}>
+                                    {level.label}: {formatPolicyRangeText(level, cloneSourcePolicy?.[level.key])}
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </div>
             </Modal>
