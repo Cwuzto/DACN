@@ -6,6 +6,7 @@ const {
 } = require('../constants/councilLimits');
 const { auditLog } = require('../services/auditLogService');
 const { runAutoCouncilSetupForSemester } = require('../services/councilAutoSetupService');
+const { validateDefenseAssignment } = require('../services/defenseCouncilEligibilityService');
 const outlineReviewService = require('../services/outlineReviewService');
 const {
     runAutoOutlineCouncilSetupForSemester,
@@ -259,7 +260,6 @@ const getAllCouncils = async (req, res, next) => {
                     topic: {
                         select: {
                             id: true,
-                            code: true,
                             title: true,
                             mentorId: true,
                             mentor: { select: { id: true, fullName: true } },
@@ -866,26 +866,17 @@ const assignRegistrationsToCouncil = async (req, res, next) => {
             }
 
             if (council.councilType === 'DEFENSE_COUNCIL') {
-                const allowedStatuses = ['DEFENSE_READY', 'DEFENSE_ELIGIBLE', 'ELIGIBLE_BY_INSTITUTE'];
                 for (const reg of registrations) {
-                    const isStatusAllowed = allowedStatuses.includes(reg.status)
-                        || allowedStatuses.includes(reg.bm04Evaluation?.status);
-                    const isEligible = isStatusAllowed
-                        && (
-                            (
-                                (reg.bm04Evaluation?.conclusion === 'AGREED_FOR_DEFENSE'
-                                    || reg.bm04Evaluation?.defenseRecommendation === 'APPROVE_FOR_DEFENSE'
-                                    || reg.bm04Evaluation?.status === 'SIGNED_APPROVED')
-                                && reg.bm04Evaluation?.isLocked === true
-                            )
-                            || reg.bm04Evaluation?.status === 'ELIGIBLE_BY_INSTITUTE'
-                            || reg.status === 'ELIGIBLE_BY_INSTITUTE'
-                            || reg.status === 'DEFENSE_ELIGIBLE'
-                        );
-                    if (!isEligible) {
+                    const validation = await validateDefenseAssignment({
+                        registration: reg,
+                        council,
+                        members: council.members,
+                        semester: council.semester,
+                    }, { db: tx });
+                    if (!validation.ok) {
                         throw createHttpError(
                             400,
-                            `Sinh viên ${reg.student.fullName} (${reg.student.code}) chưa có kết luận ĐỒNG Ý cho ra bảo vệ tại biểu mẫu BM04 nên chưa đủ điều kiện xếp Hội đồng bảo vệ.`,
+                            validation.reasons[0] || `Sinh viên ${reg.student?.fullName || reg.id} không đủ điều kiện gán vào hội đồng bảo vệ.`,
                         );
                     }
                 }
@@ -943,50 +934,12 @@ const assignRegistrationsToCouncil = async (req, res, next) => {
 
 const autoAssignRegistrationsToCouncils = async (req, res, next) => {
     try {
-        const semesterId = parseInt(req.body?.semesterId || req.query?.semesterId, 10);
-        if (!Number.isInteger(semesterId) || semesterId <= 0) {
-            return res.status(400).json({ success: false, message: 'semesterId khong hop le.' });
-        }
-
-        const sem = await prisma.semester.findUnique({
-            where: { id: semesterId },
-            select: { id: true, status: true },
-        });
-        if (sem?.status === 'COMPLETED') {
-            return res.status(400).json({
-                success: false,
-                code: 'SEMESTER_ALREADY_COMPLETED',
-                message: 'Đợt đồ án này đã hoàn thành, không thể tự động phân công hội đồng.',
-            });
-        }
-
-        const result = await runAutoCouncilSetupForSemester(semesterId);
-
-        await auditLog(
-            req.user.id,
-            'AUTO_ASSIGN_COUNCIL',
-            'Council',
-            null,
-            {
-                semesterId: result.semesterId,
-                totalUnassigned: result.totalUnassigned,
-                assigned: result.assigned,
-                skipped: result.skipped.length,
-                createdCouncils: result.createdCouncils,
-                updatedCouncils: result.updatedCouncils,
-            },
-            getRequestIp(req),
-        );
-
-        return res.json({
-            success: true,
-            message: `Da tu dong phan cong ${result.assigned}/${result.totalUnassigned} sinh vien.`,
-            data: result,
+        return res.status(400).json({
+            success: false,
+            code: 'USE_ASSIGNMENT_PREVIEW',
+            message: 'Chức năng tự động gán trực tiếp đã bị ngừng. Vui lòng sử dụng tính năng Xem trước và xác nhận phương án bảo vệ (Assignment Preview).',
         });
     } catch (error) {
-        if (error.statusCode) {
-            return res.status(error.statusCode).json({ success: false, message: error.message });
-        }
         next(error);
     }
 };
