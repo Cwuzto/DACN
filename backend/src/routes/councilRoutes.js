@@ -113,6 +113,32 @@ router.post(
     authorizeCouncilCreate,
     councilController.createCouncil
 );
+
+router.post(
+    '/defense-assignment/preview',
+    [
+        body('semesterId').isInt({ min: 1 }).withMessage('semesterId phải là số nguyên dương.'),
+        body('date').optional({ nullable: true }).isISO8601().withMessage('date không đúng định dạng ISO8601.'),
+        body('rooms').optional().isArray().withMessage('rooms phải là một mảng.'),
+        body('targetSize').optional().isInt({ min: 1, max: 30 }).withMessage('targetSize phải từ 1 đến 30.'),
+        validateRequest,
+    ],
+    authorizeRole('ADMIN', 'GIAO_VU'),
+    councilController.getDefenseAssignmentPreview
+);
+
+router.post(
+    '/defense-assignment/confirm',
+    [
+        body('semesterId').isInt({ min: 1 }).withMessage('semesterId phải là số nguyên dương.'),
+        body('fingerprint').isString().trim().notEmpty().withMessage('fingerprint bắt buộc phải có.'),
+        body('councils').isArray({ min: 1 }).withMessage('councils phải là một mảng không rỗng.'),
+        validateRequest,
+    ],
+    authorizeRole('ADMIN'),
+    councilController.confirmDefenseAssignmentPlan
+);
+
 router.get('/:id', [param('id').isInt({ min: 1 }), validateRequest], authorizeCouncilById, councilController.getCouncilById);
 router.get('/:id/logs', [param('id').isInt({ min: 1 }), validateRequest], authorizeCouncilById, councilController.getCouncilAuditLogs);
 router.put(

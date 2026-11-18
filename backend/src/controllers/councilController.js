@@ -7,6 +7,8 @@ const {
 const { auditLog } = require('../services/auditLogService');
 const { runAutoCouncilSetupForSemester } = require('../services/councilAutoSetupService');
 const { validateDefenseAssignment } = require('../services/defenseCouncilEligibilityService');
+const { buildDefenseCouncilPlan } = require('../services/defenseCouncilPlanningService');
+const { confirmDefenseCouncilPlan } = require('../services/defenseCouncilConfirmationService');
 const outlineReviewService = require('../services/outlineReviewService');
 const {
     runAutoOutlineCouncilSetupForSemester,
@@ -611,6 +613,14 @@ const updateCouncil = async (req, res, next) => {
             });
         }
 
+        if (existing.schedulePublishedAt) {
+            return res.status(409).json({
+                success: false,
+                code: 'COUNCIL_SCHEDULE_ALREADY_PUBLISHED',
+                message: 'Hội đồng đã công bố lịch bảo vệ chính thức và không thể thay đổi thông tin chung hoặc thành viên.',
+            });
+        }
+
         const defenseDateValue = defenseDate !== undefined
             ? (defenseDate ? new Date(defenseDate) : null)
             : existing.defenseDate;
@@ -812,6 +822,12 @@ const assignRegistrationsToCouncil = async (req, res, next) => {
 
             if (council.semester?.status === 'COMPLETED') {
                 throw createHttpError(400, 'Đợt đồ án này đã hoàn thành. Toàn bộ thông tin hội đồng được khóa cố định để bảo toàn lịch sử học vụ.');
+            }
+
+            if (council.schedulePublishedAt) {
+                const err = createHttpError(409, 'Lịch bảo vệ của hội đồng đã được công bố chính thức. Không thể thêm sinh viên vào hội đồng đã công bố lịch.');
+                err.code = 'COUNCIL_SCHEDULE_ALREADY_PUBLISHED';
+                throw err;
             }
 
             validateCouncilComposition(council.members, { allowFourthScoringMember: council.allowFourthScoringMember });
@@ -1092,6 +1108,14 @@ const deleteCouncil = async (req, res, next) => {
                 success: false,
                 code: 'SEMESTER_ALREADY_COMPLETED',
                 message: 'Đợt đồ án này đã hoàn thành. Toàn bộ thông tin hội đồng được khóa cố định để bảo toàn lịch sử học vụ.',
+            });
+        }
+
+        if (existing.schedulePublishedAt) {
+            return res.status(409).json({
+                success: false,
+                code: 'COUNCIL_SCHEDULE_ALREADY_PUBLISHED',
+                message: 'Không thể xóa hội đồng đã công bố lịch bảo vệ chính thức.',
             });
         }
 
@@ -1515,6 +1539,12 @@ const confirmAndPublishDefenseSchedule = async (req, res, next) => {
                         topic: { select: { title: true } },
                     },
                 },
+                defenseRegistrations: {
+                    include: {
+                        student: { select: { id: true, fullName: true, code: true } },
+                        topic: { select: { title: true } },
+                    },
+                },
                 members: true,
             },
         });
@@ -1523,7 +1553,16 @@ const confirmAndPublishDefenseSchedule = async (req, res, next) => {
             return res.status(404).json({ success: false, message: 'Không tìm thấy hội đồng.' });
         }
 
-        // Secondary Guard: Semester must have locked rubric and published eligible list
+        // 1. Guard bất biến: Không cho phép công bố lại hoặc thay đổi ngầm sau khi đã công bố
+        if (council.schedulePublishedAt) {
+            return res.status(409).json({
+                success: false,
+                code: 'SCHEDULE_ALREADY_PUBLISHED',
+                message: 'Lịch bảo vệ của hội đồng đã được công bố chính thức và không thể thay đổi ngầm.',
+            });
+        }
+
+        // 2. Secondary Guard: Semester must have locked rubric and published eligible list
         const semester = council.semester;
         const hasLockedRubric = Boolean(
             semester?.lockedDefenseRubricVersionId ||
@@ -1545,9 +1584,47 @@ const confirmAndPublishDefenseSchedule = async (req, res, next) => {
             });
         }
 
+        // 3. Guard: Hội đồng phải đã được xác nhận phân công (assignmentConfirmedAt không null)
+        if (!council.assignmentConfirmedAt) {
+            return res.status(409).json({
+                success: false,
+                code: 'ASSIGNMENT_NOT_CONFIRMED',
+                message: 'Hội đồng chưa được xác nhận phân công bảo vệ. Vui lòng xác nhận phân công trước khi công bố lịch.',
+            });
+        }
+
+        // 4. Guard: Đã có đầy đủ phòng và ngày bảo vệ
+        if (!council.location || !council.defenseDate) {
+            return res.status(400).json({
+                success: false,
+                code: 'MISSING_DATE_OR_ROOM',
+                message: 'Hội đồng chưa có ngày bảo vệ hoặc phòng bảo vệ hợp lệ.',
+            });
+        }
+
+        // 5. Guard: Danh sách sinh viên và thứ tự sắp xếp hợp lệ
+        const assignedRegistrations = (council.defenseRegistrations?.length ? council.defenseRegistrations : council.registrations) || [];
+        if (assignedRegistrations.length === 0) {
+            return res.status(400).json({
+                success: false,
+                code: 'NO_STUDENTS_ASSIGNED',
+                message: 'Hội đồng chưa có sinh viên nào được phân công.',
+            });
+        }
+
         let regIdsToOrder = orderedRegistrationIds;
-        if (!Array.isArray(regIdsToOrder) || regIdsToOrder.length === 0) {
-            regIdsToOrder = council.registrations.map((r) => r.id);
+        if (Array.isArray(regIdsToOrder) && regIdsToOrder.length > 0) {
+            const assignedIds = new Set(assignedRegistrations.map((r) => r.id));
+            const inputIds = new Set(regIdsToOrder.map(Number));
+            if (inputIds.size !== assignedIds.size || [...inputIds].some((id) => !assignedIds.has(id))) {
+                return res.status(400).json({
+                    success: false,
+                    code: 'INVALID_ORDERED_REGISTRATION_IDS',
+                    message: 'Danh sách thứ tự sinh viên phải khớp chính xác với danh sách sinh viên của hội đồng.',
+                });
+            }
+        } else {
+            regIdsToOrder = assignedRegistrations.map((r) => r.id);
         }
 
         const shiftSplits = splitConfirmedStudentsIntoShifts(regIdsToOrder);
@@ -1577,7 +1654,7 @@ const confirmAndPublishDefenseSchedule = async (req, res, next) => {
             });
         });
 
-        const studentUserIds = council.registrations.map((r) => r.studentId).filter(Boolean);
+        const studentUserIds = assignedRegistrations.map((r) => r.studentId).filter(Boolean);
         if (studentUserIds.length > 0) {
             await safeNotifyMany(
                 studentUserIds.map((userId) => ({
@@ -1992,8 +2069,46 @@ const getScheduleAdjustments = async (req, res, next) => {
     }
 };
 
+const getDefenseAssignmentPreview = async (req, res, next) => {
+    try {
+        const { semesterId, date, rooms, targetSize, orderedRegistrationIds } = req.body;
+        const result = await buildDefenseCouncilPlan(
+            { semesterId, date, rooms, targetSize, orderedRegistrationIds },
+            { db: prisma }
+        );
+        return res.status(200).json({
+            success: result.status === 'FEASIBLE',
+            ...result,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+const confirmDefenseAssignmentPlan = async (req, res, next) => {
+    try {
+        const { semesterId, fingerprint, councils, date, rooms, targetSize, orderedRegistrationIds } = req.body;
+        const result = await confirmDefenseCouncilPlan(
+            { semesterId, fingerprint, councils, date, rooms, targetSize, orderedRegistrationIds },
+            { db: prisma, actorId: req.user.id }
+        );
+        return res.status(200).json(result);
+    } catch (error) {
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({
+                success: false,
+                code: error.code || 'CONFIRM_ERROR',
+                message: error.message,
+            });
+        }
+        next(error);
+    }
+};
+
 module.exports = {
     splitConfirmedStudentsIntoShifts,
+    getDefenseAssignmentPreview,
+    confirmDefenseAssignmentPlan,
     getAllCouncils,
     getCouncilById,
     getCouncilAuditLogs,
