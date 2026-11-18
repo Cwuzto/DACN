@@ -13,14 +13,17 @@ const migrations = [
 ];
 
 async function applyMigrations() {
-    const connectionString = 'postgresql://postgres.aanqmscxckeejuhvaezm:Tagiabao123@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres';
+    const connectionString = process.env.DIRECT_URL || process.env.DATABASE_URL;
+    if (!connectionString) {
+        throw new Error('DIRECT_URL or DATABASE_URL environment variable is required.');
+    }
     const client = new Client({
         connectionString,
         ssl: { rejectUnauthorized: false },
     });
 
     await client.connect();
-    console.log('Connected to PostgreSQL pooler (port 5432)...');
+    console.log('Connected to PostgreSQL...');
 
     try {
         // Fix incomplete migration if present
