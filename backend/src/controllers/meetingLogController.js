@@ -48,7 +48,10 @@ const getMeetingLogs = async (req, res, next) => {
 
         if (meetingLogs.length === 0 && typeof prisma.bM03MeetingEntry?.findMany === 'function') {
             const bm03Entries = await prisma.bM03MeetingEntry.findMany({
-                where: { registrationId },
+                where: {
+                    registrationId,
+                    supersededBy: null,
+                },
                 include: {
                     advisorSignedBy: { select: { id: true, fullName: true, code: true, email: true } },
                 },
@@ -59,7 +62,7 @@ const getMeetingLogs = async (req, res, next) => {
                     id: e.id,
                     registrationId: e.registrationId,
                     meetingDate: e.meetingDate,
-                    meetingType: e.meetingMode === 'ONLINE' ? 'ONLINE' : 'LAB',
+                    meetingType: (e.meetingMode === 'ONLINE' || e.meetingMode === 'MICROSOFT_TEAMS') ? 'ONLINE' : 'LAB',
                     studentWorkSummary: e.studentCompletedWork || e.discussionContent,
                     nextPlan: e.nextTasks,
                     supervisorNotes: e.remainingIssues,
@@ -96,7 +99,10 @@ const getMeetingStats = async (req, res, next) => {
             }),
             typeof prisma.bM03MeetingEntry?.findMany === 'function'
                 ? prisma.bM03MeetingEntry.findMany({
-                    where: { registrationId },
+                    where: {
+                        registrationId,
+                        supersededBy: null,
+                    },
                     orderBy: { meetingDate: 'desc' },
                 })
                 : Promise.resolve([]),
@@ -108,8 +114,8 @@ const getMeetingStats = async (req, res, next) => {
         ].filter(Boolean).map((d) => new Date(d)).sort((a, b) => b.getTime() - a.getTime());
 
         const totalMeetings = Math.max(logs.length + bm03Entries.length, logs.length, bm03Entries.length);
-        const labMeetings = logs.filter((l) => l.meetingType === 'LAB').length + bm03Entries.filter((b) => b.meetingMode !== 'ONLINE').length;
-        const onlineMeetings = logs.filter((l) => l.meetingType === 'ONLINE').length + bm03Entries.filter((b) => b.meetingMode === 'ONLINE').length;
+        const labMeetings = logs.filter((l) => l.meetingType === 'LAB').length + bm03Entries.filter((b) => b.meetingMode !== 'ONLINE' && b.meetingMode !== 'MICROSOFT_TEAMS').length;
+        const onlineMeetings = logs.filter((l) => l.meetingType === 'ONLINE').length + bm03Entries.filter((b) => b.meetingMode === 'ONLINE' || b.meetingMode === 'MICROSOFT_TEAMS').length;
         const officeMeetings = logs.filter((l) => l.meetingType === 'OFFICE').length;
         const lastMeeting = allDates.length > 0 ? allDates[0] : null;
 

@@ -390,7 +390,7 @@ async function createBM03Meeting(input, options = {}) {
                 versionNumber,
                 supersedesEntryId: prevId,
                 meetingDate: new Date(meetingDate),
-                meetingMode: meetingMode === 'ONLINE' ? 'ONLINE' : 'IN_PERSON',
+                meetingMode: (meetingMode === 'ONLINE' || meetingMode === 'MICROSOFT_TEAMS') ? 'MICROSOFT_TEAMS' : 'IN_PERSON',
                 locationOrLink: String(locationOrLink || '').trim(),
                 discussionContent: String(discussionContent).trim(),
                 studentCompletedWork: String(studentCompletedWork).trim(),
@@ -804,6 +804,16 @@ async function decideStopReview(input, options = {}) {
                 },
             });
         } else {
+            if (stopReview.stage === 'FINAL') {
+                await tx.bM03ProgressRecord.update({
+                    where: { id: stopReview.bm03RecordId },
+                    data: {
+                        finalStageEvaluationId: null,
+                        finalConclusion: null,
+                    },
+                });
+            }
+
             await tx.topicRegistration.update({
                 where: { id: stopReview.registrationId },
                 data: {

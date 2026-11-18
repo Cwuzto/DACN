@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Tag, Alert, Select, Radio, Input, Space, Popconfirm, message } from 'antd';
@@ -277,6 +277,10 @@ export default function ProgressTrackingPage() {
     const [progressRating, setProgressRating] = useState('ON_TRACK');
     const [meetingSubmitting, setMeetingSubmitting] = useState(false);
     const [signingMeetingId, setSigningMeetingId] = useState(null);
+    const [meetingErrors, setMeetingErrors] = useState({});
+    const meetingContentRef = useRef(null);
+    const studentCompletedWorkRef = useRef(null);
+    const nextTasksRef = useRef(null);
 
     // BM03 State & Stage Evaluations
     const [signingWholeBm03, setSigningWholeBm03] = useState(false);
@@ -355,27 +359,47 @@ export default function ProgressTrackingPage() {
         setRemainingIssues('');
         setNextTasks('');
         setProgressRating('ON_TRACK');
+        setMeetingErrors({});
         setMeetingModalOpen(true);
     };
 
     const openEditMeetingModal = (log) => {
         setEditingMeetingId(log.id);
         setMeetingDate(log.meetingDate ? dayjs(log.meetingDate).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'));
-        setMeetingMode(log.meetingMode === 'ONLINE' ? 'ONLINE' : 'IN_PERSON');
+        setMeetingMode(log.meetingMode === 'ONLINE' || log.meetingMode === 'MICROSOFT_TEAMS' ? 'ONLINE' : 'IN_PERSON');
         setMeetingLocation(log.locationOrLink || '');
         setMeetingContent(log.discussionContent || '');
         setStudentCompletedWork(log.studentCompletedWork || '');
         setRemainingIssues(log.remainingIssues || '');
         setNextTasks(log.nextTasks || '');
         setProgressRating(log.progressRating || 'ON_TRACK');
+        setMeetingErrors({});
         setMeetingModalOpen(true);
     };
 
     const handleCreateMeeting = async () => {
+        const errors = {};
         if (!meetingContent.trim()) {
-            message.warning('Vui lòng nhập nội dung buổi trao đổi');
+            errors.meetingContent = 'Vui lòng nhập nội dung buổi trao đổi';
+        }
+        if (!studentCompletedWork.trim()) {
+            errors.studentCompletedWork = 'Vui lòng nhập khối lượng công việc sinh viên đã thực hiện';
+        }
+        if (!nextTasks.trim()) {
+            errors.nextTasks = 'Vui lòng nhập nhiệm vụ giao cho kỳ tiếp theo';
+        }
+
+        if (Object.keys(errors).length > 0) {
+            setMeetingErrors(errors);
+            const firstKey = Object.keys(errors)[0];
+            if (firstKey === 'meetingContent') meetingContentRef.current?.focus();
+            else if (firstKey === 'studentCompletedWork') studentCompletedWorkRef.current?.focus();
+            else if (firstKey === 'nextTasks') nextTasksRef.current?.focus();
+            message.warning('Vui lòng điền đầy đủ các thông tin bắt buộc.');
             return;
         }
+
+        setMeetingErrors({});
 
         try {
             setMeetingSubmitting(true);
@@ -386,9 +410,9 @@ export default function ProgressTrackingPage() {
                     meetingMode: meetingLocation.includes('Meet') || meetingLocation.includes('Online') ? 'ONLINE' : meetingMode,
                     locationOrLink: meetingLocation.trim(),
                     discussionContent: meetingContent.trim(),
-                    studentCompletedWork: studentCompletedWork.trim() || undefined,
+                    studentCompletedWork: studentCompletedWork.trim(),
                     remainingIssues: remainingIssues.trim() || undefined,
-                    nextTasks: nextTasks.trim() || undefined,
+                    nextTasks: nextTasks.trim(),
                     progressRating,
                     supersedesEntryId: editingMeetingId || undefined,
                 }],
@@ -400,6 +424,7 @@ export default function ProgressTrackingPage() {
             setStudentCompletedWork('');
             setRemainingIssues('');
             setNextTasks('');
+            setMeetingErrors({});
         } catch (error) {
             message.error(error?.message || 'Không thể lưu nhật ký');
         } finally {
@@ -1778,6 +1803,39 @@ export default function ProgressTrackingPage() {
                             )}
 
                             {/* Timing & Modality Grid */}
+                            {Object.keys(meetingErrors).length > 0 && (
+                                <Alert
+                                    type="error"
+                                    showIcon
+                                    message="Vui lòng kiểm tra lại các trường thông tin bắt buộc"
+                                    description={
+                                        <ul className="list-disc pl-4 mt-1 space-y-0.5 text-xs">
+                                            {meetingErrors.meetingContent && (
+                                                <li>
+                                                    <a href="#bm03-content" onClick={(e) => { e.preventDefault(); meetingContentRef.current?.focus(); }}>
+                                                        {meetingErrors.meetingContent}
+                                                    </a>
+                                                </li>
+                                            )}
+                                            {meetingErrors.studentCompletedWork && (
+                                                <li>
+                                                    <a href="#bm03-completed" onClick={(e) => { e.preventDefault(); studentCompletedWorkRef.current?.focus(); }}>
+                                                        {meetingErrors.studentCompletedWork}
+                                                    </a>
+                                                </li>
+                                            )}
+                                            {meetingErrors.nextTasks && (
+                                                <li>
+                                                    <a href="#bm03-nexttasks" onClick={(e) => { e.preventDefault(); nextTasksRef.current?.focus(); }}>
+                                                        {meetingErrors.nextTasks}
+                                                    </a>
+                                                </li>
+                                            )}
+                                        </ul>
+                                    }
+                                    style={{ marginBottom: 14 }}
+                                />
+                            )}
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                                 <div>
                                     <label style={{ fontWeight: 600, fontSize: 13, color: '#334155', display: 'block', marginBottom: 6 }}>
@@ -1916,26 +1974,48 @@ export default function ProgressTrackingPage() {
                                     ))}
                                 </div>
                                 <Input.TextArea
+                                    ref={meetingContentRef}
+                                    id="bm03-content"
                                     rows={3}
                                     value={meetingContent}
-                                    onChange={(e) => setMeetingContent(e.target.value)}
+                                    status={meetingErrors.meetingContent ? 'error' : ''}
+                                    onChange={(e) => {
+                                        setMeetingContent(e.target.value);
+                                        if (meetingErrors.meetingContent) setMeetingErrors(prev => ({ ...prev, meetingContent: undefined }));
+                                    }}
                                     placeholder="Sinh viên báo cáo công việc thực hiện, kết quả đạt được, định hướng tuần tiếp theo..."
                                     style={{ borderRadius: 8 }}
                                 />
+                                {meetingErrors.meetingContent && (
+                                    <div style={{ color: '#EF4444', fontSize: 12, marginTop: 4 }}>
+                                        {meetingErrors.meetingContent}
+                                    </div>
+                                )}
                             </div>
 
                             {/* Student Completed Work */}
                             <div>
                                 <label style={{ fontWeight: 600, fontSize: 13, color: '#334155', display: 'block', marginBottom: 6 }}>
-                                    Kết quả sinh viên đã hoàn thành:
+                                    Kết quả sinh viên đã hoàn thành <span style={{ color: '#EF4444' }}>*</span>:
                                 </label>
                                 <Input.TextArea
+                                    ref={studentCompletedWorkRef}
+                                    id="bm03-completed"
                                     rows={2}
                                     value={studentCompletedWork}
-                                    onChange={(e) => setStudentCompletedWork(e.target.value)}
+                                    status={meetingErrors.studentCompletedWork ? 'error' : ''}
+                                    onChange={(e) => {
+                                        setStudentCompletedWork(e.target.value);
+                                        if (meetingErrors.studentCompletedWork) setMeetingErrors(prev => ({ ...prev, studentCompletedWork: undefined }));
+                                    }}
                                     placeholder="Mô tả cụ thể module/tính năng/kết quả đã xong..."
                                     style={{ borderRadius: 8 }}
                                 />
+                                {meetingErrors.studentCompletedWork && (
+                                    <div style={{ color: '#EF4444', fontSize: 12, marginTop: 4 }}>
+                                        {meetingErrors.studentCompletedWork}
+                                    </div>
+                                )}
                             </div>
 
                             {/* Remaining Issues */}
@@ -1955,15 +2035,26 @@ export default function ProgressTrackingPage() {
                             {/* Next Tasks */}
                             <div>
                                 <label style={{ fontWeight: 600, fontSize: 13, color: '#334155', display: 'block', marginBottom: 6 }}>
-                                    Nhiệm vụ giao kỳ tiếp theo:
+                                    Nhiệm vụ giao kỳ tiếp theo <span style={{ color: '#EF4444' }}>*</span>:
                                 </label>
                                 <Input.TextArea
+                                    ref={nextTasksRef}
+                                    id="bm03-nexttasks"
                                     rows={2}
                                     value={nextTasks}
-                                    onChange={(e) => setNextTasks(e.target.value)}
+                                    status={meetingErrors.nextTasks ? 'error' : ''}
+                                    onChange={(e) => {
+                                        setNextTasks(e.target.value);
+                                        if (meetingErrors.nextTasks) setMeetingErrors(prev => ({ ...prev, nextTasks: undefined }));
+                                    }}
                                     placeholder="Các đầu việc sinh viên cần thực hiện cho buổi hướng dẫn kế tiếp..."
                                     style={{ borderRadius: 8 }}
                                 />
+                                {meetingErrors.nextTasks && (
+                                    <div style={{ color: '#EF4444', fontSize: 12, marginTop: 4 }}>
+                                        {meetingErrors.nextTasks}
+                                    </div>
+                                )}
                             </div>
                         </div>
 

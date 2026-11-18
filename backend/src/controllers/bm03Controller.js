@@ -24,6 +24,14 @@ function getIdempotencyKey(req, prefix = 'bm03-cmd') {
     return `${prefix}-${req.user?.id || 'anon'}-${Date.now()}`;
 }
 
+function parsePositiveInteger(value) {
+    const num = Number(value);
+    if (!Number.isInteger(num) || num <= 0) {
+        return null;
+    }
+    return num;
+}
+
 function handleWorkflowError(res, error, next) {
     if (error instanceof BM03WorkflowError || error?.name === 'WorkflowTransitionError' || error?.code) {
         return res.status(error.statusCode || error.status || 400).json({
@@ -46,7 +54,11 @@ function handleWorkflowError(res, error, next) {
 const getBM03RecordController = async (req, res, next) => {
     try {
         const { registrationId } = req.params;
-        const record = await getBM03Record(registrationId);
+        const regId = parsePositiveInteger(registrationId);
+        if (!regId) {
+            return res.status(400).json({ success: false, code: 'INVALID_ID', message: 'ID hồ sơ không hợp lệ.' });
+        }
+        const record = await getBM03Record(regId);
 
         // Check ownership & authorization
         const user = req.user;
@@ -107,9 +119,13 @@ const getBM03RecordController = async (req, res, next) => {
 const createBM03MeetingController = async (req, res, next) => {
     try {
         const { registrationId } = req.params;
+        const regId = parsePositiveInteger(registrationId);
+        if (!regId) {
+            return res.status(400).json({ success: false, code: 'INVALID_ID', message: 'ID hồ sơ không hợp lệ.' });
+        }
         const advisorId = req.user.id;
         const meeting = await createBM03Meeting({
-            registrationId,
+            registrationId: regId,
             advisorId,
             ...req.body,
         });
@@ -128,6 +144,10 @@ const createBM03MeetingController = async (req, res, next) => {
 const signBM03MeetingController = async (req, res, next) => {
     try {
         const { id } = req.params;
+        const meetingId = parsePositiveInteger(id);
+        if (!meetingId) {
+            return res.status(400).json({ success: false, code: 'INVALID_ID', message: 'ID buổi họp không hợp lệ.' });
+        }
         const advisorId = req.user.id;
         const { signatureImageId } = req.body;
         const ipAddress = req.ip || req.connection?.remoteAddress || null;
@@ -135,7 +155,7 @@ const signBM03MeetingController = async (req, res, next) => {
         const idempotencyKey = getIdempotencyKey(req, 'bm03-sign-meeting');
 
         const signed = await signBM03Meeting({
-            meetingId: id,
+            meetingId,
             advisorId,
             signatureImageId,
             ipAddress,
@@ -158,12 +178,16 @@ const signBM03MeetingController = async (req, res, next) => {
 const submitMidtermEvaluationController = async (req, res, next) => {
     try {
         const { registrationId } = req.params;
+        const regId = parsePositiveInteger(registrationId);
+        if (!regId) {
+            return res.status(400).json({ success: false, code: 'INVALID_ID', message: 'ID hồ sơ không hợp lệ.' });
+        }
         const advisorId = req.user.id;
         const { comments, decision } = req.body;
         const idempotencyKey = getIdempotencyKey(req, 'bm03-midterm-eval');
 
         const result = await submitStageEvaluation({
-            registrationId,
+            registrationId: regId,
             advisorId,
             stage: 'MIDTERM',
             comments,
@@ -186,12 +210,16 @@ const submitMidtermEvaluationController = async (req, res, next) => {
 const submitFinalEvaluationController = async (req, res, next) => {
     try {
         const { registrationId } = req.params;
+        const regId = parsePositiveInteger(registrationId);
+        if (!regId) {
+            return res.status(400).json({ success: false, code: 'INVALID_ID', message: 'ID hồ sơ không hợp lệ.' });
+        }
         const advisorId = req.user.id;
         const { comments, decision } = req.body;
         const idempotencyKey = getIdempotencyKey(req, 'bm03-final-eval');
 
         const result = await submitStageEvaluation({
-            registrationId,
+            registrationId: regId,
             advisorId,
             stage: 'FINAL',
             comments,
@@ -214,12 +242,16 @@ const submitFinalEvaluationController = async (req, res, next) => {
 const requestMoreInfoForStopReviewController = async (req, res, next) => {
     try {
         const { id } = req.params;
+        const stopReviewId = parsePositiveInteger(id);
+        if (!stopReviewId) {
+            return res.status(400).json({ success: false, code: 'INVALID_ID', message: 'ID đề xuất dừng không hợp lệ.' });
+        }
         const reviewerId = req.user.id;
         const { note } = req.body;
         const idempotencyKey = getIdempotencyKey(req, 'bm03-stop-moreinfo');
 
         const result = await requestMoreInfoForStopReview({
-            stopReviewId: id,
+            stopReviewId,
             reviewerId,
             note,
             idempotencyKey,
@@ -240,12 +272,16 @@ const requestMoreInfoForStopReviewController = async (req, res, next) => {
 const decideStopReviewController = async (req, res, next) => {
     try {
         const { id } = req.params;
+        const stopReviewId = parsePositiveInteger(id);
+        if (!stopReviewId) {
+            return res.status(400).json({ success: false, code: 'INVALID_ID', message: 'ID đề xuất dừng không hợp lệ.' });
+        }
         const reviewerId = req.user.id;
         const { decision, reason } = req.body;
         const idempotencyKey = getIdempotencyKey(req, 'bm03-stop-decision');
 
         const result = await decideStopReview({
-            stopReviewId: id,
+            stopReviewId,
             reviewerId,
             decision,
             reason,
@@ -267,6 +303,10 @@ const decideStopReviewController = async (req, res, next) => {
 const advisorSignWholeBM03Controller = async (req, res, next) => {
     try {
         const { id } = req.params;
+        const bm03RecordId = parsePositiveInteger(id);
+        if (!bm03RecordId) {
+            return res.status(400).json({ success: false, code: 'INVALID_ID', message: 'ID hồ sơ BM03 không hợp lệ.' });
+        }
         const advisorId = req.user.id;
         const { signatureImageId } = req.body;
         const ipAddress = req.ip || req.connection?.remoteAddress || null;
@@ -274,7 +314,7 @@ const advisorSignWholeBM03Controller = async (req, res, next) => {
         const idempotencyKey = getIdempotencyKey(req, 'bm03-advisor-whole-sign');
 
         const result = await advisorSignWholeBM03({
-            bm03RecordId: id,
+            bm03RecordId,
             advisorId,
             signatureImageId,
             ipAddress,
@@ -297,6 +337,10 @@ const advisorSignWholeBM03Controller = async (req, res, next) => {
 const studentAcknowledgeBM03Controller = async (req, res, next) => {
     try {
         const { id } = req.params;
+        const bm03RecordId = parsePositiveInteger(id);
+        if (!bm03RecordId) {
+            return res.status(400).json({ success: false, code: 'INVALID_ID', message: 'ID hồ sơ BM03 không hợp lệ.' });
+        }
         const studentId = req.user.id;
         const { action = 'ACKNOWLEDGED', comment } = req.body;
         const ipAddress = req.ip || req.connection?.remoteAddress || null;
@@ -304,7 +348,7 @@ const studentAcknowledgeBM03Controller = async (req, res, next) => {
         const idempotencyKey = getIdempotencyKey(req, 'bm03-student-ack');
 
         const result = await studentAcknowledgeBM03({
-            bm03RecordId: id,
+            bm03RecordId,
             studentId,
             action,
             comment,
@@ -328,6 +372,10 @@ const studentAcknowledgeBM03Controller = async (req, res, next) => {
 const studentDeclineBM03Controller = async (req, res, next) => {
     try {
         const { id } = req.params;
+        const bm03RecordId = parsePositiveInteger(id);
+        if (!bm03RecordId) {
+            return res.status(400).json({ success: false, code: 'INVALID_ID', message: 'ID hồ sơ BM03 không hợp lệ.' });
+        }
         const studentId = req.user.id;
         const { comment } = req.body;
         const ipAddress = req.ip || req.connection?.remoteAddress || null;
@@ -335,7 +383,7 @@ const studentDeclineBM03Controller = async (req, res, next) => {
         const idempotencyKey = getIdempotencyKey(req, 'bm03-student-decline');
 
         const result = await studentAcknowledgeBM03({
-            bm03RecordId: id,
+            bm03RecordId,
             studentId,
             action: 'DECLINED_TO_ACKNOWLEDGE',
             comment,

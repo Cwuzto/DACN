@@ -17,6 +17,9 @@ jest.mock('../../src/config/database', () => ({
         update: jest.fn(),
         delete: jest.fn(),
     },
+    bM03MeetingEntry: {
+        findMany: jest.fn(),
+    },
     notification: {
         create: jest.fn(),
     },
@@ -183,6 +186,59 @@ describe('Integration - Meeting Logs, Bypass & BM04 Review', () => {
             expect(res.status).toBe(409);
             expect(res.body.code).toBe('ACADEMIC_TASK_STATUS_IMMUTABLE');
             expect(prisma.task.update).not.toHaveBeenCalled();
+        });
+
+        it('excludes superseded meetings from stats and handles invalid IDs with 400', async () => {
+            prisma.meetingLog.findMany.mockResolvedValueOnce([
+                { id: 1, registrationId: 100, meetingType: 'LAB', meetingDate: new Date('2026-11-01') },
+                { id: 2, registrationId: 100, meetingType: 'ONLINE', meetingDate: new Date('2026-11-05') },
+            ]);
+            prisma.bM03MeetingEntry.findMany.mockResolvedValueOnce([
+                { id: 11, registrationId: 100, meetingMode: 'MICROSOFT_TEAMS', meetingDate: new Date('2026-11-10') },
+                { id: 12, registrationId: 100, meetingMode: 'IN_PERSON', meetingDate: new Date('2026-11-15') },
+            ]);
+
+            const statsRes = await request(app)
+                .get('/api/registrations/100/meeting-stats')
+                .set('Authorization', 'Bearer lecturer-token');
+
+            expect(statsRes.status).toBe(200);
+            expect(statsRes.body.success).toBe(true);
+            expect(statsRes.body.data.totalMeetings).toBe(4);
+            expect(statsRes.body.data.onlineMeetings).toBe(2);
+            expect(statsRes.body.data.labMeetings).toBe(2);
+
+            // Verify query excluded superseded entries
+            expect(prisma.bM03MeetingEntry.findMany).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    where: {
+                        registrationId: 100,
+                        supersededBy: null,
+                    },
+                })
+            );
+
+            // Invalid ID checks
+            const badStats = await request(app)
+                .get('/api/registrations/invalid-id/meeting-stats')
+                .set('Authorization', 'Bearer lecturer-token');
+            expect(badStats.status).toBe(400);
+
+            const badLogs = await request(app)
+                .get('/api/registrations/invalid-id/meeting-logs')
+                .set('Authorization', 'Bearer lecturer-token');
+            expect(badLogs.status).toBe(400);
+
+            const badPut = await request(app)
+                .put('/api/meeting-logs/invalid-id')
+                .set('Authorization', 'Bearer lecturer-token')
+                .send({ studentWorkSummary: 'Test' });
+            expect(badPut.status).toBe(400);
+
+            const badDel = await request(app)
+                .delete('/api/meeting-logs/invalid-id')
+                .set('Authorization', 'Bearer lecturer-token');
+            expect(badDel.status).toBe(400);
         });
     });
 });

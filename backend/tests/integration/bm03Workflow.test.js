@@ -1246,5 +1246,42 @@ describe('Task 5: Chặng 2 Backend — BM03 Guidance Meetings, Midterm/Final Ev
             expect(res.body.success).toBe(true);
             expect(res.body.data.studentAckStatus).toBe('DECLINED_TO_ACKNOWLEDGE');
         });
+
+        it('returns 400 INVALID_ID when parameters contain non-integer or invalid values', async () => {
+            const badRes1 = await request(app)
+                .get('/api/bm03/invalid-id')
+                .set('Authorization', 'Bearer advisor-token');
+            expect(badRes1.status).toBe(400);
+            expect(badRes1.body.code).toBe('INVALID_ID');
+
+            const badRes2 = await request(app)
+                .post('/api/bm03/invalid-id/meetings')
+                .set('Authorization', 'Bearer advisor-token')
+                .send({
+                    meetingDate: '2026-10-15T09:00:00Z',
+                    meetingMode: 'IN_PERSON',
+                    locationOrLink: 'Phòng Lab H2-502',
+                    discussionContent: 'Nội dung trao đổi',
+                    studentCompletedWork: 'Công việc hoàn thành',
+                    nextTasks: 'Nhiệm vụ tiếp theo',
+                    progressRating: 'ON_TRACK',
+                });
+            expect(badRes2.status).toBe(400);
+            expect(badRes2.body.code).toBe('INVALID_ID');
+
+            const badRes3 = await request(app)
+                .post('/api/bm03/meetings/invalid-id/sign')
+                .set('Authorization', 'Bearer advisor-token')
+                .send({});
+            expect(badRes3.status).toBe(400);
+            expect(badRes3.body.code).toBe('INVALID_ID');
+
+            const badRes4 = await request(app)
+                .post('/api/bm03/invalid-id/final-evaluation')
+                .set('Authorization', 'Bearer advisor-token')
+                .send({ comments: 'Ok', decision: 'CONTINUE_TO_BM04' });
+            expect(badRes4.status).toBe(400);
+            expect(badRes4.body.code).toBe('INVALID_ID');
+        });
     });
 });
