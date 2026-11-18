@@ -1,12 +1,18 @@
 const prisma = require('../config/database');
-const { getMentorMaxSlots } = require('../constants/mentorCapacity');
+const {
+    DEFAULT_MAX_STUDENTS_PER_MENTOR,
+    ACTIVE_MENTOR_OCCUPANCY_STATUSES,
+    ACTIVE_REGISTRATION_STATUSES,
+    getMentorMaxSlots,
+    countActiveOccupiedMentoredTopics,
+    assertMentorCapacity,
+} = require('../constants/mentorCapacity');
 const { auditLog } = require('../services/auditLogService');
 const { safeNotifyMany } = require('../services/notificationService');
 const { hasCompletedGraduationProject, STUDENT_RESTRICTION_MESSAGE } = require('../utils/studentAccountRestriction');
 const { getDefaultSemester } = require('../utils/semesterResolver');
 
 const TOPIC_STATUS_VALUES = ['DRAFT', 'PENDING', 'APPROVED', 'REJECTED'];
-const ACTIVE_REGISTRATION_STATUSES = ['PENDING', 'APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'AWAITING_SCORES', 'AWAITING_FINAL_APPROVAL', 'DEFENSE_PASSED', 'DEFENSE_FAILED', 'DEFENDED', 'COMPLETED'];
 const getRequestIp = (req) => req.ip || req.headers['x-forwarded-for'] || null;
 const DEFAULT_PROJECT_CATALOG_CODE = 'DATN';
 
@@ -131,6 +137,9 @@ const getAllTopics = async (req, res, next) => {
 
         res.json({ success: true, data: topics });
     } catch (error) {
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({ success: false, message: error.message, code: error.code });
+        }
         next(error);
     }
 };
@@ -167,6 +176,9 @@ const getTopicById = async (req, res, next) => {
 
         res.json({ success: true, data: topic });
     } catch (error) {
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({ success: false, message: error.message, code: error.code });
+        }
         next(error);
     }
 };
@@ -241,6 +253,7 @@ const createTopic = async (req, res, next) => {
             }
             topicStatus = 'PENDING';
             finalMentorId = parseInt(mentorId, 10);
+            await assertMentorCapacity(finalMentorId, semesterIdInt, { db: prisma, increment: 1 });
         } else {
             if (!mentorId) {
                 return res.status(400).json({ success: false, message: 'Admin bắt buộc chọn giảng viên hướng dẫn.' });
@@ -336,6 +349,9 @@ const createTopic = async (req, res, next) => {
             data: topic,
         });
     } catch (error) {
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({ success: false, message: error.message, code: error.code });
+        }
         next(error);
     }
 };
@@ -373,6 +389,18 @@ const updateTopic = async (req, res, next) => {
             });
             if (!mentor || mentor.role !== 'LECTURER' || !mentor.isActive) {
                 return res.status(400).json({ success: false, message: 'GVHD phải là giảng viên đang hoạt động.' });
+            }
+            const activeRegsCount = await prisma.topicRegistration.count({
+                where: {
+                    topicId,
+                    status: { in: ACTIVE_MENTOR_OCCUPANCY_STATUSES },
+                },
+            });
+            if (activeRegsCount > 0) {
+                await assertMentorCapacity(mentorIdInt, existing.semesterId, {
+                    db: prisma,
+                    increment: activeRegsCount,
+                });
             }
             updateData.mentorId = mentorIdInt;
         }
@@ -427,6 +455,9 @@ const updateTopic = async (req, res, next) => {
 
         res.json({ success: true, message: 'Cập nhật đề tài thành công.', data: topic });
     } catch (error) {
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({ success: false, message: error.message, code: error.code });
+        }
         next(error);
     }
 };
@@ -469,6 +500,9 @@ const deleteTopic = async (req, res, next) => {
 
         res.json({ success: true, message: 'Xóa đề tài thành công.' });
     } catch (error) {
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({ success: false, message: error.message, code: error.code });
+        }
         next(error);
     }
 };
@@ -503,64 +537,84 @@ const changeTopicStatus = async (req, res, next) => {
             return res.status(403).json({ success: false, message: 'Bạn chỉ có quyền duyệt đề tài do mình hướng dẫn.' });
         }
 
+        let topic;
         if (status === 'APPROVED') {
-            const mentor = await prisma.user.findUnique({ where: { id: existing.mentorId } });
-            const maxSlots = getMentorMaxSlots(mentor?.academicTitle);
-            const currentCount = await prisma.topicRegistration.count({
-                where: {
-                    topic: { mentorId: existing.mentorId, semesterId: existing.semesterId },
-                    status: { in: ['APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'AWAITING_SCORES', 'AWAITING_FINAL_APPROVAL', 'DEFENSE_PASSED', 'DEFENSE_FAILED', 'DEFENDED', 'COMPLETED'] },
+            topic = await prisma.$transaction(async (tx) => {
+                if (typeof tx.$queryRaw === 'function') {
+                    try {
+                        await tx.$queryRaw`
+                            SELECT id FROM users WHERE id = ${existing.mentorId} FOR UPDATE
+                        `;
+                    } catch (_err) {
+                        // ignore
+                    }
+                }
+
+                const proposer = await tx.user.findUnique({ where: { id: existing.proposedById } });
+                const isStudentProposal = proposer?.role === 'STUDENT';
+
+                await assertMentorCapacity(existing.mentorId, existing.semesterId, {
+                    db: tx,
+                    increment: isStudentProposal ? 1 : 0,
+                });
+
+                const updatedTopic = await tx.topic.update({
+                    where: { id: topicId },
+                    data: {
+                        status: 'APPROVED',
+                        rejectReason: null,
+                    },
+                    include: {
+                        proposedBy: { select: { id: true, fullName: true, code: true } },
+                        mentor: { select: { id: true, fullName: true, code: true } },
+                    },
+                });
+
+                if (isStudentProposal) {
+                    const hasReg = await tx.topicRegistration.findUnique({
+                        where: { studentId_semesterId: { studentId: proposer.id, semesterId: existing.semesterId } },
+                    });
+                    if (!hasReg) {
+                        let activePolicy = null;
+                        if (tx.periodWorkflowPolicyVersion?.findFirst) {
+                            try {
+                                activePolicy = await tx.periodWorkflowPolicyVersion.findFirst({
+                                    where: { semesterId: existing.semesterId, isActive: true },
+                                    orderBy: { version: 'desc' },
+                                });
+                            } catch (_err) {
+                                // Non-fatal if policy version model is mocked or missing in tests
+                            }
+                        }
+
+                        await tx.topicRegistration.create({
+                            data: {
+                                topicId: existing.id,
+                                studentId: proposer.id,
+                                semesterId: existing.semesterId,
+                                status: 'APPROVED',
+                                assignmentStatus: 'ACTIVE',
+                                effectiveAt: new Date(),
+                                periodPolicyVersionId: activePolicy?.id || null,
+                            },
+                        });
+                    }
+                }
+
+                return updatedTopic;
+            }, { isolationLevel: 'Serializable' });
+        } else {
+            topic = await prisma.topic.update({
+                where: { id: topicId },
+                data: {
+                    status: 'REJECTED',
+                    rejectReason,
+                },
+                include: {
+                    proposedBy: { select: { id: true, fullName: true, code: true } },
+                    mentor: { select: { id: true, fullName: true, code: true } },
                 },
             });
-            if (currentCount >= maxSlots) {
-                return res.status(400).json({ success: false, message: `Giảng viên đã đạt giới hạn ${maxSlots} sinh viên hướng dẫn.` });
-            }
-        }
-
-        const topic = await prisma.topic.update({
-            where: { id: topicId },
-            data: {
-                status,
-                rejectReason: status === 'REJECTED' ? rejectReason : null,
-            },
-            include: {
-                proposedBy: { select: { id: true, fullName: true, code: true } },
-                mentor: { select: { id: true, fullName: true, code: true } },
-            },
-        });
-
-        if (status === 'APPROVED') {
-            const proposer = await prisma.user.findUnique({ where: { id: existing.proposedById } });
-            if (proposer?.role === 'STUDENT') {
-                const hasReg = await prisma.topicRegistration.findUnique({
-                    where: { studentId_semesterId: { studentId: proposer.id, semesterId: existing.semesterId } },
-                });
-                if (!hasReg) {
-                    let activePolicy = null;
-                    if (prisma.periodWorkflowPolicyVersion?.findFirst) {
-                        try {
-                            activePolicy = await prisma.periodWorkflowPolicyVersion.findFirst({
-                                where: { semesterId: existing.semesterId, isActive: true },
-                                orderBy: { version: 'desc' },
-                            });
-                        } catch (_err) {
-                            // Non-fatal if policy version model is mocked or missing in tests
-                        }
-                    }
-
-                    await prisma.topicRegistration.create({
-                        data: {
-                            topicId: existing.id,
-                            studentId: proposer.id,
-                            semesterId: existing.semesterId,
-                            status: 'APPROVED',
-                            assignmentStatus: 'ACTIVE',
-                            effectiveAt: new Date(),
-                            periodPolicyVersionId: activePolicy?.id || null,
-                        },
-                    });
-                }
-            }
         }
 
         await auditLog(
@@ -578,6 +632,9 @@ const changeTopicStatus = async (req, res, next) => {
             data: topic,
         });
     } catch (error) {
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({ success: false, message: error.message, code: error.code });
+        }
         next(error);
     }
 };
@@ -596,15 +653,12 @@ const getMentorCapacity = async (req, res, next) => {
             return res.status(404).json({ success: false, message: 'Không tìm thấy giảng viên.' });
         }
 
-        const maxSlots = getMentorMaxSlots(mentor.academicTitle);
-
-        const whereClause = {
-            topic: { mentorId: parseInt(mentorId, 10) },
-            status: { in: ['APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'AWAITING_SCORES', 'AWAITING_FINAL_APPROVAL', 'DEFENSE_PASSED', 'DEFENSE_FAILED', 'DEFENDED', 'COMPLETED'] },
-        };
-        if (semesterId) whereClause.semesterId = parseInt(semesterId, 10);
-
-        const currentCount = await prisma.topicRegistration.count({ where: whereClause });
+        const maxSlots = DEFAULT_MAX_STUDENTS_PER_MENTOR; // 10
+        const currentCount = await countActiveOccupiedMentoredTopics(
+            mentor.id,
+            semesterId ? parseInt(semesterId, 10) : undefined,
+            { db: prisma }
+        );
 
         res.json({
             success: true,
@@ -614,10 +668,13 @@ const getMentorCapacity = async (req, res, next) => {
                 academicTitle: mentor.academicTitle,
                 maxSlots,
                 currentCount,
-                available: maxSlots - currentCount,
+                available: Math.max(0, maxSlots - currentCount),
             },
         });
     } catch (error) {
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({ success: false, message: error.message, code: error.code });
+        }
         next(error);
     }
 };
@@ -657,6 +714,9 @@ const getAvailableMentors = async (req, res, next) => {
 
         res.json({ success: true, data: mentors });
     } catch (error) {
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({ success: false, message: error.message, code: error.code });
+        }
         next(error);
     }
 };
@@ -744,6 +804,9 @@ const getRegistrationHistory = async (req, res, next) => {
 
         return res.json({ success: true, data: history });
     } catch (error) {
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({ success: false, message: error.message, code: error.code });
+        }
         next(error);
     }
 };
@@ -811,6 +874,9 @@ const getCloneableTopics = async (req, res, next) => {
             data: topics,
         });
     } catch (error) {
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({ success: false, message: error.message, code: error.code });
+        }
         next(error);
     }
 };
@@ -917,6 +983,9 @@ const cloneTopics = async (req, res, next) => {
             data: created,
         });
     } catch (error) {
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({ success: false, message: error.message, code: error.code });
+        }
         next(error);
     }
 };
@@ -932,6 +1001,9 @@ const getTopicCatalogs = async (req, res, next) => {
             data: catalogs,
         });
     } catch (error) {
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({ success: false, message: error.message, code: error.code });
+        }
         next(error);
     }
 };

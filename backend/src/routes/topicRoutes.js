@@ -30,6 +30,7 @@ router.get(
 );
 
 router.get('/mentors', getAvailableMentors);
+router.get('/mentors/:mentorId/capacity', getMentorCapacity);
 router.get('/catalogs', getTopicCatalogs);
 router.get('/cloneable', getCloneableTopics);
 router.post('/clone', cloneTopics);

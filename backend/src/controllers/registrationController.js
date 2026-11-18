@@ -1,8 +1,11 @@
 const prisma = require('../config/database');
 const {
     DEFAULT_MAX_STUDENTS_PER_MENTOR,
+    ACTIVE_MENTOR_OCCUPANCY_STATUSES,
     ACTIVE_REGISTRATION_STATUSES,
     getMentorMaxSlots,
+    countActiveOccupiedMentoredTopics,
+    assertMentorCapacity,
 } = require('../constants/mentorCapacity');
 const { calculateMentorPeakWorkload, formatWorkloadExceededMessage } = require('../utils/workloadSweep');
 const { PENDING_REMINDER_DAYS } = require('../constants/registrationLimits');
@@ -22,7 +25,7 @@ const MENTOR_ACTIVE_REGISTRATION_STATUSES = Array.from(new Set([
     'PENDING',
     ...(ACTIVE_REGISTRATION_STATUSES || []),
 ]));
-const MENTOR_APPROVED_REGISTRATION_STATUSES = ['APPROVED', 'IN_PROGRESS', 'SUBMITTED', 'AWAITING_SCORES', 'AWAITING_FINAL_APPROVAL', 'DEFENSE_PASSED', 'DEFENSE_FAILED', 'DEFENDED', 'COMPLETED'];
+const MENTOR_APPROVED_REGISTRATION_STATUSES = ACTIVE_MENTOR_OCCUPANCY_STATUSES;
 const PRE_DECISION_CANCELLABLE_STATUSES = [
     'PENDING',
     'APPROVED',
@@ -272,23 +275,15 @@ const registerTopic = async (req, res, next) => {
                 }
 
                 const roundQuota = mentorAssignment?.plannedQuota !== undefined
-                    ? mentorAssignment.plannedQuota
+                    ? Math.min(mentorAssignment.plannedQuota, DEFAULT_MAX_STUDENTS_PER_MENTOR)
                     : (getMentorMaxSlots(topic.mentor?.academicTitle) || DEFAULT_MAX_STUDENTS_PER_MENTOR || 10);
 
-                const mentorStudentCount = await tx.topicRegistration.count({
-                    where: {
-                        topic: { mentorId: topic.mentorId, semesterId: semesterIdInt },
-                        status: { in: MENTOR_ACTIVE_REGISTRATION_STATUSES },
-                    },
+                await assertMentorCapacity(topic.mentorId, semesterIdInt, {
+                    db: tx,
+                    increment: 1,
+                    includePending: true,
+                    maxCapacity: roundQuota,
                 });
-
-                if (mentorStudentCount >= roundQuota) {
-                    throw createHttpError(
-                        400,
-                        `Giảng viên đã đạt giới hạn chỉ tiêu hướng dẫn trong đợt này (${roundQuota} sinh viên).`,
-                        'MENTOR_CAPACITY_EXCEEDED',
-                    );
-                }
 
                 // Workload sweep across overlapping rounds
                 const existingRegistrations = await tx.topicRegistration.findMany({
@@ -856,66 +851,82 @@ const handleRegistration = async (req, res, next) => {
         }
 
         if (action === 'APPROVE') {
-            const reg = await prisma.$transaction(async (tx) => {
-                const currentReg = await tx.topicRegistration.findUnique({
-                    where: { id: idInt },
-                    include: {
-                        topic: { include: { mentor: { select: { id: true, academicTitle: true } } } },
-                        student: { select: { id: true, fullName: true, code: true } },
+            const preCheckReg = await prisma.topicRegistration.findUnique({
+                where: { id: idInt },
+                select: { topic: { select: { mentorId: true } } },
+            });
+            const releaseMentorLock = preCheckReg?.topic?.mentorId
+                ? await acquireMentorLock(preCheckReg.topic.mentorId)
+                : null;
+
+            try {
+                const reg = await prisma.$transaction(async (tx) => {
+                    const currentReg = await tx.topicRegistration.findUnique({
+                        where: { id: idInt },
+                        include: {
+                            topic: { include: { mentor: { select: { id: true, academicTitle: true } } } },
+                            student: { select: { id: true, fullName: true, code: true } },
+                        },
+                    });
+
+                    if (!currentReg) {
+                        throw createHttpError(404, 'Không tìm thấy đăng ký.');
+                    }
+
+                    if (currentReg.status !== 'PENDING') {
+                        throw createHttpError(400, `Đăng ký đang ở trạng thái: ${currentReg.status}. Chỉ xử lý khi PENDING.`);
+                    }
+
+                    if (role === 'LECTURER' && currentReg.topic.mentorId !== userId) {
+                        throw createHttpError(403, 'Bạn không có quyền duyệt đăng ký này.');
+                    }
+
+                    if (typeof tx.$queryRaw === 'function') {
+                        try {
+                            await tx.$queryRaw`
+                                SELECT id FROM users WHERE id = ${currentReg.topic.mentorId} FOR UPDATE
+                            `;
+                        } catch (_err) {
+                            // Non-fatal if raw query not supported
+                        }
+                    }
+
+                    await assertMentorCapacity(currentReg.topic.mentorId, currentReg.semesterId, {
+                        db: tx,
+                        increment: 1,
+                    });
+
+                    await tx.topicRegistration.update({
+                        where: { id: idInt },
+                        data: { status: 'APPROVED', rejectReason: null },
+                    });
+
+                    return currentReg;
+                }, { isolationLevel: 'Serializable' });
+
+                await safeNotify(
+                    {
+                        userId: reg.studentId,
+                        title: 'Đăng ký đề tài được duyệt',
+                        content: `Đề tài "${reg.topic.title}" đã được phê duyệt. Bạn có thể bắt đầu thực hiện.`,
+                        type: 'APPROVAL',
                     },
-                });
+                    'handleRegistration_APPROVE',
+                );
 
-                if (!currentReg) {
-                    throw createHttpError(404, 'Không tìm thấy đăng ký.');
+                await auditLog(
+                    userId,
+                    'APPROVE_REGISTRATION',
+                    'TopicRegistration',
+                    idInt,
+                    { byRole: role },
+                    getRequestIp(req),
+                );
+            } finally {
+                if (releaseMentorLock) {
+                    releaseMentorLock();
                 }
-
-                if (currentReg.status !== 'PENDING') {
-                    throw createHttpError(400, `Đăng ký đang ở trạng thái: ${currentReg.status}. Chỉ xử lý khi PENDING.`);
-                }
-
-                if (role === 'LECTURER' && currentReg.topic.mentorId !== userId) {
-                    throw createHttpError(403, 'Bạn không có quyền duyệt đăng ký này.');
-                }
-
-                const mentor = currentReg.topic.mentor;
-                const maxSlots = getMentorMaxSlots(mentor?.academicTitle);
-                const currentCount = await tx.topicRegistration.count({
-                    where: {
-                        topic: { mentorId: mentor.id, semesterId: currentReg.semesterId },
-                        status: { in: MENTOR_APPROVED_REGISTRATION_STATUSES },
-                    },
-                });
-
-                if (currentCount >= maxSlots) {
-                    throw createHttpError(400, `Đã đạt giới hạn ${maxSlots} sinh viên hướng dẫn.`);
-                }
-
-                await tx.topicRegistration.update({
-                    where: { id: idInt },
-                    data: { status: 'APPROVED', rejectReason: null },
-                });
-
-                return currentReg;
-            }, { isolationLevel: 'Serializable' });
-
-            await safeNotify(
-                {
-                    userId: reg.studentId,
-                    title: 'Đăng ký đề tài được duyệt',
-                    content: `Đề tài "${reg.topic.title}" đã được phê duyệt. Bạn có thể bắt đầu thực hiện.`,
-                    type: 'APPROVAL',
-                },
-                'handleRegistration_APPROVE',
-            );
-
-            await auditLog(
-                userId,
-                'APPROVE_REGISTRATION',
-                'TopicRegistration',
-                idInt,
-                { byRole: role },
-                getRequestIp(req),
-            );
+            }
         } else {
             const reg = await fetchRegistrationWithContext(idInt);
 
@@ -972,7 +983,9 @@ const handleRegistration = async (req, res, next) => {
             });
         }
         if (error.statusCode) {
-            return res.status(error.statusCode).json({ success: false, message: error.message });
+            const payload = { success: false, message: error.message };
+            if (error.code) payload.code = error.code;
+            return res.status(error.statusCode).json(payload);
         }
         next(error);
     }
@@ -1151,24 +1164,37 @@ const forceDecisionRegistration = async (req, res, next) => {
         }
 
         if (action === 'FORCE_APPROVE') {
-            await prisma.$transaction(async (tx) => {
-                const maxSlots = getMentorMaxSlots(reg.topic.mentor?.academicTitle);
-                const currentCount = await tx.topicRegistration.count({
-                    where: {
-                        topic: { mentorId: reg.topic.mentorId, semesterId: reg.semesterId },
-                        status: { in: MENTOR_APPROVED_REGISTRATION_STATUSES },
-                    },
-                });
+            const releaseMentorLock = reg.topic?.mentorId
+                ? await acquireMentorLock(reg.topic.mentorId)
+                : null;
 
-                if (currentCount >= maxSlots) {
-                    throw createHttpError(400, `Đã đạt giới hạn ${maxSlots} sinh viên hướng dẫn.`);
+            try {
+                await prisma.$transaction(async (tx) => {
+                    if (typeof tx.$queryRaw === 'function') {
+                        try {
+                            await tx.$queryRaw`
+                                SELECT id FROM users WHERE id = ${reg.topic.mentorId} FOR UPDATE
+                            `;
+                        } catch (_err) {
+                            // Non-fatal if raw query not supported
+                        }
+                    }
+
+                    await assertMentorCapacity(reg.topic.mentorId, reg.semesterId, {
+                        db: tx,
+                        increment: 1,
+                    });
+
+                    await tx.topicRegistration.update({
+                        where: { id: idInt },
+                        data: { status: 'APPROVED', rejectReason: null },
+                    });
+                }, { isolationLevel: 'Serializable' });
+            } finally {
+                if (releaseMentorLock) {
+                    releaseMentorLock();
                 }
-
-                await tx.topicRegistration.update({
-                    where: { id: idInt },
-                    data: { status: 'APPROVED', rejectReason: null },
-                });
-            }, { isolationLevel: 'Serializable' });
+            }
 
             await safeNotify(
                 {
@@ -1218,7 +1244,9 @@ const forceDecisionRegistration = async (req, res, next) => {
             });
         }
         if (error.statusCode) {
-            return res.status(error.statusCode).json({ success: false, message: error.message });
+            const payload = { success: false, message: error.message };
+            if (error.code) payload.code = error.code;
+            return res.status(error.statusCode).json(payload);
         }
         next(error);
     }

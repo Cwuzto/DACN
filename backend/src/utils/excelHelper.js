@@ -173,7 +173,7 @@ const generateLecturerTemplateBuffer = () => {
             'Số điện thoại': '0912345678',
             'Bộ môn / Khoa': 'Bộ môn Công nghệ Phần mềm',
             'Học vị (*)': 'Tiến sĩ', // Chấp nhận: Thạc sĩ, Tiến sĩ, Phó Giáo sư (hoặc THAC_SI, TIEN_SI, PHO_GIAO_SU)
-            'SV Tối Đa (Quota)': 15,
+            'SV Tối Đa (Quota)': 10,
         },
         {
             'Mã GV (*)': 'GV202602',

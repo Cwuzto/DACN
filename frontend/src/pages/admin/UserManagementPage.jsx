@@ -1017,11 +1017,8 @@ function UserManagementPage() {
                                         <Select
                                             placeholder="Chọn học vị"
                                             allowClear
-                                            onChange={(value) => {
-                                                let maxStudents = 10;
-                                                if (value === 'TIEN_SI') maxStudents = 15;
-                                                if (value === 'PHO_GIAO_SU') maxStudents = 20;
-                                                form.setFieldValue('maxStudents', maxStudents);
+                                            onChange={(_value) => {
+                                                form.setFieldValue('maxStudents', 10);
                                             }}
                                         >
                                             <Select.Option value="THAC_SI">Thạc sĩ</Select.Option>
@@ -1033,9 +1030,9 @@ function UserManagementPage() {
                                     <Form.Item
                                         label="Chỉ tiêu hướng dẫn tối đa"
                                         name="maxStudents"
-                                        tooltip="Mặc định: ThS 10 SV, TS 15 SV, PGS 20 SV."
+                                        tooltip="Giới hạn tối đa 10 sinh viên hướng dẫn trong đợt đồ án theo quy định."
                                     >
-                                        <Input type="number" placeholder="VD: 10" />
+                                        <Input type="number" placeholder="VD: 10" max={10} min={1} />
                                     </Form.Item>
                                 </div>
                             )}
