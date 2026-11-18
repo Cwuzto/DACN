@@ -16,6 +16,12 @@ import useAuthStore from '../../stores/authStore';
 import { queryKeys } from '../../query/queryKeys';
 import { useScoreSheet, useScoreSheetMutation } from '../../queries/gradingQueries';
 import QueryPanel from '../../components/common/QueryPanel';
+import RubricQuickScore from '../../components/grading/RubricQuickScore';
+import {
+    DEFAULT_RUBRIC_LEVEL_POLICY,
+    isScoredValue,
+    roundScore2,
+} from '../../utils/rubricLevelPolicy';
 
 const ROLE_LABELS = {
     CHAIRMAN: 'Chủ tịch',
@@ -23,8 +29,6 @@ const ROLE_LABELS = {
     REVIEWER: 'Ủy viên phản biện',
     MEMBER: 'Ủy viên',
 };
-
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
 const LEVEL_CONFIG = {
     FOUNDATION: {
@@ -99,6 +103,7 @@ export default function LecturerGradingSheetPage() {
             version: rubric.version || 'v1',
             title: rubric.title || 'Barem đánh giá bảo vệ đồ án',
             totalMaxScore: rubric.totalMaxScore || 10.0,
+            scoreLevelPolicy: rubric.scoreLevelPolicy || DEFAULT_RUBRIC_LEVEL_POLICY,
         });
 
         let rawCategories = rubric.categories || [];
@@ -112,13 +117,20 @@ export default function LecturerGradingSheetPage() {
                 },
             ];
         }
-        setCategories(rawCategories);
+        // Preserve CLO mapping and level descriptions for RubricQuickScore
+        setCategories(rawCategories.map((cat) => ({
+            ...cat,
+            criteria: (cat.criteria || []).map((cri) => ({
+                ...cri,
+                cloCode: cri.cloCode || null,
+            })),
+        })));
 
         const sMap = {};
         const cMap = {};
         (payload.scores || []).forEach((item) => {
             if (item?.criterionCode) {
-                sMap[item.criterionCode] = Number.isFinite(Number(item.score)) ? Number(item.score) : null;
+                sMap[item.criterionCode] = isScoredValue(item.score) ? Number(item.score) : null;
                 cMap[item.criterionCode] = item.comment || '';
             }
         });
@@ -126,22 +138,17 @@ export default function LecturerGradingSheetPage() {
         setCommentsMap(cMap);
     }, [scoreSheetQuery.data]);
 
+    const scoreLevelPolicy = scoreSheetQuery.data?.rubric?.scoreLevelPolicy
+        || rubricInfo?.scoreLevelPolicy
+        || DEFAULT_RUBRIC_LEVEL_POLICY;
+
     const allCriteria = useMemo(() => {
         return categories.flatMap((cat) => cat.criteria || []);
     }, [categories]);
 
-    const handleScoreChange = (criterionCode, value, maxScore) => {
+    const handleScoresChange = (nextScoresMap) => {
         if (scoreLocked) return;
-        if (value === null || value === undefined || value === '') {
-            setScoresMap((prev) => ({ ...prev, [criterionCode]: null }));
-            return;
-        }
-        let numVal = Number(value);
-        if (Number.isNaN(numVal)) return;
-        if (numVal < 0) numVal = 0;
-        if (numVal > maxScore) numVal = maxScore;
-
-        setScoresMap((prev) => ({ ...prev, [criterionCode]: round2(numVal) }));
+        setScoresMap(nextScoresMap);
     };
 
     const handleCommentChange = (criterionCode, value) => {
@@ -152,33 +159,26 @@ export default function LecturerGradingSheetPage() {
     const totalScore = useMemo(() => {
         const sum = allCriteria.reduce((acc, cri) => {
             const val = scoresMap[cri.code];
-            return acc + (Number.isFinite(Number(val)) ? Number(val) : 0);
+            return acc + (isScoredValue(val) ? Number(val) : 0);
         }, 0);
-        return round2(sum);
+        return roundScore2(sum);
     }, [allCriteria, scoresMap]);
 
     const isCompleted = useMemo(() => {
         if (!allCriteria.length) return false;
-        return allCriteria.every((cri) => {
-            const val = scoresMap[cri.code];
-            return val !== null && val !== undefined && Number.isFinite(Number(val));
-        });
+        return allCriteria.every((cri) => isScoredValue(scoresMap[cri.code]));
     }, [allCriteria, scoresMap]);
 
     const gradeInfo = useMemo(() => getGradeClassification(totalScore), [totalScore]);
 
     const handleSave = async () => {
-        if (!isCompleted) {
-            message.warning('Vui lòng nhập đầy đủ điểm cho tất cả các tiêu chí trong barem trước khi lưu.');
-            return;
-        }
-
         try {
             setSaving(true);
+            const scoredCriteria = allCriteria.filter((cri) => isScoredValue(scoresMap[cri.code]));
             const payload = {
-                scores: allCriteria.map((cri) => ({
+                scores: scoredCriteria.map((cri) => ({
                     criterionCode: cri.code,
-                    score: Number(scoresMap[cri.code] || 0),
+                    score: Number(scoresMap[cri.code]),
                     comment: commentsMap[cri.code] || null,
                 })),
                 generalComment: generalComment ? generalComment.trim() : '',
@@ -188,7 +188,11 @@ export default function LecturerGradingSheetPage() {
                 action: 'saveScoreSheet',
                 args: [registrationId, payload],
             });
-            message.success('Đã lưu điểm đánh giá (' + totalScore + 'đ) và ký số biên bản điện tử thành công!');
+            if (scoredCriteria.length === allCriteria.length && allCriteria.length > 0) {
+                message.success('Đã lưu điểm đánh giá (' + totalScore.toFixed(2) + 'đ) và ký số biên bản điện tử thành công!');
+            } else {
+                message.success(`Đã lưu nháp ${scoredCriteria.length}/${allCriteria.length} tiêu chí (${totalScore.toFixed(2)}đ) thành công!`);
+            }
         } catch (e) {
             message.error(e.message || 'Lưu phiếu chấm thất bại');
         } finally {
@@ -208,7 +212,7 @@ export default function LecturerGradingSheetPage() {
                 registrationId: Number(registrationId),
                 scores: allCriteria.map((cri) => ({
                     criterionCode: cri.code,
-                    score: Number(scoresMap[cri.code] || 0),
+                    score: Number(scoresMap[cri.code]),
                     comment: commentsMap[cri.code] || null,
                 })),
                 generalComment: generalComment ? generalComment.trim() : '',
@@ -248,8 +252,8 @@ export default function LecturerGradingSheetPage() {
             setAiFeedbackLoading(true);
             const scoresObj = {};
             allCriteria.forEach((c) => {
-                if (scoresMap[c.code] !== null && scoresMap[c.code] !== undefined) {
-                    scoresObj[c.code] = scoresMap[c.code];
+                if (isScoredValue(scoresMap[c.code])) {
+                    scoresObj[c.code] = Number(scoresMap[c.code]);
                 }
             });
             scoresObj.totalScore = totalScore;
@@ -311,14 +315,14 @@ export default function LecturerGradingSheetPage() {
         <QueryPanel query={scoreSheetQuery}>
             <section id="view-grading-sheet" className="view-pane active">
             {/* Top Back Bar */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
                 <Button
                     icon={<ArrowLeftOutlined />}
                     onClick={() => navigate('/lecturer/grading')}
                 >
                     Quay lại danh sách Hội đồng
                 </Button>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                     <button
                         className="btn btn-secondary btn-sm"
                         onClick={() => setIsPrintModalOpen(true)}
@@ -449,7 +453,7 @@ export default function LecturerGradingSheetPage() {
                 <div className="card-head" style={{ flexWrap: 'wrap', gap: 10 }}>
                     <div>
                         <div className="card-title">Phiếu Đánh Giá Điểm Bảo Vệ Theo Tiêu Chí</div>
-                        <div className="card-subtitle">Kéo thanh trượt hoặc nhập điểm trực tiếp cho từng tiêu chí thành phần</div>
+                        <div className="card-subtitle">Chọn mức đánh giá nhanh hoặc nhập điểm trực tiếp (0.01đ) cho từng tiêu chí</div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                         <span className="tag teal" id="rubric-total-scale-tag">
@@ -466,73 +470,15 @@ export default function LecturerGradingSheetPage() {
                 </div>
 
                 <div style={{ padding: 20 }}>
-                    <div id="rubric-groups-container">
-                        {categories.map((group, gIdx) => {
-                            const groupCriteria = group.criteria || [];
-                            const groupMax = groupCriteria.reduce((sum, c) => sum + (parseFloat(c.maxScore) || 0), 0);
-                            const groupScore = groupCriteria.reduce((sum, c) => sum + (parseFloat(scoresMap[c.code]) || 0), 0);
-
-                            return (
-                                <div className="rubric-group" key={group.code || gIdx}>
-                                    <div className="rubric-group-title">
-                                        <span>{group.name} — Tối đa {groupMax.toFixed(2)} điểm</span>
-                                        <span className="mono" style={{ color: 'var(--primary)' }}>
-                                            {groupScore.toFixed(2)} / {groupMax.toFixed(2)}đ
-                                        </span>
-                                    </div>
-                                    <div>
-                                        {groupCriteria.map((c) => {
-                                            const currentVal = scoresMap[c.code];
-                                            const max = Number(c.maxScore) || 1.0;
-                                            return (
-                                                <div className="rubric-row" key={c.code} style={{ alignItems: 'start' }}>
-                                                    <div>
-                                                        <div className="rubric-name">{c.name || c.label}</div>
-                                                        <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                                            {c.cloCode && <Tag color="blue" className="font-mono text-[10px]">{c.cloCode}</Tag>}
-                                                            <span className="rubric-desc text-xs text-slate-500">{c.description || 'Tiêu chí đánh giá chất lượng khóa luận'}</span>
-                                                        </div>
-                                                        {(c.descGood || c.descFair || c.descAverage || c.descPoor) && (
-                                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, marginTop: 6, fontSize: '11px', background: '#f8fafc', padding: 6, borderRadius: 4 }}>
-                                                                <div style={{ color: '#16a34a' }}><strong>Tốt:</strong> {c.descGood || '---'}</div>
-                                                                <div style={{ color: '#0284c7' }}><strong>Khá:</strong> {c.descFair || '---'}</div>
-                                                                <div style={{ color: '#d97706' }}><strong>TB:</strong> {c.descAverage || '---'}</div>
-                                                                <div style={{ color: '#dc2626' }}><strong>Kém:</strong> {c.descPoor || '---'}</div>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    <div className="rubric-max-badge" style={{ marginTop: 4 }}>
-                                                        Tối đa: <span className="mono">{max.toFixed(2)}</span>đ
-                                                    </div>
-                                                    <input
-                                                        type="range"
-                                                        className="rubric-slider"
-                                                        min="0"
-                                                        max={max}
-                                                        step={c.step || 0.05}
-                                                        value={currentVal !== null && currentVal !== undefined ? currentVal : 0}
-                                                        disabled={scoreLocked}
-                                                        onChange={(e) => handleScoreChange(c.code, e.target.value, max)}
-                                                    />
-                                                    <input
-                                                        type="number"
-                                                        className="rubric-input r-val mono"
-                                                        min="0"
-                                                        max={max}
-                                                        step={c.step || 0.05}
-                                                        value={currentVal !== null && currentVal !== undefined ? currentVal : ''}
-                                                        placeholder="0.00"
-                                                        disabled={scoreLocked}
-                                                        onChange={(e) => handleScoreChange(c.code, e.target.value, max)}
-                                                    />
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
+                    <RubricQuickScore
+                        categories={categories}
+                        policy={scoreLevelPolicy}
+                        scoresMap={scoresMap}
+                        commentsMap={commentsMap}
+                        disabled={scoreLocked}
+                        onScoresChange={handleScoresChange}
+                        onCommentChange={handleCommentChange}
+                    />
 
                     {/* General Comment */}
                     <div style={{ marginTop: 20 }}>
@@ -681,7 +627,9 @@ export default function LecturerGradingSheetPage() {
                                             {categories.map((g, idx) => {
                                                 const gCriteria = g.criteria || [];
                                                 const gMax = gCriteria.reduce((sum, c) => sum + (parseFloat(c.maxScore) || 0), 0);
-                                                const gScore = gCriteria.reduce((sum, c) => sum + (parseFloat(scoresMap[c.code]) || 0), 0);
+                                                const gScore = roundScore2(
+                                                    gCriteria.reduce((sum, c) => sum + (isScoredValue(scoresMap[c.code]) ? Number(scoresMap[c.code]) : 0), 0)
+                                                );
                                                 return (
                                                     <tr key={g.code || idx}>
                                                         <td style={{ border: '1px solid #CBD5E1', padding: 6 }}>{g.name}</td>
