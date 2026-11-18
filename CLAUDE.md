@@ -70,6 +70,56 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 
 ## 6. Cập Nhật Phiên Làm Việc (Session Update)
 
+### Phiên 18/11/2026 (Phần 2: Tách BM02-A Khỏi Duyệt Nguyện Vọng, Hạ Tầng In & Nộp Trực Tuyến BM01–BM03, Chuẩn Hóa Seed `DATN` / TDMU & Vá Bảo Mật)
+
+#### 1. Những phần đã hoàn thành
+1. **Tách Luồng Điều Chỉnh Tên Đề Tài BM02-A Khỏi "Duyệt Nguyện Vọng" (`8070592`)**:
+   - **Backend (`lecturerOverviewService.js`, `bm02aController.js`)**: Thẻ `REVIEW_TITLE_ADJUSTMENT` trên Tổng quan giảng viên lấy trực tiếp từ `BM02AAdjustmentRequest` (`PENDING_ADVISOR`) của chính GVHD trong kỳ, trả `requestId` và `target: '/lecturer/title-adjustments?requestId=<id>'` (không dùng `TopicTitleAdjustment` cũ, không trộn `PENDING_DEPARTMENT_APPROVAL`). Siết kiểm tra ownership BM02-A (bỏ `ADMIN` bypass mù, chặn giả mạo `actorRole` khi trả lại phiếu).
+   - **Frontend**: Tạo trang riêng [TitleAdjustmentPage.jsx](file:///d:/DACN/frontend/src/pages/lecturer/TitleAdjustmentPage.jsx) tại `/lecturer/title-adjustments?requestId=<id>` (bọc `ProtectedRoute` trong `App.jsx`, không thêm mục cố định trên sidebar). Gỡ tab BM02-A khỏi `TopicApprovalPage.jsx` (chỉ giữ `mentor` và `bm01`, redirect `/lecturer/approvals?tab=bm02a` giữ `requestId`). Bổ sung nút mở thẳng phiếu theo `requestId` trên `SupervisedStudentList.jsx`, `LecturerStudentsPage.jsx` và `TopicManagementPage.jsx` (GV).
+   - **Kiểm thử**: `titleAdjustmentNavigation.spec.jsx` (8/8), `LecturerOverview.spec.jsx` (4/4), `lecturerStudentsNavigation.spec.jsx` (3/3), `fivePersonaPolicies.spec.jsx` (20/20), `e2e/rbac-five-persona.spec.js` (5/5), Backend 33/33 PASS.
+2. **Hạ Tầng In A4 & Nộp Trực Tuyến BM01–BM03 (`3277892`)**:
+   - **Academic Print Foundation**: Cô lập `@media print` trong `index.css` theo `body[data-print-mode="academic-form"]` và `body[data-print-mode="announcement"]` (`HomePage.jsx`), bỏ `fixed`/`maxHeight`/`overflow`/`transform` khi in tại `AcademicFormPrintModal.jsx`. Chuẩn hóa dữ liệu thật (bỏ placeholder/chữ ký/điểm giả) trên `BM02PrintSheet`..`BM05PrintSheet`; `AcademicDossierDrawer.jsx` tách riêng tải/in PDF BM01 và in BM02–BM05 qua trình duyệt.
+   - **BM01 PDF-Only & Lưu Đồng Thời `content` + `assetId`**: Áp dụng migration `20261118150000_bm01_pdf_only`; khóa policy BM01 chỉ nhận PDF $\le 20$ MB (`assetPolicyCatalog.js`, `outlineReviewService.js`, `semesterController.js`, `ProjectPeriodPage.jsx`); gửi và lưu `content` + `assetId` trong một transaction v1/v2 kèm `Idempotency-Key`; xem/mở chính PDF BM01 v1/v2 qua `BMSubmissionViewer.jsx` và `OutlineReviewModal.jsx` (lịch sử `.docx` chỉ tải xuống).
+   - **BM02 Xác Nhận Trực Tuyến 3 Bước**: Áp dụng migration `20261118160000_bm02_confirmation_events` (thêm `payloadHash`, `studentSignatureEventId`, `advisorSignatureEventId`, `departmentSignatureEventId` vào `BM02Submission`) và thêm `BM02_ADVISOR_SIGN`, `BM02_DEPARTMENT_SIGN` vào `permissions.js`. Tạo `bm02SignatureService.js` và 3 API mới (`/api/bm02/applications/:id/advisor-sign`, `/department-sign`, `/verification`); bỏ yêu cầu bản scan BM02 trên `HybridBMFormModal.jsx`, nối ký xác nhận và nhãn `"Đã xác thực nội bộ"` / `"Chờ xác nhận"` trên `LecturerDashboardPage.jsx`, `InstituteOperationsPage.jsx`, `BM02ReviewDrawer.jsx`, `BM02PrintSheet.jsx`.
+   - **BM03 Dòng Thời Gian Liên Tục & Mốc Đánh Giá**: Áp dụng migration `20261118170000_bm03_stage_windows` (thêm `bm03MidtermEvaluationOpenAt`, `bm03FinalizationOpenAt` trên `Semester` và snapshot vào `PeriodWorkflowPolicyVersion`); thêm `assertBM03StageWindow` trong `bm03WorkflowService.js`, bỏ chốt sớm `BM03_PASSED` từ Checkpoint 2 (`checkpointWorkflowService.js`). Hợp nhất dòng thời gian trên `ProgressTrackingPage.jsx` (GVHD) và `SubmissionPage.jsx` (SV chỉ đọc nhật ký, xác nhận toàn phiếu cuối kỳ, chỉ mở in BM03 hoàn tất sau khi chốt).
+3. **Khắc Phục Lỗi Giao Diện & Vá Bảo Mật (`a96659a`, `8d19f4d`, `cceea9f`)**:
+   - Sửa `isInstituteDirector` và `getUserDisplayRole` trong `frontend/src/utils/authRedirect.js` & `AppLayout.jsx`: phân biệt đúng tài khoản `GIAO_VU` (`lecturer02` / `gv002@tdmu.edu.vn`) hiển thị **`Giáo vụ`** thay vì bị nhận nhầm là **`Viện trưởng`** do có quyền `PROJECT_ASSIGNMENT_PUBLISH`.
+   - Sửa ngăn bên *"Thẩm định & Chi tiết Đề tài"* trong `frontend/src/pages/admin/TopicManagementPage.jsx`: dùng `getStatusTagConfig(r.status)` để hiển thị nhãn tiếng Việt **`Đang thực hiện đồ án`** thay cho mã enum thô `IN_PROGRESS_BM03`.
+   - Vá bảo mật `backend/scripts/storage/applyStorageMigrations.js`: loại bỏ chuỗi PostgreSQL URL hardcode có mật khẩu, chuyển sang đọc `process.env.DIRECT_URL || process.env.DATABASE_URL`.
+4. **Chuẩn Hóa Bộ Dữ Liệu Seed & Loại Bỏ `DACN` (Chỉ Giữ `DATN`) (`647ee3a`, `830cf9b`, `fcdff47`)**:
+   - Đổi tên & mã 3 đợt đồ án thành `HK1-2025-2026`, `HK2-2025-2026`, `HK1-2026-2027` (kèm mốc BM03); giữ mã GV tăng dần `GV001`..`GV020`, tên GV tự nhiên không lặp tiền tố học vị; đổi email GV thành `gv001@tdmu.edu.vn`..`gv020@tdmu.edu.vn` và SV thành `sv001@st.tdmu.edu.vn`..`sv300@st.tdmu.edu.vn`.
+   - Gỡ bỏ hoàn toàn loại đồ án `DACN` ("Đồ án chuyên ngành") khỏi `seedThreeSemesters.js` (chỉ giữ duy nhất `DATN` — "Đồ án tốt nghiệp", `plannedQuota: 10`), `objectPathBuilder.js`, `excelHelper.js`, `authorizationExemptions.js` và 8 tệp giao diện Frontend.
+   - Bổ sung 4 bảng lưu trữ vào allow-list của `resetApplicationData.js` và sửa `permissionService.js` (`create` chỉ truyền `{ code, label, module }`); đã chạy lại `npm --prefix backend run db:seed:3semesters` thành công lên PostgreSQL DB (321 users, 3 đợt, 300 đề tài, 300 `TopicRegistration`).
+
+#### 2. Trạng thái cập nhật của từng phần
+- **Cơ sở dữ liệu (Supabase PostgreSQL)**:
+  * Đã chạy `prisma migrate deploy` áp dụng đủ 39 migrations (gồm `20261118150000_bm01_pdf_only`, `20261118160000_bm02_confirmation_events`, `20261118170000_bm03_stage_windows`) và `prisma generate`.
+  * Đã chạy lại `db:seed:3semesters` sạch sẽ (chỉ còn `DATN`, email `@tdmu.edu.vn` / `@st.tdmu.edu.vn`, 3 đợt `HK1-2025-2026`, `HK2-2025-2026`, `HK1-2026-2027`).
+- **Backend API**:
+  * Đầy đủ các endpoint BM01 PDF+content, BM02 3-step verification (`advisor-sign`, `department-sign`, `verification`), BM03 stage windows (`assertBM03StageWindow`), BM02-A ownership/authz.
+  * Tất cả test suites đã chạy đều PASS: `permissionCatalogMigration` + `bm02AndDecisionWorkflow` (34/34), `outlineReviewService` + `outlineRoutes` + `bm01.routes` (74/74), `bm02SignatureService` + `bm02Signature.routes` + `bm02AndDecisionWorkflow` (27/27), `bm03StageWindows.routes` + `bm03Workflow` + `checkpointWorkflowService` + `checkpointDeadlineAndAppealResolution` + `semesters.routes` (75/75), `bm02ToBm04FullE2E` (29/29), `objectPathBuilder` + `storedAssetService` + `projectEnrollmentExcel` (31/31).
+- **Frontend SPA**:
+  * Production build `npm --prefix frontend run build` **PASS** (3375 modules, 0 lỗi).
+  * Print unit tests: **6/6 PASS**; Runtime tests (BM01/BM02/BM03/Print): **20/20 PASS**; BM02-A & Sidebar/Five-persona runtime tests: **35/35 PASS** + **23/23 PASS**; Playwright E2E (`academicFormsPrint`, `bm01PdfPreview`, `bm02Confirmation`, `bm03FinalPrint`): **7/7 PASS**, `rbac-five-persona`: **5/5 PASS**.
+- **MCP (`supabase-postgres`)**:
+  * Ghi nhận lỗi kết nối SSL `self-signed certificate in certificate chain` khi gọi MCP `query` trực tiếp; đã truy vấn/kiểm chứng DB qua Prisma CLI & script Node trong `backend/` ổn định.
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+1. **Xoay (Rotate) Mật Khẩu Database Supabase**:
+   - Đổi mật khẩu DB trên Supabase Dashboard (và cập nhật `.env` cục bộ) trước khi đẩy git history lên remote công khai do `applyStorageMigrations.js` từng chứa chuỗi kết nối cũ trong lịch sử commit trước `cceea9f`.
+2. **Kiểm Thử Thực Tế Giao Diện Sau Khi Seed Dữ Liệu Mới (`gv001@tdmu.edu.vn`, `gv002@tdmu.edu.vn`, `sv201@st.tdmu.edu.vn`)**:
+   - Kiểm tra trực tiếp trên trình duyệt luồng đăng nhập `gv001@tdmu.edu.vn` (Viện trưởng), `gv002@tdmu.edu.vn` (Giáo vụ), `sv201@st.tdmu.edu.vn` (Sinh viên) với 3 đợt `HK1-2025-2026`, `HK2-2025-2026`, `HK1-2026-2027` và loại đồ án duy nhất `DATN`.
+3. **Cấu Hình Cron Jobs Storage Workers & Legacy Cleanup Apply Mode (Môi trường thực tế)**:
+   - Thiết lập lịch chạy định kỳ cho `storage:cleanup -- --apply` và `storage:reconcile -- --apply`.
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+- **Chỉ Giữ Duy Nhất Loại Đồ Án `DATN` ("Đồ án tốt nghiệp")**: Hệ thống Viện Công nghệ số vận hành tập trung cho học phần Đồ án tốt nghiệp; loại bỏ `DACN` giúp đồng bộ thuật ngữ, quota (`10` SV/GVHD/đợt) và tránh phân mảnh dữ liệu ở cả seed lẫn giao diện.
+- **Tách Nhãn Hiển Thị Vai Trò Khỏi Quyền Hành Động (`authRedirect.js`)**: Quyền `PROJECT_ASSIGNMENT_PUBLISH` có thể được cấp cho cả Giáo vụ (`GIAO_VU`), do đó chỉ nhóm `VIEN_TRUONG` mới hiển thị chức danh `"Viện trưởng"`, nhóm `GIAO_VU` hiển thị `"Giáo vụ"`.
+- **Cô Lập `@media print` Bằng `data-print-mode` & Tách BM01 PDF Riêng**: Tránh xung đột quy tắc in bản tin làm trắng trang khi in BM02–BM05; giữ BM01 là tệp PDF gốc sinh viên tải lên thay vì tái tạo HTML mô phỏng.
+- **Tách BM02-A Ra Khỏi "Duyệt Nguyện Vọng"**: BM02-A là quy trình điều chỉnh tên sau đăng ký (3 chữ ký), mở theo `requestId` từ Tổng quan hoặc hồ sơ đề tài/sinh viên tại `/lecturer/title-adjustments` giúp "Duyệt nguyện vọng" giữ đúng một nhiệm vụ tiếp nhận hướng dẫn.
+
+---
+
 ### Phiên 18/11/2026 (Triển Khai Workflow Sidebar Theo Quy Trình Đồ Án, Khóa Phạm Vi `REPORT_VIEW` & Trung Tâm Điều Hành Học Vụ Viện Trưởng `/lecturer/institute`)
 
 #### 1. Những phần đã hoàn thành
