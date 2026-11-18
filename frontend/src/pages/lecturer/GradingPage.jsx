@@ -20,6 +20,46 @@ import { useCouncilDefenses, gradingCustomKeys } from '../../queries/gradingQuer
 import QueryPanel from '../../components/common/QueryPanel';
 import OutlineCouncilGradingCard from './components/OutlineCouncilGradingCard';
 
+const COUNCIL_ROLE_LABELS = {
+    CHAIRMAN: 'Chủ tịch Hội đồng',
+    SECRETARY: 'Thư ký Hội đồng',
+    REVIEWER: 'Ủy viên phản biện',
+    MEMBER: 'Ủy viên Hội đồng',
+};
+
+const FINISHED_DEFENSE_REG_STATUSES = new Set([
+    'AWAITING_FINAL_APPROVAL',
+    'DEFENDED',
+    'DEFENSE_PASSED',
+    'DEFENSE_FAILED',
+    'COMPLETED',
+]);
+
+const isCandidateFinished = (cand) => Boolean(
+    cand?.isScoreBookLocked
+    || cand?.defenseResult?.scoreLocked
+    || cand?.defenseResult?.isLocked
+    || cand?.defenseResult?.isPublished
+    || FINISHED_DEFENSE_REG_STATUSES.has(cand?.status),
+);
+
+const isUpcomingOrActiveDefenseCouncil = (council) => {
+    if (!council || council.councilType === 'OUTLINE_REVIEW') return false;
+    if (council.semester?.status === 'COMPLETED') return false;
+    if (council.scoreBookLocked) return false;
+
+    const candidates = council.registrations || council.candidates || [];
+    if (candidates.length > 0) {
+        return candidates.some((cand) => !isCandidateFinished(cand));
+    }
+
+    if (council.defenseDate) {
+        return !dayjs(council.defenseDate).isBefore(dayjs(), 'day');
+    }
+
+    return true;
+};
+
 /**
  * GradingPage — 100% OpenDesign Golden Standard
  * Replicates the exact layout, DOM hierarchy, and CSS classes from lecturer-dacn-prototype.html (view-grading):
@@ -118,7 +158,7 @@ export default function GradingPage() {
     };
 
     const defenseCouncils = useMemo(() => {
-        return councils.filter((c) => c.councilType !== 'OUTLINE_REVIEW');
+        return councils.filter((c) => isUpcomingOrActiveDefenseCouncil(c));
     }, [councils]);
 
     const outlineCouncils = useMemo(() => {
@@ -162,10 +202,14 @@ export default function GradingPage() {
                     <div className="card" style={{ padding: '48px 24px', textAlign: 'center', color: 'var(--muted)' }}>
                         <div style={{ fontSize: 32, marginBottom: 8 }}>📋</div>
                         <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--fg)' }}>
-                            Chưa có Hội đồng nào trong danh mục này
+                            {activeStage === 'defense'
+                                ? 'Hiện chưa có hội đồng bảo vệ nào sắp diễn ra'
+                                : 'Chưa có Hội đồng nào trong danh mục này'}
                         </h3>
                         <p style={{ fontSize: 13, marginTop: 4 }}>
-                            Phòng Đào tạo & Ban Chủ nhiệm Viện sẽ thông báo khi có quyết định phân công chính thức.
+                            {activeStage === 'defense'
+                                ? 'Các hội đồng chuẩn bị có lịch bảo vệ bạn tham gia sẽ hiển thị tại đây. Các hội đồng đã hoàn tất chấm và khóa sổ sẽ tự động ẩn.'
+                                : 'Phòng Đào tạo & Ban Chủ nhiệm Viện sẽ thông báo khi có quyết định phân công chính thức.'}
                         </p>
                     </div>
                 ) : activeStage === 'outline' ? (
@@ -182,6 +226,10 @@ export default function GradingPage() {
                         const chairman = members.find((m) => m.roleInCouncil === 'CHAIRMAN' || m.role === 'CHAIRMAN')?.lecturer?.fullName || 'Chưa phân công';
                         const secretary = members.find((m) => m.roleInCouncil === 'SECRETARY' || m.role === 'SECRETARY')?.lecturer?.fullName || 'Chưa phân công';
                         const reviewer = members.find((m) => m.roleInCouncil === 'REVIEWER' || m.role === 'REVIEWER')?.lecturer?.fullName || 'Chưa phân công';
+                        const resolvedMyRole = council.myRole
+                            || members.find((m) => m.lecturerId === currentUser?.id)?.roleInCouncil
+                            || null;
+                        const myRoleLabel = COUNCIL_ROLE_LABELS[resolvedMyRole] || 'Thành viên Hội đồng';
 
                         const candidates = council.registrations || council.candidates || [];
                         const gradedCount = candidates.filter((c) => c.defenseResult?.finalScore !== null && c.defenseResult?.finalScore !== undefined).length;
@@ -195,7 +243,7 @@ export default function GradingPage() {
                                                 {council.name || `Hội Đồng ${idx + 1}`}
                                             </span>
                                             <span className="tag teal">
-                                                Vai trò: {council.myRole || 'Thành viên Hội đồng'}
+                                                Vai trò: {myRoleLabel}
                                             </span>
                                         </div>
                                         <div className="card-subtitle" style={{ color: '#115E59' }}>
@@ -240,18 +288,20 @@ export default function GradingPage() {
                                                     const score = cand.defenseResult?.finalScore ?? cand.finalScore ?? null;
                                                     const hasScore = score !== null && score !== undefined;
                                                     const mentorName = cand.topic?.mentor?.fullName || cand.mentorName || 'GVHD';
-                                                    const isChairman = council.myRole === 'CHAIRMAN' || council.members?.find((m) => m.lecturerId === currentUser?.id)?.roleInCouncil === 'CHAIRMAN';
-                                                    const isAbsent = cand.attendanceStatus === 'ABSENT';
-                                                    const isLocked = cand.isScoreBookLocked || cand.defenseResult?.isLocked;
-                                                    const lockedCount = cand.lockedScoreCount ?? (cand.memberScores?.filter((m) => m.isLocked)?.length || 0);
+                                                    const isChairman = resolvedMyRole === 'CHAIRMAN';
+                                                    const isAbsent = (cand.attendanceStatus || cand.defenseResult?.attendanceStatus) === 'ABSENT';
+                                                    const isLocked = Boolean(cand.isScoreBookLocked || cand.defenseResult?.scoreLocked || cand.defenseResult?.isLocked);
+                                                    const lockedCount = cand.lockedScoreCount ?? (cand.memberScores?.filter((m) => m.scoreLocked || m.isLocked)?.length || 0);
                                                     const totalScorers = cand.totalScorers ?? (council.members?.filter((m) => m.isScoringMember !== false)?.length || 3);
 
-                                                    const shiftLabel = cand.defenseShift === 'MORNING'
+                                                    const shiftCode = cand.defenseShift || cand.defenseSessionShift;
+                                                    const shiftLabel = shiftCode === 'MORNING'
                                                         ? 'Ca Sáng (07:00–11:00)'
-                                                        : cand.defenseShift === 'AFTERNOON'
+                                                        : shiftCode === 'AFTERNOON'
                                                         ? 'Ca Chiều (13:00–17:00)'
                                                         : 'Chưa xếp ca';
-                                                    const orderLabel = cand.orderInShift ? `#${cand.orderInShift}` : `#${cIdx + 1}`;
+                                                    const orderNum = cand.orderInShift || cand.defenseOrderInShift;
+                                                    const orderLabel = orderNum ? `#${orderNum}` : `#${cIdx + 1}`;
 
                                                     return (
                                                         <tr key={cand.id || cIdx}>

@@ -368,7 +368,7 @@ const evaluationService = {
 
     getMyCouncilDefenses: async (params = {}) => {
         try {
-            return await api.get('/councils', { params });
+            return await api.get('/councils', { params: { forGrading: true, ...params } });
         } catch (error) {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi tải danh sách hội đồng');
         }

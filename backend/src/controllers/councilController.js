@@ -161,9 +161,46 @@ const validateCouncilMembersAgainstAssignedStudents = async (tx, councilId, lect
     }
 };
 
+const DEFENSE_FINISHED_REG_STATUSES = new Set([
+    'AWAITING_FINAL_APPROVAL',
+    'DEFENDED',
+    'DEFENSE_PASSED',
+    'DEFENSE_FAILED',
+    'COMPLETED',
+]);
+
+const isDefenseRegistrationFinished = (reg) => Boolean(
+    reg?.defenseResult?.scoreLocked
+    || reg?.defenseResult?.isLocked
+    || reg?.defenseResult?.isPublished
+    || DEFENSE_FINISHED_REG_STATUSES.has(reg?.status),
+);
+
+const isDefenseCouncilFinished = (council, now = new Date()) => {
+    if (!council || council.councilType === 'OUTLINE_REVIEW') {
+        return false;
+    }
+    if (council.semester?.status === 'COMPLETED') {
+        return true;
+    }
+    if (council.scoreBookLocked) {
+        return true;
+    }
+    const candidates = Array.isArray(council.registrations) ? council.registrations : [];
+    if (candidates.length > 0) {
+        return candidates.every(isDefenseRegistrationFinished);
+    }
+    if (council.defenseDate) {
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        return new Date(council.defenseDate) < startOfToday;
+    }
+    return false;
+};
+
 const getAllCouncils = async (req, res, next) => {
     try {
-        const { semesterId, councilType } = req.query;
+        const { semesterId, councilType, forGrading } = req.query;
+        const isForGrading = forGrading === 'true' || forGrading === '1';
         const where = {};
         if (semesterId) where.semesterId = parseInt(semesterId, 10);
         if (councilType && ['OUTLINE_REVIEW', 'DEFENSE_COUNCIL'].includes(councilType)) {
@@ -190,37 +227,68 @@ const getAllCouncils = async (req, res, next) => {
             where.members = { some: { lecturerId: req.user.id } };
         }
 
+        if (isForGrading) {
+            where.members = { some: { lecturerId: req.user.id, isActive: true } };
+        }
+
         if (where.councilType && !allowedCouncilTypes.includes(where.councilType)) {
             return res.status(403).json({ success: false, message: 'Bạn không có quyền xem loại hội đồng này.' });
         }
         if (!where.councilType) where.councilType = { in: allowedCouncilTypes };
 
-        const councils = await prisma.council.findMany({
-            where,
-            include: {
-                semester: { select: { name: true } },
-                members: {
-                    include: {
-                        lecturer: { select: { id: true, fullName: true, avatarUrl: true, code: true } },
-                    },
-                },
-                resultBatches: {
-                    orderBy: { versionNumber: 'desc' },
-                    take: 1,
-                },
-                _count: {
-                    select: { registrations: true, outlineRegistrations: true, defenseRegistrations: true },
+        const include = {
+            semester: { select: { id: true, code: true, name: true, status: true, defenseDate: true, endDate: true } },
+            members: {
+                include: {
+                    lecturer: { select: { id: true, fullName: true, avatarUrl: true, code: true } },
                 },
             },
-            orderBy: { id: 'desc' },
+            resultBatches: {
+                orderBy: { versionNumber: 'desc' },
+                take: 1,
+            },
+            _count: {
+                select: { registrations: true, outlineRegistrations: true, defenseRegistrations: true },
+            },
+        };
+
+        if (isForGrading) {
+            include.defenseRegistrations = {
+                include: {
+                    student: { select: { id: true, fullName: true, code: true, email: true } },
+                    topic: {
+                        select: {
+                            id: true,
+                            code: true,
+                            title: true,
+                            mentorId: true,
+                            mentor: { select: { id: true, fullName: true } },
+                        },
+                    },
+                    defenseResult: true,
+                    memberScores: {
+                        where: { isEffective: true },
+                        select: { id: true, evaluatorId: true, scoreLocked: true, finalScore: true },
+                    },
+                },
+                orderBy: [{ defenseSessionShift: 'asc' }, { defenseOrderInShift: 'asc' }, { id: 'asc' }],
+            };
+        }
+
+        const councils = await prisma.council.findMany({
+            where,
+            include,
+            orderBy: isForGrading ? [{ defenseDate: 'asc' }, { id: 'desc' }] : { id: 'desc' },
         });
 
-        const normalizedCouncils = councils.map((c) => {
+        let normalizedCouncils = councils.map((c) => {
             const studentCount = c.councilType === 'OUTLINE_REVIEW'
                 ? (c._count.outlineRegistrations || 0)
                 : (c._count.defenseRegistrations || c._count.registrations || 0);
             const myMember = c.members?.find((m) => m.lecturerId === req.user.id);
-            return {
+            const activeScorerCount = (c.members || []).filter((m) => m.isActive !== false && m.isScoringMember !== false).length || 3;
+
+            const base = {
                 ...c,
                 myRole: myMember?.roleInCouncil || null,
                 _count: {
@@ -228,7 +296,27 @@ const getAllCouncils = async (req, res, next) => {
                     registrations: studentCount,
                 },
             };
+
+            if (isForGrading && c.councilType !== 'OUTLINE_REVIEW') {
+                const rawRegs = c.defenseRegistrations || c.registrations || [];
+                base.registrations = rawRegs.map((reg) => ({
+                    ...reg,
+                    defenseShift: reg.defenseSessionShift || reg.defenseShift || null,
+                    orderInShift: reg.defenseOrderInShift || reg.orderInShift || null,
+                    attendanceStatus: reg.defenseResult?.attendanceStatus || reg.attendanceStatus || 'PRESENT',
+                    isScoreBookLocked: Boolean(reg.defenseResult?.scoreLocked || reg.isScoreBookLocked),
+                    lockedScoreCount: (reg.memberScores || []).filter((m) => m.scoreLocked || m.isLocked).length,
+                    totalScorers: activeScorerCount,
+                }));
+            }
+
+            return base;
         });
+
+        if (isForGrading) {
+            const now = new Date();
+            normalizedCouncils = normalizedCouncils.filter((c) => !isDefenseCouncilFinished(c, now));
+        }
 
         res.json({ success: true, data: normalizedCouncils });
     } catch (error) {
