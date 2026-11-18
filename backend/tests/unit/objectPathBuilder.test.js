@@ -13,7 +13,7 @@ describe('objectPathBuilder', () => {
                 context: {
                     academicYear: '2025-2026',
                     semester: 1,
-                    projectType: 'dacn',
+                    projectType: 'datn',
                     round: '01',
                     registrationId: 842,
                     version: 1,
@@ -22,7 +22,7 @@ describe('objectPathBuilder', () => {
 
             expect(result.bucket).toBe('hoc-vu');
             expect(result.objectKey).toBe(
-                'nam-hoc-2025-2026/hoc-ky-1/dacn/dot-01/dang-ky-842/bm01/phien-ban-01/a1b2c3d4-e5f6-7890-abcd-ef1234567890-de-cuong-do-an.pdf'
+                'nam-hoc-2025-2026/hoc-ky-1/datn/dot-01/dang-ky-842/bm01/phien-ban-01/a1b2c3d4-e5f6-7890-abcd-ef1234567890-de-cuong-do-an.pdf'
             );
         });
 
@@ -34,7 +34,7 @@ describe('objectPathBuilder', () => {
                 context: {
                     academicYear: '2025-2026',
                     semester: 1,
-                    projectType: 'dacn',
+                    projectType: 'datn',
                     round: '01',
                     registrationId: 842,
                     councilId: 17,
@@ -44,7 +44,7 @@ describe('objectPathBuilder', () => {
 
             expect(result.bucket).toBe('hoc-vu');
             expect(result.objectKey).toBe(
-                'nam-hoc-2025-2026/hoc-ky-1/dacn/dot-01/dang-ky-842/bm05/hoi-dong-17/thanh-vien-5/a1b2c3d4-e5f6-7890-abcd-ef1234567890-phieu-cham-diem.pdf'
+                'nam-hoc-2025-2026/hoc-ky-1/datn/dot-01/dang-ky-842/bm05/hoi-dong-17/thanh-vien-5/a1b2c3d4-e5f6-7890-abcd-ef1234567890-phieu-cham-diem.pdf'
             );
         });
 
@@ -56,7 +56,7 @@ describe('objectPathBuilder', () => {
                 context: {
                     academicYear: '2025-2026',
                     semester: 1,
-                    projectType: 'dacn',
+                    projectType: 'datn',
                     round: '01',
                     registrationId: 842,
                     version: 1,
@@ -65,7 +65,7 @@ describe('objectPathBuilder', () => {
 
             expect(result.bucket).toBe('hoc-vu');
             expect(result.objectKey).toBe(
-                'nam-hoc-2025-2026/hoc-ky-1/dacn/dot-01/dang-ky-842/luu-chieu/source-code/phien-ban-01/a1b2c3d4-e5f6-7890-abcd-ef1234567890-ma-nguon.zip'
+                'nam-hoc-2025-2026/hoc-ky-1/datn/dot-01/dang-ky-842/luu-chieu/source-code/phien-ban-01/a1b2c3d4-e5f6-7890-abcd-ef1234567890-ma-nguon.zip'
             );
         });
 
@@ -231,7 +231,7 @@ describe('objectPathBuilder', () => {
                 context: {
                     academicYear: '2025-2026',
                     semester: 1,
-                    projectType: 'dacn',
+                    projectType: 'datn',
                     round: '01',
                     registrationId: 842,
                 },
@@ -248,7 +248,7 @@ describe('objectPathBuilder', () => {
                 context: {
                     academicYear: '2025-2026',
                     semester: 1,
-                    projectType: 'dacn',
+                    projectType: 'datn',
                     round: '01',
                     registrationId: 842,
                     studentName: 'Nguyen Van A',

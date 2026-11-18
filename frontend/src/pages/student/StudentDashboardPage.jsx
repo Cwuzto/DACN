@@ -966,7 +966,7 @@ export default function StudentDashboardPage() {
                             <div style={{ padding: '10px 12px', background: '#F8FAFC', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
                                 <div style={{ fontWeight: 700, fontSize: 12.5, color: 'var(--fg)' }}>Tập huấn kiểm tra liêm chính học thuật Turnitin</div>
                                 <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 2 }}>
-                                    Buổi chia sẻ trực tuyến vào Thứ Bảy, 25/10/2026 qua MS Teams dành cho toàn thể sinh viên làm KLTN/DACN.
+                                    Buổi chia sẻ trực tuyến vào Thứ Bảy, 25/10/2026 qua MS Teams dành cho toàn thể sinh viên làm Đồ án tốt nghiệp.
                                 </div>
                             </div>
                         </div>

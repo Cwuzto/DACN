@@ -46,7 +46,7 @@ const initialPayload = (type) => {
             siteTitle: 'Hệ thống Quản lý Đồ án',
             institutionName: 'Viện Công nghệ Số',
             heroTitle: 'Khởi đầu Đồ án Tốt nghiệp với Quy chuẩn Học thuật Số',
-            heroDescription: 'Cổng thông tin chính thức dành cho sinh viên thực hiện Khóa luận và Đồ án Chuyên ngành.',
+            heroDescription: 'Cổng thông tin chính thức dành cho sinh viên thực hiện Đồ án tốt nghiệp.',
             primaryCtaLabel: 'Tra cứu Giảng viên & Hướng NC',
             primaryCtaHref: '#faculty',
             copyrightText: '© 2026 Hệ thống Quản lý Đồ án',

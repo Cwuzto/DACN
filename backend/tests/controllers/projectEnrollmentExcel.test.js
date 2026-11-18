@@ -57,7 +57,7 @@ describe('projectEnrollmentController Excel Import & Export', () => {
         };
 
         mockPrisma.semester.findUnique.mockResolvedValue({ id: 1, name: 'Học kỳ 1 2026-2027' });
-        mockPrisma.projectCatalog.findUnique.mockResolvedValue({ id: 2, name: 'Đồ án chuyên ngành', code: 'DACN' });
+        mockPrisma.projectCatalog.findUnique.mockResolvedValue({ id: 2, name: 'Đồ án tốt nghiệp', code: 'DATN' });
         mockPrisma.user.findMany.mockResolvedValue([
             { id: 101, code: 'SV001', fullName: 'Nguyễn Văn A', isActive: true },
         ]);

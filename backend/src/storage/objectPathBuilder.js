@@ -13,7 +13,7 @@ const padVersion = (v) => {
 const buildAcademicPrefix = (context) => {
     const academicYear = context.academicYear || (context.year ? String(context.year) : '2025-2026');
     const semester = context.semester ?? context.semesterNumber ?? (context.semesterId ? String(context.semesterId) : 1);
-    const projectType = toVietnameseSlug(context.projectType || 'dacn');
+    const projectType = toVietnameseSlug(context.projectType || 'datn');
     const round = context.round
         ? padVersion(context.round)
         : (context.roundCode ? toVietnameseSlug(context.roundCode) : '01');

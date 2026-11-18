@@ -206,11 +206,11 @@ const generateEnrollmentTemplateBuffer = () => {
     const sampleData = [
         {
             'Mã SV (*)': 'SV20260001',
-            'Ghi chú': 'Đủ điều kiện làm đồ án chuyên ngành',
+            'Ghi chú': 'Đủ điều kiện làm đồ án tốt nghiệp',
         },
         {
             'Mã SV (*)': 'SV20260002',
-            'Ghi chú': 'Đủ điều kiện làm đồ án chuyên ngành',
+            'Ghi chú': 'Đủ điều kiện làm đồ án tốt nghiệp',
         },
     ];
 

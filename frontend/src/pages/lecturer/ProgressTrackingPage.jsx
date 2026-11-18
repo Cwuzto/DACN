@@ -647,7 +647,7 @@ export default function ProgressTrackingPage() {
                                                         className={`tag ${s.topic?.projectCatalog?.code === 'DATN' ? 'purple' : 'teal'}`}
                                                         style={{ fontSize: 10, padding: '1px 5px', fontWeight: 600 }}
                                                     >
-                                                        {s.topic?.projectCatalog?.code || 'DACN'}
+                                                        {s.topic?.projectCatalog?.code || 'DATN'}
                                                     </span>
                                                     <span className={`tag ${sPassed ? 'green' : sRisk ? 'red' : sBm03Done ? 'blue' : 'yellow'}`}>
                                                         {sPassed ? 'Đủ điều kiện BV' : sRisk ? 'Nguy cơ trễ' : sBm03Done ? 'Chờ duyệt BM04' : 'Đang làm'}
@@ -1765,7 +1765,7 @@ export default function ProgressTrackingPage() {
                                             className={`tag ${reg.topic?.projectCatalog?.code === 'DATN' ? 'purple' : 'teal'}`}
                                             style={{ fontSize: 10, padding: '1px 8px', fontWeight: 600 }}
                                         >
-                                            {reg.topic?.projectCatalog?.code || 'ĐACN'}
+                                            {reg.topic?.projectCatalog?.code || 'DATN'}
                                         </span>
                                     </div>
                                     <div style={{ fontSize: 12, color: '#64748B', display: 'flex', alignItems: 'flex-start', gap: 6 }}>

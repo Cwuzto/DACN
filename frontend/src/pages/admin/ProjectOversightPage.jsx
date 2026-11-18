@@ -765,7 +765,7 @@ function ProjectOversightPage() {
                             <Tag color={record.projectCatalog?.code === 'DATN' ? 'purple' : 'cyan'} className="m-0 text-xs font-semibold">
                                 {record.projectCatalog?.code
                                     ? `${record.projectCatalog.code} · ${record.projectCatalog.name}`
-                                    : (record.projectCatalog?.name || 'DACN · Đồ án chuyên ngành')}
+                                    : (record.projectCatalog?.name || 'DATN · Đồ án tốt nghiệp')}
                             </Tag>
                         </div>
                     </div>
@@ -1976,7 +1976,7 @@ function ProjectOversightPage() {
                                         </div>
                                         <div className="lg:col-span-2">
                                             <Select
-                                                placeholder="Loại đồ án: DACN / DATN"
+                                                placeholder="Loại đồ án: DATN"
                                                 className="w-full"
                                                 allowClear
                                                 showSearch

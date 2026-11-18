@@ -100,7 +100,7 @@ describe('Task 5: StoredAssetService Unit and Service Tests', () => {
                 registrationId: 101,
                 academicYear: '2025-2026',
                 semester: 1,
-                projectType: 'dacn',
+                projectType: 'datn',
                 round: 1,
                 version: 1,
             };

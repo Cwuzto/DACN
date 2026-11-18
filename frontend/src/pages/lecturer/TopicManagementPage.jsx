@@ -674,7 +674,7 @@ export default function TopicManagementPage() {
                                             </td>
                                             <td>
                                                 <span className={`tag ${topic.projectCatalog?.code === 'DATN' ? 'purple' : 'teal'} text-[11px]`}>
-                                                    {topic.projectCatalog ? `${topic.projectCatalog.code} · ${topic.projectCatalog.name}` : 'DACN · Đồ án chuyên ngành'}
+                                                    {topic.projectCatalog ? `${topic.projectCatalog.code} · ${topic.projectCatalog.name}` : 'DATN · Đồ án tốt nghiệp'}
                                                 </span>
                                             </td>
                                             <td>

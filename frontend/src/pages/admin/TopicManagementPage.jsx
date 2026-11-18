@@ -292,9 +292,6 @@ function TopicManagementPage() {
             render: (_, record) => {
                 const code = record.projectCatalog?.code;
                 const name = record.projectCatalog?.name;
-                if (code === 'DACN') {
-                    return <Tag color="blue" className="font-semibold">DACN · Chuyên ngành</Tag>;
-                }
                 if (code === 'DATN') {
                     return <Tag color="purple" className="font-semibold">DATN · Tốt nghiệp</Tag>;
                 }
@@ -554,7 +551,7 @@ function TopicManagementPage() {
                             <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
                                 <span className="text-slate-600 font-medium block text-[11px]">Loại đồ án</span>
                                 <div className="mt-1">
-                                    <Tag color={drawerTopic.projectCatalog?.code === 'DACN' ? 'blue' : 'purple'} className="font-semibold text-xs">
+                                    <Tag color="purple" className="font-semibold text-xs">
                                         {drawerTopic.projectCatalog?.code ? `${drawerTopic.projectCatalog.code} - ${drawerTopic.projectCatalog.name}` : 'Chưa phân loại'}
                                     </Tag>
                                 </div>

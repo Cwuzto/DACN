@@ -18,7 +18,7 @@ const PLATFORM_AUTHORIZATION_EXEMPTIONS = [
 
 const ACADEMIC_AUTHORIZATION_EXEMPTIONS = [
   { routeFile: 'topicRoutes', method: 'GET', path: '/mentors', type: 'SELF_SERVICE', reason: 'Danh sách GVHD cho user đã đăng nhập.' },
-  { routeFile: 'topicRoutes', method: 'GET', path: '/catalogs', type: 'SELF_SERVICE', reason: 'Danh mục loại đồ án (DACN/DATN) dùng chung cho user đã đăng nhập.' },
+  { routeFile: 'topicRoutes', method: 'GET', path: '/catalogs', type: 'SELF_SERVICE', reason: 'Danh mục loại đồ án (DATN) dùng chung cho user đã đăng nhập.' },
   { routeFile: 'topicRoutes', method: 'GET', path: '/cloneable', type: 'OWNERSHIP_GUARDED', reason: 'Danh sách đề tài kỳ trước có thể sao chép cho giảng viên hoặc quản trị viên.' },
   { routeFile: 'topicRoutes', method: 'POST', path: '/clone', type: 'OWNERSHIP_GUARDED', reason: 'Sao chép đề tài từ kỳ trước sang học kỳ hiện tại cho giảng viên hoặc quản trị viên.' },
   { routeFile: 'topicRoutes', method: 'GET', path: '/', type: 'SELF_SERVICE', reason: 'Danh sách đề tài cho user đã đăng nhập.' },

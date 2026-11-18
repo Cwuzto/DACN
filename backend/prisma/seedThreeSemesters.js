@@ -138,12 +138,7 @@ async function runThreeSemestersSeed() {
   const sem2 = await prisma.semester.create({ data: semesterDefs.semesterHK2_2526 });
   const sem3 = await prisma.semester.create({ data: semesterDefs.semesterHK1_2627 });
 
-  // 5.1 Tạo 2 Loại đồ án (Project Catalog): DACN & DATN
-  const catalogDACN = await prisma.projectCatalog.upsert({
-    where: { code: 'DACN' },
-    update: { name: 'Đồ án chuyên ngành', isActive: true },
-    create: { code: 'DACN', name: 'Đồ án chuyên ngành', isActive: true },
-  });
+  // 5.1 Tạo Loại đồ án (Project Catalog): DATN
   const catalogDATN = await prisma.projectCatalog.upsert({
     where: { code: 'DATN' },
     update: { name: 'Đồ án tốt nghiệp', isActive: true },
@@ -250,12 +245,11 @@ async function runThreeSemestersSeed() {
       const major = studentProfile?.major || 'Công nghệ thông tin';
       const title = generateTopicTitle(sem.code, i, major);
 
-      const projectCatalog = i < 50 ? catalogDACN : catalogDATN;
       topicsData.push({
         title,
         description: `Đề tài nghiên cứu ứng dụng chuyên sâu cho sinh viên ngành ${major}. Hướng dẫn bởi ${mentor.fullName}.`,
         semesterId: sem.id,
-        projectCatalogId: projectCatalog.id,
+        projectCatalogId: catalogDATN.id,
         mentorId: mentor.id,
         proposedById: mentor.id,
         maxStudents: 1,
@@ -274,10 +268,10 @@ async function runThreeSemestersSeed() {
     });
 
     // A2. Tạo StudentProjectEnrollments & LecturerProjectAssignments
-    const enrollmentsData = batchStudents.map((student, i) => ({
+    const enrollmentsData = batchStudents.map((student) => ({
       studentId: student.id,
       semesterId: sem.id,
-      projectCatalogId: i < 50 ? catalogDACN.id : catalogDATN.id,
+      projectCatalogId: catalogDATN.id,
       status: 'ACTIVE',
       source: 'SEED',
     }));
@@ -287,24 +281,14 @@ async function runThreeSemestersSeed() {
 
     const lecturerAssignmentsData = [];
     for (const mentor of lecturerList) {
-      lecturerAssignmentsData.push(
-        {
-          lecturerId: mentor.id,
-          semesterId: sem.id,
-          projectCatalogId: catalogDACN.id,
-          plannedQuota: 5,
-          status: 'ACTIVE',
-          assignedById: adminUser.id,
-        },
-        {
-          lecturerId: mentor.id,
-          semesterId: sem.id,
-          projectCatalogId: catalogDATN.id,
-          plannedQuota: 5,
-          status: 'ACTIVE',
-          assignedById: adminUser.id,
-        }
-      );
+      lecturerAssignmentsData.push({
+        lecturerId: mentor.id,
+        semesterId: sem.id,
+        projectCatalogId: catalogDATN.id,
+        plannedQuota: 10,
+        status: 'ACTIVE',
+        assignedById: adminUser.id,
+      });
     }
     await prisma.lecturerProjectAssignment.createMany({ data: lecturerAssignmentsData });
 

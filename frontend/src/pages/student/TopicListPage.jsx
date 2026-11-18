@@ -488,7 +488,7 @@ export default function TopicListPage() {
                                             <span className={`tag ${topic.projectCatalog?.code === 'DATN' ? 'purple' : 'teal'}`}>
                                                 {topic.projectCatalog
                                                     ? `${topic.projectCatalog.code} · ${topic.projectCatalog.name}`
-                                                    : (topic.projectCatalog?.name || 'DACN · Đồ án chuyên ngành')}
+                                                    : (topic.projectCatalog?.name || 'DATN · Đồ án tốt nghiệp')}
                                             </span>
                                             {isMine ? (
                                                 <span className="tag green">Đề tài của bạn</span>
