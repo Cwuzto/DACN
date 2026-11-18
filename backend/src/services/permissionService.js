@@ -271,7 +271,7 @@ const seedPermissionCatalog = async (db = prisma) => {
     await db.permission.upsert({
       where: { code: item.code },
       update: { label: item.label, module: item.module },
-      create: item,
+      create: { code: item.code, label: item.label, module: item.module },
     });
   }
   for (const group of DEFAULT_GROUPS) {
