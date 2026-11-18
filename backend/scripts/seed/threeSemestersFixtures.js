@@ -6,12 +6,12 @@ const RUBRIC_VERSION = DEFAULT_REFERENCE_RUBRIC_4_GROUPS_14_ITEMS.version;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const addDays = (base, days) => new Date(base.getTime() + days * DAY_MS);
 
-// 20 Giảng viên với học vị và bộ môn thực tế
+// 20 Giảng viên với học vị và bộ môn thực tế (mã GV tăng dần GV001..GV020, email gvXXX@tdmu.edu.vn)
 const LECTURER_DEFINITIONS = Object.freeze([
   {
     code: 'GV001',
-    fullName: 'PGS.TS. Nguyễn Văn Thắng',
-    email: 'lecturer01@university.edu.vn',
+    fullName: 'Nguyễn Văn Thắng',
+    email: 'gv001@tdmu.edu.vn',
     academicTitle: 'PHO_GIAO_SU',
     department: 'Viện Công nghệ số',
     phone: '0901000001',
@@ -19,8 +19,8 @@ const LECTURER_DEFINITIONS = Object.freeze([
   },
   {
     code: 'GV002',
-    fullName: 'ThS. Trần Thị Mai Phương',
-    email: 'lecturer02@university.edu.vn',
+    fullName: 'Trần Thị Mai Phương',
+    email: 'gv002@tdmu.edu.vn',
     academicTitle: 'THAC_SI',
     department: 'Viện Công nghệ số',
     phone: '0901000002',
@@ -28,8 +28,8 @@ const LECTURER_DEFINITIONS = Object.freeze([
   },
   {
     code: 'GV003',
-    fullName: 'PGS.TS. Lê Hoàng Nam',
-    email: 'lecturer03@university.edu.vn',
+    fullName: 'Lê Hoàng Nam',
+    email: 'gv003@tdmu.edu.vn',
     academicTitle: 'PHO_GIAO_SU',
     department: 'Bộ môn Kỹ thuật phần mềm',
     phone: '0901000003',
@@ -37,8 +37,8 @@ const LECTURER_DEFINITIONS = Object.freeze([
   },
   {
     code: 'GV004',
-    fullName: 'TS. Phạm Quốc Bảo',
-    email: 'lecturer04@university.edu.vn',
+    fullName: 'Phạm Quốc Bảo',
+    email: 'gv004@tdmu.edu.vn',
     academicTitle: 'TIEN_SI',
     department: 'Bộ môn Hệ thống thông tin',
     phone: '0901000004',
@@ -46,8 +46,8 @@ const LECTURER_DEFINITIONS = Object.freeze([
   },
   {
     code: 'GV005',
-    fullName: 'TS. Đỗ Thị Thu Hà',
-    email: 'lecturer05@university.edu.vn',
+    fullName: 'Đỗ Thị Thu Hà',
+    email: 'gv005@tdmu.edu.vn',
     academicTitle: 'TIEN_SI',
     department: 'Bộ môn Khoa học máy tính',
     phone: '0901000005',
@@ -55,8 +55,8 @@ const LECTURER_DEFINITIONS = Object.freeze([
   },
   {
     code: 'GV006',
-    fullName: 'ThS. Vũ Hải Đăng',
-    email: 'lecturer06@university.edu.vn',
+    fullName: 'Vũ Hải Đăng',
+    email: 'gv006@tdmu.edu.vn',
     academicTitle: 'THAC_SI',
     department: 'Bộ môn Mạng và Truyền thông',
     phone: '0901000006',
@@ -64,8 +64,8 @@ const LECTURER_DEFINITIONS = Object.freeze([
   },
   {
     code: 'GV007',
-    fullName: 'TS. Bùi Minh Trí',
-    email: 'lecturer07@university.edu.vn',
+    fullName: 'Bùi Minh Trí',
+    email: 'gv007@tdmu.edu.vn',
     academicTitle: 'TIEN_SI',
     department: 'Bộ môn An toàn thông tin',
     phone: '0901000007',
@@ -73,8 +73,8 @@ const LECTURER_DEFINITIONS = Object.freeze([
   },
   {
     code: 'GV008',
-    fullName: 'PGS.TS. Huỳnh Thanh Tùng',
-    email: 'lecturer08@university.edu.vn',
+    fullName: 'Huỳnh Thanh Tùng',
+    email: 'gv008@tdmu.edu.vn',
     academicTitle: 'PHO_GIAO_SU',
     department: 'Bộ môn Khoa học máy tính',
     phone: '0901000008',
@@ -82,8 +82,8 @@ const LECTURER_DEFINITIONS = Object.freeze([
   },
   {
     code: 'GV009',
-    fullName: 'ThS. Nguyễn Ngọc Ánh',
-    email: 'lecturer09@university.edu.vn',
+    fullName: 'Nguyễn Ngọc Ánh',
+    email: 'gv009@tdmu.edu.vn',
     academicTitle: 'THAC_SI',
     department: 'Bộ môn Kỹ thuật phần mềm',
     phone: '0901000009',
@@ -91,8 +91,8 @@ const LECTURER_DEFINITIONS = Object.freeze([
   },
   {
     code: 'GV010',
-    fullName: 'TS. Trương Công Định',
-    email: 'lecturer10@university.edu.vn',
+    fullName: 'Trương Công Định',
+    email: 'gv010@tdmu.edu.vn',
     academicTitle: 'TIEN_SI',
     department: 'Bộ môn Hệ thống thông tin',
     phone: '0901000010',
@@ -100,8 +100,8 @@ const LECTURER_DEFINITIONS = Object.freeze([
   },
   {
     code: 'GV011',
-    fullName: 'TS. Đặng Quốc Huy',
-    email: 'lecturer11@university.edu.vn',
+    fullName: 'Đặng Quốc Huy',
+    email: 'gv011@tdmu.edu.vn',
     academicTitle: 'TIEN_SI',
     department: 'Bộ môn An toàn thông tin',
     phone: '0901000011',
@@ -109,8 +109,8 @@ const LECTURER_DEFINITIONS = Object.freeze([
   },
   {
     code: 'GV012',
-    fullName: 'ThS. Hoàng Thị Kim Oanh',
-    email: 'lecturer12@university.edu.vn',
+    fullName: 'Hoàng Thị Kim Oanh',
+    email: 'gv012@tdmu.edu.vn',
     academicTitle: 'THAC_SI',
     department: 'Bộ môn Khoa học máy tính',
     phone: '0901000012',
@@ -118,8 +118,8 @@ const LECTURER_DEFINITIONS = Object.freeze([
   },
   {
     code: 'GV013',
-    fullName: 'TS. Trần Đình Long',
-    email: 'lecturer13@university.edu.vn',
+    fullName: 'Trần Đình Long',
+    email: 'gv013@tdmu.edu.vn',
     academicTitle: 'TIEN_SI',
     department: 'Bộ môn Kỹ thuật phần mềm',
     phone: '0901000013',
@@ -127,8 +127,8 @@ const LECTURER_DEFINITIONS = Object.freeze([
   },
   {
     code: 'GV014',
-    fullName: 'ThS. Phan Thanh Sơn',
-    email: 'lecturer14@university.edu.vn',
+    fullName: 'Phan Thanh Sơn',
+    email: 'gv014@tdmu.edu.vn',
     academicTitle: 'THAC_SI',
     department: 'Bộ môn Hệ thống thông tin',
     phone: '0901000014',
@@ -136,8 +136,8 @@ const LECTURER_DEFINITIONS = Object.freeze([
   },
   {
     code: 'GV015',
-    fullName: 'TS. Võ Minh Trí',
-    email: 'lecturer15@university.edu.vn',
+    fullName: 'Võ Quang Vinh',
+    email: 'gv015@tdmu.edu.vn',
     academicTitle: 'TIEN_SI',
     department: 'Bộ môn Mạng và Truyền thông',
     phone: '0901000015',
@@ -145,8 +145,8 @@ const LECTURER_DEFINITIONS = Object.freeze([
   },
   {
     code: 'GV016',
-    fullName: 'ThS. Lê Thị Thanh Thảo',
-    email: 'lecturer16@university.edu.vn',
+    fullName: 'Lê Thị Thanh Thảo',
+    email: 'gv016@tdmu.edu.vn',
     academicTitle: 'THAC_SI',
     department: 'Bộ môn An toàn thông tin',
     phone: '0901000016',
@@ -154,8 +154,8 @@ const LECTURER_DEFINITIONS = Object.freeze([
   },
   {
     code: 'GV017',
-    fullName: 'TS. Nguyễn Hải Đăng',
-    email: 'lecturer17@university.edu.vn',
+    fullName: 'Nguyễn Hữu Phước',
+    email: 'gv017@tdmu.edu.vn',
     academicTitle: 'TIEN_SI',
     department: 'Bộ môn Khoa học máy tính',
     phone: '0901000017',
@@ -163,8 +163,8 @@ const LECTURER_DEFINITIONS = Object.freeze([
   },
   {
     code: 'GV018',
-    fullName: 'ThS. Dương Quốc Dũng',
-    email: 'lecturer18@university.edu.vn',
+    fullName: 'Dương Quốc Dũng',
+    email: 'gv018@tdmu.edu.vn',
     academicTitle: 'THAC_SI',
     department: 'Bộ môn Kỹ thuật phần mềm',
     phone: '0901000018',
@@ -172,8 +172,8 @@ const LECTURER_DEFINITIONS = Object.freeze([
   },
   {
     code: 'GV019',
-    fullName: 'TS. Mai Xuân Thành',
-    email: 'lecturer19@university.edu.vn',
+    fullName: 'Mai Xuân Thành',
+    email: 'gv019@tdmu.edu.vn',
     academicTitle: 'TIEN_SI',
     department: 'Bộ môn Hệ thống thông tin',
     phone: '0901000019',
@@ -181,8 +181,8 @@ const LECTURER_DEFINITIONS = Object.freeze([
   },
   {
     code: 'GV020',
-    fullName: 'ThS. Vũ Hồng Quân',
-    email: 'lecturer20@university.edu.vn',
+    fullName: 'Vũ Hồng Quân',
+    email: 'gv020@tdmu.edu.vn',
     academicTitle: 'THAC_SI',
     department: 'Bộ môn An toàn thông tin',
     phone: '0901000020',
@@ -246,7 +246,7 @@ function buildThreeSemestersAccounts(precomputedHashes) {
     const studentNumber = idx + 1;
     const padStr = String(studentNumber).padStart(3, '0');
     return {
-      email: `sv${padStr}@university.edu.vn`,
+      email: `sv${padStr}@st.tdmu.edu.vn`,
       code: `2200${padStr}`,
       fullName: generateStudentFullName(idx),
       role: 'STUDENT',
@@ -282,39 +282,45 @@ function buildStudentProfilesData(studentUsers) {
 function getThreeSemesterDefinitions(baseDate = new Date()) {
   const base = new Date(baseDate.getTime());
 
-  // Đợt 1 (Đã qua): code DATN-HK1-2025-26, tên Đồ án tốt nghiệp — HK1 2025–2026, status COMPLETED
+  // Đợt 1 (Đã qua): HK1-2025-2026, status COMPLETED
   const semesterHK1_2526 = {
-    code: 'DATN-HK1-2025-26',
-    name: 'Đồ án tốt nghiệp — HK1 2025–2026',
+    code: 'HK1-2025-2026',
+    name: 'HK1-2025-2026',
     startDate: addDays(base, -420),
     registrationDeadline: addDays(base, -390),
     midtermReportDate: addDays(base, -330),
+    bm03MidtermEvaluationOpenAt: addDays(base, -340),
+    bm03FinalizationOpenAt: addDays(base, -285),
     defenseDate: addDays(base, -270),
     endDate: addDays(base, -240),
     registrationOpen: false,
     status: 'COMPLETED',
   };
 
-  // Đợt 2 (Đã qua): code DATN-HK2-2025-26, tên Đồ án tốt nghiệp — HK2 2025–2026, status COMPLETED
+  // Đợt 2 (Đã qua): HK2-2025-2026, status COMPLETED
   const semesterHK2_2526 = {
-    code: 'DATN-HK2-2025-26',
-    name: 'Đồ án tốt nghiệp — HK2 2025–2026',
+    code: 'HK2-2025-2026',
+    name: 'HK2-2025-2026',
     startDate: addDays(base, -240),
     registrationDeadline: addDays(base, -210),
     midtermReportDate: addDays(base, -150),
+    bm03MidtermEvaluationOpenAt: addDays(base, -160),
+    bm03FinalizationOpenAt: addDays(base, -105),
     defenseDate: addDays(base, -90),
     endDate: addDays(base, -60),
     registrationOpen: false,
     status: 'COMPLETED',
   };
 
-  // Đợt 3 (Hiện tại): code DATN-HK1-2026-27, tên Đồ án tốt nghiệp — HK1 2026–2027, status ONGOING
+  // Đợt 3 (Hiện tại): HK1-2026-2027, status ONGOING
   const semesterHK1_2627 = {
-    code: 'DATN-HK1-2026-27',
-    name: 'Đồ án tốt nghiệp — HK1 2026–2027',
+    code: 'HK1-2026-2027',
+    name: 'HK1-2026-2027',
     startDate: addDays(base, -90),
     registrationDeadline: addDays(base, -60),
     midtermReportDate: addDays(base, -5),
+    bm03MidtermEvaluationOpenAt: addDays(base, -15),
+    bm03FinalizationOpenAt: addDays(base, 25),
     defenseDate: addDays(base, 45),
     endDate: addDays(base, 60),
     registrationOpen: false,

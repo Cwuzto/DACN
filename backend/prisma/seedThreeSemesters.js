@@ -159,12 +159,17 @@ async function runThreeSemestersSeed() {
   // Workflow Policy Versions cho 3 semester
   const policyVersions = {};
   for (const s of semesters) {
+    const semPolicy = {
+      ...DEFAULT_POLICY,
+      bm03MidtermEvaluationOpenAt: s.sem.bm03MidtermEvaluationOpenAt?.toISOString() || null,
+      bm03FinalizationOpenAt: s.sem.bm03FinalizationOpenAt?.toISOString() || null,
+    };
     const policy = await prisma.periodWorkflowPolicyVersion.create({
       data: {
         semesterId: s.sem.id,
         version: 1,
-        policy: DEFAULT_POLICY,
-        checksum: checksum(DEFAULT_POLICY),
+        policy: semPolicy,
+        checksum: checksum(semPolicy),
         createdById: adminUser.id,
       },
     });
@@ -209,7 +214,7 @@ async function runThreeSemestersSeed() {
     },
   });
 
-  const lecturer01 = userByEmail.get('lecturer01@university.edu.vn'); // Viện trưởng
+  const lecturer01 = userByEmail.get('gv001@tdmu.edu.vn'); // Viện trưởng
 
   // 6. Xử lý phân bổ đề tài & hồ sơ cho 3 đợt
   console.log('[seed:3semesters] Bước 6/8: Phân bổ 300 sinh viên qua 3 đợt, đề tài, BM01, BM02, QĐ giao đề tài...');
@@ -976,7 +981,7 @@ async function runThreeSemestersSeed() {
         mentorReviewedAt: addDays(defenseDate, 7),
         mentorReviewNotes: 'Đã rà soát đầy đủ bản chỉnh sửa sau bảo vệ, đồng ý lưu chiểu.',
         academicAffairsReviewStatus: 'APPROVED',
-        academicAffairsReviewedById: userByEmail.get('lecturer02@university.edu.vn')?.id || adminUser.id,
+        academicAffairsReviewedById: userByEmail.get('gv002@tdmu.edu.vn')?.id || adminUser.id,
         academicAffairsReviewedAt: addDays(defenseDate, 9),
         academicAffairsReviewNotes: 'Hồ sơ đạt chuẩn lưu chiểu của Viện.',
         certificateNumber: certNumber,
