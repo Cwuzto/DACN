@@ -506,11 +506,6 @@ const getRubricById = async (idOrVersion) => {
  * Tạo phiên bản Rubric mới (hoặc Clone từ phiên bản cũ)
  */
 const createRubricVersion = async ({ version, title, description, categories = [], cloneFromId, scoreLevelPolicy, userId }) => {
-    const editCheck = await checkCanEditRubric();
-    if (!editCheck.canEdit) {
-        throw new Error(editCheck.reason);
-    }
-
     const cleanVersion = String(version || '').trim().toLowerCase();
     if (!cleanVersion) {
         throw new Error('Mã phiên bản (version) không được để trống.');
@@ -601,18 +596,24 @@ const createRubricVersion = async ({ version, title, description, categories = [
                     maxScore: Number(cat.maxScore),
                     orderIndex: cat.orderIndex ?? (catIdx + 1),
                     criteria: {
-                        create: (cat.criteria || []).map((cri, criIdx) => ({
-                            code: String(cri.code).trim().toUpperCase(),
-                            label: String(cri.label).trim(),
-                            description: cri.description ? String(cri.description).trim() : null,
-                            cloCode: cri.cloCode ? String(cri.cloCode).trim() : null,
-                            levelGoodDesc: cri.levelGoodDesc ? String(cri.levelGoodDesc).trim() : null,
-                            levelFairDesc: cri.levelFairDesc ? String(cri.levelFairDesc).trim() : null,
-                            levelAverageDesc: cri.levelAverageDesc ? String(cri.levelAverageDesc).trim() : null,
-                            levelPoorDesc: cri.levelPoorDesc ? String(cri.levelPoorDesc).trim() : null,
-                            maxScore: Number(cri.maxScore),
-                            orderIndex: cri.orderIndex ?? (criIdx + 1),
-                        })),
+                        create: (cat.criteria || []).map((cri, criIdx) => {
+                            const levelGoodDesc = cri.levelGoodDesc ?? cri.descGood;
+                            const levelFairDesc = cri.levelFairDesc ?? cri.descFair;
+                            const levelAverageDesc = cri.levelAverageDesc ?? cri.descAverage;
+                            const levelPoorDesc = cri.levelPoorDesc ?? cri.descPoor;
+                            return {
+                                code: String(cri.code).trim().toUpperCase(),
+                                label: String(cri.label).trim(),
+                                description: cri.description ? String(cri.description).trim() : null,
+                                cloCode: cri.cloCode ? String(cri.cloCode).trim() : null,
+                                levelGoodDesc: levelGoodDesc ? String(levelGoodDesc).trim() : null,
+                                levelFairDesc: levelFairDesc ? String(levelFairDesc).trim() : null,
+                                levelAverageDesc: levelAverageDesc ? String(levelAverageDesc).trim() : null,
+                                levelPoorDesc: levelPoorDesc ? String(levelPoorDesc).trim() : null,
+                                maxScore: Number(cri.maxScore),
+                                orderIndex: cri.orderIndex ?? (criIdx + 1),
+                            };
+                        }),
                     },
                 })),
             },
@@ -628,14 +629,9 @@ const createRubricVersion = async ({ version, title, description, categories = [
 };
 
 /**
- * Cập nhật cấu trúc Rubric (Chỉ cho phép khi chưa vào đợt đồ án, chưa khóa và chưa có điểm chấm)
+ * Cập nhật cấu trúc Rubric (Chỉ cho phép khi bản ghi là DRAFT, chưa khóa và chưa có điểm chấm)
  */
 const updateRubricVersion = async (id, { title, description, categories = [], scoreLevelPolicy }) => {
-    const editCheck = await checkCanEditRubric();
-    if (!editCheck.canEdit) {
-        throw new Error(editCheck.reason);
-    }
-
     const rubric = await getRubricById(id);
     if (!rubric) {
         throw new Error('Không tìm thấy phiên bản Rubric.');
@@ -691,18 +687,24 @@ const updateRubricVersion = async (id, { title, description, categories = [], sc
                         maxScore: Number(cat.maxScore),
                         orderIndex: cat.orderIndex ?? (catIdx + 1),
                         criteria: {
-                            create: (cat.criteria || []).map((cri, criIdx) => ({
-                                code: String(cri.code).trim().toUpperCase(),
-                                label: String(cri.label).trim(),
-                                description: cri.description ? String(cri.description).trim() : null,
-                                cloCode: cri.cloCode ? String(cri.cloCode).trim() : null,
-                                levelGoodDesc: cri.levelGoodDesc ? String(cri.levelGoodDesc).trim() : null,
-                                levelFairDesc: cri.levelFairDesc ? String(cri.levelFairDesc).trim() : null,
-                                levelAverageDesc: cri.levelAverageDesc ? String(cri.levelAverageDesc).trim() : null,
-                                levelPoorDesc: cri.levelPoorDesc ? String(cri.levelPoorDesc).trim() : null,
-                                maxScore: Number(cri.maxScore),
-                                orderIndex: cri.orderIndex ?? (criIdx + 1),
-                            })),
+                            create: (cat.criteria || []).map((cri, criIdx) => {
+                                const levelGoodDesc = cri.levelGoodDesc ?? cri.descGood;
+                                const levelFairDesc = cri.levelFairDesc ?? cri.descFair;
+                                const levelAverageDesc = cri.levelAverageDesc ?? cri.descAverage;
+                                const levelPoorDesc = cri.levelPoorDesc ?? cri.descPoor;
+                                return {
+                                    code: String(cri.code).trim().toUpperCase(),
+                                    label: String(cri.label).trim(),
+                                    description: cri.description ? String(cri.description).trim() : null,
+                                    cloCode: cri.cloCode ? String(cri.cloCode).trim() : null,
+                                    levelGoodDesc: levelGoodDesc ? String(levelGoodDesc).trim() : null,
+                                    levelFairDesc: levelFairDesc ? String(levelFairDesc).trim() : null,
+                                    levelAverageDesc: levelAverageDesc ? String(levelAverageDesc).trim() : null,
+                                    levelPoorDesc: levelPoorDesc ? String(levelPoorDesc).trim() : null,
+                                    maxScore: Number(cri.maxScore),
+                                    orderIndex: cri.orderIndex ?? (criIdx + 1),
+                                };
+                            }),
                         },
                     })),
                 },
@@ -719,6 +721,13 @@ const updateRubricVersion = async (id, { title, description, categories = [], sc
     });
 
     return withNormalizedPolicy(updated);
+};
+
+/**
+ * Cập nhật tiêu chí rubric của phiên bản nháp (DRAFT)
+ */
+const updateRubricCriteria = async (id, { categories = [] } = {}) => {
+    return updateRubricVersion(id, { categories });
 };
 
 /**
@@ -753,6 +762,40 @@ const lockRubricVersion = async (id, { semesterId, actorId } = {}) => {
 
     assertRubricPolicyValid(rubric.scoreLevelPolicy, rubric.categories, 'Chính sách mức điểm không hợp lệ để khóa: ');
 
+    const targetSemesterId = semesterId !== undefined && semesterId !== null && semesterId !== ''
+        ? Number(semesterId)
+        : rubric.semesterId;
+
+    if (!targetSemesterId || !Number.isInteger(targetSemesterId) || targetSemesterId <= 0) {
+        const error = new Error('Cần chỉ định học kỳ (semesterId) hợp lệ để khóa phiên bản Rubric cho đợt.');
+        error.statusCode = 400;
+        throw error;
+    }
+
+    if (rubric.semesterId && Number(semesterId) && Number(semesterId) !== rubric.semesterId) {
+        const error = new Error(`Học kỳ yêu cầu (${semesterId}) không khớp với học kỳ của phiên bản Rubric (${rubric.semesterId}).`);
+        error.statusCode = 400;
+        throw error;
+    }
+
+    const semester = await prisma.semester.findUnique({
+        where: { id: targetSemesterId },
+    });
+    if (!semester) {
+        const error = new Error(`Không tìm thấy học kỳ với ID ${targetSemesterId}.`);
+        error.statusCode = 404;
+        throw error;
+    }
+
+    // Kiểm tra xem rubric này đã có phiếu chấm chưa
+    const usedInMemberScores = await prisma.defenseMemberScore.count({
+        where: { scoreRubricVersion: rubric.version },
+    });
+    const usedInResults = await prisma.defenseResult.count({
+        where: { scoreRubricVersion: rubric.version },
+    });
+    const isLockedByGrading = (usedInMemberScores + usedInResults) > 0;
+
     const lockedAt = new Date();
     const updated = await prisma.$transaction(async (tx) => {
         const updatedRubric = await tx.rubricVersion.update({
@@ -762,6 +805,7 @@ const lockRubricVersion = async (id, { semesterId, actorId } = {}) => {
                 lockedById: actorId || null,
                 status: 'ACTIVE',
                 isActive: true,
+                semesterId: targetSemesterId,
             },
             include: {
                 categories: {
@@ -771,20 +815,21 @@ const lockRubricVersion = async (id, { semesterId, actorId } = {}) => {
             },
         });
 
-        const targetSemesterId = semesterId ? Number(semesterId) : rubric.semesterId;
-        if (targetSemesterId) {
-            await tx.semester.update({
-                where: { id: targetSemesterId },
-                data: {
-                    lockedDefenseRubricVersionId: rubric.id,
-                },
-            });
-        }
+        await tx.semester.update({
+            where: { id: targetSemesterId },
+            data: {
+                lockedDefenseRubricVersionId: rubric.id,
+            },
+        });
 
         return updatedRubric;
     });
 
-    return withNormalizedPolicy(updated);
+    return {
+        ...withNormalizedPolicy(updated),
+        isLockedByGrading,
+        totalGradedSubmissions: usedInMemberScores + usedInResults,
+    };
 };
 
 /**
@@ -870,6 +915,7 @@ module.exports = {
     getRubricById,
     createRubricVersion,
     updateRubricVersion,
+    updateRubricCriteria,
     lockRubricVersion,
     restoreDefaultReferenceRubric,
     activateRubricVersion,

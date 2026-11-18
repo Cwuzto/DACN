@@ -24,6 +24,9 @@ router.post('/', authorizePermission(PERMISSIONS.RUBRIC_MANAGE), rubricControlle
 // Cập nhật phiên bản (Admin)
 router.put('/:id', authorizePermission(PERMISSIONS.RUBRIC_MANAGE), rubricController.updateRubric);
 
+// Cập nhật tiêu chí phiên bản (Admin)
+router.put('/:id/criteria', authorizePermission(PERMISSIONS.RUBRIC_MANAGE), rubricController.updateRubricCriteria);
+
 // Kích hoạt phiên bản thành ACTIVE (Admin)
 router.post('/:id/activate', authorizePermission(PERMISSIONS.RUBRIC_MANAGE), rubricController.activateRubric);
 

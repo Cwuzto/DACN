@@ -76,6 +76,23 @@ const updateRubric = async (req, res, next) => {
     }
 };
 
+const updateRubricCriteria = async (req, res, next) => {
+    try {
+        const { categories, criteria } = req.body;
+        const updated = await rubricService.updateRubricCriteria(req.params.id, {
+            categories: categories || criteria,
+        });
+
+        res.json({
+            success: true,
+            message: `Cập nhật tiêu chí phiên bản ${updated.version} thành công.`,
+            data: updated,
+        });
+    } catch (error) {
+        res.status(error.statusCode || 400).json({ success: false, message: error.message });
+    }
+};
+
 const activateRubric = async (req, res, next) => {
     try {
         const activated = await rubricService.activateRubricVersion(req.params.id);
@@ -147,6 +164,7 @@ module.exports = {
     getRubricById,
     createRubric,
     updateRubric,
+    updateRubricCriteria,
     lockRubric,
     restoreDefaultRubric,
     activateRubric,

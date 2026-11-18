@@ -71,11 +71,19 @@ const rubricService = {
         }
     },
 
-    lockRubric: async (id) => {
+    lockRubric: async (id, data = {}) => {
         try {
-            return await api.post(`/rubrics/${id}/lock`);
+            return await api.post(`/rubrics/${id}/lock`, data);
         } catch (error) {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi khóa phiên bản Rubric');
+        }
+    },
+
+    updateRubricCriteria: async (id, payload) => {
+        try {
+            return await api.put(`/rubrics/${id}/criteria`, payload);
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi cập nhật tiêu chí Rubric');
         }
     },
 

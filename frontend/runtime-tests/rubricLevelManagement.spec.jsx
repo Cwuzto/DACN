@@ -459,3 +459,98 @@ test('used and locked rubrics display scoreLevelPolicy values in read-only mode'
         expect(input).toHaveAttribute('readonly');
     }
 });
+
+test('editing criteria level descriptions in rubric builder preserves and sends all 4 level descriptions in payload', async () => {
+    const userEv = userEvent.setup();
+
+    const sampleRubricWithLevels = {
+        id: 15,
+        version: 'v2_levels',
+        title: 'Barem kiểm tra 4 mô tả mức điểm',
+        status: 'DRAFT',
+        isActive: false,
+        isLocked: false,
+        isLockedByGrading: false,
+        scoreLevelPolicy: DEFAULT_POLICY,
+        categories: [
+            {
+                id: 101,
+                code: 'CAT_TEST',
+                name: 'Nhóm Tiêu chí Kiểm thử',
+                description: 'Đánh giá chi tiết',
+                maxScore: 10.0,
+                orderIndex: 1,
+                criteria: [
+                    {
+                        id: 201,
+                        code: 'CRI_TEST_1',
+                        label: 'Chất lượng mã nguồn',
+                        description: 'Clean code & kiến trúc',
+                        cloCode: 'CLO1',
+                        levelGoodDesc: 'Mô tả mức Giỏi ban đầu',
+                        levelFairDesc: 'Mô tả mức Khá ban đầu',
+                        levelAverageDesc: 'Mô tả mức TB ban đầu',
+                        levelPoorDesc: 'Mô tả mức Yếu ban đầu',
+                        maxScore: 10.0,
+                        orderIndex: 1,
+                    },
+                ],
+            },
+        ],
+    };
+
+    vi.spyOn(rubricService, 'getRubricVersions').mockResolvedValue({
+        success: true,
+        data: {
+            versions: [sampleRubricWithLevels],
+            systemEditable: true,
+        },
+    });
+    vi.spyOn(rubricService, 'getRubricById').mockResolvedValue({
+        success: true,
+        data: sampleRubricWithLevels,
+    });
+    const updateSpy = vi.spyOn(rubricService, 'updateRubric').mockResolvedValue({
+        success: true,
+        data: sampleRubricWithLevels,
+    });
+
+    mountPage();
+
+    await userEv.click(await screen.findByRole('button', { name: /2\. Biên tập Tiêu chuẩn Rubric Đánh giá/i }));
+
+    // Verify current 4 level descriptions are shown
+    const goodInput = await screen.findByDisplayValue('Mô tả mức Giỏi ban đầu');
+    const fairInput = await screen.findByDisplayValue('Mô tả mức Khá ban đầu');
+    const avgInput = await screen.findByDisplayValue('Mô tả mức TB ban đầu');
+    const poorInput = await screen.findByDisplayValue('Mô tả mức Yếu ban đầu');
+
+    expect(goodInput).toBeInTheDocument();
+    expect(fairInput).toBeInTheDocument();
+    expect(avgInput).toBeInTheDocument();
+    expect(poorInput).toBeInTheDocument();
+
+    // Edit descriptions
+    await userEv.clear(goodInput);
+    await userEv.type(goodInput, 'Giỏi: Cực kỳ xuất sắc');
+
+    await userEv.clear(fairInput);
+    await userEv.type(fairInput, 'Khá: Đạt yêu cầu tốt');
+
+    await userEv.clear(avgInput);
+    await userEv.type(avgInput, 'Trung bình: Cơ bản');
+
+    await userEv.clear(poorInput);
+    await userEv.type(poorInput, 'Kém: Chưa đạt yêu cầu');
+
+    await userEv.click(screen.getByRole('button', { name: /Lưu Cấu Hình Rubric/i }));
+
+    await waitFor(() => expect(updateSpy).toHaveBeenCalledTimes(1));
+    const submittedPayload = updateSpy.mock.calls[0][1];
+    const submittedCriterion = submittedPayload.categories[0].criteria[0];
+
+    expect(submittedCriterion.levelGoodDesc).toBe('Giỏi: Cực kỳ xuất sắc');
+    expect(submittedCriterion.levelFairDesc).toBe('Khá: Đạt yêu cầu tốt');
+    expect(submittedCriterion.levelAverageDesc).toBe('Trung bình: Cơ bản');
+    expect(submittedCriterion.levelPoorDesc).toBe('Kém: Chưa đạt yêu cầu');
+});

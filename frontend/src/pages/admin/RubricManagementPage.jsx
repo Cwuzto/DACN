@@ -306,6 +306,10 @@ export default function RubricManagementPage() {
                     ...cat,
                     criteria: (cat.criteria || []).map((cri) => ({
                         ...cri,
+                        levelGoodDesc: cri.levelGoodDesc ?? cri.descGood ?? '',
+                        levelFairDesc: cri.levelFairDesc ?? cri.descFair ?? '',
+                        levelAverageDesc: cri.levelAverageDesc ?? cri.descAverage ?? '',
+                        levelPoorDesc: cri.levelPoorDesc ?? cri.descPoor ?? '',
                         descGood: cri.descGood ?? cri.levelGoodDesc ?? '',
                         descFair: cri.descFair ?? cri.levelFairDesc ?? '',
                         descAverage: cri.descAverage ?? cri.levelAverageDesc ?? '',
@@ -453,6 +457,10 @@ export default function RubricManagementPage() {
                             label: `Tiêu chí ${nextCriIdx}`,
                             description: '',
                             cloCode: 'CLO1',
+                            levelGoodDesc: 'Thể hiện xuất sắc, vượt yêu cầu chuẩn đầu ra.',
+                            levelFairDesc: 'Đáp ứng tốt các yêu cầu chuẩn đầu ra.',
+                            levelAverageDesc: 'Đáp ứng mức cơ bản chuẩn đầu ra.',
+                            levelPoorDesc: 'Chưa đạt yêu cầu chuẩn đầu ra.',
                             descGood: 'Thể hiện xuất sắc, vượt yêu cầu chuẩn đầu ra.',
                             descFair: 'Đáp ứng tốt các yêu cầu chuẩn đầu ra.',
                             descAverage: 'Đáp ứng mức cơ bản chuẩn đầu ra.',
@@ -472,7 +480,11 @@ export default function RubricManagementPage() {
             return;
         }
         try {
-            await rubricMutation.mutateAsync({ action: 'lockRubric', args: [targetId] });
+            const semesterId = currentRubric?.semesterId;
+            await rubricMutation.mutateAsync({
+                action: 'lockRubric',
+                args: [targetId, semesterId ? { semesterId } : {}],
+            });
             message.success('Đã khóa phiên bản Rubric cho đợt bảo vệ!');
             lastLoadedRubricIdRef.current = null;
         } catch (error) {
@@ -513,9 +525,19 @@ export default function RubricManagementPage() {
                 if (idx !== catIndex) return cat;
                 return {
                     ...cat,
-                    criteria: cat.criteria.map((cri, cIdx) =>
-                        cIdx === criIndex ? { ...cri, [field]: value } : cri
-                    ),
+                    criteria: cat.criteria.map((cri, cIdx) => {
+                        if (cIdx !== criIndex) return cri;
+                        const updated = { ...cri, [field]: value };
+                        if (field === 'levelGoodDesc') updated.descGood = value;
+                        if (field === 'descGood') updated.levelGoodDesc = value;
+                        if (field === 'levelFairDesc') updated.descFair = value;
+                        if (field === 'descFair') updated.levelFairDesc = value;
+                        if (field === 'levelAverageDesc') updated.descAverage = value;
+                        if (field === 'descAverage') updated.levelAverageDesc = value;
+                        if (field === 'levelPoorDesc') updated.descPoor = value;
+                        if (field === 'descPoor') updated.levelPoorDesc = value;
+                        return updated;
+                    }),
                 };
             })
         );
@@ -571,18 +593,28 @@ export default function RubricManagementPage() {
                     description: cat.description ? cat.description.trim() : null,
                     maxScore: Number(cat.maxScore),
                     orderIndex: catIdx + 1,
-                    criteria: (cat.criteria || []).map((cri, criIdx) => ({
-                        code: cri.code.trim().toUpperCase(),
-                        label: cri.label.trim(),
-                        description: cri.description ? cri.description.trim() : null,
-                        cloCode: cri.cloCode ? cri.cloCode.trim() : null,
-                        descGood: cri.descGood || null,
-                        descFair: cri.descFair || null,
-                        descAverage: cri.descAverage || null,
-                        descPoor: cri.descPoor || null,
-                        maxScore: Number(cri.maxScore),
-                        orderIndex: criIdx + 1,
-                    })),
+                    criteria: (cat.criteria || []).map((cri, criIdx) => {
+                        const levelGoodDesc = cri.levelGoodDesc ?? cri.descGood ?? null;
+                        const levelFairDesc = cri.levelFairDesc ?? cri.descFair ?? null;
+                        const levelAverageDesc = cri.levelAverageDesc ?? cri.descAverage ?? null;
+                        const levelPoorDesc = cri.levelPoorDesc ?? cri.descPoor ?? null;
+                        return {
+                            code: cri.code.trim().toUpperCase(),
+                            label: cri.label.trim(),
+                            description: cri.description ? cri.description.trim() : null,
+                            cloCode: cri.cloCode ? cri.cloCode.trim() : null,
+                            levelGoodDesc: levelGoodDesc ? String(levelGoodDesc).trim() : null,
+                            levelFairDesc: levelFairDesc ? String(levelFairDesc).trim() : null,
+                            levelAverageDesc: levelAverageDesc ? String(levelAverageDesc).trim() : null,
+                            levelPoorDesc: levelPoorDesc ? String(levelPoorDesc).trim() : null,
+                            descGood: levelGoodDesc ? String(levelGoodDesc).trim() : null,
+                            descFair: levelFairDesc ? String(levelFairDesc).trim() : null,
+                            descAverage: levelAverageDesc ? String(levelAverageDesc).trim() : null,
+                            descPoor: levelPoorDesc ? String(levelPoorDesc).trim() : null,
+                            maxScore: Number(cri.maxScore),
+                            orderIndex: criIdx + 1,
+                        };
+                    }),
                 })),
             };
 
@@ -627,6 +659,14 @@ export default function RubricManagementPage() {
                         code: 'METHODOLOGY',
                         label: 'Phương pháp luận & Mô hình giải thuật',
                         description: 'Áp dụng mô hình chuẩn, giải thuật tối ưu, cơ sở lý thuyết vững chắc.',
+                        levelGoodDesc: 'Phương pháp luận xuất sắc, mô hình giải thuật tối ưu.',
+                        levelFairDesc: 'Phương pháp luận phù hợp, giải thuật đáp ứng yêu cầu.',
+                        levelAverageDesc: 'Phương pháp luận ở mức cơ bản, giải thuật chưa tối ưu.',
+                        levelPoorDesc: 'Phương pháp luận sai lệch, không có cơ sở lý thuyết.',
+                        descGood: 'Phương pháp luận xuất sắc, mô hình giải thuật tối ưu.',
+                        descFair: 'Phương pháp luận phù hợp, giải thuật đáp ứng yêu cầu.',
+                        descAverage: 'Phương pháp luận ở mức cơ bản, giải thuật chưa tối ưu.',
+                        descPoor: 'Phương pháp luận sai lệch, không có cơ sở lý thuyết.',
                         maxScore: 1.5,
                     },
                     {
@@ -634,6 +674,14 @@ export default function RubricManagementPage() {
                         code: 'COMPLEXITY',
                         label: 'Độ phức tạp và phạm vi đề tài',
                         description: 'Khối lượng công việc tương xứng với khóa luận tốt nghiệp.',
+                        levelGoodDesc: 'Khối lượng lớn, phạm vi đề tài bao quát và sâu sắc.',
+                        levelFairDesc: 'Khối lượng công việc đầy đủ, phạm vi hợp lý.',
+                        levelAverageDesc: 'Khối lượng công việc ở mức vừa đủ, chưa đào sâu.',
+                        levelPoorDesc: 'Khối lượng quá ít, không tương xứng khóa luận tốt nghiệp.',
+                        descGood: 'Khối lượng lớn, phạm vi đề tài bao quát và sâu sắc.',
+                        descFair: 'Khối lượng công việc đầy đủ, phạm vi hợp lý.',
+                        descAverage: 'Khối lượng công việc ở mức vừa đủ, chưa đào sâu.',
+                        descPoor: 'Khối lượng quá ít, không tương xứng khóa luận tốt nghiệp.',
                         maxScore: 1.0,
                     },
                 ],
@@ -650,6 +698,14 @@ export default function RubricManagementPage() {
                         code: 'ARCHITECTURE',
                         label: 'Kiến trúc hệ thống & Clean Code',
                         description: 'Phân tầng rõ ràng, áp dụng design pattern, tài liệu mã nguồn đầy đủ.',
+                        levelGoodDesc: 'Kiến trúc chuẩn mực, tuân thủ Clean Architecture/Design Patterns.',
+                        levelFairDesc: 'Kiến trúc rõ ràng, cấu trúc mã nguồn gọn gàng.',
+                        levelAverageDesc: 'Kiến trúc cơ bản, còn một số đoạn mã chưa tối ưu.',
+                        levelPoorDesc: 'Không có kiến trúc, mã nguồn lộn xộn, khó bảo trì.',
+                        descGood: 'Kiến trúc chuẩn mực, tuân thủ Clean Architecture/Design Patterns.',
+                        descFair: 'Kiến trúc rõ ràng, cấu trúc mã nguồn gọn gàng.',
+                        descAverage: 'Kiến trúc cơ bản, còn một số đoạn mã chưa tối ưu.',
+                        descPoor: 'Không có kiến trúc, mã nguồn lộn xộn, khó bảo trì.',
                         maxScore: 2.0,
                     },
                     {
@@ -657,6 +713,14 @@ export default function RubricManagementPage() {
                         code: 'STABILITY_TEST',
                         label: 'Khả năng vận hành và kiểm thử tự động',
                         description: 'Demo chạy mượt mà trên môi trường thật, không có lỗi nghiêm trọng.',
+                        levelGoodDesc: 'Demo hoàn hảo, kiểm thử tự động toàn diện, không có lỗi.',
+                        levelFairDesc: 'Demo chạy ổn định, có kịch bản test đầy đủ.',
+                        levelAverageDesc: 'Demo chạy được các tính năng chính, còn lỗi nhỏ.',
+                        levelPoorDesc: 'Demo thất bại hoặc phát sinh lỗi nghiêm trọng.',
+                        descGood: 'Demo hoàn hảo, kiểm thử tự động toàn diện, không có lỗi.',
+                        descFair: 'Demo chạy ổn định, có kịch bản test đầy đủ.',
+                        descAverage: 'Demo chạy được các tính năng chính, còn lỗi nhỏ.',
+                        descPoor: 'Demo thất bại hoặc phát sinh lỗi nghiêm trọng.',
                         maxScore: 1.5,
                     },
                 ],
@@ -673,6 +737,14 @@ export default function RubricManagementPage() {
                         code: 'SLIDE_COMMUNICATION',
                         label: 'Thuyết trình mạch lạc, làm chủ thời gian',
                         description: 'Trình bày xúc tích, slide trực quan, giọng nói rõ ràng.',
+                        levelGoodDesc: 'Thuyết trình lôi cuốn, slide chuyên nghiệp, đúng giờ.',
+                        levelFairDesc: 'Trình bày rõ ràng, slide trực quan, quản lý thời gian tốt.',
+                        levelAverageDesc: 'Trình bày đạt yêu cầu, slide còn nhiều chữ hoặc hơi quá giờ.',
+                        levelPoorDesc: 'Thuyết trình ấp úng, slide sơ sài, quá giờ nghiêm trọng.',
+                        descGood: 'Thuyết trình lôi cuốn, slide chuyên nghiệp, đúng giờ.',
+                        descFair: 'Trình bày rõ ràng, slide trực quan, quản lý thời gian tốt.',
+                        descAverage: 'Trình bày đạt yêu cầu, slide còn nhiều chữ hoặc hơi quá giờ.',
+                        descPoor: 'Thuyết trình ấp úng, slide sơ sài, quá giờ nghiêm trọng.',
                         maxScore: 1.0,
                     },
                     {
@@ -680,6 +752,14 @@ export default function RubricManagementPage() {
                         code: 'DEFENSE_QA',
                         label: 'Trả lời chất vấn chuyên môn của Hội đồng',
                         description: 'Phản ứng nhanh nhẹn, lập luận chặt chẽ, hiểu sâu giải pháp.',
+                        levelGoodDesc: 'Trả lời sắc bén, nắm vững bản chất học thuật.',
+                        levelFairDesc: 'Trả lời đúng hầu hết câu hỏi của Hội đồng.',
+                        levelAverageDesc: 'Trả lời được câu hỏi cơ bản, còn lúng túng câu hỏi nâng cao.',
+                        levelPoorDesc: 'Không trả lời được câu hỏi chuyên môn cơ bản.',
+                        descGood: 'Trả lời sắc bén, nắm vững bản chất học thuật.',
+                        descFair: 'Trả lời đúng hầu hết câu hỏi của Hội đồng.',
+                        descAverage: 'Trả lời được câu hỏi cơ bản, còn lúng túng câu hỏi nâng cao.',
+                        descPoor: 'Không trả lời được câu hỏi chuyên môn cơ bản.',
                         maxScore: 1.5,
                     },
                 ],
@@ -696,6 +776,14 @@ export default function RubricManagementPage() {
                         code: 'FORMAT_CITATIONS',
                         label: 'Quy cách văn bản & Định dạng chuẩn Viện',
                         description: 'Tuân thủ BM01 - BM05, mục lục, bảng biểu rõ ràng.',
+                        levelGoodDesc: 'Định dạng chuẩn mực, trích dẫn chuẩn xác, trình bày đẹp mắt.',
+                        levelFairDesc: 'Định dạng tốt, trích dẫn tương đối đầy đủ.',
+                        levelAverageDesc: 'Còn một số lỗi định dạng và trích dẫn nhỏ.',
+                        levelPoorDesc: 'Định dạng cẩu thả, không tuân thủ mẫu của Viện.',
+                        descGood: 'Định dạng chuẩn mực, trích dẫn chuẩn xác, trình bày đẹp mắt.',
+                        descFair: 'Định dạng tốt, trích dẫn tương đối đầy đủ.',
+                        descAverage: 'Còn một số lỗi định dạng và trích dẫn nhỏ.',
+                        descPoor: 'Định dạng cẩu thả, không tuân thủ mẫu của Viện.',
                         maxScore: 1.0,
                     },
                     {
@@ -703,6 +791,14 @@ export default function RubricManagementPage() {
                         code: 'ACADEMIC_INTEGRITY',
                         label: 'Liêm chính học thuật (Turnitin < 15%)',
                         description: 'Trích dẫn nguồn trung thực, không sao chép trái phép.',
+                        levelGoodDesc: 'Liêm chính xuất sắc, Turnitin < 10%, nguồn tham khảo uy tín.',
+                        levelFairDesc: 'Đảm bảo liêm chính, Turnitin 10-15%.',
+                        levelAverageDesc: 'Turnitin ở ngưỡng chấp nhận được, một số đoạn cần dẫn nguồn rõ hơn.',
+                        levelPoorDesc: 'Vi phạm liêm chính hoặc sao chép không trích dẫn.',
+                        descGood: 'Liêm chính xuất sắc, Turnitin < 10%, nguồn tham khảo uy tín.',
+                        descFair: 'Đảm bảo liêm chính, Turnitin 10-15%.',
+                        descAverage: 'Turnitin ở ngưỡng chấp nhận được, một số đoạn cần dẫn nguồn rõ hơn.',
+                        descPoor: 'Vi phạm liêm chính hoặc sao chép không trích dẫn.',
                         maxScore: 0.5,
                     },
                 ],
@@ -1602,8 +1698,9 @@ export default function RubricManagementPage() {
                                                             <input
                                                                 type="text"
                                                                 className="input-field"
-                                                                value={cri.descGood || ''}
-                                                                onChange={(e) => handleUpdateCriterion(catIdx, criIdx, 'descGood', e.target.value)}
+                                                                aria-label="Mức Tốt"
+                                                                value={cri.levelGoodDesc ?? cri.descGood ?? ''}
+                                                                onChange={(e) => handleUpdateCriterion(catIdx, criIdx, 'levelGoodDesc', e.target.value)}
                                                                 placeholder="Mức Tốt"
                                                                 style={{ fontSize: 11, width: '100%' }}
                                                             />
@@ -1615,8 +1712,9 @@ export default function RubricManagementPage() {
                                                             <input
                                                                 type="text"
                                                                 className="input-field"
-                                                                value={cri.descFair || ''}
-                                                                onChange={(e) => handleUpdateCriterion(catIdx, criIdx, 'descFair', e.target.value)}
+                                                                aria-label="Mức Khá"
+                                                                value={cri.levelFairDesc ?? cri.descFair ?? ''}
+                                                                onChange={(e) => handleUpdateCriterion(catIdx, criIdx, 'levelFairDesc', e.target.value)}
                                                                 placeholder="Mức Khá"
                                                                 style={{ fontSize: 11, width: '100%' }}
                                                             />
@@ -1628,8 +1726,9 @@ export default function RubricManagementPage() {
                                                             <input
                                                                 type="text"
                                                                 className="input-field"
-                                                                value={cri.descAverage || ''}
-                                                                onChange={(e) => handleUpdateCriterion(catIdx, criIdx, 'descAverage', e.target.value)}
+                                                                aria-label="Mức Trung bình"
+                                                                value={cri.levelAverageDesc ?? cri.descAverage ?? ''}
+                                                                onChange={(e) => handleUpdateCriterion(catIdx, criIdx, 'levelAverageDesc', e.target.value)}
                                                                 placeholder="Mức TB"
                                                                 style={{ fontSize: 11, width: '100%' }}
                                                             />
@@ -1641,8 +1740,9 @@ export default function RubricManagementPage() {
                                                             <input
                                                                 type="text"
                                                                 className="input-field"
-                                                                value={cri.descPoor || ''}
-                                                                onChange={(e) => handleUpdateCriterion(catIdx, criIdx, 'descPoor', e.target.value)}
+                                                                aria-label="Mức Kém"
+                                                                value={cri.levelPoorDesc ?? cri.descPoor ?? ''}
+                                                                onChange={(e) => handleUpdateCriterion(catIdx, criIdx, 'levelPoorDesc', e.target.value)}
                                                                 placeholder="Mức Kém"
                                                                 style={{ fontSize: 11, width: '100%' }}
                                                             />

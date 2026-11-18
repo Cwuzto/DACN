@@ -5,6 +5,8 @@ jest.mock('../../src/config/database', () => ({
     },
     semester: {
         findFirst: jest.fn(),
+        findUnique: jest.fn(),
+        update: jest.fn(),
     },
     rubricVersion: {
         findMany: jest.fn(),
@@ -488,5 +490,243 @@ describe('Integration - Rubric Management Routes', () => {
 
         expect(activateRes.status).toBe(400);
         expect(activateRes.body.success).toBe(false);
+    });
+
+    test('POST /api/rubrics và PUT /api/rubrics/:id lưu và giữ đầy đủ 4 mô tả mức điểm của tiêu chí', async () => {
+        const categoriesWith4Levels = [
+            {
+                code: 'CAT_TEST',
+                name: 'Nhóm kiểm thử',
+                maxScore: 10.0,
+                criteria: [
+                    {
+                        code: 'CRI_LEVELS',
+                        label: 'Tiêu chí 4 mức điểm',
+                        description: 'Hướng dẫn chi tiết',
+                        cloCode: 'CLO1',
+                        levelGoodDesc: 'Giỏi: Đáp ứng xuất sắc',
+                        levelFairDesc: 'Khá: Đáp ứng tốt',
+                        levelAverageDesc: 'Trung bình: Đạt yêu cầu cơ bản',
+                        levelPoorDesc: 'Yếu: Chưa đạt',
+                        maxScore: 10.0,
+                    },
+                ],
+            },
+        ];
+
+        prisma.rubricVersion.findUnique.mockResolvedValue(null);
+        let createdData = null;
+        prisma.rubricVersion.create.mockImplementation(async ({ data }) => {
+            createdData = data;
+            return {
+                id: 50,
+                ...data,
+                categories: categoriesWith4Levels,
+            };
+        });
+
+        // 1. Test POST /api/rubrics
+        const createRes = await request(app)
+            .post('/api/rubrics')
+            .set('Authorization', 'Bearer admin-token')
+            .send({
+                version: 'v_desc_test',
+                title: 'Barem kiểm tra 4 mức',
+                categories: categoriesWith4Levels,
+            });
+
+        expect(createRes.status).toBe(201);
+        const createdCriteria = createdData.categories.create[0].criteria.create[0];
+        expect(createdCriteria.levelGoodDesc).toBe('Giỏi: Đáp ứng xuất sắc');
+        expect(createdCriteria.levelFairDesc).toBe('Khá: Đáp ứng tốt');
+        expect(createdCriteria.levelAverageDesc).toBe('Trung bình: Đạt yêu cầu cơ bản');
+        expect(createdCriteria.levelPoorDesc).toBe('Yếu: Chưa đạt');
+
+        // 2. Test PUT /api/rubrics/:id
+        prisma.rubricVersion.findUnique.mockResolvedValue({
+            id: 50,
+            version: 'v_desc_test',
+            title: 'Barem kiểm tra 4 mức',
+            status: 'DRAFT',
+            isActive: false,
+            lockedAt: null,
+            categories: categoriesWith4Levels,
+        });
+        prisma.defenseMemberScore.count.mockResolvedValue(0);
+        prisma.defenseResult.count.mockResolvedValue(0);
+        prisma.$transaction.mockImplementation(async (cb) => cb(prisma));
+        prisma.rubricCategory.deleteMany.mockResolvedValue({ count: 1 });
+
+        let updatedData = null;
+        prisma.rubricVersion.update.mockImplementation(async ({ data }) => {
+            updatedData = data;
+            return {
+                id: 50,
+                version: 'v_desc_test',
+                ...data,
+                categories: categoriesWith4Levels,
+            };
+        });
+
+        const updatedCategories = [
+            {
+                code: 'CAT_TEST',
+                name: 'Nhóm kiểm thử',
+                maxScore: 10.0,
+                criteria: [
+                    {
+                        code: 'CRI_LEVELS',
+                        label: 'Tiêu chí 4 mức điểm sau sửa',
+                        description: 'Hướng dẫn mới',
+                        cloCode: 'CLO2',
+                        levelGoodDesc: 'Giỏi: Cập nhật mới',
+                        levelFairDesc: 'Khá: Cập nhật mới',
+                        levelAverageDesc: 'Trung bình: Cập nhật mới',
+                        levelPoorDesc: 'Yếu: Cập nhật mới',
+                        maxScore: 10.0,
+                    },
+                ],
+            },
+        ];
+
+        const updateRes = await request(app)
+            .put('/api/rubrics/50')
+            .set('Authorization', 'Bearer admin-token')
+            .send({
+                title: 'Barem sau sửa mô tả',
+                categories: updatedCategories,
+            });
+
+        expect(updateRes.status).toBe(200);
+        const updatedCriteria = updatedData.categories.create[0].criteria.create[0];
+        expect(updatedCriteria.levelGoodDesc).toBe('Giỏi: Cập nhật mới');
+        expect(updatedCriteria.levelFairDesc).toBe('Khá: Cập nhật mới');
+        expect(updatedCriteria.levelAverageDesc).toBe('Trung bình: Cập nhật mới');
+        expect(updatedCriteria.levelPoorDesc).toBe('Yếu: Cập nhật mới');
+    });
+
+    test('POST /api/rubrics cho phép tạo hoặc nhân bản rubric DRAFT ngay cả khi có học kỳ đang diễn ra (ONGOING)', async () => {
+        // Giả lập hệ thống có học kỳ đang ONGOING
+        prisma.semester.findFirst.mockResolvedValue({
+            id: 8,
+            name: 'HK1 2026-2027',
+            status: 'ONGOING',
+        });
+
+        const validCategories = [
+            {
+                code: 'CAT1',
+                name: 'Mục 1',
+                maxScore: 10.0,
+                criteria: [{ code: 'CRI1', label: 'Tiêu chí 1', maxScore: 10.0 }],
+            },
+        ];
+
+        prisma.rubricVersion.findUnique.mockResolvedValue(null);
+        prisma.rubricVersion.create.mockImplementation(async ({ data }) => ({
+            id: 60,
+            ...data,
+            categories: validCategories,
+        }));
+
+        const createRes = await request(app)
+            .post('/api/rubrics')
+            .set('Authorization', 'Bearer admin-token')
+            .send({
+                version: 'v_draft_during_ongoing',
+                title: 'Barem nháp tạo trong kỳ đang chạy',
+                categories: validCategories,
+            });
+
+        expect(createRes.status).toBe(201);
+        expect(createRes.body.success).toBe(true);
+        expect(createRes.body.data.status).toBe('DRAFT');
+    });
+
+    test('POST /api/rubrics/:id/lock yêu cầu semesterId hợp lệ, từ chối nếu thiếu hoặc sai lệch', async () => {
+        const validRubric = {
+            id: 70,
+            version: 'v_lock_test',
+            title: 'Barem chuẩn bị khóa',
+            status: 'DRAFT',
+            isActive: false,
+            lockedAt: null,
+            semesterId: 10,
+            scoreLevelPolicy: {
+                good: { minPercent: 85, maxPercent: 100, suggestedPercent: 90 },
+                fair: { minPercent: 70, maxPercent: 85, suggestedPercent: 75 },
+                average: { minPercent: 50, maxPercent: 70, suggestedPercent: 60 },
+                poor: { minPercent: 0, maxPercent: 50, suggestedPercent: 30 },
+            },
+            categories: [
+                {
+                    code: 'CAT1',
+                    name: 'Mục 1',
+                    maxScore: 10.0,
+                    criteria: [{ code: 'CRI1', label: 'Tiêu chí 1', maxScore: 10.0 }],
+                },
+            ],
+        };
+
+        prisma.rubricVersion.findUnique.mockResolvedValue(validRubric);
+        prisma.defenseMemberScore.count.mockResolvedValue(0);
+        prisma.defenseResult.count.mockResolvedValue(0);
+
+        // Case 1: Thiếu semesterId khi rubric không có semesterId -> từ chối 400
+        const rubricWithoutSemester = { ...validRubric, semesterId: null };
+        prisma.rubricVersion.findUnique.mockResolvedValueOnce(rubricWithoutSemester);
+        const resMissingSemester = await request(app)
+            .post('/api/rubrics/70/lock')
+            .set('Authorization', 'Bearer admin-token')
+            .send({});
+
+        expect(resMissingSemester.status).toBe(400);
+        expect(resMissingSemester.body.message).toContain('semesterId');
+
+        // Case 2: Truyền semesterId lệch với rubric.semesterId -> từ chối 400
+        prisma.rubricVersion.findUnique.mockResolvedValueOnce(validRubric);
+        const resMismatchedSemester = await request(app)
+            .post('/api/rubrics/70/lock')
+            .set('Authorization', 'Bearer admin-token')
+            .send({ semesterId: 999 });
+
+        expect(resMismatchedSemester.status).toBe(400);
+        expect(resMismatchedSemester.body.message).toContain('không khớp');
+
+        // Case 3: Semester không tồn tại trong DB -> 404
+        prisma.rubricVersion.findUnique.mockResolvedValueOnce(validRubric);
+        prisma.semester.findUnique.mockResolvedValueOnce(null);
+        const resSemesterNotFound = await request(app)
+            .post('/api/rubrics/70/lock')
+            .set('Authorization', 'Bearer admin-token')
+            .send({ semesterId: 10 });
+
+        expect(resSemesterNotFound.status).toBe(404);
+
+        // Case 4: Truyền đúng semesterId và đợt hợp lệ -> khóa thành công
+        prisma.rubricVersion.findUnique.mockResolvedValueOnce(validRubric);
+        prisma.semester.findUnique.mockResolvedValueOnce({
+            id: 10,
+            name: 'Học kỳ 1 2026-2027',
+            status: 'PREPARATION',
+        });
+        prisma.$transaction.mockImplementation(async (cb) => cb(prisma));
+        prisma.rubricVersion.update.mockResolvedValueOnce({
+            ...validRubric,
+            status: 'ACTIVE',
+            isActive: true,
+            lockedAt: new Date(),
+            semesterId: 10,
+        });
+        prisma.semester.update.mockResolvedValueOnce({ id: 10 });
+
+        const resLockSuccess = await request(app)
+            .post('/api/rubrics/70/lock')
+            .set('Authorization', 'Bearer admin-token')
+            .send({ semesterId: 10 });
+
+        expect(resLockSuccess.status).toBe(200);
+        expect(resLockSuccess.body.success).toBe(true);
+        expect(resLockSuccess.body.data.status).toBe('ACTIVE');
     });
 });
