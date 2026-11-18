@@ -170,7 +170,7 @@ const outlineReviewGuards = [
     param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
     body().custom((body) => {
         const val = body.status || body.decision;
-        if (!val || !['PASSED', 'REVISION_REQUIRED', 'NEEDS_REVISION'].includes(val)) {
+        if (!val || !['PASSED', 'REVISION_REQUIRED', 'NEEDS_REVISION', 'FAIL', 'FAILED', 'REJECT', 'APPROVE'].includes(val)) {
             throw new Error('Trạng thái hoặc quyết định xét duyệt đề cương không hợp lệ.');
         }
         return true;
@@ -293,6 +293,27 @@ router.post(
     '/:id/cancel',
     cancelRegistrationGuards,
     registrationController.cancelRegistration,
+);
+
+router.get(
+    '/:id',
+    [
+        authorizePermission(
+            PERMISSIONS.VIEW_MY_REGISTRATION,
+            PERMISSIONS.VIEW_MENTOR_STUDENTS,
+            PERMISSIONS.VIEW_MENTORED_STUDENTS,
+            PERMISSIONS.VIEW_PROJECT_OVERSIGHT,
+            PERMISSIONS.BM02_REVIEW,
+            PERMISSIONS.VIEW_BM02_REVIEWS,
+            PERMISSIONS.BM03_REVIEW,
+            PERMISSIONS.OUTLINE_REVIEW,
+            PERMISSIONS.SEMESTER_MANAGE,
+            PERMISSIONS.VIEW_PROJECT_PERIODS,
+        ),
+        param('id').isInt({ min: 1 }).withMessage('id phải là số nguyên dương.'),
+        validateRequest,
+    ],
+    registrationController.getRegistrationById,
 );
 
 router.get(

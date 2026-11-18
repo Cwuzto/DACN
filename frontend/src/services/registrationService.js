@@ -37,6 +37,14 @@ const registrationService = {
         }
     },
 
+    getRegistrationById: async (id) => {
+        try {
+            return await api.get(`/registrations/${id}`);
+        } catch (error) {
+            throw wrapServiceError(error, 'Đã xảy ra lỗi khi tải thông tin đăng ký đề tài');
+        }
+    },
+
     registerTopic: async (topicId, semesterId) => {
         try {
             return await api.post('/registrations', { topicId, semesterId });
@@ -269,6 +277,7 @@ export const {
     getMyRegistration,
     getMyProjectEnrollments,
     getAllRegistrations,
+    getRegistrationById,
     registerTopic,
     handleRegistration,
     dropRegistration,

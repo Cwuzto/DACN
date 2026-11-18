@@ -349,4 +349,38 @@ describe('Task 7: BM04 Atomic Workflow Service & Pre-Defense Gate (H04)', () => 
         expect(res.body.code).toBe('BM04_ALREADY_LOCKED');
         expect(prisma.topicRegistration.updateMany).not.toHaveBeenCalled();
     });
+
+    it('should reject saveBM04Draft when registration is TERMINATED or ineligible', async () => {
+        // Case 1: TERMINATED_FAILED_PROGRESS
+        prisma.topicRegistration.findUnique.mockResolvedValueOnce({
+            ...baseRegistration,
+            status: 'TERMINATED_FAILED_PROGRESS',
+        });
+
+        const res1 = await request(app)
+            .post(`/api/bm04/${registrationId}/save-draft`)
+            .set('Authorization', 'Bearer mentor-token')
+            .send({
+                thesisFormatScore: 'Tot',
+            });
+
+        expect(res1.status).toBe(400);
+        expect(res1.body.code).toBe('REGISTRATION_TERMINATED');
+
+        // Case 2: Ineligible status (e.g. IN_PROGRESS_BM03)
+        prisma.topicRegistration.findUnique.mockResolvedValueOnce({
+            ...baseRegistration,
+            status: 'IN_PROGRESS_BM03',
+        });
+
+        const res2 = await request(app)
+            .post(`/api/bm04/${registrationId}/save-draft`)
+            .set('Authorization', 'Bearer mentor-token')
+            .send({
+                thesisFormatScore: 'Tot',
+            });
+
+        expect(res2.status).toBe(400);
+        expect(res2.body.code).toBe('INELIGIBLE_REGISTRATION');
+    });
 });

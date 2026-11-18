@@ -42,6 +42,7 @@ export default function BM04EvaluationModal({
 
     const bm04Query = useBM04Record(scope, registration?.id, Boolean(open && registration?.id));
     const loadingRecord = bm04Query.isPending && bm04Query.fetchStatus !== 'idle';
+    const isLocked = Boolean(bm04Query.data?.isLocked || registration?.bm04Evaluation?.isLocked || bm04Query.data?.status === 'OFFICIAL');
 
     const programOutcome = Form.useWatch('programOutcome', form);
     const defenseRecommendation = Form.useWatch('defenseRecommendation', form);
@@ -211,12 +212,21 @@ export default function BM04EvaluationModal({
             width={760}
         >
             <div className="space-y-4 pt-2">
-                <Alert
-                    type="warning"
-                    showIcon
-                    message="Tính bất biến & Trách nhiệm pháp lý của GVHD"
-                    description="Phiếu nhận xét yêu cầu chữ ký điện tử của GVHD. Khi ký và nộp, biểu mẫu sẽ được khóa vĩnh viễn và xuất PDF có mã băm bảo mật. Nếu kết luận ĐỒNG Ý cho ra bảo vệ, sinh viên sẽ đủ điều kiện xếp hội đồng bảo vệ."
-                />
+                {isLocked ? (
+                    <Alert
+                        type="info"
+                        showIcon
+                        message="Phiếu nhận xét BM04 đã được ký và khóa vĩnh viễn"
+                        description="Biểu mẫu này đã hoàn tất thẩm định và xuất bản chính thức. Tất cả các trường thông tin đang ở chế độ chỉ đọc."
+                    />
+                ) : (
+                    <Alert
+                        type="warning"
+                        showIcon
+                        message="Tính bất biến & Trách nhiệm pháp lý của GVHD"
+                        description="Phiếu nhận xét yêu cầu chữ ký điện tử của GVHD. Khi ký và nộp, biểu mẫu sẽ được khóa vĩnh viễn và xuất PDF có mã băm bảo mật. Nếu kết luận ĐỒNG Ý cho ra bảo vệ, sinh viên sẽ đủ điều kiện xếp hội đồng bảo vệ."
+                    />
+                )}
 
                 <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
                     <div>
@@ -237,7 +247,7 @@ export default function BM04EvaluationModal({
                     form={form}
                     layout="vertical"
                     requiredMark="optional"
-                    disabled={loadingRecord}
+                    disabled={loadingRecord || isLocked}
                 >
                     {/* AI Assistant Banner */}
                     <div className="mb-3 p-3 bg-gradient-to-r from-teal-50 to-emerald-50 rounded-lg border border-teal-200 flex flex-wrap items-center justify-between gap-2.5">
@@ -257,6 +267,7 @@ export default function BM04EvaluationModal({
                             icon={<RobotOutlined />}
                             onClick={handleOpenAiSuggestions}
                             loading={loadingAi}
+                            disabled={isLocked}
                             className="bg-teal-700 hover:bg-teal-800 text-white border-teal-700 text-xs font-medium shadow-sm hover:!text-white hover:!bg-teal-800"
                         >
                             AI Gợi ý từ BM03
@@ -448,6 +459,7 @@ export default function BM04EvaluationModal({
                         <Button
                             icon={<SaveOutlined />}
                             loading={savingDraft}
+                            disabled={isLocked}
                             onClick={handleSaveDraft}
                         >
                             Lưu nháp
@@ -459,11 +471,13 @@ export default function BM04EvaluationModal({
                             okText="Đồng ý ký nộp"
                             cancelText="Xem lại"
                             okButtonProps={{ danger: false, type: 'primary' }}
+                            disabled={isLocked}
                         >
                             <Button
                                 type="primary"
                                 icon={<SafetyCertificateOutlined />}
                                 loading={submitting}
+                                disabled={isLocked}
                                 className="!bg-[#0F766E] hover:!bg-[#115E59]"
                             >
                                 Ký và nộp

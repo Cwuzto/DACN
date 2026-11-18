@@ -117,8 +117,11 @@ export default function AcademicDossierDrawer({
     const printEligibility = useMemo(() => {
         const bm03Finalized = Boolean(
             bm03Record?.advisorSignedAt ||
-            bm03Record?.finalStageEvaluation ||
-            registration?.status === 'BM03_PASSED'
+            (bm03Record?.finalStageEvaluation && registration?.status === 'BM03_PASSED')
+        );
+        const bm04Finalized = Boolean(
+            bm04Record &&
+            (bm04Record.isLocked || bm04Record.status === 'OFFICIAL' || (bm04Record.signedAt && bm04Record.lecturerSignature))
         );
         const bm05Published = Boolean(summaryRecord?.isPublished);
 
@@ -136,9 +139,9 @@ export default function AcademicDossierDrawer({
             BM03: bm03Finalized
                 ? { eligible: true, reason: '' }
                 : { eligible: false, reason: 'BM03 chưa chốt cuối kỳ; chỉ xem nhật ký trên màn hình.' },
-            BM04: bm04Record
+            BM04: bm04Finalized
                 ? { eligible: true, reason: '' }
-                : { eligible: false, reason: 'Chưa có phiếu nhận xét BM04.' },
+                : { eligible: false, reason: 'Phiếu nhận xét BM04 chưa được ký chính thức.' },
             BM05: bm05Published
                 ? { eligible: true, reason: '' }
                 : { eligible: false, reason: 'Kết quả BM05 chưa được công bố chính thức.' },

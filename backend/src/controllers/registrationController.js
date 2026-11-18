@@ -491,12 +491,51 @@ const getMyRegistration = async (req, res, next) => {
                 defenseResult: true,
                 bm01Evaluations: { orderBy: { attemptNo: 'desc' }, take: 2 },
                 currentBM02Submission: true,
+                student: {
+                    select: {
+                        id: true,
+                        fullName: true,
+                        code: true,
+                        email: true,
+                        phone: true,
+                        department: true,
+                        studentProfile: {
+                            select: {
+                                className: true,
+                                gender: true,
+                                dateOfBirth: true,
+                            },
+                        },
+                    },
+                },
+                bm03Record: {
+                    include: {
+                        meetings: {
+                            where: { supersededBy: null },
+                            orderBy: { meetingDate: 'asc' },
+                        },
+                        stageEvaluations: {
+                            include: { evaluatedBy: { select: { id: true, fullName: true, code: true } } },
+                            orderBy: { evaluatedAt: 'asc' },
+                        },
+                        advisorSignedBy: { select: { id: true, fullName: true, code: true } },
+                    },
+                },
+                bm04Evaluation: {
+                    include: {
+                        evaluator: { select: { id: true, fullName: true, code: true, academicTitle: true } },
+                    },
+                },
             },
             orderBy: { createdAt: 'desc' },
         });
 
         if (!registration) {
             return res.json({ success: true, data: null, message: 'Bạn chưa đăng ký đề tài nào.' });
+        }
+
+        if (registration.student?.studentProfile) {
+            registration.studentProfile = registration.student.studentProfile;
         }
 
         // Hide defenseResult if not published yet to prevent leaking grades/comments
@@ -1309,7 +1348,7 @@ const updateOutlineReview = async (req, res, next) => {
             return res.status(400).json({ success: false, message: 'ID đăng ký không hợp lệ.' });
         }
 
-        const validStatuses = ['PASSED', 'REVISION_REQUIRED', 'NEEDS_REVISION'];
+        const validStatuses = ['PASSED', 'REVISION_REQUIRED', 'NEEDS_REVISION', 'FAIL', 'FAILED', 'REJECT', 'APPROVE'];
         if (!status || !validStatuses.includes(status)) {
             return res.status(400).json({ success: false, message: 'Trạng thái xét duyệt đề cương không hợp lệ.' });
         }
@@ -1329,7 +1368,7 @@ const updateOutlineReview = async (req, res, next) => {
         }
 
         const userPermissions = req.user?.permissions || [];
-        const hasApproveCapability = userPermissions.includes('OUTLINE_APPROVE');
+        const hasApproveCapability = userPermissions.includes('OUTLINE_APPROVE') || userPermissions.includes('OUTLINE_REVIEW');
         const councilMembers = existing.outlineCouncil?.members || [];
         const membership = councilMembers.find((m) => m.lecturerId === req.user.id);
 
@@ -1341,30 +1380,45 @@ const updateOutlineReview = async (req, res, next) => {
                     message: 'Chỉ Chủ tịch Hội đồng thẩm định đề cương mới có quyền kết luận duyệt hoặc yêu cầu chỉnh sửa đề cương.',
                 });
             }
-        } else if (!hasApproveCapability) {
+        } else if (!hasApproveCapability && existing.topic?.mentorId !== req.user.id) {
             return res.status(403).json({
                 success: false,
                 message: 'Bạn không có quyền cập nhật kết quả xét duyệt đề cương này.',
             });
         }
 
+        let normalizedOutcome = 'NEEDS_REVISION';
+        if (['PASSED', 'PASS', 'APPROVE'].includes(status)) {
+            normalizedOutcome = 'PASSED';
+        } else if (['FAIL', 'FAILED', 'REJECT'].includes(status)) {
+            normalizedOutcome = 'FAIL';
+        }
+
+        const attemptNo = existing.status === 'BM01_RESUBMITTED' ? 2 : 1;
+
         const result = await reviewBM01({
             registrationId,
             reviewerId: req.user.id,
-            attemptNo: 1,
-            outcome: status === 'PASSED' ? 'PASSED' : 'NEEDS_REVISION',
+            attemptNo,
+            outcome: normalizedOutcome,
             feedback,
             idempotencyKey: getIdempotencyKey(req),
         });
 
         if (!result.idempotent && existing.studentId) {
+            const notifTitle = normalizedOutcome === 'PASSED'
+                ? 'Đề cương BM01 đã được Hội đồng chấm ĐẠT'
+                : (normalizedOutcome === 'FAIL' ? 'Đề cương BM01 không đạt' : 'Đề cương BM01 cần chỉnh sửa và thẩm định lại');
+            const notifContent = normalizedOutcome === 'PASSED'
+                ? `Hội đồng xét duyệt đề cương đã chấm ĐẠT cho đề tài "${existing.topic?.title || ''}". Bạn có thể tiến hành nộp BM02.`
+                : (normalizedOutcome === 'FAIL'
+                    ? `Đề cương của đề tài "${existing.topic?.title || ''}" không đạt. Lý do: ${feedback || 'Không đáp ứng yêu cầu'}.`
+                    : `Hội đồng xét duyệt đề cương yêu cầu chỉnh sửa đề cương. Góp ý: ${feedback || 'Vui lòng sửa và nộp lại cho GVHD thẩm định.'}`);
             await safeNotify(
                 {
                     userId: existing.studentId,
-                    title: status === 'PASSED' ? 'Đề cương BM01 đã được Hội đồng chấm ĐẠT' : 'Đề cương BM01 cần chỉnh sửa và thẩm định lại',
-                    content: status === 'PASSED'
-                        ? `Hội đồng xét duyệt đề cương đã chấm ĐẠT cho đề tài "${existing.topic?.title || ''}". Bạn có thể tiến hành nộp BM02.`
-                        : `Hội đồng xét duyệt đề cương yêu cầu chỉnh sửa đề cương. Góp ý: ${feedback || 'Vui lòng sửa và nộp lại cho GVHD thẩm định.'}`,
+                    title: notifTitle,
+                    content: notifContent,
                     type: 'APPROVAL',
                 },
                 'updateOutlineReview',
@@ -1373,9 +1427,11 @@ const updateOutlineReview = async (req, res, next) => {
 
         res.json({
             success: true,
-            message: status === 'PASSED'
+            message: normalizedOutcome === 'PASSED'
                 ? 'Đã ghi nhận kết quả ĐẠT cho đề cương. Đề tài chuyển sang trạng thái BM01_PASSED.'
-                : 'Đã ghi nhận yêu cầu chỉnh sửa đề cương. Đề tài chuyển sang trạng thái BM01_NEEDS_REVISION.',
+                : (normalizedOutcome === 'FAIL'
+                    ? 'Đã ghi nhận kết quả KHÔNG ĐẠT cho đề cương. Đề tài chuyển sang trạng thái TERMINATED_BM01.'
+                    : 'Đã ghi nhận yêu cầu chỉnh sửa đề cương. Đề tài chuyển sang trạng thái BM01_NEEDS_REVISION.'),
             data: result,
         });
     } catch (error) {
@@ -1906,6 +1962,84 @@ const getAllowedActions = async (req, res, next) => {
     }
 };
 
+const getRegistrationById = async (req, res, next) => {
+    try {
+        const idInt = parseInt(req.params.id, 10);
+        if (!Number.isInteger(idInt)) {
+            return res.status(400).json({ success: false, message: 'ID hồ sơ không hợp lệ.' });
+        }
+        const registration = await prisma.topicRegistration.findUnique({
+            where: { id: idInt },
+            include: {
+                student: {
+                    select: {
+                        id: true,
+                        fullName: true,
+                        code: true,
+                        email: true,
+                        phone: true,
+                        department: true,
+                        studentProfile: {
+                            select: {
+                                className: true,
+                                major: true,
+                                academicYear: true,
+                                dateOfBirth: true,
+                                placeOfBirth: true,
+                            },
+                        },
+                    },
+                },
+                topic: {
+                    select: {
+                        id: true,
+                        title: true,
+                        description: true,
+                        mentorId: true,
+                        semesterId: true,
+                        projectCatalog: { select: { id: true, code: true, name: true } },
+                        mentor: { select: { id: true, fullName: true, code: true, email: true, department: true, academicTitle: true } },
+                    },
+                },
+                currentBM02Submission: true,
+                bm02Submissions: {
+                    orderBy: { versionNo: 'desc' },
+                },
+                bm03Record: true,
+                bm04Evaluation: true,
+                outlineCouncil: {
+                    include: {
+                        members: {
+                            include: {
+                                lecturer: { select: { id: true, fullName: true, email: true } },
+                            },
+                        },
+                    },
+                },
+                defenseCouncil: {
+                    include: {
+                        members: {
+                            include: {
+                                lecturer: { select: { id: true, fullName: true, email: true } },
+                            },
+                        },
+                    },
+                },
+                defenseResult: true,
+            },
+        });
+
+        if (!registration) {
+            return res.status(404).json({ success: false, message: 'Không tìm thấy hồ sơ đăng ký đề tài.' });
+        }
+
+        const allowedActions = computeAllowedActions(registration, req.user);
+        return res.json({ success: true, data: { ...registration, allowedActions } });
+    } catch (error) {
+        next(error);
+    }
+};
+
 const { getRegistrationHistory } = require('./topicController');
 
 module.exports = {
@@ -1913,6 +2047,7 @@ module.exports = {
     getMyRegistration,
     getMyProjectEnrollments,
     getAllRegistrations,
+    getRegistrationById,
     handleRegistration,
     dropRegistration,
     withdrawRegistration,

@@ -180,6 +180,14 @@ async function saveBM04Draft(input, options = {}) {
             throw new BM04WorkflowError('Phiếu nhận xét BM04 này đã được ký xác nhận và khóa vĩnh viễn, không thể cập nhật lại.', 'BM04_ALREADY_LOCKED', 400);
         }
 
+        if (registration.status?.startsWith('TERMINATED')) {
+            throw new BM04WorkflowError('Không thể tạo hoặc lưu nháp phiếu BM04 cho hồ sơ đã dừng.', 'REGISTRATION_TERMINATED', 400);
+        }
+
+        if (!['BM03_PASSED', 'BM04_REVIEW'].includes(registration.status)) {
+            throw new BM04WorkflowError('Chỉ được lưu nháp BM04 khi hồ sơ đang ở trạng thái BM03_PASSED hoặc BM04_REVIEW.', 'INELIGIBLE_REGISTRATION', 400);
+        }
+
         let titleInfo;
         try {
             titleInfo = await resolveEffectiveTopicTitle(regId, now, { ...options, tx });
@@ -319,6 +327,14 @@ async function signAndSubmitBM04(input, options = {}) {
         const existing = registration.bm04Evaluation || (await tx.bM04Evaluation.findUnique({ where: { registrationId: regId } }));
         if (existing?.isLocked) {
             throw new BM04WorkflowError('Phiếu nhận xét BM04 này đã được ký xác nhận và khóa vĩnh viễn, không thể cập nhật lại.', 'BM04_ALREADY_LOCKED', 400);
+        }
+
+        if (registration.status?.startsWith('TERMINATED')) {
+            throw new BM04WorkflowError('Không thể tạo hoặc lưu nháp phiếu BM04 cho hồ sơ đã dừng.', 'REGISTRATION_TERMINATED', 400);
+        }
+
+        if (!['BM03_PASSED', 'BM04_REVIEW'].includes(registration.status)) {
+            throw new BM04WorkflowError('Chỉ được lưu nháp BM04 khi hồ sơ đang ở trạng thái BM03_PASSED hoặc BM04_REVIEW.', 'INELIGIBLE_REGISTRATION', 400);
         }
 
         if (!['BM03_PASSED', 'BM04_REVIEW'].includes(registration.status)) {
