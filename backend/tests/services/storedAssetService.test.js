@@ -95,7 +95,7 @@ describe('Task 5: StoredAssetService Unit and Service Tests', () => {
                 size: 1024,
             };
 
-            const actor = { id: 'user-1', role: 'STUDENT' };
+            const actor = { id: 101, role: 'STUDENT' };
             const resourceContext = {
                 registrationId: 101,
                 academicYear: '2025-2026',
@@ -144,7 +144,7 @@ describe('Task 5: StoredAssetService Unit and Service Tests', () => {
                     tempFile,
                     documentType: STORED_DOCUMENT_TYPES.BM01,
                     resourceContext: { registrationId: 101 },
-                    actor: { id: 'user-1' },
+                    actor: { id: 101 },
                 })
             ).rejects.toThrow(/TUS/i);
         });
@@ -165,7 +165,7 @@ describe('Task 5: StoredAssetService Unit and Service Tests', () => {
                     tempFile,
                     documentType: STORED_DOCUMENT_TYPES.BM01,
                     resourceContext: { registrationId: 101 },
-                    actor: { id: 'user-1' },
+                    actor: { id: 101 },
                 })
             ).rejects.toThrow(/DB connection lost/);
 
@@ -179,7 +179,7 @@ describe('Task 5: StoredAssetService Unit and Service Tests', () => {
             const session = await service.createUploadSession({
                 documentType: STORED_DOCUMENT_TYPES.REPORT_PDF,
                 resourceContext: { registrationId: 101 },
-                actor: { id: 'user-1' },
+                actor: { id: 101 },
                 originalName: 'BaoCao.pdf',
                 declaredMime: 'application/pdf',
                 sizeBytes: 15 * 1024 * 1024, // 15 MB
@@ -197,7 +197,7 @@ describe('Task 5: StoredAssetService Unit and Service Tests', () => {
         test('idempotently returns existing active session for same idempotencyKey', async () => {
             mockPrisma.storedAssetUploadSession.findFirst.mockResolvedValueOnce({
                 id: 'existing-session-1',
-                actorId: 'user-1',
+                actorId: 101,
                 stagingBucket: 'TAM',
                 stagingObjectKey: 'cho-kiem-tra/existing.pdf',
                 transport: 'TUS',
@@ -211,7 +211,7 @@ describe('Task 5: StoredAssetService Unit and Service Tests', () => {
             const session = await service.createUploadSession({
                 documentType: STORED_DOCUMENT_TYPES.REPORT_PDF,
                 resourceContext: { registrationId: 101 },
-                actor: { id: 'user-1' },
+                actor: { id: 101 },
                 originalName: 'BaoCao.pdf',
                 declaredMime: 'application/pdf',
                 sizeBytes: 15 * 1024 * 1024,
@@ -227,7 +227,7 @@ describe('Task 5: StoredAssetService Unit and Service Tests', () => {
                 service.createUploadSession({
                     documentType: STORED_DOCUMENT_TYPES.REPORT_PDF,
                     resourceContext: { registrationId: 101 },
-                    actor: { id: 'user-1' },
+                    actor: { id: 101 },
                     originalName: 'TooLarge.pdf',
                     declaredMime: 'application/pdf',
                     sizeBytes: 55 * 1024 * 1024, // 55 MB > 50 MB
@@ -240,7 +240,7 @@ describe('Task 5: StoredAssetService Unit and Service Tests', () => {
         test('verifies staged object, inspects bytes, moves to target bucket, and completes session', async () => {
             mockPrisma.storedAssetUploadSession.findUnique.mockResolvedValueOnce({
                 id: 'session-1',
-                actorId: 'user-1',
+                actorId: 101,
                 documentType: STORED_DOCUMENT_TYPES.REPORT_PDF,
                 resourceContext: { registrationId: 101 },
                 stagingBucket: 'TAM',
@@ -255,7 +255,7 @@ describe('Task 5: StoredAssetService Unit and Service Tests', () => {
 
             const asset = await service.finalizeUploadSession({
                 sessionId: 'session-1',
-                actor: { id: 'user-1' },
+                actor: { id: 101 },
             });
 
             expect(asset).toBeDefined();
@@ -278,7 +278,7 @@ describe('Task 5: StoredAssetService Unit and Service Tests', () => {
         test('is idempotent when finalize is called twice', async () => {
             mockPrisma.storedAssetUploadSession.findUnique.mockResolvedValueOnce({
                 id: 'session-1',
-                actorId: 'user-1',
+                actorId: 101,
                 status: 'COMPLETED',
                 finalizedAssetId: 'already-created-asset-id',
             });
@@ -291,7 +291,7 @@ describe('Task 5: StoredAssetService Unit and Service Tests', () => {
 
             const asset = await service.finalizeUploadSession({
                 sessionId: 'session-1',
-                actor: { id: 'user-1' },
+                actor: { id: 101 },
             });
 
             expect(asset.id).toBe('already-created-asset-id');
@@ -301,7 +301,7 @@ describe('Task 5: StoredAssetService Unit and Service Tests', () => {
         test('rejects finalize if actor is not the owner', async () => {
             mockPrisma.storedAssetUploadSession.findUnique.mockResolvedValueOnce({
                 id: 'session-1',
-                actorId: 'user-1',
+                actorId: 101,
                 status: 'UPLOADING',
                 expiresAt: new Date(Date.now() + 3600000),
             });
@@ -309,7 +309,7 @@ describe('Task 5: StoredAssetService Unit and Service Tests', () => {
             await expect(
                 service.finalizeUploadSession({
                     sessionId: 'session-1',
-                    actor: { id: 'attacker-user', role: 'STUDENT' },
+                    actor: { id: 999, role: 'STUDENT' },
                 })
             ).rejects.toThrow(/forbidden|permission/i);
         });
@@ -324,12 +324,12 @@ describe('Task 5: StoredAssetService Unit and Service Tests', () => {
                 status: 'ACTIVE',
                 visibility: 'PRIVATE',
                 originalName: 'DeCuong.pdf',
-                ownerUserId: 'user-1',
+                ownerUserId: 101,
             });
 
             const result = await service.getAssetDownload({
                 assetId: 'asset-private-1',
-                actor: { id: 'user-1', role: 'STUDENT' },
+                actor: { id: 101, role: 'STUDENT' },
             });
 
             expect(result.url).toBe('https://example.com/signed-download-url');
@@ -376,7 +376,7 @@ describe('Task 5: StoredAssetService Unit and Service Tests', () => {
             await expect(
                 service.getAssetDownload({
                     assetId: 'asset-temp-1',
-                    actor: { id: 'user-1', role: 'ADMIN' },
+                    actor: { id: 101, role: 'ADMIN' },
                 })
             ).rejects.toThrow(/tam|temporary/i);
         });
@@ -390,7 +390,7 @@ describe('Task 5: StoredAssetService Unit and Service Tests', () => {
             await expect(
                 service.getAssetDownload({
                     assetId: 'deleted-asset',
-                    actor: { id: 'user-1', role: 'ADMIN' },
+                    actor: { id: 101, role: 'ADMIN' },
                 })
             ).rejects.toThrow(/not active|deleted/i);
         });

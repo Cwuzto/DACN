@@ -445,6 +445,7 @@ async function departmentSignBM02A({
             entityId: currentVersion.id,
             versionNumber: currentVersion.versionNumber,
             title: 'ĐƠN XIN ĐIỀU CHỈNH TÊN ĐỀ TÀI (BM02-A)',
+            actor: { id: deptHeadId },
             sections: [
                 {
                     heading: '1. Thông tin sinh viên',

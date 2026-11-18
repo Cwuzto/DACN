@@ -478,14 +478,30 @@ async function signAndSubmitBM04(input, options = {}) {
                 entityId: initialEvaluation.id,
                 versionNumber: 1,
                 title: 'PHIẾU NHẬN XÉT ĐỒ ÁN TỐT NGHIỆP CỦA GVHD (BM04)',
+                actor: { id: advId },
                 sections,
                 signatures,
             }, { ...options, tx });
 
-            finalPdfFileUrl = pdfResult?.fileUrl || null;
-            finalPdfAssetId = pdfResult?.assetId || null;
+            if (!pdfResult?.fileUrl) {
+                throw new BM04WorkflowError(
+                    'Không thể tạo tệp PDF nhận xét BM04 học vụ.',
+                    'PDF_GENERATION_FAILED',
+                    500
+                );
+            }
+
+            finalPdfFileUrl = pdfResult.fileUrl;
+            finalPdfAssetId = pdfResult.assetId || null;
         } catch (pdfErr) {
-            console.error('[signAndSubmitBM04] PDF generation error:', pdfErr.message);
+            if (pdfErr instanceof BM04WorkflowError) {
+                throw pdfErr;
+            }
+            throw new BM04WorkflowError(
+                `Lỗi tạo PDF BM04: ${pdfErr.message}`,
+                'PDF_GENERATION_FAILED',
+                500
+            );
         }
 
         const updatedEvaluation = await tx.bM04Evaluation.update?.({

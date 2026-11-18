@@ -172,13 +172,18 @@ async function generateImmutableAcademicPdf(input, options = {}) {
     else if (upper === 'APPENDIX' || upper === 'ADJUSTMENT_APPENDIX') mappedDocType = 'ADJUSTMENT_APPENDIX';
     else if (upper === 'CERTIFICATE' || upper === 'CLEARANCE_CERTIFICATE') mappedDocType = 'CLEARANCE_CERTIFICATE';
 
+    const actor = input.actor;
+    if (!actor || !Number.isInteger(Number(actor.id)) || Number(actor.id) <= 0) {
+      throw new Error('generateImmutableAcademicPdf requires a valid actor with a positive integer id');
+    }
+
     const createdAsset = await storedAssetService.createStoredAssetFromBuffer({
       buffer: pdfBuffer,
       originalName: fileName,
       declaredMime: 'application/pdf',
       documentType: mappedDocType,
       bucket: 'hoc-vu',
-      actor: input.actor || null,
+      actor: { id: Number(actor.id) },
       resourceContext: {
         registrationId: registrationId || null,
         entityId: entityId || null,
@@ -187,6 +192,9 @@ async function generateImmutableAcademicPdf(input, options = {}) {
 
     assetId = createdAsset.id;
     fileUrl = `/api/assets/${createdAsset.id}/download`;
+    if (!fileUrl || !assetId) {
+      throw new Error('Stored asset creation failed to return assetId or download URL');
+    }
   }
 
   return {

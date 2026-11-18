@@ -1073,9 +1073,18 @@ async function studentAcknowledgeBM03(input, options = {}) {
             entityId: record.id,
             versionNumber: 1,
             title: 'PHIẾU THEO DÕI QUÁ TRÌNH THỰC HIỆN ĐỒ ÁN (BM03)',
+            actor: { id: stuId },
             sections,
             signatures,
         }, { ...options, tx });
+
+        if (!pdfResult?.fileUrl) {
+            throw new BM03WorkflowError(
+                'Không thể tạo tệp PDF xác nhận BM03 học vụ.',
+                'PDF_GENERATION_FAILED',
+                500
+            );
+        }
 
         const updated = await tx.bM03ProgressRecord.update({
             where: { id: record.id },

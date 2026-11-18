@@ -67,6 +67,10 @@ describe('Task 7: Generated Academic PDFs and Council Documents Governance', () 
         lecturerToken = createToken(lecturerUser);
         otherLecturerToken = createToken(otherLecturerUser);
 
+        const { resolveUserCapabilities } = require('../../src/auth/capabilityResolver');
+        await resolveUserCapabilities({ userId: studentUser.id, db: prisma }).catch(() => {});
+        await resolveUserCapabilities({ userId: lecturerUser.id, db: prisma }).catch(() => {});
+
         semester = await prisma.semester.create({
             data: {
                 name: `HK T7 ${timestamp}`,
@@ -184,6 +188,8 @@ describe('Task 7: Generated Academic PDFs and Council Documents Governance', () 
                     contentType: 'application/pdf',
                 });
             } catch {}
+
+            await prisma.$queryRawUnsafe('SELECT 1').catch(() => {});
 
             testAsset = await prisma.storedAsset.create({
                 data: {

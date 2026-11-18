@@ -894,6 +894,7 @@ async function signClearanceCertificateByInstituteDirector(input, options = {}) 
             registrationId: registration.id,
             entityId: archive.id,
             title: 'GIẤY XÁC NHẬN HOÀN THÀNH ĐỒ ÁN TỐT NGHIỆP',
+            actor: { id: directorUser.id },
             sections: [
                 {
                     heading: 'THÔNG TIN SINH VIÊN & ĐỀ TÀI',

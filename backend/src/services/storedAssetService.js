@@ -86,6 +86,16 @@ class StoredAssetService {
             throw new StoredAssetServiceError('No valid file provided for ingestion', 'ASSET_FILE_MISSING', 400);
         }
 
+        const rawActorId = actor?.id;
+        const numericActorId = Number(rawActorId);
+        if (!rawActorId || !Number.isInteger(numericActorId) || numericActorId <= 0) {
+            throw new StoredAssetServiceError(
+                'A valid positive integer uploadedById is required',
+                'ASSET_ACTOR_REQUIRED',
+                400
+            );
+        }
+
         // Check 6MB multipart threshold
         const fileSize = tempFile.size != null ? tempFile.size : fs.statSync(tempFile.path).size;
         if (fileSize > TUS_THRESHOLD_BYTES) {
@@ -161,8 +171,8 @@ class StoredAssetService {
                     detectedMime: inspected.detectedMime,
                     sizeBytes: inspected.sizeBytes,
                     sha256: inspected.sha256,
-                    ownerUserId: actor?.id || null,
-                    uploadedById: actor?.id || null,
+                    ownerUserId: numericActorId,
+                    uploadedById: numericActorId,
                     registrationId: resourceContext.registrationId ? Number(resourceContext.registrationId) : null,
                     semesterId: resourceContext.semesterId ? Number(resourceContext.semesterId) : null,
                     projectCatalogId: resourceContext.projectCatalogId ? Number(resourceContext.projectCatalogId) : null,
@@ -175,7 +185,6 @@ class StoredAssetService {
                 },
             });
 
-            const numericActorId = actor?.id && Number.isInteger(Number(actor.id)) ? Number(actor.id) : null;
             if (numericActorId) {
                 auditLog(numericActorId, 'ASSET_INGEST', 'StoredAsset', asset.id, {
                     documentType,
@@ -408,6 +417,16 @@ class StoredAssetService {
                 contentType: inspected.detectedMime,
             });
 
+            const rawFinalizeActorId = actor?.id || session.actorId;
+            const numericFinalizeActorId = Number(rawFinalizeActorId);
+            if (!rawFinalizeActorId || !Number.isInteger(numericFinalizeActorId) || numericFinalizeActorId <= 0) {
+                throw new StoredAssetServiceError(
+                    'A valid positive integer uploadedById is required',
+                    'ASSET_ACTOR_REQUIRED',
+                    400
+                );
+            }
+
             // Create StoredAsset and complete session in transaction
             const asset = await this.prisma.$transaction(async (tx) => {
                 const created = await tx.storedAsset.create({
@@ -422,8 +441,8 @@ class StoredAssetService {
                         detectedMime: inspected.detectedMime,
                         sizeBytes: inspected.sizeBytes,
                         sha256: inspected.sha256,
-                        ownerUserId: session.actorId,
-                        uploadedById: actor?.id || session.actorId,
+                        ownerUserId: Number.isInteger(Number(session.actorId)) ? Number(session.actorId) : numericFinalizeActorId,
+                        uploadedById: numericFinalizeActorId,
                         registrationId: session.resourceContext?.registrationId ? Number(session.resourceContext.registrationId) : null,
                         semesterId: session.resourceContext?.semesterId ? Number(session.resourceContext.semesterId) : null,
                         projectCatalogId: session.resourceContext?.projectCatalogId ? Number(session.resourceContext.projectCatalogId) : null,
@@ -448,9 +467,8 @@ class StoredAssetService {
                 return created;
             });
 
-            const numericActorId = actor?.id && Number.isInteger(Number(actor.id)) ? Number(actor.id) : null;
-            if (numericActorId) {
-                auditLog(numericActorId, 'ASSET_FINALIZE', 'StoredAsset', asset.id, {
+            if (numericFinalizeActorId) {
+                auditLog(numericFinalizeActorId, 'ASSET_FINALIZE', 'StoredAsset', asset.id, {
                     sessionId,
                     documentType: session.documentType,
                 });
@@ -501,6 +519,16 @@ class StoredAssetService {
             throw new StoredAssetServiceError('Buffer is required', 'ASSET_BUFFER_REQUIRED', 400);
         }
 
+        const rawActorId = actor?.id;
+        const numericActorId = Number(rawActorId);
+        if (!rawActorId || !Number.isInteger(numericActorId) || numericActorId <= 0) {
+            throw new StoredAssetServiceError(
+                'A valid positive integer uploadedById is required',
+                'ASSET_ACTOR_REQUIRED',
+                400
+            );
+        }
+
         const policy = getAssetPolicy(documentType);
         const tempPath = createTempFilePath(path.extname(originalName) || 'pdf');
 
@@ -543,8 +571,8 @@ class StoredAssetService {
                     detectedMime: inspected.detectedMime,
                     sizeBytes: inspected.sizeBytes,
                     sha256: inspected.sha256,
-                    ownerUserId: actor?.id || null,
-                    uploadedById: actor?.id || null,
+                    ownerUserId: numericActorId,
+                    uploadedById: numericActorId,
                     registrationId: resourceContext.registrationId ? Number(resourceContext.registrationId) : null,
                     semesterId: resourceContext.semesterId ? Number(resourceContext.semesterId) : null,
                     projectCatalogId: resourceContext.projectCatalogId ? Number(resourceContext.projectCatalogId) : null,
