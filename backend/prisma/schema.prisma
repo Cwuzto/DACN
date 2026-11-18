@@ -950,6 +950,7 @@ model RubricVersion {
   title             String
   description       String?          @db.Text
   totalMaxScore     Float            @default(10.0) @map("total_max_score")
+  scoreLevelPolicy  Json             @default("{\"good\":{\"minPercent\":85,\"maxPercent\":100,\"suggestedPercent\":90},\"fair\":{\"minPercent\":70,\"maxPercent\":85,\"suggestedPercent\":75},\"average\":{\"minPercent\":50,\"maxPercent\":70,\"suggestedPercent\":60},\"poor\":{\"minPercent\":0,\"maxPercent\":50,\"suggestedPercent\":30}}") @map("score_level_policy")
   status            RubricStatus     @default(DRAFT)
   isActive          Boolean          @default(false) @map("is_active")
   semesterId        Int?             @map("semester_id")
