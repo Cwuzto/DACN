@@ -541,20 +541,20 @@ export function ProjectEnrollmentPage() {
 
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                             <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3.5">
-                                <div className="text-xs text-amber-800 font-bold">Đã gán nhưng chưa đăng ký đề tài</div>
-                                <div className="text-2xl font-black text-amber-900 mt-1">
+                                <div className="text-xs font-semibold uppercase tracking-wide text-amber-800">Đã gán nhưng chưa đăng ký đề tài</div>
+                                <div className="text-2xl font-bold text-amber-900 mt-1 tabular-nums">
                                     {audit?.enrolledWithoutTopicRegistration?.length || 0}
                                 </div>
                             </div>
                             <div className="rounded-xl border border-rose-200 bg-rose-50/60 p-3.5">
-                                <div className="text-xs text-rose-800 font-bold">Đề tài thiếu tên danh mục</div>
-                                <div className="text-2xl font-black text-rose-900 mt-1">
+                                <div className="text-xs font-semibold uppercase tracking-wide text-rose-800">Đề tài thiếu tên danh mục</div>
+                                <div className="text-2xl font-bold text-rose-900 mt-1 tabular-nums">
                                     {audit?.topicsMissingProjectCatalog?.length || 0}
                                 </div>
                             </div>
                             <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-3.5">
-                                <div className="text-xs text-blue-800 font-bold">Lệch quy tắc gán đồ án</div>
-                                <div className="text-2xl font-black text-blue-900 mt-1">
+                                <div className="text-xs font-semibold uppercase tracking-wide text-blue-800">Lệch quy tắc gán đồ án</div>
+                                <div className="text-2xl font-bold text-blue-900 mt-1 tabular-nums">
                                     {audit?.registrationsRuleMismatch?.length || 0}
                                 </div>
                             </div>

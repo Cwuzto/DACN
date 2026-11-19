@@ -79,9 +79,10 @@
  .meta { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
  .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
  .eyebrow {
- font-family: var(--font-mono);
- font-size: 11px;
- letter-spacing: 0.08em;
+ font-family: inherit;
+ font-size: 12px;
+ font-weight: 600;
+ letter-spacing: 0.025em;
  text-transform: uppercase;
  color: var(--muted);
  }

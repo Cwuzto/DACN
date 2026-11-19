@@ -237,74 +237,90 @@ export default function LecturerStudentsPage() {
                 </div>
             </div>
 
-            {/* Bento Quick Stat Tiles */}
+            {/* Bento Quick Stat Tiles — Aligned with Overview KPI Typography Standards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                 {/* Metric 1: Quota */}
-                <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between">
-                    <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-semibold text-slate-500">Chỉ tiêu hướng dẫn</span>
-                        <div className="w-8 h-8 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center text-sm font-bold">
-                            <UsergroupAddOutlined />
+                <div className="bg-white rounded-xl border border-teal-200/90 bg-teal-50/40 p-4 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between">
+                    <div className="flex items-start justify-between gap-2">
+                        <div>
+                            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                Chỉ tiêu hướng dẫn
+                            </div>
+                            <div className="text-2xl font-bold text-slate-900 mt-1 tabular-nums flex items-baseline gap-1.5">
+                                <span>{students.length}</span>
+                                <span className="text-xs text-slate-500 font-normal">/ 10 sinh viên</span>
+                            </div>
+                        </div>
+                        <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0">
+                            <UsergroupAddOutlined className="text-teal-600 text-lg" />
                         </div>
                     </div>
                     <div className="mt-2">
-                        <div className="flex items-baseline gap-1.5">
-                            <span className="text-xl sm:text-2xl font-black text-slate-900">{students.length}</span>
-                            <span className="text-xs text-slate-400 font-medium">/ 10 sinh viên</span>
-                        </div>
                         <Progress
                             percent={Math.min(100, students.length * 10)}
                             showInfo={false}
                             strokeColor="#0D9488"
                             size={['100%', 4]}
-                            className="m-0 mt-2"
+                            className="m-0"
                         />
-                        <div className="text-[10px] text-slate-400 mt-1">Quy định tối đa 10 SV/đợt</div>
+                        <div className="text-xs text-slate-500 mt-1">Quy định tối đa 10 SV/đợt</div>
                     </div>
                 </div>
 
                 {/* Metric 2: Outline & Approved */}
-                <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between">
-                    <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-semibold text-slate-500">Đề cương BM01</span>
-                        <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center text-sm font-bold">
-                            <FileTextOutlined />
+                <div className="bg-white rounded-xl border border-blue-200/90 bg-blue-50/40 p-4 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between">
+                    <div className="flex items-start justify-between gap-2">
+                        <div>
+                            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                Đề cương BM01
+                            </div>
+                            <div className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
+                                {stats.outlineCount}
+                            </div>
+                            <div className="text-xs text-blue-700 font-medium mt-1">Đang duyệt & hoàn thiện</div>
+                            <div className="text-xs text-slate-500 mt-0.5">Khởi đầu quy trình đồ án</div>
                         </div>
-                    </div>
-                    <div className="mt-2">
-                        <div className="text-xl sm:text-2xl font-black text-slate-900">{stats.outlineCount}</div>
-                        <div className="text-[11px] text-blue-700 font-medium mt-1">Đang duyệt & hoàn thiện</div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">Khởi đầu quy trình đồ án</div>
+                        <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0">
+                            <FileTextOutlined className="text-blue-600 text-lg" />
+                        </div>
                     </div>
                 </div>
 
                 {/* Metric 3: Progress BM03 */}
-                <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between">
-                    <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-semibold text-slate-500">Tiến độ BM03</span>
-                        <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center text-sm font-bold">
-                            <ScheduleOutlined />
+                <div className="bg-white rounded-xl border border-purple-200/90 bg-purple-50/40 p-4 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between">
+                    <div className="flex items-start justify-between gap-2">
+                        <div>
+                            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                Tiến độ BM03
+                            </div>
+                            <div className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
+                                {stats.progressCount}
+                            </div>
+                            <div className="text-xs text-purple-700 font-medium mt-1">Gặp định kỳ & Checkpoint</div>
+                            <div className="text-xs text-slate-500 mt-0.5">Thực hiện nghiên cứu & giải pháp</div>
                         </div>
-                    </div>
-                    <div className="mt-2">
-                        <div className="text-xl sm:text-2xl font-black text-slate-900">{stats.progressCount}</div>
-                        <div className="text-[11px] text-purple-700 font-medium mt-1">Gặp định kỳ & Checkpoint</div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">Thực hiện nghiên cứu & giải pháp</div>
+                        <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0">
+                            <ScheduleOutlined className="text-purple-600 text-lg" />
+                        </div>
                     </div>
                 </div>
 
                 {/* Metric 4: Defense & Completion */}
-                <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between">
-                    <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-semibold text-slate-500">Đánh giá & Bảo vệ</span>
-                        <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center text-sm font-bold">
-                            <TrophyOutlined />
+                <div className="bg-white rounded-xl border border-emerald-200/90 bg-emerald-50/40 p-4 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between">
+                    <div className="flex items-start justify-between gap-2">
+                        <div>
+                            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                Đánh giá & Bảo vệ
+                            </div>
+                            <div className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
+                                {stats.evaluationCount + stats.completedCount}
+                            </div>
+                            <div className="text-xs text-emerald-700 font-medium mt-1">Sẵn sàng / Đã đạt bảo vệ</div>
+                            <div className="text-xs text-slate-500 mt-0.5">BM04 và Hội đồng bảo vệ</div>
                         </div>
-                    </div>
-                    <div className="mt-2">
-                        <div className="text-xl sm:text-2xl font-black text-slate-900">{stats.evaluationCount + stats.completedCount}</div>
-                        <div className="text-[11px] text-emerald-700 font-medium mt-1">Sẵn sàng / Đã đạt bảo vệ</div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">BM04 và Hội đồng bảo vệ</div>
+                        <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0">
+                            <TrophyOutlined className="text-emerald-600 text-lg" />
+                        </div>
                     </div>
                 </div>
             </div>

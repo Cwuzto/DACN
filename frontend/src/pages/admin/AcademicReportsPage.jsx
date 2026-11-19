@@ -492,76 +492,76 @@ export default function AcademicReportsPage() {
             <QueryPanel query={overviewQuery}>
             <Row gutter={[16, 16]}>
                 <Col xs={24} sm={12} lg={6}>
-                    <Card variant="borderless" className="shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
-                        <div className="flex items-center justify-between">
+                    <Card size="small" className="rounded-xl border border-blue-200 bg-blue-50/40 shadow-sm hover:shadow-md transition-shadow" styles={{ body: { padding: '14px 16px' } }}>
+                        <div className="flex items-start justify-between gap-2">
                             <div>
-                                <p className="text-xs uppercase font-bold text-slate-400 tracking-wider">Tổng SV Tham Gia</p>
-                                <div className="text-3xl font-extrabold text-slate-800 mt-1">
+                                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Tổng SV Tham Gia</div>
+                                <div className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
                                     {loading ? <Spin size="small" /> : kpis.totalStudents || 0}
                                 </div>
-                                <p className="text-xs text-slate-500 mt-2">
+                                <div className="text-xs text-slate-500 mt-1">
                                     Sinh viên đăng ký thực hiện đồ án
-                                </p>
+                                </div>
                             </div>
-                            <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center">
-                                <UserOutlined className="text-blue-500 text-2xl" />
+                            <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0">
+                                <UserOutlined className="text-blue-600 text-lg" />
                             </div>
                         </div>
                     </Card>
                 </Col>
 
                 <Col xs={24} sm={12} lg={6}>
-                    <Card variant="borderless" className="shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
-                        <div className="flex items-center justify-between">
+                    <Card size="small" className="rounded-xl border border-emerald-200 bg-emerald-50/40 shadow-sm hover:shadow-md transition-shadow" styles={{ body: { padding: '14px 16px' } }}>
+                        <div className="flex items-start justify-between gap-2">
                             <div>
-                                <p className="text-xs uppercase font-bold text-slate-400 tracking-wider">Tỷ Lệ Hoàn Thành</p>
-                                <div className="text-3xl font-extrabold text-emerald-600 mt-1">
+                                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Tỷ Lệ Hoàn Thành</div>
+                                <div className="text-2xl font-bold text-emerald-700 mt-1 tabular-nums">
                                     {loading ? <Spin size="small" /> : `${kpis.completionRate ?? 0}%`}
                                 </div>
-                                <p className="text-xs text-slate-500 mt-2">
+                                <div className="text-xs text-slate-500 mt-1">
                                     {kpis.completedCount || 0} / {kpis.totalStudents || 0} sinh viên hoàn thành
-                                </p>
+                                </div>
                             </div>
-                            <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center">
-                                <CheckCircleOutlined className="text-emerald-500 text-2xl" />
+                            <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0">
+                                <CheckCircleOutlined className="text-emerald-600 text-lg" />
                             </div>
                         </div>
                     </Card>
                 </Col>
 
                 <Col xs={24} sm={12} lg={6}>
-                    <Card variant="borderless" className="shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
-                        <div className="flex items-center justify-between">
+                    <Card size="small" className="rounded-xl border border-teal-200 bg-teal-50/40 shadow-sm hover:shadow-md transition-shadow" styles={{ body: { padding: '14px 16px' } }}>
+                        <div className="flex items-start justify-between gap-2">
                             <div>
-                                <p className="text-xs uppercase font-bold text-slate-400 tracking-wider">Điểm Trung Bình Viện</p>
-                                <div className="text-3xl font-extrabold text-teal-700 mt-1">
+                                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Điểm Trung Bình Viện</div>
+                                <div className="text-2xl font-bold text-teal-800 mt-1 tabular-nums">
                                     {loading ? <Spin size="small" /> : (kpis.averageScore !== undefined ? Number(kpis.averageScore).toFixed(2) : '0.00')}
                                 </div>
-                                <p className="text-xs text-slate-500 mt-2">
+                                <div className="text-xs text-slate-500 mt-1">
                                     Min: {kpis.minScore ?? 0} — Max: {kpis.maxScore ?? 0}
-                                </p>
+                                </div>
                             </div>
-                            <div className="w-12 h-12 rounded-xl bg-teal-50 flex items-center justify-center">
-                                <BarChartOutlined className="text-teal-600 text-2xl" />
+                            <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0">
+                                <BarChartOutlined className="text-teal-600 text-lg" />
                             </div>
                         </div>
                     </Card>
                 </Col>
 
                 <Col xs={24} sm={12} lg={6}>
-                    <Card variant="borderless" className="shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
-                        <div className="flex items-center justify-between">
+                    <Card size="small" className="rounded-xl border border-amber-200 bg-amber-50/40 shadow-sm hover:shadow-md transition-shadow" styles={{ body: { padding: '14px 16px' } }}>
+                        <div className="flex items-start justify-between gap-2">
                             <div>
-                                <p className="text-xs uppercase font-bold text-slate-400 tracking-wider">Tỷ Lệ Xuất Sắc & Giỏi</p>
-                                <div className="text-3xl font-extrabold text-amber-500 mt-1">
+                                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Tỷ Lệ Xuất Sắc & Giỏi</div>
+                                <div className="text-2xl font-bold text-amber-700 mt-1 tabular-nums">
                                     {loading ? <Spin size="small" /> : `${excellenceStats.rate}%`}
                                 </div>
-                                <p className="text-xs text-slate-500 mt-2">
+                                <div className="text-xs text-slate-500 mt-1">
                                     Xuất sắc: {excellenceStats.excellentCount} | Giỏi: {excellenceStats.goodCount}
-                                </p>
+                                </div>
                             </div>
-                            <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center">
-                                <TrophyOutlined className="text-amber-500 text-2xl" />
+                            <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0">
+                                <TrophyOutlined className="text-amber-600 text-lg" />
                             </div>
                         </div>
                     </Card>

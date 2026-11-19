@@ -978,33 +978,41 @@ function ProjectPeriodPage() {
                 </div>
             </div>
 
-            {/* 4 KPI Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-                <div className="card" style={{ padding: '14px 18px' }}>
-                    <span className="meta">Tổng số đợt đồ án</span>
-                    <p className="h2 num" style={{ marginTop: 2 }}>{periods.length}</p>
-                    <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--muted)' }}>Toàn bộ các khóa học vụ</div>
-                </div>
-                <div className="card" style={{ padding: '14px 18px' }}>
-                    <span className="meta">Đợt đang hoạt động</span>
-                    <p className="h2 num" style={{ marginTop: 2, color: 'var(--accent)' }}>{activeCount}</p>
-                    <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--accent)' }}>Đang mở ĐK hoặc thực hiện</div>
-                </div>
-                <div className="card" style={{ padding: '14px 18px', cursor: 'pointer' }} onClick={() => handleTabChange('bm02Queue')}>
-                    <span className="meta">Đơn BM02 chờ thẩm định</span>
-                    <p className="h2 num" style={{ marginTop: 2, color: pendingBm02List.length > 0 ? '#E11D48' : '#0F766E' }}>
-                        {registrationsQuery.data ? pendingBm02List.length : '—'}
-                    </p>
-                    <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--muted)' }}>
-                        {registrationsQuery.data ? (pendingBm02List.length > 0 ? 'Cần Viện trưởng thẩm định' : 'Không có hồ sơ tồn đọng') : 'Chưa tải được hồ sơ'}
+            {/* 4 KPI Cards — Aligned with Overview KPI Typography Standards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col justify-between">
+                    <div>
+                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Tổng số đợt đồ án</div>
+                        <div className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{periods.length}</div>
+                        <div className="text-xs text-slate-500 mt-1">Toàn bộ các khóa học vụ</div>
                     </div>
                 </div>
-                <div className="card" style={{ padding: '14px 18px' }}>
-                    <span className="meta">Quy mô đợt hiện hành</span>
-                    <p className="h2 num" style={{ marginTop: 2, color: 'var(--institutional)' }}>
-                        {selectedPeriod ? `${selectedPeriod.topics} đề tài · ${selectedPeriod.students} SV` : '0'}
-                    </p>
-                    <div style={{ marginTop: 6, fontSize: '11.5px', color: 'var(--muted)' }}>Sinh viên đã có đề tài</div>
+                <div className="bg-white rounded-xl border border-teal-200 bg-teal-50/40 p-4 shadow-sm flex flex-col justify-between">
+                    <div>
+                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Đợt đang hoạt động</div>
+                        <div className="text-2xl font-bold text-teal-800 mt-1 tabular-nums">{activeCount}</div>
+                        <div className="text-xs text-teal-700 font-medium mt-1">Đang mở ĐK hoặc thực hiện</div>
+                    </div>
+                </div>
+                <div className="bg-white rounded-xl border border-amber-200 bg-amber-50/40 p-4 shadow-sm cursor-pointer hover:shadow-md transition-shadow flex flex-col justify-between" onClick={() => handleTabChange('bm02Queue')}>
+                    <div>
+                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Đơn BM02 chờ thẩm định</div>
+                        <div className={`text-2xl font-bold mt-1 tabular-nums ${pendingBm02List.length > 0 ? 'text-rose-700' : 'text-teal-800'}`}>
+                            {registrationsQuery.data ? pendingBm02List.length : '—'}
+                        </div>
+                        <div className="text-xs text-slate-500 mt-1">
+                            {registrationsQuery.data ? (pendingBm02List.length > 0 ? 'Cần Viện trưởng thẩm định' : 'Không có hồ sơ tồn đọng') : 'Chưa tải được hồ sơ'}
+                        </div>
+                    </div>
+                </div>
+                <div className="bg-white rounded-xl border border-blue-200 bg-blue-50/40 p-4 shadow-sm flex flex-col justify-between">
+                    <div>
+                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Quy mô đợt hiện hành</div>
+                        <div className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
+                            {selectedPeriod ? `${selectedPeriod.topics} đề tài · ${selectedPeriod.students} SV` : '0'}
+                        </div>
+                        <div className="text-xs text-slate-500 mt-1">Sinh viên đã có đề tài</div>
+                    </div>
                 </div>
             </div>
 

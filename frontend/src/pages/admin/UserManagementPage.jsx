@@ -537,42 +537,46 @@ function UserManagementPage() {
             />
 
             <QueryPanel query={countsQuery}>
-            {/* 4 Top KPI Cards */}
+            {/* 4 Top KPI Cards — Aligned with Overview KPI Typography Standards */}
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-start justify-between gap-2">
                     <div>
-                        <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Tổng Tài khoản</span>
-                        <p className="text-2xl font-black text-slate-900 mt-1 font-mono">{totalAllAccounts}</p>
+                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Tổng Tài khoản</div>
+                        <div className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{totalAllAccounts}</div>
+                        <div className="text-xs text-slate-500 mt-1">Toàn hệ thống</div>
                     </div>
-                    <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-100">
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-100 shrink-0">
                         Đang hoạt động
                     </span>
                 </div>
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
+                <div className="bg-white p-4 rounded-xl border border-teal-200/80 bg-teal-50/30 shadow-sm flex items-start justify-between gap-2">
                     <div>
-                        <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Cán bộ & Giảng viên</span>
-                        <p className="text-2xl font-black text-teal-700 mt-1 font-mono">{roleCounts.LECTURER || 0}</p>
+                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Cán bộ & Giảng viên</div>
+                        <div className="text-2xl font-bold text-teal-800 mt-1 tabular-nums">{roleCounts.LECTURER || 0}</div>
+                        <div className="text-xs text-slate-500 mt-1">ThS · TS · PGS</div>
                     </div>
-                    <span className="text-xs text-slate-500 font-medium">
-                        ThS · TS · PGS
+                    <span className="text-xs px-2 py-0.5 rounded bg-teal-100 text-teal-800 font-medium shrink-0">
+                        GVHD & HĐ
                     </span>
                 </div>
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
+                <div className="bg-white p-4 rounded-xl border border-emerald-200/80 bg-emerald-50/30 shadow-sm flex items-start justify-between gap-2">
                     <div>
-                        <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Sinh viên Làm đồ án</span>
-                        <p className="text-2xl font-black text-emerald-600 mt-1 font-mono">{roleCounts.STUDENT || 0}</p>
+                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Sinh viên Làm đồ án</div>
+                        <div className="text-2xl font-bold text-emerald-700 mt-1 tabular-nums">{roleCounts.STUDENT || 0}</div>
+                        <div className="text-xs text-slate-500 mt-1">1 SV / 1 Đề tài</div>
                     </div>
-                    <span className="text-xs text-slate-500 font-medium">
-                        1 SV / 1 Đề tài
+                    <span className="text-xs px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-medium shrink-0">
+                        Chính khóa
                     </span>
                 </div>
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
+                <div className="bg-white p-4 rounded-xl border border-rose-200/80 bg-rose-50/30 shadow-sm flex items-start justify-between gap-2">
                     <div>
-                        <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Quản trị & Giáo vụ</span>
-                        <p className="text-2xl font-black text-rose-700 mt-1 font-mono">{roleCounts.ADMIN || 0}</p>
+                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Quản trị & Giáo vụ</div>
+                        <div className="text-2xl font-bold text-rose-800 mt-1 tabular-nums">{roleCounts.ADMIN || 0}</div>
+                        <div className="text-xs text-slate-500 mt-1">Toàn quyền hệ thống</div>
                     </div>
-                    <span className="text-xs text-slate-500 font-medium">
-                        Toàn quyền
+                    <span className="text-xs px-2 py-0.5 rounded bg-rose-100 text-rose-800 font-medium shrink-0">
+                        Admin
                     </span>
                 </div>
             </div>

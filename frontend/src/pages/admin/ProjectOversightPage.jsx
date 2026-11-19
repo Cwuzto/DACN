@@ -1804,7 +1804,7 @@ function ProjectOversightPage() {
 
                     <div className="flex flex-wrap items-center gap-3">
                         <div className="bg-white/10 backdrop-blur-md rounded-xl px-4 py-2 border border-white/10 flex items-center gap-3">
-                            <div className="text-rose-400 text-2xl font-black">
+                            <div className="text-rose-400 text-2xl font-bold tabular-nums">
                                 {healthRadarStats?.overdueArchiveCount ?? 0}
                             </div>
                             <div className="text-xs">
@@ -1814,7 +1814,7 @@ function ProjectOversightPage() {
                         </div>
 
                         <div className="bg-white/10 backdrop-blur-md rounded-xl px-4 py-2 border border-white/10 flex items-center gap-3">
-                            <div className="text-amber-400 text-2xl font-black">
+                            <div className="text-amber-400 text-2xl font-bold tabular-nums">
                                 {healthRadarStats?.atRiskInactiveCount ?? 0}
                             </div>
                             <div className="text-xs">
@@ -1824,7 +1824,7 @@ function ProjectOversightPage() {
                         </div>
 
                         <div className="bg-white/10 backdrop-blur-md rounded-xl px-4 py-2 border border-white/10 flex items-center gap-3">
-                            <div className="text-sky-400 text-2xl font-black">
+                            <div className="text-sky-400 text-2xl font-bold tabular-nums">
                                 {healthRadarStats?.pendingArchiveReviewCount ?? 0}
                             </div>
                             <div className="text-xs">

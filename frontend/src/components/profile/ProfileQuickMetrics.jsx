@@ -50,15 +50,15 @@ function ProfileQuickMetrics({ user, roleName, isStudent }) {
     return (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             {/* Card 1: Account Status */}
-            <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex items-start gap-3.5 transition-all hover:shadow-md">
-                <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0 text-xl border border-emerald-100">
+            <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex items-start gap-3 transition-all hover:shadow-md">
+                <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 text-emerald-600 flex items-center justify-center shrink-0 text-lg">
                     <CheckCircleOutlined />
                 </div>
                 <div className="min-w-0 flex-1">
-                    <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                         Trạng thái tài khoản
                     </div>
-                    <div className="text-base font-bold text-slate-900 truncate mt-0.5">
+                    <div className="text-xl font-bold text-slate-900 truncate mt-1">
                         {user?.isActive ? 'Đang hoạt động' : 'Tạm khóa'}
                     </div>
                     <div className="mt-1">
@@ -70,15 +70,15 @@ function ProfileQuickMetrics({ user, roleName, isStudent }) {
             </div>
 
             {/* Card 2: Academic Identity */}
-            <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex items-start gap-3.5 transition-all hover:shadow-md">
-                <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0 text-xl border border-blue-100">
+            <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex items-start gap-3 transition-all hover:shadow-md">
+                <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 text-blue-600 flex items-center justify-center shrink-0 text-lg">
                     <BankOutlined />
                 </div>
                 <div className="min-w-0 flex-1">
-                    <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 truncate" title={academicTitle}>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 truncate" title={academicTitle}>
                         {academicTitle}
                     </div>
-                    <div className="text-base font-bold text-slate-900 truncate mt-0.5" title={academicPrimary}>
+                    <div className="text-base font-bold text-slate-900 truncate mt-1" title={academicPrimary}>
                         {academicPrimary}
                     </div>
                     <div className="text-xs text-slate-500 truncate mt-1" title={academicSecondary}>
@@ -88,16 +88,16 @@ function ProfileQuickMetrics({ user, roleName, isStudent }) {
             </div>
 
             {/* Card 3: Capabilities & Roles */}
-            <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex items-start gap-3.5 transition-all hover:shadow-md">
-                <div className="w-10 h-10 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center flex-shrink-0 text-xl border border-purple-100">
+            <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex items-start gap-3 transition-all hover:shadow-md">
+                <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 text-purple-600 flex items-center justify-center shrink-0 text-lg">
                     <SafetyCertificateOutlined />
                 </div>
                 <div className="min-w-0 flex-1">
-                    <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                         Quyền hạn học vụ
                     </div>
-                    <div className="text-base font-bold text-slate-900 truncate mt-0.5">
-                        {permissionsCount > 0 ? `${permissionsCount} quyền năng` : `${groupsCount} nhóm quyền`}
+                    <div className="text-2xl font-bold text-slate-900 truncate mt-1 tabular-nums">
+                        {permissionsCount > 0 ? `${permissionsCount} quyền` : `${groupsCount} nhóm quyền`}
                     </div>
                     <div className="mt-1">
                         <Tag color="purple" className="m-0 text-xs px-2 py-0.5 rounded-full font-medium truncate max-w-full">
@@ -108,15 +108,15 @@ function ProfileQuickMetrics({ user, roleName, isStudent }) {
             </div>
 
             {/* Card 4: Completeness */}
-            <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex items-start gap-3.5 transition-all hover:shadow-md">
-                <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center flex-shrink-0 text-xl border border-amber-100">
+            <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex items-start gap-3 transition-all hover:shadow-md">
+                <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 text-amber-600 flex items-center justify-center shrink-0 text-lg">
                     <IdcardOutlined />
                 </div>
                 <div className="min-w-0 flex-1">
-                    <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                         Mức độ hoàn thiện
                     </div>
-                    <div className="text-base font-bold text-slate-900 truncate mt-0.5">
+                    <div className="text-2xl font-bold text-slate-900 truncate mt-1 tabular-nums">
                         {completeness.percent}%
                     </div>
                     <div className="mt-1.5 flex items-center gap-2">

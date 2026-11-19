@@ -20,28 +20,37 @@ export default function StatCard({
     return (
         <div
             onClick={onClick}
-            className={`bg-white rounded-lg border border-slate-200 p-4 sm:p-5 shadow-xs transition-all duration-150 ${
+            className={`bg-white rounded-xl border border-slate-200 p-4 shadow-sm transition-all duration-150 ${
                 isClickable
-                    ? 'cursor-pointer hover:border-teal-600/70 hover:shadow-sm active:scale-[0.995]'
-                    : 'hover:border-slate-300'
+                    ? 'cursor-pointer hover:border-teal-600/70 hover:shadow-md active:scale-[0.995]'
+                    : 'hover:border-slate-300 hover:shadow-md'
             } ${className}`}
         >
-            <div className="flex items-center justify-between gap-3 mb-2.5">
-                <span className="text-[11px] font-semibold text-slate-600 uppercase tracking-wider truncate">
-                    {label}
-                </span>
-                <div className={`w-8 h-8 ${iconBg} rounded-md flex items-center justify-center shrink-0 border border-black/5`}>
-                    <span className={`material-symbols-outlined text-[19px] ${iconColor}`}>
-                        {icon}
-                    </span>
+            <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 truncate">
+                        {label}
+                    </div>
+                    <div className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
+                        {value}
+                    </div>
+                    {description && (
+                        <div className="text-xs text-slate-500 mt-1 leading-relaxed">
+                            {description}
+                        </div>
+                    )}
                 </div>
+                {icon && (
+                    <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0">
+                        <span className={`material-symbols-outlined text-[19px] ${iconColor}`}>
+                            {icon}
+                        </span>
+                    </div>
+                )}
             </div>
 
-            <div className="flex items-baseline justify-between gap-2">
-                <p className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight leading-none">
-                    {value}
-                </p>
-                {trend && (
+            {trend && (
+                <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between">
                     <span
                         className={`inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded ${
                             trend.isPositive
@@ -51,13 +60,7 @@ export default function StatCard({
                     >
                         {trend.isPositive ? '↑' : '↓'} {trend.value}
                     </span>
-                )}
-            </div>
-
-            {description && (
-                <p className="text-xs text-slate-600 font-medium mt-2 leading-relaxed">
-                    {description}
-                </p>
+                </div>
             )}
         </div>
     );

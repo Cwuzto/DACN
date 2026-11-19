@@ -1045,62 +1045,70 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                 </div>
             )}
 
-            {/* Quick Metrics Banner */}
+            {/* Quick Metrics Banner — Aligned with Overview KPI Typography Standards */}
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                <div className="bg-white p-4 rounded-xl border border-slate-300 shadow-sm flex items-center justify-between">
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-start justify-between gap-2">
                     <div>
-                        <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Tổng Hội đồng</span>
-                        <p className="text-2xl font-black text-slate-900 mt-1 font-mono">{filteredCouncils.length} HĐ</p>
+                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Tổng Hội đồng</div>
+                        <div className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{filteredCouncils.length} <span className="text-xs text-slate-500 font-normal">HĐ</span></div>
+                        <div className="text-xs text-slate-500 mt-1">Đã thành lập</div>
                     </div>
-                    <span className="text-xs px-2.5 py-1 rounded-full bg-teal-50 text-teal-800 font-bold border border-teal-200">
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-teal-50 text-teal-800 font-semibold border border-teal-200 shrink-0">
                         {filteredCouncils.filter((c) => c.members?.length === 3).length} Đủ 3 CB
                     </span>
                 </div>
-                <div className="bg-white p-4 rounded-xl border border-slate-300 shadow-sm flex items-center justify-between">
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-start justify-between gap-2">
                     <div>
-                        <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Sinh viên Trong Đợt</span>
-                        <p className="text-2xl font-black text-teal-800 mt-1 font-mono">{candidateStats.total} SV</p>
+                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Sinh viên Trong Đợt</div>
+                        <div className="text-2xl font-bold text-teal-800 mt-1 tabular-nums">{candidateStats.total} <span className="text-xs text-slate-500 font-normal">SV</span></div>
+                        <div className="text-xs text-slate-500 mt-1">Đủ điều kiện xét</div>
                     </div>
-                    <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 font-bold border border-emerald-200">
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 font-semibold border border-emerald-200 shrink-0">
                         Hợp lệ
                     </span>
                 </div>
-                <div className="bg-white p-4 rounded-xl border border-slate-300 shadow-sm flex items-center justify-between">
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-start justify-between gap-2">
                     <div>
-                        <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Đã xếp vào Hội đồng</span>
-                        <p className="text-2xl font-black text-emerald-700 mt-1 font-mono">
-                            {candidateStats.assigned} / {candidateStats.total} SV
-                        </p>
+                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Đã xếp vào Hội đồng</div>
+                        <div className="text-2xl font-bold text-emerald-700 mt-1 tabular-nums">
+                            {candidateStats.assigned} / {candidateStats.total} <span className="text-xs text-slate-500 font-normal">SV</span>
+                        </div>
+                        <div className="text-xs text-slate-500 mt-1">Tiến độ phân công</div>
                     </div>
-                    <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${
+                    <span className={`text-xs px-2.5 py-1 rounded-full font-semibold shrink-0 ${
                         candidateStats.unassigned === 0
                             ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
                             : 'bg-amber-100 text-amber-900 border border-amber-300'
                     }`}>
-                        {candidateStats.unassigned === 0 ? 'Đã xếp đủ 100%' : `${candidateStats.unassigned} chưa xếp`}
+                        {candidateStats.unassigned === 0 ? 'Đạt 100%' : `${candidateStats.unassigned} chưa xếp`}
                     </span>
                 </div>
-                <div className="bg-white p-4 rounded-xl border border-slate-300 shadow-sm flex items-center justify-between">
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-start justify-between gap-2">
                     <div>
-                        <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Xung đột Lợi ích</span>
-                        <p className={`text-lg font-black mt-1 ${conflictCount === 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Xung đột Lợi ích</div>
+                        <div className={`text-2xl font-bold mt-1 tabular-nums ${conflictCount === 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
                             <span className="inline-flex items-center gap-1.5">
                                 {conflictCount === 0 ? (
                                     <>
-                                        <CheckCircleOutlined className="text-emerald-600" />
-                                        <span>0 Vi phạm</span>
+                                        <CheckCircleOutlined className="text-emerald-600 text-lg" />
+                                        <span>0</span>
                                     </>
                                 ) : (
                                     <>
-                                        <WarningOutlined className="text-rose-600" />
-                                        <span>{conflictCount} Vi phạm</span>
+                                        <WarningOutlined className="text-rose-600 text-lg" />
+                                        <span>{conflictCount}</span>
                                     </>
                                 )}
                             </span>
-                        </p>
+                        </div>
+                        <div className="text-xs text-slate-500 mt-1">GVHD ≠ Giám khảo</div>
                     </div>
-                    <span className="text-[11px] text-slate-600 font-semibold">
-                        (GVHD ≠ Giám khảo)
+                    <span className={`text-xs px-2.5 py-1 rounded-full font-semibold shrink-0 ${
+                        conflictCount === 0
+                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
+                            : 'bg-rose-50 text-rose-800 border border-rose-300'
+                    }`}>
+                        {conflictCount === 0 ? 'An toàn' : 'Cần sửa'}
                     </span>
                 </div>
             </div>

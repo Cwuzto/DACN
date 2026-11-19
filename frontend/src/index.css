@@ -1449,19 +1449,22 @@ tbody tr:last-child td {
  background: var(--surface);
  border: 1px solid var(--border);
  border-radius: var(--radius-lg);
- padding: 18px 20px;
+ padding: 14px 16px;
  display: flex;
  flex-direction: column;
- gap: 6px;
+ gap: 4px;
+ box-shadow: var(--shadow-sm);
  }
  .kpi-stat-val {
- font-family: var(--font-mono);
- font-size: 26px;
+ font-family: inherit;
+ font-size: 24px;
  font-weight: 700;
  color: var(--fg);
- line-height: 1.2;
+ line-height: 1.25;
+ font-variant-numeric: tabular-nums;
+ margin-top: 4px;
  }
- .kpi-stat-sub { font-size: 12px; color: var(--muted); }
+ .kpi-stat-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
 
  .grade-badge-a {
  background: color-mix(in oklch, #16a34a 14%, transparent);
