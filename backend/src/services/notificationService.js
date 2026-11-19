@@ -24,15 +24,32 @@ const containsUnpromulgatedDefenseScore = (data) => {
     return false;
 };
 
+const sanitizeInternalReferenceUrl = (referenceUrl) => {
+    if (typeof referenceUrl !== 'string') return null;
+    const trimmed = referenceUrl.trim();
+    if (!trimmed.startsWith('/') || trimmed.startsWith('//')) {
+        return null;
+    }
+    return trimmed;
+};
+
 const sanitizeNotificationData = (data) => {
-    const { userId, title, content, type = 'SYSTEM', link } = data || {};
+    const { userId, title, content, type = 'SYSTEM', referenceUrl, dedupeKey } = data || {};
     const sanitized = {
         userId: Number(userId),
         title: String(title),
         content: String(content),
         type,
     };
-    if (link !== undefined && link !== null) sanitized.link = String(link);
+    if (referenceUrl !== undefined) {
+        sanitized.referenceUrl = sanitizeInternalReferenceUrl(referenceUrl);
+    }
+    if (dedupeKey !== undefined && dedupeKey !== null) {
+        const normalizedKey = String(dedupeKey).trim();
+        if (normalizedKey) {
+            sanitized.dedupeKey = normalizedKey;
+        }
+    }
     return sanitized;
 };
 
@@ -55,6 +72,9 @@ const safeNotify = async (data, context = 'unknown') => {
         const created = await prisma.notification.create({ data: sanitized });
         return { ok: true, created };
     } catch (error) {
+        if (error?.code === 'P2002') {
+            return { ok: false, skipped: true, reason: 'duplicate' };
+        }
         console.error(`[notify] safeNotify failed (${context}):`, error?.message || error);
         return { ok: false, error: error?.message || 'unknown_error' };
     }
@@ -84,7 +104,11 @@ const safeNotifyMany = async (rows, context = 'unknown') => {
             return { ok: false, skipped: true, reason: 'all_payloads_skipped_or_invalid' };
         }
 
-        const result = await prisma.notification.createMany({ data: validRows });
+        const hasDedupeKey = validRows.some((row) => Boolean(row.dedupeKey));
+        const result = await prisma.notification.createMany({
+            data: validRows,
+            ...(hasDedupeKey ? { skipDuplicates: true } : {}),
+        });
         return { ok: true, count: result?.count || 0 };
     } catch (error) {
         console.error(`[notify] safeNotifyMany failed (${context}):`, error?.message || error);

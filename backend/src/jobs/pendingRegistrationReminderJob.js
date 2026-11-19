@@ -9,7 +9,8 @@ const { safeNotify } = require('../services/notificationService');
 const { auditLog } = require('../services/auditLogService');
 
 const DEFAULT_INTERVAL_MINUTES = 60;
-const REFERENCE_PREFIX = 'pending-registration-reminder';
+const DEDUPE_PREFIX = 'pending-registration-reminder';
+const LECTURER_APPROVALS_URL = '/lecturer/approvals';
 
 const toStartOfDay = (date) => {
     const d = new Date(date);
@@ -34,7 +35,7 @@ const getDayKey = (date = new Date()) => {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-const buildReferenceUrl = (registrationId, dayKey) => `${REFERENCE_PREFIX}:${registrationId}:${dayKey}`;
+const buildDedupeKey = (registrationId, dayKey) => `${DEDUPE_PREFIX}:${registrationId}:${dayKey}`;
 
 const runPendingRegistrationReminderJob = async () => {
     const cutoffDate = getPendingCutoffDate();
@@ -73,12 +74,12 @@ const runPendingRegistrationReminderJob = async () => {
             continue;
         }
 
-        const referenceUrl = buildReferenceUrl(registration.id, dayKey);
+        const dedupeKey = buildDedupeKey(registration.id, dayKey);
         const existingReminder = await prisma.notification.findFirst({
             where: {
                 userId: registration.topic.mentorId,
                 type: 'REGISTRATION',
-                referenceUrl,
+                dedupeKey,
                 createdAt: { gte: dayStart },
             },
             select: { id: true },
@@ -91,18 +92,23 @@ const runPendingRegistrationReminderJob = async () => {
 
         const pendingDays = Math.floor((Date.now() - new Date(registration.createdAt).getTime()) / (1000 * 60 * 60 * 24));
 
-        await safeNotify(
+        const notifyResult = await safeNotify(
             {
                 userId: registration.topic.mentorId,
                 title: 'Nhắc xử lý đăng ký đề tài đang chờ duyệt',
                 content: `Sinh viên ${registration.student?.fullName || 'N/A'} (${registration.student?.code || 'N/A'}) đang chờ duyệt đề tài "${registration.topic.title}" trong ${pendingDays} ngày (học kỳ: ${registration.topic?.semester?.name || 'N/A'}).`,
                 type: 'REGISTRATION',
-                referenceUrl,
+                referenceUrl: LECTURER_APPROVALS_URL,
+                dedupeKey,
             },
             'pendingRegistrationReminderJob',
         );
 
-        sent += 1;
+        if (notifyResult?.ok) {
+            sent += 1;
+        } else {
+            skipped += 1;
+        }
     }
 
     return {

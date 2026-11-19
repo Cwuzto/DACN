@@ -14,7 +14,11 @@ const isEnabled = () => String(process.env.ENABLE_TASK_DEADLINE_JOB || 'true').t
 const upcomingHours = () => readPositiveInt(process.env.TASK_UPCOMING_NOTIFY_HOURS, 24);
 const intervalMs = () => readPositiveInt(process.env.TASK_DEADLINE_JOB_INTERVAL_MS, 30 * 60 * 1000);
 
-const buildSignature = (kind, taskId, seed) => `task-deadline:${kind}:${taskId}:${seed}`;
+const buildDedupeKey = (kind, taskId, seed) => `task-deadline:${kind}:${taskId}:${seed}`;
+
+const buildMentorTaskReferenceUrl = (registrationId) => (
+    registrationId ? `/lecturer/students/${registrationId}` : '/lecturer/students'
+);
 
 const renderTemplate = (text = '', vars = {}) => Object.entries(vars).reduce(
     (acc, [key, value]) => acc.replaceAll(`{${key}}`, value ?? ''),
@@ -36,31 +40,32 @@ const resolveTemplate = (templateKey, fallback, vars = {}) => {
     };
 };
 
-const alreadyNotified = async (userId, signature) => {
+const alreadyNotified = async (userId, dedupeKey) => {
     const existing = await prisma.notification.findFirst({
         where: {
             userId,
-            referenceUrl: signature,
+            dedupeKey,
         },
         select: { id: true },
     });
     return Boolean(existing);
 };
 
-const notifyOnce = async ({ userId, title, content, type, signature }, context) => {
+const notifyOnce = async ({ userId, title, content, type, referenceUrl, dedupeKey }, context) => {
     if (!userId) return false;
-    if (await alreadyNotified(userId, signature)) return false;
-    await safeNotify(
+    if (await alreadyNotified(userId, dedupeKey)) return false;
+    const result = await safeNotify(
         {
             userId,
             title,
             content,
             type,
-            referenceUrl: signature,
+            referenceUrl,
+            dedupeKey,
         },
         context,
     );
-    return true;
+    return Boolean(result?.ok);
 };
 
 const processDeadlineNotifications = async () => {
@@ -101,7 +106,7 @@ const processDeadlineNotifications = async () => {
         const studentId = task.registration?.studentId;
 
         if (dueDate > now && dueDate <= upcomingEnd) {
-            const signature = buildSignature('upcoming', task.id, dueDate.toISOString());
+            const dedupeKey = buildDedupeKey('upcoming', task.id, dueDate.toISOString());
             const vars = {
                 TASK_TITLE: task.title || 'Nhiem vu',
                 DUE_AT: dueDate.toLocaleString('vi-VN'),
@@ -120,7 +125,8 @@ const processDeadlineNotifications = async () => {
                     title: message.title,
                     content: message.content,
                     type: 'TASK_REMINDER',
-                    signature,
+                    referenceUrl: buildMentorTaskReferenceUrl(task.registrationId),
+                    dedupeKey,
                 },
                 'taskDeadlineUpcomingMentor',
             );
@@ -141,14 +147,15 @@ const processDeadlineNotifications = async () => {
                 },
                 vars,
             );
-            const signatureMentor = buildSignature('overdue-mentor', task.id, today);
+            const dedupeKeyMentor = buildDedupeKey('overdue-mentor', task.id, today);
             const mentorSent = await notifyOnce(
                 {
                     userId: mentorId,
                     title: mentorMessage.title,
                     content: mentorMessage.content,
                     type: 'TASK_REMINDER',
-                    signature: signatureMentor,
+                    referenceUrl: buildMentorTaskReferenceUrl(task.registrationId),
+                    dedupeKey: dedupeKeyMentor,
                 },
                 'taskDeadlineOverdueMentor',
             );
@@ -162,14 +169,15 @@ const processDeadlineNotifications = async () => {
                 },
                 vars,
             );
-            const signatureStudent = buildSignature('overdue-student', task.id, today);
+            const dedupeKeyStudent = buildDedupeKey('overdue-student', task.id, today);
             const studentSent = await notifyOnce(
                 {
                     userId: studentId,
                     title: studentMessage.title,
                     content: studentMessage.content,
                     type: 'TASK_REMINDER',
-                    signature: signatureStudent,
+                    referenceUrl: '/student/submissions',
+                    dedupeKey: dedupeKeyStudent,
                 },
                 'taskDeadlineOverdueStudent',
             );
@@ -217,5 +225,6 @@ const startTaskDeadlineNotificationScheduler = () => {
 };
 
 module.exports = {
+    processDeadlineNotifications,
     startTaskDeadlineNotificationScheduler,
 };

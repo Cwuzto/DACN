@@ -1045,6 +1045,7 @@ model Notification {
   content      String
   type         NotificationType @default(SYSTEM)
   referenceUrl String?          @map("reference_url")
+  dedupeKey    String?          @unique @map("dedupe_key")
   isRead       Boolean          @default(false) @map("is_read")
   createdAt    DateTime         @default(now()) @map("created_at")
   user         User             @relation(fields: [userId], references: [id])
