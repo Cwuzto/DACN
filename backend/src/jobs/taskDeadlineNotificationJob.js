@@ -3,6 +3,8 @@ const { safeNotify } = require('../services/notificationService');
 const notificationTemplateService = require('../services/notificationTemplateService');
 
 const NOT_COMPLETED_STATUSES = ['OPEN', 'IN_PROGRESS', 'REVISION', 'OVERDUE'];
+const BM01_INITIAL_TASK_TYPES = ['BM01', 'BM01_INITIAL_SUBMISSION'];
+const BM01_INITIAL_TASK_TYPE_SET = new Set(BM01_INITIAL_TASK_TYPES);
 
 const readPositiveInt = (value, fallback) => {
     const parsed = Number.parseInt(value, 10);
@@ -77,6 +79,7 @@ const processDeadlineNotifications = async () => {
         where: {
             status: { in: NOT_COMPLETED_STATUSES },
             dueDate: { not: null },
+            taskType: { notIn: BM01_INITIAL_TASK_TYPES },
             registration: {
                 status: { in: ['APPROVED', 'IN_PROGRESS', 'SUBMITTED'] },
             },
@@ -95,11 +98,13 @@ const processDeadlineNotifications = async () => {
         },
     });
 
+    const eligibleTasks = tasks.filter((task) => !BM01_INITIAL_TASK_TYPE_SET.has(task.taskType));
+
     let mentorUpcoming = 0;
     let mentorOverdue = 0;
     let studentOverdue = 0;
 
-    for (const task of tasks) {
+    for (const task of eligibleTasks) {
         const dueDate = task.dueDate ? new Date(task.dueDate) : null;
         if (!dueDate) continue;
         const mentorId = task.registration?.topic?.mentorId;
@@ -186,7 +191,7 @@ const processDeadlineNotifications = async () => {
     }
 
     return {
-        scanned: tasks.length,
+        scanned: eligibleTasks.length,
         mentorUpcoming,
         mentorOverdue,
         studentOverdue,

@@ -115,4 +115,65 @@ describe('taskDeadlineNotificationJob', () => {
             'taskDeadlineOverdueStudent',
         );
     });
+
+    it('skips BM01 and BM01_INITIAL_SUBMISSION tasks while keeping BM01_RESUBMISSION and other tasks', async () => {
+        const overdue = new Date(Date.now() - 2 * 60 * 60 * 1000);
+        prisma.task.findMany.mockResolvedValue([
+            {
+                id: 31,
+                title: 'BM01 - Đề cương chi tiết',
+                taskType: 'BM01',
+                dueDate: overdue,
+                registrationId: 80,
+                registration: { studentId: 210, topic: { mentorId: 310 } },
+            },
+            {
+                id: 32,
+                title: 'Nộp BM01 lần đầu',
+                taskType: 'BM01_INITIAL_SUBMISSION',
+                dueDate: overdue,
+                registrationId: 81,
+                registration: { studentId: 211, topic: { mentorId: 311 } },
+            },
+            {
+                id: 33,
+                title: 'Nộp lại BM01 sau chỉnh sửa',
+                taskType: 'BM01_RESUBMISSION',
+                dueDate: overdue,
+                registrationId: 82,
+                registration: { studentId: 212, topic: { mentorId: 312 } },
+            },
+            {
+                id: 34,
+                title: 'Báo cáo tiến độ tuần 5',
+                taskType: 'GENERIC',
+                dueDate: overdue,
+                registrationId: 83,
+                registration: { studentId: 213, topic: { mentorId: 313 } },
+            },
+        ]);
+        safeNotify.mockResolvedValue({ ok: true, created: { id: 10 } });
+
+        const result = await processDeadlineNotifications();
+
+        expect(prisma.task.findMany).toHaveBeenCalledWith(
+            expect.objectContaining({
+                where: expect.objectContaining({
+                    taskType: { notIn: ['BM01', 'BM01_INITIAL_SUBMISSION'] },
+                }),
+            }),
+        );
+        expect(result).toEqual({
+            scanned: 2,
+            mentorUpcoming: 0,
+            mentorOverdue: 2,
+            studentOverdue: 2,
+        });
+        const notifiedUserIds = safeNotify.mock.calls.map((call) => call[0].userId);
+        expect(notifiedUserIds).not.toContain(210);
+        expect(notifiedUserIds).not.toContain(310);
+        expect(notifiedUserIds).not.toContain(211);
+        expect(notifiedUserIds).not.toContain(311);
+        expect(notifiedUserIds).toEqual(expect.arrayContaining([312, 212, 313, 213]));
+    });
 });
