@@ -35,6 +35,8 @@ jest.mock('../../src/config/database', () => ({
 
 jest.mock('../../src/constants/mentorCapacity', () => ({
     getMentorMaxSlots: jest.fn(),
+    assertMentorCapacity: jest.fn().mockResolvedValue(true),
+    countActiveOccupiedMentoredTopics: jest.fn().mockResolvedValue(0),
 }));
 jest.mock('../../src/services/auditLogService', () => ({
     auditLog: jest.fn().mockResolvedValue(undefined),
@@ -64,7 +66,9 @@ describe('Integration - registrations routes', () => {
 
         jwt.verify.mockImplementation((token) => {
             if (token === 'student-token') return { userId: 5, role: 'STUDENT' };
+            if (token === 'other-student-token') return { userId: 6, role: 'STUDENT' };
             if (token === 'lecturer-token') return { userId: 77, role: 'LECTURER' };
+            if (token === 'other-lecturer-token') return { userId: 88, role: 'LECTURER' };
             if (token === 'admin-token') return { userId: 1, role: 'ADMIN' };
             throw new Error('invalid token');
         });
@@ -95,6 +99,35 @@ describe('Integration - registrations routes', () => {
                         permissionGroup: {
                             code: 'GVHD',
                             permissions: ['BM03_REVIEW', 'MENTOR_ASSIGNMENT_ADJUST'].map((code) => ({ permission: { code } })),
+                        },
+                    }],
+                };
+            }
+            if (where?.id === 6) {
+                return {
+                    id: 6,
+                    email: 'other-student@example.com',
+                    fullName: 'Tran Van B',
+                    code: 'SV006',
+                    role: 'STUDENT',
+                    department: 'CNTT',
+                    isActive: true,
+                    permissionGroups: [],
+                };
+            }
+            if (where?.id === 88) {
+                return {
+                    id: 88,
+                    email: 'other-lecturer@example.com',
+                    fullName: 'Giang Vien Khac',
+                    code: 'GV088',
+                    role: 'LECTURER',
+                    department: 'CNTT',
+                    isActive: true,
+                    permissionGroups: [{
+                        permissionGroup: {
+                            code: 'GVHD',
+                            permissions: ['VIEW_MENTORED_STUDENTS', 'BM03_REVIEW'].map((code) => ({ permission: { code } })),
                         },
                     }],
                 };
@@ -383,5 +416,99 @@ describe('Integration - registrations routes', () => {
         expect(res.body.success).toBe(true);
         expect(res.body.data.registrationId).toBe(1);
         expect(res.body.data.allowedActions).toContain('CANCEL_REGISTRATION');
+    });
+
+    test('GET /api/registrations/:id returns 404 when registration does not exist', async () => {
+        prisma.topicRegistration.findUnique.mockResolvedValue(null);
+
+        const res = await request(app)
+            .get('/api/registrations/9999')
+            .set('Authorization', 'Bearer lecturer-token');
+
+        expect(res.status).toBe(404);
+        expect(res.body.success).toBe(false);
+    });
+
+    test('GET /api/registrations/:id returns 200 for owning GVHD and redacts unpublished BM05', async () => {
+        prisma.topicRegistration.findUnique.mockResolvedValue({
+            id: 42,
+            studentId: 5,
+            semesterId: 9,
+            status: 'DEFENDED',
+            stateVersion: 1,
+            student: {
+                id: 5,
+                fullName: 'Nguyen Van A',
+                code: 'SV005',
+                department: 'CNTT',
+                studentProfile: { className: 'CNTT-K63', major: 'CNTT' },
+            },
+            topic: {
+                id: 100,
+                title: 'Do an AI',
+                mentorId: 77,
+                semesterId: 9,
+                mentor: { id: 77, fullName: 'Giang Vien', department: 'CNTT' },
+            },
+            outlineCouncil: null,
+            defenseCouncil: null,
+            defenseResult: {
+                id: 99,
+                finalScore: 9.1,
+                comments: 'Nhan xet noi bo',
+                isPublished: false,
+            },
+            resultPublicationItems: [],
+        });
+
+        const res = await request(app)
+            .get('/api/registrations/42')
+            .set('Authorization', 'Bearer lecturer-token');
+
+        expect(res.status).toBe(200);
+        expect(res.body.success).toBe(true);
+        expect(res.body.data.defenseResult).toBeNull();
+        expect(JSON.stringify(res.body.data)).not.toContain('9.1');
+        expect(JSON.stringify(res.body.data)).not.toContain('Nhan xet noi bo');
+    });
+
+    test('GET /api/registrations/:id returns 403 for another GVHD even with VIEW_MENTORED_STUDENTS', async () => {
+        prisma.topicRegistration.findUnique.mockResolvedValue({
+            id: 42,
+            studentId: 5,
+            semesterId: 9,
+            status: 'IN_PROGRESS',
+            topic: { id: 100, title: 'Do an AI', mentorId: 77, mentor: { id: 77, department: 'CNTT' } },
+            student: { id: 5, department: 'CNTT' },
+            outlineCouncil: null,
+            defenseCouncil: null,
+        });
+
+        const res = await request(app)
+            .get('/api/registrations/42')
+            .set('Authorization', 'Bearer other-lecturer-token');
+
+        expect(res.status).toBe(403);
+        expect(res.body.success).toBe(false);
+    });
+
+    test('GET /api/registrations/:id returns 403 for another student', async () => {
+        prisma.topicRegistration.findUnique.mockResolvedValue({
+            id: 42,
+            studentId: 5,
+            semesterId: 9,
+            status: 'IN_PROGRESS',
+            topic: { id: 100, title: 'Do an AI', mentorId: 77, mentor: { id: 77, department: 'CNTT' } },
+            student: { id: 5, department: 'CNTT' },
+            outlineCouncil: null,
+            defenseCouncil: null,
+        });
+
+        const res = await request(app)
+            .get('/api/registrations/42')
+            .set('Authorization', 'Bearer other-student-token');
+
+        expect(res.status).toBe(403);
+        expect(res.body.success).toBe(false);
     });
 });

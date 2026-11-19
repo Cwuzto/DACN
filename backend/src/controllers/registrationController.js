@@ -19,6 +19,9 @@ const { reviewBM01 } = require('../services/bm01WorkflowService');
 const { reviewBM02 } = require('../services/bm02ReviewService');
 const { transferMentor } = require('../services/mentorTransferService');
 const { computeAllowedActions } = require('../services/workflowActionService');
+const { getEffectivePermissions } = require('../auth/capabilityResolver');
+const { normalizePermissionCode } = require('../auth/permissionCatalog');
+const { resolveReportReadScope, matchesReportDepartment } = require('../auth/reportReadScope');
 
 const SERIALIZATION_ERROR_CODE = 'P2034';
 const MENTOR_ACTIVE_REGISTRATION_STATUSES = Array.from(new Set([
@@ -1969,6 +1972,147 @@ const getAllowedActions = async (req, res, next) => {
     }
 };
 
+const DETAIL_OVERSIGHT_CAPABILITIES = new Set([
+    'PROJECT_OVERSIGHT_MANAGE',
+    'VIEW_PROJECT_OVERSIGHT',
+    'BM02_REVIEW',
+    'VIEW_BM02_REVIEWS',
+    'SEMESTER_MANAGE',
+    'VIEW_PROJECT_PERIODS',
+    'PROJECT_ASSIGNMENT_PUBLISH',
+    'VIEW_ASSIGNMENT_DECISIONS',
+    'OUTLINE_COUNCIL_MANAGE',
+    'DEFENSE_COUNCIL_MANAGE',
+    'VIEW_DEFENSE_ASSIGNMENTS',
+]);
+
+const GLOBAL_OVERSIGHT_GROUPS = new Set([
+    'QUAN_TRI_VIEN',
+    'GIAO_VU',
+    'VIEN_TRUONG',
+]);
+
+const UNPUBLISHED_DEFENSE_READ_CAPABILITIES = new Set([
+    'DEFENSE_RESULT_APPROVE',
+    'RESULT_PUBLISH',
+    'RESULT_PUBLICATION_PUBLISH',
+    'PROJECT_OVERSIGHT_MANAGE',
+]);
+
+/**
+ * Resolve effective canonical permissions for an actor in the context of a registration.
+ */
+const resolveActorEffectivePermissions = (actor, registration) => {
+    const regDept = registration?.topic?.mentor?.department
+        || registration?.topic?.proposedBy?.department
+        || registration?.student?.department
+        || null;
+
+    if (Array.isArray(actor?.basePermissions)) {
+        const effective = getEffectivePermissions(actor, {
+            semesterId: registration?.semesterId ?? null,
+            department: regDept,
+        });
+        return new Set(Array.from(effective, (code) => normalizePermissionCode(code) || code));
+    }
+
+    return new Set((actor?.permissions || []).map((code) => normalizePermissionCode(code) || code));
+};
+
+/**
+ * Enforce object-level authorization for viewing a single TopicRegistration detail.
+ */
+const canAccessRegistrationDetail = async (registration, actor) => {
+    if (!registration || !actor) return false;
+
+    if (actor.role === 'ADMIN') return true;
+    if (actor.role === 'STUDENT') {
+        return Number(registration.studentId) === Number(actor.id);
+    }
+
+    if (registration.topic?.mentorId != null && Number(registration.topic.mentorId) === Number(actor.id)) {
+        return true;
+    }
+
+    const isOutlineMember = Array.isArray(registration.outlineCouncil?.members)
+        && registration.outlineCouncil.members.some((m) => Number(m.lecturerId) === Number(actor.id));
+    if (isOutlineMember) return true;
+
+    const isDefenseMember = Array.isArray(registration.defenseCouncil?.members)
+        && registration.defenseCouncil.members.some((m) => Number(m.lecturerId) === Number(actor.id));
+    if (isDefenseMember) return true;
+
+    const groupCodes = Array.isArray(actor.permissionGroups) ? actor.permissionGroups : [];
+    if (groupCodes.some((code) => GLOBAL_OVERSIGHT_GROUPS.has(code))) {
+        return true;
+    }
+
+    const effectivePerms = resolveActorEffectivePermissions(actor, registration);
+    for (const cap of DETAIL_OVERSIGHT_CAPABILITIES) {
+        if (effectivePerms.has(cap)) {
+            return true;
+        }
+    }
+
+    if (effectivePerms.has('REPORT_VIEW')) {
+        const reportScope = await resolveReportReadScope({ actor, db: prisma });
+        if (reportScope?.global) return true;
+        if (reportScope && matchesReportDepartment(registration, reportScope.departments)) {
+            return true;
+        }
+    }
+
+    return false;
+};
+
+const isDefenseResultPublished = (registration) => {
+    if (registration?.defenseResult?.isPublished === true) {
+        return true;
+    }
+    if (Array.isArray(registration?.resultPublicationItems) && registration.resultPublicationItems.length > 0) {
+        return registration.resultPublicationItems.some((item) => {
+            const pub = item?.publication;
+            if (!pub) return true;
+            const validSemester = !registration.semesterId || !pub.semesterId || registration.semesterId === pub.semesterId;
+            const validType = ['INITIAL', 'SUPPLEMENTARY', 'CORRECTION'].includes(pub.type);
+            return validSemester && validType;
+        });
+    }
+    return false;
+};
+
+const canViewUnpublishedDefenseResult = (registration, actor) => {
+    if (!actor) return false;
+    if (actor.role === 'ADMIN') return true;
+    if (actor.role === 'STUDENT') return false;
+
+    const effectivePerms = resolveActorEffectivePermissions(actor, registration);
+    for (const cap of UNPUBLISHED_DEFENSE_READ_CAPABILITIES) {
+        if (effectivePerms.has(cap)) {
+            return true;
+        }
+    }
+    return false;
+};
+
+/**
+ * Strip unpublished BM05 defense scores and comments when actor is not authorized to view them.
+ */
+const sanitizeRegistrationDetail = (registration, actor) => {
+    const sanitized = { ...registration };
+    delete sanitized.resultPublicationItems;
+
+    if (!isDefenseResultPublished(registration) && !canViewUnpublishedDefenseResult(registration, actor)) {
+        sanitized.defenseResult = null;
+        delete sanitized.memberScores;
+        delete sanitized.defenseMemberScores;
+        delete sanitized.finalScore;
+        delete sanitized.comments;
+    }
+
+    return sanitized;
+};
+
 const getRegistrationById = async (req, res, next) => {
     try {
         const idInt = parseInt(req.params.id, 10);
@@ -1986,15 +2130,7 @@ const getRegistrationById = async (req, res, next) => {
                         email: true,
                         phone: true,
                         department: true,
-                        studentProfile: {
-                            select: {
-                                className: true,
-                                major: true,
-                                academicYear: true,
-                                dateOfBirth: true,
-                                placeOfBirth: true,
-                            },
-                        },
+                        studentProfile: true,
                     },
                 },
                 topic: {
@@ -2033,6 +2169,14 @@ const getRegistrationById = async (req, res, next) => {
                     },
                 },
                 defenseResult: true,
+                resultPublicationItems: {
+                    include: {
+                        publication: {
+                            select: { id: true, semesterId: true, type: true, publishedAt: true },
+                        },
+                    },
+                    orderBy: { createdAt: 'desc' },
+                },
             },
         });
 
@@ -2040,8 +2184,14 @@ const getRegistrationById = async (req, res, next) => {
             return res.status(404).json({ success: false, message: 'Không tìm thấy hồ sơ đăng ký đề tài.' });
         }
 
-        const allowedActions = computeAllowedActions(registration, req.user);
-        return res.json({ success: true, data: { ...registration, allowedActions } });
+        const hasAccess = await canAccessRegistrationDetail(registration, req.user);
+        if (!hasAccess) {
+            return res.status(403).json({ success: false, message: 'Bạn không có quyền truy cập hồ sơ đăng ký này.' });
+        }
+
+        const sanitized = sanitizeRegistrationDetail(registration, req.user);
+        const allowedActions = computeAllowedActions(sanitized, req.user);
+        return res.json({ success: true, data: { ...sanitized, allowedActions } });
     } catch (error) {
         next(error);
     }
