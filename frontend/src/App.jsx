@@ -117,6 +117,7 @@ const PortalContentManagementPage = lazy(() => import('./pages/admin/PortalConte
 // Lecturer pages
 const LecturerDashboardPage = lazy(() => import('./pages/lecturer/LecturerDashboardPage'));
 const LecturerStudentsPage = lazy(() => import('./pages/lecturer/LecturerStudentsPage'));
+const LecturerStudentGuidancePage = lazy(() => import('./pages/lecturer/LecturerStudentGuidancePage'));
 const LecturerTopicManagementPage = lazy(() => import('./pages/lecturer/TopicManagementPage'));
 const TopicApprovalPage = lazy(() => import('./pages/lecturer/TopicApprovalPage'));
 const TitleAdjustmentPage = lazy(() => import('./pages/lecturer/TitleAdjustmentPage'));
@@ -235,6 +236,7 @@ function App() {
                                 </Route>
                                 <Route element={<ProtectedRoute featureKey="lecturer-students" requiredAnyPermissions={['VIEW_MENTORED_STUDENTS', 'VIEW_MENTOR_STUDENTS']} />}>
                                     <Route path="students" element={<LecturerStudentsPage />} />
+                                    <Route path="students/:registrationId" element={<LecturerStudentGuidancePage />} />
                                 </Route>
                                 <Route element={<ProtectedRoute requiredAnyPermissions={['VIEW_MENTORED_STUDENTS', 'VIEW_MENTOR_STUDENTS', 'MENTOR_REQUEST_REVIEW', 'VIEW_OUTLINE_REVIEWS', 'OUTLINE_REVIEW']} />}>
                                     <Route path="approvals" element={<TopicApprovalPage />} />

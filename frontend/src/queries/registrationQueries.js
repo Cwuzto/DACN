@@ -38,6 +38,12 @@ export const useRegistrations = (scope, filters = {}, enabled = true) => useQuer
     enabled: (filters?.semesterId !== undefined ? Boolean(filters.semesterId) : true) && enabled,
 });
 
+export const useRegistrationDetail = (scope, registrationId, enabled = true) => useQuery({
+    queryKey: queryKeys.registrations.detail(scope, registrationId),
+    queryFn: async () => requireSuccess(await registrationService.getRegistrationById(registrationId)).data,
+    enabled: Boolean(registrationId) && enabled,
+});
+
 export const useRegistrationHistory = (scope, registrationId, enabled = true) => useQuery({
     queryKey: [...queryKeys.registrations.detail(scope, registrationId), 'history'],
     queryFn: async () => {
