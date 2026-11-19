@@ -4,11 +4,14 @@ import { Alert, Button, Card, Descriptions, Result, Tag, message } from 'antd';
 import {
     ArrowLeftOutlined,
     ArrowRightOutlined,
+    AuditOutlined,
     CheckCircleOutlined,
     ClockCircleOutlined,
     FileTextOutlined,
     PrinterOutlined,
+    SafetyCertificateOutlined,
     ScheduleOutlined,
+    TrophyOutlined,
     UserOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -41,6 +44,54 @@ const MILESTONE_ORDER = [
     { key: 'BM04', label: 'BM04 · Nhận xét GVHD' },
     { key: 'BM05', label: 'Bảo vệ / Kết quả' },
 ];
+
+const MILESTONE_STYLES = {
+    BM01: {
+        stepNumber: '01',
+        icon: <FileTextOutlined aria-hidden="true" />,
+        gradient: 'from-teal-600 to-teal-500',
+        activeBorder: 'border-teal-300',
+        activeBg: 'bg-teal-50/70',
+        dotColor: 'bg-teal-500',
+        accentText: 'text-teal-700',
+    },
+    BM02: {
+        stepNumber: '02',
+        icon: <SafetyCertificateOutlined aria-hidden="true" />,
+        gradient: 'from-blue-600 to-sky-500',
+        activeBorder: 'border-blue-300',
+        activeBg: 'bg-blue-50/70',
+        dotColor: 'bg-blue-500',
+        accentText: 'text-blue-700',
+    },
+    BM03: {
+        stepNumber: '03',
+        icon: <ScheduleOutlined aria-hidden="true" />,
+        gradient: 'from-purple-600 to-violet-500',
+        activeBorder: 'border-purple-300',
+        activeBg: 'bg-purple-50/70',
+        dotColor: 'bg-purple-500',
+        accentText: 'text-purple-700',
+    },
+    BM04: {
+        stepNumber: '04',
+        icon: <AuditOutlined aria-hidden="true" />,
+        gradient: 'from-amber-600 to-orange-500',
+        activeBorder: 'border-amber-300',
+        activeBg: 'bg-amber-50/70',
+        dotColor: 'bg-amber-500',
+        accentText: 'text-amber-700',
+    },
+    BM05: {
+        stepNumber: '05',
+        icon: <TrophyOutlined aria-hidden="true" />,
+        gradient: 'from-emerald-600 to-teal-500',
+        activeBorder: 'border-emerald-300',
+        activeBg: 'bg-emerald-50/70',
+        dotColor: 'bg-emerald-500',
+        accentText: 'text-emerald-700',
+    },
+};
 
 const PRINTABLE_BUNDLE_ORDER = ['BM02', 'BM02-A', 'BM03', 'BM04', 'BM05'];
 
@@ -412,50 +463,78 @@ export default function LecturerStudentGuidancePage() {
 
     return (
         <div className="mx-auto max-w-6xl space-y-6 pb-10">
-            {/* Header */}
-            <header className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+            {/* Header: Hồ sơ sinh viên & đề tài */}
+            <header className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs sm:p-6">
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                     <Button icon={<ArrowLeftOutlined aria-hidden="true" />} onClick={handleBack}>
                         Quay lại danh sách
                     </Button>
-                    <Tag color={statusTag.color} className="m-0 px-3 py-0.5 text-xs font-semibold">
+                    <Tag color={statusTag.color} className="m-0 rounded-full px-3 py-0.5 text-xs font-semibold">
                         {statusTag.label}
                     </Tag>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-3">
                     <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                        <h1 className="m-0 text-xl font-bold text-slate-900 sm:text-2xl">
+                        <h1 className="m-0 text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
                             {student.fullName || FALLBACK_TEXT}
                         </h1>
-                        <span className="text-sm font-medium text-slate-600">
+                        <span className="rounded-md border border-teal-200 bg-teal-50 px-2.5 py-0.5 font-mono text-xs font-bold text-teal-800">
                             MSSV: {student.code || FALLBACK_TEXT}
                         </span>
-                        <span className="text-sm text-slate-500">
+                        <span className="text-sm font-medium text-slate-500">
                             {classMajor}
                         </span>
                     </div>
 
-                    <p className="m-0 text-base font-semibold text-teal-800">
-                        {officialTopicTitle}
-                    </p>
+                    <div className="rounded-xl border border-teal-100 bg-teal-50/40 p-3 sm:p-3.5">
+                        <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-teal-800">
+                            Tên đề tài chính thức
+                        </div>
+                        <p className="m-0 text-base font-bold leading-relaxed text-teal-950 sm:text-lg">
+                            {officialTopicTitle}
+                        </p>
+                    </div>
 
-                    <div className="flex flex-wrap gap-x-6 gap-y-1 pt-1 text-sm text-slate-600">
-                        <span>GVHD: <strong className="font-medium text-slate-800">{mentorName}</strong></span>
-                        <span>Đợt đồ án: <strong className="font-medium text-slate-800">{semesterName}</strong></span>
+                    <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-600">
+                        <span>GVHD: <strong className="font-semibold text-slate-800">{mentorName}</strong></span>
+                        <span>Đợt đồ án: <strong className="font-semibold text-slate-800">{semesterName}</strong></span>
                     </div>
                 </div>
             </header>
 
             {/* Việc cần xử lý — luôn đứng trước danh mục trên màn hình hẹp */}
-            <section aria-labelledby="next-action-heading" className="rounded-xl border border-teal-200 bg-teal-50/60 p-4 sm:p-5">
+            <section
+                aria-labelledby="next-action-heading"
+                className={`overflow-hidden rounded-2xl border transition-all ${
+                    nextAction
+                        ? 'border-teal-300 bg-gradient-to-r from-teal-500/10 via-teal-50 to-white shadow-xs'
+                        : 'border-slate-200 bg-slate-50/70'
+                } p-4 sm:p-5`}
+            >
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="space-y-1">
-                        <h2 id="next-action-heading" className="m-0 flex items-center gap-2 text-base font-semibold text-teal-900">
-                            <CheckCircleOutlined aria-hidden="true" />
-                            Việc cần xử lý
-                        </h2>
-                        <p className="m-0 text-sm text-slate-700">
+                        <div className="flex items-center gap-2">
+                            <span
+                                className={`flex h-6 w-6 items-center justify-center rounded-lg text-white shadow-xs ${
+                                    nextAction ? 'bg-teal-600' : 'bg-slate-400'
+                                }`}
+                            >
+                                <CheckCircleOutlined className="text-xs" aria-hidden="true" />
+                            </span>
+                            <h2
+                                id="next-action-heading"
+                                className="m-0 text-base font-bold text-slate-900"
+                            >
+                                Việc cần xử lý
+                            </h2>
+                            {nextAction && (
+                                <Tag color="orange" className="m-0 rounded-full font-semibold animate-pulse">
+                                    Ưu tiên
+                                </Tag>
+                            )}
+                        </div>
+                        <p className="m-0 text-sm font-medium text-slate-700">
                             {nextAction ? nextAction.label : 'Hiện không có việc cần xử lý'}
                         </p>
                     </div>
@@ -464,7 +543,7 @@ export default function LecturerStudentGuidancePage() {
                             type="primary"
                             icon={<ArrowRightOutlined aria-hidden="true" />}
                             onClick={() => handleAction(nextAction, formMap.get(nextAction.params?.formCode))}
-                            className="self-start sm:self-center"
+                            className="self-start sm:self-center shadow-xs"
                         >
                             Thực hiện ngay
                         </Button>
@@ -472,13 +551,23 @@ export default function LecturerStudentGuidancePage() {
                 </div>
             </section>
 
-            {/* Quá trình hướng dẫn */}
-            <section aria-labelledby="guidance-timeline-heading" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+            {/* Quá trình hướng dẫn: Milestone Steps */}
+            <section
+                aria-labelledby="guidance-timeline-heading"
+                className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs sm:p-5"
+            >
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-                    <h2 id="guidance-timeline-heading" className="m-0 flex items-center gap-2 text-base font-semibold text-slate-900">
-                        <ClockCircleOutlined aria-hidden="true" />
-                        Quá trình hướng dẫn
-                    </h2>
+                    <div className="flex items-center gap-2">
+                        <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-slate-800 text-white shadow-xs">
+                            <ClockCircleOutlined className="text-xs" aria-hidden="true" />
+                        </span>
+                        <h2
+                            id="guidance-timeline-heading"
+                            className="m-0 text-base font-bold text-slate-900"
+                        >
+                            Quá trình hướng dẫn
+                        </h2>
+                    </div>
                     <Button
                         size="small"
                         icon={<ScheduleOutlined aria-hidden="true" />}
@@ -488,18 +577,64 @@ export default function LecturerStudentGuidancePage() {
                     </Button>
                 </div>
 
-                <ol className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                <ol className="m-0 grid list-none grid-cols-1 gap-3 p-0 sm:grid-cols-2 lg:grid-cols-5">
                     {MILESTONE_ORDER.map((step) => {
                         const matchedForm = formMap.get(step.key);
                         const statusText = matchedForm?.statusLabel || 'Chưa bắt đầu';
-                        const isActive = matchedForm && matchedForm.status !== 'NOT_STARTED' && matchedForm.status !== 'NOT_CREATED' && matchedForm.status !== 'NO_RESULT';
+                        const isActive =
+                            matchedForm &&
+                            matchedForm.status !== 'NOT_STARTED' &&
+                            matchedForm.status !== 'NOT_CREATED' &&
+                            matchedForm.status !== 'NO_RESULT';
+                        const isDone = matchedForm && ['APPROVED', 'FINALIZED', 'SIGNED', 'PUBLISHED'].includes(matchedForm.status);
+                        const style = MILESTONE_STYLES[step.key] || MILESTONE_STYLES.BM01;
+
                         return (
                             <li
                                 key={step.key}
-                                className={`rounded-lg border p-3 ${isActive ? 'border-teal-200 bg-teal-50/40' : 'border-slate-200 bg-slate-50/70'}`}
+                                className={`relative flex flex-col justify-between overflow-hidden rounded-xl border p-3.5 transition-all duration-200 hover:shadow-xs ${
+                                    isDone
+                                        ? 'border-emerald-200 bg-emerald-50/40'
+                                        : isActive
+                                        ? `${style.activeBorder} ${style.activeBg}`
+                                        : 'border-slate-200 bg-slate-50/70'
+                                }`}
                             >
-                                <div className="text-xs font-semibold text-slate-800">{step.label}</div>
-                                <div className="mt-1 text-xs text-slate-600">{statusText}</div>
+                                <div className="flex items-center justify-between gap-2">
+                                    <span
+                                        className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold ${
+                                            isDone
+                                                ? 'bg-emerald-600 text-white shadow-xs'
+                                                : isActive
+                                                ? 'bg-slate-800 text-white shadow-xs'
+                                                : 'bg-slate-200 text-slate-600'
+                                        }`}
+                                    >
+                                        {style.icon}
+                                    </span>
+                                    <span className="font-mono text-[11px] font-semibold text-slate-400">
+                                        {style.stepNumber}
+                                    </span>
+                                </div>
+                                <div className="mt-2.5">
+                                    <div className="text-xs font-bold leading-snug text-slate-800">
+                                        {step.label}
+                                    </div>
+                                    <div className="mt-1 flex items-center gap-1.5">
+                                        <span
+                                            className={`h-1.5 w-1.5 rounded-full ${
+                                                isDone
+                                                    ? 'bg-emerald-500'
+                                                    : isActive
+                                                    ? style.dotColor
+                                                    : 'bg-slate-300'
+                                            }`}
+                                        />
+                                        <span className="text-xs font-medium text-slate-600">
+                                            {statusText}
+                                        </span>
+                                    </div>
+                                </div>
                             </li>
                         );
                     })}
@@ -509,10 +644,14 @@ export default function LecturerStudentGuidancePage() {
             {/* Biểu mẫu */}
             <section aria-labelledby="forms-heading" className="space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h2 id="forms-heading" className="m-0 flex items-center gap-2 text-base font-semibold text-slate-900">
-                        <FileTextOutlined aria-hidden="true" />
-                        Biểu mẫu
-                    </h2>
+                    <div className="flex items-center gap-2">
+                        <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-teal-700 text-white shadow-xs">
+                            <FileTextOutlined className="text-xs" aria-hidden="true" />
+                        </span>
+                        <h2 id="forms-heading" className="m-0 text-base font-bold text-slate-900">
+                            Biểu mẫu
+                        </h2>
+                    </div>
                     {eligiblePrintCodes.length > 0 && (
                         <Button
                             size="small"
@@ -536,12 +675,12 @@ export default function LecturerStudentGuidancePage() {
             {/* Thông tin sinh viên */}
             <Card
                 title={(
-                    <span className="flex items-center gap-2 text-base font-semibold text-slate-900">
+                    <span className="flex items-center gap-2 text-base font-bold text-slate-900">
                         <UserOutlined aria-hidden="true" />
                         Thông tin sinh viên
                     </span>
                 )}
-                className="rounded-xl border-slate-200 shadow-sm"
+                className="overflow-hidden rounded-2xl border-slate-200/90 shadow-xs"
             >
                 <Descriptions column={{ xs: 1, sm: 2, lg: 3 }} size="small">
                     <Descriptions.Item label="Email">{student.email || FALLBACK_TEXT}</Descriptions.Item>

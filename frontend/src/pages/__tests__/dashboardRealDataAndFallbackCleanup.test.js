@@ -59,16 +59,24 @@ test('Task 5: StudentDashboardPage connects real tasks, meeting logs, mentor sco
         'StudentDashboardPage must calculate progress percent based on registration status'
     );
 
-    // 5. Connect real dashboardData.tasks and render Empty when tasks array is empty
-    assert.match(
-        studentDashSrc,
-        /dashboardData\?\.tasks/,
-        'StudentDashboardPage must read tasks from dashboardData.tasks contract'
+    // 5. Weekly tasks block eliminated and 6 milestones progress displayed
+    assert.ok(
+        !studentDashSrc.includes('Nhiệm vụ & Hạn nộp sắp tới'),
+        'StudentDashboardPage must eliminate weekly tasks block'
+    );
+    assert.ok(
+        !studentDashSrc.includes('Chưa có nhiệm vụ cần nộp trong đợt này'),
+        'StudentDashboardPage must eliminate empty tasks fallback'
     );
     assert.match(
         studentDashSrc,
-        /<Empty[\s\S]*?description=['"]Chưa có nhiệm vụ cần nộp trong đợt này['"][\s\S]*?image=\{Empty\.PRESENTED_IMAGE_SIMPLE\}/,
-        'StudentDashboardPage must render Empty component with standard description when tasks is empty'
+        /Mốc quy trình hoàn thành|Mốc tiến độ hoàn thành/,
+        'StudentDashboardPage must display milestone completion KPI'
+    );
+    assert.match(
+        studentDashSrc,
+        /milestones\.filter[\s\S]*?completed[\s\S]*?length[\s\S]*?\/\s*6/,
+        'StudentDashboardPage must compute completed milestones count over 6'
     );
 
     // 6. Elimination of mock download toasts
@@ -113,6 +121,21 @@ test('Task 5: ProgressTrackingPage eliminates fake progress (75) and fake meetin
         progressSrc,
         /s\._count\?\.meetingLogs\s*\?\?\s*s\.meetingLogs\?\.length\s*\?\?\s*0/,
         'ProgressTrackingPage must use real meetingLogs count with 0 fallback'
+    );
+
+    // 3. Elimination of weekly tasks tab and button, default to meeting-logs
+    assert.ok(
+        !progressSrc.includes('1. Nhiệm vụ tuần'),
+        'ProgressTrackingPage must eliminate weekly tasks tab'
+    );
+    assert.ok(
+        !progressSrc.includes('Giao việc mới'),
+        'ProgressTrackingPage must eliminate "Giao việc mới" button from header'
+    );
+    assert.match(
+        progressSrc,
+        /Lưu nhật ký gặp hướng dẫn BM03, đánh giá tiến độ định kỳ và hoàn thiện phiếu nhận xét BM04\./,
+        'ProgressTrackingPage must update header description'
     );
 });
 

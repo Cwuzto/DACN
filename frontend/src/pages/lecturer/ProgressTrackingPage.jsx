@@ -56,12 +56,11 @@ import ContentSkeleton from '../../components/common/ContentSkeleton';
  * ProgressTrackingPage — 100% OpenDesign Golden Standard
  * Replicates the exact layout, DOM hierarchy, and CSS classes from lecturer-dacn-prototype.html (view-progress):
  * - Split layout: Left column student cards list, right column detailed workspace
- * - 4 Sub Nav Tabs:
- *   1. Nhiệm vụ tuần (Tasks)
- *   2. Nhật ký trao đổi (BM03 timeline)
- *   3. Đánh giá Checkpoint (Checkpoint 1 & 2)
- *   4. Thẩm định BM04 & Nghiệm thu Lưu chiểu
- * - Interactive modals: Giao việc mới, Ghi nhận buổi gặp, Chấm BM04, Giấy xác nhận
+ * - 3 Sub Nav Tabs:
+ *   1. Nhật ký trao đổi (BM03 timeline)
+ *   2. Đánh giá tiến độ (Checkpoints)
+ *   3. Phiếu nhận xét & Lưu chiểu (BM04 & Lưu chiểu)
+ * - Interactive modals: Ghi nhận buổi gặp, Chấm BM04, Giấy xác nhận
  */
 function resolveBM03StageWindows(reg, semesters = [], bm03Record = null) {
     const matchedSemester = (semesters || []).find(
@@ -104,7 +103,7 @@ export default function ProgressTrackingPage() {
         if (tab === 'bm04' || tab === 'archive') return 'archive';
         if (tab === 'meeting-logs' || tab === 'bm03') return 'meeting-logs';
         if (tab === 'checkpoints') return 'checkpoints';
-        if (tab === 'tasks') return 'tasks';
+        if (tab === 'tasks') return 'meeting-logs';
         return null;
     };
 
@@ -131,7 +130,7 @@ export default function ProgressTrackingPage() {
     const [studentSearch, setStudentSearch] = useState('');
     const [filterSemesterId, setFilterSemesterId] = useState('ALL');
     const [filterCatalog, setFilterCatalog] = useState('ALL');
-    const [activeTab, setActiveTab] = useState(() => resolveTabKey(tabParam) || 'tasks'); // 'tasks' | 'meeting-logs' | 'checkpoints' | 'archive'
+    const [activeTab, setActiveTab] = useState(() => resolveTabKey(tabParam) || 'meeting-logs'); // 'meeting-logs' | 'checkpoints' | 'archive'
 
     useEffect(() => {
         const resolved = resolveTabKey(tabParam);
@@ -145,7 +144,7 @@ export default function ProgressTrackingPage() {
         const nextParams = new URLSearchParams(searchParams);
         if (key === 'archive') {
             nextParams.set('tab', 'bm04');
-        } else if (key === 'tasks') {
+        } else if (key === 'meeting-logs') {
             nextParams.delete('tab');
         } else {
             nextParams.set('tab', key);
@@ -582,7 +581,7 @@ export default function ProgressTrackingPage() {
                         Theo Dõi Tiến Độ & Biểu Mẫu Hướng Dẫn
                     </h1>
                     <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 2 }}>
-                        Giao nhiệm vụ theo tuần, lưu nhật ký gặp hướng dẫn và hoàn thiện phiếu nhận xét của người hướng dẫn.
+                        Lưu nhật ký gặp hướng dẫn BM03, đánh giá tiến độ định kỳ và hoàn thiện phiếu nhận xét BM04.
                     </p>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }} className="flex-wrap items-center">
@@ -598,13 +597,6 @@ export default function ProgressTrackingPage() {
                         onClick={() => message.success(`Đã gửi email nhắc nhở đôn đốc tiến độ đến ${students.length} sinh viên!`)}
                     >
                         Nhắc nộp bài hàng loạt
-                    </Button>
-                    <Button
-                        type="primary"
-                        icon={<PlusOutlined />}
-                        onClick={() => setNewTaskModalOpen(true)}
-                    >
-                        Giao việc mới
                     </Button>
                 </div>
             </div>
@@ -803,106 +795,28 @@ export default function ProgressTrackingPage() {
                     {/* Sub Nav Tabs */}
                     <div className="detail-nav-tabs">
                         <div
-                            className={`d-tab ${activeTab === 'tasks' ? 'active' : ''}`}
-                            onClick={() => handleTabChange('tasks')}
-                        >
-                            1. Nhiệm vụ tuần
-                        </div>
-                        <div
                             className={`d-tab ${activeTab === 'meeting-logs' ? 'active' : ''}`}
                             onClick={() => handleTabChange('meeting-logs')}
                         >
-                            2. Nhật ký trao đổi
+                            1. Nhật ký trao đổi (BM03)
                         </div>
                         <div
                             className={`d-tab ${activeTab === 'checkpoints' ? 'active' : ''}`}
                             onClick={() => handleTabChange('checkpoints')}
                         >
-                            3. Đánh giá tiến độ
+                            2. Đánh giá tiến độ (Checkpoints)
                         </div>
                         <div
                             className={`d-tab ${activeTab === 'archive' ? 'active' : ''}`}
                             onClick={() => handleTabChange('archive')}
                         >
-                            4. Phiếu nhận xét & Lưu chiểu
+                            3. Phiếu nhận xét & Lưu chiểu (BM04 & Lưu chiểu)
                         </div>
                     </div>
 
                     {/* Tab Body */}
                     <div className="detail-tab-body">
-                        {/* TAB 1: TASKS */}
-                        {activeTab === 'tasks' && (
-                            <div id="tab-tasks" className="tab-pane-content">
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                                    <div style={{ fontSize: 13, fontWeight: 600 }}>
-                                        Danh sách nhiệm vụ giao theo tuần ({tasks.length} nhiệm vụ)
-                                    </div>
-                                    <Button
-                                        type="primary"
-                                        icon={<PlusOutlined />}
-                                        onClick={() => setNewTaskModalOpen(true)}
-                                    >
-                                        Thêm nhiệm vụ tuần mới
-                                    </Button>
-                                </div>
-
-                                <QueryPanel query={tasksQuery}>
-                                    <div className="table-wrap">
-                                        <table>
-                                            <thead>
-                                                <tr>
-                                                    <th>Nhiệm vụ</th>
-                                                    <th>Mô tả / Yêu cầu</th>
-                                                    <th>Hạn nộp</th>
-                                                    <th>Trạng thái</th>
-                                                    <th style={{ textAlign: 'right' }}>Thao tác</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {tasks.length === 0 ? (
-                                                    <tr>
-                                                        <td colSpan={5} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--muted)' }}>
-                                                            Chưa có nhiệm vụ nào được giao cho sinh viên này. Nhấn "+ Thêm nhiệm vụ" để giao việc.
-                                                        </td>
-                                                    </tr>
-                                                ) : (
-                                                    tasks.map((t) => {
-                                                        const isDone = t.status === 'COMPLETED' || t.status === 'SUBMITTED';
-                                                        return (
-                                                            <tr key={t.id}>
-                                                                <td><strong>{t.title}</strong></td>
-                                                                <td style={{ color: 'var(--muted)', fontSize: '11.5px' }}>
-                                                                    {t.description || 'Theo dõi tiến độ theo kế hoạch đồ án'}
-                                                                </td>
-                                                                <td className="mono" style={{ fontSize: 12 }}>
-                                                                    {t.dueDate ? dayjs(t.dueDate).format('DD/MM/YYYY') : '---'}
-                                                                </td>
-                                                                <td>
-                                                                    <span className={`tag ${isDone ? 'green' : 'yellow'}`}>
-                                                                        {isDone ? 'Đã duyệt (Đạt)' : 'Đang làm'}
-                                                                    </span>
-                                                                </td>
-                                                                <td style={{ textAlign: 'right' }}>
-                                                                    <button
-                                                                        type="button"
-                                                                        className="btn btn-secondary btn-sm"
-                                                                        onClick={() => message.info(`Xem chi tiết bài nộp của nhiệm vụ: ${t.title}`)}
-                                                                    >
-                                                                        Xem xét
-                                                                    </button>
-                                                                </td>
-                                                            </tr>
-                                                        );
-                                                    })
-                                                )}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </QueryPanel>
-                            </div>
-                        )}
-
-                        {/* TAB 2: CONTINUOUS BM03 TIMELINE (MEETING LOGS + MIDTERM + FINAL + SIGN) */}
+                        {/* TAB 1: CONTINUOUS BM03 TIMELINE (MEETING LOGS + MIDTERM + FINAL + SIGN) */}
                         {activeTab === 'meeting-logs' && (
                             <div id="tab-meeting-logs" className="tab-pane-content">
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }} className="flex-wrap gap-2">
@@ -1576,75 +1490,6 @@ export default function ProgressTrackingPage() {
                     </div>
                 </div>
             </div>
-
-            {/* MODAL: GIAO NHIỆM VỤ MỚI */}
-            {newTaskModalOpen && (
-                <div className="modal-overlay open" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <div className="modal-box" style={{ maxWidth: 540 }}>
-                        <div className="modal-head">
-                            <div className="modal-title">Giao Nhiệm Vụ Tuần Cho Sinh Viên</div>
-                            <button type="button" className="modal-close" onClick={() => setNewTaskModalOpen(false)} aria-label="Đóng"><CloseOutlined /></button>
-                        </div>
-                        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                                <div>
-                                    <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Tuần học vụ:</label>
-                                    <input
-                                        type="number"
-                                        className="input-field"
-                                        value={taskWeek}
-                                        onChange={(e) => setTaskWeek(e.target.value)}
-                                        style={{ width: '100%' }}
-                                    />
-                                </div>
-                                <div>
-                                    <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Hạn chót nộp bài:</label>
-                                    <input
-                                        type="date"
-                                        className="input-field"
-                                        value={taskDueDate}
-                                        onChange={(e) => setTaskDueDate(e.target.value)}
-                                        style={{ width: '100%' }}
-                                    />
-                                </div>
-                            </div>
-                            <div>
-                                <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Tiêu đề nhiệm vụ (*):</label>
-                                <input
-                                    type="text"
-                                    className="input-field"
-                                    placeholder="Ví dụ: Đo lường độ trễ truy vấn vector database..."
-                                    value={taskTitle}
-                                    onChange={(e) => setTaskTitle(e.target.value)}
-                                    style={{ width: '100%' }}
-                                />
-                            </div>
-                            <div>
-                                <label style={{ fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 4 }}>Yêu cầu và tài liệu tham khảo:</label>
-                                <textarea
-                                    className="input-field"
-                                    rows={3}
-                                    placeholder="Mô tả chi tiết tiêu chí nghiệm thu của tuần này..."
-                                    value={taskDesc}
-                                    onChange={(e) => setTaskDesc(e.target.value)}
-                                    style={{ width: '100%' }}
-                                />
-                            </div>
-                        </div>
-                        <div className="modal-foot flex justify-end gap-2">
-                            <Button onClick={() => setNewTaskModalOpen(false)}>Hủy</Button>
-                            <Button
-                                type="primary"
-                                icon={<PlusOutlined />}
-                                loading={taskSubmitting}
-                                onClick={handleCreateTask}
-                            >
-                                Giao việc
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {/* MODAL: GHI NHẬN BUỔI GẶP LAB (BM03) */}
             {meetingModalOpen && (

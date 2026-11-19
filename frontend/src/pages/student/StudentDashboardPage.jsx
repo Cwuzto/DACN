@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Input, Modal, Alert, Radio, message, Empty, Tooltip } from 'antd';
+import { Button, Input, Modal, Alert, Radio, message, Tooltip } from 'antd';
 import {
     ArrowRightOutlined,
     ClockCircleOutlined,
@@ -195,9 +195,6 @@ export default function StudentDashboardPage() {
         : 0;
     const titleAdjustmentOpen = Boolean(titleAdjustmentDeadline && !dayjs().isAfter(titleAdjustmentDeadline));
 
-    const totalTasks = taskStatus?.total ?? (dashboardData?.tasks?.length || 0);
-    const completedTasks = taskStatus?.completed || 0;
-    const overdueTasks = taskStatus?.overdue || 0;
     const progressPercent = typeof taskStatus?.progressPercent === 'number' && taskStatus.progressPercent > 0
         ? taskStatus.progressPercent
         : getProgressPercentByStatus(currentRegistration?.status);
@@ -1075,9 +1072,9 @@ export default function StudentDashboardPage() {
                         <FileTextOutlined />
                     </div>
                     <div>
-                        <div className="sd-kpi-label">Biểu mẫu hoàn tất</div>
-                        <div className="sd-kpi-value">{completedTasks} / {totalTasks}</div>
-                        <div className="sd-kpi-hint">Nhiệm vụ đã nộp &amp; duyệt</div>
+                        <div className="sd-kpi-label">Mốc quy trình hoàn thành</div>
+                        <div className="sd-kpi-value">{milestones.filter((m) => m.state === 'completed').length} / 6</div>
+                        <div className="sd-kpi-hint">Theo chuẩn quy trình 6 mốc</div>
                     </div>
                 </div>
 
@@ -1108,73 +1105,8 @@ export default function StudentDashboardPage() {
 
             {/* Dashboard Split Grid */}
             <div className="dashboard-split sd-animate-in" style={{ '--sd-delay': 3 }}>
-                {/* Left Column: Tasks & Mentor */}
+                {/* Left Column: Mentor & Student Profile with Academic Exchange info */}
                 <div>
-                    <div className="sd-panel" style={{ marginBottom: 24 }}>
-                        <div className="sd-panel-header">
-                            <div className="sd-panel-title">
-                                <ScheduleOutlined style={{ color: '#0F766E', fontSize: 16 }} />
-                                <span>Nhiệm vụ &amp; Hạn nộp sắp tới</span>
-                            </div>
-                            {overdueTasks > 0 ? (
-                                <span className="tag red">{overdueTasks} việc quá hạn</span>
-                            ) : (
-                                <span className="tag green">Tiến độ tốt</span>
-                            )}
-                        </div>
-                        <div style={{ padding: '16px 18px' }}>
-                            {dashboardData?.tasks && dashboardData.tasks.length > 0 ? (
-                                dashboardData.tasks.map((task) => {
-                                    const taskDueDate = task.dueDate || task.deadline;
-                                    const isOverdue = taskDueDate && dayjs(taskDueDate).isBefore(dayjs()) && !['SUBMITTED', 'COMPLETED'].includes(task.status);
-                                    const isSubmitted = ['SUBMITTED', 'COMPLETED'].includes(task.status);
-                                    return (
-                                        <div
-                                            key={task.id}
-                                            className="sd-task-row"
-                                            style={isOverdue ? { borderLeft: '4px solid #DC2626' } : undefined}
-                                        >
-                                            <div className="task-left">
-                                                <div>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                                                        <span className="task-title">{task.title}</span>
-                                                        {taskDueDate && (
-                                                            isOverdue ? (
-                                                                <span className="task-badge-urgent">
-                                                                    Quá hạn: {dayjs(taskDueDate).format('DD/MM/YYYY')}
-                                                                </span>
-                                                            ) : (
-                                                                <span className="tag blue">
-                                                                    Hạn: {dayjs(taskDueDate).format('DD/MM/YYYY')}
-                                                                </span>
-                                                            )
-                                                        )}
-                                                        {isSubmitted && <span className="tag green">Đã nộp</span>}
-                                                    </div>
-                                                    {(task.description || task.content) && (
-                                                        <div className="task-meta">{task.description || task.content}</div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <Button
-                                                type={isSubmitted ? 'default' : 'primary'}
-                                                size="small"
-                                                onClick={() => navigate('/student/submissions')}
-                                            >
-                                                {isSubmitted ? 'Xem bài nộp' : 'Nộp bài'}
-                                            </Button>
-                                        </div>
-                                    );
-                                })
-                            ) : (
-                                <Empty
-                                    description="Chưa có nhiệm vụ cần nộp trong đợt này"
-                                    image={Empty.PRESENTED_IMAGE_SIMPLE}
-                                />
-                            )}
-                        </div>
-                    </div>
-
                     {/* Team & Mentor Card */}
                     <div className="sd-panel" id="mentor-contact-box">
                         <div className="sd-panel-header">
@@ -1182,34 +1114,62 @@ export default function StudentDashboardPage() {
                                 <TeamOutlined style={{ color: '#2563EB', fontSize: 16 }} />
                                 <span>Cán bộ Hướng dẫn &amp; Sinh viên thực hiện</span>
                             </div>
+                            <span className="tag teal">1 SV / 1 đề tài</span>
                         </div>
-                        <div style={{ padding: '16px 18px' }}>
-                            <div style={{ display: 'flex', gap: 16, alignItems: 'center', paddingBottom: 14, borderBottom: '1px solid #F1F5F9' }}>
-                                <div className="student-avatar" style={{ width: 48, height: 48, fontSize: 14 }}>
+                        <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                            <div style={{ display: 'flex', gap: 16, alignItems: 'center', paddingBottom: 16, borderBottom: '1px solid #F1F5F9' }}>
+                                <div className="student-avatar" style={{ width: 52, height: 52, fontSize: 15, fontWeight: 700 }}>
                                     GVHD
                                 </div>
-                                <div>
-                                    <div style={{ fontSize: 14.5, fontWeight: 700, color: '#0F172A' }}>
+                                <div style={{ flex: 1 }}>
+                                    <div style={{ fontSize: 15, fontWeight: 700, color: '#0F172A' }}>
                                         {mentorDisplayName}
                                     </div>
-                                    <div style={{ fontSize: 12, color: '#475569' }}>
-                                        {mentorDepartment} · Email: {mentorEmail}
+                                    <div style={{ fontSize: 12.5, color: '#475569', marginTop: 2 }}>
+                                        {mentorDepartment} · Email: <strong>{mentorEmail}</strong>
                                     </div>
-                                    <div style={{ fontSize: 11.5, color: '#0F766E', marginTop: 2, fontWeight: 600 }}>
-                                        Trao đổi tiến độ định kỳ theo lịch hẹn với GVHD
+                                    <div style={{ fontSize: 12, color: '#0F766E', marginTop: 4, fontWeight: 600 }}>
+                                        Cán bộ phụ trách hướng dẫn chính
                                     </div>
                                 </div>
                             </div>
-                            <div style={{ marginTop: 14 }}>
+
+                            {/* Kênh trao đổi học vụ định kỳ qua Sổ theo dõi tiến độ BM03 */}
+                            <div style={{ padding: '14px 16px', background: '#F0FDFA', border: '1px solid #CCFBF1', borderRadius: 10 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <ScheduleOutlined style={{ color: '#0F766E', fontSize: 16 }} />
+                                        <span style={{ fontWeight: 700, fontSize: 13, color: '#0F766E' }}>
+                                            Kênh trao đổi học vụ định kỳ (BM03)
+                                        </span>
+                                    </div>
+                                    <span className="tag teal">{dashboardData?.meetingLogsCount ?? 0} buổi đã ghi nhận</span>
+                                </div>
+                                <p style={{ fontSize: 12, color: '#115E59', marginTop: 6, marginBottom: 10, lineHeight: 1.5 }}>
+                                    Tiến độ đồ án được theo dõi trực tiếp thông qua Sổ theo dõi tiến độ BM03. Sinh viên làm việc định kỳ với GVHD để cập nhật nhật ký trao đổi, khối lượng thực hiện và đánh giá các mốc Checkpoint.
+                                </p>
+                                <Button
+                                    size="small"
+                                    icon={<FileDoneOutlined />}
+                                    onClick={() => navigate('/student/submissions')}
+                                >
+                                    Xem sổ theo dõi tiến độ BM03
+                                </Button>
+                            </div>
+
+                            <div>
                                 <div style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 8, textTransform: 'uppercase' }}>
                                     Sinh viên phụ trách đề tài:
                                 </div>
-                                <div style={{ padding: '10px 14px', background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10 }}>
-                                    <div style={{ fontWeight: 700, fontSize: 13, color: '#0F172A' }}>
-                                        {user?.fullName || 'Sinh viên'} <span className="tag teal" style={{ marginLeft: 6 }}>Chủ nhiệm đề tài</span>
+                                <div style={{ padding: '12px 14px', background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10 }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                                        <span style={{ fontWeight: 700, fontSize: 13.5, color: '#0F172A' }}>
+                                            {user?.fullName || 'Sinh viên'}
+                                        </span>
+                                        <span className="tag teal">Chủ nhiệm đề tài</span>
                                     </div>
-                                    <div style={{ fontSize: 12, color: '#475569', marginTop: 3 }}>
-                                        MSSV: <strong>{user?.code || '---'}</strong> · Email: <strong>{user?.email || '---'}</strong>
+                                    <div style={{ fontSize: 12, color: '#475569', marginTop: 4 }}>
+                                        MSSV: <strong>{user?.code || '---'}</strong> · Lớp/Khóa: <strong>{user?.studentProfile?.academicYear || 'Chưa cập nhật'}</strong> · Email: <strong>{user?.email || '---'}</strong>
                                     </div>
                                 </div>
                             </div>
