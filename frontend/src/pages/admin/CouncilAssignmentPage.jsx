@@ -847,7 +847,6 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
             : 'Quản lý thành lập hội đồng xét duyệt đề cương và hội đồng chấm bảo vệ khóa luận';
 
     return (
-        <QueryPanel query={semestersQuery}><QueryPanel query={councilsQuery}><QueryPanel query={registrationsQuery}>
         <div className="py-2 space-y-6">
             <PageHeader
                 title={pageTitle}
@@ -912,6 +911,52 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                 }
             />
 
+            {/* Empty Semesters Alert */}
+            {semesters.length === 0 && !semestersQuery.isPending && (
+                <Alert
+                    type="warning"
+                    showIcon
+                    message="Chưa có đợt đồ án nào"
+                    description={
+                        <div className="space-y-2 mt-1">
+                            <p className="text-sm text-slate-600">
+                                Hệ thống hiện tại chưa có đợt đồ án nào. Vui lòng tạo đợt đồ án mới tại trang Quản lý Đợt đồ án trước khi lập và phân công hội đồng.
+                            </p>
+                            <Button type="primary" size="small" onClick={() => navigate('/admin/project-periods')}>
+                                Đến trang Quản lý Đợt đồ án
+                            </Button>
+                        </div>
+                    }
+                    className="border border-amber-200 bg-amber-50 rounded-xl"
+                />
+            )}
+
+            {/* Error Alerts */}
+            {semestersQuery.isError && (
+                <Alert
+                    type="error"
+                    showIcon
+                    message="Lỗi nạp danh sách đợt đồ án"
+                    description={semestersQuery.error?.message || 'Không thể kết nối đến máy chủ.'}
+                />
+            )}
+            {councilsQuery.isError && (
+                <Alert
+                    type="error"
+                    showIcon
+                    message="Lỗi nạp danh sách hội đồng"
+                    description={councilsQuery.error?.message || 'Không thể kết nối đến máy chủ.'}
+                />
+            )}
+            {registrationsQuery.isError && (
+                <Alert
+                    type="error"
+                    showIcon
+                    message="Lỗi nạp danh sách sinh viên"
+                    description={registrationsQuery.error?.message || 'Không thể kết nối đến máy chủ.'}
+                />
+            )}
+
             {/* Read-only Alert Banner for Completed Semesters */}
             {isSemesterCompleted && (
                 <Alert
@@ -946,8 +991,8 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                             onChange={setSelectedSemester}
                             style={{ width: 220 }}
                             options={semesterOptions}
-                            loading={semesters.length === 0}
-                            placeholder="Chọn đợt đồ án"
+                            loading={semestersQuery.isPending}
+                            placeholder={semesters.length === 0 && !semestersQuery.isPending ? "Chưa có đợt đồ án" : "Chọn đợt đồ án"}
                         />
                         <div className="flex items-center gap-2 flex-wrap">
                             {canManageOutline && <button
@@ -1025,8 +1070,8 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                             onChange={setSelectedSemester}
                             style={{ width: 220 }}
                             options={semesterOptions}
-                            loading={semesters.length === 0}
-                            placeholder="Chọn đợt đồ án"
+                            loading={semestersQuery.isPending}
+                            placeholder={semesters.length === 0 && !semestersQuery.isPending ? "Chưa có đợt đồ án" : "Chọn đợt đồ án"}
                         />
                         <Tag color="cyan" className="px-3 py-1 text-xs font-bold border border-teal-300 m-0">
                             {councilTypeFilter === 'OUTLINE_REVIEW'
@@ -2138,7 +2183,6 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                 </div>
             </Modal>
         </div>
-        </QueryPanel></QueryPanel></QueryPanel>
     );
 }
 

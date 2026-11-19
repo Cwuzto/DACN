@@ -24,3 +24,16 @@ test('CouncilAssignmentPage connects auto-assign outline API and safe reopen mod
     assert.match(pageSource, /reopenBlockingList/);
     assert.match(pageSource, /reopenReason/);
 });
+
+test('CouncilAssignmentPage renders root without wrapping disabled queries and handles empty semester state', () => {
+    const pageSource = read('src/pages/admin/CouncilAssignmentPage.jsx');
+
+    // Must not wrap root in registrationsQuery or councilsQuery QueryPanel (which return null when enabled: false)
+    assert.doesNotMatch(pageSource, /return\s*\(\s*<QueryPanel query=\{registrationsQuery\}/);
+    assert.doesNotMatch(pageSource, /return\s*\(\s*<QueryPanel query=\{semestersQuery\}><QueryPanel query=\{councilsQuery\}/);
+
+    // Must handle empty semesters gracefully with informative alert
+    assert.match(pageSource, /semesters\.length === 0 && !semestersQuery\.isPending/);
+    assert.match(pageSource, /Chưa có đợt đồ án nào/);
+    assert.match(pageSource, /\/admin\/project-periods/);
+});
