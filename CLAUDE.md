@@ -3330,30 +3330,48 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 
 ---
 
-### Phiên 19/11/2026 — Khắc Phục Lỗi Sập Trang Hội Đồng Xét Duyệt & Hội Đồng Bảo Vệ & Nâng Cao Độ Bền Bỉ Database
+### Phiên 19/11/2026 — Khắc Phục Lỗi Sập Trang Hội Đồng, Chuẩn Hóa Trạng Thái "Sẵn Sàng Bảo Vệ" & Xóa Bỏ Chú Thích Mã Biểu Mẫu (BM01 - BM05)
 
 #### 1. Những phần đã hoàn thành
 1. **Khắc phục triệt để lỗi sập (crash) 2 trang Hội đồng Admin (`/admin/outline-councils` và `/admin/defense-councils`)**:
    - **Nguyên nhân gốc rễ**: Cả hai trang đều mount component `frontend/src/pages/admin/CouncilAssignmentPage.jsx`. Tại dòng 896, thẻ `<AuthorizedAction feature={effectiveCouncilType === 'OUTLINE_REVIEW' ? 'outline-councils' : 'defense-councils'} action="manage">` tham chiếu đến biến `effectiveCouncilType`. Tuy nhiên biến này chưa từng được định nghĩa trong component, dẫn đến runtime crash `ReferenceError: effectiveCouncilType is not defined`, làm `ErrorBoundary` kích hoạt và trang bị trắng màn hình / báo lỗi hiển thị.
    - **Giải pháp**: Định nghĩa chuẩn hóa `const effectiveCouncilType = forcedCouncilType || (councilTypeFilter !== 'ALL' ? councilTypeFilter : 'DEFENSE_COUNCIL');` ngay tại đầu component `CouncilAssignmentPage.jsx`.
-2. **Nâng cao độ bền bỉ tầng Database Backend (`backend/src/config/database.js` & `backend/.env`)**:
+2. **Loại bỏ chuỗi trạng thái kỹ thuật `DEFENSE_READY` trên Hồ sơ sinh viên**:
+   - Tại trang Hồ sơ sinh viên (`StudentThesisProgressCard.jsx`), thay thế việc hiển thị thô `{registration.status}` bằng `getStatusTagConfig(registration?.status)`:
+     * Chuyển đổi mã kỹ thuật `DEFENSE_READY` thành nhãn tiếng Việt chuẩn học thuật: **"Sẵn sàng bảo vệ"** với màu xanh lá (`color: green`).
+   - Tại ngăn kéo Hồ sơ học vụ toàn trình (`AcademicDossierDrawer.jsx`), thay thế `<Tag color="cyan">{registration?.status}</Tag>` bằng `getStatusTagConfig(registration?.status)`.
+   - Tại trang Kết quả & Điểm số (`GradeViewPage.jsx`), đồng bộ mapping trạng thái qua `getStatusTagConfig(reg.status)` cho cả thanh chọn đợt và banner trạng thái.
+3. **Loại bỏ các chú thích mã biểu mẫu (BM01 - BM05) trên giao diện**:
+   - Tại **Thanh tiến trình 5 bước** (`StudentThesisProgressCard.jsx`):
+     * Bước 1: `1. Đề cương BM01` $\rightarrow$ `1. Đề cương chi tiết`
+     * Bước 2: `2. Giao đề tài BM02` $\rightarrow$ `2. Giao đề tài`
+     * Bước 3: `3. Tiến độ BM03` $\rightarrow$ `3. Theo dõi tiến độ`
+     * Bước 4: `4. Đánh giá BM04` $\rightarrow$ `4. Đánh giá kết quả`
+     * Nút CTA: `Sổ tiến độ BM03` $\rightarrow$ `Sổ theo dõi tiến độ`
+   - Tại **Ngăn kéo Hồ sơ học vụ** (`AcademicDossierDrawer.jsx`):
+     * Tiêu đề: `HỒ SƠ BIỂU MẪU HỌC VỤ TOÀN TRÌNH (BM01 - BM05)` $\rightarrow$ `HỒ SƠ BIỂU MẪU HỌC VỤ TOÀN TRÌNH`
+     * Nút in: `In toàn bộ hồ sơ (BM02–BM05)` $\rightarrow$ `In toàn bộ hồ sơ biểu mẫu`
+     * Tiêu đề modal: `HỒ SƠ HỌC VỤ ĐỦ ĐIỀU KIỆN (BM02 - BM05)` $\rightarrow$ `HỒ SƠ HỌC VỤ ĐỦ ĐIỀU KIỆN`
+     * Tooltip: Loại bỏ nhắc nhở mã BM02–BM05.
+   - Tại từ điển trạng thái `statusMap.js`:
+     * `BM04_REVIEW`: "Đang thẩm định BM04" $\rightarrow$ "Đang thẩm định phiếu nhận xét"
+     * `BM02_SUBMITTED`: "Chờ duyệt đơn BM02" $\rightarrow$ "Chờ duyệt nhiệm vụ"
+     * `BM02_NEEDS_REVISION`: "Yêu cầu chỉnh sửa đơn" $\rightarrow$ "Yêu cầu chỉnh sửa nhiệm vụ"
+4. **Nâng cao độ bền bỉ tầng Database Backend (`backend/src/config/database.js` & `backend/.env`)**:
    - Tạo lớp `ResilientPgClient extends Client` chặn các unhandled `'error'` event từ socket timeout / reset gây ra `uncaughtException` làm dừng tiến trình backend.
    - Cấu hình pool chống nghẽn: `DB_POOL_MAX=15`, `DB_POOL_IDLE_TIMEOUT_MS=20000`, `DB_POOL_CONNECTION_TIMEOUT_MS=45000`.
    - Bổ sung process handlers cho `unhandledRejection` và `uncaughtException` trong `backend/src/app.js`.
    - Giãn cách lịch trình chạy cron jobs nhắc việc để tránh nghẽn pool đồng thời.
-3. **Kiểm thử Headless Browser tự động (Puppeteer)**:
-   - Đăng nhập thật bằng tài khoản Quản trị viên (`admin@university.edu.vn`) và inject token/user vào `localStorage`.
-   - Xác thực cả 4 URL:
-     * `/admin/outline-councils` (Danh sách HĐ Xét duyệt Đề cương) $\rightarrow$ Render chuẩn 100%, 0 lỗi.
-     * `/admin/defense-councils` (Danh sách HĐ Bảo vệ Khóa luận) $\rightarrow$ Render chuẩn 100%, 0 lỗi.
-     * `/admin/outline-councils/14` (Chi tiết HĐ Đề Cương) $\rightarrow$ Render chuẩn 100%, 0 lỗi.
-     * `/admin/defense-councils/1` (Chi tiết HĐ Bảo vệ) $\rightarrow$ Render chuẩn 100%, 0 lỗi.
-   - Tổng số lỗi console/runtime: **0 lỗi**.
+5. **Kiểm thử & Đảm bảo chất lượng**:
+   - Kiểm thử tự động `academicDossierDrawer.test.js` PASS 5/5 tests.
+   - Kiểm thử tự động `profilePageUiUx.test.js` PASS 7/7 tests.
+   - Production build Vite hoàn tất thành công 100% trong 15.60s (0 lỗi).
+   - Đảm bảo 100% UTF-8 without BOM (Rule 2.4) và tuân thủ Rule 2.6 (không emoji/ký tự thô trong button label).
 
 #### 2. Trạng thái cập nhật của từng phần
 - **Database/Prisma**: `STABLE`; Tuân thủ 100% mô hình `TopicRegistration`.
 - **Backend API**: `RUNNING (Port 5000)`; Đã tích hợp client database tự phục hồi.
-- **Frontend SPA**: `RUNNING (Port 5173)`; Đã commit fix `CouncilAssignmentPage.jsx`, không còn lỗi `ReferenceError`.
+- **Frontend SPA**: `RUNNING (Port 5173)`; Đã xử lý triệt để lỗi hiển thị `DEFENSE_READY` và các chú thích mã biểu mẫu `(BM01 - BM05)`.
 - **Quy chuẩn mã hóa & nút bấm**:
   * UTF-8 without BOM (Rule 2.4).
   * Tuân thủ 100% Rule 2.6 (sử dụng prop `icon`, không chèn emoji vào button label).
@@ -3363,8 +3381,8 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 2. Tiếp tục hoàn thiện các luồng chấm điểm hoặc báo cáo theo yêu cầu tiếp theo của người dùng.
 
 #### 4. Quyết định quan trọng (Decisions & Rationale)
-1. **Định danh `effectiveCouncilType` chuẩn hóa**: Đồng bộ logic xác định loại hội đồng ưu tiên prop `forcedCouncilType` (khi đi từ menu chuyên biệt) trước, sau đó mới đến `councilTypeFilter` để đảm bảo logic phân quyền `AuthorizedAction` hoạt động chính xác.
-2. **Xử lý resilient socket ở mức Client**: Socket idle drop từ PostgreSQL không được phép làm dừng toàn bộ ứng dụng Express backend.
+1. **Việt hóa toàn diện trạng thái và loại bỏ mã kỹ thuật/biểu mẫu khỏi UI người dùng**: Sinh viên và giảng viên tiếp cận hệ thống dưới góc độ học thuật trực quan; các mã kỹ thuật (`DEFENSE_READY`, `BM01`, `BM02`,...) gây cảm giác rườm rà và khó hiểu cho người dùng cuối. Việc chuẩn hóa về văn bản tiếng Việt thuần túy ("Sẵn sàng bảo vệ", "Đề cương chi tiết", "Giao đề tài",...) giúp giao diện chuyên nghiệp và thân thiện hơn.
+2. **Đồng bộ hóa qua `statusMap.js`**: Mọi hiển thị trạng thái của `TopicRegistration` phải đi qua `getStatusTagConfig(status)` để đảm bảo tính nhất quán về màu sắc và ngôn từ trên toàn bộ ứng dụng.
 
 
 #### 1. Những phần đã hoàn thành
