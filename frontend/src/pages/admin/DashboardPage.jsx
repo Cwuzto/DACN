@@ -3,11 +3,18 @@ import { useNavigate } from 'react-router-dom';
 import { Button, Progress, Select, Tag } from 'antd';
 import {
     ArrowRightOutlined,
+    AuditOutlined,
     BookOutlined,
     CalendarOutlined,
+    CheckCircleOutlined,
     CloudUploadOutlined,
+    CommentOutlined,
+    FileTextOutlined,
+    FormOutlined,
     HistoryOutlined,
+    ScheduleOutlined,
     SettingOutlined,
+    TrophyOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -111,6 +118,22 @@ function DashboardPage() {
     );
     const topActionCards = useMemo(() => sortedActions.slice(0, 3), [sortedActions]);
     const queuedActions = useMemo(() => sortedActions.slice(3), [sortedActions]);
+    const roadmapStages = useMemo(() => adminActionsQuery.data?.roadmap || [], [adminActionsQuery.data]);
+
+    const ROADMAP_ICON_MAP = {
+        REGISTRATION: <FormOutlined aria-hidden="true" />,
+        BM01: <FileTextOutlined aria-hidden="true" />,
+        BM02: <AuditOutlined aria-hidden="true" />,
+        BM03: <ScheduleOutlined aria-hidden="true" />,
+        BM04: <CommentOutlined aria-hidden="true" />,
+        BM05: <TrophyOutlined aria-hidden="true" />,
+    };
+
+    const ROADMAP_STATE_META = {
+        COMPLETED: { label: 'Đã qua mốc', color: 'green', border: 'border-emerald-200 bg-emerald-50/40', iconBg: 'bg-emerald-600 text-white' },
+        ACTIVE: { label: 'Đang diễn ra', color: 'blue', border: 'border-sky-200 bg-sky-50/40', iconBg: 'bg-sky-600 text-white' },
+        UPCOMING: { label: 'Chưa bắt đầu', color: 'default', border: 'border-slate-200 bg-slate-50/60', iconBg: 'bg-slate-200 text-slate-600' },
+    };
 
     const scores = useMemo(() => {
         if (scoreDistribution && scoreDistribution.length > 0) return scoreDistribution;
@@ -290,6 +313,63 @@ function DashboardPage() {
                     </div>
                 )}
             </section>
+
+            {/* 6-Stage Semester Roadmap */}
+            {roadmapStages.length > 0 && (
+                <section aria-labelledby="admin-roadmap-heading" className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                        <div>
+                            <span className="text-[11px] font-bold text-[#0F766E] uppercase tracking-wider">
+                                Lộ Trình Thực Hiện Đợt Đồ Án
+                            </span>
+                            <h2 id="admin-roadmap-heading" className="text-base font-bold text-slate-900 mt-0.5">
+                                Theo dõi 6 Mốc Quy Trình ({activeSemester ? formatSemesterLabel(activeSemester) : 'Đợt hiện tại'})
+                            </h2>
+                        </div>
+                        <span className="text-xs text-slate-500">
+                            Bấm vào từng mốc để mở danh sách xử lý tương ứng
+                        </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+                        {roadmapStages.map((stage) => {
+                            const stateMeta = ROADMAP_STATE_META[stage.state] || ROADMAP_STATE_META.UPCOMING;
+                            const dateStr = stage.date ? `${stage.datePrefix}: ${dayjs(stage.date).format('DD/MM/YYYY')}` : 'Chưa đặt mốc';
+                            return (
+                                <button
+                                    key={stage.key}
+                                    type="button"
+                                    onClick={() => handleNavigateTarget(stage.target)}
+                                    className={`text-left rounded-xl border p-3.5 transition-all hover:shadow-sm hover:-translate-y-0.5 cursor-pointer flex flex-col justify-between gap-2.5 ${stateMeta.border}`}
+                                >
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-sm shrink-0 ${stateMeta.iconBg}`}>
+                                                {stage.state === 'COMPLETED' ? <CheckCircleOutlined aria-hidden="true" /> : (ROADMAP_ICON_MAP[stage.key] || <CalendarOutlined aria-hidden="true" />)}
+                                            </span>
+                                            <Tag color={stateMeta.color} className="m-0 text-[11px] font-semibold">
+                                                {stateMeta.label}
+                                            </Tag>
+                                        </div>
+                                        <div className="text-xs font-bold text-slate-900 leading-snug">
+                                            {stage.title}
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1 pt-2 border-t border-slate-200/70">
+                                        <div className="text-xs font-mono font-bold text-slate-800">
+                                            {stage.count} hồ sơ
+                                        </div>
+                                        <div className="text-[11px] font-mono text-slate-500 flex items-center gap-1">
+                                            <CalendarOutlined aria-hidden="true" />
+                                            <span>{dateStr}</span>
+                                        </div>
+                                    </div>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </section>
+            )}
 
             {/* Secondary Grid: Semester Overview + Scores + Shortcuts + Activity */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

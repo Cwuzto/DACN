@@ -438,9 +438,136 @@ async function buildAdminDashboardActions({ actor, semesterId, db = prisma, now 
         return orderA - orderB;
     });
 
+    const buildAdminSemesterRoadmap = async ({ semesterId: semId, scope: readScope, db: database, now: currentTime }) => {
+        const refNow = currentTime instanceof Date ? currentTime : new Date(currentTime || Date.now());
+        const deptFilter = readScope && !readScope.global && Array.isArray(readScope.departments)
+            ? buildRegistrationDepartmentWhere(readScope.departments)
+            : {};
+
+        const semester = typeof database.semester?.findUnique === 'function'
+            ? await database.semester.findUnique({
+                where: { id: semId },
+                select: {
+                    id: true,
+                    status: true,
+                    startDate: true,
+                    endDate: true,
+                    registrationDeadline: true,
+                    outlineSubmissionOpenAt: true,
+                    outlineSubmissionDeadline: true,
+                    midtermReportDate: true,
+                    bm03MidtermEvaluationOpenAt: true,
+                    bm03FinalizationOpenAt: true,
+                    defenseDate: true,
+                },
+            })
+            : null;
+
+        let statusCounts = new Map();
+        if (typeof database.topicRegistration?.groupBy === 'function') {
+            const grouped = await database.topicRegistration.groupBy({
+                by: ['status'],
+                where: {
+                    semesterId: semId,
+                    status: { notIn: ['REJECTED', 'DROPPED', 'WITHDRAWN'] },
+                    ...deptFilter,
+                },
+                _count: { id: true },
+            });
+            statusCounts = new Map((grouped || []).map((row) => [row.status, row._count?.id || 0]));
+        }
+
+        const sumStatuses = (statuses) => statuses.reduce((acc, st) => acc + (statusCounts.get(st) || 0), 0);
+
+        const stage1Count = sumStatuses(['PENDING', 'APPROVED', 'REGISTERED']);
+        const stage2Count = sumStatuses(['BM01_SUBMITTED', 'BM01_NEEDS_REVISION', 'BM01_RESUBMITTED', 'BM01_PASSED']);
+        const stage3Count = sumStatuses(['BM02_OPEN', 'BM02_SUBMITTED', 'BM02_NEEDS_REVISION', 'BM02_REVISION_REQUIRED', 'BM02_RESUBMITTED', 'BM02_APPROVED', 'BM02_EXCEPTION_REVIEW', 'DECISION_ISSUED']);
+        const stage4Count = sumStatuses(['IN_PROGRESS', 'IN_PROGRESS_BM03', 'BM03_SIGNATURE_PENDING', 'CHECKPOINT_SIGNATURE_APPEAL_OPEN', 'CHECKPOINT_SIGNATURE_APPEAL_SUBMITTED', 'CHECKPOINT_SIGNATURE_APPEAL_REVIEW', 'SIGNATURE_APPEAL_RESOLVED', 'BM03_PASSED']);
+        const stage5Count = sumStatuses(['BM04_REVIEW', 'DEFENSE_READY', 'DEFENSE_ELIGIBLE', 'ELIGIBLE_BY_INSTITUTE']);
+        const stage6Count = sumStatuses(['AWAITING_SCORES', 'AWAITING_FINAL_APPROVAL', 'DEFENDED', 'DEFENSE_PASSED', 'PENDING_INSTITUTE_SIGNATURE', 'ARCHIVE_INCOMPLETE', 'ARCHIVE_REJECTED', 'COMPLETED']);
+
+        const deriveStageState = (count, downstreamCount, dateVal) => {
+            if (downstreamCount > 0 && count === 0) return 'COMPLETED';
+            if (count > 0) return 'ACTIVE';
+            if (dateVal && new Date(dateVal).getTime() <= refNow.getTime()) return 'COMPLETED';
+            return 'UPCOMING';
+        };
+
+        return [
+            {
+                step: 1,
+                key: 'REGISTRATION',
+                title: '1. Đăng ký đề tài',
+                date: semester?.registrationDeadline || semester?.startDate || null,
+                datePrefix: semester?.registrationDeadline ? 'Hạn ĐK' : 'Bắt đầu',
+                count: stage1Count,
+                state: deriveStageState(stage1Count, stage2Count + stage3Count + stage4Count + stage5Count + stage6Count, semester?.registrationDeadline),
+                target: `/admin/project-enrollments?semesterId=${semId}`,
+            },
+            {
+                step: 2,
+                key: 'BM01',
+                title: '2. Đề cương BM01',
+                date: semester?.outlineSubmissionDeadline || semester?.outlineSubmissionOpenAt || null,
+                datePrefix: semester?.outlineSubmissionDeadline ? 'Hạn nộp' : 'Mở nộp',
+                count: stage2Count,
+                state: deriveStageState(stage2Count, stage3Count + stage4Count + stage5Count + stage6Count, semester?.outlineSubmissionDeadline),
+                target: `/admin/outline-councils?semesterId=${semId}`,
+            },
+            {
+                step: 3,
+                key: 'BM02',
+                title: '3. Đơn BM02 & QĐ',
+                date: null,
+                datePrefix: 'Mốc',
+                count: stage3Count,
+                state: deriveStageState(stage3Count, stage4Count + stage5Count + stage6Count, null),
+                target: `/admin/project-enrollments?semesterId=${semId}`,
+            },
+            {
+                step: 4,
+                key: 'BM03',
+                title: '4. Tiến độ BM03',
+                date: semester?.bm03MidtermEvaluationOpenAt || semester?.midtermReportDate || null,
+                datePrefix: 'Giữa kỳ',
+                count: stage4Count,
+                state: deriveStageState(stage4Count, stage5Count + stage6Count, semester?.bm03FinalizationOpenAt),
+                target: `/admin/oversight?semesterId=${semId}`,
+            },
+            {
+                step: 5,
+                key: 'BM04',
+                title: '5. Nhận xét BM04',
+                date: semester?.bm03FinalizationOpenAt || null,
+                datePrefix: 'Mở từ',
+                count: stage5Count,
+                state: deriveStageState(stage5Count, stage6Count, null),
+                target: `/admin/defense-councils?semesterId=${semId}`,
+            },
+            {
+                step: 6,
+                key: 'BM05',
+                title: '6. Bảo vệ & Lưu chiểu',
+                date: semester?.defenseDate || semester?.endDate || null,
+                datePrefix: semester?.defenseDate ? 'Dự kiến' : 'Kết thúc',
+                count: stage6Count,
+                state: stage6Count > 0 ? (semester?.status === 'COMPLETED' || semester?.status === 'FINISHED' ? 'COMPLETED' : 'ACTIVE') : 'UPCOMING',
+                target: `/admin/grading?semesterId=${semId}`,
+            },
+        ];
+    };
+
+    const roadmap = await buildAdminSemesterRoadmap({
+        semesterId: parsedSemesterId,
+        scope,
+        db,
+        now,
+    });
+
     return {
         semesterId: parsedSemesterId,
         items,
+        roadmap,
     };
 }
 
