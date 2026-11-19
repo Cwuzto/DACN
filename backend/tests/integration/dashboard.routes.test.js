@@ -156,12 +156,76 @@ describe('Integration - dashboard routes', () => {
             '/api/dashboard/semester-overview',
             '/api/dashboard/scores',
             '/api/dashboard/activities',
+            '/api/dashboard/admin-actions',
         ]) {
             const res = await request(app)
                 .get(endpoint)
                 .set('Authorization', 'Bearer lecturer-token');
             expect(res.status).toBe(403);
         }
+    });
+
+    test('GET /api/dashboard/admin-actions blocks out-of-scope actor with 403 and rejects invalid semesterId with 400', async () => {
+        jwt.verify.mockImplementation((token) => {
+            if (token === 'noscope-token') return { userId: 89, role: 'LECTURER', permissionVersion: 1 };
+            if (token === 'scoped-token') return { userId: 90, role: 'ADMIN', permissionVersion: 1 };
+            throw new Error('invalid token');
+        });
+
+        prisma.user.findUnique.mockImplementation(async ({ where }) => {
+            if (where?.id === 89) {
+                return {
+                    id: 89,
+                    email: 'noscope@example.com',
+                    fullName: 'No Scope User',
+                    code: 'GV089',
+                    role: 'LECTURER',
+                    department: null,
+                    isActive: true,
+                    permissionVersion: 1,
+                    permissionGroups: [{
+                        permissionGroup: {
+                            id: 4,
+                            code: 'TRUONG_BO_MON',
+                            permissions: [{ permission: { code: 'REPORT_VIEW' } }],
+                        },
+                    }],
+                    councilMembers: [],
+                };
+            }
+            if (where?.id === 90) {
+                return {
+                    id: 90,
+                    email: 'scoped@example.com',
+                    fullName: 'Scoped Admin',
+                    code: 'AD090',
+                    role: 'ADMIN',
+                    department: 'CNTT',
+                    isActive: true,
+                    permissionVersion: 1,
+                    permissionGroups: [{
+                        permissionGroup: {
+                            id: 5,
+                            code: 'GIAO_VU',
+                            permissions: [{ permission: { code: 'REPORT_VIEW' } }],
+                        },
+                    }],
+                    councilMembers: [],
+                };
+            }
+            return null;
+        });
+
+        const forbiddenRes = await request(app)
+            .get('/api/dashboard/admin-actions?semesterId=1')
+            .set('Authorization', 'Bearer noscope-token');
+        expect(forbiddenRes.status).toBe(403);
+        expect(forbiddenRes.body.error).toBe('REPORT_SCOPE_FORBIDDEN');
+
+        const badReqRes = await request(app)
+            .get('/api/dashboard/admin-actions?semesterId=abc')
+            .set('Authorization', 'Bearer scoped-token');
+        expect(badReqRes.status).toBe(400);
     });
 
     test('GET /api/dashboard/lecturer rejects actor who only has REPORT_VIEW without mentor permissions', async () => {

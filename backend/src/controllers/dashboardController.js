@@ -6,6 +6,9 @@ const {
     buildUnifiedLecturerOverview,
 } = require('../services/lecturerOverviewService');
 const {
+    buildAdminDashboardActions,
+} = require('../services/adminDashboardActionsService');
+const {
     resolveReportReadScope,
     buildTopicDepartmentWhere,
     buildRegistrationDepartmentWhere,
@@ -870,6 +873,49 @@ const getStudentDashboard = async (req, res, next) => {
     }
 };
 
+/**
+ * GET /api/dashboard/admin-actions
+ * Danh mục việc cần xử lý thuộc thẩm quyền Admin/Viện theo đợt và quyền actor
+ */
+const getAdminDashboardActions = async (req, res, next) => {
+    try {
+        const scope = await requireDashboardReportScope(req, res);
+        if (!scope) return;
+
+        const rawSemesterId = req.query?.semesterId;
+        let targetSemesterId = null;
+
+        if (rawSemesterId !== undefined && rawSemesterId !== null && String(rawSemesterId).trim() !== '') {
+            const parsed = Number(rawSemesterId);
+            if (!Number.isInteger(parsed) || parsed <= 0) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'INVALID_SEMESTER_ID',
+                    message: 'semesterId không hợp lệ.',
+                });
+            }
+            targetSemesterId = parsed;
+        } else {
+            const activeSemester = await getDefaultSemester({ id: true });
+            targetSemesterId = activeSemester?.id || null;
+        }
+
+        const data = await buildAdminDashboardActions({
+            actor: req.user,
+            semesterId: targetSemesterId,
+            db: prisma,
+            scope,
+        });
+
+        return res.json({
+            success: true,
+            data,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     getGeneralStats,
     getSemesterOverview,
@@ -878,4 +924,5 @@ module.exports = {
     getRecentActivities,
     getLecturerDashboard,
     getStudentDashboard,
+    getAdminDashboardActions,
 };

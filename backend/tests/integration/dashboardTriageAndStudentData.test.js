@@ -18,6 +18,10 @@ const mockPrisma = {
     topic: {
         count: jest.fn(),
         findFirst: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
+    },
+    defenseResultApproval: {
+        findMany: jest.fn().mockResolvedValue([]),
     },
     council: {
         count: jest.fn(),
@@ -344,6 +348,51 @@ describe('Integration - Dashboard Student Data Contract & Triage Metric Queries'
             expect(overviewRes.status).toBe(200);
             expect(overviewRes.body.data.registrations.unassignedRegistrations).toBe(0);
             expect(overviewRes.body.data.registrations.pending).toBe(0);
+        });
+
+        test('Test 5: GET /api/dashboard/admin-actions trả về đúng việc theo semesterId và quyền của actor', async () => {
+            mockPrisma.user.findUnique.mockImplementation(async ({ where }) => {
+                if (where.id === adminUser.id) {
+                    return {
+                        ...adminUser,
+                        permissionGroups: [
+                            {
+                                permissionGroup: {
+                                    code: 'GIAO_VU',
+                                    permissions: [
+                                        { permission: { code: 'REPORT_VIEW' } },
+                                        { permission: { code: 'OUTLINE_COUNCIL_MANAGE' } },
+                                    ],
+                                },
+                            },
+                        ],
+                    };
+                }
+                return null;
+            });
+
+            mockPrisma.topicRegistration.findMany.mockImplementation(async ({ where }) => {
+                if (where?.semesterId === 1 && where?.status === 'BM01_SUBMITTED' && where?.outlineCouncilId === null) {
+                    return [{ id: 801 }, { id: 802 }];
+                }
+                return [];
+            });
+
+            const res = await request(app)
+                .get('/api/dashboard/admin-actions?semesterId=1')
+                .set('Authorization', `Bearer ${adminToken}`);
+
+            expect(res.status).toBe(200);
+            expect(res.body.success).toBe(true);
+            expect(res.body.data.semesterId).toBe(1);
+            expect(res.body.data.items).toEqual([
+                expect.objectContaining({
+                    kind: 'OUTLINE_COUNCIL_ASSIGN',
+                    count: 2,
+                    target: '/admin/outline-councils?semesterId=1',
+                    requiredPermission: 'OUTLINE_COUNCIL_MANAGE',
+                }),
+            ]);
         });
     });
 });

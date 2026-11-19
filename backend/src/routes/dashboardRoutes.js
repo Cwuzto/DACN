@@ -32,6 +32,7 @@ router.get(
 router.use(authorizePermission(PERMISSIONS.REPORT_VIEW));
 
 router.get(['/stats', '/summary'], dashboardController.getGeneralStats);
+router.get('/admin-actions', dashboardController.getAdminDashboardActions);
 router.get('/semester-overview', dashboardController.getSemesterOverview);
 router.get('/semesters', dashboardController.getSemesterStats);
 router.get('/scores', dashboardController.getScoreDistribution);
