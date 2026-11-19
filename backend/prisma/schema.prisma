@@ -157,14 +157,16 @@ model User {
 }
 
 model StudentProfile {
-  studentId   Int           @id @map("student_id")
-  student     User          @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  gender      StudentGender
-  dateOfBirth DateTime      @map("date_of_birth") @db.Date
-  className   String        @map("class_name")
-  major       String
-  createdAt   DateTime      @default(now()) @map("created_at")
-  updatedAt   DateTime      @updatedAt @map("updated_at")
+  studentId    Int           @id @map("student_id")
+  student      User          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  gender       StudentGender
+  dateOfBirth  DateTime      @map("date_of_birth") @db.Date
+  className    String        @map("class_name")
+  major        String
+  academicYear String?       @map("academic_year")
+  placeOfBirth String?       @map("place_of_birth")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
 
   @@map("student_profiles")
 }

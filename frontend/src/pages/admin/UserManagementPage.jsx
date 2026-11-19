@@ -88,6 +88,8 @@ const checkUserFormChanged = (initial, current) => {
         if (normalizeDateFormValue(initial.dateOfBirth) !== normalizeDateFormValue(current.dateOfBirth)) return true;
         if (normalizeFormValue(initial.className) !== normalizeFormValue(current.className)) return true;
         if (normalizeFormValue(initial.major) !== normalizeFormValue(current.major)) return true;
+        if (normalizeFormValue(initial.academicYear) !== normalizeFormValue(current.academicYear)) return true;
+        if (normalizeFormValue(initial.placeOfBirth) !== normalizeFormValue(current.placeOfBirth)) return true;
     } else {
         if (normalizeFormValue(initial.department) !== normalizeFormValue(current.department)) return true;
         if (current.role === 'LECTURER') {
@@ -237,6 +239,8 @@ function UserManagementPage() {
             dateOfBirth: parsedDob,
             className: record.studentProfile?.className || '',
             major: record.studentProfile?.major || '',
+            academicYear: record.studentProfile?.academicYear || '',
+            placeOfBirth: record.studentProfile?.placeOfBirth || '',
         };
 
         form.setFieldsValue(initialValues);
@@ -275,6 +279,8 @@ function UserManagementPage() {
                                 dateOfBirth: values.dateOfBirth,
                                 className: values.className,
                                 major: values.major,
+                                academicYear: values.academicYear || null,
+                                placeOfBirth: values.placeOfBirth || null,
                             },
                         }));
                     }
@@ -889,6 +895,8 @@ function UserManagementPage() {
                                     <div><span className="text-slate-500 font-medium">Ngành:</span> <strong>{drawerUser.studentProfile?.major || '—'}</strong></div>
                                     <div><span className="text-slate-500 font-medium">Giới tính:</span> <strong>{drawerUser.studentProfile?.gender === 'MALE' ? 'Nam' : drawerUser.studentProfile?.gender === 'FEMALE' ? 'Nữ' : drawerUser.studentProfile?.gender === 'OTHER' ? 'Khác' : (drawerUser.studentProfile?.gender || '—')}</strong></div>
                                     <div><span className="text-slate-500 font-medium">Ngày sinh:</span> <strong>{drawerUser.studentProfile?.dateOfBirth ? (dayjs(drawerUser.studentProfile.dateOfBirth).isValid() ? dayjs(drawerUser.studentProfile.dateOfBirth).format('DD/MM/YYYY') : String(drawerUser.studentProfile.dateOfBirth)) : '—'}</strong></div>
+                                    <div><span className="text-slate-500 font-medium">Khóa đào tạo:</span> <strong>{drawerUser.studentProfile?.academicYear || '—'}</strong></div>
+                                    <div><span className="text-slate-500 font-medium">Nơi sinh:</span> <strong>{drawerUser.studentProfile?.placeOfBirth || '—'}</strong></div>
                                 </div>
                             </div>
                         )}
@@ -1139,6 +1147,22 @@ function UserManagementPage() {
                             >
                                 <Input placeholder="VD: Kỹ thuật Phần mềm" />
                             </Form.Item>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <Form.Item
+                                    label="Khóa đào tạo"
+                                    name="academicYear"
+                                >
+                                    <Input placeholder="VD: 2022–2026" />
+                                </Form.Item>
+
+                                <Form.Item
+                                    label="Nơi sinh"
+                                    name="placeOfBirth"
+                                >
+                                    <Input placeholder="VD: Bình Dương" />
+                                </Form.Item>
+                            </div>
                         </>
                     ) : (
                         <>

@@ -467,3 +467,171 @@ describe('userController.updateUser for LECTURER', () => {
     });
 });
 
+describe('userController STUDENT academicYear and placeOfBirth', () => {
+    let req, res, next;
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        req = {
+            params: { id: '101' },
+            query: {},
+            body: {
+                role: 'STUDENT',
+                code: 'SV20260010',
+                fullName: 'Nguyen Van An',
+                email: 'an.nv@school.edu.vn',
+                phone: '0901234567',
+                gender: 'Nam',
+                dateOfBirth: '12/03/2002',
+                className: 'D20PM01',
+                major: 'Ky thuat phan mem',
+            },
+        };
+        res = {
+            status: jest.fn().mockReturnThis(),
+            json: jest.fn().mockReturnThis(),
+        };
+        next = jest.fn();
+    });
+
+    test('createUser stores optional academicYear and placeOfBirth when provided', async () => {
+        req.body.academicYear = '2022–2026';
+        req.body.placeOfBirth = 'Bình Dương';
+
+        mockPrisma.user.findUnique.mockResolvedValue(null);
+        mockPrisma.user.create.mockResolvedValue({
+            id: 101,
+            code: 'SV20260010',
+            fullName: 'Nguyen Van An',
+            email: 'an.nv@school.edu.vn',
+            role: 'STUDENT',
+        });
+        mockPrisma.studentProfile.create.mockResolvedValue({
+            studentId: 101,
+            gender: 'MALE',
+            dateOfBirth: new Date('2002-03-12T00:00:00.000Z'),
+            className: 'D20PM01',
+            major: 'Ky thuat phan mem',
+            academicYear: '2022–2026',
+            placeOfBirth: 'Bình Dương',
+        });
+
+        await userController.createUser(req, res, next);
+
+        expect(res.status).toHaveBeenCalledWith(201);
+        expect(mockPrisma.studentProfile.create).toHaveBeenCalledWith(
+            expect.objectContaining({
+                data: expect.objectContaining({
+                    academicYear: '2022–2026',
+                    placeOfBirth: 'Bình Dương',
+                }),
+                select: expect.objectContaining({
+                    academicYear: true,
+                    placeOfBirth: true,
+                }),
+            })
+        );
+    });
+
+    test('createUser normalizes empty or omitted academicYear and placeOfBirth to null', async () => {
+        req.body.academicYear = '   ';
+        // placeOfBirth omitted
+
+        mockPrisma.user.findUnique.mockResolvedValue(null);
+        mockPrisma.user.create.mockResolvedValue({ id: 102, code: 'SV20260010', role: 'STUDENT' });
+        mockPrisma.studentProfile.create.mockResolvedValue({
+            studentId: 102,
+            academicYear: null,
+            placeOfBirth: null,
+        });
+
+        await userController.createUser(req, res, next);
+
+        expect(res.status).toHaveBeenCalledWith(201);
+        expect(mockPrisma.studentProfile.create).toHaveBeenCalledWith(
+            expect.objectContaining({
+                data: expect.objectContaining({
+                    academicYear: null,
+                    placeOfBirth: null,
+                }),
+            })
+        );
+    });
+
+    test('updateUser updates academicYear and placeOfBirth and preserves existing when omitted', async () => {
+        mockPrisma.user.findUnique.mockResolvedValue({
+            id: 101,
+            role: 'STUDENT',
+            code: 'SV20260010',
+            fullName: 'Nguyen Van An',
+            email: 'an.nv@school.edu.vn',
+            phone: '0901234567',
+            studentProfile: {
+                studentId: 101,
+                gender: 'MALE',
+                dateOfBirth: new Date('2002-03-12T00:00:00.000Z'),
+                className: 'D20PM01',
+                major: 'Ky thuat phan mem',
+                academicYear: '2022–2026',
+                placeOfBirth: 'Bình Dương',
+            },
+        });
+        mockPrisma.user.update.mockResolvedValue({ id: 101, role: 'STUDENT' });
+        mockPrisma.studentProfile.upsert.mockResolvedValue({
+            studentId: 101,
+            academicYear: '2022–2026',
+            placeOfBirth: null,
+        });
+
+        req.body = {
+            placeOfBirth: '', // explicitly cleared -> null; academicYear omitted -> preserved
+        };
+
+        await userController.updateUser(req, res, next);
+
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+        expect(mockPrisma.studentProfile.upsert).toHaveBeenCalledWith(
+            expect.objectContaining({
+                update: expect.objectContaining({
+                    academicYear: '2022–2026',
+                    placeOfBirth: null,
+                }),
+                select: expect.objectContaining({
+                    academicYear: true,
+                    placeOfBirth: true,
+                }),
+            })
+        );
+    });
+
+    test('getAllUsers and getUserById select academicYear and placeOfBirth', async () => {
+        mockPrisma.user.findMany.mockResolvedValue([]);
+        mockPrisma.user.count.mockResolvedValue(0);
+
+        await userController.getAllUsers(req, res, next);
+
+        const listSelect = mockPrisma.user.findMany.mock.calls[0][0].select.studentProfile.select;
+        expect(listSelect).toMatchObject({ academicYear: true, placeOfBirth: true });
+
+        mockPrisma.user.findUnique.mockResolvedValue({
+            id: 101,
+            role: 'STUDENT',
+            permissionGroups: [],
+            studentProfile: {
+                studentId: 101,
+                gender: 'MALE',
+                dateOfBirth: new Date('2002-03-12T00:00:00.000Z'),
+                className: 'D20PM01',
+                major: 'Ky thuat phan mem',
+                academicYear: '2022–2026',
+                placeOfBirth: 'Bình Dương',
+            },
+        });
+
+        await userController.getUserById(req, res, next);
+
+        const detailSelect = mockPrisma.user.findUnique.mock.calls[0][0].select.studentProfile.select;
+        expect(detailSelect).toMatchObject({ academicYear: true, placeOfBirth: true });
+    });
+});
+

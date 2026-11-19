@@ -138,6 +138,20 @@ const normalizeStudentPayload = (input = {}) => {
         || input['Ngành (*)'] || input['Ngành'] || '';
     const major = String(rawMajor).trim();
 
+    const academicYearAliases = ['academicYear', 'khoaDaoTao', 'khoa', 'nienKhoa', 'Khóa đào tạo', 'Khóa', 'Niên khóa'];
+    const hasAcademicYear = academicYearAliases.some((key) => input[key] !== undefined);
+    const rawAcademicYear = academicYearAliases.reduce((acc, key) => (acc !== undefined ? acc : input[key]), undefined);
+    const academicYear = rawAcademicYear === undefined || rawAcademicYear === null
+        ? null
+        : (String(rawAcademicYear).trim() || null);
+
+    const placeOfBirthAliases = ['placeOfBirth', 'noiSinh', 'Nơi sinh'];
+    const hasPlaceOfBirth = placeOfBirthAliases.some((key) => input[key] !== undefined);
+    const rawPlaceOfBirth = placeOfBirthAliases.reduce((acc, key) => (acc !== undefined ? acc : input[key]), undefined);
+    const placeOfBirth = rawPlaceOfBirth === undefined || rawPlaceOfBirth === null
+        ? null
+        : (String(rawPlaceOfBirth).trim() || null);
+
     return {
         user: {
             code,
@@ -152,6 +166,8 @@ const normalizeStudentPayload = (input = {}) => {
             dateOfBirth,
             className,
             major,
+            academicYear,
+            placeOfBirth,
         },
         code,
         fullName,
@@ -161,9 +177,13 @@ const normalizeStudentPayload = (input = {}) => {
         dateOfBirth,
         className,
         major,
+        academicYear,
+        placeOfBirth,
         _rawDob: rawDob,
         _dobResult: dobResult,
         _rawGender: rawGender,
+        _hasAcademicYear: hasAcademicYear,
+        _hasPlaceOfBirth: hasPlaceOfBirth,
     };
 };
 

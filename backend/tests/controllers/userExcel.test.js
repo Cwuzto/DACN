@@ -370,6 +370,72 @@ describe('userController Excel Import & Export', () => {
                 })
             );
         });
+
+        test('stores optional academicYear and placeOfBirth when provided and null when empty/omitted on CREATE', async () => {
+            req.body = {
+                role: 'STUDENT',
+                items: [
+                    {
+                        ...validStudentRow,
+                        'Khóa đào tạo': '2022–2026',
+                        'Nơi sinh': 'Bình Dương',
+                    },
+                    {
+                        ...validStudentRow2,
+                        'Khóa đào tạo': '   ',
+                    },
+                ],
+                onDuplicate: 'SKIP',
+            };
+
+            mockPrisma.user.findMany.mockResolvedValue([]);
+            mockPrisma.user.create
+                .mockResolvedValueOnce({ id: 201, code: 'SV20260001' })
+                .mockResolvedValueOnce({ id: 202, code: 'SV20260002' });
+
+            await userController.importUsersExcel(req, res, next);
+
+            expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+            expect(mockPrisma.studentProfile.create).toHaveBeenNthCalledWith(
+                1,
+                expect.objectContaining({
+                    data: expect.objectContaining({
+                        academicYear: '2022–2026',
+                        placeOfBirth: 'Bình Dương',
+                    }),
+                })
+            );
+            expect(mockPrisma.studentProfile.create).toHaveBeenNthCalledWith(
+                2,
+                expect.objectContaining({
+                    data: expect.objectContaining({
+                        academicYear: null,
+                        placeOfBirth: null,
+                    }),
+                })
+            );
+        });
+
+        test('in UPDATE mode, preserves existing academicYear and placeOfBirth when columns are not provided', async () => {
+            req.body = {
+                role: 'STUDENT',
+                items: [validStudentRow],
+                onDuplicate: 'UPDATE',
+            };
+
+            mockPrisma.user.findMany.mockResolvedValue([
+                { id: 99, code: validStudentRow['MSSV (*)'], email: validStudentRow['Email (*)'] },
+            ]);
+            mockPrisma.user.update.mockResolvedValue({ id: 99 });
+            mockPrisma.studentProfile.upsert.mockResolvedValue({ studentId: 99 });
+
+            await userController.importUsersExcel(req, res, next);
+
+            expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+            const upsertArg = mockPrisma.studentProfile.upsert.mock.calls[0][0];
+            expect(upsertArg.update).not.toHaveProperty('academicYear');
+            expect(upsertArg.update).not.toHaveProperty('placeOfBirth');
+        });
     });
 
     describe('exportUsersExcel', () => {

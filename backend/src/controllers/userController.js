@@ -132,6 +132,8 @@ const getAllUsers = async (req, res, next) => {
                             dateOfBirth: true,
                             className: true,
                             major: true,
+                            academicYear: true,
+                            placeOfBirth: true,
                             createdAt: true,
                             updatedAt: true,
                         },
@@ -214,6 +216,8 @@ const getUserById = async (req, res, next) => {
                         dateOfBirth: true,
                         className: true,
                         major: true,
+                        academicYear: true,
+                        placeOfBirth: true,
                         createdAt: true,
                         updatedAt: true,
                     },
@@ -314,6 +318,8 @@ const createUser = async (req, res, next) => {
                         dateOfBirth: validated.studentProfile.dateOfBirth,
                         className: validated.studentProfile.className,
                         major: validated.studentProfile.major,
+                        academicYear: validated.studentProfile.academicYear,
+                        placeOfBirth: validated.studentProfile.placeOfBirth,
                     },
                     select: {
                         studentId: true,
@@ -321,6 +327,8 @@ const createUser = async (req, res, next) => {
                         dateOfBirth: true,
                         className: true,
                         major: true,
+                        academicYear: true,
+                        placeOfBirth: true,
                         createdAt: true,
                         updatedAt: true,
                     },
@@ -637,6 +645,12 @@ const updateUser = async (req, res, next) => {
                 major: (req.body.major || req.body.nganh) !== undefined
                     ? (req.body.major || req.body.nganh)
                     : (existing.studentProfile?.major || (isRoleChanged ? 'CHUA_PHAN_NGANH' : undefined)),
+                academicYear: (req.body.academicYear ?? req.body.khoaDaoTao ?? req.body.khoa) !== undefined
+                    ? (req.body.academicYear ?? req.body.khoaDaoTao ?? req.body.khoa)
+                    : existing.studentProfile?.academicYear,
+                placeOfBirth: (req.body.placeOfBirth ?? req.body.noiSinh) !== undefined
+                    ? (req.body.placeOfBirth ?? req.body.noiSinh)
+                    : existing.studentProfile?.placeOfBirth,
             };
 
             let validated;
@@ -689,12 +703,16 @@ const updateUser = async (req, res, next) => {
                         dateOfBirth: validated.studentProfile.dateOfBirth,
                         className: validated.studentProfile.className,
                         major: validated.studentProfile.major,
+                        academicYear: validated.studentProfile.academicYear,
+                        placeOfBirth: validated.studentProfile.placeOfBirth,
                     },
                     update: {
                         gender: validated.studentProfile.gender,
                         dateOfBirth: validated.studentProfile.dateOfBirth,
                         className: validated.studentProfile.className,
                         major: validated.studentProfile.major,
+                        academicYear: validated.studentProfile.academicYear,
+                        placeOfBirth: validated.studentProfile.placeOfBirth,
                     },
                     select: {
                         studentId: true,
@@ -702,6 +720,8 @@ const updateUser = async (req, res, next) => {
                         dateOfBirth: true,
                         className: true,
                         major: true,
+                        academicYear: true,
+                        placeOfBirth: true,
                         createdAt: true,
                         updatedAt: true,
                     },
@@ -1202,12 +1222,16 @@ const importUsersExcel = async (req, res, next) => {
                                     dateOfBirth: studentProfile.dateOfBirth,
                                     className: studentProfile.className,
                                     major: studentProfile.major,
+                                    academicYear: studentProfile.academicYear,
+                                    placeOfBirth: studentProfile.placeOfBirth,
                                 },
                                 update: {
                                     gender: studentProfile.gender,
                                     dateOfBirth: studentProfile.dateOfBirth,
                                     className: studentProfile.className,
                                     major: studentProfile.major,
+                                    ...(row.normalized?._hasAcademicYear ? { academicYear: studentProfile.academicYear } : {}),
+                                    ...(row.normalized?._hasPlaceOfBirth ? { placeOfBirth: studentProfile.placeOfBirth } : {}),
                                 },
                             });
                         }
@@ -1236,6 +1260,8 @@ const importUsersExcel = async (req, res, next) => {
                                 dateOfBirth: studentProfile.dateOfBirth,
                                 className: studentProfile.className,
                                 major: studentProfile.major,
+                                academicYear: studentProfile.academicYear,
+                                placeOfBirth: studentProfile.placeOfBirth,
                             },
                         });
 
