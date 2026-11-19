@@ -1250,6 +1250,7 @@ enum TopicStatus {
   PENDING
   APPROVED
   REJECTED
+  CANCELLED
 }
 
 enum RegistrationStatus {

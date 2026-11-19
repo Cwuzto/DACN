@@ -15,6 +15,7 @@ import {
     ClockCircleOutlined,
     UserOutlined,
     FilterOutlined,
+    ReloadOutlined,
 } from '@ant-design/icons';
 import { topicService } from '../../services/topicService';
 import aiService from '../../services/aiService';
@@ -184,7 +185,7 @@ export default function TopicManagementPage() {
 
     // Computed Counts for Segmented Tabs (bám theo đợt đang lọc)
     const counts = useMemo(() => {
-        const approved = periodBaseTopics.filter((t) => t.status === 'APPROVED');
+        const rejected = periodBaseTopics.filter((t) => t.status === 'REJECTED');
         const inProgress = periodBaseTopics.filter((t) => {
             const regStatus = t.registrations?.[0]?.status;
             return regStatus === 'IN_PROGRESS_BM03' || regStatus === 'IN_PROGRESS';
@@ -204,7 +205,7 @@ export default function TopicManagementPage() {
         return {
             all: periodBaseTopics.length,
             inProgress: inProgress.length,
-            approved: approved.length,
+            rejected: rejected.length,
             open: open.length,
             warning: warning.length,
             pending: pending.length,
@@ -231,8 +232,8 @@ export default function TopicManagementPage() {
     const filteredTopics = useMemo(() => {
         let list = [...periodBaseTopics];
 
-        if (activeTab === 'approved') {
-            list = list.filter((t) => t.status === 'APPROVED');
+        if (activeTab === 'rejected') {
+            list = list.filter((t) => t.status === 'REJECTED');
         } else if (activeTab === 'in_progress') {
             list = list.filter((t) => {
                 const regStatus = t.registrations?.[0]?.status;
@@ -530,16 +531,28 @@ export default function TopicManagementPage() {
                         </div>
                     </div>
 
-                    {/* Search Input */}
-                    <div className="w-full sm:w-64">
-                        <input
-                            type="text"
-                            className="input-field"
-                            placeholder="Tìm tên đề tài, SV, MSSV..."
-                            style={{ width: '100%' }}
-                            value={searchText}
-                            onChange={(e) => setSearchText(e.target.value)}
-                        />
+                    {/* Search Input & Reload */}
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <div className="w-full sm:w-64">
+                            <input
+                                type="text"
+                                className="input-field"
+                                placeholder="Tìm tên đề tài, SV, MSSV..."
+                                style={{ width: '100%' }}
+                                value={searchText}
+                                onChange={(e) => setSearchText(e.target.value)}
+                            />
+                        </div>
+                        <Button
+                            icon={<ReloadOutlined />}
+                            loading={topicsQuery.isFetching}
+                            onClick={() => {
+                                topicsQuery.refetch();
+                                bm02aQueueQuery?.refetch?.();
+                            }}
+                        >
+                            Làm mới
+                        </Button>
                     </div>
                 </div>
 
@@ -591,16 +604,16 @@ export default function TopicManagementPage() {
                             Đang làm ({counts.inProgress})
                         </div>
                         <div
-                            className={`seg-tab ${activeTab === 'approved' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('approved')}
-                        >
-                            Đã duyệt ({counts.approved})
-                        </div>
-                        <div
                             className={`seg-tab ${activeTab === 'open' ? 'active' : ''}`}
                             onClick={() => setActiveTab('open')}
                         >
                             Đang tuyển ({counts.open})
+                        </div>
+                        <div
+                            className={`seg-tab ${activeTab === 'rejected' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('rejected')}
+                        >
+                            Đã từ chối ({counts.rejected})
                         </div>
                         {counts.warning > 0 && (
                             <div
@@ -644,9 +657,11 @@ export default function TopicManagementPage() {
                             ) : (
                                 filteredTopics.map((topic) => {
                                     const reg = topic.registrations?.[0] || topic.registration;
-                                    const studentName = reg?.student?.fullName;
-                                    const studentCode = reg?.student?.code;
-                                    const hasStudent = Boolean(studentName);
+                                    const isStudentProposal = topic.proposedBy?.role === 'STUDENT';
+                                    const studentName = reg?.student?.fullName || (isStudentProposal ? topic.proposedBy?.fullName : null);
+                                    const studentCode = reg?.student?.code || (isStudentProposal ? topic.proposedBy?.code : null);
+                                    const hasStudent = Boolean(reg?.student?.fullName);
+                                    const displayStudent = Boolean(studentName);
                                     const isApproved = topic.status === 'APPROVED';
                                     const isPending = topic.status === 'PENDING';
                                     const regStatus = reg?.status;
@@ -679,22 +694,22 @@ export default function TopicManagementPage() {
                                                 </span>
                                             </td>
                                             <td>
-                                                {hasStudent ? (
+                                                {displayStudent ? (
                                                     <>
                                                         <strong>{studentName}</strong>
                                                         <div className="mono" style={{ fontSize: 11, color: 'var(--muted)' }}>
-                                                            {studentCode}
+                                                            {studentCode || '—'}
                                                         </div>
                                                     </>
                                                 ) : (
                                                     <span style={{ color: 'var(--muted)', fontStyle: 'italic' }}>
-                                                        {isPending ? 'Chờ phê duyệt' : 'Chưa gán chính thức'}
+                                                        {isPending ? 'Chờ phê duyệt' : 'Chưa có sinh viên'}
                                                     </span>
                                                 )}
                                             </td>
                                             <td>
                                                 <span className={`tag ${hasStudent ? 'blue' : isApproved ? 'green' : 'gray'}`}>
-                                                    {hasStudent ? '1 / 1 sinh viên — Đã tiếp nhận' : '0 / 1 sinh viên — Đang mở'}
+                                                    {hasStudent ? '1 / 1 sinh viên' : '0 / 1 sinh viên'}
                                                 </span>
                                             </td>
                                             <td>
@@ -707,11 +722,13 @@ export default function TopicManagementPage() {
                                                 ) : hasStudent ? (
                                                     <span className="tag green">Đã tiếp nhận sinh viên</span>
                                                 ) : isApproved ? (
-                                                    <span className="tag teal">Sẵn sàng tuyển SV</span>
+                                                    <span className="tag teal">Sẵn sàng</span>
                                                 ) : isPending ? (
                                                     <span className="tag yellow">
                                                         {topic.proposedBy?.role === 'STUDENT' ? 'Sinh viên đề xuất' : 'Chờ duyệt'}
                                                     </span>
+                                                ) : topic.status === 'CANCELLED' ? (
+                                                    <span className="tag gray">Đã bị hủy</span>
                                                 ) : (
                                                     <span className="tag red">Bị từ chối</span>
                                                 )}
@@ -724,6 +741,7 @@ export default function TopicManagementPage() {
                                                             type="primary"
                                                             ghost
                                                             icon={<EditOutlined />}
+                                                            style={{ borderColor: '#4F46E5', color: '#4F46E5' }}
                                                             onClick={() => navigate(`/lecturer/title-adjustments?requestId=${pendingBm02aId}`)}
                                                         >
                                                             Duyệt đổi tên
@@ -732,7 +750,13 @@ export default function TopicManagementPage() {
                                                     {hasStudent ? (
                                                         <button
                                                             type="button"
-                                                            className="btn btn-secondary btn-sm"
+                                                            className="btn btn-sm"
+                                                            style={{
+                                                                background: '#F0FDFA',
+                                                                borderColor: '#99F6E4',
+                                                                color: '#0F766E',
+                                                                fontWeight: 600,
+                                                            }}
                                                             onClick={() => navigate(`/lecturer/progress?registrationId=${reg.id}`)}
                                                         >
                                                             Sổ nhật ký
@@ -740,15 +764,27 @@ export default function TopicManagementPage() {
                                                     ) : isApproved ? (
                                                         <button
                                                             type="button"
-                                                            className="btn btn-primary btn-sm"
+                                                            className="btn btn-sm"
+                                                            style={{
+                                                                background: '#2563EB',
+                                                                borderColor: '#2563EB',
+                                                                color: '#FFFFFF',
+                                                                fontWeight: 600,
+                                                            }}
                                                             onClick={() => navigate('/lecturer/approvals')}
                                                         >
                                                             Xem đơn đăng ký
                                                         </button>
-                                                    ) : (
+                                                    ) : isPending ? (
                                                         <button
                                                             type="button"
-                                                            className="btn btn-primary btn-sm"
+                                                            className="btn btn-sm"
+                                                            style={{
+                                                                background: '#D97706',
+                                                                borderColor: '#D97706',
+                                                                color: '#FFFFFF',
+                                                                fontWeight: 600,
+                                                            }}
                                                             onClick={() => {
                                                                 setSelectedPendingTopic(topic);
                                                                 setReviewRejectReason('');
@@ -756,6 +792,24 @@ export default function TopicManagementPage() {
                                                             }}
                                                         >
                                                             Xem xét đề xuất
+                                                        </button>
+                                                    ) : (
+                                                        <button
+                                                            type="button"
+                                                            className="btn btn-sm"
+                                                            style={{
+                                                                background: '#FFF1F2',
+                                                                borderColor: '#FECDD3',
+                                                                color: '#BE123C',
+                                                                fontWeight: 600,
+                                                            }}
+                                                            onClick={() => {
+                                                                setSelectedPendingTopic(topic);
+                                                                setReviewRejectReason('');
+                                                                setReviewModalOpen(true);
+                                                            }}
+                                                        >
+                                                            Xem chi tiết
                                                         </button>
                                                     )}
                                                 </div>

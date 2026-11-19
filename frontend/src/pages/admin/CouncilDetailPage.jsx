@@ -29,6 +29,7 @@ import {
 import {
     ArrowLeftOutlined,
     EditOutlined,
+    ReloadOutlined,
     TeamOutlined,
     UserAddOutlined,
     UnlockOutlined,
@@ -719,13 +720,21 @@ export default function CouncilDetailPage({ forcedCouncilType }) {
         <div className="p-6 space-y-6">
             {/* Header with Navigation, Title, and Actions */}
             <div className="flex flex-col gap-4">
-                <div>
+                <div className="flex items-center justify-between gap-3 flex-wrap">
                     <Button
                         icon={<ArrowLeftOutlined />}
                         onClick={() => navigate(effectiveCouncilType === 'OUTLINE_REVIEW' ? '/admin/outline-councils' : '/admin/defense-councils')}
                         className="mb-3 hover:border-teal-600 hover:text-teal-700 font-medium"
                     >
                         Quay lại Danh sách HĐ
+                    </Button>
+                    <Button
+                        icon={<ReloadOutlined />}
+                        loading={councilQuery.isFetching}
+                        onClick={() => councilQuery.refetch()}
+                        className="mb-3"
+                    >
+                        Làm mới
                     </Button>
                 </div>
 

@@ -7,6 +7,7 @@ import {
     EyeOutlined,
     FilePdfOutlined,
     LockOutlined,
+    ReloadOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useQueryClient } from '@tanstack/react-query';
@@ -189,19 +190,28 @@ export default function GradingPage() {
                         Danh sách các hội đồng bạn được phân công tham gia đánh giá học thuật.
                     </p>
                 </div>
-                <div className="segmented-tabs">
-                    <div
-                        className={`seg-tab ${activeStage === 'defense' ? 'active' : ''}`}
-                        onClick={() => setActiveStage('defense')}
-                    >
-                        Hội đồng Khóa luận tốt nghiệp ({defenseCouncils.length} Hội đồng)
+                <div className="flex items-center gap-2 flex-wrap">
+                    <div className="segmented-tabs">
+                        <div
+                            className={`seg-tab ${activeStage === 'defense' ? 'active' : ''}`}
+                            onClick={() => setActiveStage('defense')}
+                        >
+                            Hội đồng Khóa luận tốt nghiệp ({defenseCouncils.length} Hội đồng)
+                        </div>
+                        <div
+                            className={`seg-tab ${activeStage === 'outline' ? 'active' : ''}`}
+                            onClick={() => setActiveStage('outline')}
+                        >
+                            Hội đồng Thẩm định Đề cương ({outlineCouncils.length} Hội đồng)
+                        </div>
                     </div>
-                    <div
-                        className={`seg-tab ${activeStage === 'outline' ? 'active' : ''}`}
-                        onClick={() => setActiveStage('outline')}
+                    <Button
+                        icon={<ReloadOutlined />}
+                        loading={councilsQuery.isFetching}
+                        onClick={() => councilsQuery.refetch()}
                     >
-                        Hội đồng Thẩm định Đề cương ({outlineCouncils.length} Hội đồng)
-                    </div>
+                        Làm mới
+                    </Button>
                 </div>
             </div>
 

@@ -24,6 +24,7 @@ import {
     VideoCameraOutlined,
     CheckOutlined,
     EditOutlined,
+    ReloadOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
@@ -585,6 +586,13 @@ export default function ProgressTrackingPage() {
                     </p>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }} className="flex-wrap items-center">
+                    <Button
+                        icon={<ReloadOutlined />}
+                        loading={registrationsQuery.isFetching}
+                        onClick={() => registrationsQuery.refetch()}
+                    >
+                        Làm mới
+                    </Button>
                     <Button
                         icon={<NotificationOutlined />}
                         onClick={() => message.success(`Đã gửi email nhắc nhở đôn đốc tiến độ đến ${students.length} sinh viên!`)}

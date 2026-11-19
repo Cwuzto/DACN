@@ -1663,3 +1663,661 @@
       box-shadow: var(--shadow-md);
       transform: translateY(-2px);
     }
+
+    /* =========================================================================
+       STUDENT DASHBOARD REDESIGN (UI/UX PRO MAX - ACADEMIC THESIS HUB)
+       ========================================================================= */
+    @keyframes sd-fade-up {
+      from {
+        opacity: 0;
+        transform: translateY(14px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes sd-shimmer-flow {
+      0% {
+        transform: translateX(-100%);
+      }
+      100% {
+        transform: translateX(220%);
+      }
+    }
+
+    @keyframes sd-pulse-halo {
+      0% {
+        box-shadow: 0 0 0 0 var(--step-glow, rgba(15, 118, 110, 0.35));
+      }
+      70% {
+        box-shadow: 0 0 0 11px rgba(15, 118, 110, 0);
+      }
+      100% {
+        box-shadow: 0 0 0 0 rgba(15, 118, 110, 0);
+      }
+    }
+
+    @keyframes sd-dot-ping {
+      0%, 100% {
+        transform: scale(1);
+        opacity: 1;
+      }
+      50% {
+        transform: scale(1.35);
+        opacity: 0.65;
+      }
+    }
+
+    .sd-page {
+      padding: 24px 32px;
+      max-width: 1440px;
+      margin: 0 auto;
+    }
+
+    .sd-animate-in {
+      animation: sd-fade-up 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+      animation-delay: calc(var(--sd-delay, 0) * 70ms);
+    }
+
+    /* Hero Card */
+    .sd-hero-card {
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(135deg, #F0FDFA 0%, #EFF6FF 52%, #FFFFFF 100%);
+      border: 1px solid #BAE6FD;
+      border-radius: 16px;
+      padding: 24px 26px;
+      margin-bottom: 24px;
+      box-shadow: 0 8px 24px -8px rgba(15, 118, 110, 0.12), 0 2px 6px -1px rgba(15, 23, 42, 0.04);
+      transition: box-shadow 0.25s ease, border-color 0.25s ease;
+    }
+
+    .sd-hero-card::before {
+      content: "";
+      position: absolute;
+      top: -70px;
+      right: -50px;
+      width: 240px;
+      height: 240px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(20, 184, 166, 0.14) 0%, rgba(37, 99, 235, 0.05) 55%, transparent 72%);
+      pointer-events: none;
+    }
+
+    .sd-hero-card::after {
+      content: "";
+      position: absolute;
+      bottom: -80px;
+      left: 18%;
+      width: 220px;
+      height: 220px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(59, 130, 246, 0.09) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .sd-hero-content {
+      position: relative;
+      z-index: 1;
+    }
+
+    .sd-code-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 4px 12px;
+      border-radius: 999px;
+      background: #CCFBF1;
+      color: #0F766E;
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      border: 1px solid #99F6E4;
+    }
+
+    .sd-code-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #0F766E;
+      animation: sd-dot-ping 2.2s ease-in-out infinite;
+    }
+
+    .sd-hero-title {
+      font-family: var(--font-display);
+      font-size: 20px;
+      font-weight: 800;
+      color: #0F172A;
+      line-height: 1.38;
+      margin: 10px 0 6px;
+      letter-spacing: -0.015em;
+    }
+
+    .sd-hero-sub {
+      font-size: 13px;
+      color: #475569;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .sd-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 20px;
+      padding-top: 18px;
+      border-top: 1px dashed #CBD5E1;
+    }
+
+    .sd-meta-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.78);
+      border: 1px solid rgba(226, 232, 240, 0.9);
+      backdrop-filter: blur(6px);
+      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+
+    .sd-meta-item:hover {
+      transform: translateY(-2px);
+      border-color: #99F6E4;
+      box-shadow: 0 6px 14px -6px rgba(15, 118, 110, 0.18);
+    }
+
+    .sd-meta-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #F0FDFA, #E0F2FE);
+      color: #0F766E;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 17px;
+      flex-shrink: 0;
+      border: 1px solid #CCFBF1;
+    }
+
+    /* =========================================================================
+       6-STAGE INTERACTIVE ROADMAP (STAR COMPONENT)
+       ========================================================================= */
+    .sd-roadmap-card {
+      position: relative;
+      background: #FFFFFF;
+      border: 1px solid #E2E8F0;
+      border-radius: 16px;
+      margin-bottom: 24px;
+      overflow: hidden;
+      box-shadow: 0 10px 28px -12px rgba(15, 23, 42, 0.08), 0 1px 3px rgba(15, 23, 42, 0.04);
+    }
+
+    .sd-roadmap-header {
+      padding: 18px 24px;
+      background: linear-gradient(90deg, #F8FAFC 0%, #F0FDFA 55%, #EFF6FF 100%);
+      border-bottom: 1px solid #E2E8F0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .sd-roadmap-title-wrap {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .sd-roadmap-icon-badge {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #0F766E, #2563EB);
+      color: #FFFFFF;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 17px;
+      box-shadow: 0 4px 10px rgba(15, 118, 110, 0.25);
+    }
+
+    .sd-roadmap-title {
+      font-family: var(--font-display);
+      font-size: 15px;
+      font-weight: 700;
+      color: #0F172A;
+      margin: 0;
+    }
+
+    .sd-roadmap-subtitle {
+      font-size: 12px;
+      color: #475569;
+      margin-top: 2px;
+    }
+
+    .sd-roadmap-pct-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #0F766E, #0284C7);
+      color: #FFFFFF;
+      font-size: 12.5px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      box-shadow: 0 4px 12px -2px rgba(15, 118, 110, 0.35);
+    }
+
+    .sd-roadmap-body {
+      padding: 28px 22px 24px;
+      background: radial-gradient(circle at 50% 0%, rgba(240, 253, 250, 0.55), #FFFFFF 70%);
+    }
+
+    .sd-roadmap-stage {
+      position: relative;
+    }
+
+    .sd-roadmap-rail {
+      position: absolute;
+      top: 25px;
+      left: 8%;
+      right: 8%;
+      height: 6px;
+      border-radius: 999px;
+      background: #E2E8F0;
+      box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.08);
+      overflow: hidden;
+      z-index: 1;
+    }
+
+    .sd-roadmap-fill {
+      position: relative;
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #0F766E 0%, #0284C7 24%, #4F46E5 48%, #7C3AED 68%, #D97706 85%, #10B981 100%);
+      transition: width 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+      box-shadow: 0 0 12px rgba(37, 99, 235, 0.35);
+      overflow: hidden;
+    }
+
+    .sd-roadmap-fill::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 45%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+      animation: sd-shimmer-flow 2.4s ease-in-out infinite;
+    }
+
+    .sd-milestone-grid {
+      position: relative;
+      z-index: 2;
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .sd-milestone-node {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: 6px 6px 12px;
+      border-radius: 14px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      background: transparent;
+      transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.24s ease;
+    }
+
+    .sd-milestone-node:hover {
+      transform: translateY(-4px);
+      background: #FFFFFF;
+      border-color: var(--step-border, #CBD5E1);
+      box-shadow: 0 12px 24px -10px var(--step-glow, rgba(15, 23, 42, 0.14));
+    }
+
+    .sd-milestone-node:focus-visible {
+      outline: 2px solid #2563EB;
+      outline-offset: 2px;
+    }
+
+    .sd-milestone-orb {
+      position: relative;
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 19px;
+      background: #F8FAFC;
+      border: 2px solid #CBD5E1;
+      color: #64748B;
+      margin-bottom: 10px;
+      transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease, background 0.25s ease;
+    }
+
+    .sd-milestone-node:hover .sd-milestone-orb {
+      transform: scale(1.08);
+    }
+
+    .sd-milestone-node.is-completed .sd-milestone-orb {
+      background: var(--step-gradient, linear-gradient(135deg, #0F766E, #14B8A6));
+      border-color: transparent;
+      color: #FFFFFF;
+      box-shadow: 0 6px 16px -4px var(--step-glow, rgba(15, 118, 110, 0.45));
+    }
+
+    .sd-milestone-node.is-active .sd-milestone-orb {
+      background: #FFFFFF;
+      border: 2.5px solid var(--step-color, #0F766E);
+      color: var(--step-color, #0F766E);
+      animation: sd-pulse-halo 2.1s ease-out infinite;
+    }
+
+    .sd-milestone-node.is-active {
+      background: var(--step-soft, #F0FDFA);
+      border-color: var(--step-border, #99F6E4);
+      box-shadow: 0 6px 18px -8px var(--step-glow, rgba(15, 118, 110, 0.28));
+    }
+
+    .sd-milestone-check-badge {
+      position: absolute;
+      bottom: -2px;
+      right: -2px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #10B981;
+      color: #FFFFFF;
+      font-size: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid #FFFFFF;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+    }
+
+    .sd-milestone-title {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: #0F172A;
+      line-height: 1.35;
+      margin-bottom: 5px;
+      min-height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .sd-milestone-node.is-pending .sd-milestone-title {
+      color: #475569;
+    }
+
+    .sd-milestone-status {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2px 9px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      background: #F1F5F9;
+      color: #475569;
+      margin-bottom: 6px;
+      max-width: 100%;
+    }
+
+    .sd-milestone-node.is-completed .sd-milestone-status,
+    .sd-milestone-node.is-active .sd-milestone-status {
+      background: var(--step-soft, #F0FDFA);
+      color: var(--step-color, #0F766E);
+      border: 1px solid var(--step-border, #CCFBF1);
+    }
+
+    .sd-milestone-date {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 9px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      color: #475569;
+      background: #F8FAFC;
+      border: 1px solid #E2E8F0;
+      transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+    }
+
+    .sd-milestone-node.is-completed .sd-milestone-date,
+    .sd-milestone-node.is-active .sd-milestone-date {
+      background: #FFFFFF;
+      border-color: var(--step-border, #CBD5E1);
+      color: #1E293B;
+    }
+
+    /* 4 Key KPI Cards */
+    .sd-kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .sd-kpi-card {
+      position: relative;
+      overflow: hidden;
+      background: #FFFFFF;
+      border: 1px solid #E2E8F0;
+      border-radius: 14px;
+      padding: 16px 18px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      box-shadow: 0 2px 8px -4px rgba(15, 23, 42, 0.08);
+      transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+    }
+
+    .sd-kpi-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--kpi-accent, linear-gradient(90deg, #0F766E, #14B8A6));
+    }
+
+    .sd-kpi-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 12px 24px -10px rgba(15, 23, 42, 0.14);
+      border-color: #CBD5E1;
+    }
+
+    .sd-kpi-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+
+    .sd-kpi-label {
+      font-size: 11.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #64748B;
+    }
+
+    .sd-kpi-value {
+      font-size: 22px;
+      font-weight: 700;
+      color: #0F172A;
+      font-variant-numeric: tabular-nums;
+      line-height: 1.25;
+      margin-top: 2px;
+    }
+
+    .sd-kpi-hint {
+      font-size: 11.5px;
+      color: #64748B;
+      margin-top: 2px;
+    }
+
+    /* Split Cards & Rows */
+    .sd-panel {
+      background: #FFFFFF;
+      border: 1px solid #E2E8F0;
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px -4px rgba(15, 23, 42, 0.06);
+      transition: box-shadow 0.2s ease;
+    }
+
+    .sd-panel:hover {
+      box-shadow: 0 8px 20px -10px rgba(15, 23, 42, 0.1);
+    }
+
+    .sd-panel-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid #E2E8F0;
+      background: #F8FAFC;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .sd-panel-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+      font-size: 13.5px;
+      color: #0F172A;
+    }
+
+    .sd-task-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid #E2E8F0;
+      background: #FFFFFF;
+      margin-bottom: 10px;
+      transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    .sd-task-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .sd-task-row:hover {
+      transform: translateX(3px);
+      border-color: #BAE6FD;
+      box-shadow: 0 4px 12px -6px rgba(37, 99, 235, 0.18);
+    }
+
+    .sd-notice-item {
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid #E2E8F0;
+      background: #F8FAFC;
+      transition: transform 0.18s ease, border-color 0.18s ease;
+    }
+
+    .sd-notice-item:hover {
+      transform: translateY(-1px);
+      border-color: #CBD5E1;
+    }
+
+    .sd-notice-item.is-highlight {
+      background: linear-gradient(135deg, #F0FDFA, #EFF6FF);
+      border-color: #99F6E4;
+    }
+
+    .sd-template-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid #F1F5F9;
+      background: #F8FAFC;
+      font-size: 12.5px;
+      transition: background-color 0.15s ease, border-color 0.15s ease;
+    }
+
+    .sd-template-item:hover {
+      background: #F1F5F9;
+      border-color: #E2E8F0;
+    }
+
+    @media (max-width: 1120px) {
+      .sd-meta-grid,
+      .sd-kpi-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .sd-milestone-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .sd-roadmap-rail {
+        display: none;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .sd-page {
+        padding: 16px;
+      }
+
+      .sd-meta-grid,
+      .sd-kpi-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .sd-milestone-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .sd-animate-in,
+      .sd-code-dot,
+      .sd-roadmap-fill::after,
+      .sd-milestone-node.is-active .sd-milestone-orb {
+        animation: none !important;
+      }
+
+      .sd-roadmap-fill,
+      .sd-milestone-node,
+      .sd-milestone-orb,
+      .sd-kpi-card,
+      .sd-meta-item,
+      .sd-task-row {
+        transition: none !important;
+      }
+    }

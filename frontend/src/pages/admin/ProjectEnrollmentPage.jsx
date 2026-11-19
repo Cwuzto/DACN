@@ -15,6 +15,7 @@ import {
     TeamOutlined,
     UserOutlined,
     FilterOutlined,
+    ReloadOutlined,
 } from '@ant-design/icons';
 
 import ExcelImportModal from '../../components/common/ExcelImportModal';
@@ -411,6 +412,16 @@ export function ProjectEnrollmentPage() {
                             </span>
                         </div>
                         <div className="flex items-center gap-2 flex-wrap">
+                            <Button
+                                icon={<ReloadOutlined />}
+                                loading={rowsQuery.isFetching}
+                                onClick={() => {
+                                    rowsQuery.refetch();
+                                    auditQuery.refetch();
+                                }}
+                            >
+                                Làm mới
+                            </Button>
                             <AuthorizedAction feature="project-enrollments" action="manageEnrollment">
                                 <Button
                                     type={showAssignPanel ? 'primary' : 'default'}

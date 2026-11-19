@@ -593,9 +593,16 @@ const getStudentDashboard = async (req, res, next) => {
         const studentId = req.user.id;
         let activeSemester = await getDefaultSemester({
             id: true,
+            code: true,
             name: true,
             startDate: true,
             registrationDeadline: true,
+            outlineSubmissionOpenAt: true,
+            outlineSubmissionDeadline: true,
+            midtermReportDate: true,
+            bm03MidtermEvaluationOpenAt: true,
+            bm03FinalizationOpenAt: true,
+            defenseDate: true,
             endDate: true,
         });
 
@@ -814,8 +821,10 @@ const getStudentDashboard = async (req, res, next) => {
                 registrationDetails: {
                     registrationId: registration.id,
                     status: registration.status,
+                    registeredAt: registration.createdAt || null,
                     decisionNumber: registration.decisionNumber,
                     decisionDate: registration.decisionDate,
+                    bm04SignedAt: bm04?.signedAt || bm04?.createdAt || null,
                     adjustedTitle: registration.adjustedTitle,
                     mentorScore,
                     mentorFullName,

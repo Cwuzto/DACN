@@ -7,6 +7,7 @@ import {
     EditOutlined,
     SearchOutlined,
     HistoryOutlined,
+    ReloadOutlined,
 } from '@ant-design/icons';
 import OutlineReviewModal from '../../components/lecturer/OutlineReviewModal';
 import RegistrationTimelineDrawer from '../../components/common/RegistrationTimelineDrawer';
@@ -146,9 +147,21 @@ export default function TopicApprovalPage() {
                         Quản lý tiếp nhận hướng dẫn sinh viên và thẩm định đề cương nghiên cứu chi tiết.
                     </p>
                 </div>
-                <span className="tag teal" style={{ padding: '6px 12px', fontSize: 12 }}>
-                    Quy chuẩn: 1 Sinh viên / 1 Đề tài · Tối đa 10 SV/đợt
-                </span>
+                <div className="flex items-center gap-2 flex-wrap">
+                    <span className="tag teal" style={{ padding: '6px 12px', fontSize: 12 }}>
+                        Quy chuẩn: 1 Sinh viên / 1 Đề tài · Tối đa 10 SV/đợt
+                    </span>
+                    <Button
+                        icon={<ReloadOutlined />}
+                        loading={mentorRegistrationsQuery.isFetching || councilOutlineQuery.isFetching}
+                        onClick={() => {
+                            mentorRegistrationsQuery.refetch();
+                            councilOutlineQuery.refetch();
+                        }}
+                    >
+                        Làm mới
+                    </Button>
+                </div>
             </div>
 
             {/* Segmented Navigation Tabs */}

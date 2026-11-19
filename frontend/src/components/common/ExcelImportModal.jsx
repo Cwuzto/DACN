@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Modal, Button, Radio, Table, Tag, Tooltip, message, Select, Input, Form } from 'antd';
+import { Modal, Button, Radio, Table, Tag, Tooltip, message, Select, Input, InputNumber, Form } from 'antd';
 import {
     CloudUploadOutlined,
     FileExcelOutlined,

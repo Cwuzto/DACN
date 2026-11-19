@@ -358,11 +358,25 @@ const sendLecturerBroadcast = async (req, res, next) => {
             } catch (_) {}
         }
 
+        const NON_SUPERVISED_STATUSES = [
+            'PENDING',
+            'DROPPED',
+            'WITHDRAWN',
+            'REJECTED',
+            'TERMINATED_BM01',
+            'TERMINATED_BM02',
+            'TERMINATED_BM04',
+            'TERMINATED_FAILED_PROGRESS',
+            'AUTO_TERMINATED',
+            'DEFENSE_FAILED',
+        ];
+
         const activeRegistrations = await prisma.topicRegistration.findMany({
             where: {
                 topic: { mentorId: req.user.id },
                 ...(activeSemester ? { semesterId: activeSemester.id } : {}),
-                status: { notIn: ['DROPPED', 'WITHDRAWN', 'REJECTED'] },
+                assignmentStatus: 'ACTIVE',
+                status: { notIn: NON_SUPERVISED_STATUSES },
             },
             select: { studentId: true, student: { select: { fullName: true } } },
         });

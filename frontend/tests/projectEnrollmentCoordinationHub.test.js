@@ -273,7 +273,6 @@ test('LecturerAssignmentTab renders assignment table, editable quota, and toolba
     assert.match(tabSource, /currentRoundLoad/);
     assert.match(tabSource, /activeTodayLoad/);
     assert.match(tabSource, /peakConcurrentLoad/);
-    assert.match(tabSource, /peakInterval/);
 
     // Overload thresholds (8 and 10)
     assert.match(tabSource, />=\s*10/);

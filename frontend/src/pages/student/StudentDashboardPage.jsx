@@ -5,7 +5,6 @@ import {
     ArrowRightOutlined,
     ClockCircleOutlined,
     ExclamationCircleOutlined,
-    UploadOutlined,
     FileDoneOutlined,
     DownloadOutlined,
     CloseOutlined,
@@ -15,7 +14,23 @@ import {
     FileTextOutlined,
     HistoryOutlined,
     CloudUploadOutlined,
-    LockOutlined,
+    CheckOutlined,
+    CalendarOutlined,
+    FormOutlined,
+    AuditOutlined,
+    ScheduleOutlined,
+    CommentOutlined,
+    TrophyOutlined,
+    UserOutlined,
+    TeamOutlined,
+    MessageOutlined,
+    EditOutlined,
+    BellOutlined,
+    BookOutlined,
+    BankOutlined,
+    StarOutlined,
+    SafetyCertificateOutlined,
+    WarningOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import useAuthStore from '../../stores/authStore';
@@ -159,6 +174,172 @@ export default function StudentDashboardPage() {
         ? taskStatus.progressPercent
         : getProgressPercentByStatus(currentRegistration?.status);
     const mentorDisplayName = dashboardData?.mentorFullName || currentRegistration?.topic?.mentor?.user?.fullName || currentRegistration?.topic?.mentorName || 'Chưa phân công';
+    const mentorEmail = dashboardData?.registration?.topic?.mentor?.email || currentRegistration?.topic?.mentor?.email || 'Liên hệ qua Cổng thông tin Viện';
+    const mentorDepartment = dashboardData?.registration?.topic?.mentor?.department || currentRegistration?.topic?.mentor?.department || 'Viện Công nghệ Số';
+    const activeSemester = dashboardData?.activeSemester || currentRegistration?.semester || null;
+
+    const milestones = useMemo(() => {
+        const status = currentRegistration?.status;
+        const fmt = (dateValue, prefix) => {
+            if (!dateValue) return null;
+            const parsed = dayjs(dateValue);
+            return parsed.isValid() ? `${prefix ? `${prefix}: ` : ''}${parsed.format('DD/MM/YYYY')}` : null;
+        };
+
+        const isStep2Completed = ['BM01_PASSED', 'BM02_SUBMITTED', 'DECISION_ISSUED', 'IN_PROGRESS_BM03', 'BM03_PASSED', 'BM04_REVIEW', 'DEFENSE_READY', 'DEFENDED', 'DEFENSE_PASSED', 'PENDING_INSTITUTE_SIGNATURE', 'ARCHIVE_INCOMPLETE', 'ARCHIVE_REJECTED', 'COMPLETED'].includes(status) || progressPercent >= 33;
+        const isStep2Active = !isStep2Completed && ['APPROVED', 'BM01_SUBMITTED', 'BM01_NEEDS_REVISION', 'BM01_RESUBMITTED'].includes(status);
+        let step2Sub = 'Xét duyệt đạt';
+        if (status === 'BM01_SUBMITTED') step2Sub = 'Chờ duyệt đề cương';
+        else if (status === 'BM01_NEEDS_REVISION') step2Sub = 'Cần chỉnh sửa';
+        else if (status === 'BM01_RESUBMITTED') step2Sub = 'Đã nộp bản sửa';
+        else if (status === 'TERMINATED_BM01') step2Sub = 'Dừng thực hiện';
+        else if (status === 'APPROVED') step2Sub = 'Chờ nộp đề cương';
+        else if (!isStep2Completed) step2Sub = 'Chưa nộp';
+
+        const step1State = progressPercent >= 16 ? 'completed' : 'active';
+        const step2State = isStep2Completed ? 'completed' : isStep2Active ? 'active' : 'pending';
+        const step3State = progressPercent >= 50 ? 'completed' : progressPercent >= 33 ? 'active' : 'pending';
+        const step4State = progressPercent >= 66 ? 'completed' : progressPercent >= 50 ? 'active' : 'pending';
+        const step5State = progressPercent >= 83 ? 'completed' : progressPercent >= 66 ? 'active' : 'pending';
+        const step6State = progressPercent >= 100 ? 'completed' : progressPercent >= 83 ? 'active' : 'pending';
+
+        return [
+            {
+                key: 'step-1',
+                stepNumber: 1,
+                title: '1. Đăng ký đề tài',
+                subText: hasAnyRegistration ? 'Đã duyệt' : 'Chưa đăng ký',
+                dateText:
+                    fmt(currentRegistration?.registeredAt, 'Đã ĐK') ||
+                    fmt(activeSemester?.registrationDeadline, 'Hạn ĐK') ||
+                    fmt(activeSemester?.startDate, 'Bắt đầu') ||
+                    'Theo lịch đợt',
+                state: step1State,
+                icon: <FormOutlined />,
+                onClick: () => navigate('/student/topics'),
+                styleVars: {
+                    '--step-color': '#0F766E',
+                    '--step-soft': '#F0FDFA',
+                    '--step-border': '#99F6E4',
+                    '--step-glow': 'rgba(15, 118, 110, 0.35)',
+                    '--step-gradient': 'linear-gradient(135deg, #0F766E, #14B8A6)',
+                },
+            },
+            {
+                key: 'step-2',
+                stepNumber: 2,
+                title: '2. Đề cương chi tiết',
+                subText: step2Sub,
+                dateText:
+                    fmt(outlineCouncil?.defenseDate, 'HĐ') ||
+                    fmt(activeSemester?.outlineSubmissionDeadline, 'Hạn nộp') ||
+                    fmt(activeSemester?.outlineSubmissionOpenAt, 'Mở nộp') ||
+                    'Theo lịch Viện',
+                state: step2State,
+                icon: <FileTextOutlined />,
+                onClick: () => navigate('/student/submissions'),
+                styleVars: {
+                    '--step-color': '#0284C7',
+                    '--step-soft': '#F0F9FF',
+                    '--step-border': '#BAE6FD',
+                    '--step-glow': 'rgba(2, 132, 199, 0.35)',
+                    '--step-gradient': 'linear-gradient(135deg, #0284C7, #38BDF8)',
+                },
+            },
+            {
+                key: 'step-3',
+                stepNumber: 3,
+                title: '3. Đơn ĐK chính thức',
+                subText: currentRegistration?.decisionNumber || 'Ban hành QĐ',
+                dateText:
+                    fmt(currentRegistration?.decisionDate, 'QĐ') ||
+                    fmt(activeSemester?.outlineSubmissionDeadline, 'Sau BM01') ||
+                    'Chờ ban hành',
+                state: step3State,
+                icon: <AuditOutlined />,
+                onClick: () => setBm02ModalOpen(true),
+                styleVars: {
+                    '--step-color': '#4F46E5',
+                    '--step-soft': '#EEF2FF',
+                    '--step-border': '#C7D2FE',
+                    '--step-glow': 'rgba(79, 70, 229, 0.35)',
+                    '--step-gradient': 'linear-gradient(135deg, #4F46E5, #818CF8)',
+                },
+            },
+            {
+                key: 'step-4',
+                stepNumber: 4,
+                title: '4. Nhật ký tiến độ',
+                subText: '2 Checkpoint',
+                dateText:
+                    fmt(bm03Record?.advisorSignedAt, 'Ký') ||
+                    fmt(activeSemester?.bm03MidtermEvaluationOpenAt, 'Giữa kỳ') ||
+                    fmt(activeSemester?.midtermReportDate, 'Mốc') ||
+                    'Trong học kỳ',
+                state: step4State,
+                icon: <ScheduleOutlined />,
+                onClick: () => navigate('/student/submissions'),
+                styleVars: {
+                    '--step-color': '#7C3AED',
+                    '--step-soft': '#F5F3FF',
+                    '--step-border': '#DDD6FE',
+                    '--step-glow': 'rgba(124, 58, 237, 0.35)',
+                    '--step-gradient': 'linear-gradient(135deg, #7C3AED, #A78BFA)',
+                },
+            },
+            {
+                key: 'step-5',
+                stepNumber: 5,
+                title: '5. Nhận xét GVHD',
+                subText: 'Đánh giá BM04',
+                dateText:
+                    fmt(currentRegistration?.bm04SignedAt || bm04Record?.signedAt || bm04Record?.createdAt, 'Ký') ||
+                    fmt(activeSemester?.bm03FinalizationOpenAt, 'Mở từ') ||
+                    'Trước bảo vệ',
+                state: step5State,
+                icon: <CommentOutlined />,
+                onClick: () => navigate('/student/submissions'),
+                styleVars: {
+                    '--step-color': '#D97706',
+                    '--step-soft': '#FFFBEB',
+                    '--step-border': '#FDE68A',
+                    '--step-glow': 'rgba(217, 119, 6, 0.35)',
+                    '--step-gradient': 'linear-gradient(135deg, #D97706, #F59E0B)',
+                },
+            },
+            {
+                key: 'step-6',
+                stepNumber: 6,
+                title: '6. Hội đồng bảo vệ',
+                subText: 'Điểm tổng hợp',
+                dateText:
+                    fmt(defenseDossier?.windows?.defenseDateYmd, 'BV') ||
+                    fmt(activeSemester?.defenseDate, 'Dự kiến') ||
+                    fmt(activeSemester?.endDate, 'Kết thúc') ||
+                    'Theo lịch Viện',
+                state: step6State,
+                icon: <TrophyOutlined />,
+                onClick: () => navigate('/student/grades'),
+                styleVars: {
+                    '--step-color': '#059669',
+                    '--step-soft': '#ECFDF5',
+                    '--step-border': '#A7F3D0',
+                    '--step-glow': 'rgba(5, 150, 105, 0.35)',
+                    '--step-gradient': 'linear-gradient(135deg, #059669, #10B981)',
+                },
+            },
+        ];
+    }, [
+        activeSemester,
+        bm03Record,
+        bm04Record,
+        currentRegistration,
+        defenseDossier,
+        hasAnyRegistration,
+        navigate,
+        outlineCouncil,
+        progressPercent,
+    ]);
 
     const handleDownloadCertificate = async () => {
         if (!regId) return;
@@ -285,12 +466,14 @@ export default function StudentDashboardPage() {
     };
 
     return (
-        <div style={{ padding: '24px 32px' }} data-od-id="view-dashboard" className="sub-view">
+        <div data-od-id="view-dashboard" className="sub-view sd-page">
             {/* BM03 48h Acknowledgement Banner */}
             {bm03Record?.advisorSignedAt && bm03Record?.studentAckStatus === 'PENDING_STUDENT_ACKNOWLEDGEMENT' && (
                 <Alert
                     type="warning"
                     showIcon
+                    className="sd-animate-in"
+                    style={{ '--sd-delay': 0, marginBottom: 20, borderRadius: 12 }}
                     message={<span style={{ fontWeight: 700, fontSize: 14 }}>Xác nhận đã biết Phiếu theo dõi tiến độ BM03 (Thời hạn 48 giờ)</span>}
                     description={
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-1.5">
@@ -306,225 +489,226 @@ export default function StudentDashboardPage() {
                             </Button>
                         </div>
                     }
-                    style={{ marginBottom: 20, borderRadius: 8 }}
                 />
             )}
 
             {/* Topic Hero Banner Card */}
             {hasAnyRegistration && currentRegistration?.topic ? (
-                <div className="topic-hero-card">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
-                        <div style={{ maxWidth: 860 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-                                <span className="topic-code-pill">
-                                    MÃ ĐỀ TÀI: {currentRegistration.topic.code || 'DA-2026-KTPM-04'}
-                                </span>
-                                {renderRegistrationStatusTag()}
+                <div className="sd-hero-card sd-animate-in" style={{ '--sd-delay': 0 }}>
+                    <div className="sd-hero-content">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 14 }}>
+                            <div style={{ maxWidth: 820 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                    <span className="sd-code-badge">
+                                        <span className="sd-code-dot" aria-hidden="true" />
+                                        <span>MÃ ĐỀ TÀI: {currentRegistration.topic.code || 'DA-2026-KTPM-04'}</span>
+                                    </span>
+                                    {renderRegistrationStatusTag()}
+                                </div>
+                                <h2 className="sd-hero-title">
+                                    {currentRegistration.adjustedTitle || currentRegistration.topic.title}
+                                </h2>
+                                <div className="sd-hero-sub">
+                                    <span>
+                                        Chuyên ngành: <strong>{currentRegistration.topic.projectCatalogName || 'Đồ án tốt nghiệp'}</strong>
+                                    </span>
+                                    <span aria-hidden="true">·</span>
+                                    <span>
+                                        Học kỳ: <strong>{currentRegistration.topic.semesterName || activeSemester?.name || 'HK1 2026–2027'}</strong>
+                                    </span>
+                                </div>
                             </div>
-                            <h2 className="topic-hero-title">
-                                {currentRegistration.adjustedTitle || currentRegistration.topic.title}
-                            </h2>
-                            <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
-                                Chuyên ngành: <strong>{currentRegistration.topic.projectCatalogName || 'Công nghệ Thông tin'}</strong> · Học kỳ: <strong>{currentRegistration.topic.semesterName || currentRegistration.semester?.name || 'Đồ án tốt nghiệp — HK1 2026–2027'}</strong>
-                            </p>
-                        </div>
-                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center' }}>
-                            <Button
-                                icon={<HistoryOutlined />}
-                                onClick={() => setTimelineOpen(true)}
-                            >
-                                Lịch sử tiến trình
-                            </Button>
-                            {bm03Record?.finalPdfFileUrl && (
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center' }}>
                                 <Button
-                                    size="small"
-                                    icon={<FilePdfOutlined />}
-                                    href={bm03Record.finalPdfFileUrl}
-                                    target="_blank"
+                                    icon={<HistoryOutlined />}
+                                    onClick={() => setTimelineOpen(true)}
                                 >
-                                    Tải PDF BM03
+                                    Lịch sử tiến trình
                                 </Button>
-                            )}
-                            {bm04Record?.finalPdfFileUrl && (
+                                {bm03Record?.finalPdfFileUrl && (
+                                    <Button
+                                        size="small"
+                                        icon={<FilePdfOutlined />}
+                                        href={bm03Record.finalPdfFileUrl}
+                                        target="_blank"
+                                    >
+                                        Tải PDF BM03
+                                    </Button>
+                                )}
+                                {bm04Record?.finalPdfFileUrl && (
+                                    <Button
+                                        size="small"
+                                        icon={<FilePdfOutlined />}
+                                        href={bm04Record.finalPdfFileUrl}
+                                        target="_blank"
+                                    >
+                                        Tải PDF BM04
+                                    </Button>
+                                )}
                                 <Button
                                     size="small"
-                                    icon={<FilePdfOutlined />}
-                                    href={bm04Record.finalPdfFileUrl}
-                                    target="_blank"
-                                >
-                                    Tải PDF BM04
-                                </Button>
-                            )}
-                            <button
-                                className="btn btn-secondary btn-sm"
-                                onClick={() => {
-                                    const el = document.getElementById('mentor-contact-box');
-                                    if (el) el.scrollIntoView({ behavior: 'smooth' });
-                                }}
-                            >
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                                </svg>
-                                <span>Trao đổi GVHD</span>
-                            </button>
-                            {currentRegistration.decisionNumber ? (
-                                <button
-                                    className="btn btn-secondary btn-sm"
-                                    onClick={() => setBm02ModalOpen(true)}
-                                >
-                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                                        <polyline points="14 2 14 8 20 8" />
-                                    </svg>
-                                    <span>Quyết định giao đề tài</span>
-                                </button>
-                            ) : null}
-                            {['BM03_SIGNATURE_PENDING', 'CHECKPOINT_SIGNATURE_APPEAL_OPEN'].includes(currentRegistration?.status) && (
-                                <Button
-                                    type="primary"
-                                    size="small"
-                                    icon={currentRegistration?.status === 'CHECKPOINT_SIGNATURE_APPEAL_OPEN' ? <ExclamationCircleOutlined /> : <FileDoneOutlined />}
-                                    onClick={() => navigate('/student/submissions')}
-                                    style={{
-                                        background: currentRegistration?.status === 'CHECKPOINT_SIGNATURE_APPEAL_OPEN' ? '#DC2626' : '#2563EB',
-                                        borderColor: currentRegistration?.status === 'CHECKPOINT_SIGNATURE_APPEAL_OPEN' ? '#DC2626' : '#2563EB',
-                                        fontWeight: 700,
+                                    icon={<MessageOutlined />}
+                                    onClick={() => {
+                                        const el = document.getElementById('mentor-contact-box');
+                                        if (el) el.scrollIntoView({ behavior: 'smooth' });
                                     }}
                                 >
-                                    {currentRegistration?.status === 'CHECKPOINT_SIGNATURE_APPEAL_OPEN' ? 'Khiếu nại biên bản tiến độ' : 'Ký biên bản tiến độ ngay'}
+                                    Trao đổi GVHD
                                 </Button>
-                            )}
-                            {allowedActions.includes('REQUEST_TITLE_CHANGE') && (
-                                <button
-                                    className="btn btn-outline-primary btn-sm"
-                                    disabled={!titleAdjustmentOpen}
-                                    onClick={() => setTitleModalOpen(true)}
-                                >
-                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                                    </svg>
-                                    <span>{titleAdjustmentOpen ? `Đề xuất sửa tên (${titleAdjustmentDaysRemaining} ngày)` : 'Đã hết hạn sửa tên'}</span>
-                                </button>
-                            )}
-                            {canWithdraw && (
-                                <button
-                                    className="btn btn-secondary btn-sm"
-                                    onClick={() => setWithdrawModalOpen(true)}
-                                    style={{ color: '#D97706', borderColor: '#FDE68A' }}
-                                >
-                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                        <circle cx="12" cy="12" r="10" />
-                                        <line x1="12" y1="8" x2="12" y2="12" />
-                                        <line x1="12" y1="16" x2="12.01" y2="16" />
-                                    </svg>
-                                    <span>Xin hoãn/rút</span>
-                                </button>
-                            )}
-                        </div>
-                    </div>
-
-                    {allowedActions.includes('REQUEST_TITLE_CHANGE') && titleAdjustmentDeadline && (
-                        <div
-                            role="status"
-                            style={{
-                                marginTop: 16,
-                                padding: '10px 14px',
-                                borderRadius: 10,
-                                border: `1px solid ${titleAdjustmentOpen ? '#99F6E4' : '#FECACA'}`,
-                                background: titleAdjustmentOpen ? '#F0FDFA' : '#FEF2F2',
-                                color: titleAdjustmentOpen ? '#115E59' : '#991B1B',
-                                fontSize: 13,
-                                fontWeight: 600,
-                            }}
-                        >
-                            {titleAdjustmentOpen
-                                ? `Cửa sổ điều chỉnh tên đề tài còn ${titleAdjustmentDaysRemaining} ngày — hạn ${titleAdjustmentDeadline.format('DD/MM/YYYY HH:mm')}.`
-                                : `Cửa sổ điều chỉnh tên đề tài đã đóng từ ${titleAdjustmentDeadline.format('DD/MM/YYYY HH:mm')}.`}
-                        </div>
-                    )}
-
-                    <div className="topic-meta-grid" style={{ marginTop: 20 }}>
-                        <div className="topic-meta-item">
-                            <div className="topic-meta-icon">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                                    <circle cx="12" cy="7" r="4" />
-                                </svg>
+                                {currentRegistration.decisionNumber ? (
+                                    <Button
+                                        size="small"
+                                        icon={<FileTextOutlined />}
+                                        onClick={() => setBm02ModalOpen(true)}
+                                    >
+                                        Quyết định giao đề tài
+                                    </Button>
+                                ) : null}
+                                {['BM03_SIGNATURE_PENDING', 'CHECKPOINT_SIGNATURE_APPEAL_OPEN'].includes(currentRegistration?.status) && (
+                                    <Button
+                                        type="primary"
+                                        size="small"
+                                        icon={currentRegistration?.status === 'CHECKPOINT_SIGNATURE_APPEAL_OPEN' ? <ExclamationCircleOutlined /> : <FileDoneOutlined />}
+                                        onClick={() => navigate('/student/submissions')}
+                                        style={{
+                                            background: currentRegistration?.status === 'CHECKPOINT_SIGNATURE_APPEAL_OPEN' ? '#DC2626' : '#2563EB',
+                                            borderColor: currentRegistration?.status === 'CHECKPOINT_SIGNATURE_APPEAL_OPEN' ? '#DC2626' : '#2563EB',
+                                            fontWeight: 700,
+                                        }}
+                                    >
+                                        {currentRegistration?.status === 'CHECKPOINT_SIGNATURE_APPEAL_OPEN' ? 'Khiếu nại biên bản tiến độ' : 'Ký biên bản tiến độ ngay'}
+                                    </Button>
+                                )}
+                                {allowedActions.includes('REQUEST_TITLE_CHANGE') && (
+                                    <Button
+                                        size="small"
+                                        icon={<EditOutlined />}
+                                        disabled={!titleAdjustmentOpen}
+                                        onClick={() => setTitleModalOpen(true)}
+                                    >
+                                        {titleAdjustmentOpen ? `Đề xuất sửa tên (${titleAdjustmentDaysRemaining} ngày)` : 'Đã hết hạn sửa tên'}
+                                    </Button>
+                                )}
+                                {canWithdraw && (
+                                    <Button
+                                        size="small"
+                                        danger
+                                        icon={<WarningOutlined />}
+                                        onClick={() => setWithdrawModalOpen(true)}
+                                    >
+                                        Xin hoãn/rút
+                                    </Button>
+                                )}
                             </div>
-                            <div>
-                                <div className="topic-meta-label">Giảng viên hướng dẫn</div>
-                                <div className="topic-meta-val">
-                                    {mentorDisplayName}
+                        </div>
+
+                        {allowedActions.includes('REQUEST_TITLE_CHANGE') && titleAdjustmentDeadline && (
+                            <div
+                                role="status"
+                                style={{
+                                    marginTop: 16,
+                                    padding: '10px 14px',
+                                    borderRadius: 10,
+                                    border: `1px solid ${titleAdjustmentOpen ? '#99F6E4' : '#FECACA'}`,
+                                    background: titleAdjustmentOpen ? 'rgba(240, 253, 250, 0.9)' : '#FEF2F2',
+                                    color: titleAdjustmentOpen ? '#115E59' : '#991B1B',
+                                    fontSize: 13,
+                                    fontWeight: 600,
+                                }}
+                            >
+                                {titleAdjustmentOpen
+                                    ? `Cửa sổ điều chỉnh tên đề tài còn ${titleAdjustmentDaysRemaining} ngày — hạn ${titleAdjustmentDeadline.format('DD/MM/YYYY HH:mm')}.`
+                                    : `Cửa sổ điều chỉnh tên đề tài đã đóng từ ${titleAdjustmentDeadline.format('DD/MM/YYYY HH:mm')}.`}
+                            </div>
+                        )}
+
+                        <div className="sd-meta-grid">
+                            <div className="sd-meta-item">
+                                <div className="sd-meta-icon">
+                                    <UserOutlined />
+                                </div>
+                                <div>
+                                    <div className="topic-meta-label">Giảng viên hướng dẫn</div>
+                                    <div className="topic-meta-val">{mentorDisplayName}</div>
                                 </div>
                             </div>
-                        </div>
 
-                        <div className="topic-meta-item">
-                            <div className="topic-meta-icon">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                                    <circle cx="9" cy="7" r="4" />
-                                    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                                </svg>
-                            </div>
-                            <div>
-                                <div className="topic-meta-label">Sinh viên thực hiện</div>
-                                <div className="topic-meta-val">
-                                    {user?.fullName || 'Sinh viên'} (1 SV / 1 đề tài)
+                            <div className="sd-meta-item">
+                                <div className="sd-meta-icon">
+                                    <TeamOutlined />
+                                </div>
+                                <div>
+                                    <div className="topic-meta-label">Sinh viên thực hiện</div>
+                                    <div className="topic-meta-val">{user?.fullName || 'Sinh viên'} (1 SV / 1 đề tài)</div>
                                 </div>
                             </div>
-                        </div>
 
-                        <div className="topic-meta-item">
-                            <div className="topic-meta-icon">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                                    <line x1="16" y1="2" x2="16" y2="6" />
-                                    <line x1="8" y1="2" x2="8" y2="6" />
-                                    <line x1="3" y1="10" x2="21" y2="10" />
-                                </svg>
-                            </div>
-                            <div>
-                                <div className="topic-meta-label">Hạn chót tiếp theo</div>
-                                <div className="topic-meta-val" style={{ color: nearestDeadline ? '#DC2626' : 'var(--fg)' }}>
-                                    {nearestDeadline ? `${dayjs(nearestDeadline.date).format('DD/MM/YYYY')} (${nearestDeadline.title})` : 'Đang đúng lộ trình'}
+                            <div className="sd-meta-item">
+                                <div className="sd-meta-icon" style={nearestDeadline ? { background: '#FEF2F2', color: '#DC2626', borderColor: '#FECACA' } : undefined}>
+                                    <CalendarOutlined />
+                                </div>
+                                <div>
+                                    <div className="topic-meta-label">Hạn chót tiếp theo</div>
+                                    <div className="topic-meta-val" style={{ color: nearestDeadline ? '#DC2626' : '#0F172A' }}>
+                                        {nearestDeadline ? `${dayjs(nearestDeadline.date).format('DD/MM/YYYY')} (${nearestDeadline.title})` : 'Đang đúng lộ trình'}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
 
-                        <div className="topic-meta-item">
-                            <div className="topic-meta-icon">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <circle cx="12" cy="8" r="7" />
-                                    <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88" />
-                                </svg>
-                            </div>
-                            <div>
-                                <div className="topic-meta-label">Dự kiến bảo vệ</div>
-                                <div className="topic-meta-val" style={{ color: 'var(--primary)', fontWeight: 700 }}>
-                                    {currentRegistration.status === 'DEFENSE_READY' ? 'Đủ điều kiện ra Hội đồng' :
-                                     currentRegistration.status === 'DEFENDED' ? 'Đã bảo vệ xong' :
-                                     'Theo lịch Viện CNS'}
+                            <div className="sd-meta-item">
+                                <div className="sd-meta-icon">
+                                    <SafetyCertificateOutlined />
+                                </div>
+                                <div>
+                                    <div className="topic-meta-label">Dự kiến bảo vệ</div>
+                                    <div className="topic-meta-val" style={{ color: '#0F766E', fontWeight: 700 }}>
+                                        {currentRegistration.status === 'DEFENSE_READY'
+                                            ? 'Đủ điều kiện ra Hội đồng'
+                                            : currentRegistration.status === 'DEFENDED'
+                                              ? 'Đã bảo vệ xong'
+                                              : activeSemester?.defenseDate
+                                                ? dayjs(activeSemester.defenseDate).format('DD/MM/YYYY')
+                                                : 'Theo lịch Viện CNS'}
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
             ) : (
-                <div className="card" style={{ padding: '40px 20px', textAlign: 'center', marginBottom: 24 }}>
-                    <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--primary-light)', color: 'var(--primary)', display: 'grid', placeItems: 'center', margin: '0 auto 16px', fontSize: 24 }}>
-                        📖
+                <div className="sd-hero-card sd-animate-in" style={{ '--sd-delay': 0, textAlign: 'center', padding: '40px 24px' }}>
+                    <div className="sd-hero-content">
+                        <div
+                            style={{
+                                width: 60,
+                                height: 60,
+                                borderRadius: 16,
+                                background: 'linear-gradient(135deg, #0F766E, #2563EB)',
+                                color: '#FFFFFF',
+                                display: 'grid',
+                                placeItems: 'center',
+                                margin: '0 auto 16px',
+                                fontSize: 26,
+                                boxShadow: '0 10px 20px -8px rgba(15, 118, 110, 0.45)',
+                            }}
+                        >
+                            <BookOutlined />
+                        </div>
+                        <h3 style={{ fontSize: 19, fontWeight: 800, color: '#0F172A', marginBottom: 8 }}>
+                            Bạn chưa đăng ký đề tài tốt nghiệp
+                        </h3>
+                        <p style={{ fontSize: 13.5, color: '#475569', maxWidth: 480, margin: '0 auto 20px', lineHeight: 1.6 }}>
+                            Vui lòng duyệt danh sách các đề tài của các Bộ môn đang mở tiếp nhận sinh viên để đăng ký ngay.
+                        </p>
+                        <Button
+                            type="primary"
+                            size="large"
+                            icon={<ArrowRightOutlined />}
+                            onClick={() => navigate('/student/topics')}
+                        >
+                            Xem Danh Mục Đề Tài Ngay
+                        </Button>
                     </div>
-                    <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--fg)', marginBottom: 6 }}>Bạn chưa đăng ký đề tài tốt nghiệp</h3>
-                    <p style={{ fontSize: 13, color: 'var(--muted)', maxWidth: 460, margin: '0 auto 20px', lineHeight: 1.6 }}>
-                        Vui lòng duyệt danh sách các đề tài của các Bộ môn đang mở tiếp nhận sinh viên để đăng ký ngay.
-                    </p>
-                    <button className="btn btn-primary" onClick={() => navigate('/student/topics')}>
-                        <span>Xem Danh Mục Đề Tài Ngay</span>
-                        <ArrowRightOutlined style={{ marginLeft: 6 }} />
-                    </button>
                 </div>
             )}
 
@@ -536,24 +720,27 @@ export default function StudentDashboardPage() {
             )}
             {outlineCouncil && (
                 <div
-                    className="card"
+                    className="sd-panel sd-animate-in"
                     style={{
+                        '--sd-delay': 1,
                         marginBottom: 24,
                         padding: '16px 20px',
-                        borderLeft: '6px solid var(--primary)',
-                        background: '#F0FDFA',
+                        borderLeft: '6px solid #0F766E',
+                        background: 'linear-gradient(90deg, #F0FDFA 0%, #FFFFFF 100%)',
                         borderColor: '#99F6E4',
                     }}
                 >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
                         <div>
                             <div style={{ fontSize: 15, fontWeight: 700, color: '#0F766E', display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <span>🏛️ Phiên Bảo Vệ &amp; Xét Duyệt Đề Cương: {outlineCouncil.name}</span>
+                                <BankOutlined />
+                                <span>Phiên Bảo Vệ &amp; Xét Duyệt Đề Cương: {outlineCouncil.name}</span>
                             </div>
                             <div style={{ marginTop: 6, fontSize: 13, color: '#115E59', display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
                                 {outlineCouncil.defenseDate && (
-                                    <span>
-                                        ⏰ Thời gian bảo vệ: <strong>{dayjs(outlineCouncil.defenseDate).format('DD/MM/YYYY HH:mm')}</strong>
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                                        <ClockCircleOutlined />
+                                        <span>Thời gian bảo vệ: <strong>{dayjs(outlineCouncil.defenseDate).format('DD/MM/YYYY HH:mm')}</strong></span>
                                     </span>
                                 )}
                                 <span>
@@ -571,25 +758,22 @@ export default function StudentDashboardPage() {
                         </div>
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                             {outlineCouncil.meetingMode === 'MICROSOFT_TEAMS' && outlineCouncil.meetingUrl && (
-                                <a
+                                <Button
+                                    type="primary"
+                                    size="small"
                                     href={outlineCouncil.meetingUrl}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="btn btn-primary btn-sm"
-                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600 }}
                                 >
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                                        <path d="M19.5 7h-6.5a1.5 1.5 0 0 0-1.5 1.5v7a1.5 1.5 0 0 0 1.5 1.5h6.5a1.5 1.5 0 0 0 1.5-1.5v-7a1.5 1.5 0 0 0-1.5-1.5zM3 9a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9z" />
-                                    </svg>
-                                    <span>Tham gia Teams</span>
-                                </a>
+                                    Tham gia Teams
+                                </Button>
                             )}
-                            <button
-                                className="btn btn-secondary btn-sm"
+                            <Button
+                                size="small"
                                 onClick={() => navigate('/student/submissions')}
                             >
                                 Chi tiết đề cương
-                            </button>
+                            </Button>
                         </div>
                     </div>
                 </div>
@@ -598,8 +782,9 @@ export default function StudentDashboardPage() {
             {/* Post-Defense Archival & Defense Council Session Banner */}
             {['DEFENSE_READY', 'DEFENSE_PASSED', 'PENDING_INSTITUTE_SIGNATURE', 'COMPLETED', 'ARCHIVE_INCOMPLETE', 'ARCHIVE_REJECTED'].includes(currentRegistration?.status) && (
                 <div
-                    className="card"
+                    className="sd-panel sd-animate-in"
                     style={{
+                        '--sd-delay': 1,
                         marginBottom: 24,
                         padding: '16px 20px',
                         borderLeft: '6px solid',
@@ -622,7 +807,7 @@ export default function StudentDashboardPage() {
                                 )}
                             </div>
 
-                            <div style={{ marginTop: 6, fontSize: 13, color: 'var(--fg)', display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+                            <div style={{ marginTop: 6, fontSize: 13, color: '#0F172A', display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
                                 {defenseDossier?.windows?.defenseDateYmd && (
                                     <span>
                                         Ngày bảo vệ: <strong>{dayjs(defenseDossier.windows.defenseDateYmd).format('DD/MM/YYYY')}</strong>
@@ -658,179 +843,163 @@ export default function StudentDashboardPage() {
 
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                             {currentRegistration?.status === 'COMPLETED' ? (
-                                <button
-                                    type="button"
-                                    className="btn btn-primary btn-sm"
+                                <Button
+                                    type="primary"
+                                    size="small"
+                                    icon={<DownloadOutlined />}
                                     onClick={handleDownloadCertificate}
-                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600 }}
                                 >
-                                    <DownloadOutlined />
-                                    <span>Tải Giấy Xác Nhận (PDF)</span>
-                                </button>
+                                    Tải Giấy Xác Nhận (PDF)
+                                </Button>
                             ) : (
-                                <button
-                                    type="button"
-                                    className="btn btn-primary btn-sm"
+                                <Button
+                                    type="primary"
+                                    size="small"
+                                    icon={<CloudUploadOutlined />}
                                     onClick={() => navigate('/student/submissions')}
-                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600 }}
                                 >
-                                    <CloudUploadOutlined />
-                                    <span>Vào Kho Lưu Chiểu 4 Tài Liệu</span>
-                                </button>
+                                    Vào Kho Lưu Chiểu 4 Tài Liệu
+                                </Button>
                             )}
-                            <button
-                                type="button"
-                                className="btn btn-secondary btn-sm"
+                            <Button
+                                size="small"
                                 onClick={() => navigate('/student/grades')}
                             >
                                 Xem Điểm Bảo Vệ
-                            </button>
+                            </Button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* 6-Stage Milestone Stepper Flow */}
-            <div className="card" style={{ marginBottom: 24 }}>
-                <div className="card-header" style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
-                    <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 14 }}>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <circle cx="12" cy="12" r="10" />
-                            <polyline points="12 6 12 12 14 14" />
-                        </svg>
-                        <span>Lộ trình 6 Mốc Quy Trình Đồ Án Tốt Nghiệp (Theo Chuẩn Viện Công nghệ Số)</span>
+            {/* 6-Stage Interactive Milestone Stepper Flow */}
+            <div className="sd-roadmap-card sd-animate-in" style={{ '--sd-delay': 1 }}>
+                <div className="sd-roadmap-header">
+                    <div className="sd-roadmap-title-wrap">
+                        <div className="sd-roadmap-icon-badge" aria-hidden="true">
+                            <ClockCircleOutlined />
+                        </div>
+                        <div>
+                            <h3 className="sd-roadmap-title">
+                                Lộ trình 6 Mốc Quy Trình Đồ Án Tốt Nghiệp (Theo Chuẩn Viện Công nghệ Số)
+                            </h3>
+                            <div className="sd-roadmap-subtitle">
+                                Theo dõi trạng thái từng giai đoạn và mốc thời gian quan trọng của học kỳ
+                            </div>
+                        </div>
                     </div>
-                    <span className="tag green" style={{ fontWeight: 700 }}>
-                        {progressPercent}% Hoàn tất
-                    </span>
+                    <div className="sd-roadmap-pct-pill">
+                        <CheckCircleOutlined />
+                        <span>{progressPercent}% Hoàn tất</span>
+                    </div>
                 </div>
-                <div className="card-body" style={{ padding: '24px 20px' }}>
-                    <div className="milestone-stepper">
-                        <div className="milestone-stepper-progress" style={{ width: `${progressPercent}%` }} />
 
-                        <div className={`step-node ${progressPercent >= 16 ? 'completed' : 'active'}`} onClick={() => navigate('/student/topics')}>
-                            <div className="step-circle">{progressPercent >= 16 ? '✓' : '1'}</div>
-                            <div className="step-label">1. Đăng ký</div>
-                            <div className="step-sub">{hasAnyRegistration ? 'Đã duyệt' : 'Chưa đăng ký'}</div>
+                <div className="sd-roadmap-body">
+                    <div className="sd-roadmap-stage">
+                        <div className="sd-roadmap-rail" aria-hidden="true">
+                            <div
+                                className="sd-roadmap-fill"
+                                style={{ width: `${Math.min(100, Math.max(0, progressPercent))}%` }}
+                            />
                         </div>
 
-                        {/* Step 2: Đề cương nghiên cứu chi tiết */}
-                        {(() => {
-                            const status = currentRegistration?.status;
-                            const isStep2Completed = ['BM01_PASSED', 'BM02_SUBMITTED', 'DECISION_ISSUED', 'IN_PROGRESS_BM03', 'BM03_PASSED', 'BM04_REVIEW', 'DEFENSE_READY', 'DEFENDED', 'COMPLETED'].includes(status) || progressPercent >= 33;
-                            const isStep2Active = !isStep2Completed && ['APPROVED', 'BM01_SUBMITTED', 'BM01_NEEDS_REVISION', 'BM01_RESUBMITTED'].includes(status);
-                            let subText = 'Xét duyệt đạt';
-                            if (status === 'BM01_SUBMITTED') subText = 'Chờ duyệt đề cương';
-                            else if (status === 'BM01_NEEDS_REVISION') subText = 'Cần chỉnh sửa';
-                            else if (status === 'BM01_RESUBMITTED') subText = 'Đã nộp bản sửa';
-                            else if (status === 'TERMINATED_BM01') subText = 'Dừng thực hiện';
-                            else if (status === 'APPROVED') subText = 'Chờ nộp đề cương';
-                            else if (!isStep2Completed) subText = 'Chưa nộp';
+                        <div className="sd-milestone-grid">
+                            {milestones.map((step) => {
+                                const stateClass =
+                                    step.state === 'completed'
+                                        ? 'is-completed'
+                                        : step.state === 'active'
+                                          ? 'is-active'
+                                          : 'is-pending';
 
-                            return (
-                                <div className={`step-node ${isStep2Completed ? 'completed' : isStep2Active ? 'active' : ''}`} onClick={() => navigate('/student/submissions')}>
-                                    <div className="step-circle">{isStep2Completed ? '✓' : '2'}</div>
-                                    <div className="step-label">2. Đề cương nghiên cứu chi tiết</div>
-                                    <div className="step-sub">{subText}</div>
-                                </div>
-                            );
-                        })()}
-
-                        <div className={`step-node ${progressPercent >= 50 ? 'completed' : progressPercent >= 33 ? 'active' : ''}`} onClick={() => setBm02ModalOpen(true)}>
-                            <div className="step-circle">{progressPercent >= 50 ? '✓' : '3'}</div>
-                            <div className="step-label">3. Đơn đăng ký đề tài chính thức</div>
-                            <div className="step-sub">{currentRegistration?.decisionNumber || 'Ban hành QĐ'}</div>
-                        </div>
-
-                        <div className={`step-node ${progressPercent >= 66 ? 'completed' : progressPercent >= 50 ? 'active' : ''}`} onClick={() => navigate('/student/submissions')}>
-                            <div className="step-circle">{progressPercent >= 66 ? '✓' : '4'}</div>
-                            <div className="step-label">4. Nhật ký & Đánh giá tiến độ</div>
-                            <div className="step-sub">2 Checkpoint</div>
-                        </div>
-
-                        <div className={`step-node ${progressPercent >= 83 ? 'completed' : progressPercent >= 66 ? 'active' : ''}`} onClick={() => navigate('/student/submissions')}>
-                            <div className="step-circle">{progressPercent >= 83 ? '✓' : '5'}</div>
-                            <div className="step-label">5. Phiếu nhận xét của người hướng dẫn</div>
-                            <div className="step-sub">Đánh giá GVHD</div>
-                        </div>
-
-                        <div className={`step-node ${progressPercent >= 100 ? 'completed' : ''}`} onClick={() => navigate('/student/grades')}>
-                            <div className="step-circle">{progressPercent >= 100 ? '✓' : '6'}</div>
-                            <div className="step-label">6. Hội đồng bảo vệ</div>
-                            <div className="step-sub">Điểm tổng hợp</div>
+                                return (
+                                    <button
+                                        key={step.key}
+                                        type="button"
+                                        className={`sd-milestone-node ${stateClass}`}
+                                        style={step.styleVars}
+                                        onClick={step.onClick}
+                                    >
+                                        <div className="sd-milestone-orb">
+                                            {step.icon}
+                                            {step.state === 'completed' && (
+                                                <span className="sd-milestone-check-badge" aria-hidden="true">
+                                                    <CheckOutlined />
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="sd-milestone-title">{step.title}</div>
+                                        <div className="sd-milestone-status">{step.subText}</div>
+                                        <div className="sd-milestone-date">
+                                            <CalendarOutlined style={{ fontSize: 10 }} />
+                                            <span>{step.dateText}</span>
+                                        </div>
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
                 </div>
             </div>
 
             {/* 4 Key Stat Cards */}
-            <div className="stat-grid" style={{ marginBottom: 24 }}>
-                <div className="stat-card">
-                    <div className="stat-icon teal">
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                            <polyline points="22 4 12 14.01 9 11.01" />
-                        </svg>
+            <div className="sd-kpi-grid sd-animate-in" style={{ '--sd-delay': 2 }}>
+                <div className="sd-kpi-card" style={{ '--kpi-accent': 'linear-gradient(90deg, #0F766E, #14B8A6)' }}>
+                    <div className="sd-kpi-icon" style={{ background: '#F0FDFA', color: '#0F766E', border: '1px solid #CCFBF1' }}>
+                        <CheckCircleOutlined />
                     </div>
                     <div>
-                        <div className="stat-num">{progressPercent}%</div>
-                        <div className="stat-label">Tiến độ tổng thể</div>
+                        <div className="sd-kpi-label">Tiến độ tổng thể</div>
+                        <div className="sd-kpi-value">{progressPercent}%</div>
+                        <div className="sd-kpi-hint">Theo quy trình 6 mốc</div>
                     </div>
                 </div>
 
-                <div className="stat-card">
-                    <div className="stat-icon blue">
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                            <polyline points="14 2 14 8 20 8" />
-                        </svg>
+                <div className="sd-kpi-card" style={{ '--kpi-accent': 'linear-gradient(90deg, #2563EB, #38BDF8)' }}>
+                    <div className="sd-kpi-icon" style={{ background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE' }}>
+                        <FileTextOutlined />
                     </div>
                     <div>
-                        <div className="stat-num">{completedTasks} / {totalTasks}</div>
-                        <div className="stat-label">Biểu mẫu hoàn tất</div>
+                        <div className="sd-kpi-label">Biểu mẫu hoàn tất</div>
+                        <div className="sd-kpi-value">{completedTasks} / {totalTasks}</div>
+                        <div className="sd-kpi-hint">Nhiệm vụ đã nộp &amp; duyệt</div>
                     </div>
                 </div>
 
-                <div className="stat-card">
-                    <div className="stat-icon amber">
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <circle cx="12" cy="12" r="10" />
-                            <polyline points="12 6 12 12 16 14" />
-                        </svg>
+                <div className="sd-kpi-card" style={{ '--kpi-accent': 'linear-gradient(90deg, #D97706, #FBBF24)' }}>
+                    <div className="sd-kpi-icon" style={{ background: '#FFFBEB', color: '#D97706', border: '1px solid #FDE68A' }}>
+                        <ClockCircleOutlined />
                     </div>
                     <div>
-                        <div className="stat-num">{dashboardData?.meetingLogsCount ?? 0} buổi</div>
-                        <div className="stat-label">Số buổi trao đổi GVHD</div>
+                        <div className="sd-kpi-label">Số buổi trao đổi GVHD</div>
+                        <div className="sd-kpi-value">{dashboardData?.meetingLogsCount ?? 0} buổi</div>
+                        <div className="sd-kpi-hint">Nhật ký hướng dẫn BM03</div>
                     </div>
                 </div>
 
-                <div className="stat-card">
-                    <div className="stat-icon purple">
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                        </svg>
+                <div className="sd-kpi-card" style={{ '--kpi-accent': 'linear-gradient(90deg, #7C3AED, #A78BFA)' }}>
+                    <div className="sd-kpi-icon" style={{ background: '#F5F3FF', color: '#7C3AED', border: '1px solid #DDD6FE' }}>
+                        <StarOutlined />
                     </div>
                     <div>
-                        <div className="stat-num">
+                        <div className="sd-kpi-label">Điểm đánh giá GVHD</div>
+                        <div className="sd-kpi-value" style={{ fontSize: dashboardData?.mentorScore != null ? 22 : 18 }}>
                             {dashboardData?.mentorScore != null ? `${Number(dashboardData.mentorScore).toFixed(1)} / 10` : 'Chưa đánh giá'}
                         </div>
-                        <div className="stat-label">Điểm đánh giá GVHD</div>
+                        <div className="sd-kpi-hint">Phiếu nhận xét BM04</div>
                     </div>
                 </div>
             </div>
 
             {/* Dashboard Split Grid */}
-            <div className="dashboard-split">
+            <div className="dashboard-split sd-animate-in" style={{ '--sd-delay': 3 }}>
                 {/* Left Column: Tasks & Mentor */}
                 <div>
-                    <div className="card" style={{ marginBottom: 24 }}>
-                        <div className="card-header" style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 13.5 }}>
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
-                                    <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
-                                </svg>
-                                <span>Nhiệm vụ & Hạn nộp sắp tới</span>
+                    <div className="sd-panel" style={{ marginBottom: 24 }}>
+                        <div className="sd-panel-header">
+                            <div className="sd-panel-title">
+                                <ScheduleOutlined style={{ color: '#0F766E', fontSize: 16 }} />
+                                <span>Nhiệm vụ &amp; Hạn nộp sắp tới</span>
                             </div>
                             {overdueTasks > 0 ? (
                                 <span className="tag red">{overdueTasks} việc quá hạn</span>
@@ -838,7 +1007,7 @@ export default function StudentDashboardPage() {
                                 <span className="tag green">Tiến độ tốt</span>
                             )}
                         </div>
-                        <div className="card-body" style={{ padding: '16px 18px' }}>
+                        <div style={{ padding: '16px 18px' }}>
                             {dashboardData?.tasks && dashboardData.tasks.length > 0 ? (
                                 dashboardData.tasks.map((task) => {
                                     const taskDueDate = task.dueDate || task.deadline;
@@ -847,8 +1016,8 @@ export default function StudentDashboardPage() {
                                     return (
                                         <div
                                             key={task.id}
-                                            className="task-item"
-                                            style={isOverdue ? { borderLeft: '3px solid #DC2626' } : undefined}
+                                            className="sd-task-row"
+                                            style={isOverdue ? { borderLeft: '4px solid #DC2626' } : undefined}
                                         >
                                             <div className="task-left">
                                                 <div>
@@ -892,30 +1061,27 @@ export default function StudentDashboardPage() {
                     </div>
 
                     {/* Team & Mentor Card */}
-                    <div className="card" id="mentor-contact-box">
-                        <div className="card-header" style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
-                            <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 13.5 }}>
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                                    <circle cx="9" cy="7" r="4" />
-                                </svg>
-                                <span>Cán bộ Hướng dẫn & Sinh viên thực hiện</span>
+                    <div className="sd-panel" id="mentor-contact-box">
+                        <div className="sd-panel-header">
+                            <div className="sd-panel-title">
+                                <TeamOutlined style={{ color: '#2563EB', fontSize: 16 }} />
+                                <span>Cán bộ Hướng dẫn &amp; Sinh viên thực hiện</span>
                             </div>
                         </div>
-                        <div className="card-body" style={{ padding: '16px 18px' }}>
-                            <div style={{ display: 'flex', gap: 16, alignItems: 'center', paddingBottom: 14, borderBottom: '1px solid var(--border-light)' }}>
+                        <div style={{ padding: '16px 18px' }}>
+                            <div style={{ display: 'flex', gap: 16, alignItems: 'center', paddingBottom: 14, borderBottom: '1px solid #F1F5F9' }}>
                                 <div className="student-avatar" style={{ width: 48, height: 48, fontSize: 14 }}>
                                     GVHD
                                 </div>
                                 <div>
-                                    <div style={{ fontSize: 14.5, fontWeight: 700 }}>
+                                    <div style={{ fontSize: 14.5, fontWeight: 700, color: '#0F172A' }}>
                                         {mentorDisplayName}
                                     </div>
-                                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>
-                                        Khoa Kỹ thuật Phần mềm · Email: dung.lq@vcs.edu.vn
+                                    <div style={{ fontSize: 12, color: '#475569' }}>
+                                        {mentorDepartment} · Email: {mentorEmail}
                                     </div>
-                                    <div style={{ fontSize: 11.5, color: 'var(--primary)', marginTop: 2, fontWeight: 600 }}>
-                                        Lịch làm việc Lab: Sáng Thứ Ba & Sáng Thứ Sáu hàng tuần
+                                    <div style={{ fontSize: 11.5, color: '#0F766E', marginTop: 2, fontWeight: 600 }}>
+                                        Trao đổi tiến độ định kỳ theo lịch hẹn với GVHD
                                     </div>
                                 </div>
                             </div>
@@ -923,12 +1089,12 @@ export default function StudentDashboardPage() {
                                 <div style={{ fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 8, textTransform: 'uppercase' }}>
                                     Sinh viên phụ trách đề tài:
                                 </div>
-                                <div style={{ padding: '10px 14px', background: '#F8FAFC', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
-                                    <div style={{ fontWeight: 700, fontSize: 13 }}>
+                                <div style={{ padding: '10px 14px', background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10 }}>
+                                    <div style={{ fontWeight: 700, fontSize: 13, color: '#0F172A' }}>
                                         {user?.fullName || 'Sinh viên'} <span className="tag teal" style={{ marginLeft: 6 }}>Chủ nhiệm đề tài</span>
                                     </div>
-                                    <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>
-                                        MSSV: <strong>{user?.code || '21120489'}</strong> · Email: <strong>{user?.email || 'sinhvien@university.edu.vn'}</strong>
+                                    <div style={{ fontSize: 12, color: '#475569', marginTop: 3 }}>
+                                        MSSV: <strong>{user?.code || '---'}</strong> · Email: <strong>{user?.email || '---'}</strong>
                                     </div>
                                 </div>
                             </div>
@@ -938,73 +1104,72 @@ export default function StudentDashboardPage() {
 
                 {/* Right Column: Academic Announcements & Forms Download */}
                 <div>
-                    <div className="card" style={{ marginBottom: 24 }}>
-                        <div className="card-header" style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
-                            <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 13.5 }}>
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                                    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                                </svg>
+                    <div className="sd-panel" style={{ marginBottom: 24 }}>
+                        <div className="sd-panel-header">
+                            <div className="sd-panel-title">
+                                <BellOutlined style={{ color: '#D97706', fontSize: 16 }} />
                                 <span>Thông báo học vụ quan trọng</span>
                             </div>
                         </div>
-                        <div className="card-body" style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                            <div style={{ padding: '10px 12px', background: '#F0FDFA', border: '1px solid #CCFBF1', borderRadius: 'var(--radius-sm)' }}>
-                                <div style={{ fontWeight: 700, fontSize: 12.5, color: '#0F766E' }}>Hạn nộp báo cáo tiến độ đợt 2</div>
-                                <div style={{ fontSize: 11.5, color: '#115E59', marginTop: 2 }}>
-                                    Hệ thống sẽ khóa cổng nộp tự động lúc 23:59 ngày 22/10/2026. Sinh viên kiểm tra đầy đủ liên kết repository.
+                        <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                            <div className="sd-notice-item is-highlight">
+                                <div style={{ fontWeight: 700, fontSize: 12.5, color: '#0F766E' }}>
+                                    Lưu ý mốc thời gian nộp biểu mẫu BM01–BM04
+                                </div>
+                                <div style={{ fontSize: 11.5, color: '#115E59', marginTop: 3 }}>
+                                    Theo dõi sát ngày đến hạn ngay bên dưới từng mốc trên thanh Lộ trình để nộp hồ sơ đúng quy định.
                                 </div>
                             </div>
 
-                            <div style={{ padding: '10px 12px', background: '#F8FAFC', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
-                                <div style={{ fontWeight: 700, fontSize: 12.5, color: 'var(--fg)' }}>Mẫu định dạng Báo cáo toàn văn Đồ án 2026</div>
-                                <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 2 }}>
-                                    Viện đã cập nhật mẫu LaTeX & Word chuẩn bìa cứng mới nhất trên Cổng thông tin học vụ.
+                            <div className="sd-notice-item">
+                                <div style={{ fontWeight: 700, fontSize: 12.5, color: '#0F172A' }}>
+                                    Mẫu định dạng Báo cáo toàn văn Đồ án
+                                </div>
+                                <div style={{ fontSize: 11.5, color: '#475569', marginTop: 3 }}>
+                                    Viện Công nghệ Số cập nhật mẫu quyển báo cáo &amp; biểu mẫu chuẩn tại Cổng thông tin học vụ.
                                 </div>
                             </div>
 
-                            <div style={{ padding: '10px 12px', background: '#F8FAFC', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
-                                <div style={{ fontWeight: 700, fontSize: 12.5, color: 'var(--fg)' }}>Tập huấn kiểm tra liêm chính học thuật Turnitin</div>
-                                <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 2 }}>
-                                    Buổi chia sẻ trực tuyến vào Thứ Bảy, 25/10/2026 qua MS Teams dành cho toàn thể sinh viên làm Đồ án tốt nghiệp.
+                            <div className="sd-notice-item">
+                                <div style={{ fontWeight: 700, fontSize: 12.5, color: '#0F172A' }}>
+                                    Kiểm tra liêm chính học thuật &amp; nộp lưu chiểu
+                                </div>
+                                <div style={{ fontSize: 11.5, color: '#475569', marginTop: 3 }}>
+                                    Sinh viên chuẩn bị đầy đủ file mềm, mã nguồn và báo cáo để hoàn tất hồ sơ lưu chiểu sau bảo vệ.
                                 </div>
                             </div>
                         </div>
                     </div>
 
                     {/* Quick Document Templates Download Card */}
-                    <div className="card">
-                        <div className="card-header" style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)' }}>
-                            <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 13.5 }}>
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                                    <polyline points="7 10 12 15 17 10" />
-                                    <line x1="12" y1="15" x2="12" y2="3" />
-                                </svg>
-                                <span>Tài liệu & Biểu mẫu chuẩn</span>
+                    <div className="sd-panel">
+                        <div className="sd-panel-header">
+                            <div className="sd-panel-title">
+                                <DownloadOutlined style={{ color: '#0F766E', fontSize: 16 }} />
+                                <span>Tài liệu &amp; Biểu mẫu chuẩn</span>
                             </div>
                         </div>
-                        <div className="card-body" style={{ padding: '16px 18px' }}>
-                            <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 10, padding: 0, margin: 0 }}>
-                                <li style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12.5 }}>
-                                    <span>Đề cương nghiên cứu chi tiết (.docx)</span>
+                        <div style={{ padding: '16px 18px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                <div className="sd-template-item">
+                                    <span>Đề cương nghiên cứu chi tiết (BM01)</span>
                                     <Tooltip title="Biểu mẫu chuẩn sẽ được công bố theo thông báo của Nhà trường">
                                         <Button size="small" disabled icon={<DownloadOutlined />}>Tải về</Button>
                                     </Tooltip>
-                                </li>
-                                <li style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12.5 }}>
-                                    <span>Nhật ký &amp; Đánh giá tiến độ (.docx)</span>
+                                </div>
+                                <div className="sd-template-item">
+                                    <span>Nhật ký &amp; Đánh giá tiến độ (BM03)</span>
                                     <Tooltip title="Biểu mẫu chuẩn sẽ được công bố theo thông báo của Nhà trường">
                                         <Button size="small" disabled icon={<DownloadOutlined />}>Tải về</Button>
                                     </Tooltip>
-                                </li>
-                                <li style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12.5 }}>
+                                </div>
+                                <div className="sd-template-item">
                                     <span>Mẫu Slide báo cáo bảo vệ Hội đồng (.pptx)</span>
                                     <Tooltip title="Biểu mẫu chuẩn sẽ được công bố theo thông báo của Nhà trường">
                                         <Button size="small" disabled icon={<DownloadOutlined />}>Tải về</Button>
                                     </Tooltip>
-                                </li>
-                            </ul>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

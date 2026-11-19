@@ -355,13 +355,16 @@ const registerTopic = async (req, res, next) => {
                     },
                 });
 
-                // Tự động thu hồi/dọn dẹp các đề tài do sinh viên này tự đề xuất đang chờ duyệt trong cùng đợt (nếu có)
-                if (tx.topic?.deleteMany) {
-                    await tx.topic.deleteMany({
+                // Chuyển các đề tài do sinh viên này tự đề xuất đang chờ duyệt trong cùng đợt sang trạng thái CANCELLED (lưu lịch sử)
+                if (tx.topic?.updateMany) {
+                    await tx.topic.updateMany({
                         where: {
                             proposedById: studentId,
                             semesterId: semesterIdInt,
                             status: 'PENDING',
+                        },
+                        data: {
+                            status: 'CANCELLED',
                         },
                     });
                 }

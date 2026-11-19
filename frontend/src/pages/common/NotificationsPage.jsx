@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Avatar, Badge, Button, Tabs, message } from 'antd';
 import {
     BellOutlined,
@@ -6,6 +7,8 @@ import {
     DeleteOutlined,
     FileTextOutlined,
     InfoCircleOutlined,
+    ReloadOutlined,
+    RightOutlined,
     SettingOutlined,
     TeamOutlined,
     WarningOutlined,
@@ -25,9 +28,86 @@ const typeIconMap = {
     REGISTRATION: <TeamOutlined className="text-teal-500" />,
     SUBMISSION: <FileTextOutlined className="text-blue-500" />,
     DEFENSE: <FileTextOutlined className="text-blue-500" />,
+    DEFENSE_SCHEDULE_PUBLISHED: <FileTextOutlined className="text-emerald-600" />,
+    DEFENSE_SCHEDULE_ADJUSTED: <WarningOutlined className="text-amber-600" />,
+};
+
+const resolveNotificationTarget = (notification, role) => {
+    const rawRef = typeof notification?.referenceUrl === 'string' ? notification.referenceUrl.trim() : '';
+    if (rawRef.startsWith('/')) {
+        return rawRef;
+    }
+
+    const type = notification?.type;
+    const text = `${notification?.title || ''} ${notification?.content || ''}`.toLowerCase();
+
+    if (role === 'STUDENT') {
+        if (text.includes('đề xuất đề tài')) return '/student/topics';
+        if (text.includes('đề cương') || text.includes('bm01') || text.includes('bm02') || text.includes('bm03') || text.includes('lưu chiểu')) {
+            return '/student/submissions';
+        }
+        if (text.includes('điểm') || text.includes('bảo vệ')) return '/student/grades';
+        switch (type) {
+            case 'REGISTRATION':
+            case 'APPROVAL':
+                return '/student/topics';
+            case 'TASK_REMINDER':
+            case 'SUBMISSION':
+                return '/student/submissions';
+            case 'DEFENSE':
+            case 'DEFENSE_SCHEDULE_PUBLISHED':
+            case 'DEFENSE_SCHEDULE_ADJUSTED':
+                return '/student/grades';
+            default:
+                return '/student/dashboard';
+        }
+    }
+
+    if (role === 'LECTURER') {
+        if (text.includes('đổi tên') || text.includes('bm02-a') || text.includes('bm02a')) {
+            return '/lecturer/title-adjustments';
+        }
+        if (text.includes('đề xuất đề tài')) return '/lecturer/topics';
+        if (text.includes('đề cương') || text.includes('bm01')) return '/lecturer/approvals?tab=outline';
+        if (text.includes('tiến độ') || text.includes('bm03') || text.includes('bm04')) return '/lecturer/progress';
+        switch (type) {
+            case 'REGISTRATION':
+            case 'APPROVAL':
+                return '/lecturer/approvals';
+            case 'TASK_REMINDER':
+            case 'SUBMISSION':
+                return '/lecturer/progress';
+            case 'DEFENSE':
+            case 'DEFENSE_SCHEDULE_PUBLISHED':
+            case 'DEFENSE_SCHEDULE_ADJUSTED':
+                return '/lecturer/grading';
+            default:
+                return '/lecturer/dashboard';
+        }
+    }
+
+    // ADMIN
+    if (text.includes('hội đồng')) return '/admin/defense-councils';
+    if (text.includes('đợt') || text.includes('điều phối')) return '/admin/project-enrollments';
+    switch (type) {
+        case 'REGISTRATION':
+            return '/admin/project-enrollments';
+        case 'APPROVAL':
+            return '/admin/approvals';
+        case 'TASK_REMINDER':
+        case 'SUBMISSION':
+            return '/admin/oversight';
+        case 'DEFENSE':
+        case 'DEFENSE_SCHEDULE_PUBLISHED':
+        case 'DEFENSE_SCHEDULE_ADJUSTED':
+            return '/admin/defense-councils';
+        default:
+            return '/admin/dashboard';
+    }
 };
 
 function NotificationsPage() {
+    const navigate = useNavigate();
     const user = useAuthStore((state) => state.user);
     const scope = queryKeys.scope(user);
     const notificationsQuery = useMyNotifications(scope);
@@ -72,6 +152,16 @@ function NotificationsPage() {
         return notifications;
     }, [activeTab, notifications]);
 
+    const handleNotificationClick = async (notification) => {
+        if (!notification?.isRead) {
+            markAsRead(notification.id);
+        }
+        const target = resolveNotificationTarget(notification, user?.role);
+        if (target) {
+            navigate(target);
+        }
+    };
+
     const tabItems = [
         {
             key: 'all',
@@ -93,9 +183,18 @@ function NotificationsPage() {
                 title="Thông báo"
                 subtitle={`${unreadCount} thông báo chưa đọc`}
                 actions={
-                    <Button icon={<CheckOutlined />} onClick={markAllRead} disabled={unreadCount === 0}>
-                        Đánh dấu tất cả đã đọc
-                    </Button>
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <Button
+                            icon={<ReloadOutlined />}
+                            loading={notificationsQuery.isFetching}
+                            onClick={() => notificationsQuery.refetch()}
+                        >
+                            Làm mới
+                        </Button>
+                        <Button icon={<CheckOutlined />} onClick={markAllRead} disabled={unreadCount === 0}>
+                            Đánh dấu tất cả đã đọc
+                        </Button>
+                    </div>
                 }
             />
 
@@ -117,10 +216,10 @@ function NotificationsPage() {
                         {filteredNotifications.map((notification) => (
                             <div
                                 key={notification.id}
-                                className={`p-5 cursor-pointer transition-colors hover:bg-slate-50 flex gap-4 ${
+                                className={`p-5 cursor-pointer transition-colors hover:bg-slate-50 flex gap-4 items-start ${
                                     notification.isRead ? 'bg-white' : 'bg-blue-50/30'
                                 }`}
-                                onClick={() => markAsRead(notification.id)}
+                                onClick={() => handleNotificationClick(notification)}
                             >
                                 <Avatar
                                     size={44}
@@ -149,6 +248,7 @@ function NotificationsPage() {
                                                 }}
                                                 className="opacity-50 hover:opacity-100"
                                             />
+                                            <RightOutlined className="text-xs text-slate-400" />
                                         </div>
                                     </div>
                                     <p className="text-sm text-slate-600 truncate mb-0">

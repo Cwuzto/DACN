@@ -9,6 +9,7 @@ jest.mock('../../src/config/database', () => ({
         create: jest.fn(),
         findUnique: jest.fn(),
         findFirst: jest.fn(),
+        update: jest.fn(),
         delete: jest.fn(),
     },
     topicRegistration: {
@@ -202,14 +203,14 @@ describe('topicController.deleteTopic', () => {
         jest.clearAllMocks();
     });
 
-    test('allows student to delete own PENDING proposal', async () => {
+    test('allows student to cancel own PENDING proposal and retain it as CANCELLED', async () => {
         prisma.topic.findUnique.mockResolvedValueOnce({
             id: 55,
             proposedById: 20,
             status: 'PENDING',
             _count: { registrations: 0 },
         });
-        prisma.topic.delete.mockResolvedValueOnce({ id: 55 });
+        prisma.topic.update.mockResolvedValueOnce({ id: 55, status: 'CANCELLED' });
 
         const req = createMockReq({
             user: { id: 20, role: 'STUDENT' },
@@ -220,11 +221,15 @@ describe('topicController.deleteTopic', () => {
 
         await topicController.deleteTopic(req, res, next);
 
-        expect(prisma.topic.delete).toHaveBeenCalledWith({ where: { id: 55 } });
+        expect(prisma.topic.update).toHaveBeenCalledWith({
+            where: { id: 55 },
+            data: { status: 'CANCELLED' },
+        });
+        expect(prisma.topic.delete).not.toHaveBeenCalled();
         expect(res.json).toHaveBeenCalledWith(
             expect.objectContaining({
                 success: true,
-                message: 'Xóa đề tài thành công.',
+                message: 'Đã hủy đề xuất đề tài.',
             })
         );
     });

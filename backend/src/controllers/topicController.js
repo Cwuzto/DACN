@@ -12,7 +12,7 @@ const { safeNotifyMany } = require('../services/notificationService');
 const { hasCompletedGraduationProject, STUDENT_RESTRICTION_MESSAGE } = require('../utils/studentAccountRestriction');
 const { getDefaultSemester } = require('../utils/semesterResolver');
 
-const TOPIC_STATUS_VALUES = ['DRAFT', 'PENDING', 'APPROVED', 'REJECTED'];
+const TOPIC_STATUS_VALUES = ['DRAFT', 'PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'];
 const getRequestIp = (req) => req.ip || req.headers['x-forwarded-for'] || null;
 const DEFAULT_PROJECT_CATALOG_CODE = 'DATN';
 
@@ -69,7 +69,7 @@ const getAllTopics = async (req, res, next) => {
             } else {
                 conditions.push({
                     OR: [
-                        { status: { not: 'DRAFT' } },
+                        { status: { notIn: ['DRAFT', 'CANCELLED'] } },
                         { status: 'DRAFT', proposedById: userId },
                     ],
                 });
@@ -500,8 +500,15 @@ const deleteTopic = async (req, res, next) => {
             return res.status(403).json({ success: false, message: 'Bạn chỉ có thể xóa đề tài do mình tạo.' });
         }
 
-        if (role === 'STUDENT' && existing.status !== 'PENDING') {
-            return res.status(400).json({ success: false, message: 'Sinh viên chỉ có thể hủy đề tài khi đang ở trạng thái chờ duyệt.' });
+        if (role === 'STUDENT') {
+            if (existing.status !== 'PENDING') {
+                return res.status(400).json({ success: false, message: 'Sinh viên chỉ có thể hủy đề tài khi đang ở trạng thái chờ duyệt.' });
+            }
+            const cancelled = await prisma.topic.update({
+                where: { id: parseInt(id, 10) },
+                data: { status: 'CANCELLED' },
+            });
+            return res.json({ success: true, message: 'Đã hủy đề xuất đề tài.', data: cancelled });
         }
 
         await prisma.topic.delete({ where: { id: parseInt(id, 10) } });

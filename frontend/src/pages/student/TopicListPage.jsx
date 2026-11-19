@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import {
     Modal,
     Button,
+    Tabs,
     message,
 } from 'antd';
-import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
+import { PlusOutlined, DeleteOutlined, AppstoreOutlined, BulbOutlined, ReloadOutlined } from '@ant-design/icons';
+import dayjs from 'dayjs';
 import { topicService } from '../../services/topicService';
 import registrationService from '../../services/registrationService';
 import { semesterService } from '../../services/semesterService';
@@ -46,6 +48,7 @@ export default function TopicListPage() {
     const [searchText, setSearchText] = useState('');
     const [filterMajor, setFilterMajor] = useState('ALL');
     const [filterStatus, setFilterStatus] = useState('ALL');
+    const [activeTab, setActiveTab] = useState('available');
 
     const [savedIds, setSavedIds] = useState(() => {
         try {
@@ -160,9 +163,9 @@ export default function TopicListPage() {
         }
 
         if (filterStatus === 'AVAILABLE') {
-            result = result.filter((t) => (t._count?.registrations || 0) < 1);
+            result = result.filter((t) => t.status === 'APPROVED' && (t._count?.registrations || 0) < 1);
         } else if (filterStatus === 'FULL') {
-            result = result.filter((t) => (t._count?.registrations || 0) >= 1);
+            result = result.filter((t) => t.status === 'APPROVED' && (t._count?.registrations || 0) >= 1);
         }
 
         if (filterMajor !== 'ALL') {
@@ -185,6 +188,16 @@ export default function TopicListPage() {
 
         return result;
     }, [topics, searchText, filterMajor, filterStatus, filterSavedOnly, savedIds]);
+
+    const availableTopics = useMemo(
+        () => filteredTopics.filter((t) => t.proposedById !== user?.id && t.status === 'APPROVED'),
+        [filteredTopics, user?.id]
+    );
+
+    const myProposedTopics = useMemo(
+        () => filteredTopics.filter((t) => t.proposedById === user?.id),
+        [filteredTopics, user?.id]
+    );
 
     const toggleSave = (id, e) => {
         if (e) e.stopPropagation();
@@ -461,108 +474,178 @@ export default function TopicListPage() {
                         </svg>
                         <span>Đề tài đã lưu ({savedIds.length})</span>
                     </button>
+
+                    <Button
+                        size="small"
+                        icon={<ReloadOutlined />}
+                        loading={topicsQuery.isFetching}
+                        onClick={() => {
+                            topicsQuery.refetch();
+                            regQuery.refetch();
+                        }}
+                    >
+                        Làm mới
+                    </Button>
                 </div>
             </div>
 
-            {/* Topics Grid */}
+            {/* Topics Tabs: Available vs Student Proposals */}
             <QueryPanel query={topicsQuery}>
-                <div className="topic-grid">
-                    {filteredTopics.length === 0 ? (
-                        <div style={{ gridColumn: '1 / -1', padding: '40px 0', textAlign: 'center', color: 'var(--muted)' }}>
-                            Không tìm thấy đề tài nào phù hợp với bộ lọc hiện tại.
-                        </div>
-                    ) : (
-                        filteredTopics.map((topic) => {
-                            const isMine = myRegistration?.topicId === topic.id && myRegistration?.status !== 'REJECTED';
-                            const isMyRejectedTopic = myRegistration?.topicId === topic.id && myRegistration?.status === 'REJECTED';
-                            const isMyProposal = topic.proposedById === user?.id;
-                            const isPendingProposal = isMyProposal && topic.status === 'PENDING';
-                            const isSaved = savedIds.includes(topic.id);
-                            const regCount = topic._count?.registrations || 0;
-                            const isFull = regCount >= 1; // 1 SV / 1 đề tài
+                {(() => {
+                    const renderTopicCard = (topic) => {
+                        const isMine = myRegistration?.topicId === topic.id && myRegistration?.status !== 'REJECTED';
+                        const isMyRejectedTopic = myRegistration?.topicId === topic.id && myRegistration?.status === 'REJECTED';
+                        const isMyProposal = topic.proposedById === user?.id;
+                        const isPendingProposal = isMyProposal && topic.status === 'PENDING';
+                        const isMyRejectedProposal = isMyProposal && topic.status === 'REJECTED';
+                        const isMyCancelledProposal = isMyProposal && topic.status === 'CANCELLED';
+                        const isMyApprovedProposal = isMyProposal && topic.status === 'APPROVED';
+                        const isSaved = savedIds.includes(topic.id);
+                        const regCount = topic._count?.registrations || 0;
+                        const isFull = regCount >= 1; // 1 SV / 1 đề tài
+                        const canRegisterCard = topic.status === 'APPROVED' && !isMine && !isFull && !hasExistingRegistration && !isMyProposal;
 
-                            return (
-                                <div className="topic-card" key={topic.id}>
-                                    <div>
-                                        <div className="topic-card-header">
-                                            <span className={`tag ${topic.projectCatalog?.code === 'DATN' ? 'purple' : 'teal'}`}>
-                                                {topic.projectCatalog
-                                                    ? `${topic.projectCatalog.code} · ${topic.projectCatalog.name}`
-                                                    : (topic.projectCatalog?.name || 'DATN · Đồ án tốt nghiệp')}
+                        return (
+                            <div className="topic-card" key={topic.id}>
+                                <div>
+                                    <div className="topic-card-header">
+                                        <span className={`tag ${topic.projectCatalog?.code === 'DATN' ? 'purple' : 'teal'}`}>
+                                            {topic.projectCatalog
+                                                ? `${topic.projectCatalog.code} · ${topic.projectCatalog.name}`
+                                                : (topic.projectCatalog?.name || 'DATN · Đồ án tốt nghiệp')}
+                                        </span>
+                                        {isMine ? (
+                                            <span className="tag green">Đề tài của bạn</span>
+                                        ) : isMyRejectedProposal ? (
+                                            <span className="tag red" style={{ background: '#FEE2E2', color: '#DC2626', border: '1px solid #FCA5A5' }}>
+                                                Đề xuất bị từ chối
                                             </span>
-                                            {isMine ? (
-                                                <span className="tag green">Đề tài của bạn</span>
-                                            ) : isMyRejectedTopic ? (
-                                                <span className="tag red" style={{ background: '#FEE2E2', color: '#DC2626', border: '1px solid #FCA5A5' }}>
-                                                    Đã bị từ chối
-                                                </span>
-                                            ) : isPendingProposal ? (
-                                                <span className="tag orange" style={{ background: '#FEF3C7', color: '#B45309', border: '1px solid #FCD34D' }}>
-                                                    Đề xuất chờ GVHD duyệt
-                                                </span>
-                                            ) : isFull ? (
-                                                <span className="tag gray">Đã đủ sinh viên</span>
-                                            ) : (
-                                                <span className="tag green">Còn nhận SV (0/1)</span>
-                                            )}
+                                        ) : isMyCancelledProposal ? (
+                                            <span className="tag gray">
+                                                Đã bị hủy
+                                            </span>
+                                        ) : isMyRejectedTopic ? (
+                                            <span className="tag red" style={{ background: '#FEE2E2', color: '#DC2626', border: '1px solid #FCA5A5' }}>
+                                                Đã bị từ chối
+                                            </span>
+                                        ) : isPendingProposal ? (
+                                            <span className="tag orange" style={{ background: '#FEF3C7', color: '#B45309', border: '1px solid #FCD34D' }}>
+                                                Đề xuất chờ GVHD duyệt
+                                            </span>
+                                        ) : isMyApprovedProposal ? (
+                                            <span className="tag green">Đề xuất đã được duyệt</span>
+                                        ) : isFull ? (
+                                            <span className="tag gray">Đã đủ sinh viên</span>
+                                        ) : (
+                                            <span className="tag green">Còn nhận SV (0/1)</span>
+                                        )}
+                                    </div>
+                                    <h3 className="topic-card-title">{topic.title}</h3>
+                                    <p className="topic-card-desc">
+                                        {topic.description || 'Chưa có mô tả chi tiết cho đề tài này.'}
+                                    </p>
+                                    {isMyRejectedProposal && topic.rejectReason && (
+                                        <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 6, background: '#FEF2F2', border: '1px solid #FECACA', color: '#991B1B', fontSize: 12 }}>
+                                            <strong>Lý do từ chối:</strong> {topic.rejectReason}
                                         </div>
-                                        <h3 className="topic-card-title">{topic.title}</h3>
-                                        <p className="topic-card-desc">
-                                            {topic.description || 'Nghiên cứu ứng dụng công nghệ hiện đại, xây dựng kiến trúc hệ thống phân tán và hiện thực giải pháp kiểm thử tự động.'}
-                                        </p>
-                                        <div className="topic-tech-tags">
-                                            <span className="tech-tag">React / Next.js</span>
-                                            <span className="tech-tag">Node.js / Go</span>
-                                            <span className="tech-tag">PostgreSQL</span>
-                                            <span className="tech-tag">Docker</span>
+                                    )}
+                                </div>
+
+                                <div className="topic-card-footer">
+                                    <div className="mentor-chip">
+                                        <div className="mentor-avatar">
+                                            {topic.mentor?.fullName ? topic.mentor.fullName.trim().split(' ').slice(-1)[0][0]?.toUpperCase() : 'GV'}
+                                        </div>
+                                        <div>
+                                            <div className="mentor-name">{topic.mentor?.fullName || 'Chưa phân công'}</div>
+                                            {!isMyProposal && (
+                                                <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+                                                    {isFull ? '1/1 SV (Đủ)' : '0/1 SV (Còn 1)'}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
-
-                                    <div className="topic-card-footer">
-                                        <div className="mentor-chip">
-                                            <div className="mentor-avatar">
-                                                {topic.mentor?.fullName ? topic.mentor.fullName.trim().split(' ').slice(-1)[0][0]?.toUpperCase() : 'GV'}
-                                            </div>
-                                            <div>
-                                                <div className="mentor-name">{topic.mentor?.fullName || 'Chưa phân công'}</div>
-                                                <div style={{ fontSize: 11, color: 'var(--muted)' }}>
-                                                    {isPendingProposal ? 'Đang chờ duyệt' : isFull ? '1/1 SV (Đủ)' : '0/1 SV (Còn 1)'}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div style={{ display: 'flex', gap: 6 }}>
-                                            <button className="btn btn-secondary btn-sm" onClick={() => handleViewDetail(topic.id)}>
-                                                Chi tiết
-                                            </button>
-                                            {isPendingProposal ? (
-                                                <button
-                                                    className="btn btn-secondary btn-sm"
-                                                    style={{ borderColor: '#F87171', color: '#DC2626' }}
-                                                    onClick={() => handleCancelProposal(topic.id)}
-                                                >
-                                                    Hủy đề xuất
-                                                </button>
-                                            ) : !isMine && !isFull && !hasExistingRegistration && (
-                                                <button className="btn btn-primary btn-sm" onClick={() => confirmRegister(topic)}>
-                                                    Đăng ký
-                                                </button>
-                                            )}
+                                    <div style={{ display: 'flex', gap: 6 }}>
+                                        <button className="btn btn-secondary btn-sm" onClick={() => handleViewDetail(topic.id)}>
+                                            Chi tiết
+                                        </button>
+                                        {isPendingProposal ? (
                                             <button
-                                                className={`fav-btn ${isSaved ? 'active' : ''}`}
-                                                onClick={(e) => toggleSave(topic.id, e)}
-                                                title={isSaved ? 'Bỏ lưu' : 'Lưu đề tài'}
+                                                className="btn btn-secondary btn-sm"
+                                                style={{ borderColor: '#F87171', color: '#DC2626' }}
+                                                onClick={() => handleCancelProposal(topic.id)}
                                             >
-                                                <svg width="16" height="16" viewBox="0 0 24 24" fill={isSaved ? '#DC2626' : 'none'} stroke={isSaved ? '#DC2626' : 'currentColor'} strokeWidth="2">
-                                                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-                                                </svg>
+                                                Hủy đề xuất
                                             </button>
-                                        </div>
+                                        ) : canRegisterCard && (
+                                            <button className="btn btn-primary btn-sm" onClick={() => confirmRegister(topic)}>
+                                                Đăng ký
+                                            </button>
+                                        )}
+                                        <button
+                                            className={`fav-btn ${isSaved ? 'active' : ''}`}
+                                            onClick={(e) => toggleSave(topic.id, e)}
+                                            title={isSaved ? 'Bỏ lưu' : 'Lưu đề tài'}
+                                        >
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill={isSaved ? '#DC2626' : 'none'} stroke={isSaved ? '#DC2626' : 'currentColor'} strokeWidth="2">
+                                                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                                            </svg>
+                                        </button>
                                     </div>
                                 </div>
-                            );
-                        })
-                    )}
-                </div>
+                            </div>
+                        );
+                    };
+
+                    return (
+                        <Tabs
+                            activeKey={activeTab}
+                            onChange={setActiveTab}
+                            items={[
+                                {
+                                    key: 'available',
+                                    label: (
+                                        <span className="flex items-center gap-1.5 font-semibold">
+                                            <AppstoreOutlined />
+                                            <span>Đề tài có sẵn ({availableTopics.length})</span>
+                                        </span>
+                                    ),
+                                    children: (
+                                        <div className="topic-grid">
+                                            {availableTopics.length === 0 ? (
+                                                <div style={{ gridColumn: '1 / -1', padding: '40px 0', textAlign: 'center', color: 'var(--muted)' }}>
+                                                    Không tìm thấy đề tài có sẵn nào phù hợp với bộ lọc hiện tại.
+                                                </div>
+                                            ) : (
+                                                availableTopics.map(renderTopicCard)
+                                            )}
+                                        </div>
+                                    ),
+                                },
+                                {
+                                    key: 'my-proposals',
+                                    label: (
+                                        <span className="flex items-center gap-1.5 font-semibold">
+                                            <BulbOutlined />
+                                            <span>Đề tài tôi đề xuất ({myProposedTopics.length})</span>
+                                        </span>
+                                    ),
+                                    children: (
+                                        <div className="topic-grid">
+                                            {myProposedTopics.length === 0 ? (
+                                                <div style={{ gridColumn: '1 / -1', padding: '40px 0', textAlign: 'center', color: 'var(--muted)' }}>
+                                                    <div>Bạn chưa có đề tài tự đề xuất nào trong bộ lọc hiện tại.</div>
+                                                </div>
+                                            ) : (
+                                                myProposedTopics.map(renderTopicCard)
+                                            )}
+                                        </div>
+                                    ),
+                                },
+                            ]}
+                        />
+                    );
+                })()}
             </QueryPanel>
 
             {/* DETAIL MODAL */}
@@ -608,11 +691,96 @@ export default function TopicListPage() {
                             <span className="topic-code-pill">MÃ: {detailTopic.code || 'DA-KTPM'}</span>
                             <span className="tag teal" style={{ marginLeft: 8 }}>{detailTopic.projectCatalog?.name || 'Đồ án tốt nghiệp'}</span>
                             {detailTopic.proposedById === user?.id && (
-                                <span className="tag orange" style={{ marginLeft: 8, background: '#FEF3C7', color: '#B45309', border: '1px solid #FCD34D' }}>
-                                    {detailTopic.status === 'PENDING' ? 'Đề xuất chờ GVHD duyệt' : detailTopic.status === 'APPROVED' ? 'Đề xuất đã được duyệt' : 'Đề xuất bị từ chối'}
+                                <span
+                                    className="tag orange"
+                                    style={{
+                                        marginLeft: 8,
+                                        background: detailTopic.status === 'REJECTED'
+                                            ? '#FEE2E2'
+                                            : detailTopic.status === 'CANCELLED'
+                                              ? '#F1F5F9'
+                                              : detailTopic.status === 'APPROVED'
+                                                ? '#DCFCE7'
+                                                : '#FEF3C7',
+                                        color: detailTopic.status === 'REJECTED'
+                                            ? '#DC2626'
+                                            : detailTopic.status === 'CANCELLED'
+                                              ? '#475569'
+                                              : detailTopic.status === 'APPROVED'
+                                                ? '#15803D'
+                                                : '#B45309',
+                                        border: `1px solid ${
+                                            detailTopic.status === 'REJECTED'
+                                                ? '#FCA5A5'
+                                                : detailTopic.status === 'CANCELLED'
+                                                  ? '#CBD5E1'
+                                                  : detailTopic.status === 'APPROVED'
+                                                    ? '#86EFAC'
+                                                    : '#FCD34D'
+                                        }`,
+                                    }}
+                                >
+                                    {detailTopic.status === 'PENDING'
+                                        ? 'Đề xuất chờ GVHD duyệt'
+                                        : detailTopic.status === 'APPROVED'
+                                          ? 'Đề xuất đã được duyệt'
+                                          : detailTopic.status === 'CANCELLED'
+                                            ? 'Đề xuất đã bị hủy'
+                                            : 'Đề xuất bị từ chối'}
                                 </span>
                             )}
                         </div>
+                        {detailTopic.proposedById === user?.id && (
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    flexWrap: 'wrap',
+                                    gap: '8px 20px',
+                                    padding: '10px 14px',
+                                    borderRadius: 8,
+                                    background: '#F8FAFC',
+                                    border: '1px solid var(--border)',
+                                    fontSize: 12.5,
+                                    color: 'var(--muted)',
+                                }}
+                            >
+                                <span>
+                                    Ngày giờ đề xuất:{' '}
+                                    <strong style={{ color: 'var(--fg)' }}>
+                                        {detailTopic.createdAt ? dayjs(detailTopic.createdAt).format('DD/MM/YYYY HH:mm') : '—'}
+                                    </strong>
+                                </span>
+                                {detailTopic.status === 'CANCELLED' && (
+                                    <span>
+                                        Ngày giờ hủy:{' '}
+                                        <strong style={{ color: '#475569' }}>
+                                            {detailTopic.updatedAt ? dayjs(detailTopic.updatedAt).format('DD/MM/YYYY HH:mm') : '—'}
+                                        </strong>
+                                    </span>
+                                )}
+                                {detailTopic.status === 'REJECTED' && (
+                                    <span>
+                                        Ngày giờ bị từ chối:{' '}
+                                        <strong style={{ color: '#DC2626' }}>
+                                            {detailTopic.updatedAt ? dayjs(detailTopic.updatedAt).format('DD/MM/YYYY HH:mm') : '—'}
+                                        </strong>
+                                    </span>
+                                )}
+                                {detailTopic.status === 'APPROVED' && (
+                                    <span>
+                                        Ngày giờ được duyệt:{' '}
+                                        <strong style={{ color: '#15803D' }}>
+                                            {detailTopic.updatedAt ? dayjs(detailTopic.updatedAt).format('DD/MM/YYYY HH:mm') : '—'}
+                                        </strong>
+                                    </span>
+                                )}
+                            </div>
+                        )}
+                        {detailTopic.status === 'REJECTED' && detailTopic.rejectReason && (
+                            <div style={{ padding: '10px 14px', borderRadius: 8, background: '#FEF2F2', border: '1px solid #FECACA', color: '#991B1B', fontSize: 13 }}>
+                                <strong>Lý do từ chối:</strong> {detailTopic.rejectReason}
+                            </div>
+                        )}
                         <div>
                             <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--muted)', textTransform: 'uppercase' }}>Giảng viên hướng dẫn:</div>
                             <div style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--fg)', marginTop: 2 }}>{detailTopic.mentor?.fullName || 'Chưa phân công'}</div>
@@ -625,13 +793,19 @@ export default function TopicListPage() {
                             </p>
                         </div>
                         <div>
-                            <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--muted)', textTransform: 'uppercase' }}>Yêu cầu công nghệ & Sản phẩm bàn giao:</div>
+                            <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--muted)', textTransform: 'uppercase' }}>Yêu cầu công nghệ &amp; Sản phẩm bàn giao:</div>
                             <div style={{ background: '#F8FAFC', padding: '12px 14px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 13, marginTop: 4 }}>
-                                <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                    <li>Mã nguồn hoàn chỉnh trên Git có tài liệu hướng dẫn cài đặt.</li>
-                                    <li>Quyển báo cáo tốt nghiệp chuẩn định dạng Viện (ít nhất 60 trang).</li>
-                                    <li>Sản phẩm ứng dụng chạy demo thực tế.</li>
-                                </ul>
+                                {detailTopic.requirements?.trim() ? (
+                                    <div style={{ whiteSpace: 'pre-line', lineHeight: 1.6, color: 'var(--fg)' }}>
+                                        {detailTopic.requirements.trim()}
+                                    </div>
+                                ) : (
+                                    <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                        <li>Mã nguồn hoàn chỉnh trên Git có tài liệu hướng dẫn cài đặt.</li>
+                                        <li>Quyển báo cáo tốt nghiệp chuẩn định dạng Viện (ít nhất 60 trang).</li>
+                                        <li>Sản phẩm ứng dụng chạy demo thực tế.</li>
+                                    </ul>
+                                )}
                             </div>
                         </div>
                     </div>

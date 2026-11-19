@@ -420,14 +420,12 @@ export default function LecturerDashboardPage() {
 
                     {/* 4. Tác vụ phụ sau nội dung chính */}
                     <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-200">
-                        <span className="text-xs text-slate-500">
-                            Thao tác nhanh cho nhóm sinh viên đang hướng dẫn
-                        </span>
+                        
                         <div className="flex flex-wrap items-center gap-2">
                             <Button
                                 icon={<BellOutlined />}
                                 onClick={() => setBroadcastModalOpen(true)}
-                                disabled={students.length === 0}
+                                disabled={students.filter((s) => s.status !== 'PENDING' && !['TERMINATED_BM01', 'TERMINATED_BM02', 'TERMINATED_BM04', 'TERMINATED_FAILED_PROGRESS', 'AUTO_TERMINATED', 'DEFENSE_FAILED'].includes(s.status)).length === 0}
                             >
                                 Gửi thông báo nhóm
                             </Button>
@@ -600,7 +598,7 @@ export default function LecturerDashboardPage() {
                                 />
                             </div>
                             <div className="text-xs text-slate-500">
-                                Thông báo sẽ được chuyển đến {students.length} sinh viên trong danh sách hướng dẫn.
+                                Thông báo sẽ được chuyển đến {students.filter((s) => s.status !== 'PENDING' && !['TERMINATED_BM01', 'TERMINATED_BM02', 'TERMINATED_BM04', 'TERMINATED_FAILED_PROGRESS', 'AUTO_TERMINATED', 'DEFENSE_FAILED'].includes(s.status)).length} sinh viên đã được duyệt hướng dẫn trong danh sách.
                             </div>
                         </div>
                         <div className="modal-foot">

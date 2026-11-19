@@ -32,7 +32,6 @@ import {
     WarningOutlined,
     CheckCircleOutlined,
 } from '@ant-design/icons';
-import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
 
 const EMPTY_LIST = [];
@@ -349,43 +348,20 @@ export function LecturerAssignmentTab({
         {
             title: 'Tải đỉnh đồng thời',
             key: 'peakConcurrentLoad',
-            width: 150,
+            width: 130,
             align: 'center',
             render: (_, row) => {
                 const peak = row.peakConcurrentLoad || 0;
                 let color = 'green';
-                let label = 'An toàn';
                 if (peak >= 10) {
                     color = 'red';
-                    label = 'Trần 10/10';
                 } else if (peak >= 8) {
                     color = 'gold';
-                    label = 'Cận tải';
                 }
                 return (
                     <Tag color={color} className="font-bold text-xs">
-                        {peak} / 10 ({label})
+                        {peak} / 10
                     </Tag>
-                );
-            },
-        },
-        {
-            title: 'Khoảng đạt đỉnh',
-            key: 'peakInterval',
-            width: 140,
-            align: 'center',
-            render: (_, row) => {
-                if (!row.peakInterval || !row.peakInterval.start) {
-                    return <span className="text-slate-400 text-xs">—</span>;
-                }
-                const startStr = dayjs(row.peakInterval.start).format('DD/MM');
-                const endStr = dayjs(row.peakInterval.end).format('DD/MM/YYYY');
-                return (
-                    <Tooltip title={`Thời điểm giao thoa đạt tải đỉnh: ${startStr} đến ${endStr}`}>
-                        <span className="text-[11px] text-slate-600 font-mono bg-slate-50 px-2 py-0.5 rounded border border-slate-200">
-                            {startStr} - {endStr}
-                        </span>
-                    </Tooltip>
                 );
             },
         },
@@ -405,7 +381,7 @@ export function LecturerAssignmentTab({
             },
         },
         {
-            title: 'Thao tác',
+            title: 'Hành động',
             key: 'actions',
             width: 100,
             align: 'center',
@@ -421,14 +397,15 @@ export function LecturerAssignmentTab({
                         />
                     </Tooltip>
                     <Popconfirm
-                        title="Xóa hoặc đóng phân công?"
-                        description="Nếu GV đang có SV làm đề tài, phân công sẽ được chuyển sang Đã đóng."
+                        title="Gỡ giảng viên này khỏi đợt đồ án?"
+                        description="Nếu giảng viên đang có sinh viên thực hiện, phân công sẽ được chuyển sang Đã đóng."
                         onConfirm={() => handleDeleteAssignment(row)}
-                        okText="Đồng ý"
+                        okText="Gỡ"
                         cancelText="Hủy"
+                        okButtonProps={{ danger: true }}
                         disabled={!canManage}
                     >
-                        <Tooltip title={canManage ? 'Xóa/Đóng phân công' : 'Chỉ có quyền xem'}>
+                        <Tooltip title={canManage ? 'Gỡ khỏi đợt đồ án' : 'Chỉ có quyền xem'}>
                             <Button
                                 type="text"
                                 danger
