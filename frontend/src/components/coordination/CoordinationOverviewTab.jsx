@@ -14,6 +14,7 @@ import {
     ReloadOutlined,
     ArrowRightOutlined,
     AuditOutlined,
+    PlusOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
@@ -150,14 +151,26 @@ export function CoordinationOverviewTab({
                             <UserOutlined className="text-teal-600" />
                             Giảng viên & Chỉ tiêu
                         </span>
-                        <Button
-                            type="link"
-                            size="small"
-                            className="text-xs p-0 text-teal-700 font-semibold"
-                            onClick={() => onNavigateTab && onNavigateTab('lecturers')}
-                        >
-                            Chi tiết <ArrowRightOutlined />
-                        </Button>
+                        <div className="flex items-center gap-2">
+                            <Button
+                                type="link"
+                                size="small"
+                                className="text-xs p-0 text-teal-700 font-semibold"
+                                icon={<PlusOutlined />}
+                                onClick={() => onNavigateTab && onNavigateTab('lecturers')}
+                            >
+                                Gán GV
+                            </Button>
+                            <span className="text-slate-300">|</span>
+                            <Button
+                                type="link"
+                                size="small"
+                                className="text-xs p-0 text-teal-700 font-semibold"
+                                onClick={() => onNavigateTab && onNavigateTab('lecturers')}
+                            >
+                                Chi tiết <ArrowRightOutlined />
+                            </Button>
+                        </div>
                     </div>
                     <div className="flex items-baseline gap-2">
                         <span className="text-3xl font-black text-slate-900">{totalAssignedLecturers}</span>

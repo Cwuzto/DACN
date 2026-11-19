@@ -160,11 +160,11 @@ export const FEATURE_POLICIES = Object.freeze({
             'PROJECT_ASSIGNMENT_PUBLISH',
         ],
         actions: {
-            assignMentor: 'MENTOR_ASSIGN',
-            adjustMentor: 'MENTOR_ASSIGNMENT_ADJUST',
+            assignMentor: ['MENTOR_ASSIGN', 'PERMISSION_ASSIGN_ACADEMIC', 'ENROLLMENT_MANAGE'],
+            adjustMentor: ['MENTOR_ASSIGNMENT_ADJUST', 'PERMISSION_ASSIGN_ACADEMIC', 'ENROLLMENT_MANAGE'],
             manageEnrollment: 'ENROLLMENT_MANAGE',
             assignAcademic: 'PERMISSION_ASSIGN_ACADEMIC',
-            publishAssignment: 'PROJECT_ASSIGNMENT_PUBLISH',
+            publishAssignment: ['PROJECT_ASSIGNMENT_PUBLISH', 'SEMESTER_MANAGE'],
         },
     },
     'all-topics': {

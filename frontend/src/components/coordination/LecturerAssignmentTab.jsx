@@ -567,6 +567,10 @@ export function LecturerAssignmentTab({
                                 type="primary"
                                 icon={<PlusOutlined />}
                                 onClick={() => {
+                                    if (!semesterId) {
+                                        message.warning('Vui lòng chọn đợt đồ án ở thanh bộ lọc trước khi gán giảng viên.');
+                                        return;
+                                    }
                                     const targetCatId = projectCatalogId ? Number(projectCatalogId) : catalogs[0]?.id;
                                     createForm.resetFields();
                                     createForm.setFieldsValue({
@@ -579,7 +583,7 @@ export function LecturerAssignmentTab({
                                     setCreateModalOpen(true);
                                 }}
                             >
-                                Phân công Giảng viên
+                                Gán giảng viên vào đợt
                             </Button>
                             <Upload
                                 beforeUpload={handleFileUpload}

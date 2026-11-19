@@ -1,5 +1,6 @@
 import { useSemesters } from '../../queries/semesterQueries';
 import { useProjectCatalogs, useEnrollments, useEnrollmentAudit, useEnrollmentMutation, useAvailableStudents } from '../../queries/enrollmentQueries';
+import { useLecturerAssignments } from '../../queries/lecturerAssignmentQueries';
 import { queryKeys } from '../../query/queryKeys';
 import QueryPanel from '../../components/common/QueryPanel';
 import { useEffect, useMemo, useState } from 'react';
@@ -143,6 +144,12 @@ export function ProjectEnrollmentPage() {
     const auditLoading = auditQuery.isFetching;
     const fetchAudit = () => auditQuery.refetch();
     const enrollmentMutation = useEnrollmentMutation(scope, filterSemesterId);
+    const lecturerAssignmentsQuery = useLecturerAssignments(
+        scope,
+        { semesterId: filterSemesterId, projectCatalogId: filterCatalogId || undefined },
+        canAccessLecturers && Boolean(filterSemesterId)
+    );
+    const assignedLecturersCount = lecturerAssignmentsQuery.data?.length ?? 0;
     useEffect(() => {
         if (filterSemesterId || !semesters.length) return;
         const matched = roundId ? semesters.find(s => s.id === Number(roundId)) : semesters.find(s => ['REGISTRATION', 'ONGOING', 'DEFENSE'].includes(s.status));
@@ -569,7 +576,7 @@ export function ProjectEnrollmentPage() {
             key: 'lecturers',
             label: (
                 <span className="flex items-center gap-1.5 font-semibold text-sm">
-                    <UserOutlined /> Giảng viên hướng dẫn
+                    <UserOutlined /> Giảng viên hướng dẫn ({lecturerAssignmentsQuery.data ? assignedLecturersCount : '—'})
                 </span>
             ),
             children: (
