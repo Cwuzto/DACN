@@ -34,6 +34,9 @@ describe('lecturerOverviewService', () => {
         topicTitleAdjustment: {
             findMany: jest.fn().mockResolvedValue([]),
         },
+        notification: {
+            findMany: jest.fn().mockResolvedValue([]),
+        },
     });
 
     describe('resolveLecturerSemester', () => {
@@ -72,6 +75,13 @@ describe('lecturerOverviewService', () => {
                 db,
             });
             expect(result).toEqual(sem);
+            expect(db.semester.findUnique).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    select: expect.objectContaining({
+                        outlineSubmissionDeadline: true,
+                    }),
+                })
+            );
         });
     });
 
@@ -250,6 +260,154 @@ describe('lecturerOverviewService', () => {
             expect(result.attentionItems.filter((i) => i.kind === 'TITLE_ADJUSTMENT_PENDING')).toHaveLength(0);
             expect(result.students[0].bm02aRequestId).toBeNull();
             expect(result.students[0].allowedActions).not.toContain('REVIEW_TITLE_ADJUSTMENT');
+        });
+
+        it('populates watchItems only for APPROVED registrations without BM01, computes deadlineState without fake dates, and batch-queries lastReminderAt', async () => {
+            const db = makeMockDb();
+            const deadline = new Date('2026-11-18T10:00:00.000Z'); // fixedNow is 2026-11-17T10:00:00Z -> ON_TRACK
+            db.semester.findUnique.mockResolvedValue({
+                id: 10,
+                outlineSubmissionDeadline: deadline,
+            });
+
+            db.topicRegistration.findMany.mockResolvedValue([
+                {
+                    id: 101,
+                    semesterId: 10,
+                    status: 'APPROVED',
+                    createdAt: new Date('2026-11-10T08:00:00.000Z'),
+                    studentId: 1001,
+                    student: { id: 1001, fullName: 'Nguyễn Văn A', code: 'SV001' },
+                    topic: { id: 501, title: 'Đề tài A', mentorId: 77 },
+                    tasks: [],
+                    bm01Evaluations: [],
+                },
+                {
+                    id: 102,
+                    semesterId: 10,
+                    status: 'APPROVED',
+                    createdAt: new Date('2026-11-11T08:00:00.000Z'),
+                    studentId: 1002,
+                    student: { id: 1002, fullName: 'Trần Thị B', code: 'SV002' },
+                    topic: { id: 502, title: 'Đề tài B', mentorId: 77 },
+                    tasks: [],
+                    bm01Evaluations: [],
+                },
+                {
+                    id: 103,
+                    semesterId: 10,
+                    status: 'BM01_SUBMITTED',
+                    createdAt: new Date('2026-11-12T08:00:00.000Z'),
+                    studentId: 1003,
+                    student: { id: 1003, fullName: 'Lê Văn C', code: 'SV003' },
+                    topic: { id: 503, title: 'Đề tài C', mentorId: 77 },
+                    tasks: [],
+                    bm01Evaluations: [],
+                },
+                {
+                    id: 104,
+                    semesterId: 10,
+                    status: 'PENDING',
+                    createdAt: new Date('2026-11-13T08:00:00.000Z'),
+                    studentId: 1004,
+                    student: { id: 1004, fullName: 'Phạm Thị D', code: 'SV004' },
+                    topic: { id: 504, title: 'Đề tài D', mentorId: 77 },
+                    tasks: [],
+                    bm01Evaluations: [],
+                },
+            ]);
+
+            db.notification.findMany.mockResolvedValue([
+                {
+                    id: 1,
+                    userId: 1001,
+                    dedupeKey: 'bm01:BEFORE_48H:101:2026-11-18T10:00:00.000Z',
+                    createdAt: new Date('2026-11-16T10:00:00.000Z'),
+                },
+                {
+                    id: 2,
+                    userId: 1001,
+                    dedupeKey: 'bm01:OVERDUE:101:2026-11-18T10:00:00.000Z',
+                    createdAt: new Date('2026-11-17T09:00:00.000Z'),
+                },
+            ]);
+
+            const result = await buildMentorOverview({
+                actorId: 77,
+                semesterId: 10,
+                now: fixedNow,
+                db,
+            });
+
+            expect(result.watchItems.map((x) => x.registrationId)).toEqual([101, 102]);
+            expect(result.watchItems[0]).toEqual({
+                kind: 'BM01_NOT_SUBMITTED',
+                registrationId: 101,
+                studentId: 1001,
+                studentName: 'Nguyễn Văn A',
+                studentCode: 'SV001',
+                topicTitle: 'Đề tài A',
+                dueAt: deadline,
+                deadlineState: 'ON_TRACK',
+                lastReminderAt: new Date('2026-11-17T09:00:00.000Z'),
+                target: '/lecturer/students/101',
+            });
+            expect(result.watchItems[1]).toMatchObject({
+                registrationId: 102,
+                deadlineState: 'ON_TRACK',
+                lastReminderAt: null,
+                target: '/lecturer/students/102',
+            });
+
+            // BM01_SUBMITTED moves to attentionItems once, and BM01_NOT_SUBMITTED is never in attentionItems
+            expect(result.attentionItems.filter((x) => x.registrationId === 103 && x.kind === 'BM01_REVIEW_PENDING')).toHaveLength(1);
+            expect(result.attentionItems.filter((x) => x.kind === 'BM01_NOT_SUBMITTED')).toHaveLength(0);
+
+            // Batch query only once for all watchItems (no N+1)
+            expect(db.notification.findMany).toHaveBeenCalledTimes(1);
+        });
+
+        it('sets dueAt=null and deadlineState=NO_DEADLINE when outlineSubmissionDeadline is null, and OVERDUE when now >= dueAt', async () => {
+            const db = makeMockDb();
+            db.topicRegistration.findMany.mockResolvedValue([
+                {
+                    id: 201,
+                    semesterId: 10,
+                    status: 'APPROVED',
+                    createdAt: new Date('2026-11-10T08:00:00.000Z'),
+                    studentId: 2001,
+                    student: { id: 2001, fullName: 'SV Null', code: 'SV201' },
+                    topic: { id: 601, title: 'Đề tài Null', mentorId: 77 },
+                    tasks: [],
+                },
+            ]);
+
+            db.semester.findUnique.mockResolvedValueOnce({
+                id: 10,
+                outlineSubmissionDeadline: null,
+            });
+            const noDeadlineResult = await buildMentorOverview({
+                actorId: 77,
+                semesterId: 10,
+                now: fixedNow,
+                db,
+            });
+            expect(noDeadlineResult.watchItems[0].dueAt).toBeNull();
+            expect(noDeadlineResult.watchItems[0].deadlineState).toBe('NO_DEADLINE');
+
+            const pastDeadline = new Date('2026-11-17T10:00:00.000Z'); // equal to fixedNow -> OVERDUE
+            db.semester.findUnique.mockResolvedValueOnce({
+                id: 10,
+                outlineSubmissionDeadline: pastDeadline,
+            });
+            const overdueResult = await buildMentorOverview({
+                actorId: 77,
+                semesterId: 10,
+                now: fixedNow,
+                db,
+            });
+            expect(overdueResult.watchItems[0].dueAt).toEqual(pastDeadline);
+            expect(overdueResult.watchItems[0].deadlineState).toBe('OVERDUE');
         });
     });
 });

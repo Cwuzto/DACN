@@ -12,6 +12,7 @@ const SEMESTER_SELECT = {
     status: true,
     startDate: true,
     registrationDeadline: true,
+    outlineSubmissionDeadline: true,
     endDate: true,
 };
 
@@ -28,6 +29,19 @@ const computePriority = (dueAt, now = new Date()) => {
     if (diffMs < 0) return 'OVERDUE';
     if (diffMs <= DUE_SOON_HOURS * 60 * 60 * 1000) return 'DUE_SOON';
     return 'NORMAL';
+};
+
+const computeBm01DeadlineState = (dueAt, now = new Date()) => {
+    if (!dueAt) return 'NO_DEADLINE';
+    return now.getTime() >= new Date(dueAt).getTime() ? 'OVERDUE' : 'ON_TRACK';
+};
+
+const extractBm01RegistrationId = (dedupeKey) => {
+    if (!dedupeKey || typeof dedupeKey !== 'string') return null;
+    const parts = dedupeKey.split(':');
+    if (parts[0] !== 'bm01' || parts.length < 3) return null;
+    const regId = Number.parseInt(parts[2], 10);
+    return Number.isInteger(regId) && regId > 0 ? regId : null;
 };
 
 /**
@@ -121,7 +135,7 @@ async function resolveLecturerSemester({ actorId, requestedSemesterId, db = pris
 /**
  * Tổng hợp số liệu, hàng đợi việc cần xử lý và danh sách sinh viên của GVHD trong một học kỳ.
  */
-async function buildMentorOverview({ actorId, semesterId, now = new Date(), db = prisma }) {
+async function buildMentorOverview({ actorId, semesterId, semester = null, now = new Date(), db = prisma }) {
     if (!semesterId || !actorId) {
         return {
             mentorSummary: {
@@ -132,6 +146,7 @@ async function buildMentorOverview({ actorId, semesterId, now = new Date(), db =
                 upcomingDeadlineCount: 0,
             },
             attentionItems: [],
+            watchItems: [],
             students: [],
         };
     }
@@ -142,6 +157,7 @@ async function buildMentorOverview({ actorId, semesterId, now = new Date(), db =
         pendingFeedbackPreview,
         pendingBm02aRequests,
         upcomingDeadlineCount,
+        resolvedSemester,
     ] = await Promise.all([
         db.topicRegistration.findMany({
             where: {
@@ -156,6 +172,10 @@ async function buildMentorOverview({ actorId, semesterId, now = new Date(), db =
                     where: { status: { not: 'COMPLETED' } },
                     orderBy: { dueDate: 'asc' },
                     take: 3,
+                },
+                bm01Evaluations: {
+                    select: { id: true, submissionId: true },
+                    take: 1,
                 },
             },
             orderBy: { createdAt: 'asc' },
@@ -228,6 +248,14 @@ async function buildMentorOverview({ actorId, semesterId, now = new Date(), db =
                 },
             },
         }),
+        semester
+            ? Promise.resolve(semester)
+            : (typeof db.semester?.findUnique === 'function'
+                ? db.semester.findUnique({
+                    where: { id: semesterId },
+                    select: { id: true, outlineSubmissionDeadline: true },
+                })
+                : Promise.resolve(null)),
     ]);
 
     const regList = Array.isArray(registrations) ? registrations : [];
@@ -348,6 +376,60 @@ async function buildMentorOverview({ actorId, semesterId, now = new Date(), db =
         };
     });
 
+    const watchRegs = regList.filter(
+        (reg) =>
+            reg.status === 'APPROVED' &&
+            !(Array.isArray(reg.bm01Evaluations) && reg.bm01Evaluations.some((e) => Boolean(e?.submissionId || e?.id)))
+    );
+
+    let reminderNotifications = [];
+    if (watchRegs.length > 0 && typeof db.notification?.findMany === 'function') {
+        const watchStudentIds = Array.from(
+            new Set(watchRegs.map((reg) => reg.studentId).filter((id) => Number.isInteger(id)))
+        );
+        reminderNotifications = await db.notification.findMany({
+            where: {
+                dedupeKey: { startsWith: 'bm01:' },
+                ...(watchStudentIds.length > 0 ? { userId: { in: watchStudentIds } } : {}),
+            },
+            select: {
+                id: true,
+                userId: true,
+                dedupeKey: true,
+                createdAt: true,
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+    }
+
+    const lastReminderAtByRegId = new Map();
+    for (const notif of Array.isArray(reminderNotifications) ? reminderNotifications : []) {
+        const regId = extractBm01RegistrationId(notif?.dedupeKey);
+        if (!regId || !notif?.createdAt) continue;
+        const notifTime = new Date(notif.createdAt).getTime();
+        if (Number.isNaN(notifTime)) continue;
+        const existing = lastReminderAtByRegId.get(regId);
+        if (!existing || notifTime > new Date(existing).getTime()) {
+            lastReminderAtByRegId.set(regId, notif.createdAt);
+        }
+    }
+
+    const bm01DueAt = resolvedSemester?.outlineSubmissionDeadline || null;
+    const bm01DeadlineState = computeBm01DeadlineState(bm01DueAt, now);
+
+    const watchItems = watchRegs.map((reg) => ({
+        kind: 'BM01_NOT_SUBMITTED',
+        registrationId: reg.id,
+        studentId: reg.studentId,
+        studentName: reg.student?.fullName || '',
+        studentCode: reg.student?.code || '',
+        topicTitle: reg.adjustedTitle || reg.topic?.title || '',
+        dueAt: bm01DueAt,
+        deadlineState: bm01DeadlineState,
+        lastReminderAt: lastReminderAtByRegId.get(reg.id) || null,
+        target: `/lecturer/students/${reg.id}`,
+    }));
+
     const realPendingFeedback = Number.isInteger(pendingFeedbackCount) ? pendingFeedbackCount : previewSubs.length;
     const actionableCount = realPendingFeedback + pendingRegCount + bm01PendingCount + bm02aRequests.length;
 
@@ -360,6 +442,7 @@ async function buildMentorOverview({ actorId, semesterId, now = new Date(), db =
             upcomingDeadlineCount: Number.isInteger(upcomingDeadlineCount) ? upcomingDeadlineCount : 0,
         },
         attentionItems,
+        watchItems,
         students,
     };
 }
@@ -367,12 +450,12 @@ async function buildMentorOverview({ actorId, semesterId, now = new Date(), db =
 /**
  * Hợp nhất dữ liệu GVHD và hàng đợi Viện trưởng có kiểm tra quyền + scope.
  */
-async function buildUnifiedLecturerOverview({ actor, semesterId, now = new Date(), db = prisma }) {
+async function buildUnifiedLecturerOverview({ actor, semesterId, semester = null, now = new Date(), db = prisma }) {
     const { buildInstituteAttention, sortAndDedupeAttentionItems } = require('./instituteAttentionSource');
     const actorId = actor?.id;
 
     const [mentorOverview, instituteItems] = await Promise.all([
-        buildMentorOverview({ actorId, semesterId, now, db }),
+        buildMentorOverview({ actorId, semesterId, semester, now, db }),
         buildInstituteAttention({ actor, semesterId, now, db }),
     ]);
 
@@ -389,6 +472,7 @@ async function buildUnifiedLecturerOverview({ actor, semesterId, now = new Date(
             actionableCount: mentorOverview.mentorSummary.actionableCount + instituteActionableCount,
         },
         attentionItems: mergedAttention,
+        watchItems: mentorOverview.watchItems || [],
         students: mentorOverview.students,
     };
 }

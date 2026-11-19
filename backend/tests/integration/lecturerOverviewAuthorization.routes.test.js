@@ -30,6 +30,7 @@ describe('Integration - Lecturer Unified Overview Authorization', () => {
         status: 'ONGOING',
         startDate: new Date('2026-09-01T00:00:00.000Z'),
         registrationDeadline: new Date('2026-09-15T00:00:00.000Z'),
+        outlineSubmissionDeadline: new Date('2026-11-25T10:00:00.000Z'),
         endDate: new Date('2027-01-15T00:00:00.000Z'),
     };
 
@@ -62,6 +63,7 @@ describe('Integration - Lecturer Unified Overview Authorization', () => {
                 permissionGroup: {
                     code: 'VIEN_TRUONG',
                     permissions: [
+                        { permission: { code: 'VIEW_MY_TOPICS' } },
                         { permission: { code: 'REPORT_VIEW' } },
                         { permission: { code: 'BM02_REVIEW' } },
                         { permission: { code: 'DEFENSE_COUNCIL_MANAGE' } },
@@ -145,7 +147,7 @@ describe('Integration - Lecturer Unified Overview Authorization', () => {
         prisma.user.findUnique.mockResolvedValue({
             ...directorUser,
             permissionGroups: [
-                { permissionGroup: { code: 'GVHD', permissions: [{ permission: { code: 'REPORT_VIEW' } }] } },
+                { permissionGroup: { code: 'GVHD', permissions: [{ permission: { code: 'VIEW_MY_TOPICS' } }, { permission: { code: 'REPORT_VIEW' } }] } },
             ],
         });
 
@@ -155,6 +157,47 @@ describe('Integration - Lecturer Unified Overview Authorization', () => {
 
         expect(res.status).toBe(200);
         expect(res.body.data.attentionItems.filter((i) => i.source === 'INSTITUTE_DIRECTOR')).toHaveLength(0);
+    });
+
+    test('GVHD receives watchItems for own APPROVED student without BM01, scoped to mentorId', async () => {
+        prisma.user.findUnique.mockResolvedValue(gvhdUser);
+        prisma.topicRegistration.findMany.mockResolvedValueOnce([
+            {
+                id: 301,
+                semesterId: 10,
+                status: 'APPROVED',
+                createdAt: new Date('2026-11-10T08:00:00.000Z'),
+                studentId: 3001,
+                student: { id: 3001, fullName: 'Nguyễn Minh E', code: 'SV301' },
+                topic: { id: 701, title: 'Đề tài GVHD 77', mentorId: 77 },
+                tasks: [],
+                bm01Evaluations: [],
+            },
+        ]);
+        prisma.notification.findMany.mockResolvedValue([
+            {
+                id: 91,
+                userId: 3001,
+                dedupeKey: 'bm01:BEFORE_48H:301:2026-11-25T10:00:00.000Z',
+                createdAt: new Date('2026-11-23T10:00:00.000Z'),
+            },
+        ]);
+
+        const res = await request(app)
+            .get('/api/dashboard/lecturer?semesterId=10')
+            .set('Authorization', 'Bearer gvhd-token');
+
+        expect(res.status).toBe(200);
+        expect(res.body.data.watchItems).toHaveLength(1);
+        expect(res.body.data.watchItems[0]).toMatchObject({
+            kind: 'BM01_NOT_SUBMITTED',
+            registrationId: 301,
+            studentId: 3001,
+            studentCode: 'SV301',
+            target: '/lecturer/students/301',
+        });
+        expect(res.body.data.watchItems[0].lastReminderAt).toBe('2026-11-23T10:00:00.000Z');
+        expect(res.body.data.attentionItems.filter((i) => i.kind === 'BM01_NOT_SUBMITTED')).toHaveLength(0);
     });
 });
 
