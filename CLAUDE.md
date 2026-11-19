@@ -108,6 +108,10 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
     - Cập nhật chính sách `featurePolicies.js` cho phép `ENROLLMENT_MANAGE` và `PERMISSION_ASSIGN_ACADEMIC`.
     - Chuẩn hóa nhãn nút thành `<Button type="primary" icon={<PlusOutlined />}>Gán giảng viên vào đợt</Button>`.
     - Bổ sung nút "Gán GV" nhanh tại thẻ KPI Tổng quan và hiển thị số lượng GVHD trực tiếp trên tiêu đề Tab: `Giảng viên hướng dẫn (X)`.
+12. **Đồng Bộ Nút & Quy Trình "Gán Giảng Viên Bằng Excel" Khớp 100% Với Phía Sinh Viên (`23d7f60`)**:
+    - Thay thế cơ chế upload file thô sơ trước đây bằng component `ExcelImportModal` dùng chung chuẩn hóa (`type="LECTURER_ASSIGNMENT"`).
+    - Chuẩn hóa nhãn nút thành `<Button icon={<UploadOutlined />}>Gán bằng Excel</Button>` đồng nhất hoàn toàn trên cả 2 tab Sinh viên và Giảng viên hướng dẫn.
+    - Modal gán bằng Excel của GVHD nay sở hữu trọn vẹn trải nghiệm cao cấp: Chọn Đợt đồ án & Loại đồ án, Vùng kéo thả Dropzone, Nút tải file mẫu chuẩn hóa (`Mau_Phan_Cong_Giang_Vien.xlsx`), Bảng Table xem trước dữ liệu (Mã GV, Tên GV, Loại đồ án, Chỉ tiêu), kiểm tra lỗi thông minh (Mã GV không tồn tại trong hệ thống, chỉ tiêu vượt quá 1-10), Modal chỉnh sửa nhanh dòng lỗi trực tiếp, và nút Xác nhận gán kèm chỉ báo số dòng hợp lệ.
 
 #### 2. Trạng thái cập nhật của từng phần
 - **Backend API**:
