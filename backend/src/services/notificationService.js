@@ -24,6 +24,18 @@ const containsUnpromulgatedDefenseScore = (data) => {
     return false;
 };
 
+const sanitizeNotificationData = (data) => {
+    const { userId, title, content, type = 'SYSTEM', link } = data || {};
+    const sanitized = {
+        userId: Number(userId),
+        title: String(title),
+        content: String(content),
+        type,
+    };
+    if (link !== undefined && link !== null) sanitized.link = String(link);
+    return sanitized;
+};
+
 const safeNotify = async (data, context = 'unknown') => {
     try {
         if (!data?.userId || !data?.title || !data?.content) {
@@ -39,7 +51,8 @@ const safeNotify = async (data, context = 'unknown') => {
             }
         }
 
-        const created = await prisma.notification.create({ data });
+        const sanitized = sanitizeNotificationData(data);
+        const created = await prisma.notification.create({ data: sanitized });
         return { ok: true, created };
     } catch (error) {
         console.error(`[notify] safeNotify failed (${context}):`, error?.message || error);
@@ -64,7 +77,7 @@ const safeNotifyMany = async (rows, context = 'unknown') => {
                     continue;
                 }
             }
-            validRows.push(row);
+            validRows.push(sanitizeNotificationData(row));
         }
 
         if (validRows.length === 0) {

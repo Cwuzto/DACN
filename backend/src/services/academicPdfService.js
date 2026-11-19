@@ -27,8 +27,8 @@ function createPdfBuffer(input) {
 
       // Header: Quốc hiệu tiêu ngữ
       doc.fontSize(10).font('Helvetica-Bold')
-        .text('TRƯỜNG ĐẠI HỌC BÁCH KHOA HÀ NỘI', { align: 'center' })
-        .text('VIỆN CÔNG NGHỆ SỐ', { align: 'center' });
+        .text('TRƯỜNG ĐẠI HỌC THỦ DẦU MỘT', { align: 'center' })
+        .text('VIỆN KỸ THUẬT VÀ CÔNG NGHỆ SỐ', { align: 'center' });
 
       doc.moveDown(0.3);
       doc.fontSize(9).font('Helvetica')

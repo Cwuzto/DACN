@@ -427,7 +427,11 @@ async function createResultPublication({ semesterId, actorId, actor, type, publi
             .filter(Boolean);
 
         if (notifications.length > 0) {
-            await safeNotifyMany(notifications, 'createResultPublication');
+            const notifyRes = await safeNotifyMany(notifications, 'createResultPublication');
+            if (!notifyRes?.ok) {
+                const recipientIds = notifications.map((n) => n.userId).join(',');
+                console.warn(`[ResultPublication] Notification delivery warning for publicationId=${publication.id}: recipients=[${recipientIds}], error=${notifyRes?.error || 'FAILED'}`);
+            }
         }
 
         return {

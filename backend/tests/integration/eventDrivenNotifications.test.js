@@ -59,6 +59,10 @@ const mockDatabase = {
         create: jest.fn().mockResolvedValue({ id: 1 }),
         findMany: jest.fn().mockResolvedValue([]),
     },
+    storedAsset: {
+        create: jest.fn().mockResolvedValue({ id: 'mock-asset-id', fileUrl: 'https://storage/mock.pdf' }),
+        findUnique: jest.fn().mockResolvedValue({ id: 'mock-asset-id', fileUrl: 'https://storage/mock.pdf' }),
+    },
     defenseResultApproval: {
         findFirst: jest.fn(),
         findMany: jest.fn(),
@@ -297,6 +301,9 @@ describe('Event-Driven Academic Notification Triggers & SEC-12 Verification', ()
                 lockedDefenseRubricVersion: { id: 10, lockedAt: new Date() },
                 defenseEligibleListPublishedAt: new Date(),
             },
+            assignmentConfirmedAt: new Date(),
+            location: 'Phòng A101',
+            defenseDate: new Date(),
             registrations: [
                 { id: 1, studentId: 101, student: { fullName: 'Nguyen Van A', code: 'SV001' } },
                 { id: 2, studentId: 102, student: { fullName: 'Tran Thi B', code: 'SV002' } },
@@ -437,10 +444,10 @@ describe('Event-Driven Academic Notification Triggers & SEC-12 Verification', ()
 
         expect(resultBatch).toBeDefined();
 
-        // Verification of SEC-12: notification must have isPromulgated: true
+        // Verification of SEC-12: notification must not contain internal isPromulgated field
         const passedNotif = resultBatch.find((n) => n.userId === 101);
         expect(passedNotif).toBeDefined();
-        expect(passedNotif.isPromulgated).toBe(true);
+        expect(passedNotif.isPromulgated).toBeUndefined();
         expect(passedNotif.type).toBe('DEFENSE');
         expect(passedNotif.content).toContain('Kết luận: ĐẠT');
         expect(passedNotif.content).toContain('Điểm chính thức: 8.5');
