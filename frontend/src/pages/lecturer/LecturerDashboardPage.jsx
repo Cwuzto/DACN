@@ -29,6 +29,7 @@ import { useBm02AdvisorSignMutation, useBm02Verification } from '../../queries/b
 import ContentSkeleton from '../../components/common/ContentSkeleton';
 import OverviewKpis from '../../components/lecturer/OverviewKpis';
 import AttentionQueue from '../../components/lecturer/AttentionQueue';
+import BM01WatchList from '../../components/lecturer/BM01WatchList';
 import SupervisedStudentList from '../../components/lecturer/SupervisedStudentList';
 import './lecturer-opendesign.css';
 
@@ -160,6 +161,7 @@ export default function LecturerDashboardPage() {
     const activeSemester = overview?.activeSemester || null;
     const students = useMemo(() => overview?.students || [], [overview?.students]);
     const attentionItems = useMemo(() => overview?.attentionItems || [], [overview?.attentionItems]);
+    const watchItems = useMemo(() => overview?.watchItems || [], [overview?.watchItems]);
     const mentorSummary = overview?.mentorSummary || null;
 
     useEffect(() => {
@@ -374,7 +376,7 @@ export default function LecturerDashboardPage() {
             ) : (
                 <>
                     {/* 2. KPI ngắn */}
-                    <OverviewKpis summary={mentorSummary} />
+                    <OverviewKpis summary={mentorSummary} watchCount={watchItems.length} />
 
                     {/* 3. Lưới hai vùng cân bằng: Hàng đợi trái, Sinh viên phải (Mobile: hàng đợi trước) */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
@@ -393,6 +395,16 @@ export default function LecturerDashboardPage() {
                             />
                         </div>
                     </div>
+
+                    {/* 3b. Vùng theo dõi riêng: Sinh viên đã duyệt đề tài nhưng chưa nộp BM01 */}
+                    <BM01WatchList
+                        items={watchItems}
+                        onOpenStudent={(item) => {
+                            if (item?.target) {
+                                navigate(item.target);
+                            }
+                        }}
+                    />
 
                     {canAdvisorSignBm02 && pendingAdvisorBm02Regs.length > 0 && (
                         <Card

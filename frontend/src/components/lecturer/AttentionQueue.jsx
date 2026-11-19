@@ -33,8 +33,13 @@ const PRIORITY_CONFIG = {
 };
 
 const SOURCE_LABELS = {
-    MENTOR: { label: 'GVHD', color: 'teal' },
-    INSTITUTE_DIRECTOR: { label: 'Viện trưởng', color: 'gold' },
+    MENTOR: { label: 'GVHD', color: 'teal', isNonMentor: false },
+    GVHD: { label: 'GVHD', color: 'teal', isNonMentor: false },
+    INSTITUTE_DIRECTOR: { label: 'Viện trưởng (Chức vụ)', color: 'gold', isNonMentor: true },
+    VIEN_TRUONG: { label: 'Viện trưởng (Chức vụ)', color: 'gold', isNonMentor: true },
+    DEAN: { label: 'Trưởng khoa (Chức vụ)', color: 'purple', isNonMentor: true },
+    ADMIN: { label: 'Quản trị (Chức vụ)', color: 'geekblue', isNonMentor: true },
+    DEPARTMENT_HEAD: { label: 'Phụ trách bộ môn', color: 'cyan', isNonMentor: true },
 };
 
 const ACTION_LABELS = {
@@ -119,7 +124,9 @@ export default function AttentionQueue({
                 <ul className="space-y-2.5 m-0 p-0 list-none">
                     {visibleItems.map((item) => {
                         const prio = PRIORITY_CONFIG[item.priority] || PRIORITY_CONFIG.NORMAL;
-                        const src = SOURCE_LABELS[item.source] || SOURCE_LABELS.MENTOR;
+                        const src = SOURCE_LABELS[item.source] || (item.source && item.source !== 'MENTOR'
+                            ? { label: item.source, color: 'gold', isNonMentor: true }
+                            : SOURCE_LABELS.MENTOR);
                         const isAnimated = animatedIds.has(item.id);
                         const canMutate = Boolean(item.isActionable && item.allowedAction && item.priority !== 'INFO');
                         const actionLabel = canMutate
@@ -130,6 +137,7 @@ export default function AttentionQueue({
                             <li
                                 key={item.id}
                                 data-priority={item.priority}
+                                data-source={item.source || 'MENTOR'}
                                 className={`lecturer-attention-item rounded-lg border p-3 transition-colors ${prio.cardClass} ${
                                     isAnimated ? 'lecturer-attention-enter' : ''
                                 }`}
@@ -140,6 +148,11 @@ export default function AttentionQueue({
                                             <Tag color={src.color} className="m-0 text-xs font-semibold">
                                                 {src.label}
                                             </Tag>
+                                            {src.isNonMentor && (
+                                                <Tag color="default" className="m-0 text-xs">
+                                                    Nhiệm vụ chức vụ
+                                                </Tag>
+                                            )}
                                             <Tag
                                                 color={prio.color}
                                                 icon={

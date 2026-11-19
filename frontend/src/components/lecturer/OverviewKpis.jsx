@@ -5,21 +5,33 @@ import {
     AlertOutlined,
     ClockCircleOutlined,
     FileTextOutlined,
+    FileExclamationOutlined,
 } from '@ant-design/icons';
 
+const XL_COLS_MAP = {
+    1: 'xl:grid-cols-1',
+    2: 'xl:grid-cols-2',
+    3: 'xl:grid-cols-3',
+    4: 'xl:grid-cols-4',
+    5: 'xl:grid-cols-5',
+};
+
 /**
- * Hiển thị 4 chỉ số tóm tắt GVHD từ dữ liệu backend thực tế.
+ * Hiển thị các chỉ số tóm tắt GVHD từ dữ liệu backend thực tế.
+ * Chỉ hiển thị các chỉ số có số lượng > 0 trong đợt đang chọn; khi tất cả bằng 0 hiển thị tóm tắt rỗng gọn gàng.
  */
-export default function OverviewKpis({ summary }) {
+export default function OverviewKpis({ summary, watchCount = 0 }) {
     const supervisedCount = summary?.supervisedCount ?? 0;
     const maxStudents = summary?.maxStudents ?? 10;
     const actionableCount = summary?.actionableCount ?? 0;
+    const effectiveWatchCount = watchCount || summary?.watchCount || 0;
     const upcomingDeadlineCount = summary?.upcomingDeadlineCount ?? 0;
     const pendingFeedbackCount = summary?.pendingFeedbackCount ?? 0;
 
     const cards = [
         {
             key: 'supervised',
+            count: supervisedCount,
             label: 'Sinh viên hướng dẫn',
             value: `${supervisedCount} / ${maxStudents}`,
             hint: `Chỉ tiêu tối đa ${maxStudents} sinh viên`,
@@ -28,6 +40,7 @@ export default function OverviewKpis({ summary }) {
         },
         {
             key: 'actionable',
+            count: actionableCount,
             label: 'Việc cần xử lý',
             value: String(actionableCount),
             hint: 'Tổng việc đang chờ thao tác',
@@ -35,7 +48,17 @@ export default function OverviewKpis({ summary }) {
             accent: 'border-amber-200 bg-amber-50/40',
         },
         {
+            key: 'bm01Watch',
+            count: effectiveWatchCount,
+            label: 'Chưa nộp BM01',
+            value: String(effectiveWatchCount),
+            hint: 'Sinh viên đã duyệt đề tài cần theo dõi',
+            icon: <FileExclamationOutlined className="text-orange-600 text-lg" />,
+            accent: 'border-orange-200 bg-orange-50/40',
+        },
+        {
             key: 'deadlines',
+            count: upcomingDeadlineCount,
             label: 'Mốc sắp đến hạn',
             value: String(upcomingDeadlineCount),
             hint: 'Nhiệm vụ còn hạn trong đợt',
@@ -44,6 +67,7 @@ export default function OverviewKpis({ summary }) {
         },
         {
             key: 'feedback',
+            count: pendingFeedbackCount,
             label: 'Bài nộp chờ phản hồi',
             value: String(pendingFeedbackCount),
             hint: 'Cần nhận xét cho sinh viên',
@@ -52,9 +76,27 @@ export default function OverviewKpis({ summary }) {
         },
     ];
 
+    const visibleCards = cards.filter((card) => card.count > 0);
+
+    if (visibleCards.length === 0) {
+        return (
+            <div
+                className="rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm text-slate-600"
+                aria-label="Chỉ số tổng quan giảng viên"
+            >
+                Chưa có hoạt động hoặc sinh viên hướng dẫn trong đợt này.
+            </div>
+        );
+    }
+
+    const xlGridClass = XL_COLS_MAP[Math.min(visibleCards.length, 5)] || 'xl:grid-cols-4';
+
     return (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3" aria-label="Chỉ số tổng quan giảng viên">
-            {cards.map((card) => (
+        <div
+            className={`grid grid-cols-1 sm:grid-cols-2 ${xlGridClass} gap-3`}
+            aria-label="Chỉ số tổng quan giảng viên"
+        >
+            {visibleCards.map((card) => (
                 <Card
                     key={card.key}
                     size="small"
@@ -82,4 +124,3 @@ export default function OverviewKpis({ summary }) {
         </div>
     );
 }
-
