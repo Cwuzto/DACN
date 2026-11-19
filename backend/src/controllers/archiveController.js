@@ -98,6 +98,9 @@ const getArchiveByRegistration = async (req, res, next) => {
                 archive: {
                     include: {
                         reviewer: { select: { id: true, fullName: true, code: true, role: true } },
+                        documentVersions: {
+                            orderBy: { versionNumber: 'desc' },
+                        },
                     },
                 },
                 resultPublicationItems: {
@@ -152,6 +155,16 @@ const getArchiveByRegistration = async (req, res, next) => {
             summary: archiveData.summary || null,
         } : null;
 
+        const dossierFiles = (archiveData?.documentVersions || []).map((dv) => ({
+            id: dv.id,
+            docType: dv.documentType,
+            documentType: dv.documentType,
+            fileName: dv.fileName,
+            fileUrl: dv.fileUrl || dv.demoVideoExternalUrl,
+            versionNumber: dv.versionNumber,
+            uploadedAt: dv.uploadedAt,
+        }));
+
         res.json({
             success: true,
             data: {
@@ -159,6 +172,8 @@ const getArchiveByRegistration = async (req, res, next) => {
                 archive: archiveData ? {
                     ...archiveData,
                     phase,
+                    dossierFiles,
+                    documents: dossierFiles,
                 } : null,
                 phase,
                 preDefenseDocuments,
@@ -225,6 +240,25 @@ const submitArchive = async (req, res, next) => {
                 success: false,
                 message: 'Vui lòng cung cấp ít nhất tệp báo cáo toàn văn, link mã nguồn hoặc link video demo.',
             });
+        }
+
+        if (demoVideoUrl) {
+            let isValidHttps = false;
+            if (typeof demoVideoUrl === 'string' && demoVideoUrl.startsWith('https://')) {
+                try {
+                    const u = new URL(demoVideoUrl);
+                    isValidHttps = u.protocol === 'https:';
+                } catch (_) {
+                    isValidHttps = false;
+                }
+            }
+            if (!isValidHttps) {
+                return res.status(400).json({
+                    success: false,
+                    code: 'INVALID_DEMO_VIDEO_URL',
+                    message: 'Link video demo phải là URL HTTPS hợp lệ.',
+                });
+            }
         }
 
         const archive = await prisma.projectArchive.upsert({
@@ -837,6 +871,7 @@ const uploadDocumentVersion = async (req, res, next) => {
             select: {
                 id: true,
                 studentId: true,
+                status: true,
                 topic: { select: { mentorId: true } },
             },
         });
@@ -863,6 +898,15 @@ const uploadDocumentVersion = async (req, res, next) => {
                 success: false,
                 code: 'FORBIDDEN_DOSSIER_ACCESS',
                 message: 'Bạn không có quyền tải lên tài liệu cho hồ sơ đăng ký này.',
+            });
+        }
+
+        const ineligibleStatuses = ['DEFENSE_FAILED', 'NOT_ELIGIBLE_FOR_DEFENSE', 'AUTO_TERMINATED'];
+        if (ineligibleStatuses.includes(registration.status)) {
+            return res.status(400).json({
+                success: false,
+                code: 'REGISTRATION_NOT_ELIGIBLE',
+                message: `Hồ sơ ở trạng thái ${registration.status}, không đủ điều kiện nộp tài liệu lưu chiểu.`,
             });
         }
 
@@ -898,7 +942,16 @@ const uploadDocumentVersion = async (req, res, next) => {
                     message: 'Hệ thống không cho phép tải trực tiếp tệp video. Vui lòng cung cấp link video demo qua demoVideoExternalUrl dạng link HTTPS.',
                 });
             }
-            if (!demoVideoExternalUrl || !demoVideoExternalUrl.startsWith('https://')) {
+            let isValidHttps = false;
+            if (demoVideoExternalUrl && typeof demoVideoExternalUrl === 'string' && demoVideoExternalUrl.startsWith('https://')) {
+                try {
+                    const parsedUrl = new URL(demoVideoExternalUrl);
+                    isValidHttps = parsedUrl.protocol === 'https:';
+                } catch (_) {
+                    isValidHttps = false;
+                }
+            }
+            if (!isValidHttps) {
                 return res.status(400).json({
                     success: false,
                     code: 'INVALID_DEMO_VIDEO_URL',
@@ -907,6 +960,12 @@ const uploadDocumentVersion = async (req, res, next) => {
             }
             finalFileUrl = demoVideoExternalUrl;
             finalFileName = fileName || 'Video Demo Sản phẩm';
+        } else if (!assetId && !fileUrl) {
+            return res.status(400).json({
+                success: false,
+                code: 'FILE_REQUIRED',
+                message: 'Vui lòng cung cấp assetId hoặc fileUrl của tài liệu.',
+            });
         } else if (assetId) {
             let asset;
             try {
