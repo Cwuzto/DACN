@@ -23,6 +23,7 @@ import {
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useStudentRegistration } from '../../queries/registrationQueries';
+import { getStatusTagConfig } from '../common/statusMap';
 
 function getStepCurrent(status) {
     switch (status) {
@@ -219,19 +220,19 @@ function StudentThesisProgressCard({ user, scope }) {
                                 size="small"
                                 items={[
                                     {
-                                        title: '1. Đề cương BM01',
+                                        title: '1. Đề cương chi tiết',
                                         description: 'Xét duyệt đề cương',
                                     },
                                     {
-                                        title: '2. Giao đề tài BM02',
+                                        title: '2. Giao đề tài',
                                         description: 'QĐ Viện trưởng',
                                     },
                                     {
-                                        title: '3. Tiến độ BM03',
+                                        title: '3. Theo dõi tiến độ',
                                         description: 'Họp & Checkpoint',
                                     },
                                     {
-                                        title: '4. Đánh giá BM04',
+                                        title: '4. Đánh giá kết quả',
                                         description: 'Phiếu nhận xét GVHD',
                                     },
                                     {
@@ -245,12 +246,17 @@ function StudentThesisProgressCard({ user, scope }) {
 
                     {/* Quick Action Navigation Buttons */}
                     <div className="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
-                        <div className="text-xs text-slate-500">
-                            Trạng thái hiện tại:{' '}
-                            <Tag color="blue" className="font-semibold text-xs m-0">
-                                {registration.status}
-                            </Tag>
-                        </div>
+                        {(() => {
+                            const statusConfig = getStatusTagConfig(registration?.status);
+                            return (
+                                <div className="text-xs text-slate-500">
+                                    Trạng thái hiện tại:{' '}
+                                    <Tag color={statusConfig.color} className="font-semibold text-xs m-0">
+                                        {statusConfig.label}
+                                    </Tag>
+                                </div>
+                            );
+                        })()}
 
                         <div className="flex items-center gap-2">
                             <Button
@@ -258,7 +264,7 @@ function StudentThesisProgressCard({ user, scope }) {
                                 onClick={() => navigate('/student/progress')}
                                 className="rounded-lg text-xs font-medium"
                             >
-                                Sổ tiến độ BM03
+                                Sổ theo dõi tiến độ
                             </Button>
 
                             <Button

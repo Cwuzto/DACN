@@ -90,10 +90,10 @@ test('Profile Redesign: Student Experience integrates StudentThesisProgressCard 
     const studentCardSource = read('src/components/profile/StudentThesisProgressCard.jsx');
     // 5-Step Stepper
     assert.match(studentCardSource, /Steps/, 'Phải dùng Ant Design Steps cho thanh tiến trình');
-    assert.match(studentCardSource, /Đề cương BM01/, 'Bước 1: Đề cương BM01');
-    assert.match(studentCardSource, /Giao đề tài BM02/, 'Bước 2: Giao đề tài BM02');
-    assert.match(studentCardSource, /Tiến độ BM03|Nhật ký BM03/, 'Bước 3: Tiến độ BM03');
-    assert.match(studentCardSource, /Đánh giá BM04/, 'Bước 4: Đánh giá BM04');
+    assert.match(studentCardSource, /Đề cương chi tiết|Đề cương/, 'Bước 1: Đề cương');
+    assert.match(studentCardSource, /Giao đề tài/, 'Bước 2: Giao đề tài');
+    assert.match(studentCardSource, /Theo dõi tiến độ|Tiến độ/, 'Bước 3: Tiến độ');
+    assert.match(studentCardSource, /Đánh giá kết quả|Đánh giá/, 'Bước 4: Đánh giá');
     assert.match(studentCardSource, /Bảo vệ & Lưu chiểu/, 'Bước 5: Bảo vệ & Lưu chiểu');
     // Mentor contact
     assert.match(studentCardSource, /Giảng viên hướng dẫn|GVHD/i, 'Phải có thẻ liên hệ GVHD');

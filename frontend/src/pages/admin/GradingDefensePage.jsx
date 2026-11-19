@@ -1306,7 +1306,7 @@ export default function GradingDefensePage() {
                                                         setSelectedRegForDossier(r);
                                                         setDossierDrawerOpen(true);
                                                     }}
-                                                    title="Xem toàn bộ hồ sơ biểu mẫu học vụ (BM01 - BM05)"
+                                                    title="Xem toàn bộ hồ sơ biểu mẫu học vụ"
                                                 >
                                                     Hồ sơ BM
                                                 </Button>

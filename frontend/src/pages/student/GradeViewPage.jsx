@@ -17,7 +17,7 @@ import { useStudentRegistration } from '../../queries/registrationQueries';
 import { useStudentArchive, useClearanceCertificate } from '../../queries/archiveQueries';
 import ContentSkeleton from '../../components/common/ContentSkeleton';
 import QueryErrorState from '../../components/common/QueryErrorState';
-import { STATUS_MAP } from '../../components/common/statusMap';
+import { STATUS_MAP, getStatusTagConfig } from '../../components/common/statusMap';
 import ArchiveSubmissionModal from '../../components/forms/ArchiveSubmissionModal';
 import ClearanceCertificateModal from '../../components/forms/ClearanceCertificateModal';
 
@@ -134,7 +134,7 @@ export default function GradeViewPage() {
     const reviewerMember = councilMembers.find((m) => m.roleInCouncil === 'REVIEWER');
 
     const compositeScore = hasScore ? Number(finalScore).toFixed(1) : '—';
-    const currentStatusMeta = STATUS_MAP[selectedRegistration.status] || { text: selectedRegistration.status, color: 'default' };
+    const currentStatusConfig = getStatusTagConfig(selectedRegistration.status);
 
     return (
         <div style={{ padding: '24px 32px' }} data-od-id="view-grades" className="sub-view">
@@ -168,7 +168,7 @@ export default function GradeViewPage() {
                                     {isPassed ? (
                                         <span className="tag green" style={{ padding: '1px 6px', fontSize: 10 }}>Đã bảo vệ</span>
                                     ) : (
-                                        <span className="tag teal" style={{ padding: '1px 6px', fontSize: 10 }}>{reg.status}</span>
+                                        <span className="tag teal" style={{ padding: '1px 6px', fontSize: 10 }}>{getStatusTagConfig(reg.status).label}</span>
                                     )}
                                 </button>
                             );
@@ -181,8 +181,8 @@ export default function GradeViewPage() {
             <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#FFFFFF', padding: '12px 18px', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--muted)' }}>Trạng thái tiến trình hiện tại:</span>
-                    <Tag color={currentStatusMeta.color} style={{ fontSize: 12.5, fontWeight: 700, padding: '2px 10px' }}>
-                        {currentStatusMeta.text}
+                    <Tag color={currentStatusConfig.color} style={{ fontSize: 12.5, fontWeight: 700, padding: '2px 10px' }}>
+                        {currentStatusConfig.label}
                     </Tag>
                 </div>
                 {isCompleted && (

@@ -19,12 +19,14 @@ import { useBM04Record } from '../../queries/gradingQueries';
 import { useRegistrationBm02aRequests } from '../../queries/bm02aQueries';
 import { useMyOutline } from '../../queries/outlineQueries';
 import { getAssetDownloadUrl } from '../../services/resumableUploadService';
+import BM01PrintSheet from './BM01PrintSheet';
 import BM02PrintSheet from './BM02PrintSheet';
 import BM02APrintSheet from './BM02APrintSheet';
 import BM03PrintSheet from './BM03PrintSheet';
 import BM04PrintSheet from './BM04PrintSheet';
 import BM05PrintSheet from './BM05PrintSheet';
 import AcademicFormPrintModal from './AcademicFormPrintModal';
+import { getStatusTagConfig } from '../common/statusMap';
 
 export default function AcademicDossierDrawer({
     open,
@@ -194,7 +196,7 @@ export default function AcademicDossierDrawer({
         if (eligibleBundleKeys.length === 0) return;
         setPrintModalConfig({
             open: true,
-            title: 'HỒ SƠ HỌC VỤ ĐỦ ĐIỀU KIỆN (BM02 - BM05)',
+            title: 'HỒ SƠ HỌC VỤ ĐỦ ĐIỀU KIỆN',
             documentCode: 'DOSSIER_FULL',
             mode: 'all',
         });
@@ -341,7 +343,7 @@ export default function AcademicDossierDrawer({
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', paddingRight: 24 }}>
                         <div>
                             <div style={{ fontSize: 16, fontWeight: 700, color: '#0F766E' }}>
-                                HỒ SƠ BIỂU MẪU HỌC VỤ TOÀN TRÌNH (BM01 - BM05)
+                                HỒ SƠ BIỂU MẪU HỌC VỤ TOÀN TRÌNH
                             </div>
                             <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
                                 {topicCode} · {topicTitle}
@@ -364,7 +366,7 @@ export default function AcademicDossierDrawer({
                                     In biểu mẫu này
                                 </Button>
                             </Tooltip>
-                            <Tooltip title={eligibleBundleKeys.length === 0 ? 'Chưa có biểu mẫu BM02–BM05 nào đủ điều kiện in.' : ''}>
+                            <Tooltip title={eligibleBundleKeys.length === 0 ? 'Chưa có biểu mẫu nào đủ điều kiện in.' : ''}>
                                 <Button
                                     type="primary"
                                     icon={<PrinterOutlined />}
@@ -372,7 +374,7 @@ export default function AcademicDossierDrawer({
                                     onClick={handlePrintAll}
                                     className="!bg-[#0052a3]"
                                 >
-                                    In toàn bộ hồ sơ (BM02–BM05)
+                                    In toàn bộ hồ sơ biểu mẫu
                                 </Button>
                             </Tooltip>
                         </Space>
@@ -408,7 +410,10 @@ export default function AcademicDossierDrawer({
                     </div>
                     <div>
                         <span style={{ color: 'var(--muted)' }}>Trạng thái học vụ:</span>{' '}
-                        <Tag color="cyan">{registration?.status || 'ĐANG THỰC HIỆN'}</Tag>
+                        {(() => {
+                            const statusConfig = getStatusTagConfig(registration?.status);
+                            return <Tag color={statusConfig.color}>{statusConfig.label}</Tag>;
+                        })()}
                     </div>
                 </div>
 
