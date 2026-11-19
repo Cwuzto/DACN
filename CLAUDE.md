@@ -70,6 +70,74 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 
 ## 6. Cập Nhật Phiên Làm Việc (Session Update)
 
+### Phiên 19/11/2026 (Phần 2: Quản Lý Người Dùng, Cấu Hình Hội Đồng Linh Hoạt, Tự Phục Hồi Catalog & Đồng Bộ Điều Phối GVHD)
+
+#### 1. Những phần đã hoàn thành
+1. **Đồng Bộ Chỉ Tiêu Hướng Dẫn Sidebar Với Dữ Liệu Thực Tế (`c49a9fe`)**:
+   - Khắc phục tình trạng số lượng sinh viên hiển thị ở thanh đo quota góc dưới menu trái không khớp với thực tế đang hướng dẫn.
+   - Truy vấn trực tiếp số sinh viên đang được GVHD hướng dẫn trong học kỳ hoạt động, đảm bảo con số trên menu sidebar phản ánh đúng 100% thời gian thực.
+2. **Khắc Phục Lỗi Treo/Crash Backend, Connection Leak & Schema Mismatch BM04 (`cca1ba8`)**:
+   - Sửa lỗi connection pool timeout và `DeprecationWarning` do gọi câu lệnh query đồng thời trên cùng client.
+   - Sửa lỗi lệch trường evaluator trong bảng đánh giá BM04 khi lưu phiếu.
+3. **Sửa Lỗi Quay Vòng Vô Tận Khi Chỉnh Sửa Sinh Viên & Dirty-Check Nút Lưu (`cc38394`)**:
+   - Sửa lỗi modal chỉnh sửa thông tin người dùng (sinh viên) quay spinner mãi khi bấm Lưu mà không có thay đổi.
+   - Bổ sung cơ chế phát hiện dữ liệu thay đổi thực tế (`dirty check`): chỉ bật sáng nút "Lưu thay đổi" khi người dùng thực sự có chỉnh sửa thông tin so với ban đầu.
+4. **Bổ Sung Hướng Nghiên Cứu / Chuyên Môn Của Giảng Viên (`86d222f`)**:
+   - Mở rộng form tạo mới và chỉnh sửa giảng viên cho phép nhập danh sách lĩnh vực/hướng nghiên cứu chuyên môn.
+   - Lưu trữ và hiển thị dạng tag màu chuyên nghiệp trong bảng quản lý người dùng và hồ sơ chi tiết.
+5. **Chuẩn Hóa Màn Hình Quản Lý Người Dùng Theo Quy Chuẩn Viện Công Nghệ Số (`a6eb846`)**:
+   - Ẩn cột "Khoa" của sinh viên (do toàn bộ hệ thống vận hành trong phạm vi Viện Công nghệ số).
+   - Hiển thị Chuyên ngành đào tạo ngay bên dưới họ tên của sinh viên để tiện theo dõi.
+   - Trong drawer xem hồ sơ giảng viên: ánh xạ mã học vị enum thô (`THAC_SI`, `TIEN_SI`...) sang tiếng Việt chuẩn ("Thạc sĩ", "Tiến sĩ", "Phó Giáo sư", "Giáo sư"); đổi nhãn kỹ thuật "RBAC" thành "Chức vụ kiêm nhiệm".
+6. **Dọn Dẹp Dữ Liệu Demo Toàn Diện (`1fa1907`)**:
+   - Xây dựng script `backend/scripts/resetDatabaseKeepAdminOnly.js` xóa sạch dữ liệu demo phát sinh (sinh viên, đề tài, đợt, biểu mẫu, hội đồng, chấm điểm...), chỉ giữ lại tài khoản Admin tối cao và bảng cấu hình phân quyền hệ thống.
+7. **Khắc Phục Màn Hình Trắng Xóa Ở Trang Hội Đồng Khi Dữ Liệu Rỗng (`a52606f`)**:
+   - Khắc phục lỗi crash màn hình trắng xóa ở cả trang Hội đồng xét duyệt đề cương và Hội đồng bảo vệ khi database rỗng hoặc chưa chọn học kỳ.
+   - Nguyên nhân do component `<QueryPanel>` bị lồng nhau trên các query đang ở trạng thái `disabled: true`. Đã refactor cơ chế kiểm tra điều kiện an toàn, hiển thị placeholder hướng dẫn rõ ràng.
+8. **Chuyển Cấu Hình Quy Mô Mục Tiêu Hội Đồng Sang Trang Phân Công Hội Đồng (`6b2f281`)**:
+   - Chuyển ô thiết lập quy mô mục tiêu HĐ (target size) từ form tạo đợt đồ án (`ProjectPeriodPage.jsx`) sang trang phân công hội đồng (`CouncilAssignmentPage.jsx`), áp dụng cho cả Hội đồng xét duyệt đề cương và Hội đồng chấm bảo vệ.
+   - Quản trị viên/Giáo vụ có thể tự điều chỉnh quy mô mục tiêu mong muốn và xem dự báo số lượng hội đồng cần lập trong thời gian thực trước khi bấm phân công tự động hoặc thủ công.
+9. **Khắc Phục Lỗi Treo "Đang tải loại đồ án..." & Cơ Chế Tự Phục Hồi Catalog (`57fe1af`)**:
+   - Xử lý triệt để lỗi modal đề xuất đề tài của GVHD bị treo vĩnh viễn ở trạng thái "Đang tải loại đồ án...".
+   - Seed loại đồ án mặc định `DATN` ("Đồ án tốt nghiệp"), bổ sung cơ chế tự phục hồi (self-healing upsert) trong backend `topicController.js` và script dọn dẹp để đảm bảo luôn có ít nhất một loại đồ án hợp lệ.
+10. **Tư Vấn & Khảo Sát Kiến Trúc Trường "Chuyên Ngành" Trong Đề Xuất Đề Tài**:
+    - Khảo sát mã nguồn xác định bảng `topics` trong Database chưa từng có cột `target_major` riêng (trước đây ghép chuỗi vào `description`).
+    - Phân tích ưu/nhược điểm và tư vấn người dùng loại bỏ trường này để tinh gọn form đề xuất đề tài, tăng tính liên ngành của Viện CNS và quản lý ngành trực tiếp tại hồ sơ sinh viên (`studentProfile.major`).
+11. **Khắc Phục Nút "Gán Giảng Viên Vào Đợt" Bị Biến Mất Trong Trang Điều Phối (`3367dce`)**:
+    - Xác định nguyên nhân gốc rễ: `<AuthorizedAction feature="project-enrollments" action="assignMentor">` trước đây chỉ cho phép quyền `MENTOR_ASSIGN`, trong khi Admin/Giáo vụ vận hành qua quyền `ENROLLMENT_MANAGE`, khiến toàn bộ cụm nút gán GVHD bị ẩn hoàn toàn.
+    - Cập nhật chính sách `featurePolicies.js` cho phép `ENROLLMENT_MANAGE` và `PERMISSION_ASSIGN_ACADEMIC`.
+    - Chuẩn hóa nhãn nút thành `<Button type="primary" icon={<PlusOutlined />}>Gán giảng viên vào đợt</Button>`.
+    - Bổ sung nút "Gán GV" nhanh tại thẻ KPI Tổng quan và hiển thị số lượng GVHD trực tiếp trên tiêu đề Tab: `Giảng viên hướng dẫn (X)`.
+
+#### 2. Trạng thái cập nhật của từng phần
+- **Backend API**:
+  * Server Node.js/Express đang lắng nghe ổn định trên cổng 5000 (PID 13388).
+  * Cơ chế kết nối PostgreSQL qua `ResilientPgClient` tự phục hồi sau sự cố gián đoạn mạng, không bị crash hoặc connection leak.
+- **Frontend SPA**:
+  * Production build: `npm --prefix frontend run build` **PASS** (3379 modules transformed trong 16.17s, 0 lỗi).
+  * Kiểm thử hợp đồng: `projectEnrollmentCoordinationHub.test.js` (15/15 PASS), `projectCatalogClassification.test.js` (15/15 PASS), kiểm thử phân quyền 5-persona PASS.
+  * Tuân thủ quy chuẩn: 100% tệp cập nhật theo chuẩn **UTF-8 without BOM** (Rule 2.4) và không chèn ký tự thô/emoji vào nhãn nút bấm (Rule 2.6).
+- **Cơ sở dữ liệu (Supabase PostgreSQL)**:
+  * Trạng thái tinh gọn: Dữ liệu demo đã được dọn sạch, chỉ giữ lại tài khoản Admin và cấu hình phân quyền hệ thống.
+  * Danh mục đồ án `DATN` được thiết lập và tự bảo vệ bằng cơ chế self-healing.
+- **MCP (`supabase-postgres`)**: Sẵn sàng phục vụ truy vấn khi có yêu cầu.
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+1. **Chốt loại bỏ trường "Chuyên ngành" khỏi form đề xuất đề tài**:
+   - Xóa bỏ `targetMajor` khỏi state, form nhập và cột hiển thị trên [TopicManagementPage.jsx](file:///d:/DACN/frontend/src/pages/lecturer/TopicManagementPage.jsx) của GVHD để bảng thoáng và form tinh gọn.
+2. **Kiểm thử luồng vận hành từ đầu trên dữ liệu mới**:
+   - Tạo đợt đồ án mới từ trang quản trị (`HK1-2026-2027`).
+   - Gán giảng viên hướng dẫn vào đợt qua nút "Gán giảng viên vào đợt" vừa sửa.
+   - Import/Tạo sinh viên mới và gán sinh viên vào đợt đồ án.
+   - GVHD đề xuất đề tài -> Sinh viên đăng ký -> GVHD phê duyệt đề tài.
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+- **Chuyển Thiết Lập Quy Mô Mục Tiêu HĐ Sang Trang Phân Công Hội Đồng**: Thay vì trói buộc quy mô mục tiêu ngay từ lúc khởi tạo đợt đồ án (khi chưa rõ có bao nhiêu sinh viên đủ điều kiện), việc đưa về trang Phân công hội đồng giúp Quản trị viên/Giáo vụ chủ động điều chỉnh con số mục tiêu linh hoạt và quan sát ngay số hội đồng cần lập trước khi bấm phân công.
+- **Tự Phục Hồi Dữ Liệu Danh Mục Đồ Án (Self-Healing `DATN`)**: Giúp ứng dụng không bao giờ bị tê liệt khi dữ liệu bảng `project_catalogs` bị dọn dẹp hoặc lỗi mạng; backend tự động upsert bản ghi `DATN` đảm bảo luồng nghiệp vụ không bị nghẽn.
+- **Mở Rộng Quyền Gán Giảng Viên Cho `ENROLLMENT_MANAGE`**: Phân quyền điều phối đợt đồ án cần cho phép Quản trị viên kỹ thuật và Giáo vụ vận hành đợt thực hiện việc gán giảng viên tham gia hướng dẫn vào đợt, tránh việc phụ thuộc cứng vào quyền ký duyệt cấp Viện trưởng.
+
+---
+
 ### Phiên 19/11/2026: Khắc Phục Lỗi Giật Cuộn Menu Sidebar, Chuẩn Hóa Typography Thẻ Chỉ Số & Khắc Phục Lỗi Crash Backend (Postgres Connection Timeout)
 
 #### 1. Những phần đã hoàn thành
