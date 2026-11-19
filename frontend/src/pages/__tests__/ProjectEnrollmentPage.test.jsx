@@ -66,7 +66,7 @@ test('LecturerAssignmentTab renders assignment table, editable quota, and toolba
 
     // Buttons & Modals
     assert.match(tabSource, /Phân công Giảng viên/);
-    assert.match(tabSource, /Import Excel GVHD/);
+    assert.match(tabSource, /(?:Gán bằng Excel|Import Excel GVHD)/);
     assert.match(tabSource, /Sao chép phân công/);
 
     // Delete / Close logic

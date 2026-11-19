@@ -26,21 +26,24 @@ export default function ExcelImportModal({
     open,
     onCancel,
     onSuccess,
-    type = 'STUDENT', // 'STUDENT' | 'LECTURER' | 'PROJECT_ENROLLMENT'
+    type = 'STUDENT', // 'STUDENT' | 'LECTURER' | 'PROJECT_ENROLLMENT' | 'LECTURER_ASSIGNMENT'
     semesters = [],
     catalogs = [],
+    lecturers = [],
+    defaultSemesterId = null,
+    defaultCatalogId = null,
     onDownloadTemplate,
     onExecuteImport,
 }) {
     const [userRole, setUserRole] = useState(type === 'LECTURER' ? 'LECTURER' : 'STUDENT');
 
     React.useEffect(() => {
-        if (type !== 'PROJECT_ENROLLMENT') {
+        if (type !== 'PROJECT_ENROLLMENT' && type !== 'LECTURER_ASSIGNMENT') {
             setUserRole(type === 'LECTURER' ? 'LECTURER' : 'STUDENT');
         }
     }, [type, open]);
 
-    const effectiveType = type === 'PROJECT_ENROLLMENT' ? 'PROJECT_ENROLLMENT' : userRole;
+    const effectiveType = (type === 'PROJECT_ENROLLMENT' || type === 'LECTURER_ASSIGNMENT') ? type : userRole;
 
     const [fileList, setFileList] = useState([]);
     const [parsedRows, setParsedRows] = useState([]);
@@ -49,10 +52,15 @@ export default function ExcelImportModal({
     const [onDuplicate, setOnDuplicate] = useState('SKIP');
     const [isDragging, setIsDragging] = useState(false);
 
-    // Dành cho PROJECT_ENROLLMENT
-    const [selectedSemesterId, setSelectedSemesterId] = useState(semesters[0]?.id || null);
-    const [selectedCatalogId, setSelectedCatalogId] = useState(catalogs[0]?.id || null);
+    // Dành cho PROJECT_ENROLLMENT & LECTURER_ASSIGNMENT
+    const [selectedSemesterId, setSelectedSemesterId] = useState(defaultSemesterId || semesters[0]?.id || null);
+    const [selectedCatalogId, setSelectedCatalogId] = useState(defaultCatalogId || catalogs[0]?.id || null);
     const [batchId, setBatchId] = useState('');
+
+    React.useEffect(() => {
+        if (defaultSemesterId) setSelectedSemesterId(defaultSemesterId);
+        if (defaultCatalogId) setSelectedCatalogId(defaultCatalogId);
+    }, [defaultSemesterId, defaultCatalogId, open]);
 
     // Sửa nhanh dòng lỗi (Quick Fix Modal)
     const [editingRow, setEditingRow] = useState(null);
@@ -81,6 +89,7 @@ export default function ExcelImportModal({
     const modalTitle = useMemo(() => {
         if (effectiveType === 'STUDENT') return 'Import Danh sách Sinh viên từ Excel';
         if (effectiveType === 'LECTURER') return 'Import Danh sách Giảng viên từ Excel';
+        if (effectiveType === 'LECTURER_ASSIGNMENT') return 'Gán Giảng viên vào Đợt Đồ án từ Excel';
         return 'Gán Sinh viên Môn Đồ Án từ Excel';
     }, [effectiveType]);
 
@@ -88,6 +97,23 @@ export default function ExcelImportModal({
     const validateRow = (row, seenCodes = new Set(), seenEmails = new Set()) => {
         if (effectiveType === 'STUDENT') {
             return validateStudentRow(row, seenCodes, seenEmails);
+        }
+
+        if (effectiveType === 'LECTURER_ASSIGNMENT') {
+            const errors = [];
+            const code = String(row.code || '').trim().toUpperCase();
+            const plannedQuota = Number(row.plannedQuota) || 10;
+            if (!code) {
+                errors.push('Thiếu mã giảng viên');
+            } else if (seenCodes.has(code)) {
+                errors.push('Mã giảng viên bị trùng trong file');
+            } else if (lecturers.length > 0 && !lecturers.some((l) => l.code?.toLowerCase() === code.toLowerCase())) {
+                errors.push('Mã GV không tồn tại trong hệ thống');
+            }
+            if (plannedQuota < 1 || plannedQuota > 10) {
+                errors.push('Chỉ tiêu phải từ 1 đến 10');
+            }
+            return errors;
         }
 
         const errors = [];
@@ -229,6 +255,83 @@ export default function ExcelImportModal({
                         key: `row-${idx}`,
                         rowNumber,
                         ...studentObj,
+                        isValid: errors.length === 0,
+                        errors,
+                    };
+                }
+
+                if (effectiveType === 'LECTURER_ASSIGNMENT') {
+                    const errors = [];
+                    const lecturerCode = String(
+                        row['Mã Giảng Viên'] ||
+                        row['Mã GV'] ||
+                        row['Mã giảng viên'] ||
+                        row['Mã số'] ||
+                        row.lecturerCode ||
+                        row.code ||
+                        ''
+                    ).trim();
+
+                    const lecturerName = String(
+                        row['Họ Và Tên (Tham khảo)'] ||
+                        row['Họ Và Tên'] ||
+                        row['Họ và tên'] ||
+                        row['Tên giảng viên'] ||
+                        row.fullName ||
+                        ''
+                    ).trim();
+
+                    const catalogCode = String(
+                        row['Mã Loại Đồ Án'] ||
+                        row['Mã loại đồ án'] ||
+                        row['Loại đồ án'] ||
+                        row.catalogCode ||
+                        ''
+                    ).trim();
+
+                    const rawQuota =
+                        row['Chỉ Tiêu Hướng Dẫn (1-10)'] ||
+                        row['Chỉ Tiêu Hướng Dẫn'] ||
+                        row['Chỉ tiêu hướng dẫn'] ||
+                        row['Chỉ tiêu'] ||
+                        row.plannedQuota ||
+                        row.quota ||
+                        10;
+                    const plannedQuota = Number(rawQuota) || 10;
+
+                    const matchedLecturer = lecturers.find(
+                        (l) => l.code?.toLowerCase() === lecturerCode.toLowerCase()
+                    );
+                    const matchedCatalog =
+                        catalogs.find((c) => c.code?.toLowerCase() === catalogCode.toLowerCase()) ||
+                        catalogs.find((c) => c.id === selectedCatalogId) ||
+                        catalogs[0];
+
+                    if (!lecturerCode) {
+                        errors.push('Thiếu mã giảng viên');
+                    } else if (seenCodes.has(lecturerCode.toUpperCase())) {
+                        errors.push('Mã GV bị trùng trong file');
+                    } else {
+                        seenCodes.add(lecturerCode.toUpperCase());
+                    }
+
+                    if (lecturers.length > 0 && lecturerCode && !matchedLecturer) {
+                        errors.push('Mã GV không tồn tại trong hệ thống');
+                    }
+
+                    if (plannedQuota < 1 || plannedQuota > 10) {
+                        errors.push('Chỉ tiêu phải từ 1 đến 10');
+                    }
+
+                    return {
+                        key: `row-${idx}`,
+                        rowNumber,
+                        code: lecturerCode,
+                        fullName: matchedLecturer?.fullName || lecturerName || '—',
+                        lecturerId: matchedLecturer?.id,
+                        projectCatalogId: matchedCatalog?.id,
+                        catalogName: matchedCatalog?.name || catalogCode || '—',
+                        plannedQuota,
                         isValid: errors.length === 0,
                         errors,
                     };
@@ -410,6 +513,23 @@ export default function ExcelImportModal({
                 { wch: 16 },
                 { wch: 30 },
             ];
+        } else if (effectiveType === 'LECTURER_ASSIGNMENT') {
+            sheetName = 'Mau_Phan_Cong_GV';
+            sampleData = [
+                {
+                    'Mã Giảng Viên': 'GV001',
+                    'Họ Và Tên (Tham khảo)': 'Nguyễn Văn A',
+                    'Mã Loại Đồ Án': catalogs[0]?.code || 'DATN',
+                    'Chỉ Tiêu Hướng Dẫn (1-10)': 10,
+                },
+                {
+                    'Mã Giảng Viên': 'GV002',
+                    'Họ Và Tên (Tham khảo)': 'Trần Thị B',
+                    'Mã Loại Đồ Án': catalogs[0]?.code || 'DATN',
+                    'Chỉ Tiêu Hướng Dẫn (1-10)': 8,
+                },
+            ];
+            colWidths = [{ wch: 18 }, { wch: 28 }, { wch: 18 }, { wch: 26 }];
         } else {
             sampleData = [
                 {
@@ -435,6 +555,8 @@ export default function ExcelImportModal({
             ? 'Mau_Import_Sinh_Vien.xlsx'
             : effectiveType === 'LECTURER'
             ? 'Mau_Import_Giang_Vien.xlsx'
+            : effectiveType === 'LECTURER_ASSIGNMENT'
+            ? 'Mau_Phan_Cong_Giang_Vien.xlsx'
             : 'Mau_Gan_Lop_Do_An.xlsx';
 
         XLSX.writeFile(wb, filename);
@@ -513,6 +635,7 @@ export default function ExcelImportModal({
             major: record.major,
             department: record.department,
             academicTitle: record.academicTitle,
+            plannedQuota: record.plannedQuota || 10,
             note: record.note,
         });
     };
@@ -535,6 +658,7 @@ export default function ExcelImportModal({
                     major: String(values.major || '').trim(),
                     department: String(values.department || '').trim(),
                     academicTitle: String(values.academicTitle || '').trim(),
+                    plannedQuota: Number(values.plannedQuota) || r.plannedQuota || 10,
                     note: String(values.note || '').trim(),
                 };
 
@@ -584,7 +708,7 @@ export default function ExcelImportModal({
             return;
         }
 
-        if (effectiveType === 'PROJECT_ENROLLMENT') {
+        if (effectiveType === 'PROJECT_ENROLLMENT' || effectiveType === 'LECTURER_ASSIGNMENT') {
             if (!selectedSemesterId || !selectedCatalogId) {
                 message.error('Vui lòng chọn Học kỳ và Loại đồ án.');
                 return;
@@ -603,6 +727,18 @@ export default function ExcelImportModal({
                     items: validRows.map((r) => ({
                         studentCode: r.code,
                         note: r.note,
+                    })),
+                };
+            } else if (effectiveType === 'LECTURER_ASSIGNMENT') {
+                payload = {
+                    semesterId: selectedSemesterId,
+                    projectCatalogId: selectedCatalogId,
+                    items: validRows.map((r) => ({
+                        lecturerId: r.lecturerId,
+                        semesterId: Number(selectedSemesterId),
+                        projectCatalogId: r.projectCatalogId || Number(selectedCatalogId),
+                        plannedQuota: r.plannedQuota || 10,
+                        status: 'ACTIVE',
                     })),
                 };
             } else if (effectiveType === 'STUDENT') {
@@ -779,6 +915,31 @@ export default function ExcelImportModal({
                     ),
                 }
             );
+        } else if (effectiveType === 'LECTURER_ASSIGNMENT') {
+            base.push(
+                {
+                    title: 'Họ và tên GV',
+                    dataIndex: 'fullName',
+                    key: 'fullName',
+                    width: 170,
+                    render: (name) => <span className="font-medium text-slate-800 text-xs">{name || '—'}</span>,
+                },
+                {
+                    title: 'Loại đồ án',
+                    dataIndex: 'catalogName',
+                    key: 'catalogName',
+                    width: 150,
+                    render: (name) => <span className="text-slate-600 text-xs">{name || '—'}</span>,
+                },
+                {
+                    title: 'Chỉ tiêu',
+                    dataIndex: 'plannedQuota',
+                    key: 'plannedQuota',
+                    width: 90,
+                    align: 'center',
+                    render: (q) => <Tag color="blue" className="text-xs font-semibold">{q || 10}</Tag>,
+                }
+            );
         } else if (effectiveType === 'PROJECT_ENROLLMENT') {
             base.push({
                 title: 'Ghi chú',
@@ -851,7 +1012,7 @@ export default function ExcelImportModal({
         >
             <div className="py-2 space-y-4">
                 {/* Switcher đối tượng import (Sinh viên / Giảng viên) khi ở màn Quản lý người dùng */}
-                {type !== 'PROJECT_ENROLLMENT' && (
+                {type !== 'PROJECT_ENROLLMENT' && type !== 'LECTURER_ASSIGNMENT' && (
                     <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-3">
                         <div className="flex items-center gap-2.5">
                             <span className="text-xs font-semibold text-slate-700">Đối tượng nhập dữ liệu:</span>
@@ -881,14 +1042,14 @@ export default function ExcelImportModal({
                     </div>
                 )}
 
-                {/* Dành cho PROJECT_ENROLLMENT: Chọn Học kỳ và Đồ án */}
-                {type === 'PROJECT_ENROLLMENT' && (
-                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-3">
+                {/* Dành cho PROJECT_ENROLLMENT & LECTURER_ASSIGNMENT: Chọn Học kỳ và Đồ án */}
+                {(type === 'PROJECT_ENROLLMENT' || type === 'LECTURER_ASSIGNMENT') && (
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
-                            <label className="block text-xs font-semibold text-slate-600 mb-1">Học kỳ (*)</label>
+                            <label className="block text-xs font-semibold text-slate-600 mb-1">Đợt đồ án (*)</label>
                             <Select
                                 className="w-full"
-                                placeholder="Chọn học kỳ"
+                                placeholder="Chọn đợt đồ án"
                                 value={selectedSemesterId}
                                 onChange={(val) => setSelectedSemesterId(val)}
                                 options={semesters.map((s) => ({ label: s.name, value: s.id }))}
@@ -904,14 +1065,16 @@ export default function ExcelImportModal({
                                 options={catalogs.map((c) => ({ label: `${c.name} (${c.code})`, value: c.id }))}
                             />
                         </div>
-                        <div>
-                            <label className="block text-xs font-semibold text-slate-600 mb-1">Mã đợt import (Tùy chọn)</label>
-                            <Input
-                                placeholder="VD: BATCH_2026_HK1"
-                                value={batchId}
-                                onChange={(e) => setBatchId(e.target.value)}
-                            />
-                        </div>
+                        {type === 'PROJECT_ENROLLMENT' && (
+                            <div className="md:col-span-2">
+                                <label className="block text-xs font-semibold text-slate-600 mb-1">Mã đợt import (Tùy chọn)</label>
+                                <Input
+                                    placeholder="VD: BATCH_2026_HK1"
+                                    value={batchId}
+                                    onChange={(e) => setBatchId(e.target.value)}
+                                />
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -1000,7 +1163,7 @@ export default function ExcelImportModal({
                                         Xuất dòng lỗi ({stats.error})
                                     </Button>
                                 )}
-                                {type !== 'PROJECT_ENROLLMENT' && (
+                                {type !== 'PROJECT_ENROLLMENT' && type !== 'LECTURER_ASSIGNMENT' && (
                                     <div className="flex items-center gap-2 text-xs">
                                         <span className="text-slate-500">Nếu trùng:</span>
                                         <Radio.Group
@@ -1204,6 +1367,21 @@ export default function ExcelImportModal({
                         <Form.Item name="note" label="Ghi chú">
                             <Input.TextArea rows={2} placeholder="Ghi chú" />
                         </Form.Item>
+                    )}
+
+                    {effectiveType === 'LECTURER_ASSIGNMENT' && (
+                        <>
+                            <Form.Item name="fullName" label="Họ và tên Giảng viên">
+                                <Input disabled placeholder="Họ và tên giảng viên" />
+                            </Form.Item>
+                            <Form.Item
+                                name="plannedQuota"
+                                label="Chỉ tiêu hướng dẫn (1 - 10) (*)"
+                                rules={[{ required: true, message: 'Vui lòng nhập chỉ tiêu' }]}
+                            >
+                                <InputNumber min={1} max={10} className="w-full" />
+                            </Form.Item>
+                        </>
                     )}
                 </Form>
             </Modal>

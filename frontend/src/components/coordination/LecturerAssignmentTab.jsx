@@ -3,6 +3,7 @@ import { useUsers } from '../../queries/userQueries';
 import { queryKeys } from '../../query/queryKeys';
 import QueryPanel from '../common/QueryPanel';
 import AuthorizedAction from '../common/AuthorizedAction';
+import ExcelImportModal from '../common/ExcelImportModal';
 import { getEffectivePermissions } from '../../auth/policyEvaluator';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -18,7 +19,6 @@ import {
     message,
     Tooltip,
     Space,
-    Upload,
 } from 'antd';
 import {
     PlusOutlined,
@@ -96,8 +96,6 @@ export function LecturerAssignmentTab({
     const [sourceSemesterId, setSourceSemesterId] = useState(null);
 
     const [importModalOpen, setImportModalOpen] = useState(false);
-    const [importing, setImporting] = useState(false);
-    const [importPreviewRows, setImportPreviewRows] = useState([]);
 
     const scope = queryKeys.scope(user);
     const assignmentsQuery = useLecturerAssignments(scope, { semesterId, projectCatalogId: projectCatalogId || undefined });
@@ -252,92 +250,6 @@ export function LecturerAssignmentTab({
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Mau_Phan_Cong_GV');
         XLSX.writeFile(wb, 'Mau_Phan_Cong_Giang_Vien.xlsx');
-    };
-
-    // Parse Excel File
-    const handleFileUpload = (file) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            try {
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, { type: 'array' });
-                const firstSheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[firstSheetName];
-                const jsonRows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-
-                if (jsonRows.length < 2) {
-                    message.error('File Excel không có dữ liệu');
-                    return;
-                }
-
-                // Map header
-                const rows = jsonRows.slice(1).filter((r) => r.length > 0 && r[0]);
-                const parsed = rows.map((r, idx) => {
-                    const lecturerCode = String(r[0] || '').trim();
-                    const lecturerName = String(r[1] || '').trim();
-                    const catalogCode = String(r[2] || '').trim();
-                    const plannedQuota = Number(r[3]) || 10;
-
-                    const matchedLecturer = lecturers.find(
-                        (l) => l.code?.toLowerCase() === lecturerCode.toLowerCase()
-                    );
-                    const matchedCatalog = catalogs.find(
-                        (c) => c.code?.toLowerCase() === catalogCode.toLowerCase()
-                    ) || catalogs[0];
-
-                    return {
-                        key: idx,
-                        lecturerCode,
-                        lecturerName: matchedLecturer?.fullName || lecturerName,
-                        lecturerId: matchedLecturer?.id,
-                        projectCatalogId: matchedCatalog?.id,
-                        catalogName: matchedCatalog?.name || catalogCode,
-                        plannedQuota,
-                        isValid: !!matchedLecturer && !!matchedCatalog,
-                    };
-                });
-
-                setImportPreviewRows(parsed);
-                setImportModalOpen(true);
-            } catch {
-                message.error('Không thể đọc file Excel. Vui lòng kiểm tra định dạng.');
-            }
-        };
-        reader.readAsArrayBuffer(file);
-        return false;
-    };
-
-    // Execute bulk upsert from Excel
-    const handleExecuteImport = async () => {
-        const validRows = importPreviewRows.filter((r) => r.isValid && r.lecturerId && r.projectCatalogId);
-        if (validRows.length === 0) {
-            message.warning('Không có dòng hợp lệ để phân công');
-            return;
-        }
-
-        setImporting(true);
-        try {
-            const items = validRows.map((r) => ({
-                lecturerId: r.lecturerId,
-                semesterId: Number(semesterId),
-                projectCatalogId: r.projectCatalogId,
-                plannedQuota: r.plannedQuota,
-                status: 'ACTIVE',
-            }));
-
-            const res = await assignmentMutation.mutateAsync({ action: 'bulkUpsert', args: [items] });
-            if (res?.success) {
-                message.success(
-                    `Phân công thành công: Tạo mới ${res.data?.created || 0}, cập nhật ${res.data?.updated || 0}`
-                );
-                setImportModalOpen(false);
-                setImportPreviewRows([]);
-            }
-        } catch (error) {
-            message.error(error?.message || 'Lỗi khi nhập phân công từ Excel');
-        } finally {
-            setImporting(false);
-        }
     };
 
     // Table columns definition
@@ -585,13 +497,12 @@ export function LecturerAssignmentTab({
                             >
                                 Gán giảng viên vào đợt
                             </Button>
-                            <Upload
-                                beforeUpload={handleFileUpload}
-                                showUploadList={false}
-                                accept=".xlsx, .xls"
+                            <Button
+                                icon={<UploadOutlined />}
+                                onClick={() => setImportModalOpen(true)}
                             >
-                                <Button icon={<UploadOutlined />}>Import Excel GVHD</Button>
-                            </Upload>
+                                Gán bằng Excel
+                            </Button>
                             <Button
                                 icon={<CopyOutlined />}
                                 onClick={() => {
@@ -803,61 +714,28 @@ export function LecturerAssignmentTab({
 
             </Modal>
 
-            {/* Modal 4: Import Excel Preview */}
-            <Modal
-                title="Xem trước Import Phân công Giảng viên từ Excel"
+            {/* Modal 4: Gán Giảng viên Bằng Excel */}
+            <ExcelImportModal
                 open={importModalOpen}
-                onCancel={() => {
-                    setImportModalOpen(false);
-                    setImportPreviewRows([]);
+                onCancel={() => setImportModalOpen(false)}
+                type="LECTURER_ASSIGNMENT"
+                semesters={semesters}
+                catalogs={catalogs}
+                lecturers={lecturers}
+                defaultSemesterId={semesterId ? Number(semesterId) : null}
+                defaultCatalogId={projectCatalogId ? Number(projectCatalogId) : null}
+                onDownloadTemplate={handleDownloadTemplate}
+                onExecuteImport={async (payload) => {
+                    const res = await assignmentMutation.mutateAsync({ action: 'bulkUpsert', args: [payload.items] });
+                    if (res?.success) {
+                        message.success(
+                            `Gán thành công: Tạo mới ${res.data?.created || 0}, cập nhật ${res.data?.updated || 0} giảng viên`
+                        );
+                        setImportModalOpen(false);
+                    }
+                    return res;
                 }}
-                onOk={handleExecuteImport}
-                confirmLoading={importing}
-                okText={`Xác nhận Import (${importPreviewRows.filter((r) => r.isValid).length} hợp lệ)`}
-                cancelText="Hủy"
-                width={720}
-            >
-                <QueryPanel query={lecturersQuery}>
-                <div className="space-y-3 py-2">
-                    <div className="flex justify-between items-center text-xs">
-                        <span className="text-slate-600 font-medium">
-                            Tìm thấy {importPreviewRows.length} dòng ({importPreviewRows.filter((r) => r.isValid).length} hợp lệ, {importPreviewRows.filter((r) => !r.isValid).length} không hợp lệ)
-                        </span>
-                        <Button
-                            type="link"
-                            size="small"
-                            icon={<DownloadOutlined />}
-                            onClick={handleDownloadTemplate}
-                        >
-                            Tải file mẫu
-                        </Button>
-                    </div>
-
-                    <Table
-                        size="small"
-                        rowKey="key"
-                        pagination={{ pageSize: 5 }}
-                        dataSource={importPreviewRows}
-                        columns={[
-                            { title: 'Mã GV', dataIndex: 'lecturerCode', key: 'lecturerCode' },
-                            { title: 'Tên GV', dataIndex: 'lecturerName', key: 'lecturerName' },
-                            { title: 'Loại đồ án', dataIndex: 'catalogName', key: 'catalogName' },
-                            { title: 'Chỉ tiêu hướng dẫn', dataIndex: 'plannedQuota', key: 'plannedQuota' },
-                            {
-                                title: 'Trạng thái dòng',
-                                key: 'status',
-                                render: (_, r) =>
-                                    r.isValid ? (
-                                        <Tag color="green">Hợp lệ</Tag>
-                                    ) : (
-                                        <Tag color="red">Mã GV/Môn không khớp</Tag>
-                                    ),
-                            },
-                        ]}
-                    />
-                </div>
-            </QueryPanel>
-            </Modal>
+            />
         </div>
         </QueryPanel>
     );
