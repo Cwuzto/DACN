@@ -106,9 +106,14 @@ export default function GradingPage() {
             message.warning('Bắt buộc nhập biên bản xác nhận vắng mặt.');
             return;
         }
+        const regId = absentingReg?.registrationId || absentingReg?.id;
+        if (!regId) {
+            message.error('Không tìm thấy mã hồ sơ sinh viên hợp lệ.');
+            return;
+        }
         try {
             setSubmittingAbsent(true);
-            const res = await evaluationService.markStudentAbsent(absentingReg.id, {
+            const res = await evaluationService.markStudentAbsent(regId, {
                 absentMinutesText: absentMinutesText.trim(),
             });
             if (res.success) {
@@ -127,8 +132,13 @@ export default function GradingPage() {
     };
 
     const handleLockScoreBook = async (cand) => {
+        const regId = cand?.registrationId || cand?.id;
+        if (!regId) {
+            message.error('Không tìm thấy mã hồ sơ sinh viên hợp lệ.');
+            return;
+        }
         try {
-            const res = await evaluationService.lockScoreBookByChairman(cand.id);
+            const res = await evaluationService.lockScoreBookByChairman(regId);
             if (res.success) {
                 message.success('Đã khóa sổ điểm Hội đồng thành công!');
                 await refreshCouncils();
@@ -387,7 +397,7 @@ export default function GradingPage() {
                                                                             type="primary"
                                                                             icon={<LockOutlined />}
                                                                             onClick={() => handleLockScoreBook(cand)}
-                                                                            disabled={isAbsent ? !cand.absentMinutesText : lockedCount < totalScorers}
+                                                                            disabled={isAbsent ? !(cand.defenseResult?.absentMinutesText || cand.absentMinutesText) : lockedCount < totalScorers}
                                                                             className="bg-amber-600 hover:bg-amber-700"
                                                                         >
                                                                             Khóa sổ điểm

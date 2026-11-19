@@ -66,7 +66,8 @@ function Bm02AdvisorRow({ registration, scope, advisorSignMutation }) {
         );
     };
 
-    const canSignNow = Boolean(verification?.student?.valid && !verification?.advisor?.valid);
+    const allowedActions = registration.allowedActions || [];
+    const canSignNow = Boolean(verification?.student?.valid && !verification?.advisor?.valid && (!allowedActions.length || allowedActions.includes('SIGN_BM02') || allowedActions.includes('ADVISOR_SIGN')));
 
     return (
         <div className="rounded-lg border border-slate-200 bg-white p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">

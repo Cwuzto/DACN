@@ -519,26 +519,36 @@ export default function GradingDefensePage() {
 
     const handleOpenReturnModal = (registration) => {
         setSelectedRegForReturn(registration);
-        setReopenMemberIds((registration.memberScores || []).map((m) => m.id));
+        setReopenMemberIds(
+            (registration?.memberScores || [])
+                .map((m) => m?.id)
+                .filter((id) => Number.isInteger(id) && id > 0)
+        );
         setReturnReason('');
         setReturnModalOpen(true);
     };
 
     const handleConfirmReturnScoreBook = async () => {
         if (!selectedRegForReturn) return;
+        const regId = selectedRegForReturn.registrationId || selectedRegForReturn.id;
+        if (!regId) {
+            message.error('Không tìm thấy mã hồ sơ đăng ký hợp lệ.');
+            return;
+        }
         if (!returnReason.trim()) {
             message.warning('Bắt buộc nhập lý do trả sổ điểm.');
             return;
         }
-        if (!reopenMemberIds.length) {
+        const validReopenIds = reopenMemberIds.filter((id) => Number.isInteger(id) && id > 0);
+        if (!validReopenIds.length) {
             message.warning('Vui lòng chọn ít nhất 1 phiếu thành viên cần mở lại.');
             return;
         }
         try {
             setReturnLoading(true);
-            const res = await evaluationService.returnScoreBook(selectedRegForReturn.id, {
+            const res = await evaluationService.returnScoreBook(regId, {
                 reason: returnReason.trim(),
-                reopenMemberScoreIds: reopenMemberIds,
+                reopenMemberScoreIds: validReopenIds,
             });
             if (res.success) {
                 message.success('Đã trả sổ điểm về Hội đồng thành công!');
@@ -1713,29 +1723,33 @@ export default function GradingDefensePage() {
                             Chọn các phiếu giám khảo cần mở khóa lại: <span className="text-rose-500">*</span>
                         </label>
                         <div className="space-y-1 mt-1 border border-slate-200 p-2.5 rounded bg-slate-50">
-                            {(selectedRegForReturn?.memberScores || []).map((m) => (
-                                <div key={m.id} className="flex items-center gap-2 text-xs">
-                                    <Checkbox
-                                        checked={reopenMemberIds.includes(m.id)}
-                                        onChange={(e) => {
-                                            if (e.target.checked) {
-                                                setReopenMemberIds([...reopenMemberIds, m.id]);
-                                            } else {
-                                                setReopenMemberIds(reopenMemberIds.filter((id) => id !== m.id));
-                                            }
-                                        }}
-                                    >
-                                        <span className="font-semibold text-slate-800">
-                                            {m.evaluator?.fullName || m.evaluatorName || `Giám khảo #${m.id}`} ({m.memberRole || 'Thành viên HĐ'})
-                                        </span>
-                                        {m.finalScore !== null && m.finalScore !== undefined && (
-                                            <span className="ml-1 text-slate-500">
-                                                - Điểm hiện tại: <strong>{Number(m.finalScore).toFixed(1)}</strong>
+                            {(selectedRegForReturn?.memberScores || []).map((m, idx) => {
+                                const scoreId = m?.id;
+                                if (!scoreId) return null;
+                                return (
+                                    <div key={scoreId || idx} className="flex items-center gap-2 text-xs">
+                                        <Checkbox
+                                            checked={reopenMemberIds.includes(scoreId)}
+                                            onChange={(e) => {
+                                                if (e.target.checked) {
+                                                    setReopenMemberIds([...reopenMemberIds, scoreId]);
+                                                } else {
+                                                    setReopenMemberIds(reopenMemberIds.filter((id) => id !== scoreId));
+                                                }
+                                            }}
+                                        >
+                                            <span className="font-semibold text-slate-800">
+                                                {m.evaluator?.fullName || m.evaluatorName || `Giám khảo #${scoreId}`} ({m.memberRole || 'Thành viên HĐ'})
                                             </span>
-                                        )}
-                                    </Checkbox>
-                                </div>
-                            ))}
+                                            {m.finalScore !== null && m.finalScore !== undefined && (
+                                                <span className="ml-1 text-slate-500">
+                                                    - Điểm hiện tại: <strong>{Number(m.finalScore).toFixed(1)}</strong>
+                                                </span>
+                                            )}
+                                        </Checkbox>
+                                    </div>
+                                );
+                            })}
                         </div>
                     </div>
                 </div>

@@ -319,7 +319,7 @@ const getGradingStudents = async (req, res, next) => {
                 },
                 defenseResult: true,
                 ...(supportsMemberScoresModel
-                    ? { memberScores: { select: { finalScore: true, scoreLocked: true } } }
+                    ? { memberScores: { select: { id: true, evaluatorId: true, finalScore: true, scoreLocked: true } } }
                     : {}),
                 council: {
                     select: {
@@ -362,9 +362,12 @@ const getGradingStudents = async (req, res, next) => {
             finalScore: supportsMemberScoresModel
                 ? (reg.defenseResult?.finalScore ?? computeRegistrationFinalScore(reg.memberScores || []))
                 : (reg.defenseResult?.finalScore ?? null),
-            scoreLocked: supportsMemberScoresModel
-                ? (reg.memberScores?.length ? reg.memberScores.every((s) => s.scoreLocked) : false)
-                : Boolean(reg.defenseResult?.scoreLocked),
+            scoreLocked: Boolean(reg.defenseResult?.scoreLocked),
+            isScoreBookLocked: Boolean(reg.defenseResult?.scoreLocked),
+            rawAverageScore: reg.defenseResult?.rawAverageScore ?? null,
+            roundedFinalScore: reg.defenseResult?.roundedFinalScore ?? null,
+            attendanceStatus: reg.defenseResult?.attendanceStatus || 'PRESENT',
+            absentMinutesText: reg.defenseResult?.absentMinutesText || null,
         }));
 
         res.json({ success: true, data: enhanced });
@@ -454,6 +457,10 @@ const getAdminDefenseCenter = async (req, res, next) => {
                     select: {
                         id: true,
                         finalScore: true,
+                        rawAverageScore: true,
+                        roundedFinalScore: true,
+                        attendanceStatus: true,
+                        absentMinutesText: true,
                         scoreLocked: true,
                         pdfUrl: true,
                         updatedAt: true,
@@ -464,9 +471,12 @@ const getAdminDefenseCenter = async (req, res, next) => {
                     ? {
                         memberScores: {
                             select: {
+                                id: true,
                                 evaluatorId: true,
                                 finalScore: true,
                                 scoreLocked: true,
+                                isEffective: true,
+                                versionNumber: true,
                                 updatedAt: true,
                                 evaluator: { select: { id: true, fullName: true } },
                             },
@@ -484,18 +494,20 @@ const getAdminDefenseCenter = async (req, res, next) => {
                 ? (registration.memberScores?.length ? 'GRADED' : 'PENDING')
                 : (registration.defenseResult ? 'GRADED' : 'PENDING');
             const semester = registration.topic?.semester || targetSemester;
-            const finalScore = supportsMemberScoresModel
-                ? (registration.defenseResult?.finalScore ?? computeRegistrationFinalScore(registration.memberScores || []))
-                : (registration.defenseResult?.finalScore ?? null);
-            const scoreLocked = supportsMemberScoresModel
-                ? (Boolean(registration.memberScores?.length) && registration.memberScores.every((row) => row.scoreLocked))
-                : Boolean(registration.defenseResult?.scoreLocked);
+            const finalScore = registration.defenseResult?.finalScore
+                ?? (supportsMemberScoresModel ? computeRegistrationFinalScore(registration.memberScores || []) : null);
+            const scoreLocked = Boolean(registration.defenseResult?.scoreLocked);
+            const rawAverageScore = registration.defenseResult?.rawAverageScore ?? null;
+            const roundedFinalScore = registration.defenseResult?.roundedFinalScore ?? null;
+            const attendanceStatus = registration.defenseResult?.attendanceStatus || 'PRESENT';
+            const absentMinutesText = registration.defenseResult?.absentMinutesText || null;
             const lastMemberUpdate = ((registration.memberScores || [])).reduce((latest, row) => {
                 if (!latest) return row.updatedAt;
                 return new Date(row.updatedAt).getTime() > new Date(latest).getTime() ? row.updatedAt : latest;
             }, null);
 
             return {
+                id: registration.id,
                 registrationId: registration.id,
                 status: registration.status,
                 workflowStage: stage,
@@ -508,7 +520,12 @@ const getAdminDefenseCenter = async (req, res, next) => {
                 defenseResult: registration.defenseResult,
                 memberScores: supportsMemberScoresModel ? (registration.memberScores || []) : [],
                 finalScore: finalScore ?? null,
+                rawAverageScore,
+                roundedFinalScore,
+                attendanceStatus,
+                absentMinutesText,
                 scoreLocked,
+                isScoreBookLocked: scoreLocked,
                 pdfUrl: registration.defenseResult?.pdfUrl || null,
                 scoredBy: supportsMemberScoresModel
                     ? (registration.memberScores?.[0]?.evaluator || registration.defenseResult?.evaluator || null)
