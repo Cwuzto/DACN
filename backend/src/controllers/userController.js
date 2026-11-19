@@ -4,6 +4,7 @@ const { clearAuthCache } = require('../middlewares/auth');
 const { COMPLETED_GRADUATION_STATUSES } = require('../utils/studentAccountRestriction');
 const { getMentorMaxSlots } = require('../constants/mentorCapacity');
 const { validateStudentPayload, normalizeStudentPayload } = require('../services/studentProfileService');
+const { normalizeExpertiseAreas } = require('../services/lecturerExpertiseService');
 
 const generateUserCode = async (role) => {
     let prefix = 'US';
@@ -116,6 +117,7 @@ const getAllUsers = async (req, res, next) => {
                     role: true,
                     department: true,
                     academicTitle: true,
+                    expertiseAreas: true,
                     phone: true,
                     avatarUrl: true,
                     isActive: true,
@@ -345,6 +347,18 @@ const createUser = async (req, res, next) => {
             });
         }
 
+        let normalizedExpertise = [];
+        if (role === 'LECTURER') {
+            normalizedExpertise = normalizeExpertiseAreas(req.body.expertiseAreas);
+            if (normalizedExpertise.length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    code: 'LECTURER_EXPERTISE_REQUIRED',
+                    message: 'Chuyên môn giảng viên không được để trống.',
+                });
+            }
+        }
+
         // Kiểm tra email trùng
         const existingEmail = await prisma.user.findUnique({ where: { email } });
         if (existingEmail) {
@@ -379,6 +393,7 @@ const createUser = async (req, res, next) => {
                     role,
                     department: department || null,
                     academicTitle: role === 'LECTURER' ? academicTitle : null,
+                    expertiseAreas: role === 'LECTURER' ? normalizedExpertise : [],
                     phone: phone || null,
                     passwordHash: hashedPassword,
                 },
@@ -390,6 +405,7 @@ const createUser = async (req, res, next) => {
                     role: true,
                     department: true,
                     academicTitle: true,
+                    expertiseAreas: true,
                     phone: true,
                     isActive: true,
                     createdAt: true,
@@ -715,8 +731,26 @@ const updateUser = async (req, res, next) => {
         if (role) updateData.role = role;
         if (department !== undefined) updateData.department = department;
         if (phone !== undefined) updateData.phone = phone;
-        if (role === 'LECTURER' && academicTitle !== undefined) updateData.academicTitle = academicTitle;
-        if (role !== 'LECTURER') updateData.academicTitle = null;
+        if (effectiveRole === 'LECTURER') {
+            if (academicTitle !== undefined) updateData.academicTitle = academicTitle;
+            if (req.body.expertiseAreas !== undefined) {
+                const normalized = normalizeExpertiseAreas(req.body.expertiseAreas);
+                if (normalized.length === 0) {
+                    return res.status(400).json({
+                        success: false,
+                        code: 'LECTURER_EXPERTISE_REQUIRED',
+                        message: 'Chuyên môn giảng viên không được để trống.',
+                    });
+                }
+                updateData.expertiseAreas = normalized;
+            }
+        }
+        if (effectiveRole !== 'LECTURER') {
+            updateData.academicTitle = null;
+            if (isRoleChanged) {
+                updateData.expertiseAreas = [];
+            }
+        }
         if (isRoleChanged) {
             updateData.permissionVersion = { increment: 1 };
         }
@@ -733,6 +767,7 @@ const updateUser = async (req, res, next) => {
                     role: true,
                     department: true,
                     academicTitle: true,
+                    expertiseAreas: true,
                     phone: true,
                     isActive: true,
                     createdAt: true,
@@ -1525,6 +1560,7 @@ const getPublicLecturers = async (req, res, next) => {
                 fullName: true,
                 code: true,
                 academicTitle: true,
+                expertiseAreas: true,
                 department: true,
                 avatarUrl: true,
                 email: true,

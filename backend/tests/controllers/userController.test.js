@@ -332,3 +332,138 @@ describe('userController.getUserById and getAllUsers studentProfile inclusion', 
     });
 });
 
+describe('userController.createUser for LECTURER', () => {
+    let req, res, next;
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        req = {
+            body: {
+                role: 'LECTURER',
+                code: 'GV202601',
+                fullName: 'TS. Le Van C',
+                email: 'levanc@tdmu.edu.vn',
+                phone: '0912345678',
+                department: 'Bộ môn Công nghệ Phần mềm',
+                academicTitle: 'TIEN_SI',
+                expertiseAreas: ['Trí tuệ nhân tạo', 'Xử lý ảnh'],
+            },
+        };
+        res = {
+            status: jest.fn().mockReturnThis(),
+            json: jest.fn().mockReturnThis(),
+        };
+        next = jest.fn();
+        mockPrisma.permissionGroup = {
+            findUnique: jest.fn().mockResolvedValue({ id: 1, code: 'GVHD' }),
+        };
+        mockPrisma.userPermissionGroup = {
+            create: jest.fn().mockResolvedValue({ id: 1 }),
+        };
+    });
+
+    test('rejects with 400 when expertiseAreas is missing or empty for LECTURER', async () => {
+        req.body.expertiseAreas = [];
+        await userController.createUser(req, res, next);
+
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({
+                success: false,
+                code: 'LECTURER_EXPERTISE_REQUIRED',
+            })
+        );
+        expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    test('normalizes expertiseAreas and creates LECTURER successfully', async () => {
+        req.body.expertiseAreas = 'AI ; Xử lý ảnh; ai';
+        mockPrisma.user.findUnique.mockResolvedValue(null);
+        mockPrisma.user.create.mockResolvedValue({
+            id: 201,
+            code: 'GV202601',
+            fullName: 'TS. Le Van C',
+            role: 'LECTURER',
+            expertiseAreas: ['AI', 'Xử lý ảnh'],
+        });
+
+        await userController.createUser(req, res, next);
+
+        expect(mockPrisma.user.create).toHaveBeenCalledWith(
+            expect.objectContaining({
+                data: expect.objectContaining({
+                    role: 'LECTURER',
+                    expertiseAreas: ['AI', 'Xử lý ảnh'],
+                }),
+            })
+        );
+        expect(res.status).toHaveBeenCalledWith(201);
+    });
+});
+
+describe('userController.updateUser for LECTURER', () => {
+    let req, res, next;
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        req = {
+            params: { id: '201' },
+            body: {
+                expertiseAreas: ['Học máy', 'Kỹ nghệ phần mềm'],
+            },
+        };
+        res = {
+            status: jest.fn().mockReturnThis(),
+            json: jest.fn().mockReturnThis(),
+        };
+        next = jest.fn();
+    });
+
+    test('rejects with 400 when updating LECTURER expertise to empty', async () => {
+        mockPrisma.user.findUnique.mockResolvedValue({
+            id: 201,
+            role: 'LECTURER',
+            code: 'GV202601',
+            studentProfile: null,
+        });
+
+        req.body.expertiseAreas = [];
+        await userController.updateUser(req, res, next);
+
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({
+                success: false,
+                code: 'LECTURER_EXPERTISE_REQUIRED',
+            })
+        );
+    });
+
+    test('normalizes and updates expertiseAreas for LECTURER', async () => {
+        mockPrisma.user.findUnique.mockResolvedValue({
+            id: 201,
+            role: 'LECTURER',
+            code: 'GV202601',
+            studentProfile: null,
+        });
+        mockPrisma.user.update.mockResolvedValue({
+            id: 201,
+            role: 'LECTURER',
+            expertiseAreas: ['Học máy', 'Kỹ nghệ phần mềm'],
+        });
+
+        await userController.updateUser(req, res, next);
+
+        expect(mockPrisma.user.update).toHaveBeenCalledWith(
+            expect.objectContaining({
+                data: expect.objectContaining({
+                    expertiseAreas: ['Học máy', 'Kỹ nghệ phần mềm'],
+                }),
+            })
+        );
+        expect(res.json).toHaveBeenCalledWith(
+            expect.objectContaining({ success: true })
+        );
+    });
+});
+

@@ -88,6 +88,10 @@ const checkUserFormChanged = (initial, current) => {
             const initMax = initial.maxStudents !== undefined && initial.maxStudents !== null && initial.maxStudents !== '' ? Number(initial.maxStudents) : '';
             const currMax = current.maxStudents !== undefined && current.maxStudents !== null && current.maxStudents !== '' ? Number(current.maxStudents) : '';
             if (initMax !== currMax) return true;
+
+            const initAreas = Array.isArray(initial.expertiseAreas) ? initial.expertiseAreas.map(a => String(a).trim().toLowerCase()).sort() : [];
+            const currAreas = Array.isArray(current.expertiseAreas) ? current.expertiseAreas.map(a => String(a).trim().toLowerCase()).sort() : [];
+            if (initAreas.join(';') !== currAreas.join(';')) return true;
         }
     }
 
@@ -166,7 +170,7 @@ function UserManagementPage() {
         setInitialFormValues(null);
         setHasFormChanges(true);
         form.resetFields();
-        form.setFieldsValue({ role: activeRole });
+        form.setFieldsValue({ role: activeRole, expertiseAreas: [] });
         setIsModalOpen(true);
     };
 
@@ -221,6 +225,7 @@ function UserManagementPage() {
             phone: record.phone || '',
             academicTitle: record.academicTitle || undefined,
             maxStudents: record.maxStudents !== undefined && record.maxStudents !== null ? record.maxStudents : undefined,
+            expertiseAreas: Array.isArray(record.expertiseAreas) ? record.expertiseAreas : [],
             gender: genderVal,
             dateOfBirth: parsedDob,
             className: record.studentProfile?.className || '',
@@ -256,6 +261,7 @@ function UserManagementPage() {
                         setDrawerUser((prev) => ({
                             ...prev,
                             ...values,
+                            expertiseAreas: values.role === 'LECTURER' ? (values.expertiseAreas || []) : (prev.expertiseAreas || []),
                             studentProfile: {
                                 ...(prev.studentProfile || {}),
                                 gender: values.gender,
@@ -354,7 +360,7 @@ function UserManagementPage() {
             ),
         },
         {
-            title: 'Họ và tên & Đơn vị',
+            title: 'Họ và tên',
             dataIndex: 'fullName',
             key: 'fullName',
             width: 250,
@@ -421,6 +427,35 @@ function UserManagementPage() {
                 );
             },
         },
+        ...(activeRole === 'LECTURER'
+            ? [
+                  {
+                      title: 'Chuyên môn',
+                      dataIndex: 'expertiseAreas',
+                      key: 'expertiseAreas',
+                      width: 220,
+                      render: (areas) => {
+                          const list = Array.isArray(areas) ? areas : [];
+                          if (list.length === 0) {
+                              return (
+                                  <span className="inline-flex items-center text-[11px] font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                                      Cần bổ sung chuyên môn
+                                  </span>
+                              );
+                          }
+                          return (
+                              <div className="flex flex-wrap gap-1 max-w-[240px]">
+                                  {list.map((area, idx) => (
+                                      <Tag key={idx} color="cyan" className="text-[11px] m-0">
+                                          {area}
+                                      </Tag>
+                                  ))}
+                              </div>
+                          );
+                      },
+                  },
+              ]
+            : []),
         {
             title: activeRole === 'LECTURER' ? 'Chỉ tiêu hướng dẫn' : 'Nhóm quyền',
             key: 'quotaOrPerm',
@@ -861,6 +896,28 @@ function UserManagementPage() {
                             </div>
                         )}
 
+                        {/* Lecturer Expertise Areas */}
+                        {drawerUser.role === 'LECTURER' && (
+                            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Chuyên môn & Hướng nghiên cứu</span>
+                                <div className="pt-1">
+                                    {Array.isArray(drawerUser.expertiseAreas) && drawerUser.expertiseAreas.length > 0 ? (
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {drawerUser.expertiseAreas.map((area, idx) => (
+                                                <Tag key={idx} color="cyan" className="text-xs font-medium px-2 py-0.5 m-0">
+                                                    {area}
+                                                </Tag>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <span className="inline-flex items-center text-xs font-medium text-amber-700 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200">
+                                            Cần bổ sung chuyên môn
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
                         {/* Permission Groups */}
                         <div className="space-y-2">
                             <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Nhóm quyền RBAC</h4>
@@ -1086,39 +1143,64 @@ function UserManagementPage() {
                             </div>
 
                             {selectedRole === 'LECTURER' && (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <Form.Item
-                                        label="Học vị"
-                                        name="academicTitle"
-                                        rules={[{ required: true, message: 'Chọn học vị!' }]}
-                                    >
-                                        <Select
-                                            placeholder="Chọn học vị"
-                                            allowClear
-                                            onChange={(_value) => {
-                                                form.setFieldValue('maxStudents', 10);
-                                                if (editingUser && initialFormValues) {
-                                                    setTimeout(() => {
-                                                        const current = form.getFieldsValue(true);
-                                                        setHasFormChanges(checkUserFormChanged(initialFormValues, current));
-                                                    }, 0);
-                                                }
-                                            }}
+                                <>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <Form.Item
+                                            label="Học vị"
+                                            name="academicTitle"
+                                            rules={[{ required: true, message: 'Chọn học vị!' }]}
                                         >
-                                            <Select.Option value="THAC_SI">Thạc sĩ</Select.Option>
-                                            <Select.Option value="TIEN_SI">Tiến sĩ</Select.Option>
-                                            <Select.Option value="PHO_GIAO_SU">Phó Giáo sư</Select.Option>
-                                        </Select>
-                                    </Form.Item>
+                                            <Select
+                                                placeholder="Chọn học vị"
+                                                allowClear
+                                                onChange={(_value) => {
+                                                    form.setFieldValue('maxStudents', 10);
+                                                    if (editingUser && initialFormValues) {
+                                                        setTimeout(() => {
+                                                            const current = form.getFieldsValue(true);
+                                                            setHasFormChanges(checkUserFormChanged(initialFormValues, current));
+                                                        }, 0);
+                                                    }
+                                                }}
+                                            >
+                                                <Select.Option value="THAC_SI">Thạc sĩ</Select.Option>
+                                                <Select.Option value="TIEN_SI">Tiến sĩ</Select.Option>
+                                                <Select.Option value="PHO_GIAO_SU">Phó Giáo sư</Select.Option>
+                                            </Select>
+                                        </Form.Item>
+
+                                        <Form.Item
+                                            label="Chỉ tiêu hướng dẫn tối đa"
+                                            name="maxStudents"
+                                            tooltip="Giới hạn tối đa 10 sinh viên hướng dẫn trong đợt đồ án theo quy định."
+                                        >
+                                            <Input type="number" placeholder="VD: 10" max={10} min={1} />
+                                        </Form.Item>
+                                    </div>
 
                                     <Form.Item
-                                        label="Chỉ tiêu hướng dẫn tối đa"
-                                        name="maxStudents"
-                                        tooltip="Giới hạn tối đa 10 sinh viên hướng dẫn trong đợt đồ án theo quy định."
+                                        label="Chuyên môn & Hướng nghiên cứu (*)"
+                                        name="expertiseAreas"
+                                        rules={[
+                                            {
+                                                validator: async (_, value) => {
+                                                    if (!value || (Array.isArray(value) && value.length === 0)) {
+                                                        throw new Error('Vui lòng nhập ít nhất một chuyên môn cho giảng viên!');
+                                                    }
+                                                },
+                                            },
+                                        ]}
+                                        tooltip="Nhập các hướng nghiên cứu/chuyên môn (VD: Trí tuệ nhân tạo, Xử lý ảnh, Học máy). Nhấn Enter, dấu phẩy hoặc chấm phẩy để thêm."
                                     >
-                                        <Input type="number" placeholder="VD: 10" max={10} min={1} />
+                                        <Select
+                                            mode="tags"
+                                            style={{ width: '100%' }}
+                                            placeholder="Nhập chuyên môn và nhấn Enter (VD: Trí tuệ nhân tạo, Xử lý ảnh...)"
+                                            tokenSeparators={[',', ';']}
+                                            allowClear
+                                        />
                                     </Form.Item>
-                                </div>
+                                </>
                             )}
                         </>
                     )}
