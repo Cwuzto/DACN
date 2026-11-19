@@ -276,8 +276,15 @@ const evaluationService = {
 
     studentAcknowledgeBM03: async (bm03RecordId, data = {}) => {
         try {
-            const endpoint = data.action === 'DECLINED_TO_ACKNOWLEDGE' ? 'student-decline' : 'student-acknowledge';
-            return await api.post(`/bm03/${bm03RecordId}/${endpoint}`, data, idempotencyConfig(data.idempotencyKey));
+            const payload = typeof data === 'string'
+                ? { action: 'ACKNOWLEDGED', comment: data, studentNote: data }
+                : {
+                    ...data,
+                    comment: data.comment ?? data.studentNote,
+                    studentNote: data.studentNote ?? data.comment,
+                };
+            const endpoint = payload.action === 'DECLINED_TO_ACKNOWLEDGE' ? 'student-decline' : 'student-acknowledge';
+            return await api.post(`/bm03/${bm03RecordId}/${endpoint}`, payload, idempotencyConfig(payload.idempotencyKey));
         } catch (error) {
             throw wrapServiceError(error, 'Đã xảy ra lỗi khi sinh viên xác nhận BM03');
         }

@@ -52,6 +52,22 @@ const archiveService = {
         }
     },
 
+    // 2.1. Sinh vien nop ho so luu chieu cuoi cung sau bao ve (Final Archive)
+    submitFinalArchive: async (registrationId, payload) => {
+        try {
+            const data = (typeof registrationId === 'object' && !payload) ? registrationId : payload;
+            const regId = (typeof registrationId === 'number' || typeof registrationId === 'string')
+                ? registrationId
+                : data?.registrationId;
+            const url = regId
+                ? `/archives/registrations/${regId}`
+                : '/archives/final';
+            return await api.post(url, data);
+        } catch (error) {
+            throw wrapServiceError(error, 'Không thể nộp hồ sơ lưu chiểu');
+        }
+    },
+
     // 2.5. Sinh vien nop ho so luu chieu so bo truoc bao ve (Pre-Defense Archive)
     submitPreDefenseArchive: async (registrationId, payload) => {
         try {
