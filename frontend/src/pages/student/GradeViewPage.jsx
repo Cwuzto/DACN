@@ -330,26 +330,26 @@ export default function GradeViewPage() {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#F8FAFC', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: 12.5 }}>
                                 <span>1. Toàn văn Báo cáo (Word .docx)</span>
-                                <span className={`tag ${archiveData?.dossierFiles?.some(f => f.docType === 'REPORT_WORD') || archiveData?.sourceCodeUrl ? 'green' : 'gray'}`}>
-                                    {archiveData?.dossierFiles?.some(f => f.docType === 'REPORT_WORD') ? 'Đã tải lên' : 'Chưa nộp'}
+                                <span className={`tag ${archiveData?.dossierFiles?.some(f => (f.docType || f.documentType) === 'REPORT_WORD') || archiveData?.reportWordFileUrl || archiveData?.sourceCodeUrl ? 'green' : 'gray'}`}>
+                                    {archiveData?.dossierFiles?.some(f => (f.docType || f.documentType) === 'REPORT_WORD') || archiveData?.reportWordFileUrl || archiveData?.sourceCodeUrl ? 'Đã tải lên' : 'Chưa nộp'}
                                 </span>
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#F8FAFC', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: 12.5 }}>
                                 <span>2. Báo cáo đóng cuốn (PDF .pdf)</span>
-                                <span className={`tag ${archiveData?.dossierFiles?.some(f => f.docType === 'REPORT_PDF') || archiveData?.reportFileUrl ? 'green' : 'gray'}`}>
-                                    {archiveData?.dossierFiles?.some(f => f.docType === 'REPORT_PDF') || archiveData?.reportFileUrl ? 'Đã tải lên' : 'Chưa nộp'}
+                                <span className={`tag ${archiveData?.dossierFiles?.some(f => (f.docType || f.documentType) === 'REPORT_PDF') || archiveData?.reportPdfFileUrl || archiveData?.reportFileUrl ? 'green' : 'gray'}`}>
+                                    {archiveData?.dossierFiles?.some(f => (f.docType || f.documentType) === 'REPORT_PDF') || archiveData?.reportPdfFileUrl || archiveData?.reportFileUrl ? 'Đã tải lên' : 'Chưa nộp'}
                                 </span>
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#F8FAFC', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: 12.5 }}>
                                 <span>3. Video giới thiệu sản phẩm (MP4/Link)</span>
-                                <span className={`tag ${archiveData?.dossierFiles?.some(f => f.docType === 'DEMO_VIDEO') || archiveData?.demoVideoUrl ? 'green' : 'gray'}`}>
-                                    {archiveData?.dossierFiles?.some(f => f.docType === 'DEMO_VIDEO') || archiveData?.demoVideoUrl ? 'Đã tải lên' : 'Chưa nộp'}
+                                <span className={`tag ${archiveData?.dossierFiles?.some(f => (f.docType || f.documentType) === 'DEMO_VIDEO') || archiveData?.demoVideoUrl ? 'green' : 'gray'}`}>
+                                    {archiveData?.dossierFiles?.some(f => (f.docType || f.documentType) === 'DEMO_VIDEO') || archiveData?.demoVideoUrl ? 'Đã tải lên' : 'Chưa nộp'}
                                 </span>
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#F8FAFC', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', fontSize: 12.5 }}>
                                 <span>4. Slide thuyết trình (PPTX .pptx)</span>
-                                <span className={`tag ${archiveData?.dossierFiles?.some(f => f.docType === 'SLIDE_PPTX') ? 'green' : 'gray'}`}>
-                                    {archiveData?.dossierFiles?.some(f => f.docType === 'SLIDE_PPTX') ? 'Đã tải lên' : 'Chưa nộp'}
+                                <span className={`tag ${archiveData?.dossierFiles?.some(f => (f.docType || f.documentType) === 'SLIDE_PPTX') || archiveData?.slideFileUrl ? 'green' : 'gray'}`}>
+                                    {archiveData?.dossierFiles?.some(f => (f.docType || f.documentType) === 'SLIDE_PPTX') || archiveData?.slideFileUrl ? 'Đã tải lên' : 'Chưa nộp'}
                                 </span>
                             </div>
                         </div>

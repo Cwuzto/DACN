@@ -97,7 +97,7 @@ export default function ClearanceCertificateModal({
                     </Space>
                 </Flex>
             )}
-            destroyOnClose
+            destroyOnHidden
         >
             {/* Printable Paper Canvas */}
             <div

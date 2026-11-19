@@ -140,9 +140,12 @@ describe('Archive Review & Full Student Score Masking (C02/C04/SEC-12)', () => {
 
             expect(res.status).toBe(200);
             expect(res.body.success).toBe(true);
-            expect(prisma.topicRegistration.update).toHaveBeenCalledWith(expect.objectContaining({
-                where: { id: 101 },
-                data: expect.objectContaining({ status: 'COMPLETED' }),
+            expect(prisma.projectArchive.update).toHaveBeenCalledWith(expect.objectContaining({
+                where: { registrationId: 101 },
+                data: expect.objectContaining({
+                    status: 'MENTOR_APPROVED',
+                    mentorReviewStatus: 'APPROVED',
+                }),
             }));
         });
     });
@@ -302,10 +305,10 @@ describe('Archive Review & Full Student Score Masking (C02/C04/SEC-12)', () => {
             prisma.topicRegistration.findUnique.mockResolvedValue({
                 id: 101,
                 studentId: 10,
-                status: 'DEFENSE_PASSED',
+                status: 'DEFENSE_READY',
                 topic: { title: 'AI Assistant', mentorId: 99 },
                 defenseCouncil: {
-                    members: [{ lecturerId: 20 }],
+                    members: [{ lecturerId: 20, roleInCouncil: 'CHAIRMAN', isScoringMember: true, isActive: true }],
                 },
             });
 

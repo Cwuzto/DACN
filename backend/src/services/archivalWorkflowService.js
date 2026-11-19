@@ -332,10 +332,18 @@ async function getClearanceCertificateData(registrationId, options = {}) {
     const certCode = `TDMU-DA-CERT-${year}-${String(registration.id).padStart(5, '0')}`;
     const issueDate = archive?.reviewedAt || new Date();
 
+    let effectiveTitle = registration.topic?.title || 'Chưa xác định';
+    try {
+        const titleInfo = await resolveEffectiveTopicTitle(registration.id, issueDate, { tx: db });
+        if (titleInfo?.title) {
+            effectiveTitle = titleInfo.title;
+        }
+    } catch (_) {}
+
     const verificationPayload = {
         certificateNumber: certCode,
         studentCode: registration.student?.code,
-        topicTitle: registration.topic?.title,
+        topicTitle: effectiveTitle,
         finalScore: finalScore ?? '0',
         issueDate: new Date(issueDate).toISOString().split('T')[0],
     };
@@ -352,7 +360,8 @@ async function getClearanceCertificateData(registrationId, options = {}) {
             department: registration.student?.department || 'Khoa Công Nghệ Thông Tin',
         },
         topic: {
-            title: registration.topic?.title,
+            title: effectiveTitle,
+            effectiveTopicTitle: effectiveTitle,
             courseName: registration.topic?.projectCatalog?.name || 'Khóa luận tốt nghiệp',
             semester: registration.topic?.semester?.name,
             academicYear: (registration.topic?.semester?.startDate && registration.topic?.semester?.endDate)
