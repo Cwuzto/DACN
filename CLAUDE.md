@@ -70,6 +70,48 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 
 ## 6. Cập Nhật Phiên Làm Việc (Session Update)
 
+### Phiên 19/11/2026: Khắc Phục Lỗi Giật Cuộn Menu Sidebar & Chuẩn Hóa Typography Thẻ Chỉ Số Toàn Hệ Thống
+
+#### 1. Những phần đã hoàn thành
+1. **Khắc Phục Triệt Để Lỗi Giật Cuộn Menu Sidebar (`AppLayout.jsx`)**:
+   - **Nguyên nhân gốc rễ**: Trước đây component `NavContent` được khai báo lồng bên trong hàm render của `AppLayout`. Mỗi khi người dùng bấm vào một tính năng trong sidebar, URL thay đổi khiến `AppLayout` re-render và tạo một function instance mới của `NavContent`. React phát hiện `element.type` thay đổi nên Unmount toàn bộ cây DOM của Sidebar và Mount lại từ đầu, dẫn đến thuộc tính `scrollTop` của `<nav className="flex-1 overflow-y-auto">` bị đặt lại về `0` (nhảy ngược lên đỉnh menu).
+   - **Giải pháp**: Tách `NavContent` thành component độc lập cấp module bên ngoài `AppLayout`, truyền toàn bộ state và handlers qua `props` (`navProps`).
+   - **Kết quả**: Component type của `NavContent` ổn định 100% giữa các lần render. Khi chuyển trang hoặc chuyển tab, React tái sử dụng cây DOM sẵn có, chỉ cập nhật `className` active và `aria-current="page"`, trình duyệt giữ nguyên 100% vị trí cuộn (`scrollTop`) của thanh menu.
+2. **Chuẩn Hóa Typography Thẻ Chỉ Số / KPI Thống Nhất Theo Chuẩn Trang Tổng Quan (`OverviewKpis.jsx`)**:
+   - Quy chuẩn hóa typography dựa trên 4 thẻ chỉ tiêu của [OverviewKpis.jsx](file:///d:/DACN/frontend/src/components/lecturer/OverviewKpis.jsx):
+     * **Label (Tiêu đề thẻ)**: `text-xs font-semibold uppercase tracking-wide text-slate-500` (12px, semibold 600, uppercase, tracking-wide).
+     * **Value (Con số / Giá trị chính)**: `text-2xl font-bold text-slate-900 mt-1 tabular-nums` (24px, bold 700 thay vì font-black 900 hay text-3xl font-extrabold, căn số dạng tabular).
+     * **Hint / Subtitle (Chú thích phụ)**: `text-xs text-slate-500 mt-1`.
+     * **Icon Box**: `w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0` kèm icon 18px (`text-lg`).
+     * **Card Container**: `rounded-xl border shadow-sm` với padding chuẩn `14px 16px` (hoặc `p-4`).
+   - Đồng bộ trên toàn bộ các trang và component hiển thị thẻ chỉ số:
+     * [LecturerStudentsPage.jsx](file:///d:/DACN/frontend/src/pages/lecturer/LecturerStudentsPage.jsx): 4 thẻ Bento (Chỉ tiêu hướng dẫn, Đề cương BM01, Tiến độ BM03, Đánh giá & Bảo vệ).
+     * [AcademicReportsPage.jsx](file:///d:/DACN/frontend/src/pages/admin/AcademicReportsPage.jsx): 4 thẻ KPI (Tổng SV Tham Gia, Tỷ Lệ Hoàn Thành, Điểm Trung Bình Viện, Tỷ Lệ Xuất Sắc & Giỏi).
+     * [UserManagementPage.jsx](file:///d:/DACN/frontend/src/pages/admin/UserManagementPage.jsx): 4 thẻ KPI tài khoản (Tổng Tài khoản, Cán bộ & Giảng viên, Sinh viên Làm đồ án, Quản trị & Giáo vụ).
+     * [CouncilAssignmentPage.jsx](file:///d:/DACN/frontend/src/pages/admin/CouncilAssignmentPage.jsx): 4 thẻ KPI hội đồng (Tổng Hội đồng, Sinh viên Trong Đợt, Đã xếp vào Hội đồng, Xung đột Lợi ích).
+     * [ProjectPeriodPage.jsx](file:///d:/DACN/frontend/src/pages/admin/ProjectPeriodPage.jsx): 4 thẻ KPI đợt (Tổng số đợt, Đợt đang hoạt động, Đơn BM02 chờ thẩm định, Quy mô đợt hiện hành).
+     * [StatCard.jsx](file:///d:/DACN/frontend/src/components/common/StatCard.jsx): Component dùng chung cho các trang quản trị (ProjectOversightPage).
+     * [ProfileQuickMetrics.jsx](file:///d:/DACN/frontend/src/components/profile/ProfileQuickMetrics.jsx): 4 thẻ thông số nhanh tại trang Hồ sơ cá nhân.
+     * [ProjectEnrollmentPage.jsx](file:///d:/DACN/frontend/src/pages/admin/ProjectEnrollmentPage.jsx) & [ProjectOversightPage.jsx](file:///d:/DACN/frontend/src/pages/admin/ProjectOversightPage.jsx): Các thẻ radar cảnh báo và kiểm tra bất thường.
+     * [index.css](file:///d:/DACN/frontend/src/index.css) & [admin-opendesign.css](file:///d:/DACN/frontend/src/pages/admin/admin-opendesign.css): Chuẩn hóa class `.kpi-stat-card`, `.kpi-stat-val`, `.kpi-stat-sub`, `.eyebrow`.
+
+#### 2. Trạng thái cập nhật của từng phần
+- **Frontend SPA**:
+  * Build kiểm tra: `npm --prefix frontend run build` **PASS** (3378 modules, build trong 18.02s, 0 lỗi).
+  * Runtime tests: `sidebarAccessibility.spec.jsx` (3/3 tests PASS), `lecturerStudentsNavigation.spec.jsx` (3/3 tests PASS), `profilePageUiUx.test.js` (7/7 tests PASS).
+  * Chuẩn mã hóa: 100% tệp cập nhật tuân thủ **UTF-8 without BOM** và quy tắc nút bấm không raw emoji (Rule 2.6).
+- **Backend API & Database**: Giữ nguyên trạng thái ổn định từ các phiên trước.
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+1. Tiếp tục tối ưu trải nghiệm người dùng (UX transitions & micro-interactions) trên các màn hình quản trị còn lại.
+2. Kiểm tra thực tế trên trình duyệt thực các luồng tương tác giữa giảng viên và sinh viên sau khi chuẩn hóa UI.
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+- **Chuẩn hóa Typographic Hierarchy cho KPI Metrics**: Tránh tình trạng mỗi trang dùng một cỡ chữ khác nhau (`text-3xl font-extrabold`, `text-2xl font-black`, `text-xl font-medium`). Việc thống nhất `text-xs font-semibold uppercase tracking-wide text-slate-500` cho nhãn và `text-2xl font-bold text-slate-900 mt-1 tabular-nums` cho số liệu giúp giao diện mang phong cách Clean Academic Dashboard của hệ thống OpenDesign.
+- **Tách Component Con Ra Khỏi Render Scope**: Khai báo component con bên trong hàm render cha là lỗi phổ biến trong React dẫn đến unmount/mount liên tục, mất scroll và mất local state. Luôn khai báo component ở cấp độ module.
+
+---
+
 ### Phiên 18/11/2026 (Phần 2: Tách BM02-A Khỏi Duyệt Nguyện Vọng, Hạ Tầng In & Nộp Trực Tuyến BM01–BM03, Chuẩn Hóa Seed `DATN` / TDMU & Vá Bảo Mật)
 
 #### 1. Những phần đã hoàn thành
@@ -394,6 +436,48 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 ---
 
 ## 6. Cập Nhật Phiên Làm Việc (Session Update)
+
+### Phiên 19/11/2026: Khắc Phục Lỗi Giật Cuộn Menu Sidebar & Chuẩn Hóa Typography Thẻ Chỉ Số Toàn Hệ Thống
+
+#### 1. Những phần đã hoàn thành
+1. **Khắc Phục Triệt Để Lỗi Giật Cuộn Menu Sidebar (`AppLayout.jsx`)**:
+   - **Nguyên nhân gốc rễ**: Trước đây component `NavContent` được khai báo lồng bên trong hàm render của `AppLayout`. Mỗi khi người dùng bấm vào một tính năng trong sidebar, URL thay đổi khiến `AppLayout` re-render và tạo một function instance mới của `NavContent`. React phát hiện `element.type` thay đổi nên Unmount toàn bộ cây DOM của Sidebar và Mount lại từ đầu, dẫn đến thuộc tính `scrollTop` của `<nav className="flex-1 overflow-y-auto">` bị đặt lại về `0` (nhảy ngược lên đỉnh menu).
+   - **Giải pháp**: Tách `NavContent` thành component độc lập cấp module bên ngoài `AppLayout`, truyền toàn bộ state và handlers qua `props` (`navProps`).
+   - **Kết quả**: Component type của `NavContent` ổn định 100% giữa các lần render. Khi chuyển trang hoặc chuyển tab, React tái sử dụng cây DOM sẵn có, chỉ cập nhật `className` active và `aria-current="page"`, trình duyệt giữ nguyên 100% vị trí cuộn (`scrollTop`) của thanh menu.
+2. **Chuẩn Hóa Typography Thẻ Chỉ Số / KPI Thống Nhất Theo Chuẩn Trang Tổng Quan (`OverviewKpis.jsx`)**:
+   - Quy chuẩn hóa typography dựa trên 4 thẻ chỉ tiêu của [OverviewKpis.jsx](file:///d:/DACN/frontend/src/components/lecturer/OverviewKpis.jsx):
+     * **Label (Tiêu đề thẻ)**: `text-xs font-semibold uppercase tracking-wide text-slate-500` (12px, semibold 600, uppercase, tracking-wide).
+     * **Value (Con số / Giá trị chính)**: `text-2xl font-bold text-slate-900 mt-1 tabular-nums` (24px, bold 700 thay vì font-black 900 hay text-3xl font-extrabold, căn số dạng tabular).
+     * **Hint / Subtitle (Chú thích phụ)**: `text-xs text-slate-500 mt-1`.
+     * **Icon Box**: `w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0` kèm icon 18px (`text-lg`).
+     * **Card Container**: `rounded-xl border shadow-sm` với padding chuẩn `14px 16px` (hoặc `p-4`).
+   - Đồng bộ trên toàn bộ các trang và component hiển thị thẻ chỉ số:
+     * [LecturerStudentsPage.jsx](file:///d:/DACN/frontend/src/pages/lecturer/LecturerStudentsPage.jsx): 4 thẻ Bento (Chỉ tiêu hướng dẫn, Đề cương BM01, Tiến độ BM03, Đánh giá & Bảo vệ).
+     * [AcademicReportsPage.jsx](file:///d:/DACN/frontend/src/pages/admin/AcademicReportsPage.jsx): 4 thẻ KPI (Tổng SV Tham Gia, Tỷ Lệ Hoàn Thành, Điểm Trung Bình Viện, Tỷ Lệ Xuất Sắc & Giỏi).
+     * [UserManagementPage.jsx](file:///d:/DACN/frontend/src/pages/admin/UserManagementPage.jsx): 4 thẻ KPI tài khoản (Tổng Tài khoản, Cán bộ & Giảng viên, Sinh viên Làm đồ án, Quản trị & Giáo vụ).
+     * [CouncilAssignmentPage.jsx](file:///d:/DACN/frontend/src/pages/admin/CouncilAssignmentPage.jsx): 4 thẻ KPI hội đồng (Tổng Hội đồng, Sinh viên Trong Đợt, Đã xếp vào Hội đồng, Xung đột Lợi ích).
+     * [ProjectPeriodPage.jsx](file:///d:/DACN/frontend/src/pages/admin/ProjectPeriodPage.jsx): 4 thẻ KPI đợt (Tổng số đợt, Đợt đang hoạt động, Đơn BM02 chờ thẩm định, Quy mô đợt hiện hành).
+     * [StatCard.jsx](file:///d:/DACN/frontend/src/components/common/StatCard.jsx): Component dùng chung cho các trang quản trị (ProjectOversightPage).
+     * [ProfileQuickMetrics.jsx](file:///d:/DACN/frontend/src/components/profile/ProfileQuickMetrics.jsx): 4 thẻ thông số nhanh tại trang Hồ sơ cá nhân.
+     * [ProjectEnrollmentPage.jsx](file:///d:/DACN/frontend/src/pages/admin/ProjectEnrollmentPage.jsx) & [ProjectOversightPage.jsx](file:///d:/DACN/frontend/src/pages/admin/ProjectOversightPage.jsx): Các thẻ radar cảnh báo và kiểm tra bất thường.
+     * [index.css](file:///d:/DACN/frontend/src/index.css) & [admin-opendesign.css](file:///d:/DACN/frontend/src/pages/admin/admin-opendesign.css): Chuẩn hóa class `.kpi-stat-card`, `.kpi-stat-val`, `.kpi-stat-sub`, `.eyebrow`.
+
+#### 2. Trạng thái cập nhật của từng phần
+- **Frontend SPA**:
+  * Build kiểm tra: `npm --prefix frontend run build` **PASS** (3378 modules, build trong 18.02s, 0 lỗi).
+  * Runtime tests: `sidebarAccessibility.spec.jsx` (3/3 tests PASS), `lecturerStudentsNavigation.spec.jsx` (3/3 tests PASS), `profilePageUiUx.test.js` (7/7 tests PASS).
+  * Chuẩn mã hóa: 100% tệp cập nhật tuân thủ **UTF-8 without BOM** và quy tắc nút bấm không raw emoji (Rule 2.6).
+- **Backend API & Database**: Giữ nguyên trạng thái ổn định từ các phiên trước.
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+1. Tiếp tục tối ưu trải nghiệm người dùng (UX transitions & micro-interactions) trên các màn hình quản trị còn lại.
+2. Kiểm tra thực tế trên trình duyệt thực các luồng tương tác giữa giảng viên và sinh viên sau khi chuẩn hóa UI.
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+- **Chuẩn hóa Typographic Hierarchy cho KPI Metrics**: Tránh tình trạng mỗi trang dùng một cỡ chữ khác nhau (`text-3xl font-extrabold`, `text-2xl font-black`, `text-xl font-medium`). Việc thống nhất `text-xs font-semibold uppercase tracking-wide text-slate-500` cho nhãn và `text-2xl font-bold text-slate-900 mt-1 tabular-nums` cho số liệu giúp giao diện mang phong cách Clean Academic Dashboard của hệ thống OpenDesign.
+- **Tách Component Con Ra Khỏi Render Scope**: Khai báo component con bên trong hàm render cha là lỗi phổ biến trong React dẫn đến unmount/mount liên tục, mất scroll và mất local state. Luôn khai báo component ở cấp độ module.
+
+---
 
 ### Phiên 15/11/2026 (Tái Thiết Kế Hồ Sơ Cá Nhân & Bổ Sung Bộ Lọc Đợt/Loại/Sắp Xếp/Tải Lượng Cho Đề Tài Phụ Trách Giảng Viên)
 
