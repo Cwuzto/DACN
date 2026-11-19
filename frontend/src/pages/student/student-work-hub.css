@@ -1,0 +1,668 @@
+/**
+ * student-work-hub.css
+ *
+ * CSS cho trang "Việc của tôi" (Student Work Hub)
+ * Bento-style layout kết hợp Hero container cho vùng "Cần làm ngay"
+ *
+ * Bảng màu:
+ * - Hero Teal: #0f766e, #14b8a6, nền #f0fdfa, viền #99f6e4
+ * - Lam / Hổ phách: #0284c7, #d97706, nền #f8fafc
+ * - Slate / Neutral: #0f172a, #334155, #64748b, #e2e8f0, #f8fafc
+ *
+ * Chuyển động vi mô:
+ * - Fade + dịch 8-12px trong 250-350ms
+ * - Hover 150-200ms
+ * - Tắt chuyển động với prefers-reduced-motion
+ */
+
+:root {
+  --hub-teal-700: #0f766e;
+  --hub-teal-600: #0d9488;
+  --hub-teal-500: #14b8a6;
+  --hub-teal-200: #99f6e4;
+  --hub-teal-100: #ccfbf1;
+  --hub-teal-50: #f0fdfa;
+
+  --hub-blue-700: #0369a1;
+  --hub-blue-600: #0284c7;
+  --hub-blue-100: #e0f2fe;
+  --hub-blue-50: #f0f9ff;
+
+  --hub-amber-700: #b45309;
+  --hub-amber-600: #d97706;
+  --hub-amber-100: #fef3c7;
+  --hub-amber-50: #fffbeb;
+
+  --hub-slate-900: #0f172a;
+  --hub-slate-800: #1e293b;
+  --hub-slate-700: #334155;
+  --hub-slate-600: #475569;
+  --hub-slate-500: #64748b;
+  --hub-slate-300: #cbd5e1;
+  --hub-slate-200: #e2e8f0;
+  --hub-slate-100: #f1f5f9;
+  --hub-slate-50: #f8fafc;
+
+  --hub-danger-600: #dc2626;
+  --hub-danger-100: #fee2e2;
+  --hub-danger-50: #fef2f2;
+
+  --hub-purple-700: #6d28d9;
+  --hub-purple-600: #7c3aed;
+  --hub-purple-100: #ede9fe;
+  --hub-purple-50: #f5f3ff;
+
+  --hub-success-600: #16a34a;
+  --hub-success-100: #dcfce7;
+  --hub-success-50: #f0fdf4;
+
+  --hub-radius-sm: 6px;
+  --hub-radius-md: 10px;
+  --hub-radius-lg: 14px;
+  --hub-radius-xl: 18px;
+
+  --hub-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --hub-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
+  --hub-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.03);
+  --hub-shadow-teal: 0 8px 20px -4px rgba(15, 118, 110, 0.12);
+}
+
+/* Animations */
+@keyframes hubFadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.hub-animate-in {
+  animation: hubFadeSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Base Page Layout */
+.student-work-hub-container {
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 24px 20px 48px;
+  box-sizing: border-box;
+  color: var(--hub-slate-900);
+}
+
+/* Header Bento Box */
+.work-hub-header {
+  background: #ffffff;
+  border: 1px solid var(--hub-slate-200);
+  border-radius: var(--hub-radius-xl);
+  padding: 24px 28px;
+  margin-bottom: 24px;
+  box-shadow: var(--hub-shadow-sm);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.work-hub-header-main {
+  flex: 1;
+  min-width: 280px;
+}
+
+.work-hub-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.work-hub-page-tag {
+  background: var(--hub-teal-50);
+  color: var(--hub-teal-700);
+  border: 1px solid var(--hub-teal-200);
+  font-weight: 600;
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.work-hub-topic-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--hub-slate-900);
+  line-height: 1.4;
+  margin: 0 0 12px 0;
+}
+
+.work-hub-meta-grid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  font-size: 13px;
+  color: var(--hub-slate-600);
+}
+
+.work-hub-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.work-hub-meta-item strong {
+  color: var(--hub-slate-800);
+}
+
+.work-hub-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Notice Banner */
+.work-hub-notice {
+  margin-bottom: 20px;
+  border-radius: var(--hub-radius-md);
+}
+
+/* Region 1: Cần làm ngay (Hero Container) */
+.region-ready {
+  margin-bottom: 28px;
+}
+
+.work-hero-card {
+  background: var(--hub-teal-50);
+  border: 1px solid var(--hub-teal-200);
+  border-top: 4px solid var(--hub-teal-700);
+  border-radius: var(--hub-radius-xl);
+  padding: 24px 28px;
+  box-shadow: var(--hub-shadow-teal);
+  position: relative;
+  overflow: hidden;
+  transition: box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.work-hero-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.work-hero-badge-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.work-hero-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--hub-teal-700);
+  margin: 0 0 8px 0;
+  line-height: 1.35;
+}
+
+.work-hero-desc {
+  font-size: 14px;
+  color: var(--hub-slate-700);
+  line-height: 1.6;
+  margin: 0 0 16px 0;
+  max-width: 860px;
+}
+
+.work-hero-due {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background: #ffffff;
+  border: 1px solid var(--hub-teal-200);
+  border-radius: var(--hub-radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--hub-teal-700);
+  margin-bottom: 20px;
+}
+
+.work-hero-due.overdue {
+  background: var(--hub-danger-50);
+  border-color: var(--hub-danger-100);
+  color: var(--hub-danger-600);
+}
+
+.work-hero-due.urgent {
+  background: var(--hub-amber-50);
+  border-color: var(--hub-amber-100);
+  color: var(--hub-amber-700);
+}
+
+/* Multi-item Pill Selector */
+.work-ready-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--hub-teal-200);
+}
+
+.work-item-pill {
+  appearance: none;
+  border: 1px solid var(--hub-teal-200);
+  background: #ffffff;
+  color: var(--hub-teal-700);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 9999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--hub-shadow-sm);
+}
+
+.work-item-pill:hover {
+  background: var(--hub-teal-100);
+  border-color: var(--hub-teal-500);
+  transform: translateY(-1px);
+}
+
+.work-item-pill.active {
+  background: var(--hub-teal-700);
+  color: #ffffff;
+  border-color: var(--hub-teal-700);
+  box-shadow: 0 2px 6px rgba(15, 118, 110, 0.25);
+}
+
+/* Action Container within Hero */
+.work-hero-action-box {
+  background: #ffffff;
+  border: 1px solid var(--hub-teal-200);
+  border-radius: var(--hub-radius-lg);
+  padding: 20px;
+  margin-top: 16px;
+}
+
+/* Waiting State Card */
+.work-waiting-card {
+  background: var(--hub-slate-50);
+  border: 1px solid var(--hub-slate-300);
+  border-left: 4px solid var(--hub-blue-600);
+  border-radius: var(--hub-radius-xl);
+  padding: 24px 28px;
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  box-shadow: var(--hub-shadow-sm);
+}
+
+.work-waiting-icon-box {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--hub-blue-100);
+  color: var(--hub-blue-700);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.work-waiting-content {
+  flex: 1;
+}
+
+.work-waiting-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--hub-slate-900);
+  margin: 0 0 6px 0;
+}
+
+.work-waiting-desc {
+  font-size: 14px;
+  color: var(--hub-slate-600);
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* All-done / Empty Card */
+.work-empty-card {
+  background: var(--hub-success-50);
+  border: 1px dashed var(--hub-success-100);
+  border-radius: var(--hub-radius-xl);
+  padding: 36px 28px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.work-empty-icon {
+  font-size: 40px;
+  color: var(--hub-success-600);
+}
+
+.work-empty-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--hub-slate-900);
+  margin: 0;
+}
+
+.work-empty-desc {
+  font-size: 14px;
+  color: var(--hub-slate-600);
+  margin: 0;
+  max-width: 520px;
+}
+
+/* Bento Secondary Grid for Regions 2 and 3 */
+.work-hub-secondary-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+/* Region 2: Sắp tới (Upcoming trong 7 ngày) */
+.region-upcoming {
+  background: var(--hub-slate-50);
+  border: 1px solid var(--hub-slate-200);
+  border-radius: var(--hub-radius-xl);
+  padding: 22px 24px;
+}
+
+.region-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.region-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--hub-slate-900);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.region-title.upcoming {
+  color: var(--hub-blue-700);
+}
+
+.region-title.done {
+  color: var(--hub-slate-800);
+}
+
+.upcoming-item-card {
+  background: #ffffff;
+  border: 1px solid var(--hub-slate-200);
+  border-left: 4px solid var(--hub-blue-600);
+  border-radius: var(--hub-radius-md);
+  padding: 16px 18px;
+  margin-bottom: 12px;
+  box-shadow: var(--hub-shadow-sm);
+  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.upcoming-item-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--hub-shadow-md);
+  border-color: var(--hub-blue-600);
+}
+
+.upcoming-item-card:last-child {
+  margin-bottom: 0;
+}
+
+.upcoming-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.upcoming-item-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--hub-slate-900);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.upcoming-item-desc {
+  font-size: 13px;
+  color: var(--hub-slate-600);
+  line-height: 1.5;
+  margin: 0 0 10px 0;
+}
+
+.upcoming-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--hub-slate-500);
+  flex-wrap: wrap;
+}
+
+.upcoming-item-meta strong {
+  color: var(--hub-slate-700);
+}
+
+.upcoming-empty-note {
+  font-size: 13px;
+  color: var(--hub-slate-500);
+  padding: 24px 16px;
+  text-align: center;
+  background: #ffffff;
+  border: 1px dashed var(--hub-slate-300);
+  border-radius: var(--hub-radius-md);
+}
+
+/* Region 3: Đã hoàn thành (History/Done) */
+.region-done {
+  background: #ffffff;
+  border: 1px solid var(--hub-slate-200);
+  border-radius: var(--hub-radius-xl);
+  padding: 22px 24px;
+}
+
+.done-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.done-item-card {
+  background: var(--hub-slate-50);
+  border: 1px solid var(--hub-slate-200);
+  border-left: 4px solid var(--hub-success-600);
+  border-radius: var(--hub-radius-md);
+  padding: 16px 18px;
+  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.done-item-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--hub-shadow-sm);
+  background: #ffffff;
+}
+
+.done-item-card.highlighted {
+  border-color: var(--hub-teal-500);
+  background: var(--hub-teal-50);
+}
+
+.done-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.done-item-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--hub-slate-900);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.done-item-desc {
+  font-size: 13px;
+  color: var(--hub-slate-600);
+  line-height: 1.5;
+  margin: 0 0 10px 0;
+}
+
+.done-item-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--hub-slate-500);
+  padding-top: 8px;
+  border-top: 1px solid var(--hub-slate-200);
+}
+
+.done-empty-note {
+  font-size: 13px;
+  color: var(--hub-slate-500);
+  padding: 24px 16px;
+  text-align: center;
+  background: var(--hub-slate-50);
+  border: 1px dashed var(--hub-slate-300);
+  border-radius: var(--hub-radius-md);
+}
+
+/* Badge variants */
+.badge-overdue {
+  background: var(--hub-danger-50);
+  color: var(--hub-danger-600);
+  border: 1px solid var(--hub-danger-100);
+}
+
+.badge-urgent {
+  background: var(--hub-amber-50);
+  color: var(--hub-amber-700);
+  border: 1px solid var(--hub-amber-100);
+}
+
+.badge-ack-48h {
+  background: var(--hub-purple-50);
+  color: var(--hub-purple-700);
+  border: 1px solid var(--hub-purple-100);
+}
+
+.badge-normal {
+  background: var(--hub-teal-100);
+  color: var(--hub-teal-700);
+  border: 1px solid var(--hub-teal-200);
+}
+
+/* Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Responsive Breakpoints */
+@media (max-width: 992px) {
+  .work-hub-secondary-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+}
+
+@media (max-width: 768px) {
+  .student-work-hub-container {
+    padding: 16px 14px 36px;
+  }
+
+  .work-hub-header {
+    padding: 18px 20px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+
+  .work-hub-header-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .work-hero-card {
+    padding: 20px;
+  }
+
+  .work-hero-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .work-ready-pills {
+    flex-direction: column;
+  }
+
+  .work-item-pill {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .student-work-hub-container {
+    padding: 12px 10px 28px;
+  }
+
+  .work-hub-topic-title {
+    font-size: 17px;
+  }
+
+  .work-hero-title {
+    font-size: 18px;
+  }
+
+  .work-hero-card {
+    padding: 16px;
+  }
+
+  .region-upcoming,
+  .region-done {
+    padding: 16px;
+  }
+}
