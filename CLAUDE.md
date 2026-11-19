@@ -3472,6 +3472,51 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 2. **Fallback đúng chuẩn dữ liệu `mentorId`**:
    - Trong schema Prisma, thực thể `Topic` liên kết với giảng viên hướng dẫn qua quan hệ `mentorId` / `mentor` (User relation "MentoredBy"). Việc sửa dứt điểm các tham chiếu cũ `lecturerId` sang `mentorId` ngăn chặn hoàn toàn lỗi đếm sinh viên bằng 0.
 
+---
+
+### Phiên 19/11/2026 — Khắc Phục Triệt Để Lỗi Crash Prisma `BM04Evaluation.evaluator`, Hiện Tượng Connection Terminated Unexpectedly & Ngăn Chặn Xung Đột Truy Vấn Song Song
+
+#### 1. Những phần đã hoàn thành
+1. **Sửa dứt điểm lỗi chí mạng `PrismaClientValidationError` trên `BM04Evaluation` (`registrationController.js`)**:
+   - **Nguyên nhân gốc rễ**: Khi sinh viên mở giao diện, hàm `getMyRegistration` gọi truy vấn Prisma với mệnh đề `include: { bm04Evaluation: { include: { evaluator: ... } } }`. Trong Prisma Schema (`schema.prisma`), thực thể `BM04Evaluation` liên kết với giảng viên qua quan hệ `lecturer` (chứ không phải `evaluator`). Lỗi này gây ra exception `Unknown field 'evaluator' for include statement on model 'BM04Evaluation'` khiến request `/api/registrations/my` luôn trả về HTTP 500 và sập backend liên tục.
+   - **Giải pháp**: Sửa `evaluator` thành `lecturer` chuẩn theo Prisma schema, đồng thời gán alias tương thích ngược `registration.bm04Evaluation.evaluator = registration.bm04Evaluation.lecturer` để đáp ứng mọi component client cần dùng `evaluator` hoặc `lecturer`.
+2. **Khắc phục lỗi `Connection terminated unexpectedly` và tối ưu kết nối Supabase Pooler (`database.js` & `.env`)**:
+   - **Nguyên nhân gốc rễ**: Supabase Transaction Pooler (Supavisor/PgBouncer cổng 6543) tự động đóng các kết nối nhàn rỗi (idle sockets) sau 10-15 giây. Khi `idleTimeoutMillis` trong app đặt ở mức 20-30s, app giữ kết nối chết trong pool. Khi câu truy vấn tiếp theo gửi vào socket đã bị remote đóng, `pg-pool` phát sinh lỗi `Connection terminated unexpectedly`. Đồng thời `DB_POOL_MAX=15` làm cạn kiệt slot kết nối của Supabase.
+   - **Giải pháp**:
+     * Điều chỉnh `DB_POOL_MAX=8` và `DB_POOL_IDLE_TIMEOUT_MS=10000` (10s) để client tự giải phóng kết nối nhàn rỗi một cách êm đẹp trước khi Supabase reset.
+     * Thiết lập `keepAlive: true` và `keepAliveInitialDelayMillis: 3000` (gửi probe TCP định kỳ 3 giây một lần) để giữ socket hoạt động ổn định.
+     * Thêm bộ lọc `isTransientDisconnect` trong `ResilientPgClient`, `pool.on('error')` và `PrismaPg.onPoolError` nhằm triệt tiêu các cảnh báo rác từ tiến trình dọn dẹp socket ngầm của server.
+3. **Triệt tiêu lỗi `DeprecationWarning: Calling client.query() when the client is already executing a query`**:
+   - Thay thế các `Promise.all` lồng nhau (gây áp lực 14 câu truy vấn đồng thời cùng lúc lên pool database):
+     * Trong `dashboardController.js`: Tách `fetchLecturerDashboardData` và `buildUnifiedLecturerOverview` thành 2 bước thực thi tuần tự.
+     * Trong `dashboardController.js` (`getSemesterStats`): Chuyển mảng semesters map song song thành vòng lặp `for...of` tuần tự.
+     * Trong `councilController.js` (`getCouncilById`): Chuyển vòng lặp map `resolveEffectiveTopicTitle` từ `Promise.all` sang `for...of`, tránh bùng nổ 60 câu truy vấn cùng lúc khi mở hội đồng.
+4. **Nâng cấp Global Error Handler (`errorHandler.js`)**:
+   - Bắt các lỗi gián đoạn kết nối socket tạm thời (`Connection terminated unexpectedly`, `ECONNRESET`, `P2025`) và phản hồi mã HTTP `503` (Service Temporarily Unavailable) có cấu trúc kèm thông điệp rõ ràng, cho phép client React Query tự động retry mà không làm sập server hay hiện lỗi 500 khó hiểu.
+5. **Đồng bộ Unit/Integration Tests**:
+   - Cập nhật mock dữ liệu trong `dashboardSemesterFallback.test.js`: PASS 6/6 tests (100%).
+   - Cập nhật mock `assertMentorCapacity` trong `registrationController.test.js`: PASS 11/11 tests (100%).
+   - Kiểm tra mã hóa: 100% tệp tuân thủ UTF-8 without BOM (Rule 2.4).
+
+#### 2. Trạng thái cập nhật của từng phần
+- **Database/Prisma**: `STABLE`; Cấu hình Pool hoàn toàn tương thích với Supabase Session/Transaction Pooler.
+- **Backend API**: `RUNNING (Port 5000)`; Xử lý triệt để lỗi sập `getMyRegistration`, không còn tràn kết nối và không còn cảnh báo DeprecationWarning.
+- **Frontend SPA**: `RUNNING (Port 5173)`; Các trang hoạt động mượt mà, không gặp lỗi gián đoạn kết nối.
+- **Quy chuẩn mã hóa**: Tuân thủ 100% Rule 2.4.
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+1. Giữ terminal backend chạy ổn định và quan sát log trong quá trình sử dụng thực tế.
+2. Sẵn sàng tiếp nhận các yêu cầu tiếp theo từ người dùng.
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+1. **Tuân thủ đúng tên quan hệ Prisma Schema (`BM04Evaluation.lecturer`)**:
+   - Không tự ý phán đoán tên relation. Mọi quan hệ giữa các bảng phải tra cứu trực tiếp trong `backend/prisma/schema.prisma`.
+2. **Cấu hình Connection Pool cho Cloud Pooler (PgBouncer/Supavisor)**:
+   - Với các pooler đám mây có cơ chế kill idle socket nhanh (10-15s), client pool phải có `idleTimeoutMillis` ngắn hơn hoặc bằng thời gian đó (10s) và `keepAlive` ngắn (3s) để socket không bị ngắt đột ngột trong khi câu lệnh đang chờ.
+3. **Tránh bùng nổ truy vấn song song (Query Burst Starvation)**:
+   - Không lạm dụng `Promise.all` với các danh sách lớn hoặc các hàm nghiệp vụ phức tạp chứa nhiều truy vấn con (như `resolveEffectiveTopicTitle`), mà ưu tiên thực thi tuần tự hoặc chia batch nhỏ để bảo vệ pool kết nối.
+
+
 
 
 
