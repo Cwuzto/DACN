@@ -108,6 +108,16 @@ export default function SubmissionPage() {
                 });
                 break;
             case 'BM02':
+                if (activeBm02Submission?.id) {
+                    registrationService
+                        .getBM02Verification(activeBm02Submission.id)
+                        .then((res) => {
+                            setBm02VerificationData(res?.data ?? res ?? null);
+                        })
+                        .catch(() => {
+                            setBm02VerificationData(null);
+                        });
+                }
                 setPrintConfig({
                     open: true,
                     type: 'BM02',
@@ -490,28 +500,6 @@ export default function SubmissionPage() {
     const bm02Task = taskByType.BM02 || null;
     const activeBm02Submission = registration?.currentBM02Submission || bm02Task?.submissions?.[0] || null;
 
-    useEffect(() => {
-        let cancelled = false;
-        if (!printConfig.open || printConfig.type !== 'BM02' || !activeBm02Submission?.id) {
-            setBm02VerificationData(null);
-            return undefined;
-        }
-        registrationService
-            .getBM02Verification(activeBm02Submission.id)
-            .then((res) => {
-                if (!cancelled) {
-                    setBm02VerificationData(res?.data ?? res ?? null);
-                }
-            })
-            .catch(() => {
-                if (!cancelled) {
-                    setBm02VerificationData(null);
-                }
-            });
-        return () => {
-            cancelled = true;
-        };
-    }, [printConfig.open, printConfig.type, activeBm02Submission?.id]);
 
     const outlineCouncil = outlineData?.outlineCouncil || registration?.outlineCouncil;
     const latestBm01Eval = (outlineData?.bm01Evaluations || registration?.bm01Evaluations || [])[0];

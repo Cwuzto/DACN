@@ -42,12 +42,17 @@ test('BM01 Copilot: HybridBMFormModal integrates BM01CopilotDrawer with Rule 2.6
     assert.ok(!rawEmojiRegex.test(src), 'HybridBMFormModal must not have raw emojis in Button labels');
 });
 
-test('BM01 Copilot: SubmissionPage provides AI Copilot trigger for BM01 outline tasks', () => {
-    const src = read('frontend/src/pages/student/SubmissionPage.jsx');
+test('BM01 Copilot: SubmissionPage and StudentSubmissionActions provide AI Copilot trigger for BM01 outline tasks', () => {
+    const subSrc = read('frontend/src/pages/student/SubmissionPage.jsx');
+    assert.match(subSrc, /import BM01CopilotDrawer/, 'SubmissionPage must import BM01CopilotDrawer');
+    assert.match(subSrc, /import aiService/, 'SubmissionPage must import aiService');
+    assert.match(subSrc, /RobotOutlined/, 'SubmissionPage must import RobotOutlined');
+    assert.match(subSrc, /<BM01CopilotDrawer/, 'SubmissionPage must render BM01CopilotDrawer');
 
-    assert.match(src, /import BM01CopilotDrawer/, 'SubmissionPage must import BM01CopilotDrawer');
-    assert.match(src, /import aiService/, 'SubmissionPage must import aiService');
-    assert.match(src, /RobotOutlined/, 'SubmissionPage must import RobotOutlined');
-    assert.match(src, /<BM01CopilotDrawer/, 'SubmissionPage must render BM01CopilotDrawer');
+    const actSrc = read('frontend/src/components/student/work/StudentSubmissionActions.jsx');
+    assert.match(actSrc, /import BM01CopilotDrawer/, 'StudentSubmissionActions must import BM01CopilotDrawer');
+    assert.match(actSrc, /import aiService/, 'StudentSubmissionActions must import aiService');
+    assert.match(actSrc, /RobotOutlined/, 'StudentSubmissionActions must import RobotOutlined');
+    assert.match(actSrc, /<BM01CopilotDrawer/, 'StudentSubmissionActions must render BM01CopilotDrawer');
 });
 
