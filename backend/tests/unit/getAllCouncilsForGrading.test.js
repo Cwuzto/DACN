@@ -93,5 +93,30 @@ describe('councilController.getAllCouncils forGrading filter', () => {
         expect(payload.data[0].registrations[0].defenseShift).toBe('MORNING');
         expect(payload.data[0].registrations[0].orderInShift).toBe(1);
     });
+
+    it('ensures query forGrading=true selects only valid Topic fields and strictly excludes Topic.code', async () => {
+        prisma.council.findMany.mockResolvedValue([]);
+
+        const req = {
+            query: { forGrading: 'true' },
+            user: { id: 5, permissions: ['DEFENSE_COUNCIL_MANAGE', 'VIEW_DEFENSE_GRADING'] },
+        };
+        const res = { json: jest.fn(), status: jest.fn().mockReturnThis() };
+        const next = jest.fn();
+
+        await getAllCouncils(req, res, next);
+
+        expect(prisma.council.findMany).toHaveBeenCalled();
+        const callArgs = prisma.council.findMany.mock.calls[0][0];
+        const topicSelect = callArgs?.include?.defenseRegistrations?.include?.topic?.select;
+
+        expect(topicSelect).toBeDefined();
+        expect(topicSelect.id).toBe(true);
+        expect(topicSelect.title).toBe(true);
+        expect(topicSelect.mentorId).toBe(true);
+        expect(topicSelect.mentor).toBeDefined();
+        // Crucial safety check: Topic does not have a 'code' column in Prisma schema
+        expect(topicSelect.code).toBeUndefined();
+    });
 });
 

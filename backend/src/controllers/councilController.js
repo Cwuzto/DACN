@@ -810,8 +810,18 @@ const assignRegistrationsToCouncil = async (req, res, next) => {
             const council = await tx.council.findUnique({
                 where: { id: councilId },
                 include: {
-                    semester: { select: { status: true } },
-                    members: { select: { lecturerId: true, roleInCouncil: true } },
+                    semester: { select: { id: true, status: true } },
+                    members: {
+                        where: { isActive: true },
+                        select: {
+                            id: true,
+                            lecturerId: true,
+                            roleInCouncil: true,
+                            isActive: true,
+                            isScoringMember: true,
+                            lecturer: { select: { id: true, fullName: true, email: true, expertiseAreas: true } },
+                        },
+                    },
                     _count: { select: { registrations: true, outlineRegistrations: true, defenseRegistrations: true } },
                 },
             });
@@ -847,9 +857,25 @@ const assignRegistrationsToCouncil = async (req, res, next) => {
             const registrations = await tx.topicRegistration.findMany({
                 where: { id: { in: uniqueRegistrationIds } },
                 include: {
-                    student: { select: { fullName: true, code: true } },
-                    topic: { select: { title: true, mentorId: true } },
-                    bm04Evaluation: true,
+                    student: { select: { id: true, fullName: true, code: true, email: true } },
+                    topic: {
+                        select: {
+                            id: true,
+                            title: true,
+                            mentorId: true,
+                            maxStudents: true,
+                            mentor: { select: { id: true, fullName: true } },
+                        },
+                    },
+                    bm04Evaluation: {
+                        include: {
+                            instituteDefenseReview: true,
+                        },
+                    },
+                    tasks: {
+                        where: { taskType: 'BM04' },
+                        select: { id: true, status: true },
+                    },
                 },
             });
 
@@ -1668,6 +1694,7 @@ const confirmAndPublishDefenseSchedule = async (req, res, next) => {
         }
 
         const memberUserIds = (council.members || [])
+            .filter((m) => m.isActive !== false)
             .map((m) => m.userId || m.lecturerId)
             .filter(Boolean);
         if (memberUserIds.length > 0) {
@@ -1750,6 +1777,12 @@ const adjustStudentDefenseSchedule = async (req, res, next) => {
 
         const council = await prisma.council.findUnique({
             where: { id: councilId },
+            include: {
+                members: {
+                    where: { isActive: true },
+                    select: { id: true, lecturerId: true, userId: true, isActive: true },
+                },
+            },
         });
         if (!council) {
             return res.status(404).json({ success: false, message: 'Không tìm thấy hội đồng.' });
@@ -1804,6 +1837,23 @@ const adjustStudentDefenseSchedule = async (req, res, next) => {
                     type: 'DEFENSE_SCHEDULE_ADJUSTED',
                 },
             });
+        }
+
+        const memberUserIds = (council.members || [])
+            .filter((m) => m.isActive !== false)
+            .map((m) => m.userId || m.lecturerId)
+            .filter(Boolean);
+
+        if (memberUserIds.length > 0) {
+            await safeNotifyMany(
+                memberUserIds.map((userId) => ({
+                    userId,
+                    title: `Điều chỉnh ca bảo vệ - Hội đồng ${council.name || councilId}`,
+                    content: `Ca bảo vệ của sinh viên ${reg.student?.fullName || 'N/A'} (${reg.student?.code || ''}) đã được điều chỉnh sang ca ${newShift === 'MORNING' ? 'Sáng' : 'Chiều'} (STT: ${newOrder}). Lý do: ${cleanReason}`,
+                    type: 'DEFENSE_SCHEDULE_ADJUSTED',
+                })),
+                'adjustStudentDefenseSchedule:members'
+            );
         }
 
         await auditLog(
