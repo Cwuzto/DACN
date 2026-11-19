@@ -93,6 +93,8 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
         forcedCouncilType || (canManageDefense ? 'DEFENSE_COUNCIL' : 'OUTLINE_REVIEW')
     )); // 'ALL' | 'OUTLINE_REVIEW' | 'DEFENSE_COUNCIL'
 
+    const effectiveCouncilType = forcedCouncilType || (councilTypeFilter !== 'ALL' ? councilTypeFilter : 'DEFENSE_COUNCIL');
+
     useEffect(() => {
         if (forcedCouncilType) {
             setCouncilTypeFilter(forcedCouncilType);
