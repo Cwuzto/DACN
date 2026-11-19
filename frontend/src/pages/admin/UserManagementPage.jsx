@@ -55,6 +55,45 @@ const roleMap = {
     STUDENT: { label: 'Sinh viên', color: 'green', badgeBg: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
 };
 
+const normalizeFormValue = (v) => {
+    if (v === null || v === undefined) return '';
+    if (typeof v === 'string') return v.trim();
+    return String(v).trim();
+};
+
+const normalizeDateFormValue = (d) => {
+    if (!d) return '';
+    if (dayjs.isDayjs(d) && d.isValid()) return d.format('YYYY-MM-DD');
+    const parsed = dayjs(d);
+    return parsed.isValid() ? parsed.format('YYYY-MM-DD') : '';
+};
+
+const checkUserFormChanged = (initial, current) => {
+    if (!initial || !current) return false;
+
+    if (normalizeFormValue(initial.fullName) !== normalizeFormValue(current.fullName)) return true;
+    if (normalizeFormValue(initial.email) !== normalizeFormValue(current.email)) return true;
+    if (normalizeFormValue(initial.phone) !== normalizeFormValue(current.phone)) return true;
+    if (normalizeFormValue(initial.role) !== normalizeFormValue(current.role)) return true;
+
+    if (current.role === 'STUDENT') {
+        if (normalizeFormValue(initial.gender) !== normalizeFormValue(current.gender)) return true;
+        if (normalizeDateFormValue(initial.dateOfBirth) !== normalizeDateFormValue(current.dateOfBirth)) return true;
+        if (normalizeFormValue(initial.className) !== normalizeFormValue(current.className)) return true;
+        if (normalizeFormValue(initial.major) !== normalizeFormValue(current.major)) return true;
+    } else {
+        if (normalizeFormValue(initial.department) !== normalizeFormValue(current.department)) return true;
+        if (current.role === 'LECTURER') {
+            if (normalizeFormValue(initial.academicTitle) !== normalizeFormValue(current.academicTitle)) return true;
+            const initMax = initial.maxStudents !== undefined && initial.maxStudents !== null && initial.maxStudents !== '' ? Number(initial.maxStudents) : '';
+            const currMax = current.maxStudents !== undefined && current.maxStudents !== null && current.maxStudents !== '' ? Number(current.maxStudents) : '';
+            if (initMax !== currMax) return true;
+        }
+    }
+
+    return false;
+};
+
 function UserManagementPage() {
     const user = useAuthStore(state => state.user);
     const scope = queryKeys.scope(user);
@@ -69,6 +108,8 @@ function UserManagementPage() {
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingUser, setEditingUser] = useState(null);
+    const [initialFormValues, setInitialFormValues] = useState(null);
+    const [hasFormChanges, setHasFormChanges] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
     const [exporting, setExporting] = useState(false);
@@ -122,6 +163,8 @@ function UserManagementPage() {
 
     const handleAdd = () => {
         setEditingUser(null);
+        setInitialFormValues(null);
+        setHasFormChanges(true);
         form.resetFields();
         form.setFieldsValue({ role: activeRole });
         setIsModalOpen(true);
@@ -169,20 +212,24 @@ function UserManagementPage() {
             else genderVal = g;
         }
 
-        form.setFieldsValue({
-            fullName: record.fullName,
-            email: record.email,
-            code: record.code,
+        const initialValues = {
+            fullName: record.fullName || '',
+            email: record.email || '',
+            code: record.code || '',
             role: record.role,
-            department: record.department,
-            phone: record.phone,
-            academicTitle: record.academicTitle,
-            maxStudents: record.maxStudents,
+            department: record.department || undefined,
+            phone: record.phone || '',
+            academicTitle: record.academicTitle || undefined,
+            maxStudents: record.maxStudents !== undefined && record.maxStudents !== null ? record.maxStudents : undefined,
             gender: genderVal,
             dateOfBirth: parsedDob,
             className: record.studentProfile?.className || '',
             major: record.studentProfile?.major || '',
-        });
+        };
+
+        form.setFieldsValue(initialValues);
+        setInitialFormValues(initialValues);
+        setHasFormChanges(false);
         setIsModalOpen(true);
     };
 
@@ -202,6 +249,9 @@ function UserManagementPage() {
                 if (response.success) {
                     message.success(response.message);
                     setIsModalOpen(false);
+                    setEditingUser(null);
+                    setInitialFormValues(null);
+                    setHasFormChanges(false);
                     if (drawerUser?.id === editingUser.id) {
                         setDrawerUser((prev) => ({
                             ...prev,
@@ -221,11 +271,15 @@ function UserManagementPage() {
                 if (response.success) {
                     message.success(response.message);
                     setIsModalOpen(false);
+                    setEditingUser(null);
+                    setInitialFormValues(null);
+                    setHasFormChanges(false);
                     resetPage();
                 }
             }
         } catch (error) {
-            if (error.message) message.error(error.message);
+            if (error?.errorFields) return;
+            if (error?.message) message.error(error.message);
         } finally {
             setSubmitting(false);
         }
@@ -892,15 +946,35 @@ function UserManagementPage() {
                 }
                 open={isModalOpen}
                 onOk={handleModalOk}
-                onCancel={() => setIsModalOpen(false)}
+                onCancel={() => {
+                    setIsModalOpen(false);
+                    setEditingUser(null);
+                    setInitialFormValues(null);
+                    setHasFormChanges(false);
+                }}
                 okText={editingUser ? 'Lưu thay đổi' : 'Tạo mới'}
                 cancelText="Hủy"
                 confirmLoading={submitting}
+                okButtonProps={{
+                    disabled: editingUser ? (!hasFormChanges || submitting) : submitting,
+                }}
                 width={620}
                 centered
                 destroyOnClose
             >
-                <Form form={form} layout="vertical" className="pt-2">
+                <Form
+                    form={form}
+                    layout="vertical"
+                    className="pt-2"
+                    onValuesChange={() => {
+                        if (!editingUser || !initialFormValues) {
+                            setHasFormChanges(true);
+                            return;
+                        }
+                        const current = form.getFieldsValue(true);
+                        setHasFormChanges(checkUserFormChanged(initialFormValues, current));
+                    }}
+                >
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <Form.Item
                             label={selectedRole === 'STUDENT' ? 'Họ và tên sinh viên (*)' : 'Họ và tên'}
@@ -1023,6 +1097,12 @@ function UserManagementPage() {
                                             allowClear
                                             onChange={(_value) => {
                                                 form.setFieldValue('maxStudents', 10);
+                                                if (editingUser && initialFormValues) {
+                                                    setTimeout(() => {
+                                                        const current = form.getFieldsValue(true);
+                                                        setHasFormChanges(checkUserFormChanged(initialFormValues, current));
+                                                    }, 0);
+                                                }
                                             }}
                                         >
                                             <Select.Option value="THAC_SI">Thạc sĩ</Select.Option>

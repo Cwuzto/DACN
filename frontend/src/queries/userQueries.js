@@ -31,8 +31,12 @@ export const useUserRoleCounts = scope => useQuery({
     queryKey: userKeys.counts(scope),
     queryFn: async () => {
         const roles = ['ADMIN', 'LECTURER', 'STUDENT'];
-        const responses = await Promise.all(roles.map(role => userService.getUsers({ role, page: 1, limit: 1 }).then(requireSuccess)));
-        return Object.fromEntries(roles.map((role, i) => [role, responses[i].pagination.total]));
+        const results = {};
+        for (const role of roles) {
+            const res = await userService.getUsers({ role, page: 1, limit: 1 }).then(requireSuccess);
+            results[role] = res.pagination.total;
+        }
+        return results;
     },
 });
 export const useUserPermissions = (scope, id) => useQuery({
@@ -62,7 +66,9 @@ export const useUserMutation = scope => {
             if (action !== 'permissionGroups') keys.push(userKeys.counts(scope));
             if (id) keys.push(queryKeys.users.detail(scope, id));
             if (action === 'permissionGroups') keys.push(queryKeys.permissions.list(scope, { resource: 'groups' }));
-            await Promise.all(keys.map(queryKey => client.invalidateQueries({ queryKey })));
+            keys.forEach(queryKey => {
+                client.invalidateQueries({ queryKey });
+            });
 
             if (action === 'permissionGroups') {
                 broadcastPermissionsUpdated({

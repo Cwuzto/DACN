@@ -588,6 +588,24 @@ const updateUser = async (req, res, next) => {
         };
 
         if (effectiveRole === 'STUDENT') {
+            const rawDob = req.body.dateOfBirth !== undefined
+                ? req.body.dateOfBirth
+                : (existing.studentProfile?.dateOfBirth || (isRoleChanged ? '01/01/2000' : undefined));
+
+            let normalizedDob = rawDob;
+            if (rawDob instanceof Date && !isNaN(rawDob.getTime())) {
+                const d = String(rawDob.getDate()).padStart(2, '0');
+                const m = String(rawDob.getMonth() + 1).padStart(2, '0');
+                const y = rawDob.getFullYear();
+                normalizedDob = `${d}/${m}/${y}`;
+            } else if (typeof rawDob === 'string') {
+                const trimmed = rawDob.trim();
+                const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                if (isoMatch) {
+                    normalizedDob = `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
+                }
+            }
+
             const mergedPayload = {
                 code: code !== undefined ? code : existing.code,
                 fullName: fullName !== undefined ? fullName : existing.fullName,
@@ -596,9 +614,7 @@ const updateUser = async (req, res, next) => {
                 gender: req.body.gender !== undefined
                     ? req.body.gender
                     : (existing.studentProfile?.gender || (isRoleChanged ? 'OTHER' : undefined)),
-                dateOfBirth: req.body.dateOfBirth !== undefined
-                    ? req.body.dateOfBirth
-                    : (existing.studentProfile?.dateOfBirth || (isRoleChanged ? '01/01/2000' : undefined)),
+                dateOfBirth: normalizedDob,
                 className: (req.body.className || req.body.lop) !== undefined
                     ? (req.body.className || req.body.lop)
                     : (existing.studentProfile?.className || (isRoleChanged ? 'CHUA_PHAN_LOP' : undefined)),
