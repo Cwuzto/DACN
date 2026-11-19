@@ -50,6 +50,7 @@ import {
     UpOutlined,
     EyeOutlined,
     WarningOutlined,
+    ReloadOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
@@ -169,6 +170,30 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
     const currentSemesterObj = useMemo(() => semesters.find((s) => s.id === selectedSemester), [semesters, selectedSemester]);
     const isSemesterCompleted = currentSemesterObj?.status === 'COMPLETED';
 
+    // Target Size Configuration (Quy mô mục tiêu SV / HĐ)
+    const [outlineTargetSize, setOutlineTargetSize] = useState(10);
+    const [defenseTargetSize, setDefenseTargetSize] = useState(() => currentSemesterObj?.defenseCouncilTargetSize || 22);
+
+    useEffect(() => {
+        if (currentSemesterObj?.defenseCouncilTargetSize) {
+            setDefenseTargetSize(currentSemesterObj.defenseCouncilTargetSize);
+        }
+    }, [currentSemesterObj]);
+
+    const isOutlinePhase = councilTypeFilter === 'OUTLINE_REVIEW';
+    const currentTargetSize = isOutlinePhase ? outlineTargetSize : defenseTargetSize;
+
+    const handleTargetSizeChange = (val) => {
+        const num = Number(val);
+        const clamped = Number.isInteger(num) && num > 0 ? Math.min(30, Math.max(1, num)) : (isOutlinePhase ? 10 : 22);
+        if (isOutlinePhase) {
+            setOutlineTargetSize(clamped);
+        } else {
+            setDefenseTargetSize(clamped);
+            defenseForm.setFieldValue('targetSize', clamped);
+        }
+    };
+
     useEffect(() => {
         if (!selectedSemester && semesters.length) {
             const activeSem = semesters.find((s) => s.status === 'ONGOING' || s.status === 'DEFENSE' || s.status === 'REGISTRATION' || s.isActive);
@@ -178,7 +203,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
 
     const handleOpenDefenseConfig = () => {
         const defaultDate = currentSemesterObj?.defenseDate ? dayjs(currentSemesterObj.defenseDate) : null;
-        const defaultTarget = currentSemesterObj?.defenseCouncilTargetSize || 22;
+        const defaultTarget = defenseTargetSize || currentSemesterObj?.defenseCouncilTargetSize || 22;
         defenseForm.setFieldsValue({
             defenseDate: defaultDate,
             rooms: 'P.301, P.302, P.303, P.304, P.305',
@@ -205,11 +230,14 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
             setDefensePreviewLoading(true);
             setDefensePreviewError(null);
 
+            const target = Number(values.targetSize) || defenseTargetSize || 22;
+            setDefenseTargetSize(target);
+
             const payload = {
                 semesterId: Number(selectedSemester),
                 date: values.defenseDate ? dayjs(values.defenseDate).format('YYYY-MM-DD') : undefined,
                 rooms,
-                targetSize: Number(values.targetSize) || 22,
+                targetSize: target,
             };
 
             const res = await councilService.getDefenseAssignmentPreview(payload);
@@ -234,11 +262,15 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
 
     const handleAutoAssign = handleOpenDefenseConfig;
 
-    const handleAutoAssignOutline = async () => {
+    const handleAutoAssignOutline = async (customTargetSize) => {
         if (!selectedSemester) return;
+        const target = customTargetSize !== undefined ? customTargetSize : outlineTargetSize;
         try {
             setSubmitLoading(true);
-            const response = await councilMutation.mutateAsync({ action: 'previewAutoOutlineCouncils', args: [selectedSemester] });
+            const response = await councilMutation.mutateAsync({
+                action: 'previewAutoOutlineCouncils',
+                args: [selectedSemester, target],
+            });
             const previewData = response?.data || response;
             const proposed = previewData?.proposedCouncils || EMPTY_LIST;
             const skipped = previewData?.skippedStudents || EMPTY_LIST;
@@ -328,7 +360,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                 registrationIds: (c.registrations || []).map((r) => r.id),
             }));
 
-            const response = await councilMutation.mutateAsync({ action: 'autoAssignOutlineCouncils', args: [selectedSemester, payload] });
+            const response = await councilMutation.mutateAsync({ action: 'autoAssignOutlineCouncils', args: [selectedSemester, payload, outlineTargetSize] });
             if (response.success) {
                 const createdCouncils = response.data?.createdCouncils ?? payload.length;
                 const assignedStudents = response.data?.assignedStudents ?? 0;
@@ -627,6 +659,11 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
         return { total, assigned, unassigned };
     }, [candidatesForPhase, councilTypeFilter]);
 
+    const estimatedCouncilsForPhase = useMemo(() => {
+        if (!currentTargetSize || currentTargetSize <= 0) return 0;
+        return Math.ceil((candidateStats.unassigned || 0) / currentTargetSize);
+    }, [candidateStats.unassigned, currentTargetSize]);
+
     const unassignedRegistrationOptions = useMemo(
         () => unassignedRegistrations
             .filter((registration) => {
@@ -853,6 +890,29 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                 subtitle={pageSubtitle}
                 actions={
                     <div className="flex items-center gap-2.5 flex-wrap">
+                        {/* Target Size Configuration Control */}
+                        {councilTypeFilter !== 'ALL' && (
+                            <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-300" data-testid="target-size-control">
+                                <span className="text-xs font-semibold text-slate-700 whitespace-nowrap">
+                                    Quy mô mục tiêu:
+                                </span>
+                                <InputNumber
+                                    min={1}
+                                    max={30}
+                                    value={currentTargetSize}
+                                    onChange={handleTargetSizeChange}
+                                    size="small"
+                                    className="w-16 font-bold"
+                                    disabled={!selectedSemester || isSemesterCompleted}
+                                />
+                                <span className="text-xs text-slate-500 font-medium whitespace-nowrap">SV/HĐ</span>
+                                <Tooltip title={`Ước tính cần lập ~${estimatedCouncilsForPhase} hội đồng cho ${candidateStats.unassigned} sinh viên chưa xếp`}>
+                                    <Tag color="cyan" className="m-0 text-[11px] font-mono font-bold">
+                                        ~{estimatedCouncilsForPhase} HĐ
+                                    </Tag>
+                                </Tooltip>
+                            </div>
+                        )}
                         {councilTypeFilter === 'OUTLINE_REVIEW' ? (
                             canManageOutline && (
                                 <Button
@@ -1367,7 +1427,7 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                 filteredCouncils.map((council) => {
                                     const isDefense = council.councilType === 'DEFENSE_COUNCIL';
                                     const assignedCount = council._count?.registrations || council.registrations?.length || council.defenseRegistrations?.length || 0;
-                                    const maxSlots = isDefense ? 22 : 10;
+                                    const maxSlots = isDefense ? (defenseTargetSize || 22) : (outlineTargetSize || 10);
                                     const percent = Math.min(100, Math.round((assignedCount / maxSlots) * 100));
                                     const isComplete = (council.members?.length || 0) === 3;
                                     const chairman = council.members?.find((m) => m.roleInCouncil === 'CHAIRMAN')?.lecturer?.fullName;
@@ -1885,14 +1945,35 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                     )}
 
                     <div className="text-xs text-slate-700 bg-slate-100 p-3 rounded-lg border border-slate-300 flex items-center justify-between flex-wrap gap-2">
-                        <span>
-                            Dự kiến tạo: <strong className="text-teal-900 font-bold">{previewProposedCouncils.length}</strong> hội đồng | Tổng sinh viên: <strong className="text-teal-900 font-bold">{previewProposedCouncils.reduce((sum, c) => sum + (c.registrations?.length || 0), 0)}</strong> SV
-                        </span>
-                        {previewSkippedStudents.length > 0 && (
-                            <span className="text-amber-900 font-bold bg-amber-100 px-2.5 py-0.5 rounded border border-amber-300">
-                                Bỏ qua: {previewSkippedStudents.length} SV chưa đủ điều kiện
+                        <div>
+                            <span>
+                                Dự kiến tạo: <strong className="text-teal-900 font-bold">{previewProposedCouncils.length}</strong> hội đồng | Tổng sinh viên: <strong className="text-teal-900 font-bold">{previewProposedCouncils.reduce((sum, c) => sum + (c.registrations?.length || 0), 0)}</strong> SV | Quy mô mục tiêu: <strong className="text-teal-900 font-bold">{outlineTargetSize} SV/HĐ</strong>
                             </span>
-                        )}
+                            {previewSkippedStudents.length > 0 && (
+                                <span className="text-amber-900 font-bold bg-amber-100 px-2 py-0.5 rounded border border-amber-300 ml-2">
+                                    Bỏ qua: {previewSkippedStudents.length} SV chưa đủ điều kiện
+                                </span>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className="font-semibold text-slate-700 text-xs">Đổi quy mô:</span>
+                            <InputNumber
+                                min={1}
+                                max={30}
+                                size="small"
+                                value={outlineTargetSize}
+                                onChange={handleTargetSizeChange}
+                                className="w-16 font-bold"
+                            />
+                            <Button
+                                size="small"
+                                icon={<ReloadOutlined />}
+                                onClick={() => handleAutoAssignOutline(outlineTargetSize)}
+                                loading={submitLoading}
+                            >
+                                Tạo lại
+                            </Button>
+                        </div>
                     </div>
 
                     {previewProposedCouncils.map((council, idx) => {
@@ -2148,6 +2229,11 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
                                 name="targetSize"
                                 label="Quy mô mục tiêu (SV/HĐ)"
                                 rules={[{ required: true, message: 'Vui lòng nhập quy mô' }]}
+                                extra={
+                                    <div className="text-xs text-slate-500 mt-1">
+                                        Ước tính cần lập ~{Math.ceil((candidateStats.unassigned || 0) / (defenseTargetSize || 22))} hội đồng ({candidateStats.unassigned || 0} sinh viên còn cần xếp).
+                                    </div>
+                                }
                             >
                                 <div className="flex items-center gap-2">
                                     <InputNumber

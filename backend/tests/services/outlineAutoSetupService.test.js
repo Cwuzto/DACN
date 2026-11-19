@@ -495,6 +495,31 @@ describe('outlineAutoSetupService', () => {
             expect(result.warnings[0]).toContain('does not have enough eligible non-conflict lecturers');
             expect(result.proposedCouncils[0].members).toHaveLength(0);
         });
+
+        it('chunks registrations by targetSize when provided in options', async () => {
+            const registrations = Array.from({ length: 5 }, (_, i) => ({
+                id: i + 1,
+                studentId: 10 + i,
+                status: 'BM01_SUBMITTED',
+                outlineCouncilId: null,
+                student: { id: 10 + i, fullName: `SV ${i + 1}`, code: `SV${i + 1}` },
+                topic: { id: i + 1, title: `T${i + 1}`, mentorId: 101, mentor: { id: 101, fullName: 'M1' } },
+            }));
+            mockTx.topicRegistration.findMany.mockResolvedValue(registrations);
+            mockTx.user.findMany.mockResolvedValue([
+                { id: 101, fullName: 'M1' },
+                { id: 201, fullName: 'GV 1' },
+                { id: 202, fullName: 'GV 2' },
+                { id: 203, fullName: 'GV 3' },
+            ]);
+
+            const result = await previewAutoOutlineCouncilSetup(1, mockDb, { targetSize: 2 });
+            expect(result.proposedCouncils).toHaveLength(3);
+            expect(result.proposedCouncils[0].registrations).toHaveLength(2);
+            expect(result.proposedCouncils[1].registrations).toHaveLength(2);
+            expect(result.proposedCouncils[2].registrations).toHaveLength(1);
+            expect(result.targetSize).toBe(2);
+        });
     });
 
     describe('options.proposedCouncils in runAutoOutlineCouncilSetupForSemester', () => {

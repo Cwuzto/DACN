@@ -37,3 +37,26 @@ test('CouncilAssignmentPage renders root without wrapping disabled queries and h
     assert.match(pageSource, /Chưa có đợt đồ án nào/);
     assert.match(pageSource, /\/admin\/project-periods/);
 });
+
+test('CouncilAssignmentPage supports configurable target size for both Outline and Defense councils, and ProjectPeriodPage removes target size setup', () => {
+    const pageSource = read('src/pages/admin/CouncilAssignmentPage.jsx');
+    const periodPageSource = read('src/pages/admin/ProjectPeriodPage.jsx');
+
+    // CouncilAssignmentPage has target size controls
+    assert.match(pageSource, /outlineTargetSize/);
+    assert.match(pageSource, /defenseTargetSize/);
+    assert.match(pageSource, /Quy mô mục tiêu:/);
+    assert.match(pageSource, /estimatedCouncilsForPhase/);
+    assert.match(pageSource, /previewAutoOutlineCouncils/);
+
+    // Outline preview modal supports inline target size adjustment
+    assert.match(pageSource, /Đổi quy mô:/);
+
+    // Defense preview modal supports target size with estimate
+    assert.match(pageSource, /name="targetSize"/);
+    assert.match(pageSource, /Ước tính cần lập/);
+
+    // ProjectPeriodPage must not contain target size form item
+    assert.doesNotMatch(periodPageSource, /name="defenseCouncilTargetSize"/);
+    assert.doesNotMatch(periodPageSource, /Quy mô mục tiêu HĐ bảo vệ/);
+});

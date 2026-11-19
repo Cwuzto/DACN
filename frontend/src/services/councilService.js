@@ -90,9 +90,12 @@ const councilService = {
     },
 
     // Outline Review (BM01) Methods
-    previewAutoOutlineCouncils: async (semesterId) => {
+    previewAutoOutlineCouncils: async (semesterId, targetSize) => {
         try {
-            return await api.post('/councils/auto-assign-outline/preview', { semesterId });
+            return await api.post('/councils/auto-assign-outline/preview', {
+                semesterId,
+                ...(targetSize !== undefined ? { targetSize: Number(targetSize) } : {}),
+            });
         } catch (error) {
             throw wrapServiceError(error, 'Lỗi khi xem trước phân công hội đồng đề cương');
         }

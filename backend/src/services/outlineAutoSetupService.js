@@ -47,11 +47,25 @@ const getNextOutlineCouncilIndex = (councils = []) => {
  *   warnings: string[],
  * }>}
  */
-const previewAutoOutlineCouncilSetup = async (semesterId, db = prisma) => {
+const previewAutoOutlineCouncilSetup = async (semesterId, dbOrOptions = prisma, maybeOptionsOrDb = null) => {
+    let db = prisma;
+    let options = {};
+    if (dbOrOptions && (dbOrOptions.topicRegistration || dbOrOptions.semester || dbOrOptions.$transaction)) {
+        db = dbOrOptions;
+        if (maybeOptionsOrDb && typeof maybeOptionsOrDb === 'object') options = maybeOptionsOrDb;
+    } else if (dbOrOptions && typeof dbOrOptions === 'object') {
+        options = dbOrOptions;
+        db = (maybeOptionsOrDb && (maybeOptionsOrDb.topicRegistration || maybeOptionsOrDb.semester)) ? maybeOptionsOrDb : prisma;
+    }
+
     const parsedSemesterId = Number(semesterId);
     if (!Number.isInteger(parsedSemesterId) || parsedSemesterId <= 0) {
         throw new Error('Mã học kỳ không hợp lệ.');
     }
+
+    const targetSize = (options?.targetSize && Number.isInteger(Number(options.targetSize)) && Number(options.targetSize) > 0)
+        ? Math.min(30, Math.max(1, Number(options.targetSize)))
+        : CHUNK_SIZE;
 
     // Step 0: Verify semester existence
     const semester = await db.semester.findUnique({
@@ -152,10 +166,10 @@ const previewAutoOutlineCouncilSetup = async (semesterId, db = prisma) => {
         });
     });
 
-    // Chunking by <= 10 students
+    // Chunking by <= targetSize students
     const chunks = [];
-    for (let i = 0; i < sortedRegistrations.length; i += CHUNK_SIZE) {
-        chunks.push(sortedRegistrations.slice(i, i + CHUNK_SIZE));
+    for (let i = 0; i < sortedRegistrations.length; i += targetSize) {
+        chunks.push(sortedRegistrations.slice(i, i + targetSize));
     }
 
     const proposedCouncils = [];
@@ -230,6 +244,7 @@ const previewAutoOutlineCouncilSetup = async (semesterId, db = prisma) => {
         proposedCouncils,
         skippedStudents,
         warnings,
+        targetSize,
     };
 };
 
@@ -494,10 +509,14 @@ const runAutoOutlineCouncilSetupForSemester = async (semesterId, options = {}, d
                 });
             });
 
-            // Chunking by <= 10 students
+            const targetSize = (options?.targetSize && Number.isInteger(Number(options.targetSize)) && Number(options.targetSize) > 0)
+                ? Math.min(30, Math.max(1, Number(options.targetSize)))
+                : CHUNK_SIZE;
+
+            // Chunking by <= targetSize students
             const chunks = [];
-            for (let i = 0; i < sortedRegistrations.length; i += CHUNK_SIZE) {
-                chunks.push(sortedRegistrations.slice(i, i + CHUNK_SIZE));
+            for (let i = 0; i < sortedRegistrations.length; i += targetSize) {
+                chunks.push(sortedRegistrations.slice(i, i + targetSize));
             }
 
             for (const chunk of chunks) {

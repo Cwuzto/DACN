@@ -1202,7 +1202,10 @@ const deleteCouncil = async (req, res, next) => {
 const previewAutoAssignOutlineCouncils = async (req, res, next) => {
     try {
         const semesterId = parseInt(req.body.semesterId, 10);
-        const result = await previewAutoOutlineCouncilSetup(semesterId);
+        const targetSize = req.body.targetSize !== undefined ? Number(req.body.targetSize) : undefined;
+        const result = targetSize !== undefined
+            ? await previewAutoOutlineCouncilSetup(semesterId, { targetSize })
+            : await previewAutoOutlineCouncilSetup(semesterId);
 
         res.status(200).json({
             success: true,
@@ -1216,6 +1219,7 @@ const previewAutoAssignOutlineCouncils = async (req, res, next) => {
 const autoAssignOutlineCouncils = async (req, res, next) => {
     try {
         const semesterId = parseInt(req.body.semesterId, 10);
+        const targetSize = req.body.targetSize !== undefined ? Number(req.body.targetSize) : undefined;
         const sem = await prisma.semester.findUnique({
             where: { id: semesterId },
             select: { id: true, status: true },
@@ -1230,6 +1234,7 @@ const autoAssignOutlineCouncils = async (req, res, next) => {
 
         const result = await runAutoOutlineCouncilSetupForSemester(semesterId, {
             proposedCouncils: req.body.proposedCouncils,
+            targetSize,
             actorId: req.user.id,
             ipAddress: getRequestIp(req),
         });

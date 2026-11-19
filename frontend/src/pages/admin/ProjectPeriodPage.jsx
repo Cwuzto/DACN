@@ -375,25 +375,9 @@ function ProjectPeriodPage() {
     const [uploadedTemplateName, setUploadedTemplateName] = useState(null);
 
     const editingSemesterId = Form.useWatch('id', form);
-    const watchedTargetSize = Form.useWatch('defenseCouncilTargetSize', form);
-    const effectiveTargetSize = watchedTargetSize ? Number(watchedTargetSize) : 22;
     const watchedOutlineTemplateFileUrl = Form.useWatch('outlineTemplateFileUrl', form);
     const watchedOutlineTemplateAssetId = Form.useWatch('outlineTemplateAssetId', form);
     const hasConfiguredTemplate = Boolean(watchedOutlineTemplateFileUrl || watchedOutlineTemplateAssetId || uploadedTemplateName);
-
-    const remainingEligibleCount = useMemo(() => {
-        if (!editingSemesterId) return 0;
-        return allRegistrations.filter((r) => {
-            if (Number(r.semesterId) !== Number(editingSemesterId)) return false;
-            if (['DROPPED', 'WITHDRAWN', 'CANCELLED', 'REJECTED'].includes(r.status)) return false;
-            return !r.defenseCouncilId && !r.councilId;
-        }).length;
-    }, [allRegistrations, editingSemesterId]);
-
-    const estimatedCouncilCount = useMemo(() => {
-        if (!effectiveTargetSize || effectiveTargetSize <= 0) return 0;
-        return Math.ceil(remainingEligibleCount / effectiveTargetSize);
-    }, [remainingEligibleCount, effectiveTargetSize]);
 
     const [decisionModalVisible, setDecisionModalVisible] = useState(false);
     const [decisionPeriod, setDecisionPeriod] = useState(null);
@@ -785,7 +769,6 @@ function ProjectPeriodPage() {
             outlineAllowedFormat: 'pdf',
             bm03MidtermEvaluationOpenAt: null,
             bm03FinalizationOpenAt: null,
-            defenseCouncilTargetSize: 22,
             outlineSubmissionOpenAt: null,
             outlineSubmissionDeadline: null,
             outlineTemplateAssetId: null,
@@ -807,7 +790,6 @@ function ProjectPeriodPage() {
             academicStartYear: startYear,
             status: period.rawData.status,
             registrationOpen: period.rawData.registrationOpen,
-            defenseCouncilTargetSize: period.rawData?.defenseCouncilTargetSize ?? 22,
             startDate: dayjs(period.rawData.startDate),
             endDate: dayjs(period.rawData.endDate),
             registrationDeadline: period.rawData.registrationDeadline
@@ -849,7 +831,6 @@ function ProjectPeriodPage() {
             academicStartYear: targetYear,
             status: 'UPCOMING',
             registrationOpen: period.rawData.registrationOpen,
-            defenseCouncilTargetSize: period.rawData?.defenseCouncilTargetSize ?? 22,
             startDate: dayjs(period.rawData.startDate).add(1, 'year'),
             endDate: dayjs(period.rawData.endDate).add(1, 'year'),
             registrationDeadline: period.rawData.registrationDeadline
@@ -916,7 +897,6 @@ function ProjectPeriodPage() {
                 }),
                 status: values.status,
                 registrationOpen: !!values.registrationOpen,
-                defenseCouncilTargetSize: values.defenseCouncilTargetSize !== undefined ? Number(values.defenseCouncilTargetSize) : 22,
                 startDate: values.startDate.toISOString(),
                 endDate: values.endDate.toISOString(),
                 registrationDeadline: values.registrationDeadline.toISOString(),
@@ -1508,9 +1488,6 @@ function ProjectPeriodPage() {
                     layout="vertical"
                     name="project_period_form"
                     style={{ marginTop: 16 }}
-                    initialValues={{
-                        defenseCouncilTargetSize: 22,
-                    }}
                     onValuesChange={(changedValues, allValues) => {
                         if (modalMode === 'add' && (changedValues.term || changedValues.academicStartYear)) {
                             const term = allValues.term || 1;
@@ -1596,39 +1573,9 @@ function ProjectPeriodPage() {
                         </Col>
                     </Row>
                     <Row gutter={16}>
-                        <Col span={12}>
+                        <Col span={24}>
                             <Form.Item name="defenseDate" label="Ngày dự kiến bảo vệ">
                                 <DatePicker format="DD/MM/YYYY" style={{ width: '100%' }} />
-                            </Form.Item>
-                        </Col>
-                        <Col span={12}>
-                            <Form.Item
-                                name="defenseCouncilTargetSize"
-                                label="Quy mô mục tiêu HĐ bảo vệ"
-                                tooltip="Quy mô mục tiêu số lượng sinh viên mỗi hội đồng bảo vệ (từ 1 đến 30 sinh viên, mặc định 22). Trần cứng tối đa 30 sinh viên/hội đồng."
-                                rules={[
-                                    { required: true, message: 'Vui lòng nhập quy mô mục tiêu HĐ bảo vệ' },
-                                    {
-                                        type: 'integer',
-                                        min: 1,
-                                        max: 30,
-                                        message: 'Quy mô mục tiêu phải là số nguyên từ 1 đến 30',
-                                    },
-                                ]}
-                                extra={
-                                    <div className="text-xs text-slate-500 mt-1" data-testid="defense-council-estimate">
-                                        <span>
-                                            Ước tính số hội đồng cần lập: <strong>{estimatedCouncilCount}</strong> hội đồng ({remainingEligibleCount} sinh viên còn cần xếp, ước tính chưa gồm ràng buộc phòng/chuyên môn)
-                                        </span>
-                                    </div>
-                                }
-                            >
-                                <InputNumber
-                                    min={1}
-                                    max={30}
-                                    style={{ width: '100%' }}
-                                    placeholder="Mặc định 22 (từ 1 đến 30)"
-                                />
                             </Form.Item>
                         </Col>
                     </Row>
