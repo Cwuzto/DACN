@@ -3431,6 +3431,48 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
 3. **Triệt tiêu False-Positive cảnh báo trễ sau khi đã hoàn thành BM03**:
    - Khi sinh viên đã hoàn thành cả 3 mốc gặp BM03 (24/8, 21/9, 19/10), GVHD đã ký đóng sổ BM03 (`advisorSignedAt`) và sinh viên đã xác nhận, chu kỳ gặp mặt định kỳ đã khép lại và chuyển sang giai đoạn thẩm định BM04. Hệ thống không được phép tính khoảng cách ngày từ buổi gặp cuối cùng (`daysSinceLastMeeting > 21`) để báo lỗi trễ tiến độ, mà phải cập nhật trạng thái `BM03_PASSED` và hiển thị nhãn `Chờ duyệt BM04`.
 
+---
+
+### Phiên 19/11/2026 — Đồng Bộ Thước Đo Chỉ Tiêu Hướng Dẫn (Quota Meter) Trên Menu Trái Với Số Lượng Thực Tế Đang Hướng Dẫn
+
+#### 1. Những phần đã hoàn thành
+1. **Tìm ra và khắc phục nguyên nhân gốc rễ lỗi lệch chỉ tiêu trên Sidebar (`frontend/src/components/layout/AppLayout.jsx`)**:
+   - **Nguyên nhân gốc rễ**: Trong `AppLayout.jsx`, `lecturerStudentCount` ban đầu được tính bằng cách duyệt danh sách `registrationsQuery.data` và kiểm tra điều kiện `r.topic?.lecturerId === user?.id || r.topic?.lecturer?.id === user?.id`. Tuy nhiên, trong CSDL Prisma và schema của hệ thống, thực thể `Topic` có quan hệ với giảng viên qua trường `mentorId` / `mentor`, không hề tồn tại `lecturerId` hay `lecturer`. Do đó, điều kiện luôn trả về `false`/`undefined`, dẫn đến `lecturerStudentCount` luôn bị gán bằng `0` (ví dụ: hiển thị 0/10 dù giảng viên đang hướng dẫn 7 sinh viên).
+   - Ngoài ra, việc gọi `useRegistrations` không truyền `periodId` sẽ lấy toàn bộ các học kỳ không giới hạn, không đồng bộ với học kỳ hiện tại (`currentSemester`).
+2. **Chuẩn hóa nguồn dữ liệu chỉ tiêu hướng dẫn qua `useLecturerOverview` (Single Source of Truth)**:
+   - Thay thế việc tính toán thủ công bằng cách sử dụng `useLecturerOverview(scope, null, showQuotaMeter)` (chung React Query cache với `LecturerDashboardPage` và `LecturerStudentsPage`). Backend đã tính toán và trả về chính xác số liệu `mentorSummary.supervisedCount` và `mentorSummary.maxStudents` theo học kỳ đang kích hoạt.
+   - Cơ chế fallback an toàn: Nếu cache chưa sẵn sàng, hệ thống lọc qua `registrationsQuery.data` bằng cả 4 trường chuẩn: `r.topic?.mentorId === user?.id || r.topic?.mentor?.id === user?.id || r.mentorId === user?.id || r.mentor?.id === user?.id` và chỉ tính trong học kỳ hiện hành (`r.period?.semesterId === currentSemester?.id`).
+   - Lấy động `lecturerMaxQuota = overviewQuery.data?.mentorSummary?.maxStudents ?? user?.maxStudents ?? 10` thay vì hardcode 10.
+3. **Cập nhật component `NavContent.jsx` và `QuotaMeter.jsx`**:
+   - `NavContent.jsx`: Nhận `lecturerMaxQuota` từ props và truyền vào prop `max` của `<QuotaMeter />`.
+   - `QuotaMeter.jsx`: Cải tiến hiển thị văn bản động `isFull ? 'Đã đủ ' + safeMax + '/' + safeMax : 'Còn ' + remaining + ' chỗ'` thay vì cố định `10/10`.
+4. **Cập nhật & Kiểm thử tự động**:
+   - `frontend/tests/appLayoutNavigationActive.test.js`: Cập nhật kiểm tra `aria-current="page"` bao gồm cả `NavContent.jsx` sau khi tách file navigation.
+   - Chạy test tự động: 3/3 tests PASS.
+   - Kiểm thử thực tế bằng Puppeteer headless browser:
+     * Đăng nhập tài khoản `gv001@tdmu.edu.vn`.
+     * Kiểm tra `/lecturer/dashboard` $\rightarrow$ Thước đo menu trái hiển thị chính xác: `Chỉ tiêu hướng dẫn: 7 / 10 SV (Còn 3 chỗ)`, khớp 100% với KPI tổng quan (7/10) và danh sách sinh viên thực tế (7 sinh viên).
+     * Kiểm tra `/lecturer/students` $\rightarrow$ Thước đo menu trái hiển thị chính xác: `Chỉ tiêu hướng dẫn: 7 / 10 SV (Còn 3 chỗ)`.
+   - Build Vite Production thành công 100% không cảnh báo/lỗi (18.39s).
+   - Đảm bảo 100% UTF-8 without BOM (Rule 2.4) và Rule 2.6 (không emoji/ký tự thô trong button label).
+
+#### 2. Trạng thái cập nhật của từng phần
+- **Database/Prisma**: `STABLE`; Cấu trúc `Topic.mentorId` và `TopicRegistration.topic.mentor`.
+- **Backend API**: `RUNNING (Port 5000)`; Endpoint `/api/dashboard/lecturer-overview` cung cấp `mentorSummary` chính xác theo học kỳ hoạt động.
+- **Frontend SPA**: `RUNNING (Port 5173)`; Thước đo chỉ tiêu trên menu trái (`QuotaMeter`) đồng bộ hoàn toàn với dữ liệu thực tế của giảng viên.
+- **Quy chuẩn mã hóa & nút bấm**: Tuân thủ 100% Rule 2.4 & Rule 2.6.
+
+#### 3. Bước tiếp theo cần làm (Next Session Plan)
+1. Thử nghiệm trên các tài khoản giảng viên khác (ví dụ giảng viên chưa nhận sinh viên nào `0/10`, hoặc giảng viên đã đủ chỉ tiêu `10/10`) để kiểm tra trạng thái hiển thị của thanh tiến trình (`normal`, `exception`).
+2. Sẵn sàng tiếp nhận các yêu cầu tiếp theo từ người dùng.
+
+#### 4. Quyết định quan trọng (Decisions & Rationale)
+1. **Sử dụng `useLecturerOverview` làm nguồn sự thật duy nhất (Single Source of Truth)**:
+   - Thay vì truy vấn danh sách thô và lọc ở client bằng logic riêng dễ sinh lỗi không đồng nhất, việc tái sử dụng hook `useLecturerOverview` giúp chia sẻ cache của React Query với trang Dashboard và trang Danh sách sinh viên. Điều này đảm bảo số liệu ở menu trái và nội dung trang luôn đồng nhất tuyệt đối, đồng thời giảm số lượng HTTP request gửi tới server.
+2. **Fallback đúng chuẩn dữ liệu `mentorId`**:
+   - Trong schema Prisma, thực thể `Topic` liên kết với giảng viên hướng dẫn qua quan hệ `mentorId` / `mentor` (User relation "MentoredBy"). Việc sửa dứt điểm các tham chiếu cũ `lecturerId` sang `mentorId` ngăn chặn hoàn toàn lỗi đếm sinh viên bằng 0.
+
+
 
 
 
