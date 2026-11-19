@@ -6,7 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { isNavigationItemActive } from '../src/auth/policyEvaluator.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const appLayoutSource = fs.readFileSync(path.join(root, 'src/components/layout/AppLayout.jsx'), 'utf8');
+const appLayoutSource = fs.readFileSync(path.join(root, 'src/components/layout/AppLayout.jsx'), 'utf8') +
+    fs.readFileSync(path.join(root, 'src/components/layout/NavContent.jsx'), 'utf8');
 
 test('AppLayout uses isNavigationItemActive from policyEvaluator and sets aria-current="page"', () => {
     assert.match(

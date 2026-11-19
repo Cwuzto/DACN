@@ -17,6 +17,7 @@ function NavContent({
     isVienTruong,
     showQuotaMeter,
     lecturerStudentCount,
+    lecturerMaxQuota = 10,
     dashboardPath,
     profilePath,
     visibleGroups = [],
@@ -124,7 +125,7 @@ function NavContent({
                 <div className="px-4 py-2">
                     <QuotaMeter
                         current={lecturerStudentCount}
-                        max={10}
+                        max={lecturerMaxQuota}
                         label="Chỉ tiêu hướng dẫn"
                         showPercentage={true}
                     />

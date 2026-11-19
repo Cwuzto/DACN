@@ -58,7 +58,7 @@ export default function QuotaMeter({
                     <span className={`font-mono font-semibold ${statusColor}`}>
                         {safeCurrent} / {safeMax} SV{' '}
                         <span className="text-[11px] font-normal text-slate-500">
-                            ({isFull ? 'Đã đủ 10/10' : `Còn ${remaining} chỗ`})
+                            ({isFull ? `Đã đủ ${safeMax}/${safeMax}` : `Còn ${remaining} chỗ`})
                         </span>
                     </span>
                 </div>

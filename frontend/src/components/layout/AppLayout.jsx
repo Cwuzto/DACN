@@ -20,6 +20,7 @@ import { queryKeys } from '../../query/queryKeys';
 import { useMyNotifications } from '../../queries/notificationQueries';
 import { useSemesters, usePublicSemesters } from '../../queries/semesterQueries';
 import { useRegistrations } from '../../queries/registrationQueries';
+import { useLecturerOverview } from '../../queries/dashboardQueries';
 
 /**
  * AppLayout - Dynamic 7-Group Academic Layout
@@ -181,20 +182,44 @@ function AppLayout({ role }) {
     // Resolve effective permissions
     const permissionSet = useMemo(() => new Set(user?.permissions || []), [user?.permissions]);
 
-    // Capability check for QuotaMeter widget
+    // Capability check for QuotaMeter widget (Lecturers with topic/mentoring permissions)
+    const isLecturerUser = user?.role === 'LECTURER';
     const showQuotaMeter = useMemo(() => {
-        return permissionSet.has('TOPIC_CREATE') || permissionSet.has('MENTOR_REQUEST_REVIEW');
-    }, [permissionSet]);
+        return isLecturerUser && (permissionSet.has('TOPIC_CREATE') || permissionSet.has('MENTOR_REQUEST_REVIEW'));
+    }, [isLecturerUser, permissionSet]);
 
-    const registrationsQuery = useRegistrations(scope, {}, showQuotaMeter);
+    const overviewQuery = useLecturerOverview(scope, null, showQuotaMeter);
+    const registrationsQuery = useRegistrations(scope, {}, showQuotaMeter && !overviewQuery.data);
+
     const lecturerStudentCount = useMemo(() => {
-        if (!showQuotaMeter || !Array.isArray(registrationsQuery.data)) return 0;
-        return registrationsQuery.data.filter(
-            (r) =>
-                (r.topic?.lecturerId === user?.id || r.topic?.lecturer?.id === user?.id) &&
-                !['REJECTED', 'DROPPED', 'WITHDRAWN'].includes(r.status)
-        ).length;
-    }, [showQuotaMeter, registrationsQuery.data, user?.id]);
+        if (!showQuotaMeter) return 0;
+        // Priority 1: Direct unified lecturer overview (single source of truth with dashboard and student page)
+        if (overviewQuery.data?.mentorSummary?.supervisedCount !== undefined) {
+            return overviewQuery.data.mentorSummary.supervisedCount;
+        }
+        if (Array.isArray(overviewQuery.data?.students)) {
+            return overviewQuery.data.students.length;
+        }
+        // Priority 2: Fallback to registrations query
+        if (Array.isArray(registrationsQuery.data)) {
+            return registrationsQuery.data.filter(
+                (r) =>
+                    (r.topic?.mentorId === user?.id ||
+                        r.topic?.mentor?.id === user?.id ||
+                        r.mentorId === user?.id ||
+                        r.mentor?.id === user?.id ||
+                        r.topic?.lecturerId === user?.id ||
+                        r.topic?.lecturer?.id === user?.id) &&
+                    (!currentSemester?.id || r.semesterId === currentSemester.id) &&
+                    !['REJECTED', 'DROPPED', 'WITHDRAWN'].includes(r.status)
+            ).length;
+        }
+        return 0;
+    }, [showQuotaMeter, overviewQuery.data, registrationsQuery.data, user?.id, currentSemester?.id]);
+
+    const lecturerMaxQuota = useMemo(() => {
+        return overviewQuery.data?.mentorSummary?.maxStudents ?? user?.maxStudents ?? 10;
+    }, [overviewQuery.data?.mentorSummary?.maxStudents, user?.maxStudents]);
 
     // Determine role and navigation endpoints
     const currentRole = role || user?.role || 'STUDENT';
@@ -245,6 +270,7 @@ function AppLayout({ role }) {
         isVienTruong,
         showQuotaMeter,
         lecturerStudentCount,
+        lecturerMaxQuota,
         dashboardPath,
         profilePath,
         visibleGroups,
