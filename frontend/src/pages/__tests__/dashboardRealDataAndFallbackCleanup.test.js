@@ -119,7 +119,7 @@ test('Task 5: ProgressTrackingPage eliminates fake progress (75) and fake meetin
 test('Task 5: DashboardPage eliminates triage fake numbers (14, 4, 2) and fake score distribution', () => {
     const adminDashSrc = read('frontend/src/pages/admin/DashboardPage.jsx');
 
-    // 1. Elimination of triage fallbacks 14, 4, 2
+    // 1. Elimination of triage fallbacks 14, 4, 2 and static triage cards
     assert.ok(
         !adminDashSrc.includes('?? 14'),
         'DashboardPage must not fall back to fake 14 pending registrations'
@@ -134,18 +134,8 @@ test('Task 5: DashboardPage eliminates triage fake numbers (14, 4, 2) and fake s
     );
     assert.match(
         adminDashSrc,
-        /pendingTopicCount\s*=\s*semesterOverview\?\.registrations\?\.pending\s*\?\?\s*stats\?\.pendingRegistrations\s*\?\?\s*0/,
-        'pendingTopicCount must fall back to 0'
-    );
-    assert.match(
-        adminDashSrc,
-        /unassignedCount\s*=\s*stats\?\.unassignedRegistrations\s*\?\?\s*0/,
-        'unassignedCount must fall back to 0'
-    );
-    assert.match(
-        adminDashSrc,
-        /upcomingDefensesCount\s*=\s*stats\?\.upcomingDefenses\s*\?\?\s*0/,
-        'upcomingDefensesCount must fall back to 0'
+        /useAdminDashboardActions/,
+        'DashboardPage must read action cards from useAdminDashboardActions'
     );
 
     // 2. Elimination of 4-level mock score distribution
@@ -162,7 +152,7 @@ test('Task 5: DashboardPage eliminates triage fake numbers (14, 4, 2) and fake s
 
 test('Admin Dashboard reads independent scoped server panels without effect-level fallback data', () => {
     const src = read('frontend/src/pages/admin/DashboardPage.jsx');
-    for (const hook of ['useDashboardStats', 'useDashboardScores', 'useDashboardActivities', 'useDashboardOverview', 'useSemesters']) {
+    for (const hook of ['useAdminDashboardActions', 'useDashboardStats', 'useDashboardScores', 'useDashboardActivities', 'useDashboardOverview', 'useSemesters']) {
         assert.ok(src.includes(hook));
     }
     assert.doesNotMatch(src, /Promise\.all|setStats|setScoreDistribution|setActivities/);

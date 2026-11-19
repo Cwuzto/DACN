@@ -1,4 +1,4 @@
-import api from './api';
+import api from './api.js';
 
 const wrapServiceError = (error, fallbackMessage) => {
     if (error?.success === false) return error;
@@ -6,11 +6,20 @@ const wrapServiceError = (error, fallbackMessage) => {
 };
 
 const dashboardService = {
-    getStats: async () => {
+    getStats: async (semesterId = null) => {
         try {
-            return await api.get('/dashboard/stats');
+            const config = semesterId ? { params: { semesterId } } : undefined;
+            return await api.get('/dashboard/stats', config);
         } catch (error) {
             throw wrapServiceError(error, 'Lỗi tải thống kê tổng quan');
+        }
+    },
+
+    getAdminActions: async (semesterId) => {
+        try {
+            return await api.get('/dashboard/admin-actions', { params: { semesterId } });
+        } catch (error) {
+            throw wrapServiceError(error, 'Lỗi tải danh sách việc cần xử lý');
         }
     },
 
@@ -30,17 +39,19 @@ const dashboardService = {
         }
     },
 
-    getScores: async () => {
+    getScores: async (semesterId = null) => {
         try {
-            return await api.get('/dashboard/scores');
+            const config = semesterId ? { params: { semesterId } } : undefined;
+            return await api.get('/dashboard/scores', config);
         } catch (error) {
             throw wrapServiceError(error, 'Lỗi tải phân bố điểm');
         }
     },
 
-    getActivities: async () => {
+    getActivities: async (semesterId = null) => {
         try {
-            return await api.get('/dashboard/activities');
+            const config = semesterId ? { params: { semesterId } } : undefined;
+            return await api.get('/dashboard/activities', config);
         } catch (error) {
             throw wrapServiceError(error, 'Lỗi tải hoạt động gần đây');
         }

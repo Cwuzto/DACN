@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
     Table, Button, Input, Select, Drawer, Tooltip, Modal, Form, Space,
     Popconfirm, message, Tag, Avatar,
@@ -33,13 +34,33 @@ const STATUS_TABS = [
 ];
 
 function TopicManagementPage() {
+    const [searchParams] = useSearchParams();
     const user = useAuthStore((state) => state.user);
     const scope = queryKeys.scope(user);
 
     const [searchText, setSearchText] = useState('');
-    const [statusFilter, setStatusFilter] = useState('all');
+    const [statusFilter, setStatusFilter] = useState(() => {
+        const rawStatus = searchParams.get('status');
+        return rawStatus && STATUS_TABS.some((tab) => tab.key === rawStatus) ? rawStatus : 'all';
+    });
     const [catalogFilter, setCatalogFilter] = useState('all');
-    const [semesterFilter, setSemesterFilter] = useState('all');
+    const [semesterFilter, setSemesterFilter] = useState(() => {
+        const rawSemesterId = searchParams.get('semesterId');
+        const parsed = rawSemesterId ? Number(rawSemesterId) : null;
+        return Number.isInteger(parsed) && parsed > 0 ? parsed : 'all';
+    });
+
+    useEffect(() => {
+        const rawStatus = searchParams.get('status');
+        if (rawStatus && STATUS_TABS.some((tab) => tab.key === rawStatus)) {
+            setStatusFilter(rawStatus);
+        }
+        const rawSemesterId = searchParams.get('semesterId');
+        const parsed = rawSemesterId ? Number(rawSemesterId) : null;
+        if (Number.isInteger(parsed) && parsed > 0) {
+            setSemesterFilter(parsed);
+        }
+    }, [searchParams]);
 
     const topicsQuery = useTopics(scope);
     const topicMutation = useTopicMutation(scope);

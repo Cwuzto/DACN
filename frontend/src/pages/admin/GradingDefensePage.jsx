@@ -140,7 +140,11 @@ export default function GradingDefensePage() {
 
     const [searchText, setSearchText] = useState('');
     const [debouncedSearchText, setDebouncedSearchText] = useState('');
-    const [selectedSemesterId, setSelectedSemesterId] = useState(undefined);
+    const [selectedSemesterId, setSelectedSemesterId] = useState(() => {
+        const raw = searchParams.get('semesterId');
+        const parsed = raw ? Number(raw) : undefined;
+        return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+    });
     const [selectedCouncilId, setSelectedCouncilId] = useState('');
     const [selectedGradeFilter, setSelectedGradeFilter] = useState('');
 

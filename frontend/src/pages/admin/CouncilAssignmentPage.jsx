@@ -6,7 +6,7 @@ import QueryPanel from '../../components/common/QueryPanel';
 import AuthorizedAction from '../../components/common/AuthorizedAction';
 import { canPerformFeatureAction } from '../../auth/policyEvaluator';
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
     Alert,
     Button,
@@ -88,7 +88,12 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
         : forcedCouncilType === 'DEFENSE_COUNCIL'
             ? canManageDefense
             : (canManageOutline || canManageDefense);
-    const [selectedSemester, setSelectedSemester] = useState(null);
+    const [searchParams] = useSearchParams();
+    const [selectedSemester, setSelectedSemester] = useState(() => {
+        const raw = searchParams.get('semesterId');
+        const parsed = raw ? Number(raw) : null;
+        return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+    });
     const [selectedProjectName, setSelectedProjectName] = useState(PROJECT_NAME);
     const [councilTypeFilter, setCouncilTypeFilter] = useState(() => (
         forcedCouncilType || (canManageDefense ? 'DEFENSE_COUNCIL' : 'OUTLINE_REVIEW')
@@ -193,6 +198,14 @@ function CouncilAssignmentPage({ forcedCouncilType }) {
             defenseForm.setFieldValue('targetSize', clamped);
         }
     };
+
+    useEffect(() => {
+        const raw = searchParams.get('semesterId');
+        const parsed = raw ? Number(raw) : null;
+        if (Number.isInteger(parsed) && parsed > 0) {
+            setSelectedSemester((prev) => (prev === parsed ? prev : parsed));
+        }
+    }, [searchParams]);
 
     useEffect(() => {
         if (!selectedSemester && semesters.length) {
