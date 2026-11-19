@@ -94,6 +94,8 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
      * [ProfileQuickMetrics.jsx](file:///d:/DACN/frontend/src/components/profile/ProfileQuickMetrics.jsx): 4 thẻ thông số nhanh tại trang Hồ sơ cá nhân.
      * [ProjectEnrollmentPage.jsx](file:///d:/DACN/frontend/src/pages/admin/ProjectEnrollmentPage.jsx) & [ProjectOversightPage.jsx](file:///d:/DACN/frontend/src/pages/admin/ProjectOversightPage.jsx): Các thẻ radar cảnh báo và kiểm tra bất thường.
      * [index.css](file:///d:/DACN/frontend/src/index.css) & [admin-opendesign.css](file:///d:/DACN/frontend/src/pages/admin/admin-opendesign.css): Chuẩn hóa class `.kpi-stat-card`, `.kpi-stat-val`, `.kpi-stat-sub`, `.eyebrow`.
+3. **Tinh Chỉnh Copywriting Chế Độ Xem Danh Sách Sinh Viên (`SupervisedStudentList.jsx`)**:
+   - Đổi nhãn `Segmented` từ kỹ thuật thuật ngữ (`Thẻ Bento` / `Bảng dữ liệu`) sang từ ngữ học vụ tự nhiên, thân thiện: **`Dạng thẻ`** và **`Dạng bảng`**.
 
 #### 2. Trạng thái cập nhật của từng phần
 - **Frontend SPA**:
@@ -461,6 +463,8 @@ Chi tiết thiết kế và kế hoạch đã được phê duyệt tại:
      * [ProfileQuickMetrics.jsx](file:///d:/DACN/frontend/src/components/profile/ProfileQuickMetrics.jsx): 4 thẻ thông số nhanh tại trang Hồ sơ cá nhân.
      * [ProjectEnrollmentPage.jsx](file:///d:/DACN/frontend/src/pages/admin/ProjectEnrollmentPage.jsx) & [ProjectOversightPage.jsx](file:///d:/DACN/frontend/src/pages/admin/ProjectOversightPage.jsx): Các thẻ radar cảnh báo và kiểm tra bất thường.
      * [index.css](file:///d:/DACN/frontend/src/index.css) & [admin-opendesign.css](file:///d:/DACN/frontend/src/pages/admin/admin-opendesign.css): Chuẩn hóa class `.kpi-stat-card`, `.kpi-stat-val`, `.kpi-stat-sub`, `.eyebrow`.
+3. **Tinh Chỉnh Copywriting Chế Độ Xem Danh Sách Sinh Viên (`SupervisedStudentList.jsx`)**:
+   - Đổi nhãn `Segmented` từ kỹ thuật thuật ngữ (`Thẻ Bento` / `Bảng dữ liệu`) sang từ ngữ học vụ tự nhiên, thân thiện: **`Dạng thẻ`** và **`Dạng bảng`**.
 
 #### 2. Trạng thái cập nhật của từng phần
 - **Frontend SPA**:
