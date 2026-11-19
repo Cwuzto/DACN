@@ -96,3 +96,4 @@ describe('ClearanceCertificateModal Contract', () => {
         expect(screen.getByRole('button', { name: /Tải Giấy xác nhận PDF/ })).toBeInTheDocument();
     });
 });
+
